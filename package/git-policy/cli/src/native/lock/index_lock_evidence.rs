@@ -376,6 +376,7 @@ pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -
 /// Why:
 ///   `classifyIndexLock`:
 ///  an open holder first,
+///  then a descriptor the scan could not identify,
 ///  then a PID file naming a running Git,
 ///  then one naming a gone process,
 ///  and anything else is evidence-free.
@@ -400,6 +401,8 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
             command: holder.command.clone(),
         };
     }
+    // A holder the scan could not identify may be alive, so a pid file's absent number is no proof the owner is
+    // gone: the commit waits to its ceiling, as it does for a live holder (cross-vendor review of 2026-11-09, finding 4).
     match &evidence.pid_file {
         PidFile::Owner(pid, process) if process.names_git() => {
             return Verdict::ProvenAlive {
@@ -408,7 +411,9 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
                 command: process.command.clone(),
             };
         }
-        PidFile::Owner(pid, process) if process.gone() => return Verdict::Dead(*pid),
+        PidFile::Owner(pid, process) if process.gone() && !evidence.holders.as_ref().is_some_and(HolderEvidence::unresolved) => {
+            return Verdict::Dead(*pid);
+        }
         _ => return Verdict::EvidenceFree,
     }
 }

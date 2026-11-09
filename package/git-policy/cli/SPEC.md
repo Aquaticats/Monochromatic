@@ -295,7 +295,11 @@ and the value is checked and ignored.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's wait for a foreign `index.lock` replaced it:
   a holder proven alive and an owner nothing proves alive are both
-  waited for until the lock ceiling ("Every wait has a bound"),
+  waited for until the lock ceiling ("Every wait has a bound",
+  and a descriptor whose record names the lock and which the scan could not identify keeps a PID file's absent number from
+  declaring the owner dead:
+  that holder may be alive,
+  so the wait is the one a live holder gets).
   except an empty lock with no marker,
   no PID file and no holder a complete scan finds,
   which the service removes (owner,

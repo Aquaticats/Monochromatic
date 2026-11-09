@@ -449,3 +449,33 @@ fn many_unreadable_processes_are_summarized_in_the_wait_line() {
     assert!(line.contains("PID 0: Permission denied"), "{line}");
     assert!(!line.contains("PID 100: Permission denied"), "a line that lists every reason is not a summary: {line}");
 }
+
+/// A scan that could not identify a descriptor whose record names the lock.
+fn one_unresolvable(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
+    return HolderEvidence {
+        method: "proc-fd",
+        holders: Vec::new(),
+        partial: Vec::new(),
+        unresolvable: vec![String::from("PID 4242 fd 3: its mount is a `fuse` file system, whose attributes are not in the memory of this kernel, so the file is not read")],
+    };
+}
+
+/// A PID file naming a number this namespace does not have is no proof that the owner is dead while the scan could not
+/// identify a descriptor that names the lock:
+/// the holder may be alive,
+/// so the verdict is evidence-free and the commit waits within its ceiling as it does for a live holder
+/// (cross-vendor review of 2026-11-09,
+/// finding 4).
+#[test]
+fn an_unidentified_holder_keeps_a_pid_file_from_declaring_the_owner_dead() {
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(one_unresolvable(Path::new(""), 0, 0)))),
+        Verdict::EvidenceFree,
+        "a live holder the scan could not identify is not dead because its number is absent here"
+    );
+    // The same evidence without that descriptor is still the dead owner it was.
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(no_holders(Path::new(""), 0, 0)))),
+        Verdict::Dead(42)
+    );
+}

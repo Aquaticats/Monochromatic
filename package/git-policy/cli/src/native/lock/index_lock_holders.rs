@@ -85,6 +85,14 @@ pub struct HolderEvidence {
     pub unresolvable: Vec<String>,
 }
 
+impl HolderEvidence {
+    /// Whether the scan reported a descriptor whose record named the lock and which it could not identify,
+    /// which is a holder that may be alive.
+    pub fn unresolved(&self) -> bool {
+        return !self.unresolvable.is_empty();
+    }
+}
+
 /// What:
 ///  Whether a directory name is a decimal PID.
 /// Why:
