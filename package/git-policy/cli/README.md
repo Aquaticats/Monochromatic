@@ -1591,6 +1591,15 @@ The rule is:
    else `~/.local/share/mise`),
   where mise keeps its plugin clones and updates them with a forced checkout.
 
+The guard reads the command Git will run,
+not the word on the command line:
+an ordinary Git alias is expanded as Git expands it,
+and the decision is taken on the expansion.
+A shell alias (`!...`) is a shell command,
+which no reading of its text can judge,
+and Git runs it with its own `git-core` directory first on `PATH`,
+so the `git` inside it is real Git rather than this wrapper.
+
 Every rejection names the form,
  what it would destroy,
  the alternative that fits the most likely intent,

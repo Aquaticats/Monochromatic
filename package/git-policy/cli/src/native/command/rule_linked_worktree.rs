@@ -378,7 +378,28 @@ pub fn decide_linked_worktree(arguments: &[OsString]) -> LinkedWorktreeDecision 
         return LinkedWorktreeDecision::Pass;
     };
     // `.as_encoded_bytes()` lends the raw bytes of the subcommand word.
-    return guarded_decision(word.as_encoded_bytes(), region).unwrap_or(LinkedWorktreeDecision::Pass);
+    return decide_guarded_word(word.as_encoded_bytes(), region);
+}
+
+/// What:
+///  Decide from one subcommand word and the tokens after it.
+///  `&[u8]` borrows the word and
+///  `&[OsString]` its region.
+/// Why:
+///   The word on a command line is not always the word Git runs:
+/// an alias expands to another command,
+/// and
+///  the caller that resolved it decides on the same tables this way.
+///  A region Git refuses is the refusal,
+///  and Git then
+///       discards nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function decideGuardedWord(word: Buffer, region: string[]): LinkedWorktreeDecision;
+/// ```
+pub fn decide_guarded_word(word: &[u8], region: &[OsString]) -> LinkedWorktreeDecision {
+    return guarded_decision(word, region).unwrap_or(LinkedWorktreeDecision::Pass);
 }
 
 /// What:

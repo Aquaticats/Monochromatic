@@ -8115,6 +8115,20 @@ and the abort forms of `merge`,
 `rebase`,
 `cherry-pick`,
 `revert` and `am`.
+The word this reading reads is the word Git will run.
+An ordinary alias (`alias.<name>`,
+either spelling) is expanded the way Git expands it,
+up to 16 expansions,
+and the guard decides on the expansion,
+which is also the argument list the wrapper forwards and the audit record names.
+A built-in word is decided without reading any configuration,
+so no process is started for it.
+A shell alias (`!...`) and an undefined name are forwarded as they are:
+a shell command cannot be judged by reading it,
+and Git runs it with its own `git-core` directory first on `PATH`,
+so a `git` inside it is real Git and not this wrapper.
+`git by the word Git will run` is the boundary of this guard.
+
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
 A `clean` counts untracked files as well,

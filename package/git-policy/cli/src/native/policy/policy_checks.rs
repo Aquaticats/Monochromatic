@@ -82,9 +82,11 @@ use crate::rule_branch_worktree::{
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    decide_linked_worktree, dirty_question, dirty_worktree_message, repository_stash_message,
-    resolve_linked_worktree,
+    dirty_question, dirty_worktree_message, repository_stash_message, resolve_linked_worktree,
 };
+/// The guarded decision about the command Git will really run,
+/// alias expansion included.
+use crate::guarded_forwarded_command::{GuardedForwarded, decide_guarded_forwarded};
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The require-root rule core.
@@ -342,8 +344,11 @@ fn check_linked_worktree(
     discarded_limits: Limits,
     notices: &mut Vec<String>,
 ) -> PolicyOutcome {
+    // An alias reaches the command Git really runs, so the guard reads the expansion and every record names it.
+    let forwarded: GuardedForwarded = decide_guarded_forwarded(&facts.transaction_context(), arguments);
+    let seen: &[OsString] = forwarded.arguments.as_slice();
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
-    let (command, moves_head_only): (GuardedCommand, bool) = match decide_linked_worktree(arguments) {
+    let (command, moves_head_only): (GuardedCommand, bool) = match forwarded.decision {
         LinkedWorktreeDecision::Pass => return clean(),
         LinkedWorktreeDecision::NeedsEffectiveTarget(command) => (command, false),
         LinkedWorktreeDecision::WhenDirty(command) => (command, true),
@@ -360,7 +365,7 @@ fn check_linked_worktree(
     if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
         && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
     {
-        match judge_conflict_sides(&facts.transaction_context(), arguments, now_milliseconds(), discarded_limits) {
+        match judge_conflict_sides(&facts.transaction_context(), seen, now_milliseconds(), discarded_limits) {
             SideVerdict::NotApplicable => {}
             SideVerdict::Refused(note) => conflict_note = note,
             SideVerdict::Allowed { notice, copies } => {
@@ -372,12 +377,12 @@ fn check_linked_worktree(
                     };
                     places.push(format!("{} => {}", copy.path, saved_to));
                 }
-                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, arguments, None, places.as_slice());
+                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, seen, None, places.as_slice());
                 notices.push(notice);
                 return clean();
             }
             SideVerdict::CopyFailed(message) => {
-                record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, None);
+                record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
                 return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
             }
         }
@@ -388,17 +393,17 @@ fn check_linked_worktree(
             return clean();
         }
     } else if let Some(message) = resolve_linked_worktree(command, target) {
-        record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, None);
+        record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
     }
     if target == EffectiveTarget::Allowlisted {
-        record_audit(&location.identity, command, AuditOutcome::Exempt, arguments, None);
+        record_audit(&location.identity, command, AuditOutcome::Exempt, seen, None);
         return clean();
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
     // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
     if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
-        record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
+        record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
         return clean();
     }
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
@@ -409,11 +414,11 @@ fn check_linked_worktree(
     };
     match measured {
         Ok(true) => {
-            record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, Some(true));
+            record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
         }
         Ok(false) => {
-            record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
+            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
             return clean();
         }
         Err(message) => return fact_unavailable(message),

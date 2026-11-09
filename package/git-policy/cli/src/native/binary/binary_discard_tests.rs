@@ -580,3 +580,62 @@ fn a_stash_drop_that_would_discard_the_repository_stash_is_rejected() {
     }
     remove(&fixture);
 }
+
+/// An alias reaches the guard of the command it expands to,
+/// so the word on the command line cannot hide a form the guard rejects.
+#[test]
+fn an_alias_reaches_the_guard_of_the_command_it_expands_to() {
+    let fixture: Fixture = fixture("discard-alias");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // An alias given on this command line, and one the repository configures.
+    for arguments in [
+        vec!["-c", "alias.wipe=reset --hard", "wipe"],
+        vec!["-c", "alias.sweep=clean -fdx", "sweep"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} reached no guard: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+            b"the person wrote this\n",
+            "{arguments:?} discarded the edit"
+        );
+        assert!(ignored_work_survives(repo.as_path()), "{arguments:?} deleted the ignored work");
+    }
+    git(&fixture, repo.as_path(), &["config", "alias.wipe", "reset --hard"]);
+    let configured: Observed = run_wrapped(&fixture, repo.as_path(), &["wipe"]);
+    assert!(rejected_by_policy(&configured), "{}", stderr_of(&configured));
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"the person wrote this\n"
+    );
+    // The audit line names what Git will run, not the alias the person typed.
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let text: String = std::fs::read_to_string(&audit).expect("audit file");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"arguments\":[\"reset\",\"--hard\"]"), "{last}");
+    // An alias to a command the guard allows still runs, and an unknown name is still Git's own error.
+    git(&fixture, repo.as_path(), &["config", "alias.short", "status --short"]);
+    let harmless: Observed = run_wrapped(&fixture, repo.as_path(), &["short"]);
+    assert_eq!(harmless.code, Some(0), "{}", stderr_of(&harmless));
+    assert!(String::from_utf8_lossy(harmless.stdout.as_slice()).contains("tracked.txt"));
+    let unknown: Observed = run_wrapped(&fixture, repo.as_path(), &["no-such-subcommand"]);
+    assert_ne!(unknown.code, Some(0));
+    assert!(!rejected_by_policy(&unknown), "{}", stderr_of(&unknown));
+    // A shell alias holds a shell command, which no reading of its text can judge. Git runs it with its own
+    //  directory first on `PATH`, so the `git` inside it is real Git and not this wrapper: the guard cannot see it,
+    //  and the wrapper forwards the alias as it always did. The control proves which `git` the shell finds, so the
+    //  limit is measured and not guessed.
+    git(&fixture, repo.as_path(), &["config", "alias.fixup", "!command -v git"]);
+    let shell: Observed = run_wrapped(&fixture, repo.as_path(), &["fixup"]);
+    assert_eq!(shell.code, Some(0), "{}", stderr_of(&shell));
+    assert!(!rejected_by_policy(&shell), "{}", stderr_of(&shell));
+    let found: String = String::from_utf8_lossy(shell.stdout.as_slice()).trim().to_owned();
+    assert!(found.ends_with("/git-core/git"), "the shell found {found}, not Git's own directory");
+    assert!(found != fixture.root.join("bin/git").display().to_string(), "the shell found this wrapper");
+    remove(&fixture);
+}
