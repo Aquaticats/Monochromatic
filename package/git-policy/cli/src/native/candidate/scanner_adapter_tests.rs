@@ -355,7 +355,7 @@ fn artifacts() -> Vec<PathBuf> {
             let path: PathBuf = entry.path();
             if path.is_dir() {
                 pending.push(path);
-            } else if path.file_name().is_some_and(|name| name == "rules.bin") {
+            } else if path.file_name().is_some_and(|name| { return name == "rules.bin"; }) {
                 found.push(path);
             }
         }
@@ -405,7 +405,7 @@ fn a_load_writes_the_cache_only_when_it_may_body(directory: &Path) {
     let writing: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
     assert_eq!(artifacts().len(), 1, "a load that may write writes once");
     assert_eq!(
-        writing.cache_warnings().first().map(|warning| warning.reason()),
+        writing.cache_warnings().first().map(|warning| { return warning.reason(); }),
         Some("missing"),
         "a command that publishes compiled from the text: {:?}",
         writing.cache_warnings()
@@ -434,7 +434,7 @@ fn a_partial_artifact_is_never_used_body(directory: &Path) {
     let rules: RulesSource = planted_rules(directory);
     let published: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
     assert_eq!(
-        published.cache_warnings().first().map(|warning| warning.reason()),
+        published.cache_warnings().first().map(|warning| { return warning.reason(); }),
         Some("missing"),
         "the first load of an empty cache compiles from the text"
     );
@@ -444,7 +444,7 @@ fn a_partial_artifact_is_never_used_body(directory: &Path) {
     std::fs::write(&artifact, &whole[..torn]).expect("tear the artifact");
     let recovered: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
     assert_eq!(
-        recovered.cache_warnings().first().map(|warning| warning.reason()),
+        recovered.cache_warnings().first().map(|warning| { return warning.reason(); }),
         Some("invalid"),
         "a torn artifact is refused as invalid, not read as absent: {:?}",
         recovered.cache_warnings()
@@ -483,7 +483,7 @@ fn a_cache_of_other_rules_is_never_used_body(directory: &Path) {
     // The cache holds the artifact of the old text, and this load must not scan with it.
     let changed: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
     assert_eq!(
-        changed.cache_warnings().first().map(|warning| warning.reason()),
+        changed.cache_warnings().first().map(|warning| { return warning.reason(); }),
         Some("missing"),
         "the artifact of other rules text is a miss, not a hit: {:?}",
         changed.cache_warnings()
