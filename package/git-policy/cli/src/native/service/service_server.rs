@@ -40,7 +40,6 @@ use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
 use crate::service_captures::CaptureMemory;
 use crate::service_land::LandContext;
 use crate::service_timing::{ExitReason, exit_line, log};
-use crate::private_storage::remove_tree;
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake};
@@ -393,7 +392,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         }
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
-        let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
                 Job::Withdraw(..) => {}
@@ -402,7 +400,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 }
                 Job::Retire => retiring = true,
                 Job::Activity => {}
-                Job::Release(path) => releases.push(path),
+                // A released scratch directory is not the landing loop's to wait for: its removal runs beside the loop, bounded,
+                //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
+                Job::Release(path) => crate::service_scratch_release_removal::start(path),
                 Job::Commit(request, stream, arrival) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
@@ -466,11 +466,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         if unsettled_locks() > 0 {
             crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
             return;
-        }
-        for path in releases {
-            if let Err(error) = remove_tree(path.as_path()) {
-                crate::service_warn!("the scratch directory {} could not be removed: {error}", path.display());
-            }
         }
     }
     // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).

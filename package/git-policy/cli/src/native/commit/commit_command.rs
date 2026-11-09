@@ -20,7 +20,7 @@
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
 use crate::commit_timing::CommitTiming;
-use crate::commit_timing_outside_the_phases::MeasuredStandardError;
+use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, hand_over};
 use crate::service_messages::render;

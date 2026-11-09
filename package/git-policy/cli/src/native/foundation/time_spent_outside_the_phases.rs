@@ -68,8 +68,16 @@ pub struct OutsideThePhases {
 /// held at the counter's end rather than wrapped around it.
 fn add(counter: &AtomicU64, took: Duration) {
     let microseconds: u64 = u64::try_from(took.as_micros()).unwrap_or(u64::MAX);
-    // A saturated counter is a figure that cannot be right; a record is a diagnostic and never fails a command.
-    let _sum: Result<u64, u64> = counter.try_update(Ordering::Relaxed, Ordering::Relaxed, |held| { return Some(held.saturating_add(microseconds)); });
+    // A saturated counter is a figure that cannot be right; a record is a diagnostic and never fails a command, so the sum is
+    //  held at the counter's end rather than wrapped around it.
+    let mut held: u64 = counter.load(Ordering::Relaxed);
+    loop {
+        let next: u64 = held.saturating_add(microseconds);
+        match counter.compare_exchange_weak(held, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_added) => break,
+            Err(current) => held = current,
+        }
+    }
 }
 
 /// Whole milliseconds of a microsecond counter,
@@ -193,5 +201,5 @@ impl<W: Write> Write for MeasuredStandardError<W> {
 
 /// The record's fields and the writer are controlled in the test module.
 #[cfg(test)]
-#[path = "commit_timing_outside_the_phases_tests.rs"]
+#[path = "time_spent_outside_the_phases_tests.rs"]
 mod tests;

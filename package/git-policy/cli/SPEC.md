@@ -6702,10 +6702,15 @@ any other real ref,
 or shared reflogs.
 It uses:
 
-- a private commit index at `<git-dir>/monochromatic-git-policy-cli-service-<id>/commit.index`,
+- a private commit index at
+  `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/commit.index`,
   in the commit's scratch directory,
-  which the service removes when the command ends,
-  however it ends;
+  which the service removes when the command's connection closes,
+  however the command ends,
+  and which a command that never handed it to a service leaves where the sweep of the repository scratch directory
+  removes it
+  (see "The commit's scratch directory",
+  below);
 - the real object store.
   Every monochromatic-git-policy-cli Git command that writes or reads the private index's objects
   (`read-tree`,
@@ -6820,7 +6825,7 @@ so the built commit is the policy-settled intended tree.
 The service lands the commit as Git made it:
 its first parent must be the tip the wrapper read,
 or for an amend the replaced commit's parents.
-A preparation failure removes the scratch directory and leaves real index,
+A preparation failure leaves the scratch directory to the sweep and leaves real index,
 worktree,
 and real ref bytes unchanged.
 Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
@@ -6977,11 +6982,66 @@ Options that select the whole index (`--all`,
 `--interactive`,
 `--patch`) keep concluding it.
 
+#### The commit's scratch directory
+
+The commit's scratch directory holds the private indexes and,
+when real Git must build the commit,
+the scratch repository.
+It is made at
+`<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>`,
+inside the repository scratch directory,
+and never in the worktree's own Git directory as releases before this one made it.
+Code:
+`src/native/foundation/scratch_location.rs`,
+`src/native/landing/service_prepare_ready_shapes.rs`.
+
+Why there:
+a command killed at any instruction,
+and a machine with no service,
+leave trees behind,
+and only the directory the sweep already covers collects them.
+The place is also swept of entries older than `SCRATCH_STALE_AFTER` at every preparation of it,
+which a preparation of a commit now is.
+
+Who removes it,
+and how long anyone waits:
+
+- The resident service removes it when the connection that holds it closes,
+  however the client ends,
+  in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
+  with a line at warning priority in the service journal when the removal cannot finish.
+  Neither the client nor the landing loop waits for it.
+- A command that never handed it to a service leaves it in place.
+  The directory is inside the repository scratch directory,
+  so a later command's preparation removes it once it is older than
+  `COMMIT_SCRATCH_TREE_ABANDONED_AFTER` (two hours,
+  six times the longest wait a commit can have),
+  at most `COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) per command,
+  and the sweep removes whatever is older than `SCRATCH_STALE_AFTER` (a day) whatever its number.
+  That is what bounds the trees a machine makes while no service answers:
+  one tree of about 9 MiB per commit,
+  no older than two hours,
+  and eight removed per command.
+- Every removal of a scratch entry runs on a thread of its own and stops being waited for at
+  `SCRATCH_REMOVAL_CEILING` (thirty seconds,
+  twelve times the slowest single `unlinkat` the timing record holds),
+  so a stalled device costs a partial removal and a reported line,
+  never a command that waits.
+  A name that is not one of the wrapper's scratch trees,
+  and a name that holds a link or a file,
+  is never removed by that rule.
+
+A repository whose scratch directory cannot be made private still commits:
+the tree goes into the worktree's Git directory,
+where nothing sweeps it,
+and the debug log says so.
+
 #### Scratch repository layout
 
 The scratch repository (the shadow,
 in the code and in this section) is made only when real Git must build the commit.
-It lives in `<git-dir>/monochromatic-git-policy-cli-service-<id>/shadow` and holds these private entries:
+It lives in `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/shadow` and holds
+these private entries:
 
 - The ref store:
   `HEAD`,

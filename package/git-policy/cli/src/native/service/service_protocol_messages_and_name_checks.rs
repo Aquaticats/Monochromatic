@@ -16,6 +16,9 @@
 
 use serde_json::Value;
 use crate::service_review_key::ReviewKey;
+use crate::common_directory_of_a_git_directory::common_directory_of;
+use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
+use crate::wrapper_names_old_and_new::SERVICE_SCRATCH_PREFIX;
 use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
@@ -455,21 +458,9 @@ fn is_plain_part(part: &str) -> bool {
     return !part.is_empty() && part != "." && part != ".." && part != ".git";
 }
 
-/// What:
-///  Whether a byte may appear in a request identity or a scratch directory identity:
-/// an ASCII letter or digit,
-/// or a hyphen.
-/// Why:
-///  Both are used in file names,
-/// so no identity can name a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isIdentityByte = (byte: number) => /[A-Za-z0-9-]/.test(String.fromCharCode(byte));
-/// ```
-pub(crate) fn is_identity_byte(byte: &u8) -> bool {
-    return byte.is_ascii_alphanumeric() || *byte == b'-';
-}
+/// Whether a byte may appear in a request identity or a scratch directory identity.
+/// The rule and its reason are in the foundation module that names what this program keeps on disk.
+pub(crate) use crate::wrapper_names_old_and_new::is_identity_byte;
 
 /// What:
 ///  Whether one component of a directory path is a normal step:
@@ -497,8 +488,9 @@ pub fn is_plain_path(path: &str) -> bool {
         && path.split('/').all(is_plain_part);
 }
 
-/// The name prefix of a commit's scratch directory.
-pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
+/// The name prefix of a commit's scratch directory,
+/// which the foundation module that names everything this program keeps on disk holds.
+pub const SCRATCH_PREFIX: &str = SERVICE_SCRATCH_PREFIX;
 
 /// What:
 ///  Whether `path` is the scratch directory of a commit in the worktree whose own Git directory is `git_dir`.
@@ -507,7 +499,8 @@ pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
 /// so the name must be one only the
 ///  wrapper makes (the prefix and an identity of letters,
 /// digits and dashes) and the place must be directly inside the
-///  worktree's own Git directory,
+///  repository scratch directory of the worktree's Git directory,
+/// or directly inside that Git directory as releases before this one made it,
 /// with no relative part that could lead elsewhere.
 ///
 /// In TS you'd write (pseudocode):
@@ -517,8 +510,11 @@ pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
 pub fn is_scratch_path(path: &Path, git_dir: &Path) -> bool {
     let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
     let identity: &str = name.strip_prefix(SCRATCH_PREFIX).unwrap_or("");
+    // Where this release makes the tree: the repository scratch directory, which the sweep of a later command also covers.
+    let swept: PathBuf = common_directory_of(git_dir).join(REPOSITORY_SCRATCH_NAME);
+    let parent: Option<&Path> = path.parent();
     return git_dir.is_absolute()
-        && path.parent() == Some(git_dir)
+        && (parent == Some(git_dir) || parent == Some(swept.as_path()))
         && !identity.is_empty()
         && identity.as_bytes().iter().all(is_identity_byte)
         && git_dir.components().all(is_plain_component)

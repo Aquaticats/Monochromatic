@@ -3210,9 +3210,20 @@ its measurements and the evidence needed to change it are in
 
 The wrapper keeps its state beside the repository's Git data under `monochromatic-git-policy-cli*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
-A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` in the worktree's Git directory while it is made;
- the commit service removes it when the command ends,
-however it ends.
+A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` in the repository scratch directory
+ `monochromatic-git-policy-cli-scratch` while it is made;
+ the commit service removes it when the command's connection closes,
+however the command ends,
+and the trees of commands that no service held are removed by the next command's preparation once they are two hours old.
+Nothing in a commit waits for that removal:
+ it happens beside the landing loop,
+bounded by `SCRATCH_REMOVAL_CEILING` (thirty seconds),
+ so a device that stalls costs a partial removal and a line in the service journal,
+never a slow commit.
+The trees a machine makes while no service answers are bounded by that age (about 9 MiB each,
+no older than two hours)
+ and by at most eight removed per command;
+ the sweep removes whatever is a day old whatever its number.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:

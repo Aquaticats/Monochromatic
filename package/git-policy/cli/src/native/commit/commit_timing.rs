@@ -31,7 +31,8 @@
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
 use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
 use crate::commit_prepare_part_durations::{PreparePart, drain_prepare_parts, prepare_parts_json};
-use crate::commit_timing_outside_the_phases::{OutsideThePhases, outside_the_phases};
+use crate::time_spent_outside_the_phases::{OutsideThePhases, outside_the_phases};
+use crate::common_directory_of_a_git_directory::common_directory_of;
 use crate::diagnostic_log::debug;
 use crate::discard_audit::append_line;
 use crate::iso_time::now_iso;
@@ -181,39 +182,6 @@ pub struct SubmitTrace {
     pub reconnects: usize,
     /// Requests written.
     pub sends: usize,
-}
-
-/// What:
-///  The common Git directory of a worktree's own Git directory:
-/// the directory its `commondir` file names,
-/// else the directory
-///  itself.
-/// Why:
-///   A linked worktree's own Git directory goes away with the worktree,
-/// while the repository's one timing file lives in the
-///  common directory.
-/// The service's review module reads the file the same way (Git strips every trailing carriage return and
-///  line feed and resolves a relative path against the Git directory),
-/// but that module belongs to the service run and the client
-///  path may not name it (`standards_review_boundary_tests.rs`),
-/// so the few lines are repeated here.
-/// A path that cannot be
-///  resolved is used as written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
-/// ```
-fn common_dir_for(git_dir: &Path) -> PathBuf {
-    let Ok(text) = std::fs::read_to_string(git_dir.join("commondir")) else {
-        return git_dir.to_path_buf();
-    };
-    let named: &str = text.trim_end_matches(['\r', '\n']);
-    if named.is_empty() {
-        return git_dir.to_path_buf();
-    }
-    let joined: PathBuf = git_dir.join(named);
-    return std::fs::canonicalize(&joined).unwrap_or(joined);
 }
 
 /// Where the record goes and which service instance it belongs to.
@@ -384,7 +352,7 @@ impl CommitTiming {
     /// Names the worktree whose Git directory the command found;
     /// a command outside a repository writes no record.
     pub fn place_at(&mut self, git_dir: &Path) {
-        self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_dir_for(git_dir), instance: instance_of(git_dir) });
+        self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_directory_of(git_dir), instance: instance_of(git_dir) });
     }
 
     /// What the phases leave uncovered out of `total`.

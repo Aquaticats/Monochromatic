@@ -428,3 +428,35 @@ fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
 fn the_renewal_pace_is_far_inside_the_stale_age() {
     assert!(SCRATCH_REFRESH_EVERY * 2 < SCRATCH_STALE_AFTER, "{SCRATCH_REFRESH_EVERY:?}");
 }
+
+/// A commit's scratch tree is made inside the repository scratch directory,
+/// which is the place the sweep covers,
+/// and it is private.
+#[test]
+fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
+    let root: PathBuf = fixture("scratch-commit-tree");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let named: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), named).expect("the scratch tree");
+    assert_eq!(tree, common.join(REPOSITORY_SCRATCH_NAME).join(named));
+    assert_eq!(mode_of(tree.as_path()), 0o700);
+    remove(root.as_path());
+}
+
+/// A tree of a command that was killed at any instruction is collected by a later command's preparation of the same
+/// directory,
+/// because nothing else would ever remove it.
+#[test]
+fn a_scratch_tree_of_a_killed_command_is_swept() {
+    let root: PathBuf = fixture("scratch-commit-killed");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d").expect("the scratch tree");
+    std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
+    // The command is killed here: nothing removes the tree, and no service ever held it.
+    age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
+    let _prepared: PathBuf = prepare_repository_scratch(common.as_path()).expect("a later preparation");
+    assert!(!tree.exists(), "the sweep of the place the tree is in removes it: {}", tree.display());
+    remove(root.as_path());
+}

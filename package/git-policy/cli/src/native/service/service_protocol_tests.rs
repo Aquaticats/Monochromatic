@@ -3,8 +3,9 @@
 //! and every refusal the decoder promises is real.
 
 use super::*;
+use crate::command_test_support::{fixture, remove};
 use crate::service_review_key::ReviewKey;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const BLOB: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -283,32 +284,45 @@ fn a_scratch_announcement_round_trips() {
 
 /// The service removes what a scratch announcement names,
 /// so only the wrapper's own directory names directly inside the
-///  worktree's own Git directory are accepted;
+///  repository scratch directory of the worktree,
+/// or directly inside the worktree's own Git directory as a release before this one made it,
+/// are accepted;
 /// every other path is refused at the decoder.
 #[test]
 fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
-    let git_dir: &str = "/work/repo/.git/worktrees/w";
-    let accepted = |path: &str| -> bool { return is_scratch_path(Path::new(path), Path::new(git_dir)); };
-    assert!(accepted("/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-0a1b-2c"));
+    let root: PathBuf = fixture("protocol-scratch-names");
+    let common: PathBuf = root.join("repo/.git");
+    let git_dir: PathBuf = common.join("worktrees/w");
+    std::fs::create_dir_all(&git_dir).expect("worktree git directory");
+    std::fs::write(git_dir.join("commondir"), b"../..\n").expect("commondir");
+    let swept: PathBuf = common.join("monochromatic-git-policy-cli-scratch");
+    let accepted = |path: PathBuf| -> bool { return is_scratch_path(path.as_path(), git_dir.as_path()); };
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b-2c";
+    assert!(accepted(swept.join(name)), "the place this release makes the tree in");
+    assert!(accepted(git_dir.join(name)), "the place a release before this one made it in");
     for refused in [
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-",
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-a b",
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-../x",
-        "/work/repo/.git/worktrees/w/../monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/worktrees/w/notes",
-        "/work/repo/.git/worktrees/w/index",
-        "/work/repo/.git/worktrees/w/deeper/monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/worktrees/other/monochromatic-git-policy-cli-service-x",
-        "/work/other/monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-x\u{0}",
-        "monochromatic-git-policy-cli-service-x",
-        "/",
+        swept.join("monochromatic-git-policy-cli-service-"),
+        swept.join("monochromatic-git-policy-cli-service-a b"),
+        swept.join("monochromatic-git-policy-cli-service-../x"),
+        swept.join("notes"),
+        swept.join("cli-git-input-0a1b"),
+        swept.join("deeper").join(name),
+        git_dir.join("monochromatic-git-policy-cli-service-"),
+        git_dir.join("notes"),
+        git_dir.join("index"),
+        git_dir.join("deeper").join(name),
+        common.join(name),
+        common.join("worktrees/other").join(name),
+        root.join("elsewhere").join(name),
+        PathBuf::from("monochromatic-git-policy-cli-service-x"),
+        PathBuf::from("/"),
+        PathBuf::from(format!("{}/{name}\u{0}", swept.display())),
     ] {
-        assert!(!accepted(refused), "{refused:?}");
+        assert!(!accepted(refused.clone()), "{}", refused.display());
     }
-    let hostile: String = encode_client(&ClientMessage::Scratch { git_dir: PathBuf::from(git_dir), path: PathBuf::from("/home/a/precious") });
+    let hostile: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.clone(), path: root.join("precious") });
     assert!(decode_client(hostile.as_str()).is_err());
+    remove(root.as_path());
 }
 
 /// A commit request carries the worktree's own Git directory,

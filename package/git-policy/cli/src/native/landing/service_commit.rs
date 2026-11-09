@@ -146,8 +146,9 @@ pub fn service_commit<F: RepositoryFacts>(
     // The branch (or `HEAD`) the first preparation found, which every later preparation must find again.
     let mut first_reference: Option<String> = None;
     // The commit's scratch directory, handed to the service once the first preparation made it: the service removes it when this
-    //  command ends, and when this process is killed, because the connection closes either way. Without a service of this
-    //  release to take it, the directory is removed here as before.
+    //  command ends, and when this process is killed, because the connection closes either way. Nothing in this process removes
+    //  it: a service that refused it, and a command that ends before it asked one, leave it in the repository scratch directory,
+    //  where the sweep of a later command removes it once it is abandoned (`scratch_location.rs`).
     let mut scratch_watch: Option<ScratchWatch> = None;
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
@@ -320,8 +321,8 @@ pub fn service_commit<F: RepositoryFacts>(
             }
             provisioned = true;
         }
-        // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command would
-        //  otherwise remove it from under a wait that outlasts its age.
+        // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command, and the
+        //  removal of an abandoned tree, would otherwise take it from under a wait that outlasts its age.
         let waiting_config: ClientConfig = ClientConfig {
             keep_fresh: Some(FreshScratch { path: ready.scratch.0.clone(), every: SCRATCH_REFRESH_EVERY }),
             ..config.clone()

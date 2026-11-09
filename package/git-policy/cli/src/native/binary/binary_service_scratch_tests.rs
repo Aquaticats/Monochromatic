@@ -65,10 +65,25 @@ fn config(name: &str) -> ClientConfig {
 }
 
 /// A repository's Git directory with a scratch directory in it,
-/// holding a file.
+/// holding a file,
+/// made where a release before this one made it.
 fn scratch_in(root: &Path, identity: &str) -> (PathBuf, PathBuf) {
     let git_dir: PathBuf = root.join("repo/.git");
     let scratch: PathBuf = git_dir.join(format!("{SCRATCH_PREFIX}{identity}"));
+    std::fs::create_dir_all(&scratch).expect("scratch directory");
+    std::fs::write(scratch.join("commit.index"), b"index").expect("file in the scratch directory");
+    return (git_dir, scratch);
+}
+
+/// A repository's Git directory with a scratch directory in it,
+/// holding a file,
+/// made where this release makes it:
+/// inside the repository scratch directory the sweep covers.
+fn scratch_where_this_release_makes_it(root: &Path, identity: &str) -> (PathBuf, PathBuf) {
+    let git_dir: PathBuf = root.join("repo/.git");
+    let scratch: PathBuf = git_dir
+        .join("monochromatic-git-policy-cli-scratch")
+        .join(format!("{SCRATCH_PREFIX}{identity}"));
     std::fs::create_dir_all(&scratch).expect("scratch directory");
     std::fs::write(scratch.join("commit.index"), b"index").expect("file in the scratch directory");
     return (git_dir, scratch);
@@ -98,6 +113,23 @@ fn a_scratch_directory_goes_with_the_connection_that_holds_it() {
     drop(watch);
     assert!(wait_until_gone(scratch.as_path()), "the directory is removed once the holder is gone");
     assert!(git_dir.exists(), "only the scratch directory goes");
+    super::commit::remove_settled(&fixture);
+}
+
+/// A scratch directory in the repository scratch directory goes with the connection that holds it,
+/// which is where this release makes it.
+#[test]
+fn a_scratch_directory_in_the_repository_scratch_directory_goes_with_its_connection() {
+    let fixture: Fixture = fixture("service-scratch-covered");
+    let name: String = format!("service-scratch-covered-{}", std::process::id());
+    let _service: Held = start(&fixture, name.as_str());
+    let (git_dir, scratch) = scratch_where_this_release_makes_it(fixture.root.as_path(), "0a1b2c3d-2");
+    let watch: ScratchWatch = watch_scratch(&config(name.as_str()), git_dir.as_path(), scratch.as_path()).expect("the service takes the directory");
+    std::thread::sleep(SETTLE);
+    assert!(scratch.exists(), "the directory stays while its holder is connected");
+    drop(watch);
+    assert!(wait_until_gone(scratch.as_path()), "the directory is removed once the holder is gone");
+    assert!(git_dir.join("monochromatic-git-policy-cli-scratch").exists(), "only the scratch directory goes");
     super::commit::remove_settled(&fixture);
 }
 

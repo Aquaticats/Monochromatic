@@ -19,7 +19,7 @@
 /// The record and its writer.
 use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
 use crate::commit_prepare_part_durations::PreparePart;
-use crate::commit_timing_outside_the_phases::OutsideThePhases;
+use crate::time_spent_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
 use crate::service_instance::instance_of;

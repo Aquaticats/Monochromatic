@@ -115,12 +115,18 @@ pub fn drain_prepare_parts() -> (Vec<PreparePart>, usize) {
 fn totals_of(parts: &[PreparePart]) -> Vec<(String, Duration, usize)> {
     let mut totals: Vec<(String, Duration, usize)> = Vec::new();
     for part in parts {
-        match totals.iter_mut().find(|(name, _, _)| { return *name == part.name; }) {
-            Some((_, sum, calls)) => {
-                *sum += part.took;
-                *calls += 1;
+        let mut found: bool = false;
+        for (name, sum, calls) in &mut totals {
+            if *name != part.name {
+                continue;
             }
-            None => totals.push((part.name.clone(), part.took, 1)),
+            *sum += part.took;
+            *calls += 1;
+            found = true;
+            break;
+        }
+        if !found {
+            totals.push((part.name.clone(), part.took, 1));
         }
     }
     return totals;
@@ -142,10 +148,10 @@ fn totals_of(parts: &[PreparePart]) -> Vec<(String, Duration, usize)> {
 /// JSON.stringify(Object.fromEntries(totals.map(([name, sum, calls]) => [name, { ms: sum, calls }])))
 /// ```
 pub fn prepare_parts_json(parts: &[PreparePart]) -> String {
-    let members: Vec<String> = totals_of(parts)
-        .iter()
-        .map(|(name, sum, calls)| { return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(name.as_str()), sum.as_millis(), calls); })
-        .collect();
+    let mut members: Vec<String> = Vec::new();
+    for (name, sum, calls) in totals_of(parts) {
+        members.push(format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(name.as_str()), sum.as_millis(), calls));
+    }
     return format!("{{{}}}", members.join(","));
 }
 
@@ -154,7 +160,9 @@ pub fn prepare_parts_json(parts: &[PreparePart]) -> String {
 ///  marked at each seam,
 ///  and kept when it ends.
 /// Why:
-///   The marks are the seams of the preparation, one line each, so a stretch is
+///   The marks are the seams of the preparation,
+/// one line each,
+/// so a stretch is
 ///  named by the block it covers rather than by a timer every call leaves.
 ///  A preparation that leaves early,
 ///  on a stop or a failure,

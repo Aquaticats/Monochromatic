@@ -60,7 +60,6 @@ use crate::policy_engine::{StageRequest, pass_exit_code};
 use crate::policy_events::PolicyEvent;
 use crate::policy_pass::{PassResult, run_policy_pass};
 use crate::private_index_stage::PrivateStage;
-use crate::private_storage::create_private_directory;
 use crate::repository_facts::RepositoryFacts;
 use crate::service_pruned::reach_service_phase;
 use crate::transaction_phase::Phase;
@@ -172,10 +171,12 @@ pub fn prepare<F: RepositoryFacts>(
     }
     part.next("scratch");
     let amends: bool = region.amend;
-    let scratch: Scratch = Scratch(capture.layout.git_dir.join(inputs.scratch_name));
-    if let Err(error) = create_private_directory(scratch.0.as_path()) {
-        return Err(failed(format!("preparing the commit failed: {error}")));
-    }
+    // The tree goes where the sweep of the repository scratch directory covers it, so a command killed at any instruction leaves
+    //  nothing that only this process could have removed (`Scratch`).
+    let scratch: Scratch = match Scratch::make(capture.layout.common_dir.as_path(), capture.layout.git_dir.as_path(), inputs.scratch_name) {
+        Ok(made) => made,
+        Err(error) => return Err(failed(format!("preparing the commit failed: {error}"))),
+    };
     let indexes: CaptureIndexes = CaptureIndexes {
         captured_index: scratch.0.join("captured.index"),
         commit_index: scratch.0.join("commit.index"),

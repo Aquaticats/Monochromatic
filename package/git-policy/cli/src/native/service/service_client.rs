@@ -376,9 +376,9 @@ pub struct ScratchWatch {
 /// A service that is not running takes nothing,
 /// and a service of another release
 ///  refuses a message it does not know and closes nothing of the client's;
-/// in both the client removes the directory itself
-///  when it ends,
-/// as it always has.
+/// the client removes nothing either way,
+/// and the directory waits in the repository scratch directory,
+/// where the sweep of a later command removes it once it is abandoned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

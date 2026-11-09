@@ -31,14 +31,21 @@ use crate::child_environment::environment_value;
 use crate::diagnostic_log::debug;
 /// The private creation primitives shared by every durable record.
 use crate::private_storage::{create_private_directory, create_private_directory_all};
+/// Removing one scratch entry within its ceiling,
+/// and which commit scratch trees a later command takes for abandoned.
+use crate::scratch_entry_removal::{
+    COMMIT_SCRATCH_TREE_ABANDONED_AFTER, COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND, SCRATCH_REMOVAL_CEILING, Removal, remove_abandoned_commit_scratch_trees,
+    remove_within,
+};
 /// The mode a private directory ends with,
 /// and the call that sets it,
 /// which only Unix has.
 #[cfg(unix)]
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
+/// The names the wrapper keeps on disk.
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 /// OS strings,
 /// paths and time.
-use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -250,6 +257,59 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
         return Err(std::io::Error::last_os_error());
     }
     return Ok(());
+}
+
+/// What:
+///  The commit's scratch tree,
+///  made in the repository scratch directory the sweep covers,
+///  or in the Git directory when that directory cannot be used,
+///  and returns its path.
+/// Why:
+///   A tree in the repository scratch directory is collected after a day even when the command that made it is killed at
+///  any instruction and no service ever holds it,
+///  which a tree in the Git directory is not.
+///  A repository whose scratch directory cannot be made private still commits,
+///  into the Git directory,
+///  and says so in the debug log:
+///  a commit must not fail over where its scratch files go.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = prepareCommitScratch(commonDir, gitDir, name);
+/// ```
+pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<PathBuf> {
+    let covered: Option<PathBuf> = match prepare_repository_scratch(common_dir) {
+        Ok(directory) => Some(directory),
+        Err(error) => {
+            debug(
+                TAG,
+                format!(
+                    "the repository scratch directory of {} cannot be used ({error}), so this commit's scratch tree goes in the Git \
+                     directory, where nothing sweeps it if this command is killed; repair that directory to have the sweep cover it",
+                    common_dir.display()
+                )
+                .as_str(),
+            );
+            None
+        }
+    };
+    if let Some(directory) = covered.as_ref() {
+        let _removed: usize = remove_abandoned_commit_scratch_trees(directory.as_path(), COMMIT_SCRATCH_TREE_ABANDONED_AFTER, COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND);
+    }
+    let directory: PathBuf = match covered {
+        Some(found) => found,
+        None => git_dir.to_path_buf(),
+    };
+    let tree: PathBuf = directory.join(name);
+    // A tree of this command's own earlier attempt is removed first, so every attempt of one command starts from an empty one:
+    //  the name carries this command's identity and no other command makes it.
+    let present: bool = std::fs::symlink_metadata(tree.as_path()).is_ok();
+    if present {
+        let _removed: Removal = remove_within(tree.as_path(), SCRATCH_REMOVAL_CEILING);
+    }
+    create_private_directory(tree.as_path())?;
+    assert_private_directory(tree.as_path())?;
+    return Ok(tree);
 }
 
 /// What:

@@ -125,6 +125,28 @@ pub const REPOSITORY_SCRATCH: RenamedName = RenamedName {
     earlier: "cli-git-scratch",
 };
 
+/// The prefix of a commit's scratch directory:
+///  the private indexes Git's scratch repository is built from,
+///  kept inside the repository scratch directory.
+pub const SERVICE_SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
+
+/// What:
+///  Whether a byte may appear in a request identity or a scratch directory identity:
+/// an ASCII letter or digit,
+/// or a hyphen.
+/// Why:
+///  Both are used in file names,
+///  so no identity can name a path,
+///  and a name that holds something else is never taken for a scratch directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isIdentityByte = (byte: number) => /[A-Za-z0-9-]/.test(String.fromCharCode(byte));
+/// ```
+pub fn is_identity_byte(byte: &u8) -> bool {
+    return byte.is_ascii_alphanumeric() || *byte == b'-';
+}
+
 /// The end of the name an entry of an earlier folder takes when the current folder holds an entry of the same name,
 ///  so that both are kept (`standards-review-shadow.md` and `standards-review-shadow.md.from-earlier-release`).
 pub const KEPT_BESIDE_SUFFIX: &str = ".from-earlier-release";

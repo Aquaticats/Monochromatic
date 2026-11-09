@@ -24,23 +24,39 @@ use crate::capture_invocation::InvocationCapture;
 use crate::commit_transaction::TransactionResult;
 use crate::lfs_pre_push::uses_lfs;
 use crate::policy_events::PolicyEvent;
-use crate::private_storage::remove_tree;
-use crate::commit_timing_outside_the_phases::note_scratch_removal;
+use crate::scratch_location::prepare_commit_scratch;
 use crate::service_protocol::{Change, Cleanup};
 use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
 use std::ffi::OsString;
-use std::path::PathBuf;
-/// A scratch directory for the private indexes and Git's scratch repository,
-/// removed when it goes out of scope.
+use std::path::{Path, PathBuf};
+/// The commit's scratch directory:
+/// the private indexes and Git's scratch repository.
+/// Nothing in this process removes it:
+/// the resident service removes it when the connection that holds it closes,
+/// by whatever means this process ends,
+/// and the sweep of the repository scratch directory removes it once it is stale.
+/// Why not here:
+/// a recursive removal after the commit landed waited on the person
+/// (one `unlinkat` of 2.5 s in a shaped fixture,
+/// `doc/planning/cli-git-commit-latency-under-many-agents.md`),
+/// while nothing after it needed the bytes.
 pub struct Scratch(pub PathBuf);
 
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        // The removal is timed for the timing record: it is one of the two costs a commit pays outside its phases, and a fixture
-        //  measured one `unlinkat` of it at 2.5 s.
-        let began: std::time::Instant = std::time::Instant::now();
-        let removed: std::io::Result<()> = remove_tree(self.0.as_path());
-        note_scratch_removal(began.elapsed(), removed.is_ok());
+impl Scratch {
+    /// What:
+    ///  The commit's scratch directory,
+    ///  made where the sweep of the repository scratch directory covers it.
+    /// Why:
+    ///   A directory there is collected after a day even if this command is killed at any instruction and no service ever holds
+    ///  it,
+    ///  which a directory in the worktree's Git directory is not.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const scratch = makeScratch(commonDir, gitDir, name);
+    /// ```
+    pub fn make(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<Self> {
+        return Ok(Self(prepare_commit_scratch(common_dir, git_dir, name)?));
     }
 }
 
@@ -253,3 +269,8 @@ pub struct ReplayConflict {
     /// where a saved message is kept.
     pub git_dir: PathBuf,
 }
+
+/// The scratch directory and its two controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_prepare_ready_shapes_tests.rs"]
+mod tests;

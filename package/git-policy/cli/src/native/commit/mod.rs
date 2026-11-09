@@ -66,10 +66,6 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
-/// The two costs a commit pays outside its phases,
-/// and the writer that measures what it prints.
-pub mod commit_timing_outside_the_phases;
-
 /// How long each stretch of a commit's preparation held no Git child,
 /// by name,
 /// for the timing record.
