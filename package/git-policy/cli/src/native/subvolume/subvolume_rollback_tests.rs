@@ -543,6 +543,37 @@ fn writes_to_the_old_tree_after_the_catch_up_are_carried_before_it_is_deleted() 
 }
 
 /// What:
+///  A subtree the carry refused because the checkout holds another kind of entry there holds back the deletion,
+///  and the refusal
+///  names that entry.
+/// Why:
+///   The carry keeps the destination's file,
+/// so the old tree's directory and everything in it is the only copy of those
+///  files,
+/// and deleting the tree would lose it with no race and no kill.
+#[test]
+fn a_subtree_the_carry_refused_as_a_type_conflict_holds_back_the_deletion() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-conflict", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let saved: PathBuf = layout.old_path.join("saved");
+    std::fs::create_dir_all(saved.as_path()).expect("the old tree's directory");
+    std::fs::write(saved.join("precious.txt"), b"the only copy\n").expect("its file");
+    // The checkout holds a plain file where the old tree holds that directory, and the file is newer, so the carry keeps it.
+    std::fs::write(root.join("saved"), b"a file, not a directory\n").expect("the checkout's file");
+    set_seconds(root.join("saved").as_path(), 2_000_000_000);
+    set_seconds(saved.as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("saved"), "the refusal names the entry it kept: {text}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("kept the newer or differently typed entry"); }), "the pass says what it kept: {lines:#?}");
+    assert_eq!(std::fs::read(saved.join("precious.txt")).expect("the only copy"), b"the only copy\n", "the subtree is kept");
+    assert_eq!(std::fs::read(root.join("saved")).expect("the checkout's file"), b"a file, not a directory\n", "the file is not replaced");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A file restored into the old tree with an older modification time,
 ///  which the carry leaves out,
 ///  holds back the deletion and is named.

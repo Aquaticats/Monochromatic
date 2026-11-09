@@ -37,6 +37,53 @@ use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 
+/// What:
+///  The cause of the refusal for the entries the carry did not put into the checkout,
+/// naming each kind and the paths the list
+///  holds.
+/// Why:
+///   Two kinds exist and they are kept for different reasons:
+/// an entry absent from the checkout that predates the catch-up
+///  may be a file deleted there on purpose,
+/// and one whose path holds another kind of entry is there because the checkout's
+///  entry may be newer.
+/// Both leave the old tree's copy as the only one at that path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cause = uncarriedCause(run);
+/// ```
+fn uncarried_cause(run: &Run<'_>) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if !run.left_out.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) absent from {} and older than the catch-up ({})",
+            run.left_out.len(),
+            run.layout.root.display(),
+            shown_left_out(run.left_out.iter())
+        ));
+    }
+    if !run.conflicts.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) whose path in {} holds another kind of entry, kept as the newer one ({})",
+            run.conflicts.len(),
+            run.layout.root.display(),
+            shown_left_out(run.conflicts.iter())
+        ));
+    }
+    return format!("{} did not reach {}: {} (the whole list is in {})", run.layout.old_path.display(), run.layout.root.display(), parts.join("; "), run.layout.left_out_path.display());
+}
+
+/// The remedy of that refusal:
+/// copy what is wanted,
+/// then accept the loss with the flag,
+/// or delete the old tree by hand.
+fn uncarried_remedy() -> String {
+    return String::from(
+        "Copy anything you want to keep out of the old tree first. If what it keeps is there on purpose, pass --discard-left-out together with --remove-old to delete the old tree with it; you can also delete the old tree yourself.",
+    );
+}
+
 /// How many left-out entries a refusal spells out before it names the file that lists them all.
 const SHOWN_LEFT_OUT: usize = 10;
 
@@ -439,20 +486,8 @@ pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, disca
     {
         return Ok(Some(vec![refusal]));
     }
-    if refusals.is_empty() && !run.left_out.is_empty() && !discard_left_out {
-        refusals.push(Refusal {
-            cause: format!(
-                "{} entr(ies) of {} are absent from {} and older than the catch-up, so they were left out of the carry: {} (the whole list is in {})",
-                run.left_out.len(),
-                run.layout.old_path.display(),
-                run.layout.root.display(),
-                shown_left_out(run.left_out.iter()),
-                run.layout.left_out_path.display()
-            ),
-            remedy: String::from(
-                "Copy anything you want to keep out of the old tree first. If they are files you deleted from the checkout on purpose, pass --discard-left-out together with --remove-old to delete the old tree with them; you can also delete the old tree yourself.",
-            ),
-        });
+    if refusals.is_empty() && (!run.left_out.is_empty() || !run.conflicts.is_empty()) && !discard_left_out {
+        refusals.push(Refusal { cause: uncarried_cause(run), remedy: uncarried_remedy() });
     }
     if refusals.is_empty() && !run.unreadable.is_empty() && !discard_unreadable {
         refusals.push(Refusal {

@@ -65,6 +65,10 @@ pub struct Run<'a> {
     /// and that are older than the catch-up,
     /// so carrying them would undo a deletion made in the checkout.
     pub left_out: BTreeSet<PathBuf>,
+    /// Relative paths of entries the old tree has where the checkout holds another kind of entry,
+    /// which the carry kept as the newer one,
+    /// so nothing from the old tree reached the checkout at that path.
+    pub conflicts: BTreeSet<PathBuf>,
 }
 
 impl Run<'_> {
@@ -98,7 +102,7 @@ impl Run<'_> {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
             Err(error) => return Err(MigrateError::io("read the list of unreadable files", layout.unreadable_path.as_path(), &error)),
         };
-        return Ok(Run { platform, layout, journal, interrupt, say, unreadable, left_out: BTreeSet::new() });
+        return Ok(Run { platform, layout, journal, interrupt, say, unreadable, left_out: BTreeSet::new(), conflicts: BTreeSet::new() });
     }
 
     /// Send one line to the progress sink.
@@ -224,7 +228,10 @@ impl Run<'_> {
     }
 
     /// What:
-    ///  Record the entries the pass left out because they are older than the catch-up,
+    ///  Record the entries the pass did not carry:
+    /// those it left out because they are older than the catch-up,
+    /// and those whose path
+    ///  in the destination holds another kind of entry,
     /// and write the list beside the checkout.
     /// Why:
     ///   A left-out entry is either a file deleted from the checkout on purpose or a file restored into the old tree
@@ -236,21 +243,29 @@ impl Run<'_> {
     /// but it is the unreadable list's entry,
     /// which names it and has its own flag:
     /// one entry never asks for two flags.
+    /// A path whose entry in the destination is of another kind is not carried either,
+    /// so it is recorded the
+    ///  same way:
+    /// otherwise the old tree's directory there,
+    /// and the only copy of what it holds,
+    /// goes with the tree.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// run.recordLeftOut(stats) // writes <parent>/.cli-git-migrate-<name>.left-out.txt
     /// ```
     fn record_left_out(&mut self, stats: &SyncStats) -> Result<(), MigrateError> {
-        if stats.left_out.is_empty() {
-            return Ok(());
+        for path in &stats.conflicts {
+            if !self.unreadable.contains(path) {
+                self.conflicts.insert(path.clone());
+            }
         }
         for path in &stats.left_out {
             if !self.unreadable.contains(path) {
                 self.left_out.insert(path.clone());
             }
         }
-        if self.left_out.is_empty() {
+        if self.left_out.is_empty() && self.conflicts.is_empty() {
             return Ok(());
         }
         return self.write_left_out();
@@ -263,6 +278,10 @@ impl Run<'_> {
     fn write_left_out(&self) -> Result<(), MigrateError> {
         let mut text: String = String::new();
         for path in &self.left_out {
+            text.push_str(path.to_string_lossy().as_ref());
+            text.push('\n');
+        }
+        for path in &self.conflicts {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }

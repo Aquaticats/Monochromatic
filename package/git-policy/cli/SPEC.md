@@ -1654,13 +1654,20 @@ names both identities and changes nothing.
 `--remove-old` carries into the checkout what was written to the old tree after the catch-up,
 and that carry leaves out an entry the checkout lacks whose modification time is older than the catch-up,
 because that is also the shape of a file the person deleted from the checkout on purpose.
+A path where the checkout holds another kind of entry than the old tree does is not carried either:
+the pass keeps
+the checkout's entry as the newer one and records the path,
+so the old tree's directory there,
+and the only copy of what it holds,
+holds back the deletion the same way,
+and the refusal names it.
 The command counts those entries,
 writes their relative paths to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout
 (through a sibling created exclusively and renamed over the name,
 so a link planted there is replaced rather than followed;
 the unreadable-file list is written the same way),
 and deletes nothing while the list is not empty:
-the refusal names the entries (up to ten,
+the refusal names the entries of both kinds (up to ten each,
 then how many more)
 and stops with exit status 1 until the person passes `--discard-left-out`
 beside `--remove-old`,
