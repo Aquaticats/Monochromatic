@@ -110,7 +110,7 @@ fn stage(name: &str, hook: Hook) -> Stage {
 ///  the hook is shaped exactly,
 /// where it would otherwise be whatever the disk under the test makes of the ref update.
 fn hold_disk_wait_after_hook(stage: &mut Stage, hold: Duration) {
-    let probe: Command = disk_wait_command(hold, "exit");
+    let probe: Command = disk_wait_command(hold, "exit", None);
     let line: String = std::iter::once(probe.get_program().to_string_lossy().into_owned())
         .chain(probe.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }))
         .map(|word| { return format!("'{word}'"); })
@@ -209,7 +209,7 @@ fn a_push_in_disk_wait_longer_than_the_stall_window_is_not_stopped() {
     let hold: Duration = Duration::from_millis(5000);
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
-        disk_wait_command(hold, "exit"),
+        disk_wait_command(hold, "exit", None),
         Patience::Progress { stall: STALL },
         GRACE,
         scratch_environment().as_slice(),

@@ -11,11 +11,15 @@
 //! // const { stdout } = await spawn(gitPath, ['rev-parse', '--git-dir'], { stdout: 'pipe' });
 //! ```
 
+/// The ceiling every read carries,
+///  and the watch that ends a read which reaches it.
+use crate::child_class::ChildClass;
+use crate::child_watch::{StepBound, WatchTerms, output_watched_within};
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 use crate::repo_read_hook::try_metadata;
-/// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
+/// The longest a read of a check runs.
+use crate::wait_ceilings::PLUMBING_STEP_CEILING;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -31,6 +35,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 /// `Stdio` selects where a child's stream is connected.
 use std::process::Stdio;
+/// The ceiling value and the sentence a failed read is reported with.
+use std::time::Duration;
 
 /// What:
 ///  What one metadata query produced.
@@ -63,12 +69,109 @@ pub struct MetadataOutput {
     pub stderr: Vec<u8>,
 }
 
+/// The longest one read-only Git query of the check path runs,
+///  whatever it shows,
+///  before the
+///       wrapper ends it.
+///  It is `PLUMBING_STEP_CEILING` (two minutes):
+///  the longest read step of the service's
+///       landings over 1,651 landings was 9,663 ms,
+/// so two minutes is twelve times it,
+///  and the longest
+///       client preparation of the commit timing log was 250,280 ms,
+///  which is the whole of every read
+///       inside it;
+///  the bound is below `ANSWER_CEILING`,
+///  so the person is told what blocked the check
+///       before the commit service's own bound would speak.
+///  Measured figures:
+///  `src/native/service/wait_ceilings.rs`.
+///  Owner,
+///  2026-11-03:
+///  "nothing should ever wait forever or indefinitely".
+pub const READ_CEILING: Duration = PLUMBING_STEP_CEILING;
+
 /// What:
-///  Run real Git with captured output and no standard input.
+///  The name a read is announced and reported under:
+///  the Git program and the subcommand it runs,
+///  when
+///       the arguments name one the wrapper can say without a pathname.
+/// Why:
+///   The person must be able to tell which read blocked,
+///  and a pathname can hold the text a scan
+///       exists to keep out of output,
+///  so only an alphabetic word before `--` is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const subject = `${git} ${word}`; // word: /^[a-z][a-z-]*$/
+/// ```
+fn read_subject(real_git: &Path, arguments: &[OsString]) -> String {
+    // `for argument in arguments` visits each in order, so the first word names the read.
+    for argument in arguments {
+        let bytes: &[u8] = argument.as_encoded_bytes();
+        // `--` ends the command line the subcommand can be in; everything after it is a path.
+        if bytes == b"--" {
+            break;
+        }
+        if bytes.is_empty() || bytes[0] == b'-' {
+            continue;
+        }
+        let mut named: bool = true;
+        for byte in bytes {
+            if byte.is_ascii_lowercase() || *byte == b'-' {
+                continue;
+            }
+            named = false;
+            break;
+        }
+        if named {
+            return format!("{} {}", real_git.display(), argument.to_string_lossy());
+        }
+        break;
+    }
+    return format!("{} (a read-only Git query)", real_git.display());
+}
+
+/// What:
+///  The sentence a read that reached `READ_CEILING` is reported with,
+///  and nothing for any other
+///       failure.
+/// Why:
+///   A read the wrapper ended is not a broken installation:
+///  a `core.fsmonitor` program,
+///  a stalled
+///       mount or a Git waiting on an index showed no end,
+///  the wrapper ended it,
+///  and the index,
+///  the
+///       worktree and the staged changes are as they were,
+///  so the person runs the command again.
+///  Every other
+///       failure keeps the wording its caller already has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stopped = error.code === 'ETIMEDOUT' ? `stopped waiting for the Git read of ${fact}: ${error}` : undefined;
+/// ```
+pub fn read_stopped_text(fact: &str, error: &std::io::Error) -> Option<String> {
+    if error.kind() != std::io::ErrorKind::TimedOut {
+        return None;
+    }
+    return Some(format!(
+        "monochromatic-git-policy-cli stopped waiting for the Git read of {fact}: {error}"
+    ));
+}
+
+/// What:
+///  Run real Git with captured output and no standard input,
+///  under `READ_CEILING`.
 ///       `std::io::Result<T>` is `Result<T, std::io::Error>`.
 /// Why:
 ///   A query must never consume the caller's stdin (which belongs to the
-///       forwarded command) or write to the caller's streams.
+///       forwarded command) or write to the caller's streams,
+///  and it must not outlast its
+///       ceiling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,21 +182,76 @@ pub fn run_metadata_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
+    return run_metadata_git_within(real_git, arguments, overlay, READ_CEILING);
+}
+
+/// What:
+///  `run_metadata_git` with the ceiling the caller chose,
+///  which the controls shorten.
+/// Why:
+///   A control cannot wait two minutes for a real ceiling,
+///  and the seam is the ceiling itself,
+///  never a race
+///       between a write and a read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runMetadataGitWithin(realGit, args, overlay, ceiling): Promise<MetadataOutput>;
+/// ```
+pub fn run_metadata_git_within(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    ceiling: Duration,
+) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice()) {
         return Ok(answered);
     }
-    // What: `.stdin(Stdio::null())` connects the child's input to nothing; `.output()`
-    //       captures stdout and stderr and waits. A trailing `?` returns a start failure.
-    // Why:  Only "Git could not be started" is an error here.
+    let subject: String = read_subject(real_git, arguments);
+    // What: The watch captures both output streams through pipes and ends the child when the wait reaches the
+    //       ceiling; `.stdin(Stdio::null())` connects the child's input to nothing.
+    // Why:  `Command::output()` waits for the child with nothing watching it, so a Git that never returns holds the
+    //       check for good and the person's only way out is a kill.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const result = await spawn(realGit, args, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+    // const output = await spawnWatched(command, { waitingFor: subject, ceiling });
     // ```
-    let output: std::process::Output = git_command(real_git, arguments, overlay)
-        .stdin(Stdio::null())
-        .output_retrying()?;
+    let mut command: std::process::Command = git_command(real_git, arguments, overlay);
+    command.stdin(Stdio::null());
+    let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
+    let quiet: Duration = terms.limit;
+    let watched: std::io::Result<std::process::Output> = output_watched_within(
+        &mut command,
+        subject.as_str(),
+        subject.as_str(),
+        terms,
+        true,
+        StepBound::EndAt(ceiling),
+    );
+    // What: A read the watch ended is reported as a read of a check, not as a step of a commit: nothing this command
+    //       did can be finished or undone by the next Git command, and the words of a watched step say that it can.
+    // Why:  The person must be told what stayed as it was and what to run again.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (error.code === 'ETIMEDOUT') throw new Error(`${subject} showed no sign of work for ${quiet}s, or ran ${ceiling}s, and was ended; nothing changed; run the command again`);
+    // ```
+    let output: std::process::Output = match watched {
+        Ok(captured) => captured,
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!(
+                    "{subject} showed no sign of work for {} seconds, or ran for the {} seconds a check allows one read, and was ended. The read changed nothing, so the index and the worktree are as they were; run the command again",
+                    quiet.as_secs(),
+                    ceiling.as_secs()
+                ),
+            ));
+        }
+        Err(error) => return Err(error),
+    };
     // `Ok(...)` is the success variant carrying the captured result.
     return Ok(MetadataOutput {
         success: output.status.success(),

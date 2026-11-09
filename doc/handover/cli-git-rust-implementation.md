@@ -125,22 +125,22 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T05:07:00-05:00)
+#### Reviews and landings in progress (2026-11-09T05:15:47-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
-  the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
-  names a final wake that can be missed so a run waits for ever,
-  index preparation that can block the runtime before its first await,
-  and refused jobs that later run outside the blocking-job budget.
-  Its agent reports all three fixed,
-  but on top of main two order controls fail out of the 107 selected tests,
-  one at the 120 s watchdog.
-  The next review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-4-sol.txt`) names a queued job that still runs after its caller timed out,
-  and a path lookup that blocks the runtime before its first await.
-  Not ready to merge.
-  Some overlap controls pass without running on a host with too few CPUs for them,
-  and the next brief asks for a seam so they run at any quota.
-  Run 5 of its agent is on them.
+  run 5 of its agent reports the fourth review's four findings fixed,
+  and measured both order controls that failed:
+  each waited inside a job holding a place its peers needed.
+  The selection of 218 passes at 100% and 200% CPU.
+  Its tests on top of main are running.
+  The fifth review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`) names two things.
+  The raw runner's refusal says the step changed nothing,
+  though a queued job can still run later:
+  that is a wording fix for the next tokio step.
+  A permit wait with no deadline needs a cancelled job in the same process,
+  and a conversion is one call per process,
+  so the session leaves it.
+  The branch lands if its tests pass.
 - `fix/git-policy-cli-push-route-records-and-ceilings`:
   run 3 of its agent reports the eight findings of the second review fixed,
   and 783 of 783 selected tests pass on top of main.
@@ -175,11 +175,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   and its report says a commit a policy blocked goes the same way.
   `What should the next push do with a commit its checks blocked?` is now in `questions-for-the-owner.md`,
   because `README.md:2194` promises such a commit stays local.
-  The branch's tests on top of main and the eighth review
-  (`${HOME}/temp/agent/reviews/landing-route-round-8-sol.txt`) are running.
-  Open by its report:
-  a wrapper killed between an approving check and the rename leaves the push held with a notice that says the check never ran,
-  and with no owed record a snapshot older than the live index is unprotected.
+  On top of main 1264 of 1269 selected tests pass,
+  and the five failures all pass when run alone,
+  so they went to the agent measuring failures that appear only in a suite.
+  The eighth review (`${HOME}/temp/agent/reviews/landing-route-round-8-sol.txt`) names a symlink hashed through its target,
+  an unstaged deletion read as a staged one,
+  a moved worktree that fails a commit,
+  and a held push no later command mentions.
+  Run 9 of its agent fixes those and is meant to be the last before this branch lands.
+  Two findings that need a second process inside a small window stay,
+  written down in `SPEC.md`.
+  With no owed record a snapshot older than the live index is unprotected.
   `fix/git-policy-cli-tests-that-fail-only-in-a-suite`,
   a new agent,
   measures those and the other tests that fail only in a suite or against a wall-clock bound.
@@ -315,23 +321,19 @@ The old tree kept for the rollback stays until the owner deletes it.
   A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
   because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
-  Run 3 of the agent `controls-witness-their-race-by-ordering` reports its six findings fixed,
-  with no production file changed.
-  Its tests on top of main are running,
-  and it lands if they pass.
-- `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
-  run 2 of its agent reports that a missing publish configuration does not fail a commit,
-  proved by a real wrapped commit through the service,
-  and that the same change had broken five of the policy's controls,
-  now fixed along with tagged keys and tab-separated comments.
-  116 of 116 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-2-sol.txt`) names YAML the hand-written reader misreads without saying so,
-  so a dependent goes unbumped,
-  and nesting that exhausts the stack.
-  Not ready to merge.
-  Run 3 of its agent is on them.
-  That round picks a rule that ends this class of misread:
-  a maintained parser or a reader limited to what the generator writes.
+  Run 3 of the agent `controls-witness-their-race-by-ordering` fixed its six findings with no production file changed,
+  629 of 629 selected tests passed on top of main,
+  and the branch landed as `deaa805133`.
+- `fix/git-policy-cli-dependent-version-reads-the-real-publish-list` landed as `2daa6fe593`,
+  with 119 of 119 selected tests passing on top of main.
+  Its reader accepts only the line forms the generator writes,
+  a pick recorded in `questions-for-the-owner.md` as open to veto.
+  The third review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-3-sol.txt`) names one case,
+  a colon inside a hand-written trailing comment on a list item,
+  and `package/config/pnpr/config.yaml` holds no such comment.
+  A small follow-up waits for a free agent slot:
+  resume the run `dependent-version-publish-list-fixed` as run 4,
+  with `dependent-version-publish-list-round-4-prompt.md` and the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`:
   its agent reports the three findings of its audit fixed,
   262 of 262 selected tests pass on top of main,
@@ -407,22 +409,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   since all twenty are taken:
   resume the run `merge-route-findings-fixed` as run 5,
   with `merge-route-round-5-prompt.md` and the session file named in run 4's `summary.json`.
-- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
-  Run 3 took the suggestion to remove the step that loses data:
-  recovery no longer exchanges anything,
+- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes` landed as `1911e95d94`,
+  with 177 of 177 selected tests passing on top of main.
+  Recovery no longer exchanges anything,
   and a journal that may hold a person's bytes stays and is named on every later `fix`.
-  174 of 174 selected tests pass on top of main,
-  and the review of that round alone (`${HOME}/temp/agent/reviews/commit-checks-round-3-sol.txt`) found nothing wrong with that removal.
-  It names a journal removed without checking a person's permission change,
-  a FIFO in a journal blocking the next `fix`,
-  and notices lost on a failure path,
-  and the window of a write through an open descriptor,
-  which stays documented.
-  Not ready to merge.
-  Run 4 of its agent is on them.
-  Before it lands,
-  `questions-for-the-owner.md` gets the choice that `fix` refuses a worktree whose Git directory is on another file system,
-  if that refusal is still there.
+  The fourth review (`${HOME}/temp/agent/reviews/commit-checks-round-4-sol.txt`) names only windows that need another program inside a few instructions,
+  which stay documented.
+  The refusal of a Git directory on another file system is recorded in `questions-for-the-owner.md` as open to veto.
 - That too-wide review named two defects in code already on main,
   and reading the code bears both out.
   A read in `read_by_chunks` retries `EINTR` without a ceiling,

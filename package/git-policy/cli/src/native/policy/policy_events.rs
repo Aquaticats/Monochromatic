@@ -137,6 +137,23 @@ pub enum EngineFailureHint {
 }
 
 /// What:
+///  The hint of a read the wrapper ended at its bound.
+/// Why:
+///   The code's own hint speaks of content that is not in this clone and of `git fetch`,
+///  which answers a
+///       missing object and nothing about a Git that stopped answering;
+///  here nothing changed,
+///  so the remedy is
+///       one more run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const STOPPED_READ_HINT = 'Hint: the wrapper ended a Git read that showed no sign of work, so no policy decided anything; the index, the worktree and the staged changes are as they were, so run the command again.';
+/// ```
+pub const STOPPED_READ_HINT: &str =
+    "Hint: the wrapper ended a Git read that showed no sign of work, so no policy decided anything; the index, the worktree and the staged changes are as they were, so run the command again. If it stops again, check what that Git process waits for with `ps`, and raise the window with CLI_GIT_CHILD_WAIT_SECONDS.";
+
+/// What:
 ///  Every event a policy pass can produce.
 ///  An `enum` is a closed set of named
 ///       alternatives;
