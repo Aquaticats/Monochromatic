@@ -690,9 +690,14 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
   The command is rule `XVW` in `AGENTS.md`,
   a probe on `gpt-6.1-sol` with codex-cli 0.167.0 answered,
   and Pi's own OpenAI login had begun to fail with `invalid_grant`.
-  `review-branch-with-sol.ts` runs `codex`.
-  No audit has run through `codex` yet,
-  so its launcher is untested.
+  The owner then wrote:
+  "I think we can go more ambitious with codex reviews and audits now that I've effectively approved it running with tools."
+  So `review-branch-with-sol.ts` and the new `start-codex-audit.ts` give `codex` its own detached worktree,
+  and the session's suggestion,
+  revisable,
+  is that a finding counts only when it was reproduced against a binary built there.
+  The rules are in `${HOME}/temp/agent/pi-runs/shared-rules-for-codex-audits.md`,
+  and runs write to `${HOME}/temp/agent/codex-runs`.
   The audit OpenAI flagged stays stopped until the owner answers the question about it.
   Pi audits ran under a name beginning `sol-`,
   and the count against the limit of 20 leaves those units out:

@@ -287,8 +287,8 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- OpenAI reviews and audits,
- `timeout` in seconds:
+ Reviews and audits,
+ `timeout` sized in seconds:
  `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
 
 XVB:
@@ -668,9 +668,11 @@ UPN:
  Never run bare `mpm upgrade --all`.
 
 TRB:
- External tool fails with a diagnostic:
- `rg` its message in `doc/troubleshooting/` before any workaround;
- follow a recorded verified workaround as written.
+ External tool diagnostic:
+ `rg` its message in `doc/troubleshooting/`;
+ apply an authorized repair unasked,
+ follow recorded workarounds as written,
+ then recheck the emitting tool.
 
 EDR:
  Parallel tool calls may run in any order,
