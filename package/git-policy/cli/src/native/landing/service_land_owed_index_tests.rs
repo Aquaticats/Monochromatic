@@ -1052,3 +1052,39 @@ fn a_derived_record_of_a_moved_worktree_does_not_fail_the_commit() {
     assert_eq!(left, vec![String::from("one.txt")], "the derived path is left out, in the repository that is there");
     remove(world.root.as_path());
 }
+
+/// A record round-trips a path whose bytes are not text:
+/// the repository,
+/// the Git directory and the index are read back as the bytes they were written from,
+/// and so is a path of the batch.
+#[test]
+fn a_record_keeps_the_bytes_of_every_path_of_a_non_utf8_worktree() {
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-non-utf8-record");
+    // A name whose bytes are not UTF-8: `0xFF` is no start byte of any text.
+    let odd: std::ffi::OsString = <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(b"work\xfftree".to_vec());
+    let worktree: PathBuf = root.join(odd.as_os_str());
+    let git_dir: PathBuf = worktree.join(".git");
+    let index: PathBuf = git_dir.join("index");
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(&index).expect("the index's directory");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 3,
+        repository: worktree.clone(),
+        git_dir: git_dir.clone(),
+        index: index.clone(),
+        reference: String::from("refs/heads/main"),
+        old: String::from("a".repeat(40)),
+        new: String::from("b".repeat(40)),
+        paths: vec![b"caf\xe9.txt".to_vec()],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("the record");
+    let records: Vec<crate::owed_index_update::Owed> = crate::owed_index_update::records_of(git_dir.as_path());
+    assert_eq!(records.len(), 1, "the record is read back");
+    assert_eq!(records[0].repository.as_os_str().as_encoded_bytes(), worktree.as_os_str().as_encoded_bytes(), "the repository keeps its bytes");
+    assert_eq!(records[0].git_dir.as_os_str().as_encoded_bytes(), git_dir.as_os_str().as_encoded_bytes(), "the Git directory keeps its bytes");
+    assert_eq!(records[0].index.as_os_str().as_encoded_bytes(), index.as_os_str().as_encoded_bytes(), "the index keeps its bytes");
+    assert_eq!(records[0].paths, vec![b"caf\xe9.txt".to_vec()], "the batch's path keeps its bytes");
+    remove(root.as_path());
+}

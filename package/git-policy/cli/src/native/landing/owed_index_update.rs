@@ -129,9 +129,10 @@ fn encode(owed: &Owed) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(OWED_VERSION));
     fields.insert(String::from("seq"), Value::from(owed.seq));
-    fields.insert(String::from("repository"), Value::from(owed.repository.display().to_string()));
-    fields.insert(String::from("gitDir"), Value::from(owed.git_dir.display().to_string()));
-    fields.insert(String::from("index"), Value::from(owed.index.display().to_string()));
+    // A path need not be text, so every path field holds the bytes beside the text the older records carry.
+    crate::path_bytes_in_records::write_field(&mut fields, "repository", owed.repository.as_path());
+    crate::path_bytes_in_records::write_field(&mut fields, "gitDir", owed.git_dir.as_path());
+    crate::path_bytes_in_records::write_field(&mut fields, "index", owed.index.as_path());
     fields.insert(String::from("ref"), Value::from(owed.reference.clone()));
     fields.insert(String::from("old"), Value::from(owed.old.clone()));
     fields.insert(String::from("new"), Value::from(owed.new.clone()));
@@ -161,9 +162,9 @@ fn decode(text: &str) -> Result<Owed, String> {
     let Some(new) = field_text(&value, "new") else {
         return Err(String::from("the record names no landed commit"));
     };
-    let Some(index) = field_text(&value, "index") else {
-        return Err(String::from("the record names no index file"));
-    };
+    let index: PathBuf = crate::path_bytes_in_records::read_field(&value, "index")?;
+    let repository: PathBuf = crate::path_bytes_in_records::read_field(&value, "repository")?;
+    let git_dir: PathBuf = crate::path_bytes_in_records::read_field(&value, "gitDir")?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for entry in value.get("pathsHex").and_then(Value::as_array).into_iter().flatten() {
         let Some(digits) = entry.as_str() else {
@@ -176,9 +177,9 @@ fn decode(text: &str) -> Result<Owed, String> {
     }
     return Ok(Owed {
         seq,
-        repository: PathBuf::from(field_text(&value, "repository").unwrap_or_default()),
-        git_dir: PathBuf::from(field_text(&value, "gitDir").unwrap_or_default()),
-        index: PathBuf::from(index),
+        repository,
+        git_dir,
+        index,
         reference: field_text(&value, "ref").unwrap_or_default(),
         old: field_text(&value, "old").unwrap_or_default(),
         new,
