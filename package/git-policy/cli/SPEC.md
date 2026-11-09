@@ -2276,6 +2276,10 @@ A push the service stopped or that failed is tried again by the service on its o
 with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
 until it lands or the person must act (`src/native/push/push_retry.rs`).
+Its plan is kept in a file whose name is a hash of the branch and of the bytes of the worktree's Git directory
+(`src/native/push/push_retry_store.rs`),
+so two directories whose paths differ only in a byte that is not text keep a plan each,
+and a file an earlier release keyed by the path's text is still removed with its branch.
 The person must act for a conflict,
 for a login the service does not have,
 and for a hook on the server that declined the push
@@ -3625,6 +3629,10 @@ in-process reader can) gives every value of the multi-valued keys.
   (five by name,
   then a count).
   The merge commit skips commit-time hooks and policies because it is made from objects.
+  The record that guards the move is written before Git starts and removed once it ended,
+  in the Git directory `rev-parse --absolute-git-dir` printed, read as the bytes Git printed,
+  so a kill between Git's checkout and its ref update leaves an intent recovery finds
+  whatever bytes the worktree's path holds.
   Every line the reconcile adds begins with `monochromatic-git-policy-cli: auto-push: `;
   a line that begins with `monochromatic-git-policy-cli: auto-push: not published: `
   explains a failure and replaces the generic "run `git push`" note,
@@ -6588,6 +6596,32 @@ the watch stays on the old tree and the wait notices at its next timer.
 That is a bounded delay and not a hang;
 the wait requires the Git directory's ancestry to stay in place while it lasts.
 
+### Records of a worktree that is removed
+
+A worktree's unshown push failures and unfinished pushes live in its own Git directory,
+which Git deletes with the worktree,
+so before `git worktree remove` and `git worktree prune` run,
+the wrapper copies them into a snapshot under the common Git directory
+(`src/native/worktree/worktree_removal_rescue.rs`),
+and a later wrapper command settles each snapshot:
+a snapshot whose Git directory is gone is promoted into notices any worktree shows,
+one whose Git directory is still registered with an intact checkout and whose taker has ended is discarded,
+and anything else is kept for a later command.
+The snapshot names its worktree in a `gitdir` file,
+by the bytes of that directory under `gitdirHex=`,
+so a path that is not text still names the worktree it was taken for;
+a snapshot that an earlier release completed with the path's plain text is still read,
+and its text holds every byte even when its last one is a line break.
+
+The registration Git writes beside a linked worktree is read as bytes too,
+and only the one line break Git ends it with is removed,
+so a checkout whose path holds a line break is looked for as the whole path.
+A name that does not decode keeps the snapshot for the next command;
+it never settles it on a guess.
+
+The note that names an instance's worktree, written beside the socket,
+holds the directory the same way.
+
 ### Machines with no way to reach the service
 
 A commit on a machine where no socket answers and no user service manager can be asked to start one
@@ -7646,6 +7680,11 @@ an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
+A field of bytes that is present and does not decode is damage, never absence.
+An intent whose `repositoryHex`, `commonHex`, `gitdirHex`, `indexHex`, `cleanupHex` or `pathsHex` does not decode is no intent,
+and a restart drops the batch as it drops any damaged record
+instead of reading the plain field beside it,
+which names another index, another worktree or another list of paths.
 Commit records of an earlier release in `.git/cli-git-transactions`
 are not read,
 and the directory is no longer used:
@@ -8052,6 +8091,36 @@ and an `exiting` line with the reason (`idle`,
 Text a client chose appears only in Rust's quoted form,
 so it cannot end the line or hide a field.
 `README.md` ("Splitting a slow commit") gives the commands that read both logs.
+
+### Paths of changed files that are not text
+
+A commit's changed paths are the bytes Git lists.
+`git diff-index --cached -r --raw -z` is read as bytes (`changes_of` in
+`src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs`),
+a `Change` holds a `PathBuf` (`service_protocol_messages_and_name_checks.rs`),
+and the listing is never decoded as text,
+so one file whose name is not text no longer sends the whole commit to native Git.
+
+Every path in a protocol message or a line-oriented record carries two fields
+(`path_bytes_in_records.rs`):
+the plain field, which is the readable spelling of the path with U+FFFD for each byte that is not text,
+and the field named with the `Hex` suffix, which is the path's bytes in lowercase hexadecimal.
+A reader prefers the bytes field, so a name that is not text survives whole;
+a record with no bytes field is one an earlier release wrote, and the plain field is the path.
+A bytes field that is present and does not decode is damage and no path:
+the reader refuses the record rather than naming what the plain field spells,
+because that is a different name.
+
+The commit request's changes hold `path` and `pathHex`;
+the batch intent holds `paths=` and `pathsHex=`,
+so a restart builds the index from the same names the batch committed
+(`IndexPaths::Named` in `src/native/landing/service_land_follow.rs`).
+The `fast-import` stream quotes each name from its bytes,
+writing every byte below 0x20, a quote, a backslash and 0x7f as the octal escape `fast-import` reads
+(`quoted` in `src/native/landing/service_land_git_steps_and_import_stream.rs`),
+and the checks for paths that changed or that two requests share compare bytes.
+The readable plain field is used only where a path is a key for something else:
+the compiled-rules warm-up after a landing.
 
 ### Compatibility and degradation
 
