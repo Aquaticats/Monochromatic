@@ -643,3 +643,17 @@ before building the request,
 That is why answering a settled error with a new prompt in the same session
 reads the same state as resuming the session file by hand,
 which is what the coordinator did by hand for the runs of 2026-11-09.
+
+A real Pi 1.5.0 on `neuralwatt`/`deepseek-v4.1-flash` took a second prompt in one session after it settled,
+which is what that retry sends:
+each prompt answered `"disposition": "started"`,
+and each was followed by `agent_start`,
+`turn_start`,
+one assistant message,
+`agent_end` and
+`agent_settled`.
+The probe asked two questions that each answer with one word and wrote its session to a scratch file,
+so no session folder and no setting of the owner's was touched;
+the first settle there was a success rather than an error,
+so what it measures is that a settled session takes another prompt,
+not the error case itself.
