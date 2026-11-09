@@ -705,6 +705,10 @@ absent "retired_forbidden_strings_local" {
    "Cli-git statically bundles generated source mirrors into its single import and executable artifact"
    (Verified:
   `package/git-policy/forbidden-strings/README.md:6`).
+  That package was deleted on 2026-10-13,
+   in `a2b56c548c`,
+   and its Rust successor `package/forbidden-strings/cli/README.md` does not carry the sentence,
+   so this claim needs re-verification in the tree that exists.
 - Placement:
    general built-in `mirror` with `header` and `replace`.
   Retiring the mirrors through bundler path aliases in cli-git is possible in principle
