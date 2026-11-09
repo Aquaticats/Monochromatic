@@ -4,6 +4,7 @@
 //! private storage and removal on disk.
 
 use super::*;
+use crate::path_bytes_in_records::hex_of_path;
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal_encoding_and_validation::*;
 use crate::worktree_copy_journal_removal::*;
@@ -22,17 +23,17 @@ fn sample(root: &Path) -> Journal {
             selected: true,
         }],
         intended_entries: vec![String::from("cache")],
-        destination_root: destination.to_string_lossy().into_owned(),
+        destination_root: destination,
         phase: Phase::Installing,
         selected_roots: vec![String::from("cache")],
-        source_root: root.join("source").to_string_lossy().into_owned(),
-        stage_container: stage.to_string_lossy().into_owned(),
-        stage_root: stage.join("payload").to_string_lossy().into_owned(),
+        source_root: root.join("source"),
+        stage_container: stage.clone(),
+        stage_root: stage.join("payload"),
     };
 }
 
 /// The encoding is the incumbent's `JSON.stringify` of the same object,
-/// with a final line feed.
+/// with each root's bytes in hexadecimal after its text and a final line feed.
 #[test]
 fn encoding_matches_the_incumbent_exactly() {
     let journal: Journal = sample(Path::new("/w"));
@@ -40,11 +41,15 @@ fn encoding_matches_the_incumbent_exactly() {
         "{\"createdEntries\":[{\"device\":\"7\",\"inode\":\"42\",\"relativePath\":\"cache\",\"selected\":true}],",
         "\"intendedEntries\":[\"cache\"],",
         "\"destinationRoot\":\"/w/topic\",",
+        "\"destinationRootHex\":\"2f772f746f706963\",",
         "\"phase\":\"installing\",",
         "\"selectedRoots\":[\"cache\"],",
         "\"sourceRoot\":\"/w/source\",",
+        "\"sourceRootHex\":\"2f772f736f75726365\",",
         "\"stageContainer\":\"/w/.cli-git-worktree-copy-abc\",",
+        "\"stageContainerHex\":\"2f772f2e636c692d6769742d776f726b747265652d636f70792d616263\",",
         "\"stageRoot\":\"/w/.cli-git-worktree-copy-abc/payload\",",
+        "\"stageRootHex\":\"2f772f2e636c692d6769742d776f726b747265652d636f70792d6162632f7061796c6f6164\",",
         "\"version\":1}\n"
     )
     .to_string();
@@ -66,6 +71,20 @@ fn encoded_journal_parses_back_to_itself() {
     .expect("valid");
     assert_eq!(parsed, journal);
     remove(root.as_path());
+}
+
+/// The same record with every bytes field removed,
+/// as the release installed before them wrote it.
+fn strip_bytes_fields(text: &str) -> String {
+    let value: serde_json::Value = serde_json::from_str(text).expect("a journal");
+    let object: serde_json::Map<String, serde_json::Value> = value.as_object().expect("an object").clone();
+    let mut earlier: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    for (key, field) in object {
+        if !key.ends_with("Hex") {
+            earlier.insert(key, field);
+        }
+    }
+    return format!("{}\n", serde_json::Value::Object(earlier));
 }
 
 /// Every rule of the incumbent's validation refuses the record with its own wording.
@@ -101,7 +120,19 @@ fn validation_refuses_each_malformed_shape() {
             corrupt.clone(),
         ),
         (
+            // The bytes win over the text, so damage is a bytes field that is not the bytes of a path.
             base.replace(
+                &format!(
+                    "\"sourceRootHex\":{}",
+                    quote(hex_of_path(root.join("source").as_path()).as_str())
+                ),
+                "\"sourceRootHex\":\"2f6g\"",
+            ),
+            corrupt.clone(),
+        ),
+        (
+            // A record of the earlier shape, with no bytes fields, holds the text as the path.
+            strip_bytes_fields(base.as_str()).replace(
                 &format!(
                     "\"sourceRoot\":{}",
                     quote(root.join("source").to_string_lossy().as_ref())
@@ -115,19 +146,16 @@ fn validation_refuses_each_malformed_shape() {
         (
             base.replace(
                 &format!(
-                    "\"stageContainer\":{}",
+                    "\"stageContainerHex\":{}",
                     quote(
-                        root.join(".cli-git-worktree-copy-abc")
-                            .to_string_lossy()
-                            .as_ref()
+                        hex_of_path(root.join(".cli-git-worktree-copy-abc").as_path()).as_str()
                     )
                 ),
                 &format!(
-                    "\"stageContainer\":{}",
+                    "\"stageContainerHex\":{}",
                     quote(
-                        root.join("elsewhere/.cli-git-worktree-copy-abc")
-                            .to_string_lossy()
-                            .as_ref()
+                        hex_of_path(root.join("elsewhere/.cli-git-worktree-copy-abc").as_path())
+                            .as_str()
                     )
                 ),
             ),
@@ -190,12 +218,12 @@ fn validation_refuses_each_malformed_shape() {
 #[test]
 fn only_canonical_absolute_paths_are_accepted() {
     for accepted in ["/", "/a", "/a/b", "/a/.hidden", "/a/b.c"] {
-        assert!(is_canonical_absolute(accepted), "{accepted}");
+        assert!(is_canonical_absolute(Path::new(accepted)), "{accepted}");
     }
     for refused in [
         "", "a", "a/b", "//", "/a/", "/a//b", "/a/./b", "/./a", "/a/.", "/a/..", "/../a", "/a/b/..",
     ] {
-        assert!(!is_canonical_absolute(refused), "{refused}");
+        assert!(!is_canonical_absolute(Path::new(refused)), "{refused}");
     }
 }
 
@@ -239,8 +267,8 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
         quote(path.to_string_lossy().as_ref())
     );
     let place = |journal: &mut Journal, container: PathBuf| {
-        journal.stage_container = container.to_string_lossy().into_owned();
-        journal.stage_root = container.join("payload").to_string_lossy().into_owned();
+        journal.stage_container = container.clone();
+        journal.stage_root = container.join("payload");
     };
     let mut unprefixed: Journal = sample(root.as_path());
     place(&mut unprefixed, root.join("plain-stage"));
@@ -249,10 +277,7 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
     place(&mut elsewhere, root.join("elsewhere/.cli-git-worktree-copy-abc"));
     refuse(&elsewhere, relation.clone());
     let mut misplaced_payload: Journal = sample(root.as_path());
-    misplaced_payload.stage_root = root
-        .join(".cli-git-worktree-copy-abc/other")
-        .to_string_lossy()
-        .into_owned();
+    misplaced_payload.stage_root = root.join(".cli-git-worktree-copy-abc/other");
     refuse(&misplaced_payload, relation);
     let mut repeated_intent: Journal = sample(root.as_path());
     repeated_intent.intended_entries.push(String::from("cache"));
@@ -393,7 +418,7 @@ fn removal_deletes_stage_and_journal() {
     std::fs::create_dir(common.as_path()).expect("common");
     let journal_root: PathBuf = ensure_journal_root(common.as_path()).expect("root");
     let journal: Journal = sample(root.as_path());
-    let stage: PathBuf = PathBuf::from(journal.stage_container.as_str());
+    let stage: PathBuf = journal.stage_container.clone();
     std::fs::create_dir_all(stage.join("payload/locked")).expect("stage");
     std::fs::write(stage.join("payload/locked/file"), b"x").expect("file");
     std::fs::set_permissions(
@@ -426,7 +451,7 @@ fn the_complete_phase_is_written_before_the_stage_is_removed() {
     std::fs::write(&file, b"x").expect("file");
     // A stage below a file cannot be inspected, which stops the removal right after the phase is written.
     let mut journal: Journal = sample(root.as_path());
-    journal.stage_container = file.join("stage").to_string_lossy().into_owned();
+    journal.stage_container = file.join("stage");
     let path: PathBuf = journal_root.join("id.json");
     write_journal(path.as_path(), &journal).expect("write");
     let pending: PendingJournal = PendingJournal {
@@ -642,4 +667,208 @@ fn a_split_removal_where_no_thread_can_start_removes_the_whole_tree() {
     remove_tree_split(tree.as_path()).expect("every subtree is removed here");
     assert!(!tree.exists());
     crate::test_support::remove(root.as_path());
+}
+
+/// A source repository with one ignored `cache` file,
+/// and a destination registered by real Git whose parent holds `parent_bytes`.
+fn staged_for_destination(name: &str, parent_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf, StagedSnapshot) {
+    use crate::test_support::{git, git_context, repository};
+    use crate::worktree_copy_selection::CopySelection;
+    use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture(name);
+    let main: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(main.join(".gitignore"), b"cache/\n").expect("gitignore");
+    std::fs::create_dir_all(main.join("cache")).expect("cache");
+    std::fs::write(main.join("cache/data"), b"payload").expect("data");
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let parent: PathBuf = root.join(OsStr::from_bytes(parent_bytes));
+    std::fs::create_dir_all(parent.as_path()).expect("a parent that is not text");
+    let destination: PathBuf = parent.join("topic");
+    let add: Vec<std::ffi::OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
+        .iter()
+        .map(std::ffi::OsString::from)
+        .chain([destination.clone().into_os_string()])
+        .collect();
+    git(main.as_path(), add.as_slice());
+    let canonical: PathBuf = std::fs::canonicalize(destination).expect("canonical destination");
+    let canonical_source: PathBuf = std::fs::canonicalize(main).expect("canonical source");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        canonical_source.as_path(),
+        new_stage_container(canonical.as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    return (root, common, canonical, snapshot);
+}
+
+/// The fields of a journal that the release installed before the bytes fields read as text,
+/// copied from `read_shape` in `worktree_copy_journal_encoding_and_validation.rs` at commit 9462675cd8.
+/// Why:
+///  A record this build writes must still be read by that release when the path is text,
+///  and must make it refuse rather than act on the replacement spelling when it is not.
+fn earlier_release_roots(text: &str) -> Option<Vec<String>> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    let object = value.as_object()?;
+    if object.get("version")?.as_f64()? != 1.0 {
+        return None;
+    }
+    let mut roots: Vec<String> = Vec::new();
+    for field in ["destinationRoot", "sourceRoot", "stageContainer", "stageRoot"] {
+        roots.push(String::from(object.get(field)?.as_str()?));
+    }
+    return Some(roots);
+}
+
+/// The temporary a write publishes from keeps every byte of the path it stands beside,
+/// so a write under a directory that is not text renames onto the real name.
+#[test]
+fn a_temporary_beside_a_path_that_is_not_text_keeps_its_bytes() {
+    use crate::test_support::dead_copy_owner;
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("journal-temporary-bytes");
+    let path: PathBuf = root.join(OsStr::from_bytes(b"journals\xff")).join("id.json");
+    let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
+    let temporary: PathBuf = temporary_path(path.as_path(), &owner, "unique");
+    let mut expected: std::ffi::OsString = path.clone().into_os_string();
+    expected.push(format!(".{}.unique.tmp", owner.token()));
+    assert_eq!(temporary, PathBuf::from(expected), "the suffix follows the path's own bytes");
+    assert_eq!(temporary.parent(), path.parent(), "the temporary stands beside the journal");
+    remove(root.as_path());
+}
+
+/// A journal keeps the bytes of its four roots,
+/// so recovery reads the destination the copy was made for,
+/// and installs the ignored state there.
+#[test]
+fn recovery_installs_into_a_destination_whose_path_is_not_text() {
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
+    use crate::test_support::dead_copy_owner;
+    let (root, common, destination, snapshot) = staged_for_destination("journal-recovery-bytes", b"par\xffnt");
+    let pending: PendingJournal = create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    let text: String = std::fs::read_to_string(pending.path.as_path()).expect("journal file");
+    assert!(
+        text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destination.as_path()).as_str())).as_str()),
+        "the record keeps the destination's bytes: {text}"
+    );
+    assert!(
+        !text.contains("\"destinationRoot\":\""),
+        "a path that is not text has no plain spelling that names it: {text}"
+    );
+    let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1, "{report:?}");
+    assert_eq!(std::fs::read(destination.join("cache/data")).expect("copied"), b"payload");
+    let replacement: PathBuf = PathBuf::from(destination.to_string_lossy().into_owned());
+    assert!(!replacement.exists(), "nothing is installed at the replacement spelling");
+    remove(root.as_path());
+}
+
+/// Two journals whose roots differ only in a byte that is not text are two records:
+/// recovery fills each destination with its own copy and neither takes the other's.
+#[test]
+fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
+    use crate::test_support::dead_copy_owner;
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
+    use crate::worktree_copy_selection::CopySelection;
+    use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("journal-two-byte-names");
+    let main: PathBuf = crate::test_support::repository(root.as_path(), "source");
+    std::fs::write(main.join(".gitignore"), b"cache/\n").expect("gitignore");
+    std::fs::create_dir_all(main.join("cache")).expect("cache");
+    std::fs::write(main.join("cache/data"), b"payload").expect("data");
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    // Two destinations of one repository, under parents that are the same text and differ in one byte.
+    let mut destinations: Vec<PathBuf> = Vec::new();
+    for (bytes, branch) in [(b"one\xff".as_slice(), "first"), (b"one\xfe".as_slice(), "second")] {
+        let parent: PathBuf = root.join(OsStr::from_bytes(bytes));
+        std::fs::create_dir_all(parent.as_path()).expect("parent");
+        let destination: PathBuf = parent.join("topic");
+        let arguments: Vec<std::ffi::OsString> = ["worktree", "add", "--quiet", "-b", branch]
+            .iter()
+            .map(std::ffi::OsString::from)
+            .chain([destination.clone().into_os_string()])
+            .collect();
+        crate::test_support::git(main.as_path(), arguments.as_slice());
+        destinations.push(std::fs::canonicalize(destination).expect("canonical destination"));
+    }
+    let source: PathBuf = std::fs::canonicalize(main.as_path()).expect("canonical source");
+    let mut journals: Vec<PendingJournal> = Vec::new();
+    for destination in &destinations {
+        let snapshot: StagedSnapshot = stage_ignored_snapshot(
+            &crate::test_support::git_context(),
+            source.as_path(),
+            new_stage_container(destination.as_path()).expect("container").as_path(),
+            &[],
+            &CopySelection::Ignored,
+        )
+        .expect("staged");
+        journals.push(create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal"));
+    }
+    let first_text: String = std::fs::read_to_string(journals[0].path.as_path()).expect("first file");
+    let second_text: String = std::fs::read_to_string(journals[1].path.as_path()).expect("second file");
+    assert_ne!(first_text, second_text, "the two destinations are two records");
+    assert!(
+        first_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destinations[0].as_path()).as_str())).as_str()),
+        "the first names its own bytes: {first_text}"
+    );
+    assert!(
+        second_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destinations[1].as_path()).as_str())).as_str()),
+        "the second names its own bytes: {second_text}"
+    );
+    let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 2, "{report:?}");
+    for destination in &destinations {
+        assert_eq!(std::fs::read(destination.join("cache/data")).expect("copied"), b"payload", "{}", destination.display());
+        let replacement: PathBuf = PathBuf::from(destination.to_string_lossy().into_owned());
+        assert!(!replacement.exists(), "nothing is written at the replacement spelling");
+    }
+    remove(root.as_path());
+}
+
+/// The release now installed reads a journal this build writes for text roots,
+/// and refuses one whose roots hold other bytes instead of acting on the replacement spelling.
+#[test]
+fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_bytes() {
+    use crate::test_support::dead_copy_owner;
+    let (text_root, text_common, text_destination, text_snapshot) = staged_for_destination("journal-earlier-text", b"parent");
+    let text_journal: PendingJournal = create_journal_for(text_common.as_path(), text_destination.as_path(), &text_snapshot, &dead_copy_owner()).expect("journal");
+    let text: String = std::fs::read_to_string(text_journal.path.as_path()).expect("journal file");
+    let roots: Vec<String> = earlier_release_roots(text.as_str()).expect("the installed release reads a text journal");
+    assert_eq!(roots[0], text_destination.to_string_lossy(), "the destination is the one this build named");
+    assert_eq!(roots[2], text_snapshot.stage_container.to_string_lossy(), "the stage is the one this build named");
+    remove(text_root.as_path());
+    let (bytes_root, bytes_common, bytes_destination, bytes_snapshot) = staged_for_destination("journal-earlier-bytes", b"par\xffnt");
+    let bytes_journal: PendingJournal = create_journal_for(bytes_common.as_path(), bytes_destination.as_path(), &bytes_snapshot, &dead_copy_owner()).expect("journal");
+    let bytes_text: String = std::fs::read_to_string(bytes_journal.path.as_path()).expect("journal file");
+    assert_eq!(
+        earlier_release_roots(bytes_text.as_str()),
+        None,
+        "the installed release refuses rather than naming the replacement character"
+    );
+    remove(bytes_root.as_path());
+}
+
+/// A journal file whose bytes are not text is damage:
+/// reading it with replacement characters would name another directory,
+/// so it is refused by name and kept.
+#[test]
+fn a_journal_file_that_is_not_text_is_refused_and_kept() {
+    use crate::private_storage::write_private_file;
+    let root: PathBuf = fixture("journal-not-text");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let path: PathBuf = journals.join("id.json");
+    let record: &[u8] = b"{\"createdEntries\":[],\"intendedEntries\":[],\"destinationRoot\":\"/w/a\xffb\",\"phase\":\"staged\",\"selectedRoots\":[],\"sourceRoot\":\"/w/s\",\"stageContainer\":\"/w/.cli-git-worktree-copy-x\",\"stageRoot\":\"/w/.cli-git-worktree-copy-x/payload\",\"version\":1}\n";
+    write_private_file(path.as_path(), record).expect("journal");
+    let failure: WorktreeCopyError = read_pending_journals(common.as_path()).expect_err("not text");
+    assert!(failure.0.contains("it is not text"), "{}", failure.0);
+    assert!(path.exists(), "a journal that cannot be read is kept");
+    remove(root.as_path());
 }

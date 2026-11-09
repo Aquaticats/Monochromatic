@@ -9,7 +9,7 @@
 //! ```
 
 /// Import the actual parser and native argument/process types.
-use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout};
+use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout, without_pathspec_mode_options};
 use std::ffi::OsString;
 use std::process::Command;
 
@@ -20,6 +20,26 @@ fn arguments(values: &[&str]) -> Vec<OsString> {
         result.push(OsString::from(value));
     }
     return result;
+}
+
+/// Every option that sets a pathspec mode leaves the prefix,
+/// and a value that spells one stays,
+/// because a global option's value is not an option.
+#[test]
+fn a_pathspec_mode_option_leaves_the_prefix_and_its_value_stays() {
+    let kept = |values: &[&str]| -> Vec<String> {
+        return without_pathspec_mode_options(arguments(values).as_slice()).iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    };
+    assert_eq!(kept(&[]), Vec::<String>::new());
+    assert_eq!(kept(&["--icase-pathspecs", "-C", "dir"]), vec![String::from("-C"), String::from("dir")]);
+    assert_eq!(kept(&["-C", "--icase-pathspecs"]), vec![String::from("-C"), String::from("--icase-pathspecs")], "the value of -C is a directory, not a mode");
+    assert_eq!(kept(&["-c", "--literal-pathspecs"]), vec![String::from("-c"), String::from("--literal-pathspecs")], "nor is the value of -c");
+    assert_eq!(
+        kept(&["--glob-pathspecs", "-c", "core.pager=cat", "--literal-pathspecs", "--no-literal-pathspecs", "--no-pager"]),
+        vec![String::from("-c"), String::from("core.pager=cat"), String::from("--no-pager")],
+        "every mode option goes and nothing else does"
+    );
+    assert_eq!(kept(&["--noglob-pathspecs", "--git-dir=/tmp/g"]), vec![String::from("--git-dir=/tmp/g")], "an inline value carries its own");
 }
 
 /// Separated values,

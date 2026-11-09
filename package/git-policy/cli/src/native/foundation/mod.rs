@@ -41,6 +41,12 @@ pub mod iso_time;
 /// Lexical path normalization.
 pub mod lexical_path;
 
+/// Reading a file only when it is a plain one:
+/// never waiting for a writer,
+/// never following a link,
+/// never past a limit.
+pub mod plain_file;
+
 /// A path kept as text in a record,
 /// with its bytes in hexadecimal beside the plain text.
 pub mod path_bytes_in_records;
@@ -161,3 +167,12 @@ pub mod name_held_while_one_thread_publishes_it;
 /// The longest delay measured on this host and the owner's multiple of it,
 /// which the held-name wait and the wait before a forced stop use.
 pub mod worst_delay_seen_on_this_host;
+
+/// The collected elements a pass over unbounded input has looked at,
+/// counted for the controls of the passes that must stay linear.
+pub mod collected_elements_looked_at;
+
+/// A blocking job on a thread of its own,
+/// awaited no longer than a ceiling,
+/// because a file system call can wait in the kernel with no end.
+pub mod work_awaited_within_a_ceiling;

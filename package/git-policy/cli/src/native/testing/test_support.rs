@@ -81,15 +81,34 @@ pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 /// for example onto a tmpfs for speed.
 pub(crate) const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 
-/// The directory fixtures are created in:
-/// `test-fixtures` beside the build output of the running test executable
-///  (`<target>/debug/deps/<test>` has the target directory three levels up),
+/// What:
+///  The directory this process's fixtures are created in:
+///  `test-fixtures/process-<pid>` beside the build output of the running test executable
+/// (`<target>/debug/deps/<test>` has the target directory three levels up),
 /// never `/tmp`.
-/// A shared tmpfs with a per-user quota fills up when failing tests leave fixtures behind (issue 1809),
-/// and then
-/// every command of every session fails.
+/// Why:
+///   The build output is shared by every checkout that builds into the same target directory,
+/// so `test-fixtures` itself is
+///  shared by every checkout and every test process of this host.
+/// The names under it that are not the fixtures' own (the scratch home the product keeps
+///  its per-user state in,
+/// the marker `refused-push-ran`,
+/// the repositories `repository(root, name)` makes beside the fixtures)
+///  were one fixed
+///  name for all of them,
+/// so two runs at once shared them:
+/// two checkouts started at the same moment reported three subvolume controls failing in
+///  ten to twenty seconds while the same three passed alone.
+/// A directory of the process's own makes every fixed name below it the process's,
+/// and nothing else changes:
+///  fixtures are still removed by their own test and kept for inspection on request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = join(target, 'test-fixtures', `process-${process.pid}`);
+/// ```
 pub(crate) fn fixture_root() -> PathBuf {
-    let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
+    let base: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
         || {
             let target: Option<PathBuf> = this_test_binary()
                 .ok()
@@ -100,6 +119,7 @@ pub(crate) fn fixture_root() -> PathBuf {
         },
         PathBuf::from,
     );
+    let root: PathBuf = base.join(format!("process-{}", std::process::id()));
     std::fs::create_dir_all(&root).expect("fixture root");
     return root;
 }
@@ -191,6 +211,29 @@ pub(crate) fn own_group(child: &std::process::Child) {
     THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
 }
 
+/// What:
+///  Run `work` on its own thread and answer its result,
+///  or nothing when it did not finish within five seconds.
+/// Why:
+///   A read of a named pipe waits for a writer that never comes,
+/// and a control that called such a read
+///  directly would hold the suite for ever instead of failing;
+/// the deadline turns the wait into a failure the control
+///  can name,
+/// and the thread the read holds is abandoned with the process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await finishedWithin(() => readPlainText(path)); // undefined when five seconds passed
+/// ```
+pub(crate) fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
+    return receiver.recv_timeout(std::time::Duration::from_secs(5)).ok();
+}
+
 /// This test process's own executable,
 /// for the helper processes a control starts from the test binary.
 ///  A test starts the test binary,
@@ -203,28 +246,6 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-/// What:
-///  This test binary started on one test,
-/// with `variable` set so the child knows it is the child.
-/// Why:
-///  A descriptor,
-///  a signal mask and a record of one process belong to that process,
-/// so each control of them runs its own body in a child and
-///  asserts what the parent sees.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
-/// ```
-pub(crate) fn child_this_test(variable: &str, name: &str) -> std::process::Output {
-    let binary: PathBuf = this_test_binary().expect("the test binary");
-    return std::process::Command::new(binary)
-        .args(["--exact", name, "--nocapture", "--test-threads=1"])
-        .env(variable, "1")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
-}
 
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
@@ -296,35 +317,6 @@ pub(crate) fn shown_notices(notices: Vec<crate::push_failure_notice::Notice>) ->
     return texts;
 }
 
-/// Run real Git in a fixture with no system or global configuration and a fixed identity.
-pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
-    return Command::new(REAL_GIT)
-        .current_dir(directory)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("GIT_AUTHOR_NAME", "Fixture")
-        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
-        .env("GIT_COMMITTER_NAME", "Fixture")
-        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .args(arguments)
-        .output()
-        .expect("native Git fixture command");
-}
-
-/// Run real Git in a fixture and require success.
-pub(crate) fn git<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
-    let output: Output = git_output(directory, arguments);
-    assert!(
-        output.status.success(),
-        "git {:?} failed: {}",
-        arguments.iter().map(AsRef::as_ref).collect::<Vec<&OsStr>>(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    return output;
-}
-
 /// Create a repository with one empty commit on `main` inside a fixture directory.
 pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
     let root: PathBuf = parent.join(name);
@@ -343,6 +335,15 @@ pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
 /// The one writer of executable fixture files,
 /// shared with the binary-level controls.
 #[cfg(unix)]
+#[path = "fixture_git_commands.rs"]
+pub(crate) mod fixture_git_commands;
+
+/// Run real Git in a fixture with no system or global configuration and a fixed identity.
+pub(crate) use fixture_git_commands::{git, git_output};
+
+#[path = "child_test_process.rs"]
+pub(crate) mod child_test_process;
+
 #[path = "fixture_executable.rs"]
 mod fixture_executable;
 
@@ -516,6 +517,91 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
     return command.status().expect("the child test starts");
 }
 
+/// How long a control's wait lets the run show nothing before it counts the event it waits for as lost.
+/// Why:
+///   A wall clock cannot tell a service that lost its work from one whose push is slow on a contended disk.
+/// Measured on 2026-11-09 in the push-retry controls of this crate while the host ran at a load average of 100 and more:
+/// a local one-commit push took 9.6 s and 12.0 s (`push_ms=9605`, `push_ms=12009`) against 1.2 to 3 s alone,
+/// and controls whose wait allowed 11.8 s failed while the push went on to land just after it.
+/// The judgment is the watchdog's own (`run_progress`),
+/// whose window is 120 s on the same evidence
+/// (`QUIET_WINDOW` in `testing/test_support.rs`:
+/// the longest stretch a working run showed nothing was 8.0 s);
+/// this window is half of it,
+/// so a control's own report reaches the reader before the watchdog ends the run.
+pub(crate) const STILL_WORKING_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// How often a control's wait looks for its event and at the run's own work.
+pub(crate) const WAIT_LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// What:
+///  One wait and how long it lets the run show nothing.
+/// Why:
+///   The controls wait for their events with `STILL_WORKING_WINDOW`,
+/// and their own controls wait with a window they can reach in a moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WaitingFor = { window: Duration; done: () => boolean };
+/// ```
+pub(crate) struct WaitingFor<'a> {
+    /// How long nothing may move before the event counts as lost.
+    pub(crate) window: std::time::Duration,
+    /// Whether the event the wait is for has happened.
+    pub(crate) done: &'a dyn Fn() -> bool,
+}
+
+/// What:
+///  Wait until `done` holds, for as long as the run keeps working, and give whether it held.
+/// Why:
+///   A control's event (a push that lands, a claim that is settled) takes as long as the disk takes,
+/// and a wait that gives up on a clock fails while the event is still coming.
+/// Only a run that shows no sign of work is over:
+/// the wait ends when the run has moved nothing for its window,
+/// which is the evidence the watchdog judges,
+/// so a slow push is waited for and a plan that was lost fails.
+/// A run that keeps working for ever is ended by the test runner's own per-test limit
+/// (`.config/nextest.toml`,
+/// `slow-timeout` 60 s times `terminate-after` 5),
+/// so nothing waits without a bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waitUntil = (done) => waitUntilFor({ window: STILL_WORKING_WINDOW, done });
+/// ```
+pub(crate) fn wait_until(done: &dyn Fn() -> bool) -> bool {
+    return wait_until_for(WaitingFor { window: STILL_WORKING_WINDOW, done });
+}
+
+/// `wait_until` with the window given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitUntilFor({ window, done }: WaitingFor): boolean {
+///     using reading = Reading.begin(); // this thread's own looks are not the run's work
+///     ...
+/// }
+/// ```
+pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
+    let WaitingFor { window, done } = waiting;
+    // This thread reads the run at every look, and those reads are its own work: registered for the whole wait, so a look
+    //  taken by another reader (a watcher, or a second control's wait) leaves them out.
+    let _reading: Option<crate::run_progress::Reading> = crate::run_progress::Reading::begin();
+    let mut judge: crate::run_progress::Judge = crate::run_progress::Judge::new(window);
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        if done() {
+            return true;
+        }
+        std::thread::sleep(WAIT_LOOK_EVERY);
+        // The look is taken after the wait for the event, so a run that stopped working while the event was checked is still seen to have moved.
+        if let Some(ending) = judge.observe(began.elapsed(), crate::run_progress::look_now()) {
+            eprintln!("a control's wait gave up after {:.1} s because the run {ending}", began.elapsed().as_secs_f64());
+            return done();
+        }
+    }
+}
+
 /// What:
 ///  The number of descriptors this process holds now,
 ///  the directory handle of the listing itself not counted.
@@ -598,39 +684,6 @@ pub(crate) fn leave_free(free: usize) -> Vec<std::fs::File> {
 #[path = "test_support_tests.rs"]
 mod tests;
 
-/// What:
-///  The owner of a process that really started,
-/// had its birth identity read while it ran,
-/// and was then killed and reaped.
-/// Why:
-///   An interrupted copy is a journal or a claim whose owner is gone;
-/// a control builds one with this owner instead of
-///  waiting for a real crash.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const dead = await deadCopyOwner(); // { pid, birthIdentity, pidNamespace } of a killed child
-/// ```
-pub(crate) fn dead_copy_owner() -> crate::worktree_copy_owner::CopyOwner {
-    use std::process::Stdio;
-    // Owned, so an assertion between the start and the kill does not leave the sleeper for a minute.
-    let mut child: std::process::Child = spawn_owned(
-        Command::new("sleep")
-            .arg("60")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null()),
-    )
-    .expect("sleep starts");
-    let pid: i64 = i64::from(child.id());
-    let birth: String = crate::process_identity::process_birth_identity(pid)
-        .expect("identity readable")
-        .expect("the child runs");
-    child.kill().expect("child is killed");
-    child.wait().expect("child is reaped");
-    return crate::worktree_copy_owner::CopyOwner {
-        pid,
-        birth_identity: birth,
-        pid_namespace: crate::pid_namespace::current_pid_namespace(),
-    };
-}
+/// The owner of a process that really started and was then killed,
+/// a fixture a control builds instead of waiting for a real crash.
+pub(crate) use crate::test_support_dead_copy_owner::dead_copy_owner;

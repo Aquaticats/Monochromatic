@@ -18,6 +18,8 @@
 //! ```
 
 use crate::json_record::quote;
+use crate::plain_file::read_plain_file;
+use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
@@ -37,10 +39,12 @@ use std::path::{Path, PathBuf};
 /// moved,
 /// pruned or re-pointed can receive nothing,
 /// so its journal is discarded.
+/// A pointer that cannot be followed answers nothing,
+/// and a copy is never discarded on an answer that was not given.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DestinationRegistration = 'registered' | 'unregistered';
+/// type DestinationRegistration = 'registered' | 'unregistered' | 'pointer-unfollowable';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Registration {
@@ -48,6 +52,12 @@ pub enum Registration {
     Registered,
     /// The destination is not registered under the common directory.
     Unregistered,
+    /// The destination holds a pointer that could not be followed,
+    /// because the file names no directory,
+    /// names none that is there,
+    /// or cannot be read as a plain file,
+    /// so whether it is registered is unknown.
+    PointerUnfollowable,
 }
 
 /// What:
@@ -89,27 +99,98 @@ pub struct RecoveryReport {
 }
 
 /// What:
+///  Whether a failure says the path,
+/// or a part of it,
+/// is not there.
+/// Why:
+///   A path that is absent answers a question about the registration,
+/// while a path that cannot be read for another reason is a fault to report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notThere = (error) => error.code === 'ENOENT' || error.code === 'ENOTDIR'
+/// ```
+fn not_there(error: &std::io::Error) -> bool {
+    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ENOTDIR);
+}
+
+/// What:
+///  The directory a `.git` pointer names,
+/// and nothing when the file is not a pointer at all.
+/// Why:
+///   Git strips every trailing line feed and carriage return from the file,
+/// in any order:
+/// `while (buf[len - 1] == '\n' || buf[len - 1] == '\r') len--;` in `read_gitfile_raw`,
+/// Git's `setup.c`.
+/// A pointer a Windows tool ended with a carriage return and a line feed therefore names the directory it holds;
+/// a reader that strips only the line feed asks for a directory whose name ends in a carriage return,
+/// and no worktree has one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pointerDirectory = (file: Buffer) => file.subarray(0, 8).toString() === 'gitdir: ' ? file.subarray(8).toString().replace(/[\r\n]+$/, '') : undefined
+/// ```
+fn pointer_directory(recorded: &[u8]) -> Option<&[u8]> {
+    let named: &[u8] = recorded.strip_prefix(b"gitdir: ")?;
+    let mut end: usize = named.len();
+    while end > 0 && (named[end - 1] == b'\n' || named[end - 1] == b'\r') {
+        end -= 1;
+    }
+    return Some(&named[..end]);
+}
+
+/// What:
 ///  The raw registration check before missing paths are turned into `unregistered`.
 /// Why:
 ///   A missing path on the way to the registration is an answer,
-/// not a failure.
+/// not a failure,
+/// but only where it proves the destination is registered nowhere:
+/// a pointer that names a directory which is not there could not be followed,
+/// and neither can a pointer file that is empty,
+/// half written or not a plain file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function readRegistration({ commonDir, destinationRoot }): Promise<DestinationRegistration>;
 /// ```
 fn read_registration(common_dir: &Path, destination: &Path) -> std::io::Result<Registration> {
-    if std::fs::canonicalize(destination)? != destination {
-        return Ok(Registration::Unregistered);
+    use std::os::unix::ffi::OsStrExt;
+    // A destination that is gone, or is not a directory, holds no registration: that absence is proven.
+    match std::fs::canonicalize(destination) {
+        Ok(canonical) if canonical == destination => {}
+        Ok(_) => return Ok(Registration::Unregistered),
+        Err(error) if not_there(&error) => return Ok(Registration::Unregistered),
+        Err(error) => return Err(error),
     }
-    let pointer: String = std::fs::read_to_string(destination.join(".git"))?
-        .trim_end()
-        .to_string();
-    let Some(rest) = pointer.strip_prefix("gitdir: ") else {
-        return Ok(Registration::Unregistered);
+    // The pointer is read as bytes, without waiting and without following a link: a command killed while it rewrites
+    // the file leaves it empty or half written, and a named pipe left at that name would stop its reader until a writer
+    // comes, which the pending check runs into before it forwards anything. Only a file that is not there at all proves
+    // the destination is registered nowhere; one that cannot be read as a plain file proves nothing either way.
+    let recorded: Vec<u8> = match read_plain_file(destination.join(".git").as_path(), GIT_FILE_LIMIT) {
+        Ok(recorded) => recorded,
+        Err(error) if not_there(&error) => return Ok(Registration::Unregistered),
+        Err(_unreadable) => return Ok(Registration::PointerUnfollowable),
     };
-    let admin: PathBuf = std::fs::canonicalize(destination.join(rest))?;
-    let expected: PathBuf = std::fs::canonicalize(common_dir.join("worktrees"))?;
+    // A file that is not a whole pointer names no directory this reader can follow.
+    let Some(named) = pointer_directory(recorded.as_slice()) else {
+        return Ok(Registration::PointerUnfollowable);
+    };
+    // A file that claims a pointer and names no directory cannot be followed either.
+    if named.is_empty() {
+        return Ok(Registration::PointerUnfollowable);
+    }
+    // The pointer is bytes: Git writes the directory it names as it is, so a path that is not text must be read whole.
+    let admin: PathBuf = match std::fs::canonicalize(destination.join(std::ffi::OsStr::from_bytes(named))) {
+        Ok(admin) => admin,
+        Err(error) if not_there(&error) => return Ok(Registration::PointerUnfollowable),
+        Err(error) => return Err(error),
+    };
+    // The repository's own administrative directory is absent only when it has no linked worktree at all.
+    let expected: PathBuf = match std::fs::canonicalize(common_dir.join("worktrees")) {
+        Ok(expected) => expected,
+        Err(error) if not_there(&error) => return Ok(Registration::Unregistered),
+        Err(error) => return Err(error),
+    };
     if admin.parent() == Some(expected.as_path()) {
         return Ok(Registration::Registered);
     }
@@ -129,15 +210,9 @@ pub fn destination_registration(
     common_dir: &Path,
     destination: &Path,
 ) -> Result<Registration, WorktreeCopyError> {
-    // `match` on the failure kind: a missing path means unregistered, anything else is a fault to report.
+    // `match` on the failure: a path that cannot be read at all is a fault to report, and every answer is a value.
     match read_registration(common_dir, destination) {
         Ok(registration) => return Ok(registration),
-        Err(error)
-            if error.kind() == std::io::ErrorKind::NotFound
-                || error.raw_os_error() == Some(libc::ENOTDIR) =>
-        {
-            return Ok(Registration::Unregistered);
-        }
         Err(error) => {
             let message: String = format!(
                 "monochromatic-git-policy-cli: could not read worktree registration of {}.",
@@ -160,11 +235,11 @@ pub fn destination_registration(
 /// async function validateJournalStage(record): Promise<StagePresence>;
 /// ```
 pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, WorktreeCopyError> {
-    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
-    let payload: PathBuf = PathBuf::from(pending.journal.stage_root.as_str());
+    let container: &Path = pending.journal.stage_container.as_path();
+    let payload: &Path = pending.journal.stage_root.as_path();
     // `match` on the no-follow lookup: an absent path is reported as missing, and any other failure names the destination.
     for path in [&container, &payload] {
-        match std::fs::symlink_metadata(path.as_path()) {
+        match std::fs::symlink_metadata(path) {
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(StagePresence::Missing);
@@ -172,12 +247,12 @@ pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, Worktre
             Err(error) => {
                 let message: String = format!(
                     "monochromatic-git-policy-cli: could not validate worktree-copy recovery state for {}.",
-                    quote(pending.journal.destination_root.as_str())
+                    quote(pending.journal.destination_root.to_string_lossy().as_ref())
                 );
                 return Err(failure_with_cause(message.as_str(), Some(&error)));
             }
         }
-        assert_private_path(path.as_path(), Role::PrivateStage)?;
+        assert_private_path(path, Role::PrivateStage)?;
     }
     return Ok(StagePresence::Intact);
 }
@@ -198,10 +273,10 @@ fn recover_transaction(
     common_dir: &Path,
     pending: PendingJournal,
 ) -> Result<(bool, Option<String>), WorktreeCopyError> {
-    let destination: String = quote(pending.journal.destination_root.as_str());
+    let destination: String = quote(pending.journal.destination_root.to_string_lossy().as_ref());
     let registration: Registration = destination_registration(
         common_dir,
-        Path::new(pending.journal.destination_root.as_str()),
+        pending.journal.destination_root.as_path(),
     )?;
     let stage: StagePresence = validate_stage(&pending)?;
     if registration == Registration::Unregistered {
@@ -226,11 +301,19 @@ fn recover_transaction(
             )),
         ));
     }
+    // A pointer that could not be followed proves nothing either way, so the copy stays and the person is told what to check.
+    if registration == Registration::PointerUnfollowable {
+        return Ok((
+            false,
+            Some(format!(
+                "monochromatic-git-policy-cli: kept an interrupted ignored-state copy for {destination}: the `.git` pointer of that directory could not be followed, so whether it is still a registered worktree is unknown, and nothing was changed. `git worktree list` shows what is registered there, and `git worktree prune` settles a registration Git can no longer follow."
+            )),
+        ));
+    }
     let journal_for_snapshot: PendingJournal = pending.clone();
     // The stage records the registration the copy was made for; a destination that is another registration now is not
     // this copy's to fill, and nothing in it is written.
-    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
-    if let Some(bound) = stage_binding(container.as_path())?
+    if let Some(bound) = stage_binding(pending.journal.stage_container.as_path())?
         && let Err(reason) = verify_stage_binding(common_dir, &bound)
     {
         remove_pending_journal(&pending)?;

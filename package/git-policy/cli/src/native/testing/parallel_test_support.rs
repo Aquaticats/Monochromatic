@@ -109,6 +109,13 @@ impl Rendezvous {
         return self.wait_while_short(count);
     }
 
+    /// How many threads have arrived at the point;
+    /// a control waits for a sign of them with `test_support::wait_until` over this.
+    pub(crate) fn arrived(&self) -> usize {
+        let count = self.arrived.lock().expect("lock");
+        return *count;
+    }
+
     /// Count an arrival without waiting for the others.
     pub(crate) fn arrive_without_waiting(&self) {
         let mut count = self.arrived.lock().expect("lock");
@@ -178,6 +185,14 @@ pub(crate) const ONE_PLACE: usize = 1;
 pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) {
     use std::sync::atomic::{AtomicBool, Ordering};
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    // The runtime must have a worker before a place of its blocking pool can be held. A build that arrived after its
+    //  deadline still takes the work (`lazy_runtime`), so the wait is for that arrival, and it ends when the run shows no
+    //  sign of work rather than on a clock.
+    assert!(
+        crate::lazy_runtime::has_workers() || crate::test_support::wait_until(&|| { return crate::lazy_runtime::has_workers(); }),
+        "this process's runtime came up {:?}, so it has no worker to hold a place of its blocking pool, and a build that arrived late never did: the system left no room for one",
+        crate::lazy_runtime::built_flavor()
+    );
     let given_back: std::sync::Arc<AtomicBool> = std::sync::Arc::new(AtomicBool::new(false));
     let (taken, has_taken) = std::sync::mpsc::channel::<()>();
     let (done, finished) = std::sync::mpsc::channel::<bool>();

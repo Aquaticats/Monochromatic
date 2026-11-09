@@ -221,34 +221,148 @@ const REFSPEC_CASES: &[RefspecCase] = &[
     RefspecCase { name: "matching-refspec", refspecs: &[":"], exact: false },
 ];
 
-/// For every configuration the service publishes `feature` to the destinations real Git does and to no other,
+/// What:
+///  The service publishes `feature` to the destinations real Git does for the configuration of `case`,
+///  and to no other,
 /// or says why not.
-#[test]
-fn a_configured_push_refspec_sends_the_branch_where_git_does() {
-    for case in REFSPEC_CASES {
-        let rig = rig(&format!("aps-refspec-{}", case.name));
-        for refspec in case.refspecs {
-            git(&rig.repo, &["config", "--add", "remote.origin.push", refspec]);
-        }
-        let plan = git_plan(&rig.repo);
-        let before = remote_refs(&rig.remote);
-        let (result, err) = service_push(&rig);
-        let published: BTreeSet<String> = changed_refs(&before, &remote_refs(&rig.remote)).keys().cloned().collect();
-        assert!(published.is_subset(&plan.destinations), "{}: published {published:?}, Git sends {:?} (refused: {}): {err}", case.name, plan.destinations, plan.refused);
-        for destination in &published {
-            assert_eq!(remote_refs(&rig.remote).get(destination), Some(&rig.landed), "{}: {destination}", case.name);
-        }
-        if case.exact {
-            assert_eq!(published, plan.destinations, "{}: {err}", case.name);
-        }
-        if published.is_empty() {
-            assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{}: {err}", case.name);
-            assert!(!result.shown.is_empty() && err.contains(&result.shown), "{}: a skip says why: {err}", case.name);
-        } else {
-            assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}: {err}", case.name);
-        }
-        remove(&rig.root);
+/// Why:
+///  One control per configuration:
+/// each one builds its own rig and starts real Git several times,
+/// which took the whole table 83.0 s in one
+///  control on 2026-11-09 while the host ran at a load average of 76 and the control timed out at the runner's
+///  five-minute limit inside a suite.
+/// The table itself stays one list, so no case can be forgotten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const case of cases) test(case.name, () => oneRefspecConfiguration(case));
+/// ```
+fn a_refspec_configuration_is_sent_where_git_sends_it(case: &RefspecCase) {
+    let rig = rig(&format!("aps-refspec-{}", case.name));
+    for refspec in case.refspecs {
+        git(&rig.repo, &["config", "--add", "remote.origin.push", refspec]);
     }
+    let plan = git_plan(&rig.repo);
+    let before = remote_refs(&rig.remote);
+    let (result, err) = service_push(&rig);
+    let published: BTreeSet<String> = changed_refs(&before, &remote_refs(&rig.remote)).keys().cloned().collect();
+    assert!(published.is_subset(&plan.destinations), "{}: published {published:?}, Git sends {:?} (refused: {}): {err}", case.name, plan.destinations, plan.refused);
+    for destination in &published {
+        assert_eq!(remote_refs(&rig.remote).get(destination), Some(&rig.landed), "{}: {destination}", case.name);
+    }
+    if case.exact {
+        assert_eq!(published, plan.destinations, "{}: {err}", case.name);
+    }
+    if published.is_empty() {
+        assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{}: {err}", case.name);
+        assert!(!result.shown.is_empty() && err.contains(&result.shown), "{}: a skip says why: {err}", case.name);
+    } else {
+        assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}: {err}", case.name);
+    }
+    remove(&rig.root);
+}
+
+/// The case of `REFSPEC_CASES` called `name`.
+fn case(name: &str) -> &'static RefspecCase {
+    return REFSPEC_CASES.iter().find(|case| { return case.name == name; }).unwrap_or_else(|| { panic!("no refspec case called {name}") });
+}
+
+
+/// Two sources for one destination: Git sends the last one, and the service sends that one and no other.
+#[test]
+fn a_refspec_two_sources_one_destination_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("two-sources-one-destination"));
+}
+
+
+/// A source that does not exist is refused by Git and sent by nobody, while the source beside it is sent.
+#[test]
+fn a_refspec_a_source_that_does_not_exist_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-source-that-does-not-exist"));
+}
+
+
+/// A pattern loses to an explicit refspec that names the destination.
+#[test]
+fn a_refspec_a_pattern_loses_to_an_explicit_refspec_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-pattern-loses-to-an-explicit-refspec"));
+}
+
+
+/// An explicit refspec before a pattern decides the destination, whatever the order suggests.
+#[test]
+fn a_refspec_an_explicit_refspec_before_a_pattern_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("an-explicit-refspec-before-a-pattern"));
+}
+
+
+/// Of two patterns the first decides, as it does for Git.
+#[test]
+fn a_refspec_two_patterns_first_wins_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("two-patterns-first-wins"));
+}
+
+
+/// One source with two destinations goes to both.
+#[test]
+fn a_refspec_one_source_two_destinations_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("one-source-two-destinations"));
+}
+
+
+/// A negative refspec excludes the destination it names.
+#[test]
+fn a_refspec_a_negative_refspec_excludes_the_destination_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-negative-refspec-excludes-the-destination"));
+}
+
+
+/// A glob to another namespace sends the branch there and nowhere else.
+#[test]
+fn a_refspec_a_glob_to_another_namespace_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-glob-to-another-namespace"));
+}
+
+
+/// A refspec without a destination is a configuration Git refuses, so nothing is sent and the person is told why.
+#[test]
+fn a_refspec_a_refspec_without_a_destination_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-refspec-without-a-destination"));
+}
+
+
+/// A pattern without a remote side sends nothing, as Git sends nothing.
+#[test]
+fn a_refspec_a_pattern_without_a_remote_side_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-pattern-without-a-remote-side"));
+}
+
+
+/// A forced explicit refspec sends the branch where it names.
+#[test]
+fn a_refspec_a_forced_explicit_refspec_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-forced-explicit-refspec"));
+}
+
+
+/// The checked-out branch by the name HEAD is sent where Git sends it.
+#[test]
+fn a_refspec_the_checked_out_branch_by_name_head_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("the-checked-out-branch-by-name-head"));
+}
+
+
+/// A short source name is sent where Git sends it.
+#[test]
+fn a_refspec_a_short_source_name_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("a-short-source-name"));
+}
+
+
+/// The matching refspec sends the branch, as Git's matching push does.
+#[test]
+fn a_refspec_matching_refspec_is_sent_where_git_sends_it() {
+    a_refspec_configuration_is_sent_where_git_sends_it(case("matching-refspec"));
 }
 
 /// A remote that cannot be asked is a failed push with Git's own words,
