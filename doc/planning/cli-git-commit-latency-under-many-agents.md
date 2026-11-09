@@ -246,7 +246,7 @@ and what is left in a phase is the time the command spent there without a Git ch
   186 commits hold more than 1000 ms of it and 103 more than 5000 ms.
   Two commits hold 845 s of the total between them
   (2026-11-08T23:26:54.998Z at 493 591 ms and
-  2026-11-08T23:26:55.001Z at 351 565 ms);
+  2026-11-08T23:26:55.001Z at 351 540 ms);
   without them the total is 1 658 176 ms.
 - `prepareMs`:
   median 332 ms,
