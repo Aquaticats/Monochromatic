@@ -371,9 +371,9 @@ pub fn read_parts(descriptor: i32) -> (Option<String>, Option<String>) {
     // SAFETY: `pread` reads into the buffer this call owns for its whole length, at an offset that exists or not, and
     //  returns how much it read or -1.
     let read: isize = unsafe { libc::pread(descriptor, bytes.as_mut_ptr().cast(), bytes.len(), 0) };
-    let Ok(read) = usize::try_from(read) else { return (None, None) };
-    let marker: Option<String> = text_of(&bytes, 0, MARKER_ROOM.min(read));
-    let chosen: Option<String> = text_of(&bytes, MARKER_ROOM.min(read), read);
+    let Ok(read_bytes) = usize::try_from(read) else { return (None, None) };
+    let marker: Option<String> = text_of(&bytes, 0, MARKER_ROOM.min(read_bytes));
+    let chosen: Option<String> = text_of(&bytes, MARKER_ROOM.min(read_bytes), read_bytes);
     return (marker, chosen);
 }
 

@@ -656,8 +656,6 @@ pub fn chain_marker_and_where<'a>(
 }
 
 /// What:
-
-/// What:
 ///  What the check asks of the live process.
 ///       `&dyn Fn(u32) -> Option<String>` borrows any function from a process number to its birth identity.
 /// Why:

@@ -614,7 +614,8 @@ fn a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal() {
 ///  signal that never arrives leaves the wrapper waiting until the test runner ends the whole binary
 ///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// finding 4 of the round-2 review).
-/// This is the bound itself, with a child that waits on a pipe nobody closes.
+/// This is the bound itself,
+/// with a child that waits on a pipe nobody closes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
