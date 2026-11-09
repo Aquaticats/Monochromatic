@@ -166,6 +166,38 @@ impl Announcer for AnnounceToStreams<'_> {
 /// ```ts
 /// await holdThePush(request, commit);
 /// ```
+pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
+    for commit in &intent.commits {
+        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());
+    }
+}
+
+/// Forgets the pushes of a batch that does not land.
+pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
+    for commit in &intent.commits {
+        crate::work_item::forget_held(work_dir.as_path(), format!("push-{commit}").as_str());
+    }
+}
+
+/// Holds one push record for a commit a batch lands.
+fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: repository.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: reference.to_string(),
+        oid: commit.to_string(),
+        parent: parent.to_string(),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
+        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
+    }
+}
+
 pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
     let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
         kind: crate::work_item::WorkKind::Push,

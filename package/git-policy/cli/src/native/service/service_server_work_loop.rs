@@ -133,6 +133,13 @@ pub fn work_loop(receiver: &mut UnboundedReceiver<Wake>, handlers: &GitHandlers,
         }
         let mut ran: Vec<PathBuf> = Vec::new();
         for (directory, _) in &wakes {
+            // A worktree the queue is woken for may hold pushes whose commands died before their gate: a command that is gone
+            //  does not decide, and the push it held becomes runnable.
+            let work_dir: std::path::PathBuf = crate::service_work::work_directory(directory);
+            let promoted: usize = crate::work_item::promote_held(work_dir.as_path());
+            if promoted > 0 {
+                crate::service_log!("promoted {promoted} held push records of {} at its wake", directory.display());
+            }
             ran.push(directory.clone());
         }
         // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one

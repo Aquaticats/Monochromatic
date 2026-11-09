@@ -166,13 +166,19 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 pub fn promote_stranded_pushes(handoff: &ServiceHandoff, landed: &str) {
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     let mine: String = push_item(handoff, landed).id();
+    // This command's own record is claimed by this process before anything else looks at the held records, so no later command can
+    //  promote it while this one's gate is still deciding.
+    crate::work_item::claim(work_dir.as_path(), mine.as_str());
     let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
         return;
     };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name != mine && crate::work_item::promote(work_dir.as_path(), name.as_str()) {
-            crate::service_log!("promoted the push record {name}, whose command never finished its gate");
+        if name.ends_with(".owner") || name == mine {
+            continue;
+        }
+        if crate::work_item::promote_proven(work_dir.as_path(), name.as_str()) {
+            crate::service_log!("promoted the push record {name}, whose command is gone");
         }
     }
 }

@@ -615,6 +615,7 @@ settled from the worktree's own record of it, and the file may be removed once t
                 // The batch will never land, so the scratch reference its killed landing left is removed here; the commit it
                 //  holds is kept first, on the batch's side reference (`service_scratch_ref_of_a_dropped_batch.rs`).
                 clear_after_dropped_batch(&git, intent.repository.as_path(), intent.seq);
+                crate::service_server_land_group::forget_the_pushes_of(&intent);
                 // A batch that will never land owes no index update, so any record of one is forgotten with it, and so is the copy
                 //  of the conclusion state it would have removed.
                 crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
@@ -625,6 +626,8 @@ settled from the worktree's own record of it, and the file may be removed once t
                 Handled::Dropped
             }
             (Recovery::Finish, _) => {
+                // The batch landed, so its pushes are owed: a service killed before it held them leaves recovery to do it.
+                crate::service_server_land_group::hold_the_pushes_of(&intent);
                 remove_stale(intent.index.as_path(), intent.seq);
                 if matches!(settle(&git, &intent, context.journal.as_path()), Settled::Done) {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
