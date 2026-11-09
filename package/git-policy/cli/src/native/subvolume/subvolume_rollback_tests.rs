@@ -751,11 +751,41 @@ fn a_rollback_preview_names_the_stage_that_is_not_a_subvolume() {
     let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(real_code, REFUSED, "{real_lines:#?}");
     // The real run also states the risk it would carry before it reaches the refusal; the refusal itself is the same.
-    let refusals = |lines: &[String]| -> Vec<String> {
-        return lines.iter().filter(|line: &&String| { return line.contains("refused:") || line.starts_with("  What to do:") || line.as_str() == "Nothing was changed."; }).cloned().collect();
+    let refusals = |said_now: &[String]| -> Vec<String> {
+        return said_now.iter().filter(|line: &&String| { return line.contains("refused:") || line.starts_with("  What to do:") || line.as_str() == "Nothing was changed."; }).cloned().collect();
     };
     assert_eq!(refusals(preview_lines.as_slice()), refusals(real_lines.as_slice()), "the preview says what the real run says");
     assert!(layout.new_path.exists(), "the replacement directory is untouched");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback does not delete a different subvolume placed at the stage's name.
+/// Why:
+///  The guard required only a subvolume root,
+/// and the removal destroys whatever subvolume the name holds,
+/// so a
+///  subvolume another process made there,
+/// holding bytes that exist nowhere else,
+/// was destroyed.
+/// The journal
+///  records the identity of the stage it made,
+/// which tells the two apart.
+#[test]
+fn a_rollback_does_not_delete_another_subvolume_placed_at_the_stage() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-foreign-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (rollback_code, rollback_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(rollback_code, REFUSED, "{rollback_lines:#?}");
+    let said: String = rollback_lines.join("\n");
+    assert!(said.contains("not the subvolume the migration created"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
     remove(parent.as_path());
 }
 
