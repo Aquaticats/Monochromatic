@@ -268,7 +268,33 @@ function pendingProjectionOps(): void {
 }
 
 /**
- Reach the public tagged-value factories independently of edit operations.
+ Payload that is a number but not an integer, so the integer kind rejects it.
+ */
+const NON_INTEGRAL_PROBE = 1.5;
+
+/**
+ Shift that pushes the bigint rejection probe past TOML's signed 64-bit integer
+ range.
+ */
+const INTEGER_RANGE_PROBE_SHIFT = 64n;
+
+/**
+ One payload per wrapper kind that the encoder must reject: an out-of-range
+ integer, a wrong type, a comment, an offset form, a trailing newline, and a
+ kind no wrapper defines.
+ */
+const REJECTED_WRAPPER_PAYLOADS: Readonly<Record<string, unknown>> = {
+  integer: NON_INTEGRAL_PROBE,
+  float: 'Infinity',
+  'local-date': '2026-01-01 # x',
+  'local-date-time': '2026-05-14T10:00:00Z',
+  'local-time': '10:00:00\n',
+  'no-such-kind': 'x',
+};
+
+/**
+ Reach the public tagged-value factories and the wrapper payload validation
+ that guards interpolation, independently of edit operations.
  */
 function wrapperOps(): void {
   tomlInteger(1,);
@@ -276,6 +302,30 @@ function wrapperOps(): void {
   tomlLocalDate('2026-05-14',);
   tomlLocalDateTime('2026-05-14T10:00:00',);
   tomlLocalTime('10:00:00',);
+  /**
+   Accepted bigint, so the integer kind's in-range arm runs through the encoder.
+   */
+  tomlStringify({
+    edit: tomlSet({
+      edit: emptyTomlEdit(),
+      path: ['wrapped',],
+      value: tomlInteger(1n,),
+    },),
+  },);
+  for (const [tomlKind, value,] of Object.entries(REJECTED_WRAPPER_PAYLOADS,)) {
+    attempt({
+      thunk: function rejectWrapped() {
+        tomlSet({
+          edit: emptyTomlEdit(),
+          path: ['wrapped',],
+          value: {
+            tomlKind,
+            value,
+          },
+        },);
+      },
+    },);
+  }
 }
 
 //endregion Capture-free operation bodies

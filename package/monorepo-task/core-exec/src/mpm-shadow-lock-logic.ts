@@ -8,8 +8,8 @@
 
  - Run the newest installed copy of this repository's `mpm-shadow` whose version is at or above the lock's. Copies are looked
    for in `.cache/toolchain-bin/mpm-shadow`, the link `mpm-shadow install` maintains, and in the finished version folders of
-   `<toolchain root>/mpm-shadow/`. When the copy that runs is newer than the lock, a note says so and names the upgrade
-   command.
+   `<toolchain root>/mpm-shadow/`. When the copy that runs is newer than the lock, a note says so, names the lock file it
+   compared (a repository of worktrees holds one lock each) and the upgrade command that moves that lock.
  - Only when no such copy exists, fetch the lock's archive for this platform, check it against the SHA-256 beside it, and
    install it into the toolchain root as `mpm-shadow install` does (`mpm-shadow-lock-install.ts`).
  - A copy older than the lock never runs.
@@ -42,11 +42,12 @@ import {
 import { installLockedArchive, } from './mpm-shadow-lock-install.ts';
 import {
   compareVersions,
+  lockFilePath,
   MpmShadowLockError,
+  olderLockNote,
   readLockedMpmShadow,
   TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
-  UPGRADE_COMMAND,
 } from './mpm-shadow-lock-read.ts';
 
 /**
@@ -171,19 +172,13 @@ type Candidates = {
 async function readLockText(root: string,): Promise<string> {
   try {
     return await readFile(
-      join(
-        root,
-        'toolchain.lock.json',
-      ),
+      lockFilePath(root,),
       'utf8',
     );
   }
   catch (error) {
     throw new MpmShadowLockError(
-      `could not read ${join(
-        root,
-        'toolchain.lock.json',
-      )} (${String(error,)})`,
+      `could not read ${lockFilePath(root,)} (${String(error,)})`,
       { cause: error, },
     );
   }
@@ -336,6 +331,8 @@ async function gatherCandidates(
 
  @param lockedVersion - The version the lock names
 
+ @param lockFile - Path of the lock, named in the note of a copy that runs
+
  @param platformId - The lock's platform id of this machine
 
  @param passedOver - Why the installed copies were passed over, for the message when this one is refused too
@@ -348,17 +345,19 @@ async function gatherCandidates(
 
  @example
  ```ts
- const copy = await usePathCopy({ lockedVersion: '0.2.2', platformId: 'macos-arm64', passedOver: [], log, },);
+ const copy = await usePathCopy({ lockedVersion: '0.2.2', lockFile: '/repo/toolchain.lock.json', platformId: 'macos-arm64', passedOver: [], log, },);
  ```
  */
 async function usePathCopy(
   {
     lockedVersion,
+    lockFile,
     platformId,
     passedOver,
     log,
   }: {
     readonly lockedVersion: string;
+    readonly lockFile: string;
     readonly platformId: string;
     readonly passedOver: readonly string[];
     readonly log: (line: string,) => void;
@@ -394,7 +393,13 @@ async function usePathCopy(
     left: answer.version,
     right: lockedVersion,
   },) > 0)
-    log(`locked at ${lockedVersion}, ${answer.version} runs; upgrade with: ${UPGRADE_COMMAND}`,);
+    log(
+      olderLockNote({
+        lockFile,
+        lockedVersion,
+        usedVersion: answer.version,
+      },),
+    );
   return {
     binary: 'mpm-shadow',
     source: 'path',
@@ -437,6 +442,10 @@ export async function resolveLockedMpmShadow(
     log,
   }: ResolveOptions,
 ): Promise<ResolvedMpmShadow> {
+  /**
+   Path of the lock this run compares, named in every note and in every failure that names a version.
+   */
+  const lockFile: string = lockFilePath(root,);
   /**
    What the lock names for this platform.
    */
@@ -481,7 +490,13 @@ export async function resolveLockedMpmShadow(
       left: best.version,
       right: locked.version,
     },) > 0)
-      log(`locked at ${locked.version}, ${best.version} runs; upgrade with: ${UPGRADE_COMMAND}`,);
+      log(
+        olderLockNote({
+          lockFile,
+          lockedVersion: locked.version,
+          usedVersion: best.version,
+        },),
+      );
     return {
       binary: best.binary,
       source: best.source,
@@ -505,6 +520,7 @@ export async function resolveLockedMpmShadow(
     .found) {
     return await usePathCopy({
       lockedVersion: locked.version,
+      lockFile,
       platformId,
       passedOver,
       log,
