@@ -61,32 +61,83 @@ use std::io::Write as _;
 use std::time::{Duration, Instant};
 
 /// What:
-///  The threads that watch this run,
-/// as the kernel numbers them.
+///  The threads that read this run,
+/// as the kernel numbers them:
+/// every watcher,
+/// and every thread inside a
+///  control's wait.
 /// Why:
-///   A watcher reads the counters of every task,
+///   A reader reads the counters of every task,
 /// and those reads are its own work,
 /// not the run's;
-/// a second watcher
-///  (a control arms one beside the fixture's)
-/// would otherwise count the other's reads at every look,
-/// so two of them would
-///  keep each other,
-/// and the run they watch,
+/// a second reader
+///  (a control arms a watcher beside the fixture's,
+/// or waits beside another control's wait)
+/// would otherwise count the other's
+///  reads at every look,
+/// so two of them would keep each other,
+/// and the run they read,
 /// alive for ever.
-static WATCHING_THREADS: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
+static READING_THREADS: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
 
-/// Add `thread` to the watchers a look leaves out.
-fn start_watching(thread: i32) {
-    let Ok(mut watching) = WATCHING_THREADS.lock() else { return };
-    watching.push(thread);
+/// What:
+///  A thread registered as a reader of this run,
+/// for as long as the value lives.
+/// Why:
+///   The reads of a waiter happen between its looks as well as inside them,
+/// and a look taken meanwhile must
+///  leave them out too,
+/// so the registration lasts the whole wait rather than one reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// using reading = Reading.begin(); // unregistered when the block ends
+/// ```
+pub(crate) struct Reading {
+    /// The thread the kernel numbers for the reader.
+    thread: i32,
+}
+
+impl Reading {
+    /// What:
+    ///  Register the calling thread as a reader of this run,
+    ///  or nothing where this system numbers no thread,
+    /// in which case no look can read the run
+    ///  either.
+    /// Why:
+    ///   Every reader registers,
+    /// so no look taken by any of them counts another's readings as the run's work.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const reading = Reading.begin();
+    /// ```
+    pub(crate) fn begin() -> Option<Reading> {
+        let thread: i32 = current_thread_id()?;
+        let Ok(mut reading) = READING_THREADS.lock() else { return None };
+        reading.push(thread);
+        return Some(Reading { thread });
+    }
+}
+
+/// A reader that ends,
+/// however its thread ends,
+/// is no longer left out.
+impl Drop for Reading {
+    fn drop(&mut self) {
+        let Ok(mut reading) = READING_THREADS.lock() else { return };
+        // The last registration of this thread, because nested reads of one thread end in the order they began.
+        if let Some(at) = reading.iter().rposition(|thread: &i32| { return *thread == self.thread; }) {
+            let _gone: i32 = reading.remove(at);
+        }
+    }
 }
 
 /// The threads a look leaves out,
-/// which is every watcher of this process.
-fn watching() -> Vec<i32> {
-    let Ok(watching) = WATCHING_THREADS.lock() else { return Vec::new() };
-    return watching.clone();
+/// which is every reader of this process.
+pub(crate) fn reading_threads() -> Vec<i32> {
+    let Ok(reading) = READING_THREADS.lock() else { return Vec::new() };
+    return reading.clone();
 }
 
 /// What:
@@ -316,26 +367,26 @@ fn children_of(parent: i32) -> Vec<i32> {
 
 /// What:
 ///  One look at the run,
-/// leaving out the counters of `reader` and of every other watcher,
+/// leaving out the counters of `reader` and of every other reader,
 /// or nothing where this system counts no
 ///  task's work.
 /// Why:
-///   The watchers' own reads would otherwise be a sign of work at every look,
+///   The readers' own reads would otherwise be a sign of work at every look,
 /// so a run that had stopped
 ///  would never be judged quiet,
-/// and one watcher would keep another alive.
+/// and one reader would keep another alive.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const tally = { bytes: 0, ticks: 0, working: false, members: 0, readable: false };
-/// const watched = [...watching(), reader];
+/// const watched = [...readingThreads(), reader];
 /// addProcess(process.pid, watched); for (const child of processesBelow()) addProcess(child, []);
 /// return tally.readable ? tally : undefined;
 /// ```
 fn look(reader: i32) -> Option<Look> {
     let mut tally: Tally = Tally::default();
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
-    let mut leaving_out: Vec<i32> = watching();
+    let mut leaving_out: Vec<i32> = reading_threads();
     leaving_out.push(reader);
     tally.add_process(own, leaving_out.as_slice());
     for child in processes_below() {
@@ -474,6 +525,51 @@ pub(crate) fn watch(window: Duration) -> Option<std::thread::JoinHandle<()>> {
 }
 
 /// What:
+///  One look at this run now,
+/// taken by the thread that calls it,
+/// for a control that ends a wait when the run stops working.
+/// Why:
+///   The controls judge a wait by the same evidence the watchdog does:
+/// a run that keeps moving is left alone,
+/// however long its event takes,
+/// and only a run that shows nothing is over.
+/// The calling thread's own readings are left out,
+/// as every other reader's are,
+/// so a control that looks for its event is not itself the work it waits for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lookNow(): Look | undefined { looksTaken.set(looksTaken.get() + 1); return look(currentThreadId()) }
+/// ```
+pub(crate) fn look_now() -> Option<Look> {
+    LOOKS_TAKEN.with(|taken: &std::cell::Cell<u64>| { taken.set(taken.get().saturating_add(1)); });
+    return current_thread_id().and_then(look);
+}
+
+std::thread_local! {
+    /// The looks `look_now` has taken on this thread.
+    static LOOKS_TAKEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// What:
+///  How many looks the calling thread has taken at this run.
+/// Why:
+///   A control that says a wait with nothing to wait for does not look at the run cannot measure how long the call took:
+/// a thread
+///  the scheduler holds just before the call makes a wait that returned at once look slow,
+/// and a thread it holds just
+///  after a sleep makes one that slept look quick.
+/// The count is the event itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function looksTakenByThisThread(): number;
+/// ```
+pub(crate) fn looks_taken_by_this_thread() -> u64 {
+    return LOOKS_TAKEN.with(std::cell::Cell::get);
+}
+
+/// What:
 ///  Look at the run until it ends the process.
 /// Why:
 ///   The loop is the whole of the watchdog:
@@ -494,8 +590,8 @@ fn run(window: Duration) {
         end(Ending::Unmeasurable(window));
     };
     let mut judge: Judge = Judge::new(window);
-    // The watcher's own readings are not the run's work, and neither are another watcher's (`look`).
-    start_watching(reader);
+    // The reader's own readings are not the run's work, and neither is another reader's (`look`).
+    let _reading: Option<Reading> = Reading::begin();
     loop {
         std::thread::sleep(SAMPLE_INTERVAL);
         if let Some(ending) = judge.observe(started.elapsed(), look(reader)) {

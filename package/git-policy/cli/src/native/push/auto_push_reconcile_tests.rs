@@ -1474,6 +1474,68 @@ fn a_status_differs_only_when_its_bytes_do() {
     assert!(status_differs(b" M a.txt\0", b" M b.txt\0"));
 }
 
+/// A branch whose upstream has another name is a branch the merge is into,
+/// and the message names the ref the merge is published to.
+/// Native Git writes the same name for the same merge:
+/// `git merge origin/main` while `feature` is checked out made
+/// `Merge remote-tracking branch 'origin/main' into feature`
+/// (measured on this host with Git 2.56.0,
+/// 2026-11-09T09:33:10-05:00).
+/// Issue 2646:
+/// the message named the tracked ref,
+/// a branch that was never checked out or merged into.
+#[test]
+fn a_branch_whose_upstream_has_another_name_is_the_one_the_message_names() {
+    let s = scenario("ar-gh2646-other-upstream-name");
+    advance_remote(&s, "a.txt", "remote\n");
+    // The README's case: a branch created from the tracked ref, whose own name differs from it.
+    git(&s.local, &["switch", "--quiet", "-c", "feature"]);
+    git(&s.local, &["config", "branch.feature.remote", "origin"]);
+    git(&s.local, &["config", "branch.feature.merge", "refs/heads/main"]);
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut published: String = String::new();
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        published = merge_oid.to_owned();
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", false, &mut push_merge));
+    assert_eq!(attempt.exit_code, 0, "{attempt:?}");
+    let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
+    let mut lines = message.lines();
+    assert_eq!(lines.next(), Some("Merge origin/main into feature"), "{message}");
+    assert!(message.contains("Published to origin/main, which feature tracks."), "{message}");
+    assert!(message.contains("because origin/main advanced after the commit landed."), "{message}");
+    remove(&s.root);
+}
+
+/// A branch named like its upstream is merged into the branch the message always named,
+/// and no line names a publication the subject does not already spell.
+#[test]
+fn a_branch_named_like_its_upstream_keeps_the_message_it_had() {
+    let s = scenario("ar-gh2646-same-upstream-name");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut published: String = String::new();
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        published = merge_oid.to_owned();
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/main"), "refs/heads/main", false, &mut push_merge));
+    assert_eq!(attempt.exit_code, 0, "{attempt:?}");
+    let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
+    assert_eq!(message.lines().next(), Some("Merge origin/main into main"), "{message}");
+    assert!(!message.contains("Published to"), "{message}");
+    remove(&s.root);
+}
+
 /// Run the shared reconcile loop for the repository under test with a caller-supplied merge push.
 fn integrate(
     scenario: &Scenario,
@@ -1481,13 +1543,27 @@ fn integrate(
     explicit: bool,
     push_merge: &mut dyn MergePusher,
 ) -> Integrated {
+    return integrate_for(scenario, landed, Some("refs/heads/main"), "refs/heads/main", explicit, push_merge);
+}
+
+/// Run the shared reconcile loop for the branch `branch_ref`,
+/// whose upstream is `merge_ref` on `origin`,
+/// against the repository under test with a caller-supplied merge push.
+fn integrate_for(
+    scenario: &Scenario,
+    landed: &str,
+    branch_ref: Option<&str>,
+    merge_ref: &str,
+    explicit: bool,
+    push_merge: &mut dyn MergePusher,
+) -> Integrated {
     let plan = Reconcile {
         destination: Destination {
             remote: String::from("origin"),
-            merge_ref: String::from("refs/heads/main"),
+            merge_ref: merge_ref.to_owned(),
         },
         local: landed.to_owned(),
-        branch_ref: Some("refs/heads/main"),
+        branch_ref,
         label: if explicit { "push" } else { "auto-push" },
         explicit,
     };

@@ -14,19 +14,10 @@
 //! // branchDeletions(['-D', 'gone']) === ['gone']
 //! ```
 
+use crate::command_branch_table::{BRANCH_TABLE, DELETE, DELETE_FORCE, REMOTES};
+use crate::command_options::{DEFAULT_MODE, ParsedOptions, parse_options};
+use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
 use std::ffi::OsString;
-
-/// What:
-///  The first byte of a long option,
-///  and the separator between a name and its value.
-/// Why:
-///   Options are compared as bytes and never decoded.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const DASH = 0x2d; const EQUALS = 0x3d;
-/// ```
-const DASH: u8 = b'-';
 
 /// What:
 ///  The branches a `git branch` region deletes,
@@ -50,66 +41,51 @@ pub struct BranchDeletion {
 }
 
 /// What:
-///  The names a `git branch` region deletes,
-///  or nothing when the region deletes no branch.
-///  `Option<Vec<OsString>>` is "the names,
-/// or nothing".
+///  Which branches a `git branch` region deletes and from which namespace,
+///  or nothing when it deletes none.
+///  `Option<BranchDeletion>` is "the deletion or nothing".
 /// Why:
-///   `-d` (`--delete`),
-///  `-D` and `--delete --force` delete local branches,
-///  `-d` refusing one that is not
-///       merged;
-///  `-m`,
-///  `-c` and every reading form write nothing,
-///  so only these spellings are read.
-///  `-d` may sit in a cluster (`-rd`),
-///  the long form may be abbreviated to four letters,
-///  and the names
-///       follow the options or a `--`.
+///   The region is read with the same option table and tokenizer every other `git branch` fact uses,
+///  so every spelling Git accepts is read and no list of spellings can fall behind it:
+///  `--remote` is
+///  the abbreviation Git accepts for `--remotes`,
+///  `-rD` is one cluster,
+///  and the value of `-u` is never
+///  a name.
+///  `--delete-merged` deletes only branches a merged branch already contains,
+///  so it is not a
+///  deletion this reader records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function branchDeletions(region: string[]): string[] | undefined;
+/// function branchDeletion(region: string[]): { names: string[]; remotes: boolean } | undefined;
 /// ```
 pub fn branch_deletion(region: &[OsString]) -> Option<BranchDeletion> {
-    let mut deletes: bool = false;
-    let mut remotes: bool = false;
-    let mut options_end: bool = false;
-    let mut names: Vec<OsString> = Vec::<OsString>::new();
-    for token in region {
-        let bytes: &[u8] = token.as_encoded_bytes();
-        if !options_end && bytes == b"--" {
-            options_end = true;
-            continue;
-        }
-        if !options_end && bytes.starts_with(&[DASH]) {
-            if spells_delete(bytes) {
-                deletes = true;
-            }
-            if spells_remotes(bytes) {
-                remotes = true;
-            }
-            continue;
-        }
-        names.push(token.clone());
-    }
-    if !deletes {
+    // A region Git refuses is one Git runs nothing for; the `?` is that refusal.
+    let parsed: ParsedOptions = parse_options(region, BRANCH_TABLE, DEFAULT_MODE, &[]).ok()?;
+    // `-d`/`--delete` is one bit that `--no-delete` clears; `-D` is another bit.
+    if !is_enabled(&parsed, DELETE) && !is_stated(&parsed, DELETE_FORCE) {
         return None;
     }
-    return Some(BranchDeletion { names, remotes });
+    let mut names: Vec<OsString> = Vec::<OsString>::new();
+    for index in positional_tokens(&parsed, region.len()) {
+        names.push(region[index].clone());
+    }
+    return Some(BranchDeletion {
+        names,
+        remotes: is_stated(&parsed, REMOTES),
+    });
 }
 
 /// What:
-///  What:
 ///  The names a `git branch` region deletes,
 ///  or nothing when the region deletes no branch.
 ///  `Option<Vec<OsString>>` is "the names,
 /// or nothing".
 /// Why:
 ///   The linked-worktree policy asks only whether the region deletes at all,
-/// and the record needs the
-///  namespace too,
-///  so this reader keeps the shape its first callers were written against.
+/// so it keeps the shape it was
+///  written against.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,89 +94,6 @@ pub fn branch_deletion(region: &[OsString]) -> Option<BranchDeletion> {
 pub fn branch_deletions(region: &[OsString]) -> Option<Vec<OsString>> {
     let deletion: BranchDeletion = branch_deletion(region)?;
     return Some(deletion.names);
-}
-
-/// The one short option of `git branch` that takes a value,
-///  so a letter after it in the same cluster is that value and not a flag.
-const UPSTREAM_LETTER: u8 = b'u';
-
-/// What:
-///  Whether one option token selects remote-tracking references.
-///  `-r` and `--remotes`,
-///  the exact long spelling alone,
-///  and `r` in a short cluster.
-/// Why:
-///   The namespace decides which reference the record reads,
-///  so a token that merely looks similar must not
-///  be read as it;
-///  `-u` takes its value from the rest of its cluster,
-///  so its
-///  value's letters are never flags (`-ur` sets the upstream of `r`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function spellsRemotes(token: Buffer): boolean;
-/// ```
-fn spells_remotes(token: &[u8]) -> bool {
-    if token.starts_with(b"--") {
-        return token == b"--remotes";
-    }
-    let letters: &[u8] = &token[1..];
-    let Some(position) = letters.iter().position(is_remotes_letter) else {
-        return false;
-    };
-    return !letters[..position].contains(&UPSTREAM_LETTER);
-}
-
-/// What:
-///  Whether one letter of a short cluster is the `--remotes` flag.
-/// Why:
-///   A named function keeps the scan free of a closure that captures nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (letter: number) => letter === 0x72
-/// ```
-fn is_remotes_letter(letter: &u8) -> bool {
-    return *letter == b'r';
-}
-
-/// What:
-///  Whether one option token is a deletion spelling.
-/// Why:
-///   `-d` and `-D` are the short forms,
-///  alone or inside a cluster,
-///  and `--delete` is the long one,
-///  read in its exact spelling only:
-///  every
-///       abbreviation of it is ambiguous with `--delete-merged` in Git 2.56.0,
-///  and `--delete-merged` itself
-///       deletes branches that a merged branch already contains,
-///  so it cannot lose a commit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function spellsDelete(token: Buffer): boolean;
-/// ```
-fn spells_delete(token: &[u8]) -> bool {
-    if token.starts_with(b"--") {
-        return token == b"--delete";
-    }
-    // A short cluster such as `-rd`: every letter after the dash is a flag of its own.
-    return token[1..].iter().any(is_delete_letter);
-}
-
-/// What:
-///  Whether one letter of a short cluster is either deletion flag.
-/// Why:
-///   A named function keeps the scan free of closures.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (letter: number) => letter === 0x64 || letter === 0x44
-/// ```
-fn is_delete_letter(letter: &u8) -> bool {
-    return *letter == b'd' || *letter == b'D';
 }
 
 /// The spellings,

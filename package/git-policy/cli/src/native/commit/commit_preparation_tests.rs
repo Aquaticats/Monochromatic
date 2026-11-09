@@ -368,6 +368,28 @@ fn the_shadow_shows_head_upstream_include_and_git_dir() {
     remove(root.as_path());
 }
 
+/// What:
+///  A commit whose signing program never answers,
+///  prepared in `root`,
+///  with the signer the commit command names.
+/// Why:
+///   The two ceiling controls differ only in whether the notice thread may start,
+/// so they share the step that outlasts its ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, globalArgs, commitArgs } = aCommitWhoseSignerNeverAnswers(root);
+/// ```
+#[cfg(unix)]
+fn a_commit_whose_signer_never_answers(root: &Path) -> (Fixture, Vec<String>, Vec<String>) {
+    let fixture: Fixture = prepared_fixture(root);
+    let signer: PathBuf = root.join("slow-signer");
+    crate::test_support::executable(signer.as_path(), b"#!/bin/sh\nexec sleep 60\n");
+    let global_args: Vec<String> = vec![String::from("-c"), format!("gpg.program={}", signer.display())];
+    let commit_args: Vec<String> = vec![String::from("-S"), String::from("--message=x")];
+    return (fixture, global_args, commit_args);
+}
+
 /// A configured hook for every hook event,
 /// whatever its name,
 /// does not run in the native commit,
@@ -400,13 +422,9 @@ fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
 #[test]
 fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     let root: PathBuf = fixture("commit-preparation-ceiling");
-    let fixture: Fixture = prepared_fixture(root.as_path());
-    let signer: PathBuf = root.join("slow-signer");
-    crate::test_support::executable(signer.as_path(), b"#!/bin/sh\nexec sleep 120\n");
+    let (fixture, global_args, commit_args): (Fixture, Vec<String>, Vec<String>) = a_commit_whose_signer_never_answers(root.as_path());
     let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
     let index_before: Vec<u8> = std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
-    let global_args: Vec<String> = vec![String::from("-c"), format!("gpg.program={}", signer.display())];
-    let commit_args: Vec<String> = vec![String::from("-S"), String::from("--message=x")];
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
@@ -421,11 +439,60 @@ fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     let Err(PreparationError::Git(GitFailure(said))) = outcome else {
         panic!("a step that outlasted its ceiling was not turned into a stop: {outcome:?}");
     };
-    assert!(lasted < std::time::Duration::from_secs(60), "the stop did not end the step: {lasted:?}");
+    assert!(lasted < std::time::Duration::from_secs(20), "the stop did not end the step: {lasted:?}");
     assert!(said.contains("was stopped after") && said.contains("nothing was committed"), "{said}");
     assert!(said.contains("signs the commit"), "a signed commit's stop names the signer: {said}");
     assert!(crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid")).is_empty(), "a process was left below the command");
     assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
     assert_eq!(std::fs::read(fixture.repo.join(".git").join("index")).expect("index"), index_before);
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit whose notice thread the system refused still has a ceiling,
+///  because the wait that owns the step ends it.
+/// Why:
+///   The notice thread is what ends a step at its ceiling,
+/// and a process at its thread limit starts none.
+///  The ceiling then had no enforcer at all:
+/// a step that outlived it waited with no bound over it,
+/// which is finding 1 of the fifth review of this step.
+///  The bound must not depend on a thread that the same resource pressure refuses,
+/// so the wait that owns the child ends it,
+/// and it can,
+/// because a number cannot be reused while its child is unreaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // refuseTheNextNoticeThread(); await expect(runNativeCommitWithin({ ceiling: 1500 })).rejects.toThrow('was stopped after')
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() {
+    let root: PathBuf = fixture("commit-preparation-ceiling-no-notice");
+    let (fixture, global_args, commit_args): (Fixture, Vec<String>, Vec<String>) = a_commit_whose_signer_never_answers(root.as_path());
+    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    crate::native_commit_waiting_notice::refuse_the_next_notice_thread(1);
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, std::time::Duration::from_millis(1500));
+    let lasted: std::time::Duration = began.elapsed();
+    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+        panic!("a step that outlasted its ceiling waited with nothing to stop it: {outcome:?} after {lasted:?}");
+    };
+    assert!(
+        lasted < std::time::Duration::from_secs(20),
+        "the step ran on past its ceiling although no notice thread enforced it: {lasted:?}"
+    );
+    assert!(said.contains("was stopped after") && said.contains("nothing was committed"), "{said}");
+    assert!(crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid")).is_empty(), "a process was left below the command");
+    assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
     remove(root.as_path());
 }
