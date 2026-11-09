@@ -668,3 +668,86 @@ fn subvolumes_nested_several_levels_deep_are_destroyed_deepest_first() {
     assert!(!top.exists());
     remove(parent.as_path());
 }
+
+/// What:
+///  A list larger than the plain-file reader's bound is still read,
+///  so it guards the deletion instead of blocking it.
+/// Why:
+///   The writer had no bound and the reader refused a list over a mebibyte,
+/// so the migration could write a safeguard it
+///  then refused to reopen,
+/// and both cleanup modes call `Run::open` before they do anything.
+#[test]
+fn a_list_over_the_plain_file_bound_still_guards_the_deletion() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("remove-old-list-long");
+    std::fs::write(root.join("ignored/secret.log"), b"secret").expect("log");
+    std::fs::set_permissions(root.join("ignored/secret.log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let mut text: String = std::fs::read_to_string(layout.unreadable_path.as_path()).expect("the list");
+    text.push_str(format!("{}\n", "p".repeat(1 << 20)).as_str());
+    std::fs::write(layout.unreadable_path.as_path(), text).expect("a longer list");
+    let (code2, lines2) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    let said: String = lines2.join("\n");
+    assert!(said.contains("may not read") && !said.contains("larger than"), "{said}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback refuses to delete a directory at the staged subvolume's name that is not a subvolume.
+/// Why:
+///   The removal fell back to deleting a plain directory when the name held no subvolume,
+/// so a process that replaced
+///  the staged directory with one holding user data had that data deleted with no identity check.
+#[test]
+fn a_rollback_does_not_delete_a_directory_that_replaced_the_staged_subvolume() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-replaced-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    std::fs::create_dir_all(layout.new_path.as_path()).expect("a replacement directory");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    let said: String = lines2.join("\n");
+    assert!(said.contains("not a subvolume") && said.contains("the subvolume the migration created"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
+    assert!(parent.join("staged-aside").exists(), "the staged subvolume is left where it was moved");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback preview of a migration stopped before the exchange is not refused,
+///  because the real rollback can perform it.
+/// Why:
+///   The preview answered the rollback's refusals without first requiring that the migration exchanged
+/// the trees,
+///  so it reported the missing old tree of a stop that never had one and refused a rollback the real
+///  mode finishes.
+#[test]
+fn a_rollback_preview_before_the_exchange_is_not_refused() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-preview-before-exchange");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert!(layout.new_path.exists() && !layout.old_path.exists(), "the stage exists and no old tree does");
+    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..rollback_arguments() };
+    let (code2, lines2) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    let said: String = lines2.join("\n");
+    assert!(said.contains("would restore") && !said.contains("refused"), "{said}");
+    // The preview promised what the real mode does.
+    let (code3, lines3) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code3, DONE, "{lines3:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
