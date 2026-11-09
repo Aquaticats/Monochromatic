@@ -5295,12 +5295,272 @@ C beats D because a buffered report still keeps every item on the blocking pool.
   `ConvertRun` and `execute` taking an `Arc`).
 - The line path is the owned line handle of option A:
   `parallel_runner_on_the_runtime_awaiting.rs` hands each item an
-  owned `AnItemLines<R>`,
+  owned `LinesToTheConsumer<R>`,
   which the item moves into its `'static` job,
   and the consumer keeps the input order it already keeps.
   No lock,
   no buffering and no runtime on the forwarded-command path
   (nothing of the three sites is reached by a forwarded command).
+
+#### What changed, per site
+
+- `foundation/parallel_runner_on_the_runtime.rs`:
+  `LinesToTheConsumer<R>` owns a clone of the run's one sending end instead of borrowing it,
+  and both runtime runners hand it to their items
+  (the blocking form builds it inside its own job,
+  as it already did).
+  `OrderedAwaitingWork::run` therefore takes the sink by value.
+- `worktree/worktree_trash_entries.rs`:
+  each entry is an item of the awaited runner and each removal one job of the pool.
+  `EntryRemoval` owns a `PathBuf`,
+  an `Arc<File>`,
+  an `Arc<TrashManifest>` and an `Arc<RemoveOne>`;
+  `RemoveOne` gains `Send` and loses its lifetime;
+  `delete_trash` holds its trash handle in an `Arc`.
+  `remove_entries` keeps its signature and enters the runtime once;
+  `remove_entries_awaiting` is the face an asynchronous caller uses.
+- `subvolume/subvolume_index_refresh_of_every_worktree.rs`:
+  each index is an item of the awaited runner and each rewrite one job of the pool.
+  `AllIndexes` owns its root,
+  its references and an `Arc<RewriteOne>`;
+  `IndexLock::Held` shares its token in an `Arc<str>`;
+  `RewriteOne` gains `Send` and loses its lifetime.
+  `refresh_all_indexes` and `refresh_all_indexes_with` return `Result<usize, MigrateError>`
+  and enter the runtime once,
+  `MigrateError` gains `Runtime`,
+  and `refresh_all_indexes_awaiting` is the asynchronous face.
+- `worktree/worktree_convert_command.rs`:
+  each worktree is an item of the awaited runner and each conversion one job of the pool,
+  which is where the owned line sink is needed:
+  `convert_worktree` says its progress through it while the job works.
+  `ConvertRun` takes an `Arc<dyn Platform + Send + Sync>` and an `Arc<Interrupt>`;
+  `execute` takes both by value and `convert_action` builds them.
+  `execute_run` keeps its signature and enters the runtime once,
+  `execute_run_awaiting` is the asynchronous face,
+  and a run the runtime ends early says so before the summary and exits 2.
+- `testing/parallel_test_support.rs`:
+  `hold_the_only_place` holds the process's one place on blocking jobs on a task of the
+  runtime,
+  so a control can show that its work waits for a place,
+  which only a job of the pool does.
+
+What stayed as it is,
+and why:
+
+- The waits:
+  none of the three sites waits without a bound it already had.
+  The runner's consumer ends when every lane has returned (`finish_the_run`),
+  and a lane that a refused `spawn_blocking` swallowed is counted out by `CountedOut`.
+- The two measured rules of the previous step:
+  nothing of this step has a synchronous `Drop` that waits for a task,
+  and no job of the pool awaits anything,
+  so nothing waits on a job from inside a job.
+- `worktree/worktree_copying/` and the copy and repair sites of
+  `foundation/side_by_side_threads.rs` are not part of this step.
+  The handover's item 3 lists them with these three sites;
+  the brief this work follows reserved that folder,
+  so they stay on the blocking runner for the next agent.
+
+#### Controls
+
+Every site has a control that fails on the code before it,
+and the third site has two,
+planted separately,
+because they catch different defects:
+
+- The runtime control:
+  `the_removals_run_on_the_processs_runtime`,
+  `the_rewrites_run_on_the_processs_runtime`,
+  `the_conversions_run_on_the_processs_runtime`.
+  Each records `tokio::runtime::Handle::try_current().is_ok()` at the site's own work:
+  `[false, false, false, false]` before the conversion,
+  where a scoped thread is in no runtime,
+  and `[true, true, true, true]` after it.
+  Measured rather than assumed:
+  a probe in `blocking_jobs_within_the_budget_tests.rs` printed
+  `PROBE inside a job: current=true thread=Some("git-policy-worker")`
+  and `PROBE outside: current=false`,
+  so a job of the pool is in the runtime and a scoped thread is not.
+- The place control:
+  `the_removals_take_places_of_the_processs_bound_on_blocking_jobs`,
+  `the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs`,
+  `the_conversions_take_places_of_the_processs_bound_on_blocking_jobs`.
+  With the bound held to one place by another job of the pool,
+  no item's work starts until that job gives the place back.
+  Planted for the third site by running the conversion on the worker instead of as a job,
+  the place control fails with
+  "a conversion started while another job held the only place of the process's bound,
+  so it did
+  not take one",
+  while the runtime control still passes,
+  which is the reason both exist.
+  The plant was reverted and the folder passes again.
+- The line path:
+  `a_line_said_inside_a_blocking_job_reaches_the_consumer_as_it_happens` in
+  `parallel_runner_on_the_runtime_awaiting_tests.rs`.
+  It does not compile before the owned sink
+  (`error[E0521]: borrowed data escapes outside of method`,
+  "argument requires that `'a` must outlive `'static`"),
+  and with the sink holding its lines until it is dropped it fails after its patience with
+  "the consumer saw the line only after the job ended".
+- The output:
+  one control per site pins the whole report the code gave before the step,
+  and each was written and passed on the tree before its conversion,
+  then again after it.
+  `the_lines_of_a_run_are_the_ones_recorded_before_the_step` exists twice
+  (`subvolume/subvolume_index_parallel_tests.rs` and
+  `worktree/worktree_convert_parallel_tests.rs`):
+  the checkout's index first and then each linked worktree's by path,
+  and for a conversion the risk notice,
+  each worktree's name,
+  its copy line,
+  its index line,
+  its verdict,
+  and the summary.
+  The counts they pin are named constants of the fixture
+  (`CHECKOUT_ENTRIES_REFRESHED`,
+  `LINKED_ENTRIES_REFRESHED`,
+  `COPIED_ENTRIES`,
+  `INDEX_ENTRIES_REFRESHED`),
+  so a legitimate change to the fixture breaks them on purpose.
+  The trash site's own output is the reasons of the entries that stay,
+  in entry order,
+  and its three existing controls compare that list exactly;
+  they pass unchanged.
+
+#### Latency
+
+Five `native:perf` arms over the window 22:53 to 22:57 on 2026-11-08,
+with two binaries:
+this tree (built at `e96655c92e`) and main's tree at the base commit `3db3002750`
+(the files of this step restored with `git restore --source=3db3002750`,
+built,
+measured,
+and restored,
+whose rebuild produced a binary byte for byte the one of the other arms of this tree).
+The host carried a load average between 63 and 72 on 12 CPUs throughout;
+the arms alternate so that whatever load there is falls on both binaries.
+
+- Forwarded commands,
+  added medians of `rev-parse`,
+  `status`,
+  `log` and `diff-stat`:
+  mine 2.7,
+  2.4,
+  2.0 and 1.7 ms,
+  then 2.0,
+  2.4,
+  1.9 and 2.0 ms;
+  main's 1.5,
+  1.8,
+  1.7 and 1.6 ms,
+  then 1.6,
+  1.7,
+  2.0 and 2.0 ms;
+  mine again 1.9,
+  1.9,
+  2.2 and 2.0 ms.
+  Every arm is inside the 2,000 ms bound by three orders of magnitude,
+  and the two binaries differ by less than the run-to-run spread of the forwarded figures
+  (1.5 to 2.7 ms across all arms).
+- Commit through the service,
+  paired delta median and maximum:
+  mine 146.8 ms and 4,486.9 ms,
+  then 111.1 ms and 2,277.4 ms,
+  then 119.2 ms and 999.0 ms;
+  main's 45.5 ms and 284.4 ms,
+  then 56.7 ms and 2,842.3 ms.
+- Signed commit through the service:
+  mine 167.8 ms and 5,108.5 ms,
+  then 99.5 ms and 457.2 ms,
+  then 95.2 ms and 2,386.7 ms;
+  main's 108.5 ms and 7,658.5 ms,
+  then 93.6 ms and 296.3 ms.
+
+What that says,
+and what it does not:
+
+- The same-binary spread is the largest figure in the window.
+  The three arms of this tree differ by 1.3 times on the commit median and by 4.5 times on its
+  maximum,
+  and by 1.8 and 11 times on the signed commit;
+  the two arms of main's tree differ by 1.25 and 10 times on the commit,
+  and by 1.16 and 26 times on the signed commit.
+- The bound was broken by one arm of this tree (signed 5,108.5 ms) and by one arm of main's tree
+  (signed 7,658.5 ms),
+  and met by the other three arms of each.
+  So the bar is broken in this window by both binaries,
+  and no arm of this table attributes that to this step.
+- Nothing here is evidence that this step made the commit path slower or faster.
+  None of the files this step touches runs in a commit:
+  the trash entry removal is reached from the copy path of a new worktree
+  (`worktree_copying/worktree_copy_after_lock_disposal.rs`)
+  and from the service's work loop for a trash item,
+  the index refresh of every worktree is reached from the subvolume migration,
+  the conversion command and the runner's trait are reached from neither.
+  A commit in these fixtures has no trash item and no migration.
+- The figures that the owner's bar is about cannot be separated on this host in this window.
+  The next agent gets the same advice the earlier sections gave:
+  alternate the binaries arm by arm,
+  more arms than this,
+  under whatever load the host carries then.
+
+#### Checks
+
+The folders this step touches,
+each run on its own while it was written:
+
+- `worktree::worktree_trash_entries` 7 of 7,
+  `worktree::worktree_convert` 86 of 86,
+  `subvolume::subvolume_index_files` 43 of 43 and its parallel controls 7 of 7,
+  `subvolume::` 268 of 268 (one slow),
+  `foundation::parallel_runner` 20 of 20 (the three runner forms).
+- `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors
+  (it found four line breaks and one avoidable closure,
+  which the commits fix).
+- The whole suites at the tip,
+  `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own control group at
+  `TasksMax=4000`:
+  `native:test:host` 4826 run,
+  4826 passed (1 slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  730 passed (3 slow),
+  3 failed,
+  3 skipped.
+- The three binary failures are one group,
+  `service::the_settle_command_*`:
+  `the_settle_command_finishes_a_batch_the_earlier_helper_left_open`,
+  `the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` and
+  `the_settle_command_is_not_held_by_a_service_another_control_is_starting`.
+  All four controls of that group pass when they are asked alone
+  (`native:test:binary:host -- service::the_settle_command`:
+  4 run,
+  4 passed),
+  and the reason the command printed is a deadline,
+  not a wrong answer:
+  "the sockets and processes of the earlier helper could not be looked at in time",
+  so it is not known whether one runs.
+  The host carried a load average of 60 to 91 on 12 CPUs through the run,
+  with another agent's whole host suite running beside it,
+  and the same control is already recorded twice as a suite-only failure that passed alone and in
+  the next full runs (`doc/handover/cli-git-rust-implementation.md`,
+  and this plan's T4 section).
+  No cause is measured here either;
+  the path it exercises (the settle command's scan of `/proc`) is not one this step changes.
+
+One defect this step did carry,
+and the binary suite caught it rather than a control of its own:
+with the conversion as a job of the blocking pool,
+the content decision could no longer learn where the system configuration and attributes files are,
+because the bridge that starts a child refuses to start one from inside the runtime.
+`convert::the_system_attributes_file_is_located_through_the_real_git_too` and
+`convert::a_worktree_the_stat_data_cannot_vouch_for_is_judged_by_content_not_refused_for_not_knowing_git`
+failed with "the location of the system attributes file cannot be established without running Git",
+and the fix is `LinuxPlatform::with_its_conversion_environment_settled`,
+with the control `a_platform_settled_early_reads_the_facts_the_late_answer_gives`
+(the plan's next section says what it pins).
 
 ## Open choices for the owner
 

@@ -715,6 +715,133 @@
   the container gate of this branch (no gate image was made) and the mutation
   campaign (paused by the owner).
 
+## Step T12, the line path and the three pure-file sites, 2026-11-08T23:05:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` in
+  `.claude/worktrees/pi-tokio-pure-file-sites-on-the-awaited-runner`,
+  from main's tree at `3db3002750` (origin/main has moved since;
+  this branch is not merged).
+  Commits `6718083e03`,
+  `1a7a356e46`,
+  `f91efa791b`,
+  `f1da73cd9f`,
+  `4712446a7c`,
+  `a5bf18702f`,
+  `19c78736dc`,
+  `e96655c92e`,
+  `2b0b47c964` and `c7ad6b145a`.
+- Done,
+  and the whole of what item 3 could be from this tree:
+  the line path for an item whose work runs in a `'static` job,
+  and the three pure-file sites on `run_ordered_awaiting_on_the_runtime`:
+  `worktree/worktree_trash_entries.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs` and
+  `worktree/worktree_convert_command.rs`.
+  No site of the blocking runner's scoped threads is left in those three files.
+- The decisions,
+  this agent's under the owner's delegation and open to the owner's veto
+  (the plan,
+  "Step T12,
+  the line path and the state of the pure-file sites"):
+  the state each site lends the runner is shared with `Arc`,
+  and an item's lines are an owned `LinesToTheConsumer<R>` it moves into its job.
+  Neither adds a lock,
+  both keep the lines in input order and as they happen,
+  and nothing of the three sites is reached by a forwarded command.
+- Corrected record:
+  the previous section says the three sites "all say lines while they work".
+  Read again,
+  only `worktree/worktree_convert_command.rs` does;
+  the other two say theirs at `Event::End`,
+  on the consumer,
+  so the line path had one user and not three.
+- One fact for any later helper,
+  measured:
+  `tokio::runtime::Handle::try_current()` is `Ok` on a thread of the blocking pool
+  (thread name `git-policy-worker`) and `Err` on a scoped thread of `parallel_runner.rs`,
+  so a control can tell "this work is in the process's runtime" from "this work is on a thread of
+  its own".
+  What it cannot tell is a worker of the runtime from a job of its pool;
+  the place control does that
+  (`hold_the_only_place` in `testing/parallel_test_support.rs`:
+  with the bound held to one place,
+  work that takes a place waits and work that runs on a worker does not).
+- Exact next steps,
+  in order:
+  1. Item 2:
+     the landing's handlers and `landing/service_round.rs` (`drain_directories`)
+     onto `run_ordered_awaiting_on_the_runtime`,
+     with each item's storage work inside `run_blocking_job_within_the_budget`.
+     The landing's items say lines while they work,
+     so they take the owned sink by moving it into the job,
+     as `worktree_convert_command.rs` does.
+     Another agent has an unmerged branch in the landing's index handling;
+     read it before touching `landing/service_index_*` or `commit/native_commit*`.
+  2. Then the sites still on `parallel_runner.rs`:
+     `worktree/worktree_copying/`,
+     the copy and repair sites of `foundation/side_by_side_threads.rs`,
+     and the rest of the seven `run_ordered` sites the plan lists.
+  3. Then item 4 (T13's guards),
+     unchanged.
+- Checks,
+  the whole suites once at the tip,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own control group at
+  `TasksMax=4000`:
+  `native:test:host` 4826 run,
+  4826 passed (one slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  730 passed (three slow),
+  3 failed,
+  3 skipped,
+  and the three are the `service::the_settle_command_*` group,
+  which passes 4 of 4 when asked alone and whose own reason is a deadline
+  ("the sockets and processes of the earlier helper could not be looked at in time"),
+  under a load average of 60 to 91 with another agent's whole suite running beside it;
+  the same control is already recorded twice as a suite-only failure that passed alone and in the
+  next full runs (`doc/handover/cli-git-rust-implementation.md`,
+  and the plan's T4 section).
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- `native:perf`,
+  five arms with two binaries,
+  alternating (mine,
+  mine,
+  main's tree,
+  main's tree,
+  mine),
+  so each binary has a pair against the other binary's pair:
+  every arm inside the 2,000 ms forwarded bound by three orders of magnitude
+  (added medians 1.5 to 2.7 ms across all arms);
+  commit through the service paired delta median 146.8,
+  111.1 and 119.2 ms for this tree and 45.5 and 56.7 ms for main's,
+  with maxima of 4,486.9,
+  2,277.4 and 999.0 ms against 284.4 and 2,842.3 ms;
+  signed commit 167.8,
+  99.5 and 95.2 ms with maxima of 5,108.5,
+  457.2 and 2,386.7 ms against 108.5 and 93.6 ms with maxima of 7,658.5 and 296.3 ms.
+  The same-binary spread is the largest figure in the window
+  (1.3 times on the commit median and 4.5 times on its maximum within this tree,
+  1.25 and 10 times within main's),
+  so no arm here attributes anything to this step,
+  and no file this step touches runs in a commit.
+  The plan,
+  "Step T12,
+  the line path and the state of the pure-file sites",
+  "Latency".
+- One defect this step carried and the binary suite caught:
+  a conversion,
+  now a job of the blocking pool,
+  could no longer learn where the system configuration and attributes files are,
+  because the bridge that starts a child refuses from inside the runtime.
+  Fixed by `LinuxPlatform::with_its_conversion_environment_settled`
+  (the plan says what it pins).
+- Not run,
+  for the next agent:
+  the container gate of this branch (no gate image was made) and the mutation campaign
+  (paused by the owner).
+
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
 Nothing of T13 is done and nothing of it can be done first:
