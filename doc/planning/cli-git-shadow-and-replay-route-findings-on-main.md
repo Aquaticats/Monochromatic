@@ -121,7 +121,7 @@ Exact sequence:
    Its output tree preserves `Ã©.txt` as `a\nB\nc\nd\n`.
 5. Call the production `merge_captured` with those histories and capture stamp zero.
    It accepts a `Combined` result:
-   `é.txt` has the expected combined bytes,
+   the word-level pass resolves the original `é.txt` conflict,
    but `Ã©.txt` has reverted to `unrelated base\n`.
 
 The equality between the landed blobs is essential,
@@ -169,7 +169,7 @@ the editor,
 templates,
 message cleanup,
 and signing."
-Current `SPEC.md` explicitly supersedes the hook portion by supporting no external hooks;
+Current `package/git-policy/cli/SPEC.md:7469` supersedes the hook portion by supporting no external hooks;
 it does not retire configured commit signing.
 The shadow route must not change a person's signing request into a successful unsigned commit.
 
@@ -215,8 +215,11 @@ exact gitdir include: native signed=true, shadow exit=0, shadow signed=false
 the shadow must not silently turn off the person's configured signing
 ```
 
-Git evaluates the exact gitdir condition against the substituted shadow directory,
-not against the location of the included real config file.
+The source-level explanation is that the exact gitdir condition no longer matches the substituted shadow directory.
+The fixture has no other signing configuration,
+and `format_shadow_config` emits no signing override.
+The signed/unsigned disagreement is measured;
+this account of conditional matching is the interpretation of those inputs and the changed Git-directory selection.
 The existing conditional-include test in
 `package/git-policy/cli/src/native/shadow/shadow_create_tests.rs:82`
 checks `onbranch:main`,
@@ -227,6 +230,54 @@ Suggestion: preserve the relevant effective native-commit configuration from the
 with its intended precedence and path-resolution semantics,
 rather than assuming that including the real file recreates every condition.
 A regression control should require a signed native positive control and a signed production shadow commit.
+
+### P2: An unrelated Git-valid non-UTF-8 tag blocks native preparation
+
+Status: **reproduced** through production invocation capture and `create_shadow_repository_at`.
+This is a visible failure,
+not silent data loss,
+so it ranks after the accepted wrong results.
+It touches the owner's "Commits should never fail."
+The failure is specific to commits using native preparation,
+not every commit the embedded service can build without a shadow.
+
+`package/git-policy/cli/src/native/shadow/shadow_refs.rs:89`
+decodes the complete `for-each-ref` listing as UTF-8
+and returns `GitFailure("git for-each-ref returned non-UTF-8 output.")` on any invalid sequence.
+`write_shadow_refs` calls it at `:205`,
+and the creator propagates its failure at
+`package/git-policy/cli/src/native/shadow/shadow_create.rs:371`.
+The production caller is the native builder at
+`package/git-policy/cli/src/native/landing/service_native.rs:214`.
+
+Exact sequence:
+
+1. Create a repository on `main` with an empty base commit.
+2. Use `git update-ref --stdin` with raw input bytes to create the valid ref name
+   `refs/tags/nonutf-` followed by byte `ff`,
+   pointing at that base.
+   The non-UTF-8 name is unrelated to `HEAD` and to the requested change.
+3. Native `git commit --allow-empty --message=<message>` succeeds in the same repository.
+4. Capture the repository and base through production capture,
+   both successfully,
+   then request a production shadow.
+5. Shadow creation fails at the complete-ref snapshot's UTF-8 decode.
+   A commit needing this route,
+   such as one with an editor,
+   cannot reach native preparation even though Git accepts the repository and the commit.
+
+Quoted output:
+
+```text
+native commit beside non-UTF-8 tag: exit=0
+non-UTF-8 tag: native subject="native control beside non-UTF-8 tag\n"
+shadow creation=Err(GitFailure("git for-each-ref returned non-UTF-8 output."))
+valid non-UTF-8 reference should not block a commit
+```
+
+Suggestion: parse and reproduce ref names as bytes on Unix,
+keeping diagnostic text separate from the bytes written to the ref snapshot.
+A control should put a non-UTF-8 ref outside the target branch and require native shadow creation to succeed.
 
 ## Creation, shared state, interruption, and waits
 
@@ -291,6 +342,38 @@ copy,
 and deletion calls are synchronous;
 this audit did not prove bounds for an unresponsive filesystem syscall.
 
+## Verification runs
+
+The filtered nextest command was
+`mise run //package/git-policy/cli:native:test:host -- audit_probe --success-output=final --no-fail-fast`.
+Its named output ran `9` probes:
+`7` passed;
+`audit_path_collision_preserves_the_unrelated_landed_edit`
+and `audit_exact_gitdir_include_keeps_required_signing_enabled` failed with the quoted wrong results.
+A later filtered run with the separate name filters `audit_non_utf8 audit_partial_shadow`
+ran `2` probes:
+`audit_partial_shadow_cleanup_does_not_follow_shared_links` passed,
+and `audit_non_utf8_tag_does_not_prevent_native_shadow_creation` failed with the quoted diagnostic.
+Thus each reported defect has a red assertion against an unmodified production seam.
+No full suite was run.
+
+One attempted filter contained a literal `|`,
+selected no tests,
+and ended with nextest's `error: no tests to run`.
+That run is not counted as verification;
+the corrected separate filters produced the named results.
+An initial launcher was stopped before execution because it lacked the explicit fixture-root environment.
+No result from that launcher is counted either.
+
+A cross-vendor Kimi review challenged the reachability,
+positive controls,
+and interpretation.
+The conflict status was asserted,
+the full resulting tree was inspected,
+and configured native signing was proved before accepting the failures.
+The review's proposed interhunk defect was not supported by the measured Git output.
+A separate DeepSeek review returned no visible text and supplies no review evidence.
+
 ## Verification limits
 
 The probes call shipped functions at the captured-history and native-preparation seams,
@@ -314,6 +397,13 @@ No general safety claim follows for those surfaces.
 
 ## Checked and found sound
 
+- At the interrupted-creation seam after skeleton creation and production shared-entry linking,
+  `remove_shadow_repository` removes the partial tree without following its `info` link.
+  The test first reads the real sentinel through the shadow link,
+  then checks the original sentinel bytes after deletion.
+  Output: `partial shadow: shared sentinel intact=true, shadow removed=true`.
+  This exercises the removal helper,
+  not a whole client/service crash-recovery cycle.
 - The ASCII equivalent of the filename-collision history retains the unrelated landed edit.
 - The adjacent contained text edit is retained with exact CRLF bytes.
 - A landed `100755` mode survives a contained text replay;
