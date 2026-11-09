@@ -2,17 +2,106 @@
 //! the proof accepts what Git's checkout leaves and
 //! names what it does not,
 //! the Git runs are exactly the two the design lists,
+//! the ignored files of the source survive a commit that ignores nothing,
 //! and a restore never runs in the source.
 
 use super::*;
-use crate::test_support::{git, git_context, remove, repository};
+use crate::test_support::{REAL_GIT, fixture, git, git_context, remove, repository};
 use crate::worktree_copy::{GitStatus, GitStep};
 use crate::worktree_copy_error::WorktreeCopyError;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The words every step starts with:
 /// `-C` and the stage.
 const LEADING_WORDS: usize = 2;
+
+/// What:
+///  The commit `revision` names in `repo`,
+/// as hexadecimal.
+/// Why:
+///   The fixture names the two commits it restores between by what they are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = commitOf(repo, 'HEAD')
+/// ```
+fn commit_of(repo: &Path, revision: &str) -> String {
+    return String::from_utf8_lossy(&git(repo, &["rev-parse", revision]).stdout).trim().to_string();
+}
+
+/// What:
+///  Copy the files of `from` into `to`,
+/// leaving out the top-level `.git`,
+/// the way a snapshot's files reach the stage.
+/// Why:
+///   The stage is the source's files with the new worktree's Git directory,
+/// not the source's `.git`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cpSync(from, to, { recursive: true, filter: (name) => name !== '.git' })
+/// ```
+fn copy_files(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).expect("stage directory");
+    for listed in std::fs::read_dir(from).expect("the source lists") {
+        let entry: std::fs::DirEntry = listed.expect("an entry");
+        let name: std::ffi::OsString = entry.file_name();
+        if name == ".git" {
+            continue;
+        }
+        let copy: PathBuf = to.join(&name);
+        if entry.file_type().expect("a kind").is_dir() {
+            copy_files(entry.path().as_path(), copy.as_path());
+        } else {
+            std::fs::copy(entry.path(), copy.as_path()).expect("a copied file");
+        }
+    }
+}
+
+/// What:
+///  The administrative directory of the worktree at `destination`,
+/// read from the pointer Git wrote.
+/// Why:
+///   The restore runs under the Git directory Git made,
+/// and the fixture installs the stage's index into it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const admin = readFileSync(join(destination, '.git'), 'utf8').replace('gitdir: ', '').trim()
+/// ```
+fn admin_of(destination: &Path) -> PathBuf {
+    let pointer: String = std::fs::read_to_string(destination.join(".git")).expect("Git's pointer");
+    let target: &str = pointer.strip_prefix("gitdir: ").expect("a gitdir pointer").trim();
+    return PathBuf::from(target);
+}
+
+/// What:
+///  A runner that runs the ladder's own steps as real Git runs them.
+/// Why:
+///   The restore's behavior is Git's own reset and clean,
+/// so a control that records the words instead proves nothing about the files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const run = (step) => spawnSync(realGit, step.arguments, { env: { ...process.env, ...step.environment } })
+/// ```
+fn real_steps(root: &Path) -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> {
+    let home: PathBuf = root.join("home");
+    std::fs::create_dir_all(home.as_path()).expect("a home for the Git child");
+    return move |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
+        let GitStep::Other { arguments, environment } = step else { panic!("only the ladder's own steps are expected") };
+        let status: std::process::ExitStatus = std::process::Command::new(REAL_GIT)
+            .args(*arguments)
+            .envs(environment.iter().cloned())
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", home.as_path())
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", home.join("no-global-config").as_path())
+            .status()
+            .expect("real Git starts");
+        return Ok(GitStatus { code: status.code() });
+    };
+}
 
 /// A target for the commit `HEAD` names in `repo`,
 /// whose Git directory is its own.
@@ -31,28 +120,38 @@ fn committed(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// The proof accepts a worktree that equals its commit and names each way it does not.
+/// The proof accepts a worktree that equals its commit,
+/// a carried ignored path,
+/// and names each way it does not.
 #[test]
 fn the_proof_accepts_what_gits_checkout_leaves_and_names_what_it_does_not() {
     let root: PathBuf = crate::test_support::fixture("restore-proof");
     let repo: PathBuf = committed(root.as_path());
     let target: Target = target_of(repo.as_path());
-    assert_eq!(prove_restored(&git_context(), &target, repo.as_path()), Ok(()), "positive control");
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), &[]), Ok(()), "positive control");
     std::fs::write(repo.join("untracked.txt"), b"u").expect("untracked");
-    let untracked: String = prove_restored(&git_context(), &target, repo.as_path()).expect_err("an untracked file");
+    let untracked: String = prove_restored(&git_context(), &target, repo.as_path(), &[]).expect_err("an untracked file");
     assert!(untracked.contains("untracked.txt") && untracked.contains("still untracked"), "{untracked}");
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), &[b"untracked.txt".to_vec()]), Ok(()), "the same file is carried");
+    std::fs::create_dir(repo.join("cache")).expect("ignored directory");
+    std::fs::write(repo.join("cache/data.bin"), b"d").expect("ignored file");
+    assert!(prove_restored(&git_context(), &target, repo.as_path(), &[b"untracked.txt".to_vec()]).expect_err("a file inside an ignored directory").contains("cache"), "a carried directory's name is not the name of a file in it");
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), &[b"untracked.txt".to_vec(), b"cache/".to_vec()]), Ok(()), "a carried directory covers what it holds");
+    std::fs::remove_dir_all(repo.join("cache")).expect("remove");
     std::fs::remove_file(repo.join("untracked.txt")).expect("remove");
     git(repo.as_path(), &["rm", "--cached", "--quiet", "a.txt"]);
-    assert!(prove_restored(&git_context(), &target, repo.as_path()).expect_err("a staged deletion").contains("index"));
+    assert!(prove_restored(&git_context(), &target, repo.as_path(), &[]).expect_err("a staged deletion").contains("index"));
     git(repo.as_path(), &["add", "a.txt"]);
     std::fs::write(repo.join("a.txt"), b"changed\n").expect("edit");
-    assert!(prove_restored(&git_context(), &target, repo.as_path()).expect_err("an edit").contains("differs"));
+    assert!(prove_restored(&git_context(), &target, repo.as_path(), &[]).expect_err("an edit").contains("differs"));
     remove(root.as_path());
 }
 
-/// The restore runs `read-tree --reset -u <commit>` through the lifecycle's runner and then a captured `clean --force -d`,
-/// in that
-///  order,
+/// The restore lists the stage's ignored paths,
+/// then runs a captured `clean --force -d`,
+/// then `read-tree --reset -u <commit>`
+///  through the lifecycle's runner,
+/// in that order,
 /// each in the stage under the new worktree's Git directory;
 /// nothing else is run through the runner,
 /// and the `clean`
@@ -158,6 +257,71 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
     remove(root.as_path());
 }
 
+/// What:
+///  A restore keeps the ignored files of the source that the new commit does not ignore,
+/// and its proof accepts them as carried.
+/// Why:
+///   The stage's ignore rules are the source's until the reset brings the new commit's,
+/// so a clean after the reset deletes ignored files the new commit does not cover:
+/// a person's cache,
+/// local configuration or environment file that the new branch knows nothing about.
+///   The control is the clean source,
+/// which hands the same directory over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await restoreDirty(source, target, stage, realGit, context)
+/// assert(readFileSync(join(stage, 'cache/data.bin')))
+/// ```
+#[test]
+fn a_restore_keeps_the_ignored_files_the_new_commit_does_not_ignore() {
+    let root: PathBuf = fixture("restore-kept-ignored");
+    let repo: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(repo.join(".gitignore"), b"cache/\n").expect("the source's ignore rule");
+    std::fs::write(repo.join("tracked.txt"), b"first\n").expect("a tracked file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    let first: String = commit_of(repo.as_path(), "HEAD");
+    // The commit the new worktree checks out ignores nothing: a branch that predates the rule, or one that removed it.
+    std::fs::write(repo.join(".gitignore"), b"").expect("no ignore rule");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let second: String = commit_of(repo.as_path(), "HEAD");
+    // The main checkout the snapshot is taken from: the first commit, one uncommitted edit, and its ignored state.
+    git(repo.as_path(), &["reset", "--hard", first.as_str()]);
+    std::fs::write(repo.join(".gitignore"), b"cache/\n").expect("the source's ignore rule again");
+    git(repo.as_path(), &["update-index", "--refresh"]);
+    std::fs::create_dir(repo.join("cache")).expect("the ignored directory");
+    std::fs::write(repo.join("cache/data.bin"), b"ignored bytes\n").expect("the ignored file");
+    std::fs::write(repo.join("tracked.txt"), b"first\nedited\n").expect("the uncommitted edit");
+    std::fs::write(repo.join("untracked.txt"), b"not ignored\n").expect("an untracked file");
+    // Git's own registration without a checkout, and the source's index installed as the rung installs it.
+    let destination: PathBuf = root.join("topic");
+    git(repo.as_path(), &["worktree", "add", "--no-checkout", "--quiet", destination.to_string_lossy().as_ref(), second.as_str()]);
+    let admin: PathBuf = admin_of(destination.as_path());
+    std::fs::copy(repo.join(".git/index"), admin.join("index")).expect("the stage's index");
+    let stage: PathBuf = root.join("stage");
+    copy_files(repo.as_path(), stage.as_path());
+    let target: Target = Target { admin: admin.clone(), pointer: Vec::new(), commit: second, differs: false, line: String::new() };
+    let source = SnapshotSource {
+        root: repo.clone(),
+        git_dir: repo.join(".git"),
+        common_dir: repo.join(".git"),
+        clean: crate::worktree_clean::CleanSource { head_commit: first, head_tree: Vec::new(), tracked: 0, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: Vec::new() },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let mut steps = real_steps(root.as_path());
+    let outcome: Result<(), String> = restore_dirty(&source, &target, stage.as_path(), &mut steps, &git_context());
+    assert_eq!(outcome, Ok(()), "the restore and its proof hold");
+    assert_eq!(std::fs::read(stage.join("cache/data.bin")).expect("the ignored file is still there"), b"ignored bytes\n");
+    assert_eq!(std::fs::read(stage.join("tracked.txt")).expect("the tracked file is the commit's"), b"first\n");
+    assert!(!stage.join("untracked.txt").exists(), "an untracked file that no ignore rule covers goes");
+    remove(root.as_path());
+}
+
 /// The note counts the paths in the singular and the plural.
 #[test]
 fn the_note_counts_paths() {
@@ -166,4 +330,38 @@ fn the_note_counts_paths() {
     assert!(left_out_note(&one).contains(format!("({} path)", one.count).as_str()), "{}", left_out_note(&one));
     assert!(left_out_note(&many).contains(format!("({} paths)", many.count).as_str()), "{}", left_out_note(&many));
     assert!(left_out_note(&one).ends_with('\n'));
+}
+
+/// What:
+///  A carried path under a directory Git reports as one collapsed name counts as carried,
+/// while a directory holding
+///  one file the restore did not carry is still refused.
+/// Why:
+///   The proof lists untracked names with `--directory`,
+/// so Git answers `cache/` when everything below it is untracked,
+///  while the restore carried `cache/private/token`;
+/// a comparison that only looked below a carried name refused the
+///  correct restore and sent the rung to a full checkout.
+/// The whole content decides the ancestor,
+/// so one file
+///  that was not carried still ends the rung.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(proveRestored({ carried: ['cache/private/token'] })).toEqual({ ok: true });
+/// writeFileSync('cache/other.txt'); expect(proveRestored({ carried: ['cache/private/token'] }).reason).toContain('cache/');
+/// ```
+#[test]
+fn a_collapsed_untracked_directory_is_carried_only_when_all_of_it_is() {
+    let root: PathBuf = crate::test_support::fixture("restore-carried-ancestor");
+    let repo: PathBuf = committed(root.as_path());
+    let target: Target = target_of(repo.as_path());
+    std::fs::create_dir_all(repo.join("cache/private")).expect("the ignored directories");
+    std::fs::write(repo.join("cache/private/token"), b"t").expect("the carried file");
+    let carried: Vec<Vec<u8>> = vec![b"cache/private/token".to_vec()];
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), carried.as_slice()), Ok(()), "Git reports cache/ and everything under it is carried");
+    std::fs::write(repo.join("cache/other.txt"), b"o").expect("a file the restore did not carry");
+    let refused: String = prove_restored(&git_context(), &target, repo.as_path(), carried.as_slice()).expect_err("a directory holding a file that was not carried");
+    assert!(refused.contains("cache/"), "the refusal names the directory Git reported: {refused}");
+    remove(root.as_path());
 }

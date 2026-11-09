@@ -8,14 +8,13 @@
 
 use super::*;
 use crate::fs_primitive_error::PrimitiveError;
-use crate::parallel_test_support::{PATIENCE, Rendezvous, hold_the_only_place, room_for};
+use crate::parallel_test_support::{ONE_PLACE, PATIENCE, Rendezvous, hold_the_only_place, room_for};
 use crate::subvolume_test_support::{PlainPlatform, backdate, make_checkout};
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{fixture, git, remove, wait_until};
 use crate::worktree_convert::CONVERTING_SUFFIX;
 use crate::worktree_convert_journal::JOURNAL_NAME;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// How many worktrees the controls convert.
 /// A conversion copies,
@@ -41,9 +40,6 @@ const TWO_CONVERSIONS: usize = 2;
 
 /// A host large enough that neither the CPUs nor the memory bound a run of `WORKTREES` worktrees.
 const LARGE_HOST: HostResources = HostResources { parallelism: WORKTREES * 8, memory_available: None };
-
-/// How long the worktree that must finish last waits for the others before the control reports that they did not.
-const LAST_TO_FINISH_PATIENCE: Duration = Duration::from_secs(3);
 
 /// The name of the worktree at `index`;
 /// the names sort in index order.
@@ -192,19 +188,24 @@ fn worktrees_are_converted_side_by_side() {
 /// and its lines still come first.
 #[test]
 fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
-    // The first worktree waits for the other three within `LAST_TO_FINISH_PATIENCE`, so all four must run at once, and
-    //  the room this control takes makes that independent of the CPUs this machine has.
+    // The first worktree waits for the other three while the run shows work, so all four must run at once, and the room
+    //  this control takes makes that independent of the CPUs this machine has.
     // The first worktree waits inside its conversion for the other three, so it holds a place while it waits: the room is
     //  one place more than the worktrees, and a run whose waiting worktree took the last place its peers need cannot happen.
     let _room: usize = room_for("the_report_keeps_input_order_whichever_worktree_finishes_first", WORKTREES + 1);
     let (parent, root) = checkout_with_worktrees("convert-parallel-order", WORKTREES);
-    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(WORKTREES - 1, LAST_TO_FINISH_PATIENCE));
+    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES - 1));
     let first_of_all: String = name_of(0);
-    let (waited_on, arrived, first_for_the_swap) = (Arc::clone(&others_done), Arc::clone(&others_done), first_of_all.clone());
+    let peers: usize = WORKTREES - 1;
+    let met: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let (waited_on, arrived, met_by_the_first, first_for_the_swap) = (Arc::clone(&others_done), Arc::clone(&others_done), Arc::clone(&met), first_of_all.clone());
     let platform: Arc<Watched> = Arc::new(Watched {
         on_create: Box::new(move |path: &Path| {
             if is_converting_of(path, first_of_all.as_str()) {
-                assert!(waited_on.wait_for_target(), "the other worktrees were converted while the first waited");
+                // The wait ends when the others reached the swap, or when the run shows no sign of work: a wait that gave up
+                //  on the clock would fail a conversion that is merely slow, and its panic inside a job of the pool would be
+                //  reported as a defect of the program rather than as this control's verdict.
+                met_by_the_first.store(wait_until(&|| { return waited_on.arrived() >= peers; }), Ordering::SeqCst);
             }
             return Ok(());
         }),
@@ -217,6 +218,10 @@ fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
     });
     let (code, lines) = run_on(&shared(&platform), &LARGE_HOST, &all_arguments(), root.as_path());
     assert_eq!(code, 0, "{lines:#?}");
+    assert!(
+        met.load(Ordering::SeqCst),
+        "the other worktrees never reached the swap while the first waited, and the run it waited in showed no sign of work: {lines:#?}"
+    );
     assert_eq!(lines.first().map(String::as_str), Some(RISK_NOTICE));
     let starts: Vec<usize> = (0..WORKTREES)
         .map(|index: usize| { return lines.iter().position(|line: &String| { return line.ends_with(format!("/{}", name_of(index)).as_str()); }).expect("the worktree is named"); })
@@ -471,6 +476,8 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
     // One conversion proves it, and it is the only one that may run: the place this control holds is the process's
     //  only place, so four worktrees here would be four conversions one after another, which under the load of a whole
     //  suite can outlast the test watchdog (measured: 105 s in a suite, 1.1 s alone).
+    // The room is the control's, never the CPUs this machine has, so the runtime it holds a place of is sized by this call.
+    let _room: usize = room_for("the_conversions_take_places_of_the_processs_bound_on_blocking_jobs", ONE_PLACE);
     let (parent, root) = checkout_with_worktrees("convert-parallel-a-place-of-the-bound", ONE_CONVERSION);
     let (given_back, finished) = hold_the_only_place();
     let started_after: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
