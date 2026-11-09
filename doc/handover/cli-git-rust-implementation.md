@@ -150,16 +150,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `ad3731e420` (the audit `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`).
   The module-doc issues the docs agent reported fixed or no longer applicable are closed with evidence comments,
   and the commit messages of `78c5b5e245` and `42a8a1d544` carry corrective comments.
-  That agent reports issues 4519,
-  4526,
-  4587 and 2650 do not hold as filed.
-  They stay open until checked.
-  Issues 4245,
-  4408,
-  3258,
+  `d39dffb7b8` corrects the citations in `doc/planning/`,
+  and issues 4245,
   4853,
   4863,
-  4871 and 4872 wait for the `doc/` round.
+  4871 and 4872 are closed with evidence.
+  Issues 4408 and 3258 hold,
+  and their files are under `doc/decision/`,
+  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  The docs agent's report that 4519,
+  4526,
+  4587 and 2650 do not hold looked only at the filed paths.
+  `wrapper-doc-folder-citations` found each defect still present at its moved path
+  (`shadow/replay_subsumption.rs:255-270`,
+  `shadow/shadow_create.rs:61-65`,
+  `policy/event_hints.rs:12-17`,
+  `binary/binary_lfs_pre_push_tests.rs:11`),
+  so they stay open for a small comment fix.
 - The shadow audit reproduced three defects:
   a conflict on `é.txt` makes replay silently revert the distinct file `Ã©.txt`,
   signing set through an exact `gitdir` conditional include is lost in native shadow preparation,
@@ -215,15 +222,34 @@ The old tree kept for the rollback stays until the owner deletes it.
   Real Git never writes one,
   main answered it the same way,
   and a small guard is still owed.
-- Fix briefs written and waiting for a free agent slot,
-  in this order:
-  `landing-route-findings-fixed` run 11 with `landing-route-round-11-prompt.md` (one source for the held notice,
-  and path bytes in every field of the owed index record);
-  `locks-and-transactions-findings-fixed` run 3 with `locks-and-transactions-round-3-prompt.md`;
-  `subvolume-conversion-findings-fixed` run 3 with `subvolume-conversion-round-2-prompt.md`.
+- Running on their reviews:
+  `landing-route-findings-fixed` run 11 (one source for the held notice,
+  path bytes in every field of the owed index record,
+  and the landing findings of `merge-route-round-6-sol.txt`),
+  `locks-and-transactions-findings-fixed` run 3,
+  and `subvolume-conversion-findings-fixed` run 3.
   The lock and conversion branches do not land before those runs:
   their reviews (`locks-and-transactions-round-2-sol.txt`,
   `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
+- Waiting for a free agent slot,
+  in this order:
+  `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
+  a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
+  `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
+  for the findings of `conflict-resolution-round-2-sol.txt` other than the window between revalidation and install,
+  a new agent `standards-review-findings-fixed` with `standards-review-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-standards-review-route-findings-on-main.md`,
+  and a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`.
+- mpm-shadow landed as `9406b6e5b0` with 725 of 725 tests on top of main,
+  and 0.2.7-alpha.10 was released from it,
+  locked and installed (`mise exec -- mpm-shadow --version` reads that version;
+  the install reported no failures).
+  Its last review (`mpm-shadow-open-issues-round-7-sol.txt`) names limits left in `cargo_installs.rs`:
+  a prune that read `current` just before a concurrent install finished a newer version can move `current` back,
+  and two roots holding the same version name can make a prune repoint a link it need not touch.
+  Either leaves `current` on an older finished version that still runs.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
@@ -679,7 +705,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   already naming a finished newer version,
   then settles the link when the kept version had vanished,
   with the instant between each read and the write written down beside the code and in the package README.
-  723 of 723 tests and Clippy pass on top of main (`84e9497694`).
+  723 of 723 tests and Clippy passed on top of main (`84e9497694`).
+  Run 7 fixed the two findings of the sixth review
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-6-sol.txt`):
+  `59d4f10a6f` gives `point_current_at` the versions the caller deletes,
+  so the guard that leaves a newer link alone does not preserve a link naming a version the plan removes;
+  the link then ends on the finished version that survives instead of being unlinked;
+  `0b3b57c203` reports a repoint failure through `after_removing`,
+  so it names the links the same pass already removed.
+  725 of 725 tests and Clippy pass on top of main (`daa12c3c76`).
   Open:
   a row naming a bare `nightly` with a dated version text still reads `ok`,
   the tag characters `+`,
