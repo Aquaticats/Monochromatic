@@ -34,6 +34,7 @@
 
 use crate::diagnostic_log::warn;
 use crate::fs_beneath::ObjectId;
+use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::worktree_convert_journal::read_plain_file;
 use std::path::{Path, PathBuf};
 
@@ -93,15 +94,10 @@ pub fn record_leftover_stage(worktree: &Path, stage: &LeftoverStage) {
         None => String::new(),
     };
     let text: String = format!("original={}\ncreated={created}\n", stage.original.encode());
-    // The record is written whole under a name of its own and renamed over the record, so a kill leaves a usable one.
-    let sibling: PathBuf = path.with_extension(format!("json.{}", std::process::id()));
-    if let Err(error) = std::fs::write(sibling.as_path(), text.as_bytes()) {
-        warn(TAG, format!("{} cannot be written ({error}), so a leftover stage of {} is only named by its path", sibling.display(), worktree.display()).as_str());
-        return;
-    }
-    if let Err(error) = std::fs::rename(sibling.as_path(), path.as_path()) {
-        warn(TAG, format!("{} cannot be put in place ({error}), so a leftover stage of {} is only named by its path", path.display(), worktree.display()).as_str());
-        let _removed: std::io::Result<()> = std::fs::remove_file(sibling.as_path());
+    // The record is written into a sibling created exclusively under a name of its own and renamed over the record, so a kill
+    // leaves a usable one and a link planted at a temporary name is never written through.
+    if let Err(error) = write_beside_then_rename(path.as_path(), text.as_bytes()) {
+        warn(TAG, format!("{} cannot be written ({error}), so a leftover stage of {} is only named by its path", path.display(), worktree.display()).as_str());
     }
 }
 
@@ -144,3 +140,8 @@ pub fn forget_leftover_stage(worktree: &Path) {
         Err(error) => warn(TAG, format!("{} cannot be removed ({error}); a later abandon refuses the stage it names", path.display()).as_str()),
     }
 }
+
+/// Record controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_convert_leftover_stage_record_tests.rs"]
+mod tests;

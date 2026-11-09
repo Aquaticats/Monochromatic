@@ -1790,7 +1790,13 @@ an absent pathname is not proof,
 because a person can move an intact worktree,
 and emptying its registration would
 leave its `.git` file pointing at nothing.
-A directory entry in that folder that is not a plain file is left alone:
+Both writers of that record replace it the way the migration's lists are written:
+a sibling created exclusively under a
+name of its own,
+then one rename,
+so a link planted at a temporary name is never written through.
+A directory entry in that
+folder that is not a plain file is left alone:
 the folder is read on every wrapped command,
 so a
 named pipe,

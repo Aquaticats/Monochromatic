@@ -362,6 +362,38 @@ fn a_pathname_that_ends_with_the_finished_mark_is_not_proof_of_destruction() {
     remove(root.as_path());
 }
 
+/// What:
+///  A symbolic link planted at the mark writer's temporary name is not written through:
+///  the person's file keeps its bytes and the record is marked all the same.
+/// Why:
+///   The temporary name was the record's own name plus the process number,
+/// so another program could guess it,
+/// replace it
+///  with a link to a file of the person's own,
+/// and have the writer truncate that file before the rename.
+#[test]
+fn a_link_at_the_mark_writers_temporary_name_is_not_written_through() {
+    let root: PathBuf = fixture("remove-record-mark-link");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    let notes: PathBuf = root.join("notes.txt");
+    std::fs::write(notes.as_path(), b"a person's notes\n").expect("their file");
+    let planted: PathBuf = record.with_extension(format!("recorded.{}", std::process::id()));
+    std::os::unix::fs::symlink(notes.as_path(), planted.as_path()).expect("a link at the temporary name");
+    record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
+    assert_eq!(std::fs::read(notes.as_path()).expect("their file"), b"a person's notes\n", "nothing is written through the link");
+    // The mark is there, so the removal this record names is finished and the registration goes.
+    remove(worktree.as_path());
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty());
+    assert!(!admin.exists(), "the marked record still finished the removal");
+    remove(root.as_path());
+}
+
 /// A named pipe at `path`,
 /// created with the platform's own call.
 fn named_pipe(path: &Path) {
