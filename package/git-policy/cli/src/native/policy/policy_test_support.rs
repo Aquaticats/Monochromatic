@@ -58,10 +58,6 @@ pub(crate) struct ScriptedFacts {
     /// The repository real Git prepares candidates in;
     ///  none makes preparation fail.
     pub(crate) candidates_repository: Option<PathBuf>,
-    /// The common Git directory the provider knows without starting Git;
-    ///  none is the answer of a provider
-    ///       that knows neither.
-    pub(crate) common_dir: Option<PathBuf>,
 }
 
 impl RepositoryFacts for ScriptedFacts {
@@ -99,15 +95,6 @@ impl RepositoryFacts for ScriptedFacts {
     /// Log the question,
     ///  then prepare with real Git in the scripted repository,
     ///  or fail.
-    /// Answer with the scripted common directory,
-    ///  so a fix's write of the ignore rule for its prepared files is exercised.
-    ///  The question costs no process and no remote ask,
-    ///  so it is not logged:
-    ///  the controls that care about it read the rule it produces.
-    fn known_common_dir(&mut self) -> Option<PathBuf> {
-        return self.common_dir.clone();
-    }
-
     fn candidates(
         &mut self,
         request: &CandidateRequest,
@@ -195,7 +182,6 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         remote_guess: Ok(false),
         asked: Vec::<String>::new(),
         candidates_repository: None,
-        common_dir: None,
     };
 }
 

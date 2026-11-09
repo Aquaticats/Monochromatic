@@ -30,9 +30,7 @@
 use crate::diagnostics::EngineFailureCode;
 /// Import the change list a converged fix installs,
 ///  and the installer.
-use crate::direct_fix_install::{
-    InstallChange, install_corrections, keep_prepared_files_out_of_git,
-};
+use crate::direct_fix_install::{InstallChange, InstallOutcome, install_corrections};
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the shipped checks,
@@ -296,45 +294,33 @@ pub fn settled_fix<F: RepositoryFacts>(
             NO_WORKTREE_MESSAGE,
         );
     };
-    // The prepared files a kill would leave must be invisible to Git before the first one exists. A rule that cannot
-    // be written does not fail the fix, and the person still sees it: an engine failure neither blocks nor ends the
-    // pass, so the fix reports what it could not do and goes on.
-    let mut unlisted: Option<PolicyEvent> = None;
-    if let Some(common_dir) = checks.facts.known_common_dir()
-        && let Err(error) = keep_prepared_files_out_of_git(common_dir.as_path())
-    {
-        unlisted = Some(PolicyEvent::EngineFailure {
-            code: EngineFailureCode::PolicyIncomplete,
-            hint: crate::policy_events::EngineFailureHint::OfCode,
-            message: format!(
-                "monochromatic-git-policy-cli could not write the ignore rule for the files it prepares into {} ({error}), so a file a killed fix leaves beside a corrected file could be staged by a later Git command. Remove any file whose name starts with {} before committing.",
-                common_dir.join("info/exclude").display(),
-                crate::direct_fix_install::INSTALL_SIBLING_PREFIX
-            ),
-            trigger: Some(Trigger::DirectFix),
-            policy: None,
-            // `None`: the fault is the repository's Git directory, not one candidate.
-            path: None,
-        });
-    }
-    if let Err(message) = install_corrections(top_level, real_index, changes.as_slice()) {
-        let mut failed: PassResult = fix_failure(
-            pass.arguments.as_slice(),
-            EngineFailureCode::TransactionFailed,
-            message.as_str(),
-        );
-        if let Some(notice) = unlisted {
-            failed.events.insert(0, notice);
+    let outcome: InstallOutcome = match install_corrections(top_level, real_index, changes.as_slice()) {
+        Ok(installed) => installed,
+        Err(message) => {
+            return fix_failure(
+                pass.arguments.as_slice(),
+                EngineFailureCode::TransactionFailed,
+                message.as_str(),
+            );
         }
-        return failed;
-    }
+    };
     let mut changed_paths: Vec<EventPath> = Vec::new();
     for change in &changes {
         changed_paths.push(EventPath::from_git_bytes(change.path.as_slice()));
     }
     let mut events: Vec<PolicyEvent> = pass.events;
-    if let Some(notice) = unlisted {
-        events.push(notice);
+    // What: A byte a fix keeps for the person is reported as an engine failure, which neither blocks nor ends the pass.
+    // Why:  The corrections went in, so the command must not fail; the person still has to know where the bytes of a
+    //       file someone wrote during the fix are.
+    for notice in outcome.notices {
+        events.push(PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PolicyIncomplete,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
+            message: notice,
+            trigger: Some(Trigger::DirectFix),
+            policy: None,
+            path: None,
+        });
     }
     events.push(PolicyEvent::FixSummary {
         trigger: Trigger::DirectFix,

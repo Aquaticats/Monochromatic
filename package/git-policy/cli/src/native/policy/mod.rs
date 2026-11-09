@@ -76,6 +76,10 @@ pub mod direct_fix_install;
 /// The swap and the replacement write an install uses.
 pub mod direct_fix_install_writes;
 
+/// The journal an install is recorded in,
+/// and the sweep that finishes what a kill interrupted.
+pub mod direct_fix_install_journal;
+
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.

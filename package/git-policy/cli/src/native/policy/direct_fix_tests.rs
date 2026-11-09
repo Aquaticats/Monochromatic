@@ -66,7 +66,6 @@ fn fix_request(config: PolicyConfig) -> StageRequest {
 fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.to_path_buf());
-    facts.common_dir = Some(repo.join(".git"));
     return shipped_checks(
         facts,
         os_arguments(&[]),
@@ -246,52 +245,87 @@ fn a_fix_with_the_wired_policy_listed_completes_and_installs() {
     let result: PassResult = run_direct_fix(&listed, &mut checks, Some(repo.as_path()));
     assert_eq!(result.end, StageEnd::Completed);
     assert_eq!(std::fs::read(repo.join("a.txt")).expect("a"), b"a\n");
-    // The rule that keeps a killed fix's prepared file out of Git is in place, and nothing had to be reported.
-    let exclude: String =
-        std::fs::read_to_string(repo.join(".git/info/exclude")).expect("the repository's exclude file");
+    // Nothing of the fix stays: no file beside a corrected file and no journal in the Git directory, and nothing to
+    // report.
+    let mut beside: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(repo.as_path()).expect("the repository") {
+        let name: String = entry
+            .expect("entry")
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
+        if name.starts_with(".cli-git-direct-fix-") {
+            beside.push(name);
+        }
+    }
+    assert_eq!(beside, Vec::<String>::new());
     assert!(
-        exclude.contains(".cli-git-direct-fix-*"),
-        "{exclude}"
-    );
-    assert!(
-        !result.events.iter().any(|event| return matches!(event, PolicyEvent::EngineFailure { .. })),
+        !result
+            .events
+            .iter()
+            .any(|event| return matches!(event, PolicyEvent::EngineFailure { .. })),
         "{result:?}"
     );
     remove(root.as_path());
 }
 
 /// What:
-///  A fix whose ignore rule cannot be written still installs,
-///  and reports what it could not do.
+///  A fix that keeps a journal for the person still installs and still succeeds,
+///  and names where the
+///       bytes are.
 /// Why:
-///   The rule keeps a killed fix's prepared file out of Git;
-///  a repository whose Git directory
-///       refuses the write is a reason to warn the person,
-///  never a reason to leave the corrections
-///       uninstalled or to fail the command.
+///   A file someone wrote to during the fix is never touched again,
+///  but the corrections do go in and the
+///       command exits 0:
+///  the owner's "commits should never fail" is about the work,
+/// and the person must
+///       still be told where the bytes of the file are before the summary.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // checks.facts.commonDir = repo/a.txt; const result = runDirectFix(...); expect(result.end).toBe('completed'); expect(result.events[0].type).toBe('engine-failure')
+/// // afterSwap = () => writeFileSync(repo/'a.txt', 'newer\n'); const result = runDirectFix(...); expect(result.end).toBe('completed'); expect(passExitCode(result.events, result.end)).toBe(0); expect(result.events[0].type).toBe('engine-failure')
 /// ```
 #[test]
-fn a_fix_that_cannot_write_its_ignore_rule_installs_and_says_so() {
-    let root: PathBuf = fixture("direct-fix-exclude-failure");
+fn a_fix_that_keeps_a_journal_still_installs_and_says_where_it_is() {
+    let root: PathBuf = fixture("direct-fix-kept-journal");
     let repo: PathBuf = untidy_repository(root.as_path());
     let request: StageRequest = fix_request(PolicyConfig::defaults());
     let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
-    // A file where the Git directory should be, so the rule's directory cannot be made.
-    checks.facts.common_dir = Some(repo.join("a.txt"));
+    let destination: PathBuf = repo.join("a.txt");
+    let git_dir: PathBuf = repo.join(".git");
+    crate::direct_fix_install::AFTER_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
+            if !swapped.ends_with("a.txt") {
+                return;
+            }
+            // A writer that opened the file before the swap writes through its descriptor: the bytes land in the
+            // file the swap displaced, which is this journal's content.
+            for entry in std::fs::read_dir(git_dir.as_path()).expect("the Git directory") {
+                let path: PathBuf = entry.expect("entry").path();
+                if !path
+                    .file_name()
+                    .expect("name")
+                    .to_string_lossy()
+                    .starts_with("cli-git-direct-fix-")
+                {
+                    continue;
+                }
+                std::fs::write(path.join("content"), b"# a late save\n").expect("a late write");
+            }
+        }));
+    });
     let result: PassResult = run_direct_fix(&request, &mut checks, Some(repo.as_path()));
+    crate::direct_fix_install::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
     assert_eq!(result.end, StageEnd::Completed);
-    assert_eq!(std::fs::read(repo.join("a.txt")).expect("a"), b"a\n");
-    let unlisted: &PolicyEvent = result
-        .events
-        .first()
-        .expect("the notice comes before the summary");
+    assert_eq!(
+        std::fs::read(&destination).expect("a"),
+        b"a\n".to_vec(),
+        "the corrections are in place"
+    );
+    let notice: &PolicyEvent = result.events.first().expect("a notice before the summary");
     assert!(
         matches!(
-            unlisted,
+            notice,
             PolicyEvent::EngineFailure {
                 code: EngineFailureCode::PolicyIncomplete,
                 trigger: Some(Trigger::DirectFix),
@@ -300,8 +334,23 @@ fn a_fix_that_cannot_write_its_ignore_rule_installs_and_says_so() {
         ),
         "{result:?}"
     );
-    let engine_code: i32 = pass_exit_code(result.events.as_slice(), result.end);
-    assert_eq!(engine_code, 0, "the fix still succeeds");
+    let PolicyEvent::EngineFailure { message, .. } = notice else {
+        unreachable!("just matched");
+    };
+    assert!(message.contains("cli-git-direct-fix-"), "{message}");
+    // The fix still succeeded: the summary follows and the exit code is 0.
+    assert!(
+        result
+            .events
+            .iter()
+            .any(|event| return matches!(event, PolicyEvent::FixSummary { .. })),
+        "{result:?}"
+    );
+    assert_eq!(
+        pass_exit_code(result.events.as_slice(), result.end),
+        0,
+        "a kept journal never fails the command"
+    );
     remove(root.as_path());
 }
 
