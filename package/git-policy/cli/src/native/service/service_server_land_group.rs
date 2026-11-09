@@ -222,8 +222,8 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
 fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
     let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
         kind: crate::work_item::WorkKind::Push,
-        repository: repository.display().to_string(),
-        git_dir: git_dir.display().to_string(),
+        repository: repository.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
         branch_ref: reference.to_string(),
         oid: commit.to_string(),
         parent: parent.to_string(),
@@ -239,8 +239,8 @@ fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: 
 pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
     let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
         kind: crate::work_item::WorkKind::Push,
-        repository: request.repository.display().to_string(),
-        git_dir: request.git_dir.display().to_string(),
+        repository: request.repository.clone(),
+        git_dir: request.git_dir.clone(),
         branch_ref: request.reference.clone(),
         oid: commit.to_string(),
         parent: request.base.clone(),
