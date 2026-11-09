@@ -3430,22 +3430,47 @@ What changed:
   and the landing names one that records the worktree's stat data
   (`src/native/index/index_reset_worktree_stat.rs`)
   for a path whose file provably holds the entry's bytes.
-  The proof is three facts together:
-  the file's raw bytes hash to the entry's object name read as a blob,
+  The proof is a set of facts together,
+  as narrowed by the cross-vendor review of 2026-11-09 (commit `91c7dafc9c`,
+  which answers its five findings):
+  the path is a regular file whose directories on the way are real ones on the worktree's device,
+  reached below a root held open without following a link (a symbolic link is left to Git,
+  since it is rare and a link read across a swap of its parent cannot be proven to be the one examined);
+  the file's raw bytes hash to the entry's object name read as a blob;
+  no attribute Git applies converts these bytes, and the bytes hold no carriage return
+  (`ContentJudge::conversion_is_the_identity`,
+  read in process from the files Git itself would read,
+  with `attr.tree` and `GIT_ATTR_SOURCE` refused and an unestablished fact refusing the record);
   the state of the one inode read is the same before,
-  during and after the read and the path still names it,
+  during and after the read and the path still names it;
   and the file is older than the index file being written,
   compared to the nanosecond as Git's `is_racy_stat` compares them.
   Everything else keeps the all-zero value `git reset --no-refresh` writes:
   a file as new as the index (racily clean to Git),
   another kind of file,
+  a symlink,
   a file above `CONTENT_LIMIT`,
   a file that changed while it was read,
+  a path a conversion may change,
   and a path no file holds.
-  A file whose bytes Git converts on the way into the index hashes to something else,
-  so a conversion costs a refresh and never a wrong record.
-  One landing hashes at most `CONTENT_LIMIT` bytes in all,
-  and a file that does not fit in what is left keeps the zero value.
+  The review's raw-byte finding is why the earlier sentence here,
+  that a conversion could only cost a refresh,
+  is gone:
+  a clean filter,
+  `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another
+  blob,
+  and a reader trusting the recorded stat data would then call the file clean.
+  The open does not block (`fs_beneath::open_file_at`, `O_NONBLOCK`),
+  so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
+  One landing reads at most `CONTENT_LIMIT` bytes in all,
+  every read is charged including one the stability checks refuse,
+  and a read takes at most what is left of the bound,
+  so a file grown after its first examination is not read past it.
+  The attribute facts cost one `git var GIT_ATTR_SYSTEM` the first time a given real Git has no cache entry for them
+  (traced from a fresh `XDG_CACHE_HOME`: one `execve`, then none),
+  and the steady state adds no Git start;
+  the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
+  and the whole proof 2.9 to 3.1 ms (about 15 microseconds a path).
   The 4,000 newest non-merge commits of this repository change a median of 27 KB
   (p90 209 KB,
   p99 3.3 MB,
@@ -3466,16 +3491,24 @@ Controls, each written before its fix:
 - `src/native/index/index_reset_worktree_stat_tests.rs`:
   a file that holds the entry's bytes records the file's stat data,
   one that holds other bytes of the same size records nothing,
-  one as new as the index records nothing while one second older records,
-  a symbolic link records the link's own stat data and another target records nothing,
+  one as new as the index records nothing while the same file older than it records,
+  a symbolic link records nothing,
   one that changed while it was read records nothing,
   one above the content bound records nothing,
-  and a path of another kind,
-  a missing path and a gitlink record nothing.
+  a path of another kind,
+  a missing path and a gitlink record nothing,
+  and the review's four:
+  a clean filter,
+  a `working-tree-encoding` and an `ident` each refuse while a path they do not name records;
+  a carriage return refuses while the same bytes without one record;
+  a fifo renamed over the path before the open is not opened for reading (bounded at five seconds,
+  which it timed out at before the fix);
+  a read the stability checks refuse is still charged;
+  and one read takes at most what is left of the bound.
 - `src/native/index/index_reset_recorded_stat_tests.rs`:
   a path the worktree still holds records the file's stat data while a path edited after its capture keeps the zero value and
   its edit stays in `git status`,
-  a file as new as the index records nothing while the same file two minutes older records,
+  a file older than the index records its stat data while one dated after it records nothing,
   and the commit after a landing asks for no refresh for the paths that landing recorded.
 - `src/native/commit/commit_index_stat_staleness_tests.rs`:
   the sliced walk answers exactly what the one linear walk answers for one to eight threads on a clean index and on one whose
@@ -3522,13 +3555,21 @@ traced with `strace -f -e trace=execve,openat` around the second commit,
 three rounds per arm,
 the same counts in every round:
 
-- The arm with the recording off started eight Git processes in that commit and read the previously landed path twice:
-  once by the wrapper's own check and once by the `git update-index --refresh` its staleness question asked for.
-  Its debug log has the line `refreshStatData … holds the worktree's stat data now`.
-- The arm with the recording on started seven Git processes and read that path once.
-  Its debug log carries no `refreshStatData` line:
+- The arm with the recording off started eight Git processes in that commit,
+  and its debug log has the line `refreshStatData … holds the worktree's stat data now`:
+  the staleness question asked for the `git update-index --refresh` that hashes the path the previous commit landed.
+- The arm with the recording on started seven Git processes,
+  and its debug log carries no `refreshStatData` line:
   the question answered "not needed",
-  so the commit paid no Git start and no hash for the path the previous commit landed.
+  so the commit paid no Git start and no hash for that path.
+- The reads the trace attributes to that path varied between rounds (one or two with the recording off,
+  one with it on),
+  because the wrapper's own checks read it too;
+  the Git starts and the refresh line did not vary.
+- Re-measured after the review's fixes of 2026-11-09 (commit `91c7dafc9c`),
+  which add the attribute facts to the proof:
+  the counts are the same,
+  because the first commit of each fixture warms the attributes cache and the second pays no start for it.
 - The wall clock of that commit was 891 and 1,854 ms with the recording off and 960 and 755 ms with it on in
   four untraced runs,
   a spread larger than any difference between the arms,
