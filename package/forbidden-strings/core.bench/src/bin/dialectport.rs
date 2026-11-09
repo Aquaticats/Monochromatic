@@ -4,7 +4,7 @@
 //!
 //! What:
 //!  reads the tail-format intermediate the TS porter (stage one,
-//! `package/forbidden-strings/cli/src/mise.port-betterleaks.ts`) wrote to
+//! `package/forbidden-strings/cli/bin/port-betterleaks.ts`) wrote to
 //! `<repo>/.cache/forbidden-strings-builtin-stage1.txt`,
 //!  rewrites every
 //! `/PATTERN/FLAGS` line into the restricted dialect while passing every other line
