@@ -84,6 +84,11 @@ delete the TypeScript file-enforcer and file-enforcer.config.ts;
 pnpr names
 its own generator);
 no file in the working tree carries them now.
+The same commit deleted `file-enforcer.config.ts`,
+so its line citations below (the write call sites,
+the `glob` and `lstat` reads)
+count from a file that is gone too;
+`file-enforcer.config.jsonc` is its replacement.
 
 This is not an edge case in this repo.
 The root config reads real inputs outside
