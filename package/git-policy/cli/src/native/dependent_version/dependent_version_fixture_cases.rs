@@ -286,11 +286,24 @@ pub fn evaluate(case: &JsoncValue, shared: &mut dyn FnMut(&str) -> MemoryWorkspa
             ));
         }
         "readPublishableNames" => {
-            let names: Vec<String> = read_publishable_names(&string("configText"))
-                .iter()
-                .map(|name| return quote(name))
-                .collect();
-            return object(&[("kind", quote("names")), ("value", array(&names))]);
+            return match read_publishable_names(&string("configText")) {
+                Ok(names) => object(&[
+                    ("kind", quote("names")),
+                    (
+                        "value",
+                        array(
+                            &names
+                                .iter()
+                                .map(|name: &String| return quote(name))
+                                .collect::<Vec<String>>(),
+                        ),
+                    ),
+                ]),
+                Err(problem) => object(&[
+                    ("kind", quote("publish-set")),
+                    ("problem", quote(&problem)),
+                ]),
+            };
         }
         other => panic!("unknown case kind {other}"),
     }
