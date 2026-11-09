@@ -2995,7 +2995,9 @@ replace refs,
 shallow or grafted history,
 split or sparse indexes,
 an index extension other than the ones Git reads without a word,
+an index offset table that does not name the entries the reader parsed,
 a ref name Git's own rule for a ref name would refuse,
+a ref listing past the 256 refs the listing reader answers,
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,

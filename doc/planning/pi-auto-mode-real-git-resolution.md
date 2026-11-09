@@ -58,6 +58,19 @@ Two owned modules currently implement real-Git resolution:
   starts every candidate check with `Promise.all()`,
   and logs every expected miss.
 
+Both paths above are gone from the tree.
+`package/git-policy/cli/src/resolve-git.ts` was deleted on 2026-08-28 in
+`2aef2d409a` (refactor(git-policy-cli):
+use shared Git resolver);
+that resolver is now `package/git-executable/core/src/resolve-real-git.ts`,
+which moved to that path on 2026-10-29 in `592d78b143`.
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts` was deleted on 2026-10-17 in
+`a3955898f1` (refactor(pi-plugin-auto-mode):
+remove superseded extension pipeline),
+and the package is an empty placeholder during the ground-up rebuild
+(`package/pi-plugin/auto-mode/doc/planning/ground-up-rebuild.md`),
+so nothing in the tree duplicates the resolver today.
+
 The duplicate implementations have already diverged.
 The resolver belongs behind one owned module interface.
 

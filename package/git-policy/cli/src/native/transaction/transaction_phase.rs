@@ -11,8 +11,7 @@
 //!  Crash suites need a deterministic point to kill the wrapper.
 //!  The marker is compiled into the release executable,
 //! but only the explicit variable arms it,
-//!  and a malformed value fails the invocation at every phase it reaches instead of being ignored
-//!  (`src/policy-engine/commit-transaction-test-phase.ts`).
+//!  and a malformed value fails the invocation at every phase it reaches instead of being ignored.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
