@@ -46,17 +46,23 @@ pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
         "    install roots, toolchain and toolchain-global in the monochromatic-dev data directory, together with the processes it starts.".to_string(),
         "    That is every script and dev server run by the toolchain's node, every build by its compilers, and everything they fetch.".to_string(),
         format!("    Installed on this machine now: {installed_text}."),
+        "  - Pi: every process of a pi-<name>.service agent unit, and every node process whose first command-line word is pi,".to_string(),
+        "    together with the processes they start. A unit is not moved: the service manager cannot move a service's main".to_string(),
+        "    process, so the socket mark the watcher attaches to that cgroup covers it and every process below it,".to_string(),
+        "    which is the same rule the terminals have.".to_string(),
         "  - How a process is recognized, and what can imitate it: the executable's file name (mise, mpm-shadow, mpm, node)".to_string(),
         "    together with its command-line words, the tail of a toolchain script path, any executable named mpm,".to_string(),
         "    and any executable under the install roots, which are inside a home directory the user can write.".to_string(),
         "    Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.".to_string(),
+        "    Pi is matched by the first command-line word it sets for itself, together with the node file name,".to_string(),
+        "    so `exec -a pi node` imitates it, and by the name of the unit it runs in, which is a name the user can choose.".to_string(),
         "    A toolchain folder that is a link is ignored: links are not followed, wherever they point,".to_string(),
         "    and each such root is reported loudly as not in force every time the watcher starts.".to_string(),
-        "  - Not covered: processes in another pid namespace (containers and sandboxes), and processes the user's service manager".to_string(),
-        "    cannot move (login sessions and the main process of a service); each is reported when it matches.".to_string(),
+        "  - Not covered: processes in another pid namespace (containers and sandboxes), processes of a login session,".to_string(),
+        "    and the main process of a service whose cgroup the watcher does not mark; each is reported when it matches.".to_string(),
         "  - Moved processes from one cgroup share one scope that carries that cgroup's CPU, memory, task and I/O weight limits once,".to_string(),
         "    and follows them while it lives, so together they stay within the cap the cgroup has.".to_string(),
-        "  The update-host list is routed around the tunnel for every program by wg-quicker itself,".to_string(),
+        "  The update-host list and the model provider hosts of Pi are routed around the tunnel for every program by wg-quicker itself,".to_string(),
         "  and each of its rules carries a whole address, so a shared CDN address serves other sites outside the tunnel too.".to_string(),
     ]
     .join("\n");
@@ -106,6 +112,14 @@ pub enum Outcome {
         pid: i32,
         /// Why the attempt was postponed.
         why: &'static str,
+    },
+    /// The process matched and its own cgroup carries the socket mark,
+    /// so it needs no move:
+    /// a service's main process cannot be moved,
+    /// and the watcher attaches the mark to every cgroup it names.
+    Covered {
+        /// Matched process.
+        pid: i32,
     },
     /// The process matched and was moved with its descendants.
     Adopted {
@@ -172,7 +186,7 @@ impl Outcome {
             Outcome::ScopeLimits { .. } => Some("scope limits not applied"),
             Outcome::Unreadable { .. } => Some("process unreadable"),
             Outcome::ScanFailed { .. } => Some("process list unreadable"),
-            Outcome::Ignored | Outcome::AlreadyInSlice | Outcome::Adopted { .. } => None,
+            Outcome::Ignored | Outcome::AlreadyInSlice | Outcome::Covered { .. } | Outcome::Adopted { .. } => None,
         };
     }
 
@@ -183,6 +197,9 @@ impl Outcome {
 pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
     return match outcome {
         Outcome::Ignored | Outcome::AlreadyInSlice => None,
+        Outcome::Covered { pid } => Some(format!(
+            "wg-quicker-exempt: pid {pid} matched and its own cgroup carries the socket mark, so it is covered without a move"
+        )),
         Outcome::Deferred { pid, why } => Some(policy_failure(&format!(
             "pid {pid} matched but its move was postponed ({why}); it is tried again on a later pass, and until then its traffic uses the tunnel"
         ))),
