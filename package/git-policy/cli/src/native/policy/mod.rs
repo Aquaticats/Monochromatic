@@ -83,6 +83,10 @@ pub mod direct_fix_install_journal;
 /// The sentences an install reports.
 pub mod direct_fix_install_messages;
 
+/// What a name holds,
+/// and whether it is exactly what an install put there.
+pub mod direct_fix_install_judging;
+
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.

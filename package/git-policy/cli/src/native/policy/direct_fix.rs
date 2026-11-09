@@ -367,8 +367,14 @@ pub fn settled_fix<F: RepositoryFacts>(
 /// What:
 ///  `pass` with one engine failure per notice after its own events.
 /// Why:
-///   A byte a fix keeps for the person, and a journal a sweep found, are reported as engine failures, which
-///       neither block nor end the pass: the corrections went in, so the command must not fail, and the person
+///   A byte a fix keeps for the person,
+/// and a journal a sweep found,
+/// are reported as engine failures,
+/// which
+///       neither block nor end the pass:
+/// the corrections went in,
+/// so the command must not fail,
+/// and the person
 ///       still has to know where those bytes are.
 ///
 /// In TS you'd write (pseudocode):

@@ -504,9 +504,11 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
 /// What:
 ///  A fix with nothing to correct still reports what a killed fix left behind.
 /// Why:
-///  An interrupted fix can leave the file looking canonical, so the next fix proposes no
+///  An interrupted fix can leave the file looking canonical,
+/// so the next fix proposes no
 ///       correction at all;
-///  if the sweep only ran on the install path, the person's only copy of an edit would
+///  if the sweep only ran on the install path,
+/// the person's only copy of an edit would
 ///       sit in a journal no command ever names.
 ///
 /// In TS you'd write (pseudocode):

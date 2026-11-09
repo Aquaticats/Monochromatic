@@ -563,7 +563,8 @@ fn a_kill_between_the_swap_and_the_judgement_is_reported_and_kept() {
 ///  A journal whose file was never touched is removed,
 ///  and one whose file has been written since is kept and named.
 /// Why:
-///  The first holds only a correction, which is recomputable;
+///  The first holds only a correction,
+/// which is recomputable;
 ///  the second may hold the person's only copy
 ///  of a state,
 ///  and nothing this command can prove allows removing it.
@@ -853,7 +854,8 @@ fn a_fix_leaves_nothing_in_the_worktree_that_git_could_stage() {
 ///  `GIT_INDEX_FILE` can point inside the worktree,
 ///  and the parent of that index is then an ordinary
 ///       directory a later `git add --all` stages:
-///  the journal's `content` is displaced user content, so
+///  the journal's `content` is displaced user content,
+/// so
 ///       it would enter the index.
 ///  The Git directory is the only place Git never stages.
 ///
@@ -975,7 +977,8 @@ fn a_replacement_never_changes_the_owner() {
 ///  A kill between creating `content` and writing its bytes leaves an empty file,
 ///  and a recovery that
 ///  exchanges on the strength of the destination's digest would put that empty file over a save.
-///  Repeating the recovery must change nothing either, which is also what keeps two recoveries
+///  Repeating the recovery must change nothing either,
+/// which is also what keeps two recoveries
 ///  from undoing each other's exchange of one journal.
 ///
 /// In TS you'd write (pseudocode):
@@ -1018,7 +1021,8 @@ fn a_recovery_never_exchanges_and_changes_nothing_twice() {
 /// What:
 ///  A save that lands after a rollback's ownership check is never deleted:
 ///  the rollback judges what it
-///       took out of the exchange, which is the bytes that were really there.
+///       took out of the exchange,
+/// which is the bytes that were really there.
 /// Why:
 ///  A read of the destination followed by an exchange has a window,
 ///  and a save that lands in it was

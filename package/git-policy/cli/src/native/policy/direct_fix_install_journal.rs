@@ -510,8 +510,10 @@ pub fn mark_writer_gone(journal: &Path) {
 ///  nor is a reading of the destination a licence to swap -  a save
 ///  that lands between the reading and the swap moves into the journal and is then removed with it,
 ///  and two recoveries can exchange one journal twice.
-///  So the only removal is the one the record proves: a `content`
-///  that hashes to the correction itself holds none of the person's bytes, because a fix writes exactly
+///  So the only removal is the one the record proves:
+/// a `content`
+///  that hashes to the correction itself holds none of the person's bytes,
+/// because a fix writes exactly
 ///  those bytes and nothing else there.
 ///  Everything else stays and is named on every later command.
 ///  An owner the
