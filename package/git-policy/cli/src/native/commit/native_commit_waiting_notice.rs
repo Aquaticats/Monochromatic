@@ -409,11 +409,46 @@ impl NativeCommitNotice {
     }
 
     /// What:
+    ///  The ceiling this step is under,
+    ///  counted from the moment it starts,
+    ///  or nothing when a message may be typed into an editor in it.
+    /// Why:
+    ///   The wait that owns the step needs the bound it must enforce itself
+    /// when this notice has no thread,
+    /// and an editor-opening commit has none at all,
+    /// because the person is the wait.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// notice.ceilingThatApplies(); // number | undefined
+    /// ```
+    pub fn ceiling_that_applies(&self) -> Option<Duration> {
+        return self.unarmed.ceiling;
+    }
+
+    /// What:
+    ///  Whether a notice thread runs,
+    ///  so a step whose start gave it a descriptor is ended by its ceiling.
+    /// Why:
+    ///   A refused thread enforces nothing,
+    /// so the wait that owns the step ends it instead.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// notice.isWatching(); // false when the system refused the thread
+    /// ```
+    pub fn is_watching(&self) -> bool {
+        return self.stop.is_some();
+    }
+
+    /// What:
     ///  Starts the notice for a `git commit` that is about to run.
     /// Why:
     ///   A commit that opens the editor gets none;
-    /// a failure to start the thread leaves the commit as it was,
-    /// without a notice.
+    /// a failure to start the thread leaves the step to the wait that owns it,
+    /// which ends the child at this ceiling itself,
+    /// and prints no line,
+    /// because there is no thread to print one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
