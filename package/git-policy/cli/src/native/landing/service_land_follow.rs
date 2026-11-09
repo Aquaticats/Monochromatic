@@ -281,6 +281,9 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
     }
     // Tries that met no holder to wait for: a refusal with the lock already gone, or a failure that is not the lock's.
     let mut tries: usize = 0;
+    // One ceiling for the whole update, not one per hold: a hold that ends and is taken again is waited for under this deadline, so
+    //  no schedule of handoffs keeps the command waiting.
+    let deadline: std::time::Instant = std::time::Instant::now() + ceiling;
     loop {
         let code: FailureCode = match reset_once(git, repository, new, paths, None) {
             Ok(()) => return Ok(()),
@@ -290,8 +293,14 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
             match wait_for_index_release_within(index, "commit", ceiling, Cadence::from_environment(), &mut std::io::stderr()) {
                 // The diagnostic of a wait that ended on a dead owner is already written.
                 IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
-                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
-                IndexWait::Released(_) => continue,
+                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well, under the
+                //  same deadline.
+                IndexWait::Released(_) => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(code);
+                    }
+                    continue;
+                }
                 IndexWait::NotHeld => {}
             }
         }
