@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:58:31-05:00)
+#### Reviews and landings in progress (2026-11-09T04:03:11-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -248,7 +248,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   and that the same change had broken five of the policy's controls,
   now fixed along with tagged keys and tab-separated comments.
   116 of 116 selected tests pass on top of main,
-  and the review `dependent-version-publish-list-round-2` is running.
+  and the review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-2-sol.txt`) names YAML the hand-written reader misreads without saying so,
+  so a dependent goes unbumped,
+  and nesting that exhausts the stack.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  after the driver round:
+  resume the run `dependent-version-publish-list-fixed` as run 3,
+  with `dependent-version-publish-list-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  That round picks a rule that ends this class of misread:
+  a maintained parser or a reader limited to what the generator writes.
 - `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`:
   its agent reports the three findings of its audit fixed,
   262 of 262 selected tests pass on top of main,
