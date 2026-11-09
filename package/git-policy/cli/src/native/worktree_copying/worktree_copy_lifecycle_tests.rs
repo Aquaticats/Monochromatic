@@ -614,7 +614,9 @@ fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_fil
 }
 
 
-/// One destination, one copy: the command whose own Git succeeded fills it,
+/// One destination,
+/// one copy:
+/// the command whose own Git succeeded fills it,
 /// and the command Git refused writes nothing and says so.
 #[cfg(unix)]
 #[test]

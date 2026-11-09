@@ -50,9 +50,6 @@ pub(crate) enum DestinationOwnership {
     /// The destination is the empty directory this command made before real Git,
     /// still the object it made.
     Mine,
-    /// The destination was there before this command's Git ran,
-    /// so another command made it.
-    Anothers,
     /// The destination this command made is gone and something else stands at its path.
     MadeAgain,
     /// This command's own Git did not succeed,
@@ -90,6 +87,8 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool) -> Desti
             }
             _ => DestinationOwnership::MadeAgain,
         },
+        // A destination this command did not reserve is its own only because its own Git filled it, which the success
+        // above establishes; a leftover empty directory from a killed command is filled the same way.
         Reservation::Anothers | Reservation::NotAttempted => DestinationOwnership::Mine,
     };
 }
@@ -112,7 +111,6 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool) -> Desti
 pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let why: &str = match ownership {
-        DestinationOwnership::Anothers => "another `git worktree add` made it, so its own command copies its ignored state",
         DestinationOwnership::MadeAgain => "it is no longer the directory this command made, so the worktree that stands there is another command's",
         DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
         DestinationOwnership::Mine => "it is not this command's to fill",
@@ -120,4 +118,24 @@ pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership
     return format!(
         "monochromatic-git-policy-cli: {shown} received no ignored-state copy: {why}. A directory that was there before this command may be removed and the same line run again to have the copy made. `git worktree list` shows the worktrees of this repository.\n"
     );
+}
+
+/// What:
+///  Whether the destination is absent,
+/// or an empty directory holding nothing Git made.
+/// Why:
+///   A `git worktree add` that Git refused for a reason of its own leaves the empty directory this command reserved;
+/// there is
+///  then no worktree to explain a missing copy for and nothing to report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nothingButAReservation(destination: string): boolean; // absent, or an empty directory
+/// ```
+pub(crate) fn nothing_but_a_reservation(destination: &Path) -> bool {
+    // `match` on the listing: an absent path and an empty directory both mean Git made nothing here.
+    return match std::fs::read_dir(destination) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(_absent) => true,
+    };
 }

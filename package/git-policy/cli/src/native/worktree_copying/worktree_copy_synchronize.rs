@@ -24,7 +24,7 @@ use crate::diagnostic_log::debug;
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_notices::{DestinationOwnership, not_this_commands_destination_notice, ownership_of};
+use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of};
 use crate::worktree_subvolume::Reservation;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_journal::create_journal;
@@ -35,30 +35,11 @@ use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
 use crate::worktree_copy_stage_binding::{record_stage_binding, verify_stage_binding};
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
 use crate::worktree_copy::{Invocation, summary_line};
-use crate::worktree_copy_registry::{CreatedWorktrees, WorktreeCopyObservation, find_created_worktree};
+use crate::worktree_copy_registry::{CreatedWorktrees, WorktreeCopyObservation, command_token, find_created_worktree};
 use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// What:
-///  Whether the destination is absent,
-/// or an empty directory holding nothing Git made.
-/// Why:
-///   A `git worktree add` that Git refused for a reason of its own leaves the empty directory this command reserved;
-/// there is
-///  then no worktree to explain a missing copy for and nothing to report.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function nothingButAReservation(destination: string): boolean; // absent, or an empty directory
-/// ```
-fn nothing_but_a_reservation(destination: &Path) -> bool {
-    // `match` on the listing: an absent path and an empty directory both mean Git made nothing here.
-    return match std::fs::read_dir(destination) {
-        Ok(mut entries) => entries.next().is_none(),
-        Err(_absent) => true,
-    };
-}
 
 /// What:
 ///  Ends a copy that failed after its stage was made and before any journal named it:
@@ -339,37 +320,6 @@ fn unconfirmed_destination_notice(destination: &Path) -> String {
 }
 
 
-/// What:
-///  The text this command proves its own registration with:
-/// the stage claim's random name on the first line and the owning process on the second.
-/// Why:
-///   The name tells two commands of one process apart,
-/// and the process lets the person's line name who made the worktree.
-/// A command whose claim could not be made still proves a registration of its own,
-/// with a
-///  name made here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${claim?.identifier() ?? randomUuid()}\n${currentCopyOwner().token()}`
-/// ```
-fn command_token(recorded: Option<&StageClaim>, destination: &Path) -> Result<String, WorktreeCopyError> {
-    let name: String = match recorded {
-        Some(claim) => claim.identifier(),
-        None => match crate::random_id::random_uuid() {
-            Ok(made) => made,
-            Err(error) => {
-                let message: String = format!(
-                    "monochromatic-git-policy-cli: could not name the worktree add of {}.",
-                    quote(destination.to_string_lossy().as_ref())
-                );
-                return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0)));
-            }
-        },
-    };
-    let owner: String = crate::worktree_copy_owner::current_copy_owner()?.token();
-    return Ok(format!("{name}\n{owner}"));
-}
 
 /// What:
 ///  The line for a destination another command registered while this one's real Git ran.

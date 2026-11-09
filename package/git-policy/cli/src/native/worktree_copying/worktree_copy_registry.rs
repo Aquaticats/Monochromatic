@@ -26,7 +26,9 @@ use crate::git_metadata::path_from_git_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_add_binding::{Binding, Bound, RegistrationOwner, bind_registration, claim_registration};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
+use crate::json_record::quote;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
 
@@ -367,3 +369,35 @@ fn nothing_created(other_commands: Option<String>) -> CreatedWorktrees {
 #[cfg(test)]
 #[path = "worktree_copy_registry_tests.rs"]
 mod tests;
+
+/// What:
+///  The text this command proves its own registration with:
+/// the stage claim's random name on the first line and the owning process on the second.
+/// Why:
+///   The name tells two commands of one process apart,
+/// and the process lets the person's line name who made the worktree.
+/// A command whose claim could not be made still proves a registration of its own,
+/// with a
+///  name made here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${claim?.identifier() ?? randomUuid()}\n${currentCopyOwner().token()}`
+/// ```
+pub(crate) fn command_token(recorded: Option<&StageClaim>, destination: &Path) -> Result<String, WorktreeCopyError> {
+    let name: String = match recorded {
+        Some(claim) => claim.identifier(),
+        None => match crate::random_id::random_uuid() {
+            Ok(made) => made,
+            Err(error) => {
+                let message: String = format!(
+                    "monochromatic-git-policy-cli: could not name the worktree add of {}.",
+                    quote(destination.to_string_lossy().as_ref())
+                );
+                return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0)));
+            }
+        },
+    };
+    let owner: String = crate::worktree_copy_owner::current_copy_owner()?.token();
+    return Ok(format!("{name}\n{owner}"));
+}

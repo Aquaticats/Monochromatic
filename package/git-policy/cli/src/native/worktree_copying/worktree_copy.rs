@@ -386,12 +386,15 @@ fn settle_creation(
     // was never filled, so the record stays and the next command reports it as an interrupted add.
     // A destination that still exists after a Git that failed is a worktree this command asked for and did not fill: the
     // record stays, so a later command reports it instead of finding a worktree that looks whole.
+    fn exists(path: &Path) -> bool {
+        return std::fs::symlink_metadata(path).is_ok();
+    }
     let unfilled: bool = copies
         && !git.succeeded()
         && invocation
             .destination
             .as_deref()
-            .is_some_and(|destination| std::fs::symlink_metadata(destination).is_ok());
+            .is_some_and(exists);
     if copy_failure.is_none()
         && !unfilled
         && let Some(unused) = held.take()
