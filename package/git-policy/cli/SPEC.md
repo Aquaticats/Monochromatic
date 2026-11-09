@@ -8947,7 +8947,7 @@ because the template writes its items without a comment,
 so a `#` on one is refused with its line;
 the colon that makes a key is looked for only before a comment,
 so a colon inside one names no key.
-Because no line sits deeper than twelve spaces,
+Because no line sits deeper than fourteen spaces,
 the block recursion is bounded by that indentation and the reader runs on constant stack;
 a configuration nested deeper is refused at its first over-deep line
 instead of exhausting the stack.
