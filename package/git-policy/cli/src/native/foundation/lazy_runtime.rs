@@ -410,6 +410,39 @@ pub(crate) fn late_build_arrived() -> bool {
 }
 
 /// What:
+///  Whether a control stands in for a build that missed its deadline and arrived after it.
+/// Why:
+///   That state asks a caller to tell a process with no worker of its own from one whose workers arrived late,
+///   and it cannot be produced on demand here:
+///   the runtime is built once,
+///   and only a build the helper thread finished after `BUILD_DEADLINE` reaches it.
+///  The flag makes `built_flavor` answer the stand-in,
+/// while `tasks_can_run` and `spawn_on_runtime` keep answering for the runtime this process really has,
+///  which is the whole shape of that state.
+#[cfg(test)]
+static THE_BUILD_WAS_LATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Makes `built_flavor` answer the stand-in of a build that missed its deadline until the returned value is dropped.
+#[cfg(test)]
+pub fn a_control_stands_in_for_a_late_runtime() -> LateRuntimeForTheControl {
+    THE_BUILD_WAS_LATE.store(true, std::sync::atomic::Ordering::SeqCst);
+    return LateRuntimeForTheControl;
+}
+
+/// The stand-in of `a_control_stands_in_for_a_late_runtime`,
+/// cleared when it is dropped.
+#[cfg(test)]
+pub struct LateRuntimeForTheControl;
+
+/// Clears the control's stand-in.
+#[cfg(test)]
+impl Drop for LateRuntimeForTheControl {
+    fn drop(&mut self) {
+        THE_BUILD_WAS_LATE.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// What:
 ///  Runs `future` to its end on the process's runtime,
 /// building the runtime on the first call.
 /// Why:
@@ -436,6 +469,10 @@ pub fn run_on_runtime<F: std::future::Future>(future: F) -> Result<F::Output, Ru
 /// How the process's runtime was built,
 /// or nothing before the first need.
 pub fn built_flavor() -> Option<BuiltFlavor> {
+    #[cfg(test)]
+    if THE_BUILD_WAS_LATE.load(std::sync::atomic::Ordering::SeqCst) {
+        return Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    }
     let built: &BuiltRuntime = RUNTIME.get()?.as_ref().ok()?;
     return Some(built.flavor);
 }
