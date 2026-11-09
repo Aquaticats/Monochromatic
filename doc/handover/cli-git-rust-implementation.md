@@ -235,9 +235,19 @@ The old tree kept for the rollback stays until the owner deletes it.
   in this order:
   `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
   a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
-  for the six defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
-  and `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
-  for four of the five findings of `conflict-resolution-round-2-sol.txt`.
+  for the defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
+  `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
+  for the findings of `conflict-resolution-round-2-sol.txt` other than the window between revalidation and install,
+  a new agent `standards-review-findings-fixed` with `standards-review-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-standards-review-route-findings-on-main.md`,
+  and a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`.
+- mpm-shadow landed as `9406b6e5b0` with 725 of 725 tests on top of main,
+  and 0.2.7-alpha.10 is being released from it.
+  Its last review (`mpm-shadow-open-issues-round-7-sol.txt`) names limits left in `cargo_installs.rs`:
+  a prune that read `current` just before a concurrent install finished a newer version can move `current` back,
+  and two roots holding the same version name can make a prune repoint a link it need not touch.
+  Either leaves `current` on an older finished version that still runs.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
