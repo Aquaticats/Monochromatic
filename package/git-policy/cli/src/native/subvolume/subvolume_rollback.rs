@@ -184,6 +184,33 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
     });
 }
 
+/// The refusal of a stage that is not a subvolume:
+/// the rollback deletes only the subvolume the migration created.
+/// Why:
+///   The removal falls back to deleting a plain directory when the name holds no subvolume,
+/// so a directory that
+///  replaced the stage would be deleted with whatever it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = stageIsNotASubvolume(run);
+/// ```
+fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
+    let new_path: &Path = run.layout.new_path.as_path();
+    if !new_path.exists() || run.platform.is_subvolume_root(new_path).unwrap_or(false) {
+        return None;
+    }
+    return Some(Refusal {
+        cause: format!(
+            "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
+            new_path.display()
+        ),
+        remedy: String::from(
+            "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
+        ),
+    });
+}
+
 /// What:
 ///  The refusals the chosen mode meets before it changes anything,
 /// in the words the real run uses.
@@ -217,6 +244,9 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
             // no old tree yet, and that state is the one the rollback finishes by deleting the staged subvolume.
             if run.journal.is_done("exchange") && !trees_are_already_swapped_back(run) && !run.layout.old_path.exists() {
                 found.push(old_tree_missing(run));
+            }
+            if let Some(refusal) = stage_is_not_a_subvolume(run) {
+                found.push(refusal);
             }
         }
         MigrateMode::RemoveOld => {
@@ -347,16 +377,8 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     }
     // The stage is the subvolume the migration created; a directory that replaced it is somebody else's, and the removal's
     // fallback would delete it with whatever it holds.
-    if new_path.exists() && !run.platform.is_subvolume_root(new_path.as_path()).unwrap_or(false) {
-        return Ok(Some(vec![Refusal {
-            cause: format!(
-                "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
-                new_path.display()
-            ),
-            remedy: String::from(
-                "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
-            ),
-        }]));
+    if let Some(refusal) = stage_is_not_a_subvolume(run) {
+        return Ok(Some(vec![refusal]));
     }
     if new_path.exists() {
         run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());

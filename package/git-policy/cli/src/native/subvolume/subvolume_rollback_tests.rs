@@ -750,8 +750,12 @@ fn a_rollback_preview_names_the_stage_that_is_not_a_subvolume() {
     assert!(!said.contains("would restore"), "a preview promises nothing the run refuses: {said}");
     let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(real_code, REFUSED, "{real_lines:#?}");
-    assert_eq!(said, real_lines.join("\n"), "the preview says what the real run says");
-    assert!(layout.new_path.join("..").exists());
+    // The real run also states the risk it would carry before it reaches the refusal; the refusal itself is the same.
+    let refusals = |lines: &[String]| -> Vec<String> {
+        return lines.iter().filter(|line: &&String| { return line.contains("refused:") || line.starts_with("  What to do:") || line.as_str() == "Nothing was changed."; }).cloned().collect();
+    };
+    assert_eq!(refusals(preview_lines.as_slice()), refusals(real_lines.as_slice()), "the preview says what the real run says");
+    assert!(layout.new_path.exists(), "the replacement directory is untouched");
     remove(parent.as_path());
 }
 
