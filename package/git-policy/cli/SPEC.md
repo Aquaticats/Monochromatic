@@ -7740,6 +7740,12 @@ proves nothing and the file is kept.
 A take or a write that fails puts every file it already took back,
 and a path the merge deletes is never removed again after its take,
 so a file that appeared in that instant stays.
+A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
+nothing is set aside for it,
+the merge's own deletions empty it before the checkout,
+and the merge's file takes its place.
+A directory that no such deletion explains is someone else's and stops the finish,
+naming the path.
 A record that is discarded,
 a record whose owner still runs and a branch that already names the merge
 change nothing of the branch and say nothing.

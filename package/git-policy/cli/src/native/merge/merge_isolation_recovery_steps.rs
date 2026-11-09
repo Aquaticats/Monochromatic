@@ -20,7 +20,9 @@
 
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
 use crate::inner_git_words::record_words;
-use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, parse_raw_changes, worktree_path};
+use crate::merge_isolation_changes::{
+    Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state,
+};
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::merge_isolation_take_asides::{
@@ -227,6 +229,13 @@ pub enum Standing {
     /// The new content,
     /// or no file where the new side has none.
     New,
+    /// A directory that stands where the merge puts a file,
+    /// and that holds only files of the branch,
+    /// which the merge itself
+    ///  deletes.
+    /// Nothing of anyone's is there to set aside,
+    /// and the merge's own deletions empty it.
+    Directory,
     /// Anything else.
     Foreign,
 }
@@ -259,6 +268,69 @@ pub fn standing(change: &Change, state: &WorktreeState) -> Standing {
         return Standing::New;
     }
     return Standing::Foreign;
+}
+
+/// What:
+///  The judgement of every changed path,
+///  with a directory the branch's own files explain read as the old side.
+/// Why:
+///  `worktree_state` reads a directory as neither side of a change,
+/// so a merge that replaces a directory with a
+///  file was refused for good,
+/// although the directory holds only the branch's files,
+/// which the merge's own
+///  deletions take
+/// (a cross-vendor review of the second round):
+/// a path whose old side has no entry of its own is
+///  the merge's to replace when the branch stores files below it and the merge deletes them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function judgeChanges({ place, root, changes }): Judged[]; // standing(...), then explainedDirectory(...) ? 'directory' : one
+/// ```
+pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> Result<Vec<Judged>, RecoveryError> {
+    let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
+    for change in changes {
+        let location: PathBuf = worktree_path(root, change.path.as_slice());
+        // The identity is read before the content, so a file written in between does not match the judgement and is never
+        //  replaced.
+        let identity: Option<FileIdentity> = file_identity(location.as_path());
+        let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
+        judgements.push(Judged { standing: standing(change, &state), identity });
+    }
+    for (index, change) in changes.iter().enumerate() {
+        if judgements[index].standing != Standing::Foreign || change.existed() || !change.exists_after() {
+            continue;
+        }
+        let location: PathBuf = worktree_path(root, change.path.as_slice());
+        let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path()).map(|found| { return found.is_dir(); }).unwrap_or(false);
+        if !stands_as_a_directory || !the_branchs_files_stand_below(change, changes) {
+            continue;
+        }
+        judgements[index] = Judged { standing: Standing::Directory, identity: None };
+    }
+    return Ok(judgements);
+}
+
+/// What:
+///  Whether the branch stores files below a path that the merge deletes them from,
+///  which is what a directory standing
+///  there means.
+/// Why:
+///   A directory where the merge puts a file is the branch's own only when the merge takes every file in it;
+/// a
+///  directory nobody's files explain stays someone else's and is refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// changes.some((other) => other.path.startsWith(`${change.path}/`) && other.existed() && !other.existsAfter());
+/// ```
+fn the_branchs_files_stand_below(change: &Change, changes: &[Change]) -> bool {
+    let mut prefix: Vec<u8> = change.path.clone();
+    prefix.push(b'/');
+    return changes.iter().any(|other| {
+        return other.path.starts_with(prefix.as_slice()) && other.existed() && !other.exists_after();
+    });
 }
 
 /// What:
@@ -348,6 +420,25 @@ fn changed_after_judging(root: &Path, paths: &[String]) -> RecoveryError {
 }
 
 /// What:
+///  Every file a take set aside,
+///  the merge's writes and its deletions together,
+///  for the paths that put them all back.
+/// Why:
+///  A statement that puts files back must not know which of them the merge writes and which it deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [...written, ...deleted];
+/// ```
+fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<TakenOnDisk> {
+    let mut all: Vec<TakenOnDisk> = Vec::with_capacity(written.len() + deleted.len());
+    for entry in written.iter().chain(deleted.iter()) {
+        all.push(TakenOnDisk { location: entry.location.clone(), aside: entry.aside.clone(), taken: entry.taken });
+    }
+    return all;
+}
+
+/// What:
 ///  Put the index entries and the worktree files of the changed paths to the state each change ends in.
 /// Why:
 ///   Git takes `index.lock` for the index write and dies when another program holds it,
@@ -383,7 +474,8 @@ pub fn install_entries(
         return Ok(Installed::IndexHeld);
     }
     // The take comes first: nothing of the merge is written while a file that was judged may already have changed.
-    let mut taken_files: Vec<TakenOnDisk> = Vec::new();
+    let mut taken_writes: Vec<TakenOnDisk> = Vec::new();
+    let mut taken_deletions: Vec<TakenOnDisk> = Vec::new();
     let mut checkout_input: Vec<u8> = Vec::new();
     let mut changed: Vec<String> = Vec::new();
     for (change, judged) in changes.iter().zip(judgements.iter()) {
@@ -397,13 +489,25 @@ pub fn install_entries(
             checkout_input.extend_from_slice(change.path.as_slice());
             checkout_input.push(0);
         }
+        if judged.standing == Standing::Directory {
+            // The directory holds only the branch's files, which the merge's own deletions take, so there is nothing of
+            //  anyone's to set aside; the deletions empty it before the checkout writes the file.
+            continue;
+        }
         match take_aside(location.as_path(), judged.identity) {
             Ok(Take::Nothing) => {}
             Ok(Take::Changed) => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
-            Ok(Take::Aside { aside, taken }) => taken_files.push(TakenOnDisk { location, aside, taken }),
+            Ok(Take::Aside { aside, taken }) => {
+                let entry: TakenOnDisk = TakenOnDisk { location, aside, taken };
+                if change.exists_after() {
+                    taken_writes.push(entry);
+                } else {
+                    taken_deletions.push(entry);
+                }
+            }
             Err(error) => {
                 // A take that stops must not leave the files it already took under their private names.
-                let left: Vec<String> = put_back(&taken_files);
+                let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
                 let mut refusal: String = error.0;
                 if !left.is_empty() {
                     refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
@@ -413,7 +517,7 @@ pub fn install_entries(
         }
     }
     if !changed.is_empty() {
-        let left: Vec<String> = put_back(&taken_files);
+        let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
         let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
         refusal.push_str(left.join(", ").as_str());
         return Err(RecoveryError(refusal));
@@ -432,17 +536,24 @@ pub fn install_entries(
     update.input = Some(index_input);
     if let Err(error) = run_git_checked(&place.git, &update) {
         // The files are aside and the index is untouched: put them back rather than leave half a merge.
-        let _restored = put_back(&taken_files);
+        let _restored = put_back(&everything_taken(&taken_writes, &taken_deletions));
         return Err(RecoveryError(error.to_string()));
     }
     // A deleted path's file was taken aside, so its directory can be reached even when the merge leaves it empty; the
-    //  directories go once every aside name in them is gone.
+    //  directories go once every aside name in them is gone,
+    // and they go before the checkout,
+    // because a merge may put a file
+    //  where one of them stood.
     let mut deletions: Vec<PathBuf> = Vec::new();
     for (change, judged) in changes.iter().zip(judgements.iter()) {
         if change.exists_after() || judged.standing == Standing::New {
             continue;
         }
         deletions.push(worktree_path(root, change.path.as_slice()));
+    }
+    finish_asides(&taken_deletions, out)?;
+    for location in &deletions {
+        remove_empty_parents(root, location.as_path());
     }
     if !checkout_input.is_empty() {
         // Without `--force`: a file that appeared where the merge writes is skipped and Git says so,
@@ -452,7 +563,7 @@ pub fn install_entries(
         let checked_out = match run_git_checked(&place.git, &checkout) {
             Ok(done) => done,
             Err(error) => {
-                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(&taken_files, out);
+                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(&taken_writes, out);
                 return Err(match restored {
                     Ok(()) => RecoveryError(error.to_string()),
                     Err(left) => RecoveryError(format!("{error} ({})", left.0)),
@@ -462,12 +573,6 @@ pub fn install_entries(
         // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
         record_words(&["checkout-index", "-z", "--stdin"], &checked_out);
     }
-    finish_asides(&taken_files, out)?;
-    for location in &deletions {
-        // The take already moved the judged file away, so nothing of the merge's is left to delete here:
-        // removing the name
-        //  again would delete a file that appeared in this instant instead.
-        remove_empty_parents(root, location.as_path());
-    }
+    finish_asides(&taken_writes, out)?;
     return Ok(Installed::Written);
 }

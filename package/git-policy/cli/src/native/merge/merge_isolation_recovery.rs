@@ -36,12 +36,10 @@ pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
 };
 use crate::merge_isolation_recovery_steps::{
-    index_standings, install_entries, merge_changes, put_back_stranded_takes, remove_record, standing,
+    index_standings, install_entries, judge_changes, merge_changes, put_back_stranded_takes, remove_record,
 };
 /// The raw differences and the worktree states.
-use crate::merge_isolation_changes::{
-    Change, WorktreeState, file_identity, worktree_path, worktree_state,
-};
+use crate::merge_isolation_changes::Change;
 /// The fail-closed recovery failure.
 use crate::recovery_error::{RecoveryError, io_failure};
 /// Owner liveness of a record.
@@ -367,15 +365,7 @@ pub fn settle_failed_merge(
     // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
     //  while the file waits beside it, and would otherwise be read as someone else's.
     put_back_stranded_takes(root, changes.as_slice(), out);
-    let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
-    for change in &changes {
-        let location: PathBuf = worktree_path(root, change.path.as_slice());
-        // The identity is read before the content, so a file written in between does not match the judgement and is never
-        //  replaced (finding 4 of `doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`).
-        let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(location.as_path());
-        let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
-        judgements.push(Judged { standing: standing(change, &state), identity });
-    }
+    let judgements: Vec<Judged> = judge_changes(place, root, changes.as_slice())?;
     let index_standing: Vec<Standing> = index_standings(place, root, intent.old_oid.as_str(), changes.as_slice())?;
     let index_started: bool = index_standing.iter().any(|standing| { return *standing == Standing::New; });
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.

@@ -4,8 +4,13 @@
 
 use super::*;
 use crate::index_holder_wait::IndexWait;
+use crate::merge_isolation_changes::{WorktreeState, file_identity, worktree_path, worktree_state};
 use crate::merge_isolation_journal::{intent_path, write_merge_intent};
 use crate::merge_isolation_recovery_steps::may_install;
+
+/// The judgement of one path,
+/// for the controls that build a changed path of their own.
+use crate::merge_isolation_recovery_steps::standing;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
