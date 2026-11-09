@@ -5352,6 +5352,41 @@ and a wrapped commit never plans a bump at all,
 against the owner's decision of 2026-09-15,
 which `SPEC.md` now contradicts.
 
+The judgement half of the check route is audited too:
+which content each policy reads at which lifecycle point,
+how the engine decides what runs,
+and what a person is told.
+Its audit,
+with two findings,
+both reproduced,
+is `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`
+(2026-11-09;
+main at `4fcd560cea`).
+The state changes,
+waits,
+locks and races of the same two folders are the commit-check audit's,
+so that page does not repeat them.
+`GIT_LITERAL_PATHSPECS=1`,
+or `git --literal-pathspecs commit`,
+turns the `:(top,literal)` pathspecs a commit's candidates are listed with
+into names that match nothing,
+so every content policy judges nothing for that commit:
+a secret that a commit without the variable refuses lands instead,
+a bad final newline is not corrected,
+and a root `CONTEXT.md` lands with no event at all because that policy has no
+post-commit trigger.
+The direct route got the same defect and its fix in `1899e041ef`;
+the commit route's two arms were not changed and have no control.
+Separately,
+`add-explicit` names four whole-tree pathspec spellings and lets five that Git
+resolves to the whole tree pass,
+`:/*`,
+`:/**`,
+`:(top)`,
+`**` and
+`:(glob)**`,
+while `:(top)/*` fails inside Git and is reported as `content-unavailable`.
+
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
 merges and pushes that never fail").
