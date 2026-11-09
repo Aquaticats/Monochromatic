@@ -27,13 +27,16 @@
 
 /// The failure type of the auto-push coordination.
 use crate::auto_push_single_flight::SingleFlightError;
-/// The diagnostic log,
-/// for a start whose input thread could not be made.
-use crate::diagnostic_log::debug;
 /// The deadline runner shared with the push,
 /// and its stop causes.
-use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, stop_push, wait_until_done_up_to};
+use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, flooded, stop_push, wait_until_done_up_to};
 use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
+/// The clock a wait is judged by,
+/// and its reading of the signs of work.
+use crate::push_progress::Clock;
+/// How long the writer of a second-pass command's input waits while the command takes none of it.
+const FEEDING_PAUSE: Duration = std::time::Duration::from_millis(10);
+
 /// The longest quiet gap of each step,
 /// kept for the timing records.
 use crate::quiet_ledger;
@@ -51,6 +54,10 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
+/// The pipe's own descriptor,
+/// for a write that must not wait in a full pipe.
+use std::os::fd::AsFd;
+use std::os::fd::AsRawFd;
 /// The anonymous output files and their reading back.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -99,6 +106,35 @@ pub fn query_window(environment: &[(OsString, OsString)]) -> Duration {
     return push_deadline(environment);
 }
 
+/// What:
+///  The clock a read-only query's wait runs under.
+/// Why:
+///   A query is read-only,
+/// so ending one is safe,
+/// and the window it is given is also the whole time it may run where the kernel does not count its bytes
+/// (a hardened container,
+/// `hidepid`,
+/// a kernel without `CONFIG_TASK_IO_ACCOUNTING`).
+/// Without that fallback nothing at all ended a hung `config --list`,
+/// `rev-parse`,
+/// `merge-base` or `for-each-ref` there,
+/// and the push worker and the drain of its repository waited for it for good.
+/// The window and its default are the owner's (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
+/// 30 seconds;
+/// the rule "Stop only on no progress" and the journal's 794 landed pushes,
+/// p50 3.5 s,
+/// p99 26.4 s,
+/// maximum 72.4 s,
+/// are cited beside the value in `push_deadline_and_patience_settings.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Clock.start(pid, { stall: windowMs }) // the wall fallback kept
+/// ```
+pub fn query_clock(pid: u32, window: Duration) -> Clock {
+    return Clock::start(pid, Patience::Progress { stall: window });
+}
+
 /// Read one output file back from its start,
 /// up to the output cap.
 ///
@@ -136,7 +172,10 @@ pub fn run_bounded_query(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git(command, arguments, Patience::Progress { stall: window }, None, grace, environment, None, MAX_PUSH_OUTPUT);
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, None, grace, environment, None, MAX_PUSH_OUTPUT)) {
+        Ok(output) => output,
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+    };
 }
 
 /// What:
@@ -147,19 +186,19 @@ pub fn run_bounded_query(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// runOnRuntime(() => runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input, cap }))
+/// runOnRuntime(() => runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input }))
 /// ```
 pub fn run_bounded_git(
     command: Command,
     arguments: &str,
-    patience: Patience,
+    window: Duration,
     ceiling: Option<Duration>,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, patience, ceiling, grace, environment, input, cap)) {
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, ceiling, grace, environment, input, cap)) {
         Ok(output) => output,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -186,34 +225,32 @@ pub async fn run_bounded_query_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git_awaiting(command, arguments, Patience::Progress { stall: window }, None, grace, environment, None, MAX_PUSH_OUTPUT).await;
+    return run_bounded_git_awaiting(command, arguments, window, None, grace, environment, None, MAX_PUSH_OUTPUT).await;
 }
 
 /// What:
 ///  Run one read-only Git command to its end,
-/// or until it shows no sign of work for the quiet window or prints past `cap`,
+/// or until it has shown no sign of work for the quiet window,
 /// with `input` given on its standard input.
 /// Why:
-///   The commands of the word-level second pass read their request from the standard input,
-/// and the reconcile starts them in an object store another program may have
-///  wedged:
-/// the same meter,
-/// the same stop of the service and the same grace that bound the queries must bound them,
-/// or a
-///  merge driver that never returns holds the push worker and the drain of its repository for good.
-/// The input goes in from a thread of its own,
+///   `merge-tree` and every command of the word-level second pass read their request from the standard input,
+/// and they are started by the reconcile,
+/// which runs them in an object store another program may have wedged:
+///  the same meter,
+/// the same stop of the service and the same grace that bound the queries must bound them.
+///  The input goes in from a thread of its own,
 /// so a command that answers while it still reads cannot block on a full pipe;
-/// a stopped
-///  command's pipe closes and the thread's write fails instead of waiting.
+/// a stopped command's pipe closes,
+/// and the thread's write fails instead of waiting for ever.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = await runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input, cap });
+/// const output = await runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input });
 /// ```
 pub async fn run_bounded_git_awaiting(
     mut command: Command,
     arguments: &str,
-    patience: Patience,
+    window: Duration,
     ceiling: Option<Duration>,
     grace: Duration,
     environment: &[(OsString, OsString)],
@@ -238,30 +275,58 @@ pub async fn run_bounded_git_awaiting(
     let locks = LockLedger::before_start(&command);
     let mut started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
-    if let Some(bytes) = input
-        && let Err(reason) = feed_standard_input(started.stdin.take(), bytes)
-    {
-        // The command never got its request, so it is stopped here and the failure names why.
-        stop_push(adopt(started), grace, locks).await;
-        return Err(SingleFlightError::Start(std::io::Error::other(reason)));
-    }
+    let writer: Option<InputWriter> = match input {
+        None => None,
+        Some(bytes) => match feed_standard_input(started.stdin.take(), bytes, window) {
+            Ok(writer) => Some(writer),
+            Err(error) => {
+                // The command never got its request, so it is stopped here and the failure names why. The stop is the one every
+                //  stopped query gets: asked to end, forced past the grace, and bounded, so a child the kernel does not release is
+                //  handed to the sweep instead of being waited for.
+                stop_push(adopt(started), grace, locks).await;
+                return Err(SingleFlightError::Start(std::io::Error::other(error)));
+            }
+        },
+    };
     let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
+    // The clock is made from the child's number before the wait borrows it.
+    let clock: Clock = query_clock(child.id(), window);
     // The progress window and the total ceiling are two bounds: a silent command is stopped by the first, and one that keeps working without returning only by the second.
     let watched: [&File; 2] = [&stdout, &stderr];
     let ended: Result<ExitStatus, StopCause> = match ceiling {
-        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, watched.as_slice(), patience, cap, &mut quiet, stop.as_ref())).await {
+        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, watched.as_slice(), clock, cap, &mut quiet, stop.as_ref())).await {
             Ok(outcome) => outcome?,
             Err(_passed) => {
                 stop_push(child, grace, locks).await;
-                return Err(SingleFlightError::Ceiling { arguments: arguments.to_owned(), seconds: total.as_secs() });
+                return Err(SingleFlightError::Ceiling {
+                    arguments: arguments.to_owned(),
+                    seconds: total.as_secs(),
+                });
             }
         },
-        None => wait_until_done_up_to(&mut child, watched.as_slice(), patience, cap, &mut quiet, stop.as_ref()).await?,
+        None => wait_until_done_up_to(&mut child, watched.as_slice(), clock, cap, &mut quiet, stop.as_ref()).await?,
     };
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
+    }
+    // A child that ends in the pause between two looks can still have printed more than the cap, and the bytes kept are then
+    //  part of its answer with the status of a whole one. The caller reads a status as an answer, so this is a flood, never a
+    //  success with a shortened stream. Nothing is stopped: a child that ended is not there to end.
+    if ended.is_ok() && flooded(&[&stdout, &stderr], cap) {
+        return Err(flood_of(arguments, cap));
+    }
+    // A request that could not be written whole leaves the command answering from a prefix of it, so a status of its own is not
+    //  an answer made from the request.
+    if ended.is_ok()
+        && let Some(reason) = writer.as_ref().and_then(InputWriter::failure)
+    {
+        return Err(SingleFlightError::Git {
+            arguments: arguments.to_owned(),
+            code: None,
+            stderr: format!("the request of this query could not be written whole: {reason}"),
+        });
     }
     return match ended {
         Ok(status) => Ok(QueryOutput {
@@ -275,51 +340,206 @@ pub async fn run_bounded_git_awaiting(
                 // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.
                 StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
                     arguments: arguments.to_owned(),
-                    seconds: match patience {
-                        Patience::Fixed(bound) => bound.as_secs(),
-                        Patience::Progress { stall } => stall.as_secs(),
-                    },
+                    seconds: window.as_secs(),
                 },
                 StopCause::ServiceStopped => SingleFlightError::Start(ended_by_the_stop(step.as_str())),
-                StopCause::Flood => SingleFlightError::Git {
-                    arguments: arguments.to_owned(),
-                    code: None,
-                    stderr: format!(
-                        "the query wrote more than {MAX_PUSH_OUTPUT} bytes and was stopped"
-                    ),
-                },
+                StopCause::Flood => flood_of(arguments, cap),
             })
         }
     };
 }
 
 /// What:
-///  Write `bytes` to the standard input of a started command from a thread of its own.
+///  The failure of a query that printed more than the cap.
 /// Why:
-///   The command may answer before it has read all of its input,
-/// so writing here could block on a full pipe while nothing reads the answer;
-/// the thread's write fails once the command is stopped and its pipe closes.
+///   The bytes kept are part of Git's answer,
+/// so a status that came with them is not read as an answer at all;
+/// the
+///  words say what was kept and what was not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// spawn(() => { try { pipe.write(bytes) } catch { /* the command was stopped */ } });
+/// new GitFailure(arguments, undefined, `the query wrote more than ${MAX} bytes, so its output is not taken as Git's answer`)
 /// ```
-fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>) -> Result<(), String> {
-    let Some(mut open) = pipe else {
-        return Ok(());
+fn flood_of(arguments: &str, cap: u64) -> SingleFlightError {
+    return SingleFlightError::Git {
+        arguments: arguments.to_owned(),
+        code: None,
+        stderr: format!("the query wrote more than {cap} bytes, so its output is not taken as Git's answer"),
     };
-    return match crate::scoped_start::spawn_named("cli-git-second-pass-input", move || {
-        if let Err(error) = open.write_all(bytes.as_slice()) {
-            debug(TAG, format!("the input of a second-pass command was not taken: {error}").as_str());
-        }
-    }) {
-        Ok(_writer) => Ok(()),
+}
+
+/// What:
+///  Write `bytes` to the standard input of a started command from a thread of its own.
+/// Why:
+///  The command may answer before it has read all of its input,
+/// so writing here could block on a full pipe while nothing reads the answer;
+/// the thread's write fails once the command is stopped and its pipe closes.
+///
+/// # Errors
+///
+/// A thread that cannot be started.
+fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duration) -> Result<InputWriter, String> {
+    let failure: InputFailure = InputFailure::default();
+    let reported: InputFailure = failure.clone();
+    let written: Result<std::thread::JoinHandle<()>, std::io::Error> = match pipe {
+        // No input was asked of the command, so there is nothing to write and its standard input is not piped.
+        None => crate::scoped_start::spawn_named("cli-git-second-pass-input", nothing_to_write),
+        Some(open) => crate::scoped_start::spawn_named("cli-git-second-pass-input", move || {
+            write_within_the_window(open, bytes.as_slice(), window, reported);
+        }),
+    };
+    return match written {
+        Ok(handle) => Ok(InputWriter { handle, failure }),
         Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
     };
 }
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "monochromatic-git-policy-cli";
+/// What:
+///  The thread that gives a command its input,
+/// and what it has to report about it.
+/// Why:
+///   A request that could not be written whole leaves a command reading a prefix,
+/// so the query must learn that from the
+///  writer and not pass the answer on as one made from the whole request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type InputWriter = { join(): Promise<void>; failure(): string | undefined };
+/// ```
+pub(crate) struct InputWriter {
+    /// The thread that writes the input,
+    /// and closes the command's end when it ends.
+    /// A query waits for its child and lets this thread end by itself;
+    /// a control joins it to see that it did.
+    #[cfg_attr(not(test), expect(dead_code, reason = "only a control joins the writer; a query waits for its child"))]
+    handle: std::thread::JoinHandle<()>,
+    /// What the thread could not write,
+    /// once it knows of it.
+    failure: InputFailure,
+}
+
+/// What the writer could not write,
+/// shared with the thread that writes it.
+/// A cell behind a mutex is enough:
+/// one thread writes it and one reads it.
+#[derive(Clone, Default)]
+pub(crate) struct InputFailure(std::sync::Arc<std::sync::Mutex<Option<String>>>);
+
+impl InputFailure {
+    /// Records why the request could not be written whole.
+    fn record(&self, reason: String) {
+        if let Ok(mut slot) = self.0.lock() {
+            *slot = Some(reason);
+        }
+    }
+
+    /// Why the request could not be written whole,
+    /// or nothing when it was.
+    pub(crate) fn reason(&self) -> Option<String> {
+        let Ok(slot) = self.0.lock() else {
+            return None;
+        };
+        return slot.clone();
+    }
+}
+
+impl InputWriter {
+    /// Waits for the writer to end.
+    #[cfg(test)]
+    pub(crate) fn join(self) -> std::thread::Result<()> {
+        return self.handle.join();
+    }
+
+    /// Why the request could not be written whole,
+    /// or nothing when it was.
+    pub(crate) fn failure(&self) -> Option<String> {
+        return self.failure.reason();
+    }
+}
+
+
+/// A step for the thread a command with no input gets:
+/// it writes nothing and ends,
+/// which closes the writing end it was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// () => {}
+/// ```
+fn nothing_to_write() {}
+
+/// What:
+///  Writes `bytes` into `open` while the command keeps taking them,
+/// and gives up when it takes none for `window`.
+/// Why:
+///   The command may answer before it has read all of its input,
+/// so a blocking write can wait on a full pipe for as long as
+///  the command holds its end open,
+/// and a command the kernel does not release would keep that thread for good.
+/// The pipe's
+///  writing end is made non-blocking,
+/// so the thread sees a full pipe instead of waiting in it,
+/// and it holds the
+///  request only until nothing has been taken for the window the query itself is judged by;
+/// a request of ours that a
+///  stopped command never read has nothing left to say.
+///  The writing end is closed when this returns,
+/// so the command reads the end of its input.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setNonBlocking(fd); while (written < bytes.length) { const n = tryWrite(fd, bytes.subarray(written)); if (n > 0) { written += n; last = Date.now() } else if (Date.now() - last > windowMs) return; else await sleep(POLL) }
+/// ```
+fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration, failure: InputFailure) {
+    // The writing end is the only place that waits: making it non-blocking turns a full pipe into a report of it, and the
+    //  command's own end is a different description of the same pipe.
+    let descriptor: std::os::fd::RawFd = open.as_fd().as_raw_fd();
+    // SAFETY: `fcntl` reads and writes an integer of the descriptor's own flags and touches no memory of this process.
+    let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        crate::diagnostic_log::debug("monochromatic-git-policy-cli", "the input of a second-pass command could not be written without blocking");
+        failure.record(String::from("its input could not be written without blocking"));
+        let _closed = open.flush();
+        return;
+    }
+    let mut written: usize = 0;
+    let mut last_taken: std::time::Instant = std::time::Instant::now();
+    while written < bytes.len() {
+        match open.write(&bytes[written..]) {
+            // The command closed its end: what it read is what it wanted, so nothing is reported of it.
+            Ok(0) => break,
+            Ok(taken) => {
+                written += taken;
+                last_taken = std::time::Instant::now();
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                if last_taken.elapsed() >= window {
+                    let reason: String = format!(
+                        "it took none of its input for {} seconds, so {} of {} bytes were not written",
+                        window.as_secs(),
+                        bytes.len().saturating_sub(written),
+                        bytes.len()
+                    );
+                    crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
+                    failure.record(reason);
+                    break;
+                }
+                std::thread::sleep(FEEDING_PAUSE);
+            }
+            // A command that closed its end while we wrote has read what it wanted; anything else is a request it did not get.
+            Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => break,
+            Err(error) => {
+                let reason: String = format!("its input could not be written: {error}");
+                crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
+                failure.record(reason);
+                break;
+            }
+        }
+    }
+    // Closing our end tells the command that its input has ended.
+    let _closed = open.flush();
+}
 
 /// Query windows are controlled in the test module.
 #[cfg(test)]

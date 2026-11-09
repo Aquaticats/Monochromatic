@@ -120,6 +120,25 @@ pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Durati
 }
 
 /// What:
+///  `requeue_expired_reporting` with a step told about each item that is given up before the item moves to `failed`.
+/// Why:
+///   The notice that names an abandoned push is the person's only remaining word about it,
+/// and a record in `failed` is scanned by nothing:
+/// a kill between the move and the notice would leave the branch abandoned in silence.
+/// The item is told about while it is in `recovering` under this instance's own name,
+/// where no other instance can touch it,
+/// and a kill after the notice leaves it to be recovered once more,
+/// which replaces the notice instead of losing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// requeueExpiredTelling(workDir, now, lease, maxTries, (item) => recordPushSkip(item))
+/// ```
+pub(crate) fn requeue_expired_reporting_telling(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32, tell: &dyn GivenUpNotice) -> Recovered {
+    return requeue_with_telling(work_dir, now, max_tries, &LeaseRanOut { now, lease }, tell);
+}
+
+/// What:
 ///  How long until the first claim that is still held runs out its lease,
 /// or nothing when no claim is held.
 /// Why:
@@ -201,6 +220,45 @@ fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
 /// for (const seen of claimed.filter(expired)) { if (await tryRename(seen.name, owned)) { await rewrite(owned); await rename(owned, pending) } }
 /// ```
 pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry) -> Recovered {
+    return requeue_with_telling(work_dir, now, max_tries, expired, &NoNotice);
+}
+
+/// What:
+///  Who a recovery tells about the items it gives up on.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
+/// Why:
+///   The notice that names an abandoned push needs the Git directory and writes a file,
+/// and a control stands in for it to see when it is called;
+/// a value keeps that step out of the recovery itself.
+/// The answer says whether the person was told:
+/// a
+///  push is not settled while its notice could not be written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface GivenUpNotice { tell(givenUp: WorkItem): boolean }
+/// ```
+pub(crate) trait GivenUpNotice {
+    /// Tell the person about `given_up`,
+    /// before the record moves to `failed`,
+    /// and answer whether the words are where a command will show them.
+    fn tell(&self, given_up: &WorkItem) -> bool;
+}
+
+/// The step of a recovery that tells nobody about the items it gives up,
+/// which is every caller that writes no notice.
+struct NoNotice;
+
+impl GivenUpNotice for NoNotice {
+    fn tell(&self, _given_up: &WorkItem) -> bool {
+        return true;
+    }
+}
+
+/// `requeue_with` with the step told about each item it gives up,
+/// before the item moves to `failed`.
+pub(crate) fn requeue_with_telling(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry, tell: &dyn GivenUpNotice) -> Recovered {
     let mut recovered: Recovered = Recovered::default();
     for state in [CLAIMED, RECOVERING] {
         for (name, modified) in entries_oldest_first(work_dir, state) {
@@ -211,7 +269,7 @@ pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, exp
             if !expired.has_expired(&stamp_of_entry(name.as_str(), modified)) {
                 continue;
             }
-            if let Some(given_up) = recover(work_dir, state, name.as_str(), now, max_tries) {
+            if let Some(given_up) = recover(work_dir, state, name.as_str(), now, max_tries, tell) {
                 recovered.moved += 1;
                 recovered.given_up.extend(given_up);
             }
@@ -232,7 +290,7 @@ fn remove_stray_temporary(work_dir: &Path, state: &str, name: &str, modified: Sy
 /// nothing when another instance moved it first,
 /// otherwise
 /// the item when it was given up on (moved to `failed` for want of tries).
-fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32) -> Option<Option<WorkItem>> {
+fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32, tell: &dyn GivenUpNotice) -> Option<Option<WorkItem>> {
     let id: &str = id_of_entry(name);
     // A claim by an earlier release was not checked when it was queued;
     // an id whose names would not fit goes to `failed` by its
@@ -268,6 +326,13 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
             let rewritten: PathBuf = recovering.join(format!("{owned_name}{TEMPORARY_SUFFIX}"));
             let destination: &str = if item.tries >= max_tries { FAILED } else { PENDING };
             if std::fs::write(rewritten.as_path(), item.encode()).is_err() || std::fs::rename(rewritten.as_path(), owned.as_path()).is_err() {
+                return None;
+            }
+            // The word about a push given up on comes before the move: nothing scans `failed`, so a kill in between would
+            //  abandon the branch in silence. The item is this instance's alone in `recovering` here.
+            //  A word that cannot be written does not settle it either: the item stays in `recovering`, where a later pass
+            //  tries the notice again and replaces it rather than losing it.
+            if destination == FAILED && !tell.tell(&item) {
                 return None;
             }
             (destination, (destination == FAILED).then_some(item))

@@ -31,6 +31,9 @@ use crate::command_options::{
 use crate::command_options_query::{
     WrapperFlags, is_enabled, last_occurrence, positional_tokens, split_wrapper_flags,
 };
+/// `OsStr` is borrowed operating-system text of raw bytes,
+/// which an environment value is.
+use std::ffi::OsStr;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -137,6 +140,100 @@ const BULK_PATHSPECS: &[&[u8]] = &[
     b":(glob)**",
 ];
 
+/// The variable that makes Git read every pathspec of the caller's own command literally.
+pub const LITERAL_VARIABLE: &str = "GIT_LITERAL_PATHSPECS";
+
+/// The global options that set that mode,
+/// in the order the caller wrote them.
+const LITERAL_OPTIONS: [&[u8]; 2] = [b"--literal-pathspecs", b"--no-literal-pathspecs"];
+
+/// What:
+///  The spellings that still stage the whole working directory when pathspec magic is literal.
+/// Why:
+///   Literal mode turns `*`,
+/// `**` and every `:` form into a plain name,
+///  but a pathspec that names a directory takes everything below it in any mode,
+///  and `.` and `./` name the working directory itself.
+///  Measured against Git 2.56.0:
+/// `git --literal-pathspecs add -- .` stages every file of the tree.
+const WORKTREE_ROOT_DIRECTORY_PATHSPECS: &[&[u8]] = &[b".", b"./"];
+
+/// What:
+///  Whether one positional token stages in bulk for a caller whose pathspec mode is `literal`.
+/// Why:
+///  The policy judges what a token selects,
+/// so the same spelling is bulk for one caller and one literal file name for another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stagesInBulk = (spelling: Uint8Array, literal: boolean) => BULK_PATHSPECS.some((bulk) => equal(bulk, spelling)) && (!literal || WORKTREE_ROOT_DIRECTORY_PATHSPECS.some((dir) => equal(dir, spelling)));
+/// ```
+pub fn stages_in_bulk(spelling: &[u8], literal: bool) -> bool {
+    if !BULK_PATHSPECS.contains(&spelling) {
+        return false;
+    }
+    return !literal || WORKTREE_ROOT_DIRECTORY_PATHSPECS.contains(&spelling);
+}
+
+/// What:
+///  Whether the caller's own command reads pathspecs literally:
+/// the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
+/// and otherwise the variable's own boolean reading.
+/// Why:
+///  Git applies both,
+/// and the policy must read the same mode Git will,
+/// or it rejects a literal file name or lets a whole-tree spelling through.
+///  A value Git would refuse to read as a boolean counts as unset,
+/// so a spelling this reading does not model keeps the rejection instead of lifting it.
+///   Only the tokens Git reads as options count:
+///  in `git -C --literal-pathspecs add -- '**'` that word is the directory `-C` changes to,
+///  and Git sets no mode at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const literalPathspecs = (globalPrefix: string[], variable?: string) => last(optionTokens(globalPrefix).filter((o) => LITERAL_OPTIONS.includes(o))) === '--literal-pathspecs' || (variable !== undefined && parseBool(variable) === true);
+/// ```
+pub fn literal_pathspecs_enabled(global_prefix: &[OsString], variable: Option<&OsStr>) -> bool {
+    let mut from_options: Option<bool> = None;
+    for option in crate::global_arguments::option_tokens(global_prefix) {
+        let spelling: &[u8] = option.as_encoded_bytes();
+        if spelling == LITERAL_OPTIONS[0] {
+            from_options = Some(true);
+        } else if spelling == LITERAL_OPTIONS[1] {
+            from_options = Some(false);
+        }
+    }
+    if let Some(literal) = from_options {
+        return literal;
+    }
+    return variable.is_some_and(read_as_true);
+}
+
+/// What:
+///  Whether one variable value is one of Git's true boolean spellings,
+/// read by the configuration reader that already models that grammar.
+/// Why:
+///  A named function keeps the check out of a closure the linter cannot keep.
+fn read_as_true(value: &OsStr) -> bool {
+    return crate::repo_read_config_text::parse_bool(Some(value.as_encoded_bytes())) == Some(true);
+}
+
+/// What:
+///  The caller's global options,
+/// the tokens before the subcommand word.
+/// Why:
+///  The pathspec mode is set there and nowhere else;
+/// taking the split from `global_layout` keeps this reading equal to the one every other rule uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const callerGlobalPrefix = (args: string[]) => args.slice(0, globalLayout(args).prefixLen);
+/// ```
+pub fn caller_global_prefix(arguments: &[OsString]) -> &[OsString] {
+    let prefix_len: usize = crate::global_arguments::global_layout(arguments).prefix_len;
+    return arguments.get(..prefix_len).unwrap_or_default();
+}
+
 /// What:
 ///  Why a token stages in bulk.
 ///  An `enum` is a closed set of named alternatives.
@@ -176,6 +273,28 @@ pub struct BulkMatch {
     pub kind: BulkKind,
     /// Region token index of the token that turned the meaning on.
     pub token: usize,
+}
+
+/// What:
+///  The bulk matches a caller's own pathspec mode leaves standing:
+/// every flag match,
+/// and a pathspec match only while its spelling still selects the whole worktree.
+/// Why:
+///  The policy rejects on this list,
+/// and what a spelling selects depends on the mode its caller set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bulkMatchesUnder = (region, matches, literal) => matches.filter((m) => m.kind !== 'pathspec' || stagesInBulk(region[m.token], literal));
+/// ```
+pub fn bulk_matches_under(region: &[OsString], matches: &[BulkMatch], literal: bool) -> Vec<BulkMatch> {
+    let mut kept: Vec<BulkMatch> = Vec::with_capacity(matches.len());
+    for found in matches {
+        if found.kind != BulkKind::Pathspec || stages_in_bulk(region[found.token].as_encoded_bytes(), literal) {
+            kept.push(*found);
+        }
+    }
+    return kept;
 }
 
 /// What:

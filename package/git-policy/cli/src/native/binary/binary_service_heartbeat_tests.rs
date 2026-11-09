@@ -111,7 +111,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
+        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None,
     };
 }
 
@@ -213,9 +213,22 @@ fn fake_start(_bus: &Path, _unit: &str) -> bool {
     return true;
 }
 
+/// The fake manager takes a request to forget a unit's failed state and counts it as a start's own.
+fn fake_reset(_bus: &Path, _unit: &str) -> bool {
+    return true;
+}
+
 /// A watch on the fake manager that asks quickly.
 fn watched(name: &str) -> ClientConfig {
-    let watch: ManagerWatch = ManagerWatch { bus: PathBuf::from("/nowhere/bus"), unit: String::from("cli-git@fake.service"), every: Duration::from_millis(50), state: fake_manager, start: fake_start };
+    let watch: ManagerWatch = ManagerWatch {
+        bus: PathBuf::from("/nowhere/bus"),
+        unit: String::from("cli-git@fake.service"),
+        socket_unit: String::from("cli-git@fake.socket"),
+        every: Duration::from_millis(50),
+        state: fake_manager,
+        start: fake_start,
+        reset: fake_reset,
+    };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }
 
@@ -269,15 +282,16 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
 }
 
-/// A unit the manager reports `inactive` after the start wait,
-/// while the socket holds the client's connection and nothing starts
+/// A unit the manager reports `inactive`,
+/// while the socket refuses the client's connection and nothing starts
 /// it,
-/// is started by the client's request to the manager;
-/// the client goes on waiting and the service then answers.
-/// A unit the
-/// manager reports `activating` is never asked to start.
+/// is started by the client's request to the manager at the first such answer,
+/// without waiting the start wait;
+/// the client
+/// goes on waiting and the service then answers.
+/// A unit the manager reports `activating` is never asked to start.
 #[test]
-fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one_is_not() {
+fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
     let name: String = address("inactive-unit");
     START_REQUESTS.store(0, Ordering::SeqCst);
     MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);

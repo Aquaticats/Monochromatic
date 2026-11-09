@@ -18,13 +18,12 @@
 
 use crate::bounded_push::STOP_GRACE;
 use crate::push_deadline_advice::limit_clause;
-use crate::bounded_query::{QueryOutput, query_window, run_bounded_git, run_bounded_query};
-use crate::push_deadline_and_patience_settings::Patience;
+use crate::bounded_query::{QueryOutput, query_window, run_bounded_query};
 use crate::js_text::trim_javascript;
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path.
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 /// `Command` starts real Git.
 use std::process::Command;
 
@@ -257,42 +256,6 @@ pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, S
         STOP_GRACE,
         git.environment.as_slice(),
     );
-}
-
-/// What:
-///  Run one Git command of the second pass under the same bound as a query,
-/// with its request on the standard input and an optional index file.
-/// Why:
-///   These children are not a person's:
-/// the reconcile runs them in an object store another program may have wedged,
-/// so a
-///  `merge-tree` or a merge driver that never returns would hold the push worker,
-/// its claim and the drain of that repository for good.
-/// The window,
-/// the stop of the service and the grace are the ones the push and its queries use,
-/// so a stuck command ends and is named
-///  like a stopped query.
-/// The in-process readers are not tried here,
-/// because they take a command line and no standard input.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// runBoundedGit({ command: gitCommand(git, args), arguments, windowMs: queryWindow(env), graceMs: STOP_GRACE, environment, input, cap })
-/// ```
-pub fn run_query_with_input(
-    git: &PushGit,
-    arguments: &[OsString],
-    input: Option<Vec<u8>>,
-    index_file: Option<&Path>,
-    patience: Patience,
-    ceiling: Option<std::time::Duration>,
-    cap: u64,
-) -> Result<QueryOutput, SingleFlightError> {
-    let mut command: Command = git_command(git, arguments);
-    if let Some(index) = index_file {
-        command.env("GIT_INDEX_FILE", index);
-    }
-    return run_bounded_git(command, describe_arguments(arguments).as_str(), patience, ceiling, STOP_GRACE, git.environment.as_slice(), input, cap);
 }
 
 /// Query behavior is controlled in the test module.

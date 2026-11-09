@@ -14,14 +14,14 @@
 //! ```
 
 use crate::auto_push_single_flight::{
-    PushGit, SingleFlightError, git_output, run_query, run_query_with_input,
+    PushGit, SingleFlightError, git_command, git_output, run_query,
 };
-use crate::bounded_push::MAX_PUSH_OUTPUT;
-use crate::bounded_query::QueryOutput;
-use crate::push_deadline_and_patience_settings::{Patience, merge_ceiling};
+use crate::bounded_push::{MAX_PUSH_OUTPUT, STOP_GRACE};
+use crate::bounded_query::{QueryOutput, query_window, run_bounded_git};
 use crate::merge_second_pass::{GitReply, GitRunner, LARGEST_STAGE_BYTES, Merged, conflicts_of_merge_tree};
 use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables, report, resolve_tree};
 use crate::path_bytes::path_message_text;
+use crate::push_deadline_and_patience_settings::merge_ceiling;
 use std::path::{Path, PathBuf};
 use crate::auto_push_reconcile_basics_and_limits::argv;
 /// The coordinator's Git as a runner for the second pass:
@@ -69,7 +69,9 @@ fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
 
 /// What:
 ///  Run a command of the second pass through the same bounded wait as a query,
-/// with its input on the standard input.
+/// with its input on the standard input,
+/// an answer ceiling of one stage per name it asks for,
+/// and a total ceiling on the step.
 /// Why:
 ///   These children are not a person's:
 /// the reconcile runs them in the object store of a repository that another program may have wedged,
@@ -77,25 +79,45 @@ fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
 /// its claim and the drain of that repository for good.
 /// The meter,
 /// the stop of the service and `STOP_GRACE` are the ones the push and its queries use,
-/// so a stuck command ends and is named like a stopped query.
+/// so a stuck command ends and is named like a stopped query;
+///  a driver that keeps working without returning is ended by the total ceiling alone,
+/// because it shows progress in every sample the
+///  stall window looks at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { code, stdout, stderr } = await runQueryWithInput(git, args, input, indexFile, cap);
+/// const { code, stdout, stderr } = await runBoundedGitAwaiting({ command, arguments, windowMs, ceilingMs, graceMs, environment, input, cap });
 /// ```
 impl GitRunner for PushRunner<'_> {
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
+        let mut command = git_command(self.git, &argv(arguments));
+        if let Some(index) = index_file {
+            command.env("GIT_INDEX_FILE", index);
+        }
         let shown: String = arguments.join(" ");
         let cap: u64 = answer_cap(arguments, input);
-        // A merge step keeps the stall window a query has and adds a total ceiling: a driver that keeps rewriting a file shows progress for ever, so only the ceiling ends it.
-        let patience: Patience = Patience::Progress { stall: crate::bounded_query::query_window(self.git.environment.as_slice()) };
         let ceiling: Option<std::time::Duration> = Some(merge_ceiling(self.git.environment.as_slice()));
-        let output: QueryOutput = match run_query_with_input(self.git, &argv(arguments), input.map(<[u8]>::to_vec), index_file, patience, ceiling, cap) {
+        let output: QueryOutput = match run_bounded_git(
+            command,
+            shown.as_str(),
+            query_window(self.git.environment.as_slice()),
+            ceiling,
+            STOP_GRACE,
+            self.git.environment.as_slice(),
+            input.map(<[u8]>::to_vec),
+            cap,
+        ) {
             Ok(output) => output,
-            Err(refusal) => return Err(format!("git {shown} could not be run: {refusal}")),
+            Err(refusal) => return Err(could_not_run(shown.as_str(), refusal)),
         };
         return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
     }
+}
+
+/// The words of a command that could not be run at all,
+/// naming the command and the reason.
+fn could_not_run(shown: &str, refusal: SingleFlightError) -> String {
+    return format!("git {shown} could not be run: {refusal}");
 }
 
 /// What the merge of two tips came to.

@@ -21,6 +21,11 @@
 //! the wrapper words the notice when it
 //!  shows it,
 //! so the commit name is abbreviated the way Git abbreviates it in the repository as it is then.
+//! A record is removed only once its words have been
+//!  written out,
+//! and only while the file still holds the text that was worded,
+//! so a command killed before it prints loses nothing and a
+//!  record the service replaced meanwhile is kept for the person.
 //! Records are
 //!  shown on standard error only,
 //! and not at all to a command whose output a program reads (`--porcelain`,
@@ -34,12 +39,20 @@
 //! ```
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::auto_push::PUSH_FAILED_NOTE;
 use crate::auto_push_branch_key::encode_branch_key;
 use crate::lfs_output_mask::mask_userinfo_text;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::service_messages::RESTART_COMMAND;
+/// One record as a command holds it before it shows it,
+/// with the claim it was taken under and the step that removes that claim.
+pub use crate::push_failure_notice_shown_then_removed::Notice;
+/// The words a notice carries,
+/// and the text of the failed backup push.
+pub use crate::push_failure_notice_words::push_failure_text;
+pub(crate) use crate::push_failure_notice_words::{worded, worded_lost, worded_skipped};
+/// The name a command holds a record under while it shows it,
+/// and who may take one over.
+use crate::push_failure_notice_claimed_by_one_command::{CLAIM_SUFFIX, ClaimToken, claim, claimed_by_a_live_command, give_back, record_of_claim, take_over};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::path::{Path, PathBuf};
 
@@ -106,7 +119,7 @@ const BRANCH_FIELD: &str = "branch: ";
 const COMMIT_FIELD: &str = "commit: ";
 
 /// Said when Git gave no words at all.
-const NO_REASON: &str = "Git gave no reason.";
+pub(crate) const NO_REASON: &str = "Git gave no reason.";
 
 /// The directory that holds the records of a repository.
 pub fn notice_directory(git_dir: &Path) -> PathBuf {
@@ -186,93 +199,6 @@ pub fn clean_reason(said: &str) -> String {
 }
 
 /// What:
-///  The text shown for a failed backup push,
-/// with the commit named as given and Git's words already cleaned.
-/// Why:
-///   It names the branch and the commit,
-/// gives Git's own reason,
-/// says the commit is safe on this computer,
-/// and says what to
-///  do;
-/// the service runs with its own settings,
-/// which is the first thing to check when a push that works in a terminal
-///  fails here.
-/// The command that shows it may be anyone's,
-/// so it never calls the commit the reader's own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// worded({ branchRef, shown, reason })
-/// ```
-fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
-    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    let detail: String = if reason.is_empty() {
-        NO_REASON.to_string()
-    } else {
-        format!("Git said:\n{}", indented(reason))
-    };
-    return format!(
-        "The backup push of branch {branch} failed for commit {shown}, so that commit exists only on this computer for now. \
-         It is saved in this repository and nothing was lost.\n{detail}\n\
-         Fix what Git names, then run `git push`. If it says the remote has commits you do not have, run `git pull` first. \
-         The commit service runs with its own settings, not your terminal's, so a push that works in your terminal can \
-         fail here when it needs a variable only your terminal has; give the service such a variable with \
-         `systemctl --user set-environment NAME=value` and then `{RESTART_COMMAND}`.\n{PUSH_FAILED_NOTE}"
-    );
-}
-
-/// What:
-///  The text shown for a failed backup push,
-/// from Git's raw words.
-/// Why:
-///   The commit is named as the caller gives it,
-/// so a caller that has the repository passes Git's own abbreviation.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pushFailureText({ branchRef, commit, said })
-/// ```
-pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
-    return worded(branch_ref, commit, clean_reason(said).as_str());
-}
-
-/// What:
-///  The text shown for a push the service did not make,
-/// with the commit named as given and the service's words already cleaned.
-/// Why:
-///   Nothing failed and nothing was sent,
-/// so the text says that and not that the push was refused;
-/// it names the branch and the
-///  commit,
-/// gives the service's reason,
-/// says the commit is saved here,
-/// and names both ways out:
-/// a destination the service can
-///  name,
-/// or a push by hand.
-/// The command that shows it may be anyone's,
-/// so it never calls the commit the reader's own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// wordedSkipped({ branchRef, shown, reason })
-/// ```
-fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
-    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    let detail: String = if reason.is_empty() {
-        String::from("The commit service gave no reason.")
-    } else {
-        format!("The commit service said:\n{}", indented(reason))
-    };
-    return format!(
-        "The backup push of branch {branch} for commit {shown} was not made, so that commit exists only on this computer for now. \
-         It is saved in this repository and nothing was lost.\n{detail}\n\
-         Either give the branch a destination the commit service can name (the `push.default` setting of `git help config` says \
-         which values do), or push it yourself with `git push <remote> {branch}`."
-    );
-}
-
-/// What:
 ///  Leaves the record of one push the service did not make,
 /// replacing an earlier record of the same commit on the same branch.
 /// Why:
@@ -327,23 +253,6 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said:
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };
-}
-
-/// What:
-///  The text shown for a push that had not finished when the worktree that made the commit was removed.
-/// Why:
-///   Nothing says whether the push ran,
-/// failed or never started,
-/// so the text says only what is known:
-/// the commit is saved here
-///  and the branch may not be on the remote.
-fn worded_lost(branch_ref: &str, shown: &str) -> String {
-    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    return format!(
-        "The backup push of branch {branch} for commit {shown} had not finished when the worktree that made the commit was \
-         removed, so that commit may exist only on this computer for now. It is saved in this repository and nothing was lost. \
-         Run `git push` in a worktree that has branch {branch} checked out, or `git push <remote> {branch}` from any worktree."
-    );
 }
 
 /// What:
@@ -477,7 +386,9 @@ pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std:
             },
             Err(_) => false,
         };
-        if older && entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        // A claim belongs to the command that holds it, which shows it and takes it with it.
+        if older && name.starts_with(prefix.as_str()) && !name.ends_with(CLAIM_SUFFIX) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }
@@ -571,27 +482,32 @@ pub trait CommitNamer {
 }
 
 /// What:
-///  Reads and removes the records that are for the asking worktree (all of them when no worktree is given),
+///  Reads the records that are for the asking worktree (all of them when no worktree is given),
 /// oldest name
 ///  first,
-/// worded with the commit named by `abbreviate`.
+/// words each with the commit named by `abbreviate`,
+/// and answers what the person is to be shown.
 /// Why:
 ///   A record is shown once,
 /// to the worktree whose commit it is about;
-/// another worktree's command leaves it where it is.
+/// another worktree's command leaves it where it is,
+/// and nothing is
+///  removed here:
+/// the removal waits until the words are out,
+/// which only the caller knows.
 ///  When nothing failed the notice directory does not exist,
 /// and this is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailuresFor(gitDir, worktrees, abbreviate)
+/// const notices = await readPushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
-pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    return take_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
+pub fn push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+    return read_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
 }
 
 /// What:
-///  Reads and removes the records of removed worktrees,
+///  Reads the records of removed worktrees,
 /// which belong to no worktree and so are shown to the first command
 ///  that asks.
 /// Why:
@@ -601,23 +517,36 @@ pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abb
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takeOrphanedFailures(commonDir, abbreviate)
+/// const notices = await readOrphanedPushFailures(commonDir, abbreviate)
 /// ```
-pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    return take_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
+pub fn orphaned_push_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+    return read_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
 }
 
-/// Reads and removes the records in one directory that are for the asking worktree,
-/// oldest name first.
-fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
+/// Reads the records in one directory that are for the asking worktree,
+/// oldest name first,
+/// without removing any.
+fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
+    let token: ClaimToken = ClaimToken::of_this_command();
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         paths.push(entry.path());
     }
     paths.sort();
-    let mut texts: Vec<String> = Vec::new();
+    let mut notices: Vec<Notice> = Vec::new();
     for path in paths {
+        let name: String = file_name_of(path.as_path());
+        // A claim belongs to the command that made it: one whose command still runs is left alone, and one whose command is
+        //  gone is taken over, which is how a notice a killed command held reaches the person.
+        if record_of_claim(name.as_str()).is_some() {
+            if claimed_by_a_live_command(name.as_str()) {
+                continue;
+            }
+            let Some(claimed) = take_over(path.as_path(), &token) else { continue };
+            notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
+            continue;
+        }
         let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
         let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
         if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
@@ -625,33 +554,79 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         {
             continue;
         }
-        // The record is removed before its text is used, so two commands that start together cannot both show it.
-        if std::fs::remove_file(path.as_path()).is_err() {
-            continue;
-        }
-        texts.push(match parsed {
-            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
-            // The finished text an earlier release wrote.
-            None => text,
-        });
+        // The record is claimed before its words are made: two commands that start together both read it, and only the one
+        //  whose rename wins shows it. A command killed while it words the notice leaves the claim, which a later command takes
+        //  over once this one is gone.
+        let Some(claimed) = claim(path.as_path(), &token) else { continue };
+        notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
     }
-    return texts;
+    return notices;
+}
+
+/// The last part of a path's name,
+/// or an empty text for a path that has none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// basename(path) ?? ''
+/// ```
+fn file_name_of(path: &Path) -> String {
+    let Some(name) = path.file_name() else {
+        return String::new();
+    };
+    return name.to_string_lossy().into_owned();
 }
 
 /// What:
-///  Reads and removes every record,
+///  The notice the claim at `path` carries,
+/// worded,
+/// or nothing when the claim holds no record this command reads.
+/// Why:
+///   The claim is read after the rename,
+/// so the words are made from exactly the text this command holds;
+/// a claim that
+///  cannot be read is left where it is for a later command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = await readFile(claim); const parsed = parseRecord(text); return parsed ? worded(parsed) : text
+/// ```
+fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+    let Ok(text) = std::fs::read_to_string(path) else { return Vec::new() };
+    let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
+    if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
+        && !is_for(asking, branch)
+    {
+        // A claim of another worktree's branch goes back to its own name, where that worktree's command reads it.
+        let record: String = file_name_of(path);
+        let record_name: &str = record_of_claim(record.as_str()).unwrap_or(record.as_str());
+        give_back(path, path.with_file_name(record_name).as_path());
+        return Vec::new();
+    }
+    let shown: String = match parsed {
+        Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
+        Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
+        Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
+        // The finished text an earlier release wrote.
+        None => text.clone(),
+    };
+    let record: String = file_name_of(path);
+    let record_name: &str = record_of_claim(record.as_str()).unwrap_or(record.as_str());
+    return vec![Notice { record: path.with_file_name(record_name), claim: path.to_path_buf(), text: shown }];
+}
+
+/// What:
+///  Reads every record,
 /// with each commit named in full.
 /// Why:
 ///   The service's own controls and a repository with no worktree to ask need all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailures(gitDir)
+/// const notices = await readPushFailures(gitDir)
 /// ```
-pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
-    return take_push_failures_for(git_dir, None, &FullCommitName);
+pub fn push_failures(git_dir: &Path) -> Vec<Notice> {
+    return push_failures_for(git_dir, None, &FullCommitName);
 }
 
 /// A commit name as it is,
@@ -662,17 +637,6 @@ impl CommitNamer for FullCommitName {
     fn name_of(&self, commit: &str) -> String {
         return commit.to_string();
     }
-}
-
-/// The lines of `reason`,
-/// each with four spaces in front,
-/// joined by newlines.
-fn indented(reason: &str) -> String {
-    let mut lines: Vec<String> = Vec::new();
-    for line in reason.lines() {
-        lines.push(format!("    {line}"));
-    }
-    return lines.join("\n");
 }
 
 /// Record controls stay out of the release executable.

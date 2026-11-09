@@ -102,6 +102,32 @@ fn plain_path_text(path: &&[u8]) -> String {
 }
 
 /// What:
+///  The subcommand word of one listing's arguments:
+/// the first token that is not a global option.
+/// Why:
+///   The failure sentence names the Git run,
+///  and every listing here writes one or more global options before its subcommand,
+///  so `arguments[1]` is not the subcommand any more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// args.find((word) => !word.startsWith('--'))
+/// ```
+fn subcommand_word(arguments: &[OsString]) -> String {
+    // `global_layout` is the crate's one reader of Git's global options, so no second list here can drift from it.
+    let layout: crate::global_arguments::GlobalLayout = crate::global_arguments::global_layout(arguments);
+    return arguments.get(layout.prefix_len).map_or_else(String::new, word_text);
+}
+
+/// What:
+///  One argument as the text a failure sentence shows.
+/// Why:
+///  A named function keeps the conversion out of a closure the linter cannot keep.
+fn word_text(word: &OsString) -> String {
+    return word.to_string_lossy().into_owned();
+}
+
+/// What:
 ///  Run Git with `arguments` in `root` and give its standard output;
 /// the error says what Git said or why it did not start.
 /// Why:
@@ -112,8 +138,9 @@ fn plain_path_text(path: &&[u8]) -> String {
 /// await git(root, arguments) // throws a sentence
 /// ```
 fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
-    let words: String = arguments.iter().skip(1).copied().take(1).collect::<Vec<&str>>().join(" ");
-    let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: arguments.iter().copied().map(OsString::from).collect(), without_prefix: true, ..GitRequest::default() };
+    let owned: Vec<OsString> = arguments.iter().copied().map(OsString::from).collect();
+    let words: String = subcommand_word(owned.as_slice());
+    let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: owned, without_prefix: true, ..GitRequest::default() };
     return match run_git(context, &request) {
         Ok(found) if found.code == Some(0) => Ok(found.stdout),
         Ok(found) => {
@@ -159,7 +186,10 @@ fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<
 /// ```
 pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, String> {
     let listing: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"])?;
-    let untracked_attributes: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
+    // `:(glob)**/.gitattributes` is pathspec magic, so literal pathspec mode, from `GIT_LITERAL_PATHSPECS` or
+    // `--literal-pathspecs`, is switched off here: under it the pattern would match nothing and an untracked
+    // attributes file deep in the tree would go unnoticed.
+    let untracked_attributes: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
     // Each status entry is two status letters, a space, then the path.
     let mut paths: Vec<&[u8]> = Vec::new();
     for entry in listing.split(is_nul_byte) {

@@ -311,6 +311,27 @@ fn unsafe_named_path_is_refused() {
     remove(root.as_path());
 }
 
+/// The context of a caller whose environment turns pathspec magic off,
+/// as `GIT_LITERAL_PATHSPECS=1` in a person's shell does for every Git the copy starts.
+fn literal_pathspec_context() -> crate::transaction_git::GitContext {
+    let mut context = git_context();
+    context.overlay.push((std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"), std::ffi::OsString::from("1")));
+    return context;
+}
+
+/// A configured ignored file is still found when the caller's environment turns pathspec magic off:
+/// the listing's own `:(top,literal)` pathspec is magic,
+/// so a copy that honoured the caller's mode would leave the rules file or a `.env` behind in the source.
+#[test]
+fn named_ignored_file_is_selected_under_literal_pathspec_mode() {
+    let root: PathBuf = fixture("selection-named-literal-mode");
+    let source: PathBuf = ignoring(root.as_path(), "source", ".env\n");
+    std::fs::write(source.join(".env"), b"SECRET=1\n").expect("env");
+    let roots: Vec<String> = read_named_ignored_roots(&literal_pathspec_context(), source.as_path(), &[String::from(".env")]).expect("roots");
+    assert_eq!(roots, vec![String::from(".env")], "a configured ignored file must be copied under the caller's literal pathspec mode");
+    remove(root.as_path());
+}
+
 /// The explicit selection reaches the named files only,
 /// while the standard selection reaches every ignored root.
 #[test]

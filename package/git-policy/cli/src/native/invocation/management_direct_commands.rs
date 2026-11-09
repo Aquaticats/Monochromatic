@@ -23,6 +23,8 @@ use crate::config_error::ConfigError;
 use crate::config_file::LoadedConfig;
 /// A scope that cannot be projected is a `transaction-failed` engine failure.
 use crate::diagnostics::EngineFailureCode;
+/// The tool-cache exemption entry the direct-check checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.
@@ -282,7 +284,7 @@ pub(crate) fn plan_direct(
         git_global_arguments.to_vec(),
         LifecycleContent::Requested(CandidateRequest::Direct(scope)),
         // `Vec::new()` is an empty owned list: no direct-command policy reads the tool caches.
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);

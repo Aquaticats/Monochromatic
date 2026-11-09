@@ -33,6 +33,11 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   `doc/handover/superlinear-cost-dismissal-gate.md`,
   heading `Recall measurement results`)
 - Findings kept:
+- reviewed:
+  the whole commit name,
+  the entry's last line,
+  which the service writes as the once-per-commit receipt;
+  the entries of this file were written before that line existed
 - Skipped:
   12c25207857b docs(handover):
   record the finished tool-image migration and the pre-existing failures it surfaced (no code files)
