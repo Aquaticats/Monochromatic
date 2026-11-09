@@ -25,22 +25,34 @@ use crate::commit_transaction::TransactionResult;
 use crate::lfs_pre_push::uses_lfs;
 use crate::policy_events::PolicyEvent;
 use crate::scratch_location::prepare_commit_scratch;
+use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
 use crate::service_protocol::{Change, Cleanup};
 use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 /// The commit's scratch directory:
-/// the private indexes and Git's scratch repository.
-/// Nothing in this process removes it:
-/// the resident service removes it when the connection that holds it closes,
+/// the private indexes and Git's scratch repository,
+/// and who removes it.
+/// The resident service removes it when the connection that holds it closes,
 /// by whatever means this process ends,
-/// and the sweep of the repository scratch directory removes it once it is stale.
-/// Why not here:
+/// once the command has handed it over (`held_by_the_service`).
+/// A command that never handed it over,
+/// because the service refused it or because the preparation stopped where it was,
+/// removes it itself as it goes out of scope,
+/// bounded by `SCRATCH_REMOVAL_CEILING`,
+/// and a tree that removal leaves behind is inside the repository scratch directory the sweep covers.
+/// Why not here on the ordinary path:
 /// a recursive removal after the commit landed waited on the person
 /// (one `unlinkat` of 2.5 s in a shaped fixture,
 /// `doc/planning/cli-git-commit-latency-under-many-agents.md`),
 /// while nothing after it needed the bytes.
-pub struct Scratch(pub PathBuf);
+pub struct Scratch(
+    /// Where the tree is.
+    pub PathBuf,
+    /// Whether the service holds it,
+    /// so this process must leave it alone.
+    pub bool,
+);
 
 impl Scratch {
     /// What:
@@ -56,7 +68,34 @@ impl Scratch {
     /// const scratch = makeScratch(commonDir, gitDir, name);
     /// ```
     pub fn make(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<Self> {
-        return Ok(Self(prepare_commit_scratch(common_dir, git_dir, name)?));
+        return Ok(Self(prepare_commit_scratch(common_dir, git_dir, name)?, false));
+    }
+
+    /// What:
+    ///  Records whether the service holds the directory,
+    ///  so this process must not remove a held one.
+    /// Why:
+    ///   The connection that carries the announcement is the service's claim on the directory,
+    ///  and it removes the directory when that connection closes,
+    ///  however this process ends.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// scratch.heldByTheService(watch !== undefined);
+    /// ```
+    pub fn held_by_the_service(&mut self, held: bool) {
+        self.1 = held;
+    }
+}
+
+impl Drop for Scratch {
+    /// Removes the directory a command that never handed it over leaves,
+    /// and waits for it no longer than a scratch removal may take.
+    fn drop(&mut self) {
+        if self.1 {
+            return;
+        }
+        let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING);
     }
 }
 

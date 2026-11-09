@@ -582,17 +582,21 @@ and how:
 
 The split,
 over the eight commits of each binary,
-in whole milliseconds:
+in whole milliseconds
+(these arms were measured once before,
+on the build that still removed a tree no service had taken,
+and gave 17 ms of removal and 0 after it;
+the figures here are the last run of the final build):
 
 - The scratch tree's removal:
-  `scratchRemovalMs` was 0,
+  `scratchRemovalMs` was 3,
+  1,
+  28,
   0,
   1,
-  5,
-  9,
   0,
-  1 and 1 before the change,
-  17 ms in all,
+  0 and 1 before the change,
+  34 ms in all and 28 ms at its worst,
   and 0 in eight of eight commits after it.
   A tree of one commit held 9,081,951 bytes in three files on this host,
   and `strace -f -c` of one commit through the earlier binary counted 34 `unlinkat` calls at 1.5 ms of system time.
@@ -601,28 +605,28 @@ in whole milliseconds:
   because the wrapper's lines fit in the pipe buffer,
   so on an ordinary reader the write costs nothing at all.
 - What no phase covered:
-  `otherMs` was 1,
+  `otherMs` was 4,
+  2,
+  29,
   1,
   1,
-  6,
-  9,
   1,
   1 and 1 before the change,
-  median 1 ms and 21 ms in all,
+  median 1 ms and 40 ms in all,
   and 0 in eight of eight commits after it.
-  The removal was therefore the whole of `otherMs` here (17 of its 21 ms),
+  The removal was therefore the whole of `otherMs` here (34 of its 40 ms),
   and the record's 58,733 ms of `otherMs` and its 2.5 s `unlinkat` are the device-stall tail,
   not the median path.
 - Whole commit,
   wall clock:
-  the before arms had medians of 10,861 ms and 3,596 ms,
-  the after arms 10,727 ms and 6,545 ms,
-  and one arm's own samples span 2,518 to 178,782 ms.
+  the before arms had medians of 7,946 ms and 5,852 ms,
+  the after arms 7,953 ms and 5,483 ms,
+  and one arm's own samples span 993 to 16,898 ms.
   The two binaries are not told apart by this,
-  and the same-binary control arms differ by 3.0 times,
+  and the same-binary control arms differ by 1.36 times,
   so this record claims no whole-commit improvement:
   what the change takes away is the removal's own measured wait,
-  0 to 9 ms here and 2.5 s for one `unlinkat` once,
+  0 to 28 ms here and 2.5 s for one `unlinkat` once,
   and it takes that wait off the person's path for good.
 
 Proof by removal,
@@ -666,36 +670,39 @@ each figure the stretch's own time with the Git children that ran inside it take
 because those are recorded apart in `steps`.
 
 The split,
-over the sixteen commits of the four fixtures above,
+over the sixty-eight commits the four fixtures recorded with this build,
 in whole milliseconds:
 
 - `index`,
   the build of the private commit index,
   which is where the question whether the real index's stat data still
   describes the worktree is asked:
-  median 1,419,
-  mean 2,801,
-  max 9,862,
-  and 12 of the 16 commits over 1,000.
+  median 3,811,
+  max 13,405,
+  59 of the 68 commits over 1,000 ms,
+  and 310,068 ms in all.
   In the four commits that also paid `git update-index --refresh` it was 460,
   1,040,
   144 and 215,
   because that Git child had answered the question already.
-- `unmergedFiles` (the listing of unmerged entries and the staging of them) median 38,
-  max 526;
-  `changedPaths` (the candidates against the base) median 20,
+- `policies` (the policy pass over the staged content) median 68,
+  max 6,389,
+  and 5 commits over 1,000;
+  `unmergedFiles` (the listing of unmerged entries and the staging of them) median 75,
+  max 1,684;
+  `changedPaths` (the candidates against the base) median 22,
   max 1,586;
-  `policies` (the policy pass over the staged content) median 42,
-  max 1,115;
   `changes` (the tree check and the change list the service is sent) median 1,
-  max 743;
-  `conclusionState` max 7;
-  and the other eight names,
-  `layout`,
+  max 5,271;
+  `scratch` (making the tree,
+  and removing a previous attempt's) median 0,
+  max 1,103;
+  `layout` max 36,
+  `conclusionState` max 7,
+  and the other six names,
   `unmergedBefore`,
   `capture`,
   `stagedDeletions`,
-  `scratch`,
   `interactive`,
   `worktreeRecords` and `treeCheck`,
   0 or 1 in every commit.
@@ -706,7 +713,8 @@ in whole milliseconds:
   162,420 and 172,689 in the four commits that ran it,
   `git read-tree` 15,
   `git diff` 13,
-  and `git config` and `git rev-parse` one to nine.
+  and `git config` and `git rev-parse` one to nine,
+  in all sixty-eight commits.
   So a preparation is either one long Git child (the cold refresh) or the in-process `index` stretch,
   and nothing else is
   large enough to look at.
@@ -740,7 +748,7 @@ which this record proposes and does not build:
   not about this commit,
   and it is asked again by the next commit with the same index.
   Starting it beside the shadow's creation,
-  which waits 16.0 seconds in the same fixtures with no Git child at all,
+  which waited 16.0 seconds in one of these fixtures with no Git child at all,
   or asking it in the service while the previous landing holds the index,
   would hide its 1.4 s median inside a wait that already happens.
 - Not proposed here,

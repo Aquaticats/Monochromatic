@@ -53,8 +53,9 @@ fn an_empty_or_missing_place_leaves_a_path_that_is_used() {
     std::fs::write(own.join("commondir"), b"\n").expect("commondir");
     assert_eq!(common_directory_of(own.as_path()), own);
     std::fs::write(own.join("commondir"), b"../gone\n").expect("commondir");
-    let named: PathBuf = root.join("gone");
-    assert_eq!(common_directory_of(own.as_path()), named);
+    // A place that cannot be resolved is used as written, so a record still lands under the name the file gives rather than
+    //  nowhere at all.
+    assert_eq!(common_directory_of(own.as_path()), own.join("../gone"));
     remove(root.as_path());
 }
 

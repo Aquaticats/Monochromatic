@@ -172,7 +172,7 @@ pub fn service_commit<F: RepositoryFacts>(
         let prepared: Result<Prepared, TransactionStop> = prepare(invocation, checks, request, &inputs);
         timing.prepare += preparing.elapsed();
         timing.attempts += 1;
-        let ready: Box<Ready> = match prepared? {
+        let mut ready: Box<Ready> = match prepared? {
             Prepared::Conflict(conflict) => {
                 // The message is kept so the person can commit again once their files agree with the commit that landed first.
                 let saved: PathBuf = conflict.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
@@ -222,6 +222,8 @@ pub fn service_commit<F: RepositoryFacts>(
         if scratch_watch.is_none() {
             scratch_watch = watch_scratch(&config, ready.inputs.capture.layout.git_dir.as_path(), ready.scratch.0.as_path());
         }
+        // The service holds the tree from here on: it removes it when this connection closes, so this process must not.
+        ready.scratch.held_by_the_service(scratch_watch.is_some());
         if !decided {
             decided = true;
             if !ready.needs_native

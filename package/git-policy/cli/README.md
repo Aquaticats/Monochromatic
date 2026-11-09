@@ -3214,7 +3214,8 @@ A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` i
  `monochromatic-git-policy-cli-scratch` while it is made;
  the commit service removes it when the command's connection closes,
 however the command ends,
-and the trees of commands that no service held are removed by the next command's preparation once they are two hours old.
+and a command that no service took the tree from removes it itself as it ends,
+while a tree a kill left goes to the next command's preparation once it is two hours old.
 Nothing in a commit waits for that removal:
  it happens beside the landing loop,
 bounded by `SCRATCH_REMOVAL_CEILING` (thirty seconds),

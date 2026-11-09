@@ -22,18 +22,21 @@ use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// The preparation lets go of the tree without removing it:
-/// the service that held it removes it,
-/// and the sweep removes the one no service held.
+/// A tree the command handed to the service is the service's to remove,
+/// and a tree nothing took is the command's own to remove,
+/// so a declined commit leaves nothing behind.
 #[test]
-fn the_commit_hands_its_scratch_tree_on_and_never_removes_it() {
+fn the_commit_removes_only_the_tree_no_service_took() {
     let root: PathBuf = fixture("ready-shapes-scratch");
-    let common: PathBuf = root.join("repo/.git");
-    let tree: PathBuf = common.join(REPOSITORY_SCRATCH_NAME).join("monochromatic-git-policy-cli-service-0a1b2c3d");
+    let tree: PathBuf = root.join("repo/.git").join(REPOSITORY_SCRATCH_NAME).join("monochromatic-git-policy-cli-service-0a1b2c3d");
     std::fs::create_dir_all(&tree).expect("the scratch tree");
     std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
-    drop(Scratch(tree.clone()));
-    assert!(tree.exists(), "the command that made it must not remove it: {}", tree.display());
+    let mut handed: Scratch = Scratch(tree.clone(), false);
+    handed.held_by_the_service(true);
+    drop(handed);
+    assert!(tree.exists(), "the command that handed it over must not remove it: {}", tree.display());
+    drop(Scratch(tree.clone(), false));
+    assert!(!tree.exists(), "a tree no service took is removed by the command: {}", tree.display());
     remove(root.as_path());
 }
 

@@ -7011,17 +7011,26 @@ and how long anyone waits:
   in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
   with a line at warning priority in the service journal when the removal cannot finish.
   Neither the client nor the landing loop waits for it.
-- A command that never handed it to a service leaves it in place.
+- A command that never handed it to a service,
+  because the service refused it or because the preparation stopped where
+  it was,
+  removes it itself as it goes out of scope,
+  with the same ceiling,
+  so a declined or abandoned commit leaves nothing.
+- A command killed before it could remove its tree,
+  and a tree whose removal did not finish,
+  wait for a later command.
   The directory is inside the repository scratch directory,
   so a later command's preparation removes it once it is older than
   `COMMIT_SCRATCH_TREE_ABANDONED_AFTER` (two hours,
   six times the longest wait a commit can have),
   at most `COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) per command,
   and the sweep removes whatever is older than `SCRATCH_STALE_AFTER` (a day) whatever its number.
-  That is what bounds the trees a machine makes while no service answers:
-  one tree of about 9 MiB per commit,
+  That is what bounds the trees a kill leaves:
+  one tree of about 9 MiB per killed command,
   no older than two hours,
-  and eight removed per command.
+  and eight removed per command,
+  which holds whether or not a service ever held them.
 - Every removal of a scratch entry runs on a thread of its own and stops being waited for at
   `SCRATCH_REMOVAL_CEILING` (thirty seconds,
   twelve times the slowest single `unlinkat` the timing record holds),
@@ -7109,7 +7118,7 @@ The shadow has no `index`;
 The shadow `config` has this layout:
 
 ```ini
-; <git-dir>/monochromatic-git-policy-cli-service-<id>/shadow/config
+; <git-common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/shadow/config
 [core]
   repositoryformatversion = <copied value>
 [extensions]
