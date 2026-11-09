@@ -78,7 +78,11 @@ fn a_record_round_trips() {
         let text: String = original.encode();
         assert_eq!(text.matches('\n').count(), 1);
         assert_eq!(WorkItem::decode(text.as_str()), Ok(original.clone()));
-        assert_eq!(original.id(), format!("{}-abc", kind.name()));
+        let expected: String = match kind {
+            WorkKind::Push => format!("{}-abc-{}", kind.name(), crate::work_item_ids_and_names::branch_digest("refs/heads/main")),
+            other => format!("{}-abc", other.name()),
+        };
+        assert_eq!(original.id(), expected);
         assert_eq!(WorkKind::from_name(kind.name()), Some(kind));
     }
 }
@@ -136,6 +140,49 @@ fn bad_records_are_refused() {
     ] {
         assert!(WorkItem::decode(broken.as_str()).is_err(), "{broken}");
     }
+}
+
+/// A record of a push on `branch` for `oid`.
+fn push_of(branch: &str, oid: &str) -> WorkItem {
+    return WorkItem { branch_ref: String::from(branch), ..item(WorkKind::Push, oid) };
+}
+
+/// Two branches can hold one commit,
+/// and each must reach its own remote:
+/// the record of the second branch is an item of its own,
+/// not one the queue already knew.
+#[test]
+fn two_branches_at_one_commit_are_both_queued() {
+    let directory: PathBuf = fixture("work-two-branches-one-commit");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let oid: &str = "abc";
+    let topic: WorkItem = push_of("refs/heads/topic", oid);
+    let release: WorkItem = push_of("refs/heads/release", oid);
+    assert_ne!(topic.id(), release.id(), "one commit on two branches is two records");
+    assert_eq!(enqueue(work.as_path(), &topic), Ok(Enqueued::Added));
+    let first: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the topic item");
+    settle(work.as_path(), &first, DONE).expect("settle");
+    assert_eq!(enqueue(work.as_path(), &release), Ok(Enqueued::Added), "a record that names another branch does not stand for this one");
+    let second: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the release item");
+    assert_eq!(second.item.branch_ref, String::from("refs/heads/release"));
+    remove(directory.as_path());
+}
+
+/// A pending record an earlier release wrote is named by its kind and object alone,
+/// and this release still reads and runs it.
+#[test]
+fn a_pending_record_of_an_earlier_release_is_claimed() {
+    let directory: PathBuf = fixture("work-earlier-release-name");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let earlier: &str = "{\"v\":1,\"tries\":0,\"kind\":\"push\",\"id\":\"push-abc\",\"repository\":\"/repo\",\"gitDir\":\"/repo/.git\",\"ref\":\"refs/heads/main\",\"oid\":\"abc\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}\n";
+    for state in [PENDING, CLAIMED] {
+        std::fs::create_dir_all(state_directory(work.as_path(), state)).expect("a state directory");
+    }
+    std::fs::write(state_directory(work.as_path(), PENDING).join("push-abc"), earlier).expect("a record an earlier release left");
+    let claimed: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the earlier release's item");
+    assert_eq!(claimed.item.branch_ref, String::from("refs/heads/main"));
+    assert_eq!(claimed.item.oid, "abc");
+    remove(directory.as_path());
 }
 
 /// The same landing enqueued twice,

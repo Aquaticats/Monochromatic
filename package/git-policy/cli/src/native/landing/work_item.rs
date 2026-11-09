@@ -87,6 +87,28 @@ impl WorkItem {
     /// the kind and the landed object,
     /// so the same landing always yields the same id.
     pub fn id(&self) -> String {
+        if self.kind == WorkKind::Push {
+            return format!("{}-{}-{}", self.kind.name(), self.oid, crate::work_item_ids_and_names::branch_digest(self.branch_ref.as_str()));
+        }
+        return format!("{}-{}", self.kind.name(), self.oid);
+    }
+
+    /// What:
+    ///  The id a release that keyed a push by its kind and commit alone wrote for this item.
+    /// Why:
+    ///   Such a record is on disk in a repository this release took over,
+    /// and it is still this item's:
+    /// the record's
+    ///  name must not decide that a push left over from the release before this one is other work.
+    /// The
+    ///  current id is what this release writes,
+    /// so the two are asked for together wherever a name is matched against a record.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// `${kind}-${oid}`
+    /// ```
+    pub fn id_before_the_branch(&self) -> String {
         return format!("{}-{}", self.kind.name(), self.oid);
     }
 
@@ -145,8 +167,9 @@ impl WorkItem {
             created: text_field(&value, "created")?,
             tries,
         };
-        if text_field(&value, "id")? != item.id() {
-            return Err(String::from("the record's id is not derived from its kind and object"));
+        let named: String = text_field(&value, "id")?;
+        if named != item.id() && named != item.id_before_the_branch() {
+            return Err(String::from("the record's id is not derived from its kind, object and branch"));
         }
         return Ok(item);
     }
@@ -319,25 +342,12 @@ pub struct Claimed {
     pub item: WorkItem,
 }
 
-/// The most characters an object name has:
-/// 64 hexadecimal digits of a SHA-256 name.
-/// With the longest kind,
-/// a generation,
-/// a reading that
-/// fills every field and the suffix of a recovery's temporary file,
-/// such an id still makes a name of at most 223 bytes,
-/// under
-/// the 255 a file name may have;
-/// a longer id could make a claim's name fit and the name of its temporary file not.
-pub(crate) const MAX_OBJECT_NAME_LENGTH: usize = 64;
-
-/// Whether `object_name` is what follows the kind in an id:
-/// 1 to `MAX_OBJECT_NAME_LENGTH` ASCII letters and digits,
-/// so it
-/// holds no separator of a claim's name and no character a file name treats specially.
-fn is_object_name(object_name: &str) -> bool {
-    return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.as_bytes().iter().all(u8::is_ascii_alphanumeric);
-}
+/// The shape of an id,
+/// and the length an object name may have,
+/// beside the digest they work with.
+pub(crate) use crate::work_item_ids_and_names::is_valid_id;
+#[cfg(test)]
+pub(crate) use crate::work_item_ids_and_names::MAX_OBJECT_NAME_LENGTH;
 
 /// What:
 ///  Set the modification time of the file at `path` to now.
@@ -364,19 +374,6 @@ fn stamp_modification_time(path: &Path) -> std::io::Result<()> {
 
 /// How a claim or renewal stamps the file it holds.
 type Stamp<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
-
-/// Whether `id` is a kind and an object name,
-/// which makes every name built from it fit in a file name.
-pub(crate) fn is_valid_id(id: &str) -> bool {
-    for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash] {
-        if let Some(rest) = id.strip_prefix(format!("{}-", kind.name()).as_str())
-            && is_object_name(rest)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 /// The path of the file that holds the claim of `id` now,
 /// or nothing when it is not claimed or being recovered.
@@ -516,9 +513,17 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     let Some(kind) = found_kind else {
         return Ok(None);
     };
-    // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
-    if !is_object_name(&id[kind.name().len() + 1..]) {
-        quarantine_pending(work_dir, id, format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
+    // An id that is not a kind and what that kind names could make names that do not fit; it never becomes a claim.
+    if !crate::work_item_ids_and_names::is_id_suffix(kind, &id[kind.name().len() + 1..]) {
+        quarantine_pending(
+            work_dir,
+            id,
+            format!(
+                "is not a kind and a suffix of at most {} characters: an object name, and for a push a branch digest after it",
+                crate::work_item_ids_and_names::MAX_ID_SUFFIX_LENGTH
+            )
+            .as_str(),
+        );
         return Ok(None);
     }
     let name: String = claim_file_name(id, new_generation()?.as_str(), now);
@@ -559,7 +564,7 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     return match WorkItem::decode(text.as_str()) {
         // The record is the work the file name says;
         // a record of other work would be settled as done under this id.
-        Ok(item) if item.id() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
+        Ok(item) if item.id() == id || item.id_before_the_branch() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
         _ => {
             let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id));
             Ok(None)

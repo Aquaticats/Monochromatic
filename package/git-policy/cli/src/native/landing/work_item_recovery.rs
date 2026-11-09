@@ -19,7 +19,7 @@ use crate::claim_time::ClaimTime;
 use crate::private_storage::create_private_directory_all;
 use crate::service_timing::log;
 use crate::work_item::{
-    CLAIMED, FAILED, MAX_OBJECT_NAME_LENGTH, PENDING, RECOVERING, WorkItem, claim_file_name, entries_oldest_first, id_of_entry, is_valid_id,
+    CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, claim_file_name, entries_oldest_first, id_of_entry, is_valid_id,
     new_generation, parse_claim_name, state_directory,
 };
 use std::path::{Path, PathBuf};
@@ -299,7 +299,12 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
     if !is_valid_id(id) {
         let moved: bool = create_private_directory_all(state_directory(work_dir, FAILED).as_path()).is_ok()
             && std::fs::rename(state_directory(work_dir, state).join(name), state_directory(work_dir, FAILED).join(id)).is_ok();
-        log(format!("the claim {name:?} is not of a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits, so it was {}", if moved { "moved to failed" } else { "left where it is because moving it failed" }).as_str());
+        log(format!(
+            "the claim {name:?} is not of a kind and a suffix of at most {} characters, so it was {}",
+            crate::work_item_ids_and_names::MAX_ID_SUFFIX_LENGTH,
+            if moved { "moved to failed" } else { "left where it is because moving it failed" }
+        )
+        .as_str());
         return moved.then_some(None);
     }
     let Ok(token) = new_generation() else {
@@ -321,7 +326,7 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
         return std::fs::rename(owned.as_path(), state_directory(work_dir, FAILED).join(id)).is_ok().then_some(None);
     };
     let (target, given_up): (&str, Option<WorkItem>) = match WorkItem::decode(text.as_str()) {
-        Ok(mut item) if item.id() == id => {
+        Ok(mut item) if item.id() == id || item.id_before_the_branch() == id => {
             item.tries += 1;
             let rewritten: PathBuf = recovering.join(format!("{owned_name}{TEMPORARY_SUFFIX}"));
             let destination: &str = if item.tries >= max_tries { FAILED } else { PENDING };

@@ -139,8 +139,11 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = push_item(handoff, landed);
-    if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
-        return Ok(());
+    // A record an earlier release held is named by the kind and the commit alone, and it is this push's.
+    for name in [item.id(), item.id_before_the_branch()] {
+        if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), name.as_str()) {
+            return Ok(());
+        }
     }
     // Nothing was held for this commit: the record is written here instead, so the push is not lost.
     return match enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item) {
