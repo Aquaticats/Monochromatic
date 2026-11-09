@@ -250,7 +250,7 @@ pub fn service_commit<F: RepositoryFacts>(
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native || lands_as_new { None } else { embedded.as_ref() };
         let mut typed: Option<String> = None;
-        let (sent, first_parent): (CommitRequest, String) = match amended.as_ref().filter(|_| lands_as_new) {
+        let (sent, first_parent): (CommitRequest, String) = match amended.as_ref().filter(|_| { return lands_as_new; }) {
             Some(fields) => {
                 // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the
                 //  single parent.
@@ -347,7 +347,7 @@ pub fn service_commit<F: RepositoryFacts>(
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
                     native,
-                    amended_as_new: amended.as_ref().filter(|_| lands_as_new),
+                    amended_as_new: amended.as_ref().filter(|_| { return lands_as_new; }),
                     unlanded: unlanded.as_slice(),
                     config: config.clone(),
                 });
@@ -446,7 +446,7 @@ pub fn service_commit<F: RepositoryFacts>(
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
                         native,
-                        amended_as_new: amended.as_ref().filter(|_| lands_as_new),
+                        amended_as_new: amended.as_ref().filter(|_| { return lands_as_new; }),
                         unlanded: unlanded.as_slice(),
                         config: config.clone(),
                     },

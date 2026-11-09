@@ -246,7 +246,7 @@ pub fn prepare<F: RepositoryFacts>(
         //  ordinary commit of the same tree is not what the person asked for (`Captured::conclusion`).
         if let Some(expected) = again.captured.conclusion.as_deref() {
             let now: String = conclusion_state_text(context, cwd, capture.layout.git_dir.as_path(), capture.layout.ref_format)
-                .map_err(|error| failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}")))?;
+                .map_err(|error| { return failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}")); })?;
             if now != expected {
                 return Err(TransactionStop::Message(render(&ClientFailure::ConclusionStateChanged {
                     branch: reference.trim_start_matches("refs/heads/").to_string(),
@@ -331,7 +331,7 @@ pub fn prepare<F: RepositoryFacts>(
     let conclusion_state: Option<String> = match capture.layout.conclusion {
         Conclusion::Merge | Conclusion::CherryPick | Conclusion::Revert => Some(
             conclusion_state_text(context, cwd, capture.layout.git_dir.as_path(), capture.layout.ref_format)
-                .map_err(|error| failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}")))?,
+                .map_err(|error| { return failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}")); })?,
         ),
         Conclusion::None | Conclusion::Amend => None,
     };
