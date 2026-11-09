@@ -1285,3 +1285,42 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
     assert!(answering.is_ok(), "a watcher whose child had ended spun on its ceiling branch instead of waiting for the mark that ends it");
     let _ended = answering.expect("the task answered").expect("the watcher ended normally");
 }
+
+/// What:
+///  A step ended at the ceiling carried by its own wait takes the processes it started with it.
+/// Why:
+///  The fallback ceiling ended the leader alone, and a helper the step started kept running after the wrapper
+///  reported the step ended, though `StepBound::EndAt` says a step ends with its whole process tree
+///  (the fifth review's finding 2).
+///  The step's own shell waits for a helper that outlives every control here, so a helper still alive at the end of
+///  this control shows that nothing reached it.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_with_it() {
+    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    let directory: PathBuf = crate::test_support::fixture("child-watch-tree-at-the-ceiling");
+    let helper_file: PathBuf = directory.join("helper");
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", format!("sleep 600 & echo $! > '{}'; wait", helper_file.display()).as_str()]).stdin(Stdio::null());
+    let failure: std::io::Error =
+        output_watched_within(&mut command, "a step with a helper", "a step with a helper", terms(Duration::from_secs(3600), &sink), true, StepBound::EndAt(Duration::from_millis(400)))
+            .expect_err("the ceiling ended the step");
+    drop(refused);
+    let helper: i32 = std::fs::read_to_string(&helper_file).expect("the helper's process ID").trim().parse().expect("a process number");
+    // A process that has ended is collected by the system's init, or waits as a zombie of a subreaper; neither is a
+    //  process that still runs, and `member_read` answers both with `Gone`.
+    let looked_from: Instant = Instant::now();
+    while looked_from.elapsed() < Duration::from_secs(2) && crate::process_tree::member_read(helper) != crate::process_tree::MemberRead::Gone {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let gone: bool = crate::process_tree::member_read(helper) == crate::process_tree::MemberRead::Gone;
+    // The assertions come after the cleanup, so a failing control leaves nothing running.
+    if !gone {
+        // SAFETY: `kill` takes two integers and touches no memory; the number is the helper this control started.
+        let _ended = unsafe { libc::kill(helper, libc::SIGKILL) };
+    }
+    crate::test_support::remove(directory.as_path());
+    assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "the step ended at its ceiling: {failure}");
+    assert!(gone, "the process the step started was left running after the step was reported ended at its ceiling");
+}

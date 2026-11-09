@@ -341,9 +341,11 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
                 Ok(status) => status,
                 Err(_elapsed) => {
                     // Nothing ended this step before its ceiling, so this wait carries it: whatever the watch could not do, a step
-                    //  never outlives the ceiling the wrapper gives it.
+                    //  never outlives the ceiling the wrapper gives it. `StepBound::EndAt` is a whole process tree, so the
+                    //  programs the step started end with it and can neither hold its streams nor write after it was reported
+                    //  ended (the fifth review's finding 2).
                     ended.send_replace(Some(Instant::now()));
-                    owned.end_and_reap();
+                    owned.end_with_the_processes_it_started();
                     Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, carried)))
                 }
             },

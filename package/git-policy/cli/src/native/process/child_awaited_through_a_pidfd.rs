@@ -23,6 +23,8 @@
 //! ```
 
 use crate::bounded_push::STOP_GRACE;
+use crate::member_signalled_through_its_pidfd::{Delivered, kill_members};
+use crate::process_tree::{TreeMember, descendants_of_read};
 use std::os::fd::OwnedFd;
 use std::process::{Child, ExitStatus};
 use std::time::{Duration, Instant};
@@ -200,6 +202,31 @@ impl OwnedChild {
             }
             crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
         }
+    }
+
+    /// What:
+    ///  Ends the child and every process it started,
+    /// and reaps the child.
+    /// Why:
+    ///  A ceiling that ends only the leader leaves what the leader started running:
+    /// a helper that holds the
+    ///  step's streams open,
+    ///  or one that writes into the repository after the step was reported ended.
+    /// The owner's rule is that a step ends with its whole process tree (`StepBound::EndAt`),
+    ///  so the tree is read here,
+    /// while the child is this process's own unreaped one and no reuse can have taken its number,
+    ///  and every member is killed through a descriptor opened while its number still named it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const tree = descendantsOf(owned.id); owned.kill(); for (const member of tree) member.kill('SIGKILL'); owned.endAndReap();
+    /// ```
+    pub fn end_with_the_processes_it_started(&mut self) {
+        // The tree is read before the leader is signalled: a child's link to its parent is gone once the parent has exited.
+        let walked: Option<Vec<TreeMember>> = i32::try_from(self.id()).ok().and_then(descendants_of_read);
+        let _killed: std::io::Result<()> = self.kill();
+        let _below_ended: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
+        self.end_and_reap();
     }
 
     /// What:
