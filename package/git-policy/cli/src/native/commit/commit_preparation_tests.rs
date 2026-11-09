@@ -48,10 +48,11 @@ struct Fixture {
     intended_tree: String,
 }
 
-/// A repository with `a.txt` committed,
-/// the change to `a.txt` staged privately,
-/// and a shadow ready to prepare.
-fn prepared_fixture(root: &Path) -> Fixture {
+/// The repository one preparation fixture commits in:
+/// `a.txt` committed on `main`,
+/// an upstream and an `onbranch` include,
+/// and a change to `a.txt` in the worktree.
+fn prepared_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
@@ -71,7 +72,22 @@ fn prepared_fixture(root: &Path) -> Fixture {
         })
         .expect("include config");
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    return repo;
+}
+
+/// A repository with `a.txt` committed,
+/// the change to `a.txt` staged privately,
+/// and a shadow ready to prepare.
+fn prepared_fixture(root: &Path) -> Fixture {
+    return preparation_fixture(root, prepared_repository(root));
+}
+
+/// The private index, the capture and the shadow of a repository,
+/// taken after everything the invocation would have read is in place.
+fn preparation_fixture(root: &Path, repo: PathBuf) -> Fixture {
     let context = git_context();
+    // The base is whatever the repository's branch holds now, which is the state the invocation saw.
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
     let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
     let transaction: PathBuf = root.join(format!("transaction-{TRANSACTION}"));
@@ -462,12 +478,14 @@ fn signing_included_by_exact_gitdir(root: &Path, repo: &Path) -> PathBuf {
 #[test]
 fn signing_from_an_exact_gitdir_include_reaches_the_shadow() {
     let root: PathBuf = fixture("commit-preparation-gitdir-signing");
-    let fixture: Fixture = prepared_fixture(root.as_path());
-    signing_included_by_exact_gitdir(root.as_path(), fixture.repo.as_path());
+    let repo: PathBuf = prepared_repository(root.as_path());
+    signing_included_by_exact_gitdir(root.as_path(), repo.as_path());
     // The positive control: real Git, in the real Git directory, signs this repository's commits.
-    git(fixture.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=native control"]);
-    let native: String = git_text(fixture.repo.as_path(), &["cat-file", "commit", "HEAD"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=native control"]);
+    let native: String = git_text(repo.as_path(), &["cat-file", "commit", "HEAD"]);
     assert!(native.contains("\ngpgsig "), "the exact gitdir include must sign, or this control proves nothing");
+    // The capture reads the configuration after the include is in place, as the invocation's does.
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
     // The shadow's own native commit must sign for the same reason.
     let prepared: PreparedCommit = prepare(&fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
     assert!(prepared.signed, "the shadow must not turn the person's signing request into an unsigned commit");
