@@ -79,6 +79,33 @@ impl Rendezvous {
     }
 }
 
+/// What:
+///  Whether this process may run `needed` blocking jobs at once,
+///  and one line naming the control and the bound it saw when it may not.
+/// Why:
+///  A control that proves its work overlaps puts every item in flight at once,
+/// and the process's bound on blocking jobs (`budgeted_blocking_jobs`) comes from the CPUs this process
+/// may use,
+///  not from the host a control states for its own budget request.
+/// On a machine with few CPUs the control cannot check what it exists to check,
+/// so it says so and passes,
+///  instead of failing for the machines it happens to run on
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "the process's one bound on blocking jobs").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!mayRunAllAtOnce('the indexes are rewritten side by side', 4)) return; // it said why
+/// ```
+pub(crate) fn may_run_all_at_once(control: &str, needed: usize) -> bool {
+    let allowed: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs();
+    if allowed >= needed {
+        return true;
+    }
+    eprintln!("skipped: {control} needs {needed} blocking jobs at once, and this process allows {allowed} (`budgeted_blocking_jobs`, from the CPUs it may use); run it where more CPUs are allowed");
+    return false;
+}
+
 /// How many places of the process's bound on blocking jobs the place control holds:
 /// the one.
 pub(crate) const ONE_PLACE: usize = 1;
