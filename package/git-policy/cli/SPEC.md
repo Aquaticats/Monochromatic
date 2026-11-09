@@ -10236,6 +10236,25 @@ which Git refuses with `changes environment variables` and runs nothing for
 `-P`),
 and one whose name an installed `git-<name>` program carries,
 which Git runs before it looks any alias up.
+Whether a program carries the name is read from Git's own search:
+the directory the caller's last `--exec-path=` names,
+else a nonempty `GIT_EXEC_PATH`,
+else the path Git reports for itself,
+and then every `PATH` entry.
+A relative value in either of the first two,
+and every `PATH` entry without a leading separator,
+is read from the directory Git runs in after the caller's ordered `-C` chain,
+which is why that chain is walked rather than guessed;
+an empty `--exec-path=` adds no directory,
+as Git adds none.
+An answer the reading cannot prove leaves the alias to Git,
+which then decides.
+The endings that reach that answer are starts of Git that fail for the exec path question,
+and the alias lookup is another start of the same Git with the same globals,
+environment and directory,
+so it fails with them and there is no alias to read.
+A failure that hits only the first start can still leave an alias to Git,
+and that is this reading's remaining limit.
 No fact of the caller then describes a repository the command never runs in,
 and the audit names what Git runs.
 A built-in word is decided without reading any configuration,
@@ -10263,6 +10282,16 @@ backtick,
 glob,
 brace or separator,
 and whose words name no global option of their own.
+Git appends the caller's own words to the value before the shell reads it
+(`git.c:401` to `git.c:402`),
+so the command followed is the value's words and then the caller's:
+a value of exactly `!git` starts that command with the caller's first word,
+and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
+The Git inside the shell also reads the configuration and the exec path the caller passed,
+which Git exports to what it starts
+(`config.c:469` to `config.c:504`,
+`exec-cmd.c:303` to `exec-cmd.c:310`),
+so `-c 'alias.outer=!git inner' -c 'alias.inner=reset --hard' outer` is decided on the inner reset.
 `!git reset --hard` is then refused where `git reset --hard` is refused,
 and the alias itself is still forwarded unchanged,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
