@@ -523,7 +523,25 @@ impl SignalGuard {
     /// await guard.runChildAwaiting(command): Promise<ChildOutcome>
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        return run_relayed(command, self.relaying).await;
+        return run_relayed(command, self.relaying, &mut |_started: i32| {}).await;
+    }
+
+    /// What:
+    ///  Start `command`, wait for it while relaying signals, and return how it ended,
+    /// having told `on_started` the child's number as soon as it exists.
+    /// Why:
+    ///   A ceiling that ends a step must name that step and no other child of this process,
+    /// and the only moment its number can be had is the moment it starts.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const outcome = guard.runChildNaming(command, (pid) => notice.stepStarted(pid));
+    /// ```
+    pub fn run_child_telling_its_number(&self, command: &mut Command, mut on_started: impl FnMut(i32)) -> io::Result<ChildOutcome> {
+        return match run_on_runtime(run_relayed(command, self.relaying, &mut on_started)) {
+            Ok(outcome) => outcome,
+            Err(refusal) => Err(io::Error::other(refusal.to_string())),
+        };
     }
 }
 
@@ -599,10 +617,11 @@ fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
 /// so that signal is relayed here,
 /// not lost.
 #[cfg(unix)]
-async fn run_relayed(command: &mut Command, relaying: bool) -> io::Result<ChildOutcome> {
+async fn run_relayed(command: &mut Command, relaying: bool, on_started: &mut dyn FnMut(i32)) -> io::Result<ChildOutcome> {
     // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
     let (_unfinished, stop) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child("a Git step of a commit")?;
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
+    on_started(i32::try_from(started.id()).unwrap_or(0));
     let owned = adopt(started);
     let published: bool = relaying && publish(owned.id());
     let waited: io::Result<ExitStatus> = crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await;

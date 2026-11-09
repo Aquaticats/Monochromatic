@@ -101,6 +101,12 @@ fn sleeping_step() -> std::process::Child {
     return std::process::Command::new("sleep").arg("120").spawn().expect("a long-running child");
 }
 
+/// The number of a child,
+/// as the commit path tells it to the notice once the step has started.
+fn step_number(child: &std::process::Child) -> i32 {
+    return i32::try_from(child.id()).expect("a process number");
+}
+
 /// The signal that ended a child,
 /// waiting at most a few seconds so a child that was never stopped fails the control instead of hanging it.
 fn ended_by_signal(child: &mut std::process::Child) -> Option<i32> {
@@ -130,6 +136,7 @@ fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
         ceiling: Duration::from_millis(300),
         sink: Box::new(sink.clone()),
     });
+    notice.step_started(step_number(&step));
     let ended: Option<i32> = ended_by_signal(&mut step);
     let seen: ScratchStepFacts = notice.finish();
     if ended.is_none() {
@@ -206,6 +213,7 @@ fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
     // The start is held up past the ceiling, as a start on a host with no process to spare is.
     std::thread::sleep(Duration::from_millis(400));
     let mut step: std::process::Child = sleeping_step();
+    notice.step_started(step_number(&step));
     let ended: Option<i32> = ended_by_signal(&mut step);
     let stopped: Option<Duration> = notice.finish().stopped_after;
     if ended.is_none() {
@@ -264,6 +272,7 @@ fn the_notice_reports_the_programs_that_ran_below_the_step() {
         ceiling: Duration::from_secs(120),
         sink: Box::new(Buffer::default()),
     });
+    notice.step_started(step_number(&step));
     std::thread::sleep(Duration::from_millis(1200));
     let seen: ScratchStepFacts = notice.finish();
     step.kill().expect("cleanup");
@@ -332,9 +341,9 @@ fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
     let baseline: usize = crate::test_support::open_descriptors();
     let before: rustix::process::Rlimit = crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
     let held: Vec<std::fs::File> = crate::test_support::leave_free(0);
-    let look: Option<Vec<(i32, ProcessUse)>> = look_below();
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
-    let came: CeilingCame = ceiling_came(descendants_of_read(own).as_deref());
+    let look: Option<Vec<(i32, ProcessUse)>> = look_below(own);
+    let came: CeilingCame = ceiling_came(own);
     drop(held);
     crate::test_support::restore_limit(before);
     assert!(look.is_none(), "the look was made with no descriptor left free: {look:?}");
@@ -362,6 +371,7 @@ fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
         ceiling: Duration::from_millis(200),
         sink: Box::new(sink.clone()),
     });
+    notice.step_started(step_number(&step));
     // The first look finds the step, so the ceiling is armed on it.
     std::thread::sleep(Duration::from_millis(50));
     let baseline: usize = crate::test_support::open_descriptors();
@@ -435,6 +445,7 @@ fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
         ceiling: Duration::from_millis(300),
         sink: Box::new(Buffer::default()),
     });
+    notice.step_started(step_number(&step));
     let ended: Option<i32> = ended_by_signal(&mut step);
     let beside_ended: Option<i32> = ended_within(&mut beside, STILL_RUNNING_BOUND);
     let seen: ScratchStepFacts = notice.finish();
@@ -444,4 +455,32 @@ fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
     }
     assert!(ended.is_some(), "the ceiling did not end the step it watches: {seen:?}");
     assert!(beside_ended.is_none(), "the ceiling ended a process beside the step ({beside_ended:?}); only the step it watches may be ended");
+}
+
+/// What:
+///  A ceiling that finds the step already ended reports no stop,
+///  and one that finds it running does.
+/// Why:
+///   A commit that landed is refused as "stopped" when the notice records a stop it never made:
+/// the step can finish between the look that armed the ceiling and the signal.
+///  The ended step here really is a reaped process and the running one really is live,
+/// so the two arms differ in nothing but whether a signal was taken.
+#[test]
+fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
+    let mut ended_step: std::process::Child = sleeping_step();
+    let ended_number: i32 = step_number(&ended_step);
+    ended_step.kill().expect("the step ends");
+    ended_step.wait().expect("reaped");
+    let mut running_step: std::process::Child = sleeping_step();
+    let running_number: i32 = step_number(&running_step);
+    let after_the_end: CeilingCame = ceiling_came(ended_number);
+    let while_running: CeilingCame = ceiling_came(running_number);
+    let ended: Option<i32> = ended_by_signal(&mut running_step);
+    if ended.is_none() {
+        running_step.kill().expect("cleanup");
+        running_step.wait().expect("reaped");
+    }
+    assert_eq!(after_the_end, CeilingCame::TheStepEnded, "a step that already ended was reported as stopped, which refuses a commit that landed");
+    assert_eq!(while_running, CeilingCame::Stopped, "a step that was signalled is reported as stopped");
+    assert!(ended.is_some(), "the step the ceiling signalled ended");
 }

@@ -69,9 +69,8 @@ pub fn scratch_ceiling() -> Duration {
 
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
-/// The processes started below this one,
-/// and their end.
-use crate::process_tree::{Delivered, descendants_of_read, kill_members};
+/// The step the notice watches, and the processes it started.
+use crate::process_tree::{Delivered, MemberRead, descendants_of_read, kill_members, member_read};
 /// The configuration the commit is built under.
 use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
@@ -175,6 +174,44 @@ use crate::process_tree::descendant_numbers_from_thread_lists;
 /// from one `/proc/<pid>/stat`.
 use crate::process_tree::use_of;
 
+/// What:
+///  Where the number of the step is kept once the step has started.
+/// Why:
+///   The notice starts before `git commit` does,
+/// because the step may be slow to start,
+/// and a ceiling must end only that step:
+/// a number handed over once is what the notice watches,
+/// so no other child of this process can be in the tree it walks.
+///  A landing service runs landings of different repositories on worker threads of one process,
+/// so another landing's Git is a child of this one at the same moment,
+/// and cutting its write is what the owner's answer of 2026-11-09 rules out
+/// ("B: let a branch write finish").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watched = new WatchedStep(); watched.started(pid); watched.number();
+/// ```
+#[derive(Clone, Debug, Default)]
+struct WatchedStep(std::sync::Arc<std::sync::OnceLock<i32>>);
+
+impl WatchedStep {
+    /// A step that has not started yet.
+    fn not_started() -> Self {
+        return Self::default();
+    }
+
+    /// Keep `pid` as the step's number;
+    /// the first number given is the step, and a later one changes nothing.
+    fn started(&self, pid: i32) {
+        let _kept = self.0.set(pid);
+    }
+
+    /// The step's number, once it has started.
+    fn number(&self) -> Option<i32> {
+        return self.0.get().copied();
+    }
+}
+
 /// The running notice:
 /// the thread that prints it and the sender that ends it.
 pub struct NativeCommitNotice {
@@ -187,6 +224,8 @@ pub struct NativeCommitNotice {
     /// What is reported when no thread ran,
     /// so a record still says that no ceiling was armed and why.
     unarmed: ScratchStepFacts,
+    /// The step the thread watches.
+    step: WatchedStep,
 }
 
 /// Whether the commit is signed:
@@ -224,25 +263,32 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const below = lookBelow(); // [{ pid, name, state, cpu }], undefined when the look failed
+/// const below = lookBelow(step); // [{ pid, name, state, cpu }], undefined when the look failed
 /// ```
-fn look_below() -> Option<Vec<(i32, ProcessUse)>> {
-    let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
-    let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(own) {
+fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
+    let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(step) {
         Some(found) => found,
-        None => descendants_of_read(own)?.iter().map(member_number).collect(),
+        None => descendants_of_read(step)?.iter().map(member_number).collect(),
     };
     let mut found: Vec<(i32, ProcessUse)> = Vec::new();
+    // The step itself, so a look that finds it and nothing else still arms the ceiling.
+    if let Some(used) = use_of(step)
+        && used.state != 'Z'
+    {
+        found.push((step, used));
+    }
+    let mut read_below: bool = false;
     for pid in numbers.iter().copied() {
-        if let Some(used) = use_of(pid)
-            && used.state != 'Z'
-        {
-            found.push((pid, used));
+        if let Some(used) = use_of(pid) {
+            read_below = true;
+            if used.state != 'Z' {
+                found.push((pid, used));
+            }
         }
     }
-    // Every process the walk named that could not be read is a look that failed,
-    // as long as none of them could be read at all.
-    if !numbers.is_empty() && found.is_empty() {
+    // A walk that named processes and let none of them be read is a look that failed,
+    // never a step with nothing below it.
+    if !numbers.is_empty() && !read_below {
         return None;
     }
     return Some(found);
@@ -284,18 +330,21 @@ enum CeilingCame {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const came = ceilingCame(look); // an undefined look: 'unknown'
+/// const came = ceilingCame(step); // an unreadable tree: 'unknown'
 /// ```
-fn ceiling_came(look: Option<&[TreeMember]>) -> CeilingCame {
-    let Some(members) = look else {
+fn ceiling_came(step: i32) -> CeilingCame {
+    let Some(below) = descendants_of_read(step) else {
         return CeilingCame::Unknown;
     };
-    if members.is_empty() {
-        return CeilingCame::TheStepEnded;
-    }
-    // Everything below this process is the step and its signer; nothing of the person's runs there.
-    let delivered: Vec<Delivered> = kill_members(members);
-    if delivered.contains(&Delivered::Sent) {
+    let stopped_the_step: bool = match member_read(step) {
+        MemberRead::Found(member) => kill_members(std::slice::from_ref(&member)).contains(&Delivered::Sent),
+        MemberRead::Gone => false,
+        MemberRead::Unreadable => return CeilingCame::Unknown,
+    };
+    // The signing program and everything else the step started goes with it,
+    // whether or not the step itself was still there to be signalled.
+    let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
+    if stopped_the_step {
         return CeilingCame::Stopped;
     }
     return CeilingCame::TheStepEnded;
@@ -429,7 +478,22 @@ impl NativeCommitNotice {
     /// the commit opens an editor,
     /// or no thread could be started.
     fn silent(ceiling: Option<Duration>) -> Self {
-        return Self { stop: None, thread: None, unarmed: ScratchStepFacts::unarmed(ceiling) };
+        return Self { stop: None, thread: None, unarmed: ScratchStepFacts::unarmed(ceiling), step: WatchedStep::not_started() };
+    }
+
+    /// What:
+    ///  Keep the number of the `git commit` this notice watches.
+    /// Why:
+    ///   A ceiling ends the step it watches and nothing else this process started:
+    /// the landing service runs one process for every landing,
+    /// so another landing's Git is a child of the same process at the same moment.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// notice.stepStarted(pid);
+    /// ```
+    pub fn step_started(&self, pid: i32) {
+        self.step.started(pid);
     }
 
     /// What:
@@ -458,6 +522,8 @@ impl NativeCommitNotice {
         let signs: bool = signs_commit(snapshot, commit_arguments);
         let (stop, ended) = channel::<()>();
         let began: Instant = Instant::now();
+        let step: WatchedStep = WatchedStep::not_started();
+        let watched: WatchedStep = step.clone();
         let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
@@ -468,11 +534,14 @@ impl NativeCommitNotice {
             // The processes the previous look saw below the step, and when that look was.
             let mut before: Vec<SeenBelow> = Vec::new();
             let mut last_look: Duration = Duration::ZERO;
-            let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
             loop {
                 let waited: Duration = began.elapsed();
                 // One look: the step, the programs below it, and what they are using.
-                let look: Option<Vec<(i32, ProcessUse)>> = look_below();
+                // A step that has not started yet is nothing to look at, which is not a look that failed.
+                let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
+                    Some(step) => look_below(step),
+                    None => Some(Vec::new()),
+                };
                 let below: &[(i32, ProcessUse)] = look.as_deref().unwrap_or_default();
                 facts.looks = facts.looks.saturating_add(1);
                 if !below.is_empty() {
@@ -493,8 +562,12 @@ impl NativeCommitNotice {
                     Some(seen) => waited.saturating_sub(seen),
                     None => Duration::ZERO,
                 };
-                if seen_at.is_some() && since_seen >= ceiling {
-                    match ceiling_came(descendants_of_read(own).as_deref()) {
+                // The ceiling can only have been counted from a look that found the step, so its number is known here.
+                if let Some(step) = watched.number()
+                    && seen_at.is_some()
+                    && since_seen >= ceiling
+                {
+                    match ceiling_came(step) {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
                             return facts;
@@ -531,7 +604,7 @@ impl NativeCommitNotice {
             }
         });
         return match spawned {
-            Ok(thread) => Self { stop: Some(stop), thread: Some(thread), unarmed: ScratchStepFacts::unarmed(Some(ceiling)) },
+            Ok(thread) => Self { stop: Some(stop), thread: Some(thread), unarmed: ScratchStepFacts::unarmed(Some(ceiling)), step },
             // The system refused the thread: the step runs with no ceiling, and the record says so.
             Err(_) => Self::silent(Some(ceiling)),
         };

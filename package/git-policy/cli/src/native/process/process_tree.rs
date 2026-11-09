@@ -344,6 +344,56 @@ pub fn member_of(_pid: i32) -> Option<TreeMember> {
 }
 
 /// What:
+///  What a read of one process's record came to.
+/// Why:
+///   `member_of` answers nothing both for a process that ended and for a record that could not be read,
+/// and a caller that stops what it finds must tell them apart:
+/// the first is a fact about the process and the second a fact about the read,
+/// so only the first may be read as "the step ended".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MemberRead = { kind: 'found'; member: TreeMember } | { kind: 'gone' } | { kind: 'unreadable' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MemberRead {
+    /// The process, still there and not a zombie.
+    Found(TreeMember),
+    /// No process has that number,
+    /// or the one that has it is a zombie.
+    Gone,
+    /// The record could not be read at all
+    /// (a descriptor, memory or permission limit).
+    Unreadable,
+}
+
+/// The member `pid` names,
+/// or which of the two ways it is not one.
+#[cfg(target_os = "linux")]
+pub fn member_read(pid: i32) -> MemberRead {
+    let text: String = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(read) => read,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return MemberRead::Gone,
+        Err(_) => return MemberRead::Unreadable,
+    };
+    let Some((_parent, started, zombie)) = parse_stat(text.as_str()) else {
+        return MemberRead::Unreadable;
+    };
+    if zombie {
+        return MemberRead::Gone;
+    }
+    return MemberRead::Found(TreeMember { pid, started });
+}
+
+/// Only Linux reads a process's record;
+/// elsewhere no member is found.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn member_read(_pid: i32) -> MemberRead {
+    return MemberRead::Gone;
+}
+
+/// What:
 ///  The start time the kernel recorded for `pid` and whether it holds it as a zombie,
 ///  or nothing when the number names no process
 ///  (or no readable one).

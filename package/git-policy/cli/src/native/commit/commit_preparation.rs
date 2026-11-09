@@ -217,7 +217,7 @@ pub fn run_native_commit_within(
         },
     );
     let began: std::time::Instant = std::time::Instant::now();
-    let finished = run_guarded_child(&mut command);
+    let finished = run_guarded_child(&mut command, &notice);
     // The step's own figure is the child alone. The notice's own time (its lines are written from its thread, and a write waits
     // for its reader) is reported beside it in `scratchSteps`, and the time the signing program ran below the step is there too,
     // so a long step names no work the person's terminal did.
@@ -234,23 +234,27 @@ pub fn run_native_commit_within(
 }
 
 /// What:
-///  Run the native commit under the signal guard and return its exit code.
+///  Run the native commit under the signal guard,
+///  tell the notice which process is the step as soon as it starts,
+///  and return its exit code.
 /// Why:
 ///   A signal sent to the wrapper while Git runs reaches Git when a process sent it;
 /// Git's ending decides the status.
+///  The number is what lets the notice's ceiling reach this step and no other child of this process,
+/// which the landing service runs beside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// using guard = installSignalGuard(); return exitCode(await guard.runChild(command));
+/// using guard = installSignalGuard(); return exitCode(await guard.runChildNaming(command, (pid) => notice.stepStarted(pid)));
 /// ```
-fn run_guarded_child(command: &mut std::process::Command) -> Result<i32, PreparationError> {
+fn run_guarded_child(command: &mut std::process::Command, notice: &crate::native_commit_waiting_notice::NativeCommitNotice) -> Result<i32, PreparationError> {
     let guard: SignalGuard = match SignalGuard::install() {
         Ok(installed) => installed,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));
         }
     };
-    let outcome = match guard.run_child(command) {
+    let outcome = match guard.run_child_telling_its_number(command, |pid| notice.step_started(pid)) {
         Ok(finished) => finished,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("git commit could not start: {error}"))));
