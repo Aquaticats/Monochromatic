@@ -695,3 +695,22 @@ fn a_conda_extraction_that_finds_no_payload_removes_its_staging_directory() {
     assert!(error.to_string().contains("holds no pkg-*.tar.zst payload"), "{error}");
     assert!(!into.join(".conda-staging").exists(), "the failed extraction left its staging directory behind");
 }
+
+/// Components and targets are added to the channel `packageId` names:
+/// that is the toolchain the install step created, and the locked version can spell a date the channel does not.
+#[test]
+fn rust_components_and_targets_use_the_package_id_channel_that_was_installed() {
+    let mut rig = Rig::new();
+    let rust = rig.lock.tools.iter_mut().find(|tool| return tool.declaration.id == "rust").expect("the rust tool");
+    rust.declaration.package_id = Some("nightly".to_string());
+    install_tool(&rig.context(), &rig.tool("rust")).expect("installed");
+    assert_eq!(
+        rig.runner.lines(),
+        vec![
+            "rustup toolchain install --no-self-update nightly".to_string(),
+            "rustup component add clippy --toolchain nightly".to_string(),
+            "rustup component add rust-src --toolchain nightly".to_string(),
+            "rustup target add aarch64-linux-android --toolchain nightly".to_string(),
+        ]
+    );
+}
