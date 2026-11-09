@@ -55,7 +55,7 @@ pub(crate) const INDEX_LOCK: &str = "index.lock";
 
 /// The name of the index itself,
 /// in the administrative directory of a worktree.
-const INDEX: &str = "index";
+pub(crate) const INDEX: &str = "index";
 
 /// The name Git gives the pointer file that makes a directory a worktree.
 const POINTER: &str = ".git";

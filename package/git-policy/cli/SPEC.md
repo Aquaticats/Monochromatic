@@ -1785,11 +1785,28 @@ and the
 another repository's,
 whose lock the printed step would then clear.
 The proof cannot see a process filling the destination beside an index that was written before it started
-(another program's `git read-tree` without `-u`,
-then a copy),
 and it compares no file's contents;
 Git's own `read-tree -u` and `reset --hard` hold `index.lock` for as long as they write,
 so the lock refuses those while they run.
+The sequence it cannot judge,
+written down here because nothing in the destination reports another process's progress:
+a separate process runs `git read-tree HEAD` in the interrupted add's destination,
+which installs the index without writing a file,
+and then copies one of the target's files and stops,
+one the target commit has two of;
+the index stands,
+no `index.lock` stands,
+the destination holds a file beside Git's pointer,
+so the proof reads the checkout as whole and the record goes,
+although one file the commit names was never written.
+No reading of the destination can tell that from a finished checkout,
+so the wrapper adds no mechanism for it:
+the process that restored the destination partly is the one that knows it was
+partial,
+and the person reads the same shape here.
+The same limit covers an index written by such a process and filled by a copy of
+every file,
+which the proof also cannot separate from a checkout Git finished.
 The stage is the person's to remove,
 and its claim goes with it.
 When the worktree's administrative directory holds `index.lock`

@@ -1023,3 +1023,58 @@ fn a_registration_named_across_a_newline_is_read_as_git_reads_it() {
     assert_eq!(registration_directory(destination.as_path()), Some(admin), "the whole path the pointer names, as Git reads it");
     remove(root.as_path());
 }
+
+/// What:
+///  A checkout that another process restored only partly is settled as whole,
+/// and this is the limit named in `SPEC.md`
+///  rather than a mechanism.
+/// Why:
+///   The proof is what the two directories say:
+/// an index,
+/// no `index.lock`,
+/// and a file beside Git's
+///  pointer.
+/// A separate process that runs `git read-tree HEAD` in the destination installs the index without
+///  writing the files,
+/// and one that then copies `a.txt` and stops leaves the destination looking whole although
+///  `b.txt` was never written.
+/// Closing that window needs to know another process's progress,
+/// which no reading of the
+///  destination can tell,
+/// so the sequence is written down where the proof is described and the record goes:
+/// the
+///  person who ran the partial restoration is the one who knows it was partial.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(destination, 'read-tree HEAD'); writeFileSync(join(destination, 'a.txt'), 'a');
+/// expect(reap(common)).toEqual([]); expect(existsSync(join(admin, 'index'))).toBe(true); expect(existsSync(join(destination, 'b.txt'))).toBe(false);
+/// ```
+#[test]
+fn a_checkout_another_process_restored_partly_is_settled_as_whole() {
+    let root: PathBuf = fixture("claim-add-partly-restored");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    for name in ["a.txt", "b.txt"] {
+        std::fs::write(repo.join(name), format!("{name}\n").as_bytes()).expect("a tracked file");
+    }
+    crate::test_support::git(repo.as_path(), &["add", "a.txt", "b.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=two files"]);
+    let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    let claim: StageClaim = claim_stage_for_add_as(repo.join(".git").as_path(), destination_wanted.as_path(), &dead_copy_owner()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    claim.record_binding(&bound.binding).expect("recorded");
+    let admin: PathBuf = bound.binding.admin.clone();
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    // Another process installs the index without the files, then copies one of the two.
+    crate::test_support::git(destination.as_path(), &["read-tree", "HEAD"]);
+    std::fs::write(destination.join("a.txt"), b"a.txt\n").expect("one file only");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(notices, Vec::<String>::new(), "the proof reads an index and a file and settles: {notices:?}");
+    assert!(!destination.join("b.txt").exists(), "the file the other process never copied is the one this limit is about");
+    assert!(admin.join(INDEX).exists() && !admin.join(INDEX_LOCK).exists(), "an index with no lock is what the proof reads");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the record goes with the settlement");
+    remove(root.as_path());
+}
