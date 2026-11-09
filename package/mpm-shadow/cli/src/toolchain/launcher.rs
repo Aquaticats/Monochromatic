@@ -54,6 +54,8 @@ use super::launcher_source::{launcher_source, running_program};
 use super::repository_link_cause::{CHECK_DEADLINE, LinkVerdict, repository_link_verdict};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{Scope, ScopeKind};
+/// Imports the one atomic write the launcher and the lock share.
+use super::util::write_atomically;
 
 /// The suffix of the record beside a launcher.
 pub const RECORD_SUFFIX: &str = ".launch";
@@ -114,22 +116,6 @@ pub fn parse_record(text: &str) -> Option<LaunchRecord> {
         real: PathBuf::from(value.get("real")?.as_str()?),
         scope,
     });
-}
-
-/// Writes `bytes` to `target` through a temporary file and a rename,
-/// so a reader sees the old file or the new one.
-fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainError> {
-    let mut temporary_name: OsString = OsString::from(".");
-    temporary_name.push(target.file_name().unwrap_or_default());
-    temporary_name.push(format!(".{}.tmp", std::process::id()));
-    let temporary: PathBuf = target.with_file_name(temporary_name);
-    if let Err(error) = fs::write(&temporary, bytes) {
-        return Err(ToolchainError::failure(format!("cannot write {}: {error}", temporary.display())));
-    }
-    if let Err(error) = fs::rename(&temporary, target) {
-        return Err(ToolchainError::failure(format!("cannot place {}: {error}", target.display())));
-    }
-    return Ok(());
 }
 
 /// Whether both paths name the same file (the same device and inode),

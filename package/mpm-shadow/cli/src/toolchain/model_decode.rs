@@ -24,6 +24,8 @@ use super::model_decode_support::{DecodeResult, as_nonempty_text, as_object, as_
 use super::observe::declared_package_name;
 /// Imports the checks that a name is one plain directory name.
 use super::segment::{check_bin_name, check_directory_name, check_tool_id, check_version};
+/// Imports the platform ids an artifact row may be keyed by.
+use super::update_resolve::LINUX_PLATFORMS;
 
 /// Imports the model types the decoders build.
 use super::model::{
@@ -48,6 +50,11 @@ fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
     reject_unknown_keys(map, &["when", "link", "run"], path)?;
     if map.get("when").and_then(Value::as_str) != Some("always") {
         return Err(format!("{path}.when must be \"always\""));
+    }
+    // The model carries one step, so an entry holding both is refused with both fields named rather than keeping the
+    // link and silently dropping the run.
+    if map.contains_key("link") && map.contains_key("run") {
+        return Err(format!("{path} holds both a link and a run; state one step"));
     }
     if let Some(link) = map.get("link") {
         let link_path: String = format!("{path}.link");
@@ -260,6 +267,11 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
         env,
         options,
     };
+    // A `cargo-git` request names a repository and a revision, never a crate, so `packageId` is the only place the
+    // crate name can come from: without it `cargo install --git` was handed the plan key and failed there.
+    if declaration.route == Route::CargoGit && declaration.package_id.is_none() {
+        return Err(format!("{path}.packageId is required for the cargo-git route: the request names a repository, so it cannot name the crate"));
+    }
     // The `cargo-binstall` route installs under `<toolchain root>/cargo/<package name>`.
     if declaration.route == Route::CargoBinstall
         && let Err(message) = check_directory_name("the package name", &declared_package_name(&declaration))
@@ -293,6 +305,10 @@ fn decode_artifacts(value: &Value, path: &str) -> DecodeResult<Vec<(String, Arti
     let mut rows: Vec<(String, Artifact)> = Vec::new();
     for (platform, row) in map {
         let row_path: String = format!("{path}.{platform}");
+        // A row keyed by anything else can never match the running machine, so it is refused here, naming the row.
+        if !LINUX_PLATFORMS.contains(&platform.as_str()) {
+            return Err(format!("{row_path}: {platform:?} is not a platform id; the known ids are {}", LINUX_PLATFORMS.join(", ")));
+        }
         let row_map = as_object(row, &row_path)?;
         reject_unknown_keys(row_map, &["url", "sha256"], &row_path)?;
         let Some(url) = row_map.get("url") else {
