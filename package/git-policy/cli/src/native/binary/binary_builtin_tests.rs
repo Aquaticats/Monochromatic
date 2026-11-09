@@ -414,6 +414,55 @@ fn whole_tree_pathspec_spellings_are_rejected() {
     remove(&fixture);
 }
 
+/// The two spellings of literal pathspec mode:
+///  the global option and the variable.
+#[derive(Clone, Copy, Debug)]
+enum LiteralMode {
+    /// `git --literal-pathspecs <command>`.
+    Option,
+    /// `GIT_LITERAL_PATHSPECS=1` in the command's environment.
+    Variable,
+}
+
+/// Run the built executable in a directory under one literal pathspec mode.
+fn run_under(fixture: &Fixture, directory: &Path, mode: LiteralMode, arguments: &[&str]) -> Observed {
+    let mut command: std::process::Command = wrapped(fixture);
+    command.current_dir(directory);
+    match mode {
+        LiteralMode::Option => {
+            // `prefixed` holds the global option the caller wrote before its subcommand.
+            let mut prefixed: Vec<&str> = vec!["--literal-pathspecs"];
+            prefixed.extend_from_slice(arguments);
+            command.args(prefixed);
+        }
+        LiteralMode::Variable => {
+            command.env("GIT_LITERAL_PATHSPECS", "1");
+            command.args(arguments);
+        }
+    }
+    return observe(&mut command, b"");
+}
+
+/// A caller whose own command reads pathspecs literally stages by its own spelling:
+/// `git --literal-pathspecs add -- '**'` stages the one file named `**`,
+/// and `GIT_LITERAL_PATHSPECS=1 git add -- '**'` does the same.
+/// The working directory stays bulk in both modes.
+#[test]
+fn literal_pathspec_mode_stages_the_file_its_pathspec_names() {
+    for mode in [LiteralMode::Option, LiteralMode::Variable] {
+        let fixture: Fixture = fixture("builtin-add-literal-mode");
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        std::fs::write(repo.join("**"), b"star\n").expect("star file");
+        std::fs::write(repo.join("other.txt"), b"other\n").expect("other file");
+        let staged: Observed = run_under(&fixture, repo.as_path(), mode, &["add", "--", "**"]);
+        assert_eq!(staged.code, Some(0), "{mode:?}: {}", stderr_of(&staged));
+        assert_eq!(porcelain(&fixture, repo.as_path()), "A  **\n?? other.txt\n", "{mode:?}");
+        let bulk: Observed = run_under(&fixture, repo.as_path(), mode, &["add", "--", "."]);
+        assert_rejected_by(&bulk, "add-explicit", "a literal-mode caller's . still stages the whole directory");
+        remove(&fixture);
+    }
+}
+
 /// The first error stops the pass;
 ///  keep-going reports every finding,
 ///  numbered in order,
