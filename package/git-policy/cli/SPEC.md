@@ -305,6 +305,10 @@ and the value is checked and ignored.
   which the service removes (owner,
   2026-11-07,
   "Service removes it").
+  The window of item 3 is open here too:
+  a holder that puts another file on the descriptor between the gate and the read is read as not holding the lock,
+  so the removal may take a lock that is in fact held,
+  and the journal line says what it acted on.
   The proof counts the service's own descriptors through the gated read of item 3 above
   (`src/native/process/open_file_of_a_descriptor.rs`),
   so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
@@ -4644,22 +4648,53 @@ and the first answer wins:
    which is the pair that names one file on a machine,
    and the record's inode number is only the cheap test that comes first,
    before the file the descriptor has open is read.
-   That read is `pidfd_getfd(2)` (a copy of the descriptor into this process) followed by `statx(2)` with
-   `AT_EMPTY_PATH` and `AT_STATX_DONT_SYNC`,
-   never a `stat` of the path `/proc/<pid>/fd/<n>`:
-   walking that path asks the file's own file system to revalidate its directory entry before any attribute is read,
-   and a file system whose server has stopped answers neither,
-   while `SIGTERM` does not end the wait either
-   (cross-vendor review of 2026-11-09,
-   finding 3;
-   measured on this host on 2026-11-09 with a stopped `fuse-overlayfs` server,
+   That read walks the path `/proc/<pid>/fd/<n>`,
+   whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
+   so it is taken only where it cannot reach a server:
+   the `mnt_id` line of the descriptor's record is looked up in that process's own mount table,
+   and the file is read only when the mount is on the fixed list of local file systems above (without `overlay`,
+   whose attributes are the file's below it).
+   A `statx(2)` with `AT_STATX_DONT_SYNC` then answers from the memory of the kernel:
+   a file system whose server has stopped answers neither that walk nor its own flush,
+   and `SIGTERM` does not end either wait
+   (cross-vendor reviews of 2026-11-09,
+   findings 3 and 4 of the first and 2 and 4 of the second;
+   measured on this host with a stopped `fuse-overlayfs` server,
    `doc/troubleshooting/fuse-descriptor-attributes.md`).
-   A descriptor this process may not copy (a process that hid itself with `PR_SET_DUMPABLE`,
-   or of another account)
-   is a process the scan could not look into,
-   so the candidate is unproven and never held or removed on a guess from the link's text,
-   which a bind mount,
-   another mount namespace or a rename makes ambiguous.
+   A copy of the descriptor answers a stalled server from its cached inode,
+   but closing the copy runs that file system's flush,
+   which a stopped server holds as it holds a lookup,
+   and the copy is refused outright for a process this one may not attach to (`kernel.yama.ptrace_scope=1`),
+   which would read as no holder at all.
+   A descriptor whose record names the lock and which the scan then cannot identify
+   (a mount it will not read,
+   or a mount its process's table does not name)
+   is a process that **may hold** the file:
+   the candidate is unproven and nothing is removed,
+   and the same holds for the lock removal of the index
+   (`remove_if_unheld` keeps the lock when the scan reported one of these).
+   A descriptor whose *record* cannot be read at all is the older case,
+   a process the scan could not look at,
+   which is tolerated as it always was.
+   The gate and the read are two looks at the same number,
+   and a program that puts a different file on that number between them is not making the read wait on a lock file:
+   measured on this host on 2026-11-09 with the delay in the window,
+   the record named the first file's inode and the read that followed answered with the second file's device and inode.
+   Two things follow,
+   and neither is a wait the scan can bound:
+   the read identifies the file that is there now,
+   so a holder whose descriptor was replaced is missed and a lock it holds can read as not held;
+   or the file that is there now sits on a file system this gate would have refused,
+   and the read asks that file system for attributes that `AT_STATX_DONT_SYNC` does not make it answer from memory,
+   so the read can wait there.
+   Closing that window means naming the file and reading it in one step,
+   which this kernel offers only through the descriptor copy above,
+   whose refusals and whose close are the two reasons it is not used;
+   the coordinator's decision of 2026-11-09 is to keep this gate and document the window,
+   because closing it needs a second process to act inside an instruction-sized gap.
+   A lock that reads as not held for that reason is the case the words of every notice name:
+   nothing here proves the holder gone,
+   and the person is given the command that clears the file.
    The mount number the kernel writes for a descriptor is not an identity (audit of 2026-11-09,
    finding 4):
    a bind mount gives the same file another mount number,
