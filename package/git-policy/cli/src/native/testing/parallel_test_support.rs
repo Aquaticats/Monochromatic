@@ -124,3 +124,75 @@ impl Rendezvous {
         return !timeout.timed_out();
     }
 }
+
+/// What:
+///  Gives this process room for `jobs` blocking jobs at once,
+///  whatever the CPUs it may use would allow.
+/// Why:
+///  A control that proves its work overlaps puts every item in flight at once,
+/// and the process's room comes from the CPUs the process may use,
+///  not from the host a control states for its own budget request.
+/// Without this the control could only fail or pass without running on a machine with few CPUs,
+/// and one that does not run proves nothing.
+/// Call it first:
+/// a runtime and a bound already made keep their sizes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// roomFor('the indexes are rewritten side by side', 4); // it runs at any CPU quota now
+/// ```
+pub(crate) fn room_for(_control: &str, jobs: usize) -> usize {
+    let given: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(jobs);
+    let allowed: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs();
+    assert_eq!(allowed, given, "the control asked for room for {given} blocking jobs at once, and the process took {allowed}");
+    return given;
+}
+
+/// How many places of the process's bound on blocking jobs the place control holds:
+/// the one.
+pub(crate) const ONE_PLACE: usize = 1;
+
+/// What:
+///  Holds the process's one place on blocking jobs on a task of the runtime,
+///  and gives it back when a job of the work under test asks for a place.
+/// Why:
+///   A control can then show that the work it measures waits for a place,
+///  which only a job of the blocking pool does;
+///  work that ran on a worker of the runtime instead would start at once and never ask.
+/// A clock would not do:
+///  a holder that gave the place back after a fixed wait would hand it over before work that
+/// bypasses the bound ever tried,
+///  so that work would read `given_back` as true and pass.
+/// The answer on `finished` is what the work under test asked:
+///  true when a job of it was waiting for a place,
+/// which is the proof that it reached the process's bound.
+/// The place is known to be taken before this returns,
+///  so the work that follows either waits for it or did not take one.
+/// The bound is held for the life of the process (`hold_blocking_jobs_to`),
+///  which is why this runs in a test process of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [givenBack, finished] = holdTheOnlyPlace(); const asked = finished.recv(); // true when the work asked
+/// ```
+pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    let given_back: std::sync::Arc<AtomicBool> = std::sync::Arc::new(AtomicBool::new(false));
+    let (taken, has_taken) = std::sync::mpsc::channel::<()>();
+    let (done, finished) = std::sync::mpsc::channel::<bool>();
+    let flag: std::sync::Arc<AtomicBool> = std::sync::Arc::clone(&given_back);
+    let holder = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _outcome = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = taken.send(());
+            // The place goes back on an ask from the work under test, never merely because time passed.
+            let asked: bool = crate::blocking_jobs_within_the_budget::jobs_waiting_for_a_place::wait_until_a_job_waits(PATIENCE);
+            flag.store(true, Ordering::SeqCst);
+            let _sent = done.send(asked);
+        })
+        .await;
+    });
+    assert!(holder.is_some(), "the runtime has workers, so a place of the blocking pool can be held");
+    assert!(has_taken.recv_timeout(PATIENCE).is_ok(), "the job that holds the only place never started");
+    return (given_back, finished);
+}
