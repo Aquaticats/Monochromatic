@@ -403,7 +403,8 @@ pub(crate) struct InputWriter {
 
 /// What the writer could not write,
 /// shared with the thread that writes it.
-/// A cell behind a mutex is enough: one thread writes it and one reads it.
+/// A cell behind a mutex is enough:
+/// one thread writes it and one reads it.
 #[derive(Clone, Default)]
 pub(crate) struct InputFailure(std::sync::Arc<std::sync::Mutex<Option<String>>>);
 
@@ -418,7 +419,10 @@ impl InputFailure {
     /// Why the request could not be written whole,
     /// or nothing when it was.
     pub(crate) fn reason(&self) -> Option<String> {
-        return self.0.lock().ok().and_then(|slot| { return slot.clone(); });
+        let Ok(slot) = self.0.lock() else {
+            return None;
+        };
+        return slot.clone();
     }
 }
 

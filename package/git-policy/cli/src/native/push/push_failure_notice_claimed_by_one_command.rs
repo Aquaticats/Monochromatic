@@ -254,11 +254,11 @@ pub fn take_over(path: &Path, token: &ClaimToken) -> Option<PathBuf> {
 /// try { await rename(claim, record) } catch { /* the record's name is taken, so the claim stays */ }
 /// ```
 pub fn give_back(claim: &Path, record: &Path) {
-    if let Err(error) = move_without_replacing(claim, record) {
-        if error.kind() != std::io::ErrorKind::AlreadyExists {
-            crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a notice whose words could not be written could not go back to its own name: {error}").as_str());
-        }
-        // The record's own name holds a newer statement, so this claim stays under its holder's name and is taken over
-        // once this command is gone: that costs a repeat of an older statement and loses nothing.
+    if let Err(error) = move_without_replacing(claim, record)
+        && error.kind() != std::io::ErrorKind::AlreadyExists
+    {
+        crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a notice whose words could not be written could not go back to its own name: {error}").as_str());
     }
+    // A name that is taken keeps its own statement, so this claim stays where it is and is taken over once this command is
+    //  gone: that costs a repeat of an older statement and loses nothing.
 }
