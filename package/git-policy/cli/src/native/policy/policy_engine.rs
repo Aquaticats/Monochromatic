@@ -457,8 +457,8 @@ pub fn run_policy_stage(
                 policy: *policy,
             });
         }
-        // A proposal ends the stage whatever the severity, as `patchProposed` does in the
-        // installed wrapper's `policy-stage.ts`: later policies read the corrected content.
+        // A proposal ends the stage whatever the severity: later policies read the corrected
+        // content.
         if proposed {
             return StageResult {
                 events,

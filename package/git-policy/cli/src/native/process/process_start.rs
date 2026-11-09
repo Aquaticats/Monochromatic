@@ -12,8 +12,7 @@
 //!  `/proc/uptime` and the current time;
 //!  macOS reads
 //!      `ps -o lstart=`;
-//!  Windows reads `Get-Process` `StartTime`
-//!      (`src/index-lock/process-start-time.ts`).
+//!  Windows reads `Get-Process` `StartTime`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
