@@ -240,6 +240,34 @@ fn the_index_update_of_derived_paths_leaves_an_unselected_case_twin_alone() {
     remove(root.as_path());
 }
 
+/// A pathspec mode the caller wrote as a global option reaches no reset either:
+/// `--icase-pathspecs` in the prefix makes the generated `:(top,literal)a.txt` match `A.txt`,
+/// and the reset then replaces the staged entry of a path the batch never selected.
+#[test]
+fn the_index_update_of_listed_paths_leaves_an_unselected_case_twin_alone_under_the_callers_option() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-listed-icase-option");
+    let index: PathBuf = repo.join(".git/index");
+    let mut context: GitContext = git_context();
+    context.global_prefix.push(std::ffi::OsString::from("--icase-pathspecs"));
+    update_index(&context, repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Listed(&[String::from("a.txt")])).expect("the listed path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// The same for a list of names read from standard input.
+#[test]
+fn the_index_update_of_named_paths_leaves_an_unselected_case_twin_alone_under_the_callers_option() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-named-icase-option");
+    let index: PathBuf = repo.join(".git/index");
+    let mut context: GitContext = git_context();
+    context.global_prefix.push(std::ffi::OsString::from("--icase-pathspecs"));
+    update_index(&context, repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"a.txt".to_vec()])).expect("the named path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
 /// A removal request whose scratch directory is gone and whose copy was never kept compares nothing,
 /// so it removes nothing and says so:
 /// answering success left the worktree's `MERGE_HEAD` behind,
