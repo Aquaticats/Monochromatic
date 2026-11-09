@@ -143,7 +143,18 @@ fn wait_until_settled(setup: &Setup, commit: &str) {
 fn wait_until_settled_in(git_dir: &Path, commit: &str) {
     let work: PathBuf = git_dir.join("monochromatic-git-policy-cli/work");
     wait_until("the service settled the push", &|| {
-        return ["done", "failed"].iter().any(|state| { return work.join(state).join(format!("push-{commit}")).exists(); });
+        // The record's own id, which carries the branch as well as the commit.
+        let record: WorkItem = WorkItem {
+            kind: WorkKind::Push,
+            repository: String::new(),
+            git_dir: String::new(),
+            branch_ref: String::from("refs/heads/main"),
+            oid: String::from(commit),
+            parent: String::new(),
+            created: String::new(),
+            tries: 0,
+        };
+        return ["done", "failed"].iter().any(|state| { return work.join(state).join(record.id()).exists(); });
     });
 }
 

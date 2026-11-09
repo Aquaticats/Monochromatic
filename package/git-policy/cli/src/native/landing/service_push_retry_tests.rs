@@ -659,11 +659,28 @@ fn let_pushes_through(stage: &Stage) {
     std::fs::write(stage.root.join("stalled-once"), b"").expect("the marker that makes the hook accept");
 }
 
+/// The file name of the push record of `commit` on the stage's branch,
+/// which is `main`:
+/// the record's own id, which carries the branch as well as the commit.
+fn push_record_id(commit: &str) -> String {
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: String::new(),
+        git_dir: String::new(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from(commit),
+        parent: String::new(),
+        created: String::new(),
+        tries: 0,
+    }
+    .id();
+}
+
 /// Moves the item of `commit` to `claimed` as a service would have claimed it `age` ago,
 /// and gives the claim's path.
 fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> PathBuf {
     let work: PathBuf = work_directory(stage.repo.join(".git").as_path());
-    let id: String = format!("push-{commit}");
+    let id: String = push_record_id(commit);
     let last_renewal: ClaimTime = ClaimTime::read().rewound(age);
     let claimed: PathBuf = work.join("claimed").join(crate::work_item::claim_file_name(id.as_str(), "0123456789abcdef0123456789abcdef", &last_renewal));
     std::fs::create_dir_all(work.join("claimed")).expect("the claimed directory");
@@ -708,7 +725,7 @@ fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
         drop(sender);
         running.join().expect("the service ends");
     });
-    assert!(work_directory(stage.repo.join(".git").as_path()).join("done").join(format!("push-{}", stage.landed)).exists(), "settled as done");
+    assert!(work_directory(stage.repo.join(".git").as_path()).join("done").join(push_record_id(stage.landed.as_str())).exists(), "settled as done");
     remove(stage.root.as_path());
 }
 
@@ -770,7 +787,7 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == newer; }), "the pending push was run at the start");
-        assert!(wait_until(&|| { return work_directory(git_dir.as_path()).join("done").join(format!("push-{newer}")).exists(); }), "the pending push was settled");
+        assert!(wait_until(&|| { return work_directory(git_dir.as_path()).join("done").join(push_record_id(newer.as_str())).exists(); }), "the pending push was settled");
         assert!(claimed.exists(), "the claim of a holder that renewed a moment ago was not taken");
         drop(sender);
         running.join().expect("the service ends");
