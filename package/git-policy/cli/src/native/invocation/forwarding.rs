@@ -225,8 +225,8 @@ const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_mil
 /// "nothing should ever wait forever or
 ///  indefinitely").
 /// A killed child normally exits in microseconds,
-/// so this grace is hundreds of thousands of times that: only a
-///  child the kernel cannot stop uses it up.
+/// so this grace is hundreds of thousands of times that,
+/// and only a child the kernel cannot stop uses it up.
 const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
 #[cfg(test)]

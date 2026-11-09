@@ -316,10 +316,10 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
             let registered: Option<PathBuf> = registration_directory(destination.as_path());
-            if let Some(admin) = registered.as_ref() {
-                if add_is_finished(destination.as_path(), admin.as_path()) {
-                    return Settlement { notice: None, keep: false };
-                }
+            if let Some(admin) = registered.as_ref()
+                && add_is_finished(destination.as_path(), admin.as_path())
+            {
+                return Settlement { notice: None, keep: false };
             }
             let notice: String = match registered.as_ref() {
                 Some(admin) => format!(

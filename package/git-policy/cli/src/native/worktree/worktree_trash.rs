@@ -313,8 +313,9 @@ fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
 /// whatever its name.
 /// Names are kept as bytes,
 /// so a name that is not text is never taken for another.
-/// A linked worktree has no rule of its own: it hands over everything it ignores,
-/// and only another
+/// A linked worktree has no cache or run-record rule of its own,
+/// and it hands over everything it ignores,
+/// so only another
 ///  command's stage container is left out,
 /// because that container holds another worktree's ignored state (credentials
 ///  included) and no rule of any source makes it state of this one.

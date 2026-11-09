@@ -490,7 +490,7 @@ fn run_settled(
             let ladder_started: bool = matches!(step, GitStep::Other { .. });
             let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
-                Some(ceiling) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), ceiling),
+                Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest),
                 None => run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()),
             };
             match ran {

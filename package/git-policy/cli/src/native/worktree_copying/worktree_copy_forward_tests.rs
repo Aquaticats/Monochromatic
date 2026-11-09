@@ -322,12 +322,14 @@ fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
 /// even though a ladder's `read-tree` has
 ///  one.
 /// Why:
-///   The ceiling is for the steps the wrapper starts itself, and native Git gives the person's own command no bound:
+///   The ceiling is for the steps the wrapper starts itself,
+/// and native Git gives the person's own command no bound:
 /// a
 ///  conversion filter that takes minutes is the person's own work,
 /// and ending their Git would leave a partial checkout and an
 ///  `index.lock` behind.
-/// The ceiling for this thread is zero, so a step that consulted it would end at once,
+/// The ceiling for this thread is zero,
+/// so a step that consulted it would end at once,
 /// and the
 ///  person's command must still complete.
 ///
@@ -344,9 +346,9 @@ fn a_persons_own_read_tree_is_not_ended_at_the_ladder_ceiling() {
     std::fs::write(main.join("kept.txt"), b"kept\n").expect("a tracked file");
     git(main.as_path(), &["add", "--all"]);
     git(main.as_path(), &["commit", "--quiet", "--message=first"]);
-    let linked: PathBuf = root.join("linked");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "linked", linked.to_str().expect("utf8")]);
-    let linked: PathBuf = std::fs::canonicalize(linked.as_path()).expect("canonical linked");
+    let made: PathBuf = root.join("linked");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "linked", made.to_str().expect("utf8")]);
+    let linked: PathBuf = std::fs::canonicalize(made.as_path()).expect("canonical linked");
     let facts: CopyFacts = CopyFacts {
         identity: WorktreeIdentity::LinkedWorktree { common_dir: common.clone(), git_dir: common.join("worktrees/linked"), worktree_root: linked.clone() },
         creates: false,
