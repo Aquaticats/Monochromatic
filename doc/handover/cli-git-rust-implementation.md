@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:17:55-05:00)
+#### Reviews and landings in progress (2026-11-09T02:22:00-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -184,8 +184,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 3 of its agent is on them.
 - `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
-  its agent finished its second round.
-  Its tests on top of main and its cross-vendor review are running.
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
+  among them a FIFO that makes a commit wait forever,
+  and two races that need another program to rename a directory inside a small window.
+  Two subvolume tests abort near 120 seconds on the branch merged with main,
+  even run alone.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  and goes ahead of the other waiting rounds:
+  resume the run `worktree-removal-findings-fixed` as run 3,
+  with `worktree-removal-findings-fixed-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  After that round it lands.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   its agent is working through its review.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
