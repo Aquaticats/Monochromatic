@@ -1103,7 +1103,7 @@ a directory or any other name beside the journal is left alone.
 git monochromatic-git-policy-cli migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
 git monochromatic-git-policy-cli migrate-to-subvolume             # migrate; run it again after any stop and it resumes
 git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable]  # undo, finished or not
-git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable]  # delete the original tree
+git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out]  # delete the original tree
 ```
 
 The steps,
@@ -1237,6 +1237,14 @@ and files the checkout lacks that are no older than the catch-up;
 older ones were deleted on purpose),
 then
  deletes the original.
+An entry it left out that way is either a file deleted from the checkout on purpose or a file restored into the original
+ tree after the migration (an unpacked backup carries old timestamps),
+and no check can tell the two apart:
+the command counts them,
+writes their relative paths to `.cli-git-migrate-<name>.left-out.txt` beside the checkout,
+names them,
+and deletes nothing until `--discard-left-out` is given with `--remove-old`
+ (or you delete the original tree yourself).
 Both deletions make the directories this user owns writable on the way down,
 so a mode-555 directory does not stop them.
 Both refuse,

@@ -35,6 +35,28 @@ use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 
+/// How many left-out entries a refusal spells out before it names the file that lists them all.
+const SHOWN_LEFT_OUT: usize = 10;
+
+/// The first few left-out entries,
+/// joined for a refusal,
+/// and how many more there are.
+fn shown_left_out<'a>(paths: impl Iterator<Item = &'a PathBuf>) -> String {
+    let mut shown: Vec<String> = Vec::new();
+    let mut more: usize = 0;
+    for path in paths {
+        if shown.len() < SHOWN_LEFT_OUT {
+            shown.push(path.display().to_string());
+        } else {
+            more += 1;
+        }
+    }
+    if more > 0 {
+        shown.push(format!("and {more} more"));
+    }
+    return shown.join(", ");
+}
+
 /// Remove a file,
 /// treating "already gone" as done.
 fn remove_if_present(path: &Path) -> Result<(), MigrateError> {
@@ -285,18 +307,22 @@ fn carry_late_writes(run: &mut Run<'_>) -> Result<(), MigrateError> {
 ///  `Ok(None)` means it ran;
 /// `Ok(Some(refusals))` means nothing was changed.
 /// Why:
-///   The files this user could not read exist only there,
-/// so a non-empty list refuses unless the person discards them
-///  explicitly.
+///   Two kinds of entry exist only there and are never deleted without the person's word:
+/// the files this user may not read,
+///  and the entries the late-write carry left out because the checkout lacks them and they are older than the
+///  catch-up,
+/// which may be files restored into the old tree or files deleted from the checkout on purpose.
+/// The refusal names both kinds,
+///  and each is deleted only with its own flag.
 /// The deletion (`remove_tree`) unlinks entries,
 /// makes directories the user owns writable on the way,
 /// and never follows symbolic links.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refused = await removeOldTree(run, discardUnreadable);
+/// const refused = await removeOldTree(run, { discardUnreadable, discardLeftOut });
 /// ```
-pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
     let old_path: PathBuf = run.layout.old_path.clone();
     if refusals.is_empty() {
@@ -311,6 +337,21 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
         run.line(MIGRATE_RISK_NOTICE);
         carry_late_writes(run)?;
     }
+    if refusals.is_empty() && !run.left_out.is_empty() && !discard_left_out {
+        refusals.push(Refusal {
+            cause: format!(
+                "{} entr(ies) of {} are absent from {} and older than the catch-up, so they were left out of the carry: {} (the whole list is in {})",
+                run.left_out.len(),
+                run.layout.old_path.display(),
+                run.layout.root.display(),
+                shown_left_out(run.left_out.iter()),
+                run.layout.left_out_path.display()
+            ),
+            remedy: String::from(
+                "Copy anything you want to keep out of the old tree first. If they are files you deleted from the checkout on purpose, pass --discard-left-out together with --remove-old to delete the old tree with them; you can also delete the old tree yourself.",
+            ),
+        });
+    }
     if refusals.is_empty() && !run.unreadable.is_empty() && !discard_unreadable {
         refusals.push(Refusal {
             cause: format!("{} file(s) that this user may not read exist only in {} (listed in {})", run.unreadable.len(), run.layout.old_path.display(), run.layout.unreadable_path.display()),
@@ -324,6 +365,7 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
     MigrateError::from_io_result(remove_tree(&old_path), "delete", old_path.as_path())?;
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
+    remove_if_present(run.layout.left_out_path.as_path())?;
     run.line("the old tree is deleted and the migration journal is removed.");
     return Ok(None);
 }

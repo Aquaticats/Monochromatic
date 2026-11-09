@@ -126,6 +126,11 @@ fn remove_old_arguments(discard_unreadable: bool) -> MigrateArguments {
     return MigrateArguments { mode: MigrateMode::RemoveOld, discard_unreadable, ..migrate_arguments() };
 }
 
+/// The arguments of the deletion of the old tree that also discards what the carry left out.
+fn remove_old_discarding_left_out() -> MigrateArguments {
+    return MigrateArguments { discard_left_out: true, ..remove_old_arguments(false) };
+}
+
 /// Whether the running user is root,
 /// which cannot make an unreadable file.
 fn running_as_root() -> bool {
@@ -483,13 +488,49 @@ fn writes_to_the_old_tree_after_the_catch_up_are_carried_before_it_is_deleted() 
     std::fs::remove_file(root.join("src/main.rs")).expect("deleted on purpose");
     set_seconds(layout.old_path.join("src/main.rs").as_path(), 1_000_000_000);
     let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
-    assert_eq!(code, DONE, "{lines:#?}");
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("carried README.md") && text.contains("carried ignored/late.txt"), "{text}");
+    // The file the person deleted is a left-out entry too, and no check can tell the two apart: it is named, and the
+    // deletion waits for the explicit flag.
+    assert!(text.contains("src/main.rs"), "{text}");
+    let (code2, lines2) = run_command(&platform, &remove_old_discarding_left_out(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
     assert_eq!(std::fs::read(root.join("README.md")).expect("carried"), b"saved by a late writer\n");
     assert_eq!(std::fs::read(root.join("ignored/late.txt")).expect("carried"), b"untracked work");
     assert!(!root.join("src/main.rs").exists(), "a file deleted on purpose is not brought back");
+    assert!(!layout.old_path.exists() && !layout.left_out_path.exists());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A file restored into the old tree with an older modification time,
+///  which the carry leaves out,
+///  holds back the deletion and is named.
+/// Why:
+///   The carry leaves out what it cannot tell from a file deleted on purpose,
+/// so counting it is not enough:
+///  the person must be told which entry they would lose,
+///  and deleting it must be their explicit word.
+#[test]
+fn a_file_the_carry_left_out_holds_back_the_deletion_and_is_named() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-left-out", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    // What unpacking a backup does: the file comes back with the time it had when it was saved.
+    let restored: PathBuf = layout.old_path.join("ignored/restored.txt");
+    std::fs::write(restored.as_path(), b"from a backup\n").expect("restored file");
+    set_seconds(restored.as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
     let text: String = lines.join("\n");
-    assert!(text.contains("carried README.md") && text.contains("carried ignored/late.txt"), "{text}");
-    assert!(!layout.old_path.exists());
+    assert!(text.contains("ignored/restored.txt"), "the refusal names the entry it would delete: {text}");
+    assert!(text.contains("--discard-left-out"), "the refusal names the flag that accepts the loss: {text}");
+    assert!(layout.old_path.join("ignored/restored.txt").exists() && layout.journal_path.exists(), "the old tree and its journal stay");
+    assert!(!root.join("ignored/restored.txt").exists(), "the carry did not put it in the checkout");
+    let (code2, lines2) = run_command(&platform, &remove_old_discarding_left_out(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert!(!layout.old_path.exists() && !layout.journal_path.exists() && !layout.left_out_path.exists());
     remove(parent.as_path());
 }
 

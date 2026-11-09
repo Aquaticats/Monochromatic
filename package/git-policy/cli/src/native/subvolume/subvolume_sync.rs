@@ -147,7 +147,7 @@ impl Pass<'_> {
             None => false,
         };
         if existing.is_none() && self.options.update_only && older_than_since {
-            self.stats.left_out += 1;
+            self.stats.left_out.push(relative);
             return Ok(());
         }
         let file_type: std::fs::FileType = metadata.file_type();

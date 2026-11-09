@@ -135,6 +135,10 @@ pub struct Layout {
     pub journal_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.unreadable.txt`.
     pub unreadable_path: PathBuf,
+    /// `<parent>/.cli-git-migrate-<name>.left-out.txt`:
+    /// the entries of the old tree the late-write carry left out,
+    /// which the deletion of the old tree does not delete without a word.
+    pub left_out_path: PathBuf,
     /// `.cli-git-migrate-<name>.owner`:
     /// the name,
     /// in the parent directory,
@@ -182,6 +186,7 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
         old_path: with_suffix(parent, name, ".before-subvolume"),
         journal_path: dotted(parent, name, ".journal.json"),
         unreadable_path: dotted(parent, name, ".unreadable.txt"),
+        left_out_path: dotted(parent, name, ".left-out.txt"),
         claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
     });
 }

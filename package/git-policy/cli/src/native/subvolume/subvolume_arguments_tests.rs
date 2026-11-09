@@ -22,6 +22,7 @@ const DEFAULTS: MigrateArguments = MigrateArguments {
     nested_worktrees: true,
     refresh_indexes: true,
     discard_unreadable: false,
+    discard_left_out: false,
     help: false,
 };
 
@@ -44,6 +45,10 @@ fn each_option_sets_its_own_field() {
         Ok(MigrateArguments { mode: MigrateMode::RemoveOld, discard_unreadable: true, dry_run: true, ..DEFAULTS })
     );
     assert_eq!(parse(&["--rollback", "--dry-run"]), Ok(MigrateArguments { mode: MigrateMode::Rollback, dry_run: true, ..DEFAULTS }));
+    assert_eq!(
+        parse(&["--remove-old", "--discard-left-out"]),
+        Ok(MigrateArguments { mode: MigrateMode::RemoveOld, discard_left_out: true, ..DEFAULTS })
+    );
 }
 
 /// Both spellings of help win over every other mistake in the same invocation.
@@ -106,11 +111,24 @@ fn discard_unreadable_needs_remove_old_or_rollback() {
     );
 }
 
+/// Discarding what the carry left out has meaning only with the deletion of the old tree.
+#[test]
+fn discard_left_out_needs_remove_old() {
+    for arguments in [vec!["--discard-left-out"], vec!["--rollback", "--discard-left-out"]] {
+        let reason: String = parse(arguments.as_slice()).expect_err("refused");
+        assert!(reason.contains("applies only with --remove-old"), "{arguments:?}: {reason}");
+    }
+    assert_eq!(
+        parse(&["--remove-old", "--discard-left-out"]),
+        Ok(MigrateArguments { mode: MigrateMode::RemoveOld, discard_left_out: true, ..DEFAULTS })
+    );
+}
+
 /// The help names every option the grammar accepts,
 /// so the two cannot drift apart.
 #[test]
 fn the_help_names_every_option() {
-    for option in ["--dry-run", "--rollback", "--remove-old", "--discard-unreadable", "--no-nested-worktrees", "--no-refresh-indexes", "--help"] {
+    for option in ["--dry-run", "--rollback", "--remove-old", "--discard-unreadable", "--discard-left-out", "--no-nested-worktrees", "--no-refresh-indexes", "--help"] {
         assert!(MIGRATE_HELP.contains(option), "{option} missing from the help");
     }
 }

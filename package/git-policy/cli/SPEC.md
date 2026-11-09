@@ -1496,6 +1496,19 @@ that reason is written beside the code in
 The rewrite of the index stat fields that runs by
 itself (the worktree add's index,
 a rollback) takes `index.lock` for one index from the read to the rename.
+`--remove-old` carries into the checkout what was written to the old tree after the catch-up,
+and that carry leaves out an entry the checkout lacks whose modification time is older than the catch-up,
+because that is also the shape of a file the person deleted from the checkout on purpose.
+The command counts those entries,
+writes their relative paths to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout,
+and deletes nothing while the list is not empty:
+the refusal names the entries (up to ten,
+then how many more)
+and stops with exit status 1 until the person passes `--discard-left-out`
+beside `--remove-old`,
+or deletes the old tree themselves.
+The flag applies to `--remove-old` alone,
+because a rollback carries every entry back and leaves nothing out.
 The mutation campaign's evidence directories and the host-wide gate slots (`package/mutation-test/cli-cargo-mutants`) are owned
 by claim files:
 a second run on a directory is refused,
