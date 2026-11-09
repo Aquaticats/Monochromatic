@@ -37,6 +37,17 @@ import {
 export const NO_TRANSFORM: unique symbol = Symbol('import-attributes/source-has-no-attribute-clause-to-rewrite',);
 
 /**
+ Keywords that introduce an attribute clause: `with`, and the deprecated
+ `assert` spelling rolldown and the elision helper both still accept.
+ 
+ Matched as whole words, so a newline, a tab, a comment or the colon of a
+ dynamic-import options object between the keyword and its brace cannot hide
+ a real clause from the fast path. `$` joins the identifier characters here
+ because JavaScript allows it in a name.
+ */
+const ATTRIBUTE_CLAUSE_KEYWORD: RegExp = /(?:^|[^\w$])(?:with|assert)(?:[^\w$]|$)/u;
+
+/**
  Rewrites import/export statements that use `with { type: '...' }` attributes.
  Parses the source with oxc, walks the AST to find import attributes via
  {@link extractTypeFromAttributes}/{@link extractTypeFromOptions}, and
@@ -65,7 +76,7 @@ export function transformImportAttributes({
   readonly code: string;
   readonly id: string;
 },): { code: string; } | typeof NO_TRANSFORM {
-  if ((!code.includes(' with ',)) && (!code.includes(' with{',)))
+  if (!ATTRIBUTE_CLAUSE_KEYWORD.test(code,))
     return NO_TRANSFORM;
 
   /**
