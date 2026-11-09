@@ -2,8 +2,7 @@
 
 Note 2026-11-09T16:36:36-05:00:
 `package/git-policy/cli/src/worktree-copy/` is not in the tree;
-its files were deleted on 2026-10-13
-in `642b6d72cb`.
+its files were deleted on 2026-10-13 in `642b6d72cb`.
 
 ## Symptom
 
