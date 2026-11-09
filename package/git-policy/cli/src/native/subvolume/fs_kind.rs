@@ -31,6 +31,22 @@ use std::path::Path;
 pub const BTRFS_SUBVOLUME_ROOT_INODE: u64 = 256;
 
 /// What:
+///  The inode number btrfs gives the stand-in directory it shows at an entry that names a subvolume a snapshot did not
+///  carry (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID` in `linux/btrfs_tree.h`).
+/// Why:
+///   A directory of a btrfs tree has an inode number of 256 or more,
+/// so this number names a stand-in and never a folder that was
+///  written by anyone;
+/// such a stand-in holds nothing and cannot be renamed,
+/// so a step that moves directories must leave it alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const BTRFS_STAND_IN_INODE = 2n;
+/// ```
+pub const BTRFS_STAND_IN_INODE: u64 = 2;
+
+/// What:
 ///  The filesystem kinds the ladder tells apart.
 ///  `#[derive(...)]` generates copying,
 /// debug printing and `==`.
@@ -163,6 +179,26 @@ pub fn is_subvolume_root(path: &Path) -> Result<bool, PrimitiveError> {
         Err(error) => return Err(PrimitiveError { operation: "stat", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) }),
     };
     return Ok(metadata.is_dir() && metadata.ino() == BTRFS_SUBVOLUME_ROOT_INODE);
+}
+
+/// What:
+///  Whether `path` is the empty stand-in btrfs shows where a snapshot left a nested subvolume out.
+/// Why:
+///   The inode number and the directory type are the whole test,
+/// and a path that cannot be examined is no stand-in;
+///  no filesystem call is made,
+/// because a stand-in is inode 2 only inside a btrfs tree and a real directory elsewhere has
+///  another number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isStandIn = (path) => { const found = lstatSync(path); return found.isDirectory() && found.ino === 2n; };
+/// ```
+pub fn is_stand_in(path: &Path) -> bool {
+    return match std::fs::symlink_metadata(path) {
+        Ok(found) => found.is_dir() && found.ino() == BTRFS_STAND_IN_INODE,
+        Err(_unreadable) => false,
+    };
 }
 
 /// Filesystem kind controls stay out of the release executable.

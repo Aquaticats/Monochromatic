@@ -34,19 +34,18 @@ use std::path::{Path, PathBuf};
 const TAG: &str = "worktreeSnapshotPlaceholders";
 
 /// What:
-///  The inode number btrfs gives the stand-in directory it shows at an entry that names a subvolume a snapshot does not
-///  carry:
-/// `BTRFS_EMPTY_SUBVOL_DIR_OBJECTID` in `linux/btrfs_tree.h`.
+///  The inode number btrfs gives a stand-in,
+/// read from the module that owns the number.
 /// Why:
-///   A directory of a btrfs tree has an inode number of 256 or more,
-/// so this number names a stand-in and never a folder that was written
-///  by anyone.
+///   The leave-out step needs the same number to leave a stand-in alone,
+/// and one constant in
+///  two places would drift.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const STAND_IN_INODE = 2;
+/// const STAND_IN_INODE = BTRFS_STAND_IN_INODE;
 /// ```
-const BTRFS_STAND_IN_INODE: u64 = 2;
+const BTRFS_STAND_IN_INODE: u64 = crate::fs_kind::BTRFS_STAND_IN_INODE;
 
 /// What:
 ///  The folders the worktrees of this repository are made in:

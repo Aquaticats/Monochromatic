@@ -17,7 +17,7 @@ use crate::service_provision::ProvisionHost;
 use crate::service_route::Route;
 use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{age, fixture, git, git_context, remove, repository};
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::work_item::{DONE, state_directory};
 use crate::service_messages::UPDATING_NOTICE;
@@ -219,6 +219,58 @@ fn a_stage_container_below_the_snapshot_is_set_aside() {
     assert_eq!(pruned.count, 1, "the container is the one directory set aside");
     assert!(!container.exists(), "the other command's stage container is not carried");
     assert!(stage.join("kept.txt").exists(), "the tracked file stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A snapshot taken from a linked worktree sets another command's stage container aside,
+/// while everything that worktree
+///  ignores itself stays.
+/// Why:
+///   A linked worktree has no leave-out rule of its own,
+/// so the stage rule is the one thing the leave-out decides there;
+///  the
+///  container holds another worktree's ignored state,
+/// credentials included,
+/// and nothing would name it in the new
+///  worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await takeSnapshot({ source: linkedSource, plan, stage, admin, pointer });
+/// expect(existsSync(join(stage, '.claude/worktrees/.cli-git-worktree-copy-<token>'))).toBe(false);
+/// expect(existsSync(join(stage, 'node_modules/pkg/index.js'))).toBe(true);
+/// ```
+#[test]
+fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
+    let Some(root) = btrfs_fixture("trash-linked-stage") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), "tracked.txt", b"tracked\n");
+    commit_all(repo.as_path(), "first");
+    std::fs::write(repo.join(".git/info/exclude"), b".claude/\nnode_modules/\n").expect("exclude");
+    let linked: PathBuf = root.join("linked");
+    subvolume_create_at(linked.as_path()).expect("the linked worktree is a subvolume");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "linked", "../linked"]);
+    // The checkout wrote every file as new as its index; only an aged tree is provably clean.
+    for name in [".gitignore", "tracked.txt", "shared.txt", "src/deep/leaf.txt", "new/added.txt"] {
+        age(linked.join(name).as_path());
+    }
+    git(linked.as_path(), &["update-index", "--refresh"]);
+    put(linked.as_path(), "node_modules/pkg/index.js", b"module the linked worktree ignores\n");
+    let container: String = format!(".claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(linked.as_path(), format!("{container}/payload/credentials").as_str(), b"another worktree's token\n");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
+    let admin: std::fs::File = crate::fs_beneath::open_root(repo.join(".git/worktrees/topic").as_path()).expect("administrative directory");
+    let identity = crate::worktree_identity::WorktreeIdentity::LinkedWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git/worktrees/linked"), worktree_root: linked.clone() };
+    let plan = plan_to(destination);
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &identity, &plan).expect("a linked worktree is a snapshot source");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-linked");
+    take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    assert!(std::fs::symlink_metadata(stage.join(container.as_str())).is_err(), "the other command's stage container is not carried");
+    assert!(stage.join("node_modules/pkg/index.js").is_file(), "what the linked worktree ignores stays");
+    assert!(linked.join(container.as_str()).join("payload/credentials").is_file(), "the other command's payload is left where it was");
     remove(root.as_path());
 }
 

@@ -34,7 +34,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
-use crate::fs_kind::is_subvolume_root;
+use crate::fs_kind::{is_stand_in, is_subvolume_root};
 use crate::random_id::random_uuid;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clean::stored_stats;
@@ -313,16 +313,24 @@ fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
 /// whatever its name.
 /// Names are kept as bytes,
 /// so a name that is not text is never taken for another.
+/// A linked worktree has no rule of its own: it hands over everything it ignores,
+/// and only another
+///  command's stage container is left out,
+/// because that container holds another worktree's ignored state (credentials
+///  included) and no rule of any source makes it state of this one.
+/// A btrfs stand-in holds nothing and cannot be renamed or removed as a
+///  directory,
+/// so the walk leaves it where it is and the snapshot's stand-in sweep removes it
+///  (`worktree_snapshot_placeholders.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const { count, trash } = await pruneSnapshot({ stage, source }); // throws the reason; the caller destroys the stage
 /// ```
 pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, String> {
-    if source.git_dir != source.common_dir {
-        return Ok(Pruned { count: 0, trash: None });
-    }
-    let prune: Prune = Prune::main_checkout();
+    // A linked or bare source hands over everything it ignores, so the main checkout's cache and run-record rule is not its own;
+    //  the stage-container exclusion is, because such a container is never state of any source.
+    let prune: Prune = if source.git_dir == source.common_dir { Prune::main_checkout() } else { Prune::Never };
     let tracked: HashSet<Vec<u8>> = tracked_paths(source)?;
     let mut nested_copies: Vec<PathBuf> = Vec::new();
     for nested in &source.nested {
@@ -388,6 +396,11 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
             }
             let child_relative: Vec<u8> = if relative.is_empty() { name.as_bytes().to_vec() } else { [relative.as_slice(), b"/", name.as_bytes()].concat() };
             if child_relative == b".git" || child_relative == TRASH_PARENT.as_bytes() {
+                continue;
+            }
+            // A stand-in of a nested subvolume the snapshot did not carry holds nothing and refuses both a rename and an
+            //  empty-directory removal here, so it stays for the stand-in sweep, which knows the two places that hold worktrees.
+            if is_stand_in(directory.join(&name).as_path()) {
                 continue;
             }
             if !tracked.contains(child_relative.as_slice()) && prune.skips_path(String::from_utf8_lossy(child_relative.as_slice()).as_ref()) {

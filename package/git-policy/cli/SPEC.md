@@ -92,7 +92,7 @@ and that command's `--help` is Git's own (`DESTROY_NOTICE`,
 `src/native/worktree/worktree_remove.rs`).
 
 The sections that describe those commands carry the same statement beside their guards:
-"Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot of the main checkout,
+"Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot,
 and "Cheap worktree creation and removal on btrfs,
 XFS and overlayfs" for the conversion,
 the removal and the migration.
@@ -978,7 +978,7 @@ for a source that is a
 linked worktree,
 no nested linked worktree that is an ordinary directory;
 a snapshot of the main checkout sets such a
-worktree aside instead (see "Leaving out of a snapshot of the main checkout").
+worktree aside instead (see "Leaving out of a snapshot").
 Real Git runs with `--no-checkout` added after `add`.
 The wrapper then reads the new `HEAD`,
 refuses a subject Git would have to print or `.gitattributes` files that differ
@@ -1007,10 +1007,16 @@ Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet`
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
 
-Leaving out of a snapshot of the main checkout:
+Leaving out of a snapshot:
 before the stage is made private and its stubs removed,
-the wrapper prunes a snapshot whose source is the main checkout
-with the main-checkout rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
+the wrapper prunes a snapshot with the rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
+A source whose Git directory is its common directory,
+the main checkout,
+gets the main-checkout rule below.
+A linked or bare source has no cache or run-record rule,
+so there the leave-out moves only another command's stage containers:
+everything else such a source ignores is carried,
+as it is by the ignored-state copy.
 First it works out what the source's index tracks:
 every directory above a tracked file,
 and every directory-valued
@@ -1026,11 +1032,22 @@ Then it unlinks the `.git` file of every other nested linked worktree that is an
 directory that holds a `.git` file,
 because a copied pointer names another worktree's administrative directory.
 Then it moves each such directory,
-and each directory the rule names as a cache,
-a run record or a stage container of another command,
+each directory of a linked or bare source whose name begins `.cli-git-worktree-copy-` (a stage container of another
+command),
+and,
+for the main checkout,
+each directory the rule names as a cache or a run record,
 into a trash directory
 `.claude/cli-git-trash/<forty hexadecimal digits>` inside the stage,
 by rename.
+A stand-in directory the snapshot shows where the source holds a nested subvolume (inode 2,
+btrfs's stand-in for a
+subvolume a snapshot did not carry) is never moved:
+it holds nothing,
+so it carries no ignored state,
+and btrfs refuses both a rename and an empty-directory removal of it.
+It stays for the stand-in sweep,
+which removes it as an empty directory in the folders that hold this repository's worktrees.
 Names are kept as bytes:
 a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
 Every directory is opened by one plain name below the handle of the one above,
@@ -1038,8 +1055,9 @@ without following a link,
 so a link at
 `.claude` or at the trash parent in the stage is no way out of the stage.
 When the trash cannot be made that way,
-or Git does not ignore the place (one `git check-ignore --no-index` on the
-source),
+or Git does not ignore the place (one `git check-ignore --no-index` in the
+source,
+asked of every kind of source),
 the directories are removed in the foreground,
 in place,
 by the same held-handle walk.
