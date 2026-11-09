@@ -7,9 +7,9 @@
 //!  shell aliases and worktree creation.
 
 use super::*;
-use crate::test_support::{executable, fixture, git_output, isolated_overlay, remove};
+use crate::test_support::{executable, fixture, git, git_output, isolated_overlay, remove};
 use crate::transaction_git::GitContext;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A context whose only aliases are the given name and value pairs,
 ///  read by real Git.
@@ -285,6 +285,115 @@ fn a_shell_alias_that_names_one_git_command_is_read_for_the_guard() {
     let followed: ResolvedCommand =
         resolve_forwarded_command(&chained, no_environment().as_slice(), &args(&["fixtureshell"]));
     assert_eq!(followed.shell_command, Some(args(&["reset", "--hard"])));
+}
+
+/// What:
+///  What real Git prints for one invocation of a `!` alias in a fixture,
+///  with `path` as the only `PATH` entry list it searches.
+/// Why:
+///  The control answers the same question the reading answers,
+///  so a wrong reading fails against Git and not
+///  against another reading of the same rules.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFile(REAL_GIT, args, { cwd, env: { PATH: path } }).stdout
+/// ```
+fn real_git_stdout(directory: &Path, path: &str, arguments: &[&str]) -> String {
+    let output: std::process::Output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(directory)
+        .env_clear()
+        .env("PATH", path)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .args(arguments)
+        .output()
+        .expect("native Git fixture command");
+    return String::from_utf8_lossy(&output.stdout).into_owned();
+}
+
+/// What:
+///  A shell alias searches for an installed `git-<word>` from the top of the working tree,
+///  which is the directory Git runs the shell in,
+///  so the caller's `-C` moves neither search.
+/// Why:
+///  Git changes to the top of the working tree before it starts the shell of a `!` alias
+///  (`git.c:388` to `git.c:407`),
+///  so `git -C sub fixtureouter` with `fixtureouter = !git fixturewipe` runs `fixturewipe` from
+///  the repository root;
+///  a reading that applied the caller's `-C` again searched `sub/bin`,
+///  found a program the shell never reaches,
+///  and reported no shell command at all,
+///  which left the alias to Git and skipped the guard.
+///  The absolute entry is the positive control:
+///  with it the program is reachable and both the reading and Git find it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // sub/bin/git-fixturewipe exists, args ['-C', 'sub', 'fixtureouter'], PATH 'bin:/usr/bin:/bin'
+/// resolveForwardedCommand(...).shellCommand // ['version'], and Git runs the same alias
+/// ```
+#[test]
+fn a_shell_alias_searches_for_an_executable_where_git_runs_it() {
+    let root: PathBuf = fixture("alias-shell-run-directory");
+    git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
+    let directory: PathBuf = root.join("sub/bin");
+    std::fs::create_dir_all(directory.as_path()).expect("program directory");
+    executable(directory.join("git-fixturewipe").as_path(), b"#!/bin/sh\necho external\n");
+    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
+    std::env::set_current_dir(root.as_path()).expect("the fixture is where the wrapper starts");
+    let context: GitContext = context_with_aliases(&[
+        ("fixtureouter", "!git fixturewipe"),
+        ("fixturewipe", "version"),
+    ]);
+    let invocation: Vec<&str> = vec![
+        "-c",
+        "alias.fixtureouter=!git fixturewipe",
+        "-c",
+        "alias.fixturewipe=version",
+        "-C",
+        "sub",
+        "fixtureouter",
+    ];
+    // A relative entry is the repository root's `bin`, which holds no program: Git expands the alias there.
+    let relative: String = String::from("bin:/usr/bin:/bin");
+    let environment: Vec<(OsString, OsString)> =
+        vec![(OsString::from("PATH"), OsString::from(relative.as_str()))];
+    let resolved: ResolvedCommand = resolve_forwarded_command(
+        &context,
+        environment.as_slice(),
+        &args(&["-C", "sub", "fixtureouter"]),
+    );
+    assert_eq!(resolved.route, Route::ShellAlias);
+    assert_eq!(
+        resolved.shell_command,
+        Some(args(&["version"])),
+        "the shell's own command is read from the root"
+    );
+    let stdout: String = real_git_stdout(root.as_path(), relative.as_str(), invocation.as_slice());
+    assert!(
+        stdout.contains("git version"),
+        "Git did not run the alias the reading followed: {stdout}"
+    );
+    assert!(!stdout.contains("external"), "Git ran the program under sub/bin: {stdout}");
+    // The positive control: an absolute entry reaches the program, the reading sees it and Git runs it.
+    let absolute: String = format!("{}:/usr/bin:/bin", directory.display());
+    let reachable: Vec<(OsString, OsString)> =
+        vec![(OsString::from("PATH"), OsString::from(absolute.as_str()))];
+    let external: ResolvedCommand = resolve_forwarded_command(
+        &context,
+        reachable.as_slice(),
+        &args(&["-C", "sub", "fixtureouter"]),
+    );
+    assert_eq!(external.route, Route::ShellAlias);
+    assert_eq!(external.shell_command, None, "the program is reachable, so Git runs it");
+    let stdout: String = real_git_stdout(root.as_path(), absolute.as_str(), invocation.as_slice());
+    assert!(
+        stdout.contains("external"),
+        "the control did not reach the program, so the relative case proves nothing: {stdout}"
+    );
+    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
+    remove(root.as_path());
 }
 
 /// What:
