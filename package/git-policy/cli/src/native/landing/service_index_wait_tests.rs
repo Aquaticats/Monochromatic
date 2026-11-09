@@ -255,7 +255,8 @@ fn a_holder_the_mark_proves_to_run_is_waited_for_until_it_lets_go() {
     letting_go.join().expect("the service lets go");
     let text: String = String::from_utf8_lossy(&out).into_owned();
     assert!(text.matches("waiting for the commit service").count() > 1, "the line repeats while the service holds: {text}");
-    assert!(!text.contains("giving up") && !text.contains("runs now"), "a service that runs is never given up on: {text}");
+    assert!(text.contains(format!("for at most {} seconds in all", SERVICE_HOLD_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before the command runs: {text}");
+    assert!(!text.contains("giving up") && !text.contains("runs now"), "a notice while the wait goes on never says the command gave up or ran; only the ceiling's line does: {text}");
     remove(root.as_path());
 }
 

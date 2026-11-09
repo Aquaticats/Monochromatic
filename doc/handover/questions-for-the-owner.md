@@ -830,6 +830,23 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-08T22:14:46-05:00,
+  secret scanner:
+  when `forbidden-strings --all` cannot read a repository's index,
+  it prints that tracked files hidden by `.gitignore` were not covered,
+  and it keeps its exit status,
+  so a scan that finds nothing in the visible files still exits 0.
+  The reason is your rule "Commits should never fail."
+  The cost is that the commit gate and CI pass with less coverage while saying so.
+  Say "undo" to make that case a failure.
+- 2026-11-08T22:14:46-05:00,
+  TOML library:
+  a float wrapper holding a numeric string (`{ tomlKind: 'float', value: '1.5' }`) no longer turns into a number;
+  it is refused.
+  Only one unit test relied on the old behaviour.
+  A plain number or bigint with no wrapper is still written unchecked,
+  so a very large one can come out as `1e+21` or outside TOML's range;
+  that is unchanged.
 - 2026-11-05T03:58:47Z,
   program rename:
   this repository's settings file keeps its old name `cli-git.config.jsonc`

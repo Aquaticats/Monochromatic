@@ -79,6 +79,14 @@ const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
 /// Why:
 ///   A cluster such as `-am` carries `m`,
 /// whose value is the following token or the rest of the cluster.
+/// A letter with an attached value (`-S<keyid>`,
+/// `-u<mode>`) ends the search instead:
+/// what follows it is its value,
+/// so a key ID or mode that spells `m`,
+/// `F`,
+/// `C`,
+/// `c`,
+/// `t` or `U` is never read as flags.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,6 +94,9 @@ const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
 /// ```
 fn find_value_option_index(letters: &[char]) -> Option<usize> {
     for (index, letter) in letters.iter().enumerate().skip(1) {
+        if OPTIONAL_VALUE_LETTERS.contains(letter) {
+            return None;
+        }
         let option: String = format!("-{letter}");
         if SHORT_VALUE_OPTIONS.contains(&option.as_str()) {
             return Some(index);
