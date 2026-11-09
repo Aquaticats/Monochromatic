@@ -1,0 +1,280 @@
+//! What:
+//!  Whether Git reaches an executable named `git-<word>` before it looks for an alias of that word.
+//! Why:
+//!  `run_argv` tries a built-in,
+//!  then the dashed external,
+//!  then the alias (`git.c:837` to
+//!  `git.c:914`),
+//!  so a repository that defines `alias.audit-external` cannot replace an installed
+//!  `git-audit-external`:
+//! Git runs the program,
+//! and only a name with neither a built-in nor an executable reaches
+//!  `handle_alias`.
+//!  The wrapper hands real Git the alias expansion it resolved,
+//!  so it has to answer this the way Git
+//!  answers it,
+//!  and the answer is the search Git makes:
+//! its exec path prepended to `PATH`
+//!  (`exec-cmd.c:333` to `:350`),
+//!  every entry a directory whose `git-<word>` is a regular file with the owner execute bit
+//!  (`run-command.c:191` to `:219`),
+//!  and a word that holds a directory separator run from the path as it
+//!  stands, without any search.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // dashedExternalSelected({ context, environment, globals, word: 'audit-external' })
+//! //   => true when `git-audit-external` is executable on Git's search path
+//! ```
+
+/// Debug diagnostics.
+use crate::diagnostic_log::debug;
+/// The environment overlay reader the wrapper uses for every variable it consults.
+use crate::child_environment::environment_value;
+/// Running real Git,
+///  for the exec path only Git knows.
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+/// `OsStr`/`OsString` hold raw native text.
+use std::ffi::{OsStr, OsString};
+/// `Path`/`PathBuf` hold raw native paths.
+use std::path::{Path, PathBuf};
+
+/// The mode bit Git's `is_executable` tests,
+///  the owner's execute bit,
+///  not the permission this process really has.
+#[cfg(unix)]
+const OWNER_EXECUTE_BIT: u32 = 0o100;
+
+/// What:
+///  Whether Git would run an executable named `git-<word>` for this command word,
+///  so that no alias of
+///       that word is selected.
+///  `&[OsString]` borrows the caller's global options;
+///  `&[(OsString, OsString)]` borrows the
+///       environment the real Git will be started with.
+/// Why:
+///  The wrapper substitutes the expansion it resolved,
+///  so it must not do that for a word Git resolves
+///  to an external program instead.
+///  An answer it cannot prove,
+///  `true`,
+///  leaves the alias to Git,
+///  which then
+///  makes the decision itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function dashedExternalSelected({ context, environment, globals, word }): boolean;
+/// ```
+pub fn dashed_external_selected(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    globals: &[OsString],
+    word: &OsStr,
+) -> bool {
+    // UNTESTED ON WINDOWS: the crate does not build for Windows (README, Requirements); this answer keeps the alias
+    //  unchecked there rather than guessing at `PATHEXT` and the extension Git would run.
+    #[cfg(not(unix))]
+    {
+        let _ = (context, environment, globals, word);
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        let mut candidate: OsString = OsString::from("git-");
+        candidate.push(word);
+        // A word with a directory separator is executed as it stands, so no PATH entry is searched for it.
+        if candidate.as_encoded_bytes().contains(&b'/') {
+            return is_executable_file(Path::new(candidate.as_os_str()));
+        }
+        let Some(directories) = search_directories(context, environment, globals) else {
+            debug(
+                "dashedExternalSelected",
+                format!("cannot read the exec path, so {}", candidate.to_string_lossy()).as_str(),
+            );
+            return true;
+        };
+        for directory in directories {
+            if is_executable_file(directory.join(candidate.as_os_str()).as_path()) {
+                debug(
+                    "dashedExternalSelected",
+                    format!("{} is executable, so Git runs it", candidate.to_string_lossy()).as_str(),
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+/// What:
+///  The directories Git searches for `git-<word>`,
+///  its exec path first and then every `PATH` entry, or
+///       nothing when the exec path cannot be read.
+/// Why:
+///  `setup_path` puts the exec path in front of `PATH` once,
+///  before any command runs
+///  (`exec-cmd.c:333`),
+///  and `locate_in_PATH` then walks the entries in order,
+///  an empty entry being the
+///  current directory (`run-command.c:203`).
+///  The order only matters to Git;
+///  this caller asks whether any
+///  entry holds the program.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function searchDirectories({ context, environment, globals }): string[] | undefined;
+/// ```
+fn search_directories(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    globals: &[OsString],
+) -> Option<Vec<PathBuf>> {
+    let mut directories: Vec<PathBuf> = Vec::new();
+    let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
+    for entry in std::env::split_paths(path.as_os_str()) {
+        // POSIX specifies an empty entry as the current directory, and Git reads it that way too.
+        if entry.as_os_str().is_empty() {
+            directories.push(PathBuf::from("."));
+        } else {
+            directories.push(entry);
+        }
+    }
+    let exec_path: PathBuf = exec_path(context, environment, globals)?;
+    directories.push(exec_path);
+    return Some(directories);
+}
+
+/// What:
+///  The directory Git keeps its own commands in,
+///  read from the environment or from Git itself,
+///  or nothing
+///       when neither answers with a path this reading can use.
+/// Why:
+///  `git_exec_path` takes a nonempty `GIT_EXEC_PATH` and otherwise the path Git was built with
+///  (`exec-cmd.c:313` to `:323`),
+///  which only Git can name,
+///  so the answer comes from `git --exec-path` with the
+///  caller's globals,
+///  as `--exec-path` is read before the exec path is used (`git.c:181`).
+///  A relative answer
+///  is made absolute against the directory Git starts in,
+///  which the caller's `-C` chain moves;
+///  reading that
+///  chain is another job,
+///  so a relative answer leaves the search uncertain instead of guessed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function execPath({ context, environment, globals }): string | undefined;
+/// ```
+fn exec_path(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    globals: &[OsString],
+) -> Option<PathBuf> {
+    let value: OsString = match environment_value(environment, "GIT_EXEC_PATH") {
+        Some(configured) if !configured.is_empty() => configured,
+        Some(_) | None => printed_exec_path(context, globals)?,
+    };
+    let path: PathBuf = PathBuf::from(value);
+    if !path.is_absolute() {
+        return None;
+    }
+    return Some(path);
+}
+
+/// What:
+///  The exec path Git itself reports,
+///  or nothing when Git cannot be asked or answers nothing.
+/// Why:
+///  `--exec-path` prints the path Git uses and exits without opening a repository
+///  (`git.c:181` to `:188`),
+///  so asking it is the only way to read the path Git was built with.
+///  The answer ends with one newline,
+///  which is the record terminator and not part of the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function printedExecPath({ context, globals }): string | undefined;
+/// ```
+fn printed_exec_path(context: &GitContext, globals: &[OsString]) -> Option<OsString> {
+    let mut arguments: Vec<OsString> = globals.to_vec();
+    arguments.push(OsString::from("--exec-path"));
+    let mut request: GitRequest = GitRequest::new(Path::new("."), arguments.as_slice());
+    request.without_prefix = true;
+    match run_git(context, &request) {
+        Ok(output) if output.succeeded() => return Some(without_record_terminator(output.stdout.as_slice())),
+        Ok(_) | Err(_) => {
+            debug("printedExecPath", "Git did not report its exec path");
+            return None;
+        }
+    }
+}
+
+/// What:
+///  Printed bytes without the newline a command ends its answer with,
+///  and without the byte a Windows answer puts
+///       before it.
+/// Why:
+///  `--exec-path` writes the path with `puts`,
+///  so the newline comes from the printing and not from the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.replace(/\r?\n$/, '')
+/// ```
+fn without_record_terminator(printed: &[u8]) -> OsString {
+    let mut end: usize = printed.len();
+    if printed.get(end.wrapping_sub(1)) == Some(&b'\n') {
+        end -= 1;
+        // A Windows answer writes the newline as a carriage return and a newline, the way `puts` does.
+        if printed.get(end.wrapping_sub(1)) == Some(&b'\r') {
+            end -= 1;
+        }
+    }
+    #[cfg(unix)]
+    {
+        /// The Unix byte-to-native-string conversion for a printed path.
+        use std::os::unix::ffi::OsStringExt;
+        return OsString::from_vec(printed[..end].to_vec());
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return OsString::from(String::from_utf8_lossy(&printed[..end]).into_owned());
+    }
+}
+
+/// What:
+///  Whether the path names a regular file that carries the owner execute bit,
+///  as Git asks before it
+///       runs a command (`run-command.c:136` to `:168`).
+/// Why:
+///   Git follows links here and tests the bit itself,
+///  not this process's right to execute the file,
+///  so a program
+///       only its group may run is one Git skips.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await stat(path)).isFile() && ((await stat(path)).mode & 0o100) !== 0
+/// ```
+#[cfg(unix)]
+fn is_executable_file(path: &Path) -> bool {
+    /// The Unix permission bits of a file.
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    return metadata.permissions().mode() & OWNER_EXECUTE_BIT != 0;
+}
+
+/// The search and the exec path stay out of the release executable.
+#[cfg(test)]
+#[path = "external_git_command_tests.rs"]
+mod tests;

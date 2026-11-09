@@ -28,6 +28,9 @@ use crate::git_builtins::is_git_builtin;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout, prefix_changes_environment};
 /// Running real Git.
 use crate::transaction_git::{GitContext, GitRequest, run_git};
+/// The command a Git alias really runs,
+///  the executable Git selects first included.
+use crate::external_git_command::dashed_external_selected;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
@@ -342,12 +345,19 @@ fn os_words(words: Vec<Vec<u8>>) -> Vec<OsString> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function resolveForwardedCommand({ args, gitPath }): Promise<ResolvedGitCommand>;
+/// async function resolveForwardedCommand({ args, environment, gitPath }): Promise<ResolvedGitCommand>;
 /// ```
-pub fn resolve_forwarded_command(context: &GitContext, arguments: &[OsString]) -> ResolvedCommand {
+pub fn resolve_forwarded_command(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    arguments: &[OsString],
+) -> ResolvedCommand {
     // `mut` allows replacing the arguments with each expansion.
     let mut current: Vec<OsString> = arguments.to_vec();
     let mut seen: Vec<OsString> = Vec::new();
+    // The globals of the caller are the ones Git read before it reached the command word, and they decide the exec
+    //  path the search for an executable uses; an alias expansion adds none of them back.
+    let caller_globals: &[OsString] = &arguments[..global_layout(arguments).prefix_len];
     for _ in 0..=MAX_ALIAS_EXPANSIONS {
         let layout: GlobalLayout = global_layout(current.as_slice());
         let route: Route = if seen.is_empty() { Route::Direct } else { Route::Alias };
@@ -357,6 +367,15 @@ pub fn resolve_forwarded_command(context: &GitContext, arguments: &[OsString]) -
         let name: OsString = current[layout.prefix_len].clone();
         if is_git_builtin(name.as_encoded_bytes()) {
             return resolved(current.as_slice(), &layout, route);
+        }
+        // Git runs an installed `git-<word>` before it looks for an alias of that word (git.c:905 to git.c:912), so
+        //  such a word reaches no alias and the wrapper leaves it to Git.
+        if dashed_external_selected(context, environment, caller_globals, name.as_os_str()) {
+            debug(
+                "resolveForwardedCommand",
+                format!("Git runs {} as an external command", name.to_string_lossy()).as_str(),
+            );
+            return resolved(current.as_slice(), &layout, Route::Unresolved);
         }
         if seen.contains(&name) {
             debug(
