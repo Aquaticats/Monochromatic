@@ -315,29 +315,24 @@ fn create_private_directory(directory: &Path) -> std::io::Result<()> {
 /// async function copyIndex(source: string, destination: string): Promise<boolean>;
 /// ```
 fn copy_index(source: &Path, destination: &Path) -> std::io::Result<bool> {
-    // `match` on the metadata read: a missing file is an answer, every other error is a failure.
-    let metadata: std::fs::Metadata = match std::fs::metadata(source) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(error),
-    };
-    // A trailing `?` returns the copy failure to our caller.
-    std::fs::copy(source, destination)?;
-    // What: `FileTimes::new().set_accessed(..).set_modified(..)` collects both times;
-    //       `.set_times(..)` writes them to the open copy.
-    // Why:  Git's racy-entry protection compares entry times with the index file's time.
+    // The metadata read answers only whether there is an index to copy: a missing one is an answer, every other error is a
+    // failure, and the copy reads what it needs for the mode and the times itself.
+    if let Err(error) = std::fs::metadata(source) {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            return Ok(false);
+        }
+        return Err(error);
+    }
+    // What: The one index copy of this crate does this work, so every copy of an index is made, timed and recorded alike.
+    // Why:  It keeps the source's mode and times, which Git's racy-entry protection compares with the entry times, and it
+    // asks the filesystem to clone the bytes instead of reading them: this copy of a three-megabyte index waited 2,288 ms
+    // and 4,813 ms in two commits traced under this host's pressure.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // await utimes(destination, stats.atime, stats.mtime);
+    // await copyIndexWithTimestamps(source, destination);
     // ```
-    let times: std::fs::FileTimes = std::fs::FileTimes::new()
-        .set_accessed(metadata.accessed()?)
-        .set_modified(metadata.modified()?);
-    std::fs::File::options()
-        .write(true)
-        .open(destination)?
-        .set_times(times)?;
+    crate::commit_index_copying::copy_index_with_timestamps(source, destination)?;
     return Ok(true);
 }
 
