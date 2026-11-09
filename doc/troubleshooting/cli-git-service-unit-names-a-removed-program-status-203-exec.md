@@ -13,6 +13,11 @@ This is a defect in the wrapper's decision,
 not in systemd:
 the manager did what its unit file said.
 
+Note 2026-11-09T16:55:17-05:00:
+`package/git-policy/cli/src/native/service_route.rs` is now
+`package/git-policy/cli/src/native/landing/service_route.rs`,
+moved 2026-11-03 in `f18b7c2464`.
+
 ## Symptom
 
 The first commit that goes through the service after an upgrade stops after about ten seconds with,

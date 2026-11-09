@@ -103,6 +103,11 @@ pub struct AllIndexes {
     pub references: Vec<PathBuf>,
     /// The CPUs and memory the budget is derived from.
     pub host: HostResources,
+    /// What the platform of the command that asked for this run says about its writes reaching the disk.
+    /// Each rewrite is a job of the blocking pool,
+    /// whose thread is not the caller's,
+    /// so a caller that keeps its writes in memory says so here and each job installs it.
+    pub flushes_to_disk: bool,
     /// The rewrite of one index file.
     pub rewrite: Arc<RewriteOne>,
 }
@@ -125,12 +130,13 @@ pub struct AllIndexes {
 /// ```ts
 /// function refreshAllIndexes(root: string, lock: IndexLock, references: string[], say: (line: string) => void): void;
 /// ```
-pub fn refresh_all_indexes(root: &Path, lock: IndexLock, references: &[PathBuf], say: &mut dyn LineSink) -> Result<usize, MigrateError> {
+pub fn refresh_all_indexes(root: &Path, lock: IndexLock, references: &[PathBuf], flushes_to_disk: bool, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
     let request: AllIndexes = AllIndexes {
         root: root.to_path_buf(),
         lock,
         references: references.to_vec(),
         host: HostResources::read(),
+        flushes_to_disk,
         rewrite: Arc::new(refresh_index_file_with),
     };
     return refresh_all_indexes_with(&request, say);
@@ -157,6 +163,10 @@ struct RewriteEachIndex {
     /// The length of the repository's object hashes,
     /// when it could be read.
     hash_length: Option<usize>,
+    /// Whether the writes of a rewrite reach the disk;
+    /// each job installs this answer on its own thread,
+    /// which is not the thread that asked for the run.
+    flushes_to_disk: bool,
     /// How many rewrites gave no result,
     /// so a phase that covered fewer indexes than it counted says so instead of marking itself done.
     gave_no_result: Arc<RewritesThatGaveNoResult>,
@@ -199,7 +209,12 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
             //  queues a job before it asks for a thread, so a job it could not start may still run later.
             let claim: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
             let jobs_claim: Arc<TheClaimOnAJobsWork> = Arc::clone(&claim);
+            let flushes_to_disk: bool = self.flushes_to_disk;
             let rewritten = run_blocking_job_within_the_budget(move || {
+                // The platform's answer about the disk travels with the job: this thread is not the caller's, so a call that
+                //  keeps its writes in memory must say so here for the index it installs as well.
+                let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
+                    crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(flushes_to_disk);
                 // The claim comes first, before anything reads or writes the index.
                 if !jobs_claim.the_job_takes_it() {
                     return None;
@@ -363,7 +378,7 @@ fn prepare_the_run(root: &Path, references: &[PathBuf]) -> PreparedRun {
 /// async function refreshAllIndexesAwaiting({ root, lock, references, host, rewrite }, say): Promise<number>;
 /// ```
 pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
-    let AllIndexes { root, lock, references, host, rewrite } = request;
+    let AllIndexes { root, lock, references, host, flushes_to_disk, rewrite } = request;
     let (root_owned, references_owned): (PathBuf, Vec<PathBuf>) = (root.clone(), references.clone());
     let prepared: PreparedRun = match run_blocking_job_within_the_budget(move || { return prepare_the_run(root_owned.as_path(), references_owned.as_slice()); }).await {
         Ok(prepared) => prepared,
@@ -384,7 +399,7 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
         items: Arc::clone(&items),
         lanes: Arc::from(lanes),
         workers,
-        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length, gave_no_result: Arc::clone(&gave_no_result) }),
+        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length, flushes_to_disk: *flushes_to_disk, gave_no_result: Arc::clone(&gave_no_result) }),
         on_event: &mut SayEachIndex { say, targets: items.as_ref() },
     })
     .await;

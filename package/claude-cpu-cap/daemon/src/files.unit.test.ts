@@ -1,5 +1,6 @@
 import {
-  mkdtemp,
+  mkdtempDisposable,
+  type DisposableTempDir,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -20,20 +21,21 @@ import {
 } from './files.ts';
 
 /**
- Creates a directory holding one sensor file.
+ Creates a directory holding one sensor file, removed when the caller's scope
+ ends.
 
  @param name - file name
  @param text - file contents
 
- @returns the directory
+ @returns the directory, which owns its own removal
  */
-async function sensorDir({ name, text, }: Readonly<{ name: string; text: string; }>,): Promise<string> {
+async function sensorDir({ name, text, }: Readonly<{ name: string; text: string; }>,): Promise<DisposableTempDir> {
   /**
    Fresh directory so cases cannot share files.
    */
-  const dir = await mkdtemp(join(scratchRoot(), 'cpu-cap-files-',),);
-  await writeFile(join(dir, name,), text,);
-  return dir;
+  const directory = await mkdtempDisposable(join(scratchRoot(), 'cpu-cap-files-',),);
+  await writeFile(join(directory.path, name,), text,);
+  return directory;
 }
 
 await describe({
@@ -68,7 +70,8 @@ await describe({
             /**
              Directory with one file.
              */
-            const dir = await sensorDir({ name: 'a', text: 'hello', },);
+            await using directory = await sensorDir({ name: 'a', text: 'hello', },);
+            const dir = directory.path;
             expect(
               await readTextOrEmpty(join(dir, 'a',),),
             ).toBe('hello',);
@@ -83,7 +86,8 @@ await describe({
             /**
              A directory path, which cannot be read as a file.
              */
-            const dir = await sensorDir({ name: 'a', text: 'x', },);
+            await using directory = await sensorDir({ name: 'a', text: 'x', },);
+            const dir = directory.path;
             await expect(readTextOrEmpty(dir,),).rejects.toThrow('EISDIR',);
           },
         },),
@@ -98,7 +102,8 @@ await describe({
             /**
              Directory with one file.
              */
-            const dir = await sensorDir({ name: 'a', text: 'x', },);
+            await using directory = await sensorDir({ name: 'a', text: 'x', },);
+            const dir = directory.path;
             /**
              Path of the existing file.
              */
@@ -118,7 +123,8 @@ await describe({
             /**
              A path that continues past a regular file, which fails with ENOTDIR instead of ENOENT.
              */
-            const dir = await sensorDir({ name: 'a', text: 'x', },);
+            await using directory = await sensorDir({ name: 'a', text: 'x', },);
+            const dir = directory.path;
             /**
              Path that continues past the file.
              */
@@ -137,7 +143,8 @@ await describe({
             /**
              Directory with a temperature input.
              */
-            const dir = await sensorDir({ name: 'temp1_input', text: '61500\n', },);
+            await using directory = await sensorDir({ name: 'temp1_input', text: '61500\n', },);
+            const dir = directory.path;
             expect(await readMilliCelsius({ dir, name: 'temp1_input', },),).toBe('61.5',);
             expect(await readMilliCelsius({ dir, name: 'temp9_input', },),).toBe(ABSENT,);
             expect(await readMilliCelsius({ dir: ABSENT, name: 'temp1_input', },),).toBe(ABSENT,);
@@ -149,11 +156,13 @@ await describe({
             /**
              Directory with a fan input.
              */
-            const dir = await sensorDir({ name: 'fan1_input', text: '1509\n', },);
+            await using directory = await sensorDir({ name: 'fan1_input', text: '1509\n', },);
+            const dir = directory.path;
             /**
              Directory with a fan input of a header with no fan plugged in.
              */
-            const stopped = await sensorDir({ name: 'fan2_input', text: '0\n', },);
+            await using stoppedDirectory = await sensorDir({ name: 'fan2_input', text: '0\n', },);
+            const stopped = stoppedDirectory.path;
             expect(await readRpm({ dir, name: 'fan1_input', },),).toBe('1509',);
             expect(await readRpm({ dir: stopped, name: 'fan2_input', },),).toBe('0',);
             expect(await readRpm({ dir, name: 'fan9_input', },),).toBe(ABSENT,);
@@ -166,7 +175,8 @@ await describe({
             /**
              Directory with a power input.
              */
-            const dir = await sensorDir({ name: 'power1_average', text: '12340000\n', },);
+            await using directory = await sensorDir({ name: 'power1_average', text: '12340000\n', },);
+            const dir = directory.path;
             expect(await readMicroWatts({ dir, name: 'power1_average', },),).toBe('12.3',);
             expect(await readMicroWatts({ dir, name: 'power9_average', },),).toBe(ABSENT,);
             expect(await readMicroWatts({ dir: ABSENT, name: 'power1_average', },),).toBe(ABSENT,);

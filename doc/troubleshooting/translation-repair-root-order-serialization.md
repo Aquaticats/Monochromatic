@@ -1,5 +1,9 @@
 # Node 26.8.2 root-input JSON omits definition-order Set members
 
+Note 2026-11-09T16:54:06-05:00:
+`package/module/translation-repair/src/` was split into the `src` folders of the packages under
+`package/translation-repair/` on 2026-10-18 in `4bd1aea8d5`.
+
 ## Symptom
 
 The retained Task47 artifact contains `freeOrder: { "source": {}, "target": {} }`

@@ -20,6 +20,11 @@ import spawn from 'nano-spawn';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { filterPnpmOutput, } from './pnpm-output-filter.ts';
+import {
+  isCapturedSubprocessFailure,
+  ToolKilledBySignalError,
+  ToolNotStartedError,
+} from './tool-failure.ts';
 
 //region Main execution
 
@@ -101,53 +106,36 @@ try {
   },);
 }
 catch (error) {
-  if ((error !== null) && ((typeof error) === 'object')
-    && ('exitCode' in error)) {
-    /* oxlint-disable typescript/no-unsafe-type-assertion -- 'exitCode' in check above narrows error to the captured-subprocess shape */
-    /**
-     Re-typed thrown error so its captured stdout, stderr, and exit fields can be forwarded after filtering.
-     */
-    const subprocessError = error as {
-      stdout?: string;
-      stderr?: string;
-      exitCode?: number;
-      signalName?: string;
-    };
-    /* oxlint-enable typescript/no-unsafe-type-assertion */
-
-    writeFiltered({
-      raw: subprocessError.stdout
-        ?? '',
-      stream: process.stdout,
-    },);
-    writeFiltered({
-      raw: subprocessError.stderr
-        ?? '',
-      stream: process.stderr,
+  if (!isCapturedSubprocessFailure(error,))
+    throw new ToolNotStartedError({
+      task: 'task-pnpm',
+      tool: 'pnpm',
+      detail: caughtValueText(error,),
     },);
 
-    process.exitCode = subprocessError.exitCode
-      ?? 1;
+  writeFiltered({
+    raw: error.stdout
+      ?? '',
+    stream: process.stdout,
+  },);
+  writeFiltered({
+    raw: error.stderr
+      ?? '',
+    stream: process.stderr,
+  },);
 
-    if ((subprocessError.signalName
-      !== undefined)
-      && (subprocessError.signalName
-        !== ''))
-      {
-      console.error(
-        `[task-pnpm] pnpm terminated by signal: ${subprocessError.signalName}`,
-      );
-      process.exitCode = 1;
-    }
-  }
-  else {
-    console.error(
-      `[task-pnpm] failed to execute pnpm: ${
-        caughtValueText(error,)
-      }`,
-    );
-    process.exitCode = 1;
-  }
+  process.exitCode = error.exitCode
+    ?? 1;
+
+  if ((error.signalName
+    !== undefined)
+    && (error.signalName
+      !== ''))
+    throw new ToolKilledBySignalError({
+      task: 'task-pnpm',
+      tool: 'pnpm',
+      detail: error.signalName,
+    },);
 }
 
 //endregion Main execution

@@ -5,6 +5,11 @@ A config that sets only `rules` does not limit a run to those rules.
 config also applies every fixable default-category rule,
 mixing unrelated rewrites into what should be a single-rule normalization.
 
+Note 2026-11-09T16:56:27-05:00:
+`package/linter/monochromatic-lint/bin/test-container.mjs` is now
+`package/linter/monochromatic-lint/bin/test-container.ts`,
+moved 2026-10-30 in `4264752442`.
+
 ## Symptom
 
 Run `oxlint --fix` with a config whose only rule is one JS plugin rule

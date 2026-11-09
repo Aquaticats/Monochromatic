@@ -5,7 +5,7 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   rm,
 } from 'node:fs/promises';
@@ -32,12 +32,12 @@ await describe({
         /**
          Scratch directory of the test.
          */
-        const dir = await mkdtemp(join(scratchRoot(), 'e2e-files-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-files-',),);
+        const dir = scratchDirectory.path;
         expect(await pathExists(dir,),).toBe(true,);
         expect(
           await pathExists(join(dir, 'missing',),),
         ).toBe(false,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
   ],
@@ -52,13 +52,13 @@ await describe({
         /**
          Scratch directory of the test.
          */
-        const dir = await mkdtemp(join(scratchRoot(), 'e2e-files-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-files-',),);
+        const dir = scratchDirectory.path;
         await ensureDirectory(join(dir, 'a', 'b',),);
         await ensureDirectory(join(dir, 'a', 'b',),);
         expect(
           await pathExists(join(dir, 'a', 'b',),),
         ).toBe(true,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
   ],
@@ -73,7 +73,8 @@ await describe({
         /**
          Scratch directory of the test.
          */
-        const dir = await mkdtemp(join(scratchRoot(), 'e2e-files-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-files-',),);
+        const dir = scratchDirectory.path;
 
         /**
          Where the planted file goes.
@@ -85,7 +86,6 @@ await describe({
           expect(await readFile(path, 'utf8',),).toBe('inside',);
         }
         expect(await pathExists(path,),).toBe(false,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
@@ -94,7 +94,8 @@ await describe({
         /**
          Scratch directory of the test.
          */
-        const dir = await mkdtemp(join(scratchRoot(), 'e2e-files-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-files-',),);
+        const dir = scratchDirectory.path;
 
         /**
          Where the planted file goes.
@@ -105,7 +106,6 @@ await describe({
           await rm(path,);
         }
         expect(await pathExists(path,),).toBe(false,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
   ],

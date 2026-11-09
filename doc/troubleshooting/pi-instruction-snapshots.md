@@ -1,5 +1,16 @@
 # Pi 0.87.1 and 1.0.0 instruction snapshots can miss later prompt transformations
 
+Note 2026-11-09T16:46:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/native/contract/collector/program-rule-batch-sdk-copy-v2/input/instruction-batches.ts`
+left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody/messages.mjs`
+left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/src/input-receipt-budget.ts` left the tree on 2026-10-19 in `7ac15b19b4`.
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+
 ## Pi 1.2.0 complete workspace assessments exceeded single-request construction on 2026-10-15
 
 After capture ceilings were removed,
