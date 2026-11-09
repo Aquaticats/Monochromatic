@@ -5361,6 +5361,12 @@ and the hooks directory is not scanned on the commit path.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
+The value it names is the last entry of the key that is not one of those overrides:
+an entry a
+wrapper-started Git put into a child as command-scope configuration is last in that child,
+and the warning is
+about the path the person configured,
+not about the one the wrapper injected.
 
 ### Core finding event
 
