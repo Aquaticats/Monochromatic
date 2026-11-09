@@ -33,7 +33,7 @@ The `gpt-6.1-sol` audit of how the wrapper reads command lines ended after about
 If this seems wrong,
 try rephrasing your request.
 If you're doing authorized security work that requires more cyber permissive safeguards,
-apply for Daybreak access via https://platform.openai.com/settings/organization/status-and-access before retrying."
+apply for Daybreak access via <https://platform.openai.com/settings/organization/status-and-access> before retrying."
 The error does not say which content was flagged.
 The audit was reading and running the wrapper on throwaway repositories.
 
