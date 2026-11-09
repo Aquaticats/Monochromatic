@@ -29,7 +29,8 @@
 //! and a run that moves for ever is
 //!  ended by the test runner's own per-test limit (`.config/nextest.toml`,
 //! `slow-timeout` 60 s times
-//!  `terminate-after` 5), so nothing waits without a bound.
+//!  `terminate-after` 5),
+//! so nothing waits without a bound.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -43,7 +44,8 @@ use crate::push_progress::{SAMPLE_INTERVAL, is_working, parse_activity};
 /// The kernel's number for the calling thread,
 /// which the look leaves out so its own reading never counts as the run's work.
 use crate::thread_quiet::current_thread_id;
-/// Every process this one started, so their work counts too.
+/// Every process this one started,
+/// so their work counts too.
 use std::collections::HashSet;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
@@ -292,7 +294,8 @@ fn look(reader: i32) -> Option<Look> {
 /// it compares each look with the one before it and says when the run has shown nothing for
 ///  its window.
 /// Why:
-///   Nothing is ended here; the caller decides what an ending does,
+///   Nothing is ended here;
+/// the caller decides what an ending does,
 /// which is what lets the controls drive the
 ///  judgment with made-up looks and times instead of waiting a window out.
 ///

@@ -59,39 +59,43 @@ fn keeping_writes_in_memory() -> bool {
 }
 
 /// What:
-///  Run `body` with the calling thread's flushes skipped,
-/// and give back what it returns.
+///  The switch turned on for the calling thread,
+/// put back when this value goes.
 /// Why:
-///   The switch goes back however the body ends,
-/// so a control that panics inside it does not leave the rest of
+///   A guard puts the switch back however the scope ends,
+/// so a run that panics inside it does not leave the rest of
 ///  its thread flushing into the page cache.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function withoutFlushing<T>(body: () => T): T { const before = keepInMemory; keepInMemory = true; try { return body() } finally { keepInMemory = before } }
+/// const kept = keepingWritesInMemory(); try { run() } finally { kept.restore() }
 /// ```
-pub(crate) fn without_flushing_for_this_thread<Value>(body: impl FnOnce() -> Value) -> Value {
-    #[cfg(test)]
-    {
-        /// Puts the switch back when the body ends however it ends.
-        struct PutBack {
-            /// What the switch was before.
-            before: bool,
-        }
-        impl Drop for PutBack {
-            fn drop(&mut self) {
-                KEEPING_WRITES_IN_MEMORY.with(|flag| { flag.set(self.before); });
-            }
-        }
-        let before: bool = KEEPING_WRITES_IN_MEMORY.with(|flag| { return flag.replace(true); });
-        let put_back: PutBack = PutBack { before };
-        let value: Value = body();
-        drop(put_back);
-        return value;
+pub(crate) struct WritesKeptInMemory {
+    /// What the switch was before.
+    before: bool,
+}
+
+impl WritesKeptInMemory {
+    /// Turn the switch on for the calling thread until the value goes.
+    pub(crate) fn for_this_thread() -> WritesKeptInMemory {
+        #[cfg(test)]
+        return WritesKeptInMemory { before: KEEPING_WRITES_IN_MEMORY.with(|flag| { return flag.replace(true); }) };
+        // A build that is not a test keeps every write on its way to the disk and has no switch to set.
+        #[cfg(not(test))]
+        return WritesKeptInMemory { before: false };
     }
-    // A build that is not a test keeps every write on its way to the disk and has no switch to set.
-    #[cfg(not(test))]
-    return body();
+}
+
+impl Drop for WritesKeptInMemory {
+    /// Put the switch back,
+    /// which is the only thing this value does.
+    fn drop(&mut self) {
+        #[cfg(test)]
+        KEEPING_WRITES_IN_MEMORY.with(|flag| { flag.set(self.before); });
+        // A build that is not a test has no switch, so there is nothing to put back.
+        #[cfg(not(test))]
+        let _ = self.before;
+    }
 }
 
 /// Write all of `bytes` into `file`,

@@ -19,18 +19,27 @@ use std::process::{Command, Output};
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 
 /// How long the run may show no sign of work before the watchdog ends it.
-/// A run that is moving is left alone, however long it takes:
+/// A run that is moving is left alone,
+/// however long it takes:
 /// the slowest test of this crate's families spends most of its time waiting for the disk
-/// (measured 2026-11-08 on this host: 43 of 47 s of one test alone, and 64 of 69 s of another while its family ran,
-/// in the btrfs transaction and log commit waits), so a wall clock ended tests that were working.
+/// (measured 2026-11-08 on this host:
+/// 43 of 47 s of one test alone,
+/// and 64 of 69 s of another while its family ran,
+/// in the btrfs transaction and log commit waits),
+/// so a wall clock ended tests that were working.
 /// The longest stretch any process of those families showed nothing was 8.0 s of a test and the `git` it ran together,
-/// and 0.0 s for every test that the disk made slow, so this window is 15 times the longest quiet stretch measured
+/// and 0.0 s for every test that the disk made slow,
+/// so this window is 15 times the longest quiet stretch measured
 /// (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
 const QUIET_WINDOW: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// Ends the test process once the run has shown no sign of work for `QUIET_WINDOW`.
-/// A run that is stuck shows nothing: no task able to run, none waiting for the disk,
-/// no processor time, no bytes moved, and no process or task started or ended (`run_progress.rs`).
+/// A run that is stuck shows nothing:
+/// no task able to run,
+/// none waiting for the disk,
+/// no processor time,
+/// no bytes moved,
+/// and no process or task started or ended (`run_progress.rs`).
 /// Without it a mutant that leaves a lock held or ignores a deadline hangs the run until an outside timeout,
 /// which the mutation tool records as a timeout instead of a failed test.
 /// The first fixture of the run arms it;

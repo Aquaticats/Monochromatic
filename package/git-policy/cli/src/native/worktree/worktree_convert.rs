@@ -146,11 +146,8 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
 /// ```
 pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
     // A platform that stands in for a filesystem that loses nothing keeps the journal and index writes in the page cache.
-    if !platform.flushes_to_disk() {
-        return crate::subvolume_file_write_steps::without_flushing_for_this_thread(|| {
-            return convert_in_phases(platform, path, options, interrupt, say);
-        });
-    }
+    let _kept: Option<crate::subvolume_file_write_steps::WritesKeptInMemory> =
+        if platform.flushes_to_disk() { None } else { Some(crate::subvolume_file_write_steps::WritesKeptInMemory::for_this_thread()) };
     return convert_in_phases(platform, path, options, interrupt, say);
 }
 

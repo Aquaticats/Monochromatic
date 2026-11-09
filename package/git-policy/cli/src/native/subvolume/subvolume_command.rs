@@ -143,11 +143,8 @@ fn say_refusals(say: &mut dyn FnMut(&str), refusals: &[Refusal]) {
 /// ```
 pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
     // A platform that stands in for a filesystem that loses nothing keeps the journal and index writes in the page cache.
-    if !platform.flushes_to_disk() {
-        return crate::subvolume_file_write_steps::without_flushing_for_this_thread(|| {
-            return run_to_a_status(platform, arguments, root, interrupt, say);
-        });
-    }
+    let _kept: Option<crate::subvolume_file_write_steps::WritesKeptInMemory> =
+        if platform.flushes_to_disk() { None } else { Some(crate::subvolume_file_write_steps::WritesKeptInMemory::for_this_thread()) };
     return run_to_a_status(platform, arguments, root, interrupt, say);
 }
 

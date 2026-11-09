@@ -8,7 +8,8 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// A directory whose flush the kernel refuses, or nothing where this system has no `procfs`.
+/// A directory whose flush the kernel refuses,
+/// or nothing where this system has no `procfs`.
 fn directory_that_cannot_be_flushed() -> Option<&'static Path> {
     let procfs: &Path = Path::new("/proc/self");
     let refused: bool = std::fs::File::open(procfs).is_ok_and(|handle| { return handle.sync_all().is_err(); });
@@ -34,7 +35,10 @@ fn a_thread_that_keeps_its_writes_in_memory_does_not_flush() {
         eprintln!("skipped: this system has no procfs, so no directory flush is refused");
         return;
     };
-    let outcome: std::io::Result<()> = without_flushing_for_this_thread(|| { return sync_directory_to_disk(procfs); });
+    let outcome: std::io::Result<()> = {
+        let _kept = WritesKeptInMemory::for_this_thread();
+        sync_directory_to_disk(procfs)
+    };
     assert!(outcome.is_ok(), "the flush was skipped: {outcome:?}");
     assert!(sync_directory_to_disk(procfs).is_err(), "the switch is back when the body ended");
 }
@@ -48,7 +52,8 @@ fn the_switch_goes_back_when_the_body_panics() {
         return;
     };
     let caught: std::thread::Result<()> = std::panic::catch_unwind(|| {
-        without_flushing_for_this_thread(|| { panic!("the body fails on purpose") });
+        let _kept = WritesKeptInMemory::for_this_thread();
+        panic!("the body fails on purpose");
     });
     assert!(caught.is_err(), "the body panics on purpose");
     assert!(sync_directory_to_disk(procfs).is_err(), "the switch is back after a body that panicked");
@@ -62,10 +67,11 @@ fn a_write_that_keeps_its_bytes_in_memory_writes_all_of_them() {
     let kept: PathBuf = root.join("kept");
     let flushed: PathBuf = root.join("flushed");
     let bytes: &[u8] = b"a record that must arrive whole\n";
-    without_flushing_for_this_thread(|| {
+    {
+        let _kept = WritesKeptInMemory::for_this_thread();
         let mut file: std::fs::File = std::fs::File::create(kept.as_path()).expect("kept file");
         write_all_then_sync(&mut file, bytes).expect("the write and its skipped flush");
-    });
+    }
     let mut file: std::fs::File = std::fs::File::create(flushed.as_path()).expect("flushed file");
     write_all_then_sync(&mut file, bytes).expect("the write and its flush");
     assert_eq!(std::fs::read(kept.as_path()).expect("kept bytes"), bytes);
