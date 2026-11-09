@@ -70,7 +70,7 @@ use std::time::{Duration, Instant};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingStop = { waited: number; belowListed: boolean };
+/// type CeilingStop = { waited: number; belowListed: boolean; belowUnended: number };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CeilingStop {
@@ -79,6 +79,12 @@ pub struct CeilingStop {
     /// Whether the programs below the step were listed,
     /// so one that was not is not reported as gone.
     pub below_listed: bool,
+    /// How many programs below the step were not ended:
+    /// one the kernel refused a descriptor for,
+    /// or one it refused the signal to.
+    /// Such a program may still be running,
+    /// which the record and the stop's words say.
+    pub below_unended: u32,
 }
 
 // What:
@@ -215,7 +221,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     {
         return Ok((outcome_of(status), None));
     }
-    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some() })));
+    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended: 0 })));
 }
 
 /// What:

@@ -32,6 +32,53 @@ fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
 }
 
 /// What:
+///  A program the notice's ceiling could not end is recorded in its stop too.
+/// Why:
+///   Round six of the review:
+///  the stop is written once, by whichever enforcer ended the step first,
+///  so a record that says what could not be ended in one path and not the other
+///  leaves the person without that fact whenever the notice's thread got there first,
+///  which is the common case.
+///  The refusal stands where a descriptor limit makes it real,
+///  and the helper really is left running.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_program_the_ceiling_could_not_end_is_recorded_in_the_stop() {
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("sleep 600 & echo $!; wait").stdout(Stdio::piped()).stdin(Stdio::null());
+    let mut step: Child = crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
+    let helper: i32 = a_number_below(&mut step);
+    let pid: i32 = i32::try_from(step.id()).expect("a process number");
+    let watched: ChildNumber = ChildNumber::not_started_pinned();
+    watched.publish(pid);
+    // The step is signalled through the descriptor its start gave it, so the refusal falls on the helper's.
+    crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(1);
+    let the_ceiling: TheCeiling = ceiling_came(&watched);
+    let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
+    assert_eq!(the_ceiling.came, CeilingCame::Stopped, "the step itself is signalled through its own descriptor");
+    assert!(ended.is_some(), "the signalled step ended");
+    assert!(the_ceiling.below_listed, "the programs below the step were listed");
+    assert_eq!(the_ceiling.below_unended, 1, "the program whose signal was refused is recorded, so the person is told it may still run");
+    assert!(!went_away(helper), "the refusal this control injects is real: the helper was left running");
+}
+
+/// The number of the program a step printed below itself.
+#[cfg(target_os = "linux")]
+fn a_number_below(step: &mut Child) -> i32 {
+    use std::io::{BufRead, BufReader};
+    let output = step.stdout.take().expect("the helper's number");
+    let mut line: String = String::new();
+    BufReader::new(output).read_line(&mut line).expect("a number");
+    return line.trim().parse::<i32>().expect("a process number");
+}
+
+/// Whether a process number names no process any more.
+#[cfg(target_os = "linux")]
+fn went_away(number: i32) -> bool {
+    return crate::process_tree::member_read(number) == crate::process_tree::MemberRead::Gone;
+}
+
+/// What:
 ///  A step whose record could not be read keeps the ceiling armed instead of reading as ended.
 /// Why:
 ///   Finding 3 of the second review:

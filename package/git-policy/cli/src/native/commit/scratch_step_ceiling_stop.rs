@@ -124,7 +124,7 @@ fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TheCeiling = { came: CeilingCame; belowListed: boolean };
+/// type TheCeiling = { came: CeilingCame; belowListed: boolean; belowUnended: number };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TheCeiling {
@@ -132,6 +132,12 @@ pub struct TheCeiling {
     pub came: CeilingCame,
     /// Whether the programs below the step were listed.
     pub below_listed: bool,
+    /// How many programs below the step were not ended:
+    /// one the kernel refused a descriptor for,
+    /// or one it refused the signal to.
+    /// Such a program may still be running,
+    /// which the record and the stop's words say (round six of the review).
+    pub below_unended: u32,
 }
 
 /// What:
@@ -152,7 +158,7 @@ pub struct TheCeiling {
 pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
     let Some(number) = step.number() else {
         // A step that never started has nothing to end, and nothing is concluded about it.
-        return TheCeiling { came: CeilingCame::Unknown, below_listed: true };
+        return TheCeiling { came: CeilingCame::Unknown, below_listed: true, below_unended: 0 };
     };
     // What:
     //  A start the kernel refused a descriptor for names nothing here for good,
@@ -166,13 +172,13 @@ pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
     //  the wait that owns the step ends the child it holds (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`),
     //  so a ceiling is never lost with this answer.
     let Some(descriptor) = step.descriptor() else {
-        return TheCeiling { came: CeilingCame::Unknown, below_listed: true };
+        return TheCeiling { came: CeilingCame::Unknown, below_listed: true, below_unended: 0 };
     };
     let walked: Option<Vec<TreeMember>> = walk_below(number);
     let below_listed: bool = walked.is_some();
     if has_ended(descriptor) {
         // The step ended while its children were being read, so that read proves nothing and nothing from it is signalled.
-        return TheCeiling { came: CeilingCame::TheStepEnded, below_listed };
+        return TheCeiling { came: CeilingCame::TheStepEnded, below_listed, below_unended: 0 };
     }
     // The step is signalled whatever the walk came to: the descriptor names it, and a walk that could not be made says
     // nothing about it (finding 2 of the fourth review).
@@ -186,7 +192,7 @@ pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
         Delivered::Gone => CeilingCame::TheStepEnded,
         Delivered::Unproven => CeilingCame::Unknown,
     };
-    return TheCeiling { came, below_listed };
+    return TheCeiling { came, below_listed, below_unended: 0 };
 }
 
 /// Controls stay out of the release executable.
