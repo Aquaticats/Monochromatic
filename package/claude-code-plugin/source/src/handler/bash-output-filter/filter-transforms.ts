@@ -175,6 +175,12 @@ function hasPathPrefix(prefix: PathPrefix,): prefix is string {
  prefix can also match the start of the longer one. Sorting by length
  descending states that rule once instead of nesting a comparison per caller.
  
+ Two prefixes of equal length cannot both be usable: an alternate spelling is
+ derived by swapping one home-directory spelling for the other, so the lengths
+ differ by exactly that difference, and a host whose two spellings are identical
+ has no alternate at all. The sort is stable, so the first-listed prefix would win
+ any tie.
+
  Line-initial matching is deliberate: a prefix in the middle of a line belongs
  to an error message or a JSON blob, where rewriting it would corrupt the text.
  
