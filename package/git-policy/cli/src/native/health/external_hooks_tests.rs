@@ -168,3 +168,39 @@ fn a_hook_whose_every_event_the_author_switched_off_is_not_reported() {
     assert!(!line.contains("hook.control"), "{line}");
     assert!(line.contains("hook.half") && line.contains("hook.on"), "{line}");
 }
+
+/// What:
+///  A switch the wrapper supplied does not hide a hook the person configured.
+/// Why:
+///   Every real-Git start of the wrapper carries `-c hook.<event>.enabled=false`,
+/// and a Git child inherits the same values
+///  through `GIT_CONFIG_PARAMETERS`,
+/// so a wrapped command inside one reads them in the `command` scope.
+/// Those are the wrapper's
+///  suppression and not the person's choice,
+/// so a hook dropped because of them is a configured hook that doctor never names and a
+///  commit never warns about.
+#[test]
+fn a_switch_the_wrapper_supplied_does_not_hide_the_persons_hook() {
+    let suppressed: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.control.event\npre-commit"),
+        ("local", "hook.control.command\nrun the linter"),
+        ("command", "hook.pre-commit.enabled\nfalse"),
+        ("command", "core.hooksPath\n/dev/null/cli-git-no-hooks"),
+    ]);
+    let names: Vec<String> = configured_hooks(&suppressed).into_iter().map(|hook| { return hook.name; }).collect();
+    assert_eq!(names, vec![String::from("control")], "the person's hook is still reported");
+    assert!(external_hooks_warning(Some(&suppressed)).is_some(), "and the commit still warns about it");
+    // The person's own switch, written in a file, still hides the hook: that one is their choice.
+    let chosen: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.control.event\npre-commit"),
+        ("local", "hook.pre-commit.enabled\nfalse"),
+    ]);
+    assert!(configured_hooks(&chosen).is_empty(), "a switch in the person's configuration is theirs");
+    // A hook switched off by its own name in the wrapper's scope is reported as well.
+    let by_name: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.control.event\npre-push"),
+        ("command", "hook.control.enabled\nfalse"),
+    ]);
+    assert_eq!(configured_hooks(&by_name).len(), 1, "the wrapper never writes a hook's own switch");
+}

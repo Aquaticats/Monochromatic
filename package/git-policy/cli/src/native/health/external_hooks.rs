@@ -84,21 +84,25 @@ fn lossy(value: Option<&Vec<u8>>) -> String {
 }
 
 /// What:
-///  Whether the configuration switches every hook of `event` off.
+///  Whether the configuration the person wrote switches every hook of `event` off.
 /// Why:
 ///   `hook.<event>.enabled=false` is Git's own switch for the whole event
 /// (`git hook list` reports such a hook
 ///  as `event-disabled`),
-/// and the wrapper passes the same switch on every start,
-/// so a hook whose events are all off asks
-///  for nothing.
+/// so a hook whose events are all off asks for nothing.
+///   Only the configuration files are read:
+/// every real-Git start of the wrapper carries the same switch for every
+///  event,
+/// and a child of one inherits those values in the `command` scope,
+/// so reading them here would let the
+///  wrapper's own suppression hide a hook the person configured.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// snapshot.bool(`hook.${event}.enabled`) === false
+/// snapshot.boolValueFromFiles(`hook.${event}.enabled`) === false
 /// ```
 fn event_is_off(snapshot: &ConfigSnapshot, event: &str) -> bool {
-    return matches!(snapshot.bool_value(format!("hook.{event}.enabled").as_str()), Lookup::Found(false));
+    return matches!(snapshot.bool_value_from_files(format!("hook.{event}.enabled").as_str()), Lookup::Found(false));
 }
 
 /// What:
@@ -182,10 +186,11 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
         }
     }
     // A hook the author switched off by its own `hook.<name>.enabled`, and one whose every event is switched off, are
-    //  dropped; the others keep their order.
+    //  dropped; the others keep their order. Both switches are read from the configuration files, because the wrapper
+    //  supplies event switches of its own in the command scope.
     let mut enabled: Vec<ConfiguredHook> = Vec::new();
     for hook in hooks {
-        if matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
+        if matches!(snapshot.bool_value_from_files(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
             continue;
         }
         if every_event_is_off(snapshot, &hook) {
