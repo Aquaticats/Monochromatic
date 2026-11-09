@@ -125,6 +125,48 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)
+
+The full container gate on `d21b9cd1b4` ended with 58 of 6,382 tests failed
+(`gpc-gate-wrapper-next-alpha-20261109T133202-0500.log` in `~/temp/agent/gate/`).
+The next alpha waits for a gate that passes on a commit holding the fixes.
+Until it ships the installed wrapper stops a signed scratch commit at 3006 ms,
+because the owner's "About 16 seconds" ceiling is on main only.
+
+- `policy::direct_fix*`:
+  `fix` refuses every correction when a file carries `security.selinux` and the replacement cannot take it
+  (`Operation not supported (os error 95)`).
+  The Pi agent `markdown-route-findings-fixed` owns this.
+  The worktree-copy agent's report states the same refusal is behind its container failures in `markdown`,
+  `version_cache` and `event_path`.
+- Every other failure:
+  the Pi agent `wrapper-gate-failures-on-main` owns them,
+  on the branch `fix/git-policy-cli-gate-failures-on-main`.
+  The `ALLOWED` entry for `health/doctor.rs` in `source_guard/no_self_invocation_tests.rs` is stale on main.
+- `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`:
+  the worktree-copy agent's report states it fails at that branch's parent as well,
+  5 of 45 kills at `6ac3bc7e07` and 4 of 45 with the branch.
+  The coordinator has not reproduced this.
+
+Next:
+when both agents land,
+gate a clean checkout of main with `launch-gate.ts`,
+then follow "Release order for the wrapper".
+
+`check-branch-after-merging-main.ts` (scratch) now stops with status 3 on a detached HEAD.
+It had merged main into a worktree the agent left detached,
+and printed 134 of 134 for a commit missing the branch's last 10 commits.
+The real result on the branch was 136 of 136.
+
+Installed `0.6.1-alpha.5` failed a live `git worktree add` while a landing's merge was open in the main checkout:
+"could not stage ignored state from" the main checkout,
+"Cause:
+No such file or directory (os error 2)".
+The add left its registration,
+branch and checked-out files,
+and no ignored state.
+The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
