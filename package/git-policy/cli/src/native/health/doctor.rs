@@ -523,12 +523,16 @@ pub async fn doctor_action_with_section(
 ///  The action for a doctor run that could not examine the repository.
 /// Why:
 ///   Status 2 is the wrapper's status for a failure that is not a finding.
+/// The command's own prefix is used here and not the wrapper's,
+/// so a report that could not be started reads like every other doctor failure
+/// (`invocation/management.rs`,
+/// `plan_doctor`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// { code: 2, stdout: '', stderr: `git monochromatic-git-policy-cli doctor: ${message}\n` }
 /// ```
-fn doctor_failure(message: &str) -> Action {
+pub(crate) fn doctor_failure(message: &str) -> Action {
     return Action::Exit {
         code: ENGINE_FAILURE_EXIT_CODE,
         stdout: String::new(),

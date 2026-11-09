@@ -675,14 +675,18 @@
   3 skipped;
   `native:clippy` clean;
   `//package/git-policy/cli:lint` 0 errors and 0 warnings.
-  The one lib failure is not this step's and not the tree's:
+  The one lib failure is in a folder this branch does not touch:
   `worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`
   asserts that a file written this instant is still inside the timestamp
   granularity,
   which a run of the whole suite under load cannot promise;
   the same binary passes it three times out of three when it is asked alone,
-  from the same fixture root.
-  It is a contention defect in a folder another agent is changing.
+  from the same fixture root,
+  which is three samples and not a measured cause:
+  the suspected cause is the twenty milliseconds the control allows between the
+  write and the clone,
+  against the load of the whole suite.
+  The folder is one another agent is changing.
   Both suites ran with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`
   and with the run's own control group at `TasksMax=4000`,
   the conditions the section above records,

@@ -4724,8 +4724,10 @@ were not touched.
   a conversion of the read itself is item 2's work.
 - `invocation/management.rs`:
   `plan_doctor` enters the runtime once around the
-  report and turns a refused entry into the same doctor failure a failed Git
-  question gives.
+  report and turns a refused entry into the command's own failure action
+  (`doctor::doctor_failure`,
+  whose prefix is the doctor's),
+  so a report that could not be started reads like every other doctor failure.
 
 Two rules from the previous agent are kept:
 
@@ -4753,6 +4755,26 @@ and putting them on the pool would need owned copies of what they read for a
 `'static` job;
 the landing's round is where that shape is decided,
 so this step does not set a second one.
+
+A second contract this step changes,
+said plainly:
+`doctor_action_with_section` takes its filesystem section as
+`&dyn Fn(&Path, Option<&Path>) -> String`,
+and that function is now called **on** the runtime instead of before it.
+The production callback
+(`invocation/management.rs`,
+`filesystem_section_with_link_line` >
+`doctor_filesystem::host_section` >
+`repository_link_check::doctor_link_line`)
+enters no runtime and starts no thread,
+which was read in those files and is what the binary suite's
+`subvolume::the_doctor_ends_with_the_filesystem_section_and_keeps_its_status`
+exercises,
+but a caller may no longer hand the doctor a section that enters the runtime.
+The callback is also not `Sync`,
+so the report's future is not `Send`;
+it is driven by `block_on` on the calling thread and is not spawnable,
+which is what the bridge does and all it does.
 
 #### What could not be converted, and why
 
@@ -4820,6 +4842,17 @@ so this step does not set a second one.
   It is the conversion's proof:
   it can pass only when no step of the report
   calls the synchronous face.
+  The in-process readers are switched off in that control
+  (`repo_read_hook::switch_off`),
+  because a reader that answered a question without a child would let the
+  control hold whatever face the step used.
+  Planted control:
+  with `query` put back to the synchronous `run_git`,
+  the control fails with
+  "git rev-parse --path-format=absolute --git-common-dir --absolute-git-dir
+  could not start:
+  the runtime that runs this command's waits was asked for from inside itself"
+  and is restored.
   Its red half,
   `a669e2a59a`,
   is a compile failure:
@@ -4836,6 +4869,13 @@ so this step does not set a second one.
   on a repository with a configured hook,
   a traditional hook and the
   fsmonitor note.
+  It compares the bridge with the report it wraps,
+  which is what the bridge has to keep;
+  what pins the report against **before** this step is the exact-output
+  controls that were already here
+  (the folder's 66 others and the binary suite's nine),
+  every one of which compares a whole action,
+  and none of which changed.
 - `the_synchronous_face_of_the_report_is_refused_from_inside_the_runtime`:
   the positive control,
   so the first control cannot pass for another reason.
@@ -4939,24 +4979,36 @@ and what it does not:
   section;
   1.5 to 2.1 ms here),
   and no arm broke that bound.
-- The commit path is not measurable on this host in this window:
-  two runs of the **same** binary differ by 2.6 times (83.2 against 213.8 ms),
-  and the run of the **unchanged** tree is worse than both (382.7 ms,
-  maximum 10.8 s).
-  The spread is larger than any plausible effect,
-  so these three arms cannot attribute anything to this step,
-  and this step's diff cannot sit on that path in any case:
-  no doctor function has a caller outside `health/` and `plan_doctor`,
-  and the one read the commit path shares with this step
-  (`read_config_snapshot`) keeps its command,
+- The commit bar is **broken in this window**,
+  by arm 2 (maximum 5437.5 ms against the 5000 ms bound)
+  and by arm 3 (10801.4 ms),
+  and it was met by arm 1 (1220.1 ms).
+  The unchanged tree broke it twice as far,
+  which says the branch does not carry the violation,
+  and it does not make the violation go away:
+  the bar is the owner's requirement on the commit path,
+  and on this host,
+  at this time,
+  the tree does not meet it.
+- Two runs of the **same** binary differ by 2.6 times (83.2 against 213.8 ms)
+  and the run of the **unchanged** tree is 382.7 ms,
+  so the run-to-run spread is larger than any plausible effect of this step.
+  That is the whole of what these three arms can attribute.
+  The one file this step changes that the commit path does run is
+  `config/config_snapshot.rs`:
+  its synchronous read keeps its command line,
   its parse and its order,
-  with its body split into `config_listing_request` and `snapshot_of`.
-- The T11 record of 19.6 to 26.0 ms was taken on a much quieter host.
-  The bar the owner set is on the merge,
-  not on this branch,
-  and the next agent should take the arms again in a quiet window and with
-  the alternation the earlier sections used,
-  because on this host the unchanged tree breaks it too.
+  with the body split into `config_listing_request` and `snapshot_of`,
+  and the commit path's other readers are untouched.
+  The doctor has no caller outside `health/` and `plan_doctor`,
+  so a doctor run cannot be in a commit at all.
+- The T11 record of 19.6 to 26.0 ms was taken under much less load.
+  The next step for these numbers is the one the earlier sections used:
+  alternate the two binaries arm by arm,
+  a same-binary pair for the spread,
+  and repeat until the arms separate,
+  under whatever load the host carries then.
+  It is not a matter of waiting for a quiet host.
 
 ### Where the remaining steps stand after T5
 

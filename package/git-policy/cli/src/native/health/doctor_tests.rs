@@ -382,13 +382,17 @@ fn the_synchronous_face_of_the_report_is_refused_from_inside_the_runtime() {
 /// so a task could not build the report at all.
 /// This control can pass only when no step of the report calls the synchronous face,
 /// which is the whole of the conversion.
+///  The in-process readers are switched off,
+/// because one of them could answer a question of the report without any child,
+/// and then the control would hold whatever face the step used.
 #[test]
 fn the_report_is_built_on_the_runtime_it_is_awaited_on() {
     let root: PathBuf = fixture("doctor-awaited");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let hook: PathBuf = repo.join(".git/hooks/pre-commit");
     executable(hook.as_path(), b"#!/bin/sh\n");
-    let context: GitContext = git_context();
+    let mut context: GitContext = git_context();
+    context.overlay.extend(crate::repo_read_hook::switch_off());
     let (code, stdout, stderr) = crate::lazy_runtime::run_on_runtime(async {
         return exit_parts(doctor_action_with_section(&context, repo.as_path(), None, &no_filesystem_section).await);
     })

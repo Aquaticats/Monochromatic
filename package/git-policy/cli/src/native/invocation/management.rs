@@ -19,7 +19,7 @@ use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
 use crate::child_environment::{child_environment_overlay, environment_home, environment_value};
 /// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
-use crate::doctor::doctor_action_with_section;
+use crate::doctor::{doctor_action_with_section, doctor_failure};
 /// The process's one runtime,
 /// which the doctor's report is built on.
 use crate::lazy_runtime::run_on_runtime;
@@ -354,7 +354,7 @@ fn plan_doctor(
     // entering the runtime per step; this command is still synchronous, so the enter happens once, here.
     let action: Action = match run_on_runtime(doctor_action_with_section(&context, cwd.as_path(), home.as_deref(), filesystem_section)) {
         Ok(report) => report,
-        Err(refusal) => failure(format!("git monochromatic-git-policy-cli doctor could not ask Git: {refusal}").as_str()),
+        Err(refusal) => doctor_failure(format!("the doctor could not ask Git: {refusal}").as_str()),
     };
     let batches_noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
     let noted: Action = with_units_note(batches_noted, environment);
