@@ -45,6 +45,17 @@ each written as `--name=value`:
   a session file to resume.
   It stays one argument,
   so a path holding spaces is safe.
+- `--retry-cap`:
+  how many attempts follow a model error another attempt may fix,
+  three by default,
+  which is the `retry.maxRetries` default Pi's own automatic retry uses.
+  A value of zero ends such a run on its first error,
+  as the driver did before it retried anything.
+- `--retry-base-seconds`:
+  the wait before the first attempt after a model error,
+  two seconds by default,
+  which is the `retry.baseDelayMs` default Pi's own automatic retry uses.
+  The wait doubles with each attempt and never passes a minute.
 - `--pi-argument`:
   one more word for Pi's command line.
   Repeat it for more words.
@@ -71,7 +82,9 @@ so a run ends even when Pi answers nothing at the end.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
-  and `modelError` carries what the model said when the run ended on it.
+  `modelError` carries what the model said when the run ended on it,
+  and `retries` and `rateLimitErrors` count what the run retried and what it met of the failures the
+  coordinator measures apart.
 - `stderr.log`:
   Pi's standard error.
 - `inbox/`:
@@ -180,9 +193,78 @@ or `feedProblem` does when the feed could not be written.
 
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.
+`modelErrorAttempts` says how many attempts the run made at it,
+and the driver's own message names that count too.
 An error an automatic retry recovers from is not one:
 the run still ends `idle`,
 because the reply after it succeeded.
+
+## What the driver retries, and what it leaves alone
+
+A run whose provider fails once ends as it would have before,
+unless the failure is one another attempt can fix.
+The driver reads that from the error Pi reports,
+in the shape the providers write it:
+
+- another attempt is made for a provider server error (a `5xx` status),
+  a request timeout,
+  a dropped connection,
+  or a rate limit such as HTTP 429;
+- the run ends on the first error for everything else,
+  because another attempt reaches the same answer:
+  a missing key or credential,
+  an unknown provider or model,
+  a context overflow,
+  an abort the coordinator asked for,
+  and a quota or plan limit nothing refills.
+
+A shape the driver does not recognise is left alone,
+which is how such a run ended before this existed:
+only a failure that is known to pass is waited out.
+
+That rule comes from the error texts the runs in `${HOME}/temp/agent/pi-runs` recorded on 2026-11-09.
+Six summaries ended `model-error`,
+and every assistant message that ended in an error carried one of four texts:
+a Cloudflare `520` body twice,
+`Request timed out.` once,
+`Provider is not configured: neuralwatt` three times,
+and `This operation was aborted` five times.
+
+An attempt is a continuation prompt to the Pi that is already running,
+which Pi answers as a new turn of the same session:
+Pi drops an assistant message that ended in an error when it builds the request for the model
+(`packages/ai/src/api/transform-messages.ts` in `earendil-works/pi`),
+so the attempt reads the last state the model produced successfully,
+which is what resuming the session by hand reads.
+The wait grows from `--retry-base-seconds`,
+doubling with each attempt,
+raised to the wait a failure names when it names one
+(the `520` body above says `"retry_after":60`),
+and never longer than a minute,
+which is the `retry.maxAgentDelayMs` default Pi's own automatic retry uses.
+The wait is cut to what the run's wall clock has left,
+so no attempt is waited for past the run's own bound,
+and a run that ends on its error names how many attempts it made.
+
+A person reading the run afterwards sees each attempt twice:
+a `retry` line on `feed.jsonl` carrying its number,
+the bound it sits under,
+its wait,
+what kind of failure it answers and that failure's text;
+and `retries` in `summary.json`,
+which is zero for a run that never needed one.
+`rateLimitErrors` counts the model errors that named a rate limit or a quota,
+whether or not another attempt could fix them,
+because those are measured apart from other failures.
+
+Pi has a per-run switch of its own,
+the `set_auto_retry` RPC command,
+and this driver does not use it:
+it is not per-run.
+`session.setAutoRetryEnabled` writes `retry.enabled` into the agent's `settings.json` and saves it,
+measured with a real `pi --mode rpc` against a throwaway `PI_CODING_AGENT_DIR` on 2026-11-09,
+so a run that used it would change the setting of every later run,
+and a Pi killed before the driver could put the setting back would leave it changed.
 
 `pi-not-stopped` means Pi was still alive when every bound on ending it ran out,
 so the summary claims nothing about Pi having gone.

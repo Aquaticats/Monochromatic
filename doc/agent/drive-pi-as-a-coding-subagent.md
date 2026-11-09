@@ -591,3 +591,55 @@ so the count of active units is not the count of agents.
 One agent lost two hours in `du -sh` over a build directory.
 Another ended at its wall-clock limit with its commits pushed and no report.
 Resuming its session with a short deadline and the order to report recovered the report.
+
+## Retrying a failed attempt, read 2026-11-09T08:05:00+00:00
+
+Pi retries a failed assistant turn itself,
+and this machine does not:
+the owner's `~/.pi/agent/settings.json` holds `"retry": {"enabled": false}`,
+so one transient provider failure ends a run.
+The settings `docs/settings.md` names in Pi 1.5.0 are
+`retry.enabled` (`true` by default),
+`retry.maxRetries` (3),
+`retry.baseDelayMs` (2000),
+`retry.maxAgentDelayMs` (60000),
+and the provider-level `retry.provider.*` group.
+
+Pi also answers RPC commands about it.
+`{"type": "set_auto_retry", "enabled": true}` turns the agent's retry on,
+and `{"type": "abort_retry"}` cancels one that is waiting
+(`docs/rpc-commands.md`,
+section "Retry").
+The first is not a per-run switch,
+which a real invocation showed:
+with `PI_CODING_AGENT_DIR` at a throwaway folder holding
+`{"retry": {"enabled": false, "maxRetries": 3}}`,
+`pi --mode rpc` answered `{"command": "set_auto_retry", "success": true}`,
+and the folder's `settings.json` then read `"enabled": true`.
+The source says the same:
+`session.setAutoRetryEnabled` calls `settingsManager.setRetryEnabled`,
+which writes `retry.enabled` into the agent's settings and saves it
+(`packages/coding-agent/src/core/agent-session.ts`,
+`packages/coding-agent/src/core/settings-manager.ts`).
+So a driver that used it would change the owner's settings,
+and would leave them changed if Pi were killed before it could put them back.
+
+What Pi treats as retryable comes from `isRetryableAssistantError`
+(`packages/ai/src/utils/retry.ts`):
+overload and `5xx` wording,
+`429` and rate-limit wording,
+network and stream failures,
+and the timeouts,
+while `insufficient_quota`,
+`billing`,
+plan-limit text and `429` bodies naming a usage limit are not retried.
+Context overflow is excluded before that check,
+because compaction handles it (`_isRetryableError`).
+
+An errored assistant message is not sent back to the provider:
+`transform-messages.ts` drops a message whose `stopReason` is `error` or `aborted`
+before building the request,
+"the model should retry from the last valid state".
+That is why answering a settled error with a new prompt in the same session
+reads the same state as resuming the session file by hand,
+which is what the coordinator did by hand for the runs of 2026-11-09.
