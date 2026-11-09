@@ -340,19 +340,19 @@ impl Journal {
     }
 
     /// What:
-    ///  Record the identity of the subvolume this migration made at the stage's name,
-    /// and write the journal.
+    ///  Record the identity of the subvolume this migration made at the stage's name.
     /// Why:
     ///   The rollback deletes the stage,
     /// and a subvolume another process puts at that name is not the one this
     ///  migration made;
     /// the identity recorded before anything is copied into the stage is what tells them apart.
-    ///  It is written here rather than left to the next step that is marked,
-    /// because the copy that follows reads the stage
-    ///  and a kill must not leave the stage unnamed.
-    pub fn record_stage_identity(&mut self, identity: crate::fs_beneath::ObjectId) -> Result<(), MigrateError> {
+    ///  It reaches the file with the step marked next,
+    /// so one durable write carries the step and its identity and a
+    ///  kill cannot leave one without the other,
+    /// and the migration pays no second write of the journal on the step that
+    ///  creates the stage.
+    pub fn record_stage_identity(&mut self, identity: crate::fs_beneath::ObjectId) {
         self.set_value(STAGE_ROOT, identity.encode().as_str());
-        return self.persist();
     }
 
     /// The identity this migration recorded for the stage,
