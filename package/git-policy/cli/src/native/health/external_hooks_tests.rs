@@ -138,3 +138,33 @@ fn the_writer_emits_one_line_or_nothing() {
     assert!(nothing.is_empty());
     warn_external_hooks(Some(&snapshot), &mut RefusingStream);
 }
+
+/// What:
+///  A hook whose every event the author switched off is not reported,
+///  and one that still has an event switched on is.
+/// Why:
+///   `hook.<event>.enabled=false` is Git's own way of switching every hook of an event off (`git hook list` calls it
+/// `event-disabled`),
+/// and the wrapper passes the same switch on every start,
+/// so warning about such a hook names keys that ask for
+///  nothing and makes a `doctor` a script gates on fail for a repository that has already disabled what it is told about.
+#[test]
+fn a_hook_whose_every_event_the_author_switched_off_is_not_reported() {
+    let snapshot: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.control.event\npre-commit"),
+        ("local", "hook.control.command\nrun it"),
+        ("local", "hook.pre-commit.enabled\nfalse"),
+        ("local", "hook.half.event\npre-commit"),
+        ("local", "hook.half.event\npost-commit"),
+        ("local", "hook.half.command\nrun it"),
+        ("global", "hook.pre-commit.enabled\nfalse"),
+        ("global", "hook.on.event\npost-checkout"),
+        ("global", "hook.on.command\nrun it"),
+    ]);
+    let hooks: Vec<ConfiguredHook> = configured_hooks(&snapshot);
+    let names: Vec<&str> = hooks.iter().map(|hook| { return hook.name.as_str(); }).collect();
+    assert_eq!(names, vec!["half", "on"], "the hook of the disabled event is gone, the others stay");
+    let line: String = external_hooks_warning(Some(&snapshot)).expect("a warning about the hooks that remain");
+    assert!(!line.contains("hook.control"), "{line}");
+    assert!(line.contains("hook.half") && line.contains("hook.on"), "{line}");
+}

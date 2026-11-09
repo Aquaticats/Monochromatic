@@ -508,3 +508,28 @@ fn a_hook_that_vanished_between_the_listing_and_the_look_is_skipped() {
     assert_eq!(stdout, format!("{}\n", hooks.join("pre-commit").display()));
     remove(root.as_path());
 }
+
+/// What:
+///  `doctor` reports no configured hook and exits 0 when the author switched every event of it off,
+///  and still lists the one that has an event switched on.
+/// Why:
+///   A script that gates on `doctor`'s status must not fail for keys that ask for nothing:
+/// `hook.<event>.enabled=false` is
+///  Git's own switch for every hook of that event.
+#[test]
+fn a_hook_of_an_event_the_author_switched_off_is_not_reported() {
+    let root: PathBuf = fixture("doctor-event-disabled");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["config", "hook.control.event", "pre-commit"]);
+    git(repo.as_path(), &["config", "hook.control.command", "run it"]);
+    git(repo.as_path(), &["config", "hook.pre-commit.enabled", "false"]);
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!((code, stdout.as_str()), (0, ""), "{stderr}");
+    assert!(!stderr.contains("hook.control"), "{stderr}");
+    // The same hook with its event switched on is reported.
+    git(repo.as_path(), &["config", "hook.pre-commit.enabled", "true"]);
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(stdout, "hook.control (events: pre-commit)\n");
+    remove(root.as_path());
+}

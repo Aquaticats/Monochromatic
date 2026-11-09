@@ -448,7 +448,12 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   with the caller's global options,
   for the common Git directory
   (`git rev-parse --path-format=absolute --git-common-dir`) and for `core.hooksPath`
-  (`git config --type=path --get core.hooksPath`).
+  (`git config --type=path --get-all core.hooksPath`).
+  The configured directory is the last value of the key that is not one of the wrapper's own hooks-off
+  directories:
+  a run inside a Git the wrapper started carries the wrapper's value last as command-scope configuration,
+  and must scan the person's directory and not `/dev/null/cli-git-no-hooks`
+  (`src/native/health/doctor.rs`).
 - It scans `<git-common-dir>/hooks` and,
   when `core.hooksPath` is set,
   the directory it names.
@@ -460,6 +465,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   except names ending in `.sample`.
   Plain files without an execute bit,
   directories and samples are not hooks.
+  An entry that is gone by the time it is looked at,
+  deleted or replaced by another terminal or by a Git LFS upgrade after the directory was listed,
+  is not a hook and does not end the scan:
+  the report lists the hooks that are there.
+  A directory that cannot be read,
+  and an entry that fails to be looked at for any other reason,
+  is still an error with status 2.
 - A hook file that is byte for byte the shim git-lfs writes for its own name
   (`pre-push`,
   `post-checkout`,
@@ -7153,6 +7165,16 @@ and the executable does not read the name it was started under.
   events and the ways forward (remove the keys,
   or express what the hook checked as a monochromatic-git-policy-cli policy under `policies`
   in `monochromatic-git-policy-cli.config.jsonc`).
+  A hook the author switched off is not named:
+  neither by its own `hook.<name>.enabled=false` nor by every event it asks for having
+  `hook.<event>.enabled=false`,
+  which is Git's own switch for the whole event
+  (`git hook list` reports such a hook as `event-disabled`).
+  A hook that asks for no event,
+  or has an event and no command,
+  is named:
+  the first never runs and the second makes Git refuse the event,
+  and the warning says neither runs through the wrapper.
   `git monochromatic-git-policy-cli doctor` lists the same hooks,
   one `hook.<name> (events: ...)` line each,
   and exits 1 while any remain.
