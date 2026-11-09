@@ -121,6 +121,83 @@ await describe({
 
     //endregion Specifier escaping
 
+    //region Comment-aware clause scanning
+
+    it({
+      name: 'elides a clause whose keyword follows a block comment',
+      fn: async () => {
+        /**
+         Comment between the specifier and the keyword, which the whitespace
+         skip cannot walk past on its own.
+         */
+        const code = "import query from './sample.sql' /* raw */ with { type: 'text' };";
+        const transformed = transform(code,);
+
+        expect(transformed,).toBe(`import query from './sample.sql?${ATTR_QUERY_KEY}=text';`,);
+        expectParses(transformed,);
+      },
+    },),
+
+    it({
+      name: 'elides a clause whose keyword follows a line comment',
+      fn: async () => {
+        /**
+         Line comment and newline between the specifier and the keyword.
+         */
+        const code = "import query from './sample.sql' // note\nwith { type: 'text' };";
+        const transformed = transform(code,);
+
+        expect(transformed,).toBe(`import query from './sample.sql?${ATTR_QUERY_KEY}=text';`,);
+        expectParses(transformed,);
+      },
+    },),
+
+    it({
+      name: 'elides a clause whose opening brace follows a comment',
+      fn: async () => {
+        /**
+         Comment between the keyword and the opening brace.
+         */
+        const code = "import query from './sample.sql' with /* gap */ { type: 'text' };";
+        const transformed = transform(code,);
+
+        expect(transformed,).toBe(`import query from './sample.sql?${ATTR_QUERY_KEY}=text';`,);
+        expectParses(transformed,);
+      },
+    },),
+
+    it({
+      name: 'elides a clause whose closing brace follows a comment holding a brace',
+      fn: async () => {
+        /**
+         Comment between the last attribute and the closing brace; the `}` it
+         holds must not end the elision.
+         */
+        const code = "import query from './sample.sql' with { type: 'text' /* } */ };";
+        const transformed = transform(code,);
+
+        expect(transformed,).toBe(`import query from './sample.sql?${ATTR_QUERY_KEY}=text';`,);
+        expectParses(transformed,);
+      },
+    },),
+
+    it({
+      name: 'elides a clause holding an attribute value with a brace',
+      fn: async () => {
+        /**
+         Attribute value that is itself a brace; only a scan that skips string
+         literals can find the clause end here.
+         */
+        const code = "import query from './sample.sql' with { type: 'text', extra: '}' };";
+        const transformed = transform(code,);
+
+        expect(transformed,).toBe(`import query from './sample.sql?${ATTR_QUERY_KEY}=text';`,);
+        expectParses(transformed,);
+      },
+    },),
+
+    //endregion Comment-aware clause scanning
+
     //region Fast-path gate
 
     it({

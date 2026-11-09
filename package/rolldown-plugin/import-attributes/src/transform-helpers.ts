@@ -79,15 +79,100 @@ export function skipWithClauseWhitespace({
 }
 
 /**
+ Returns the cursor past the comment starting at `idx`, or `idx` when no
+ comment starts there. Used by the clause scanners so a `with` keyword or a
+ `}` held inside a comment is not read as clause syntax.
+ 
+ A block comment ends past its closing `*\/`; a line comment ends at the
+ newline that terminates it. An unterminated comment runs to the end of the
+ source, which is where the parser stops as well.
+ 
+ @param code - source to scan
+ 
+ @param idx - cursor to test
+ 
+ @returns first position after the comment, or `idx` when none starts there
+ */
+function skipComment({
+  code,
+  idx,
+}: {
+  readonly code: string;
+  readonly idx: number;
+},): number {
+  if (code.startsWith('/*', idx,)) {
+    const blockEnd = code.indexOf(
+      '*/',
+      idx + 2,
+    );
+    return blockEnd === (-1) ? code.length : blockEnd + 2;
+  }
+  if (code.startsWith('//', idx,)) {
+    const lineEnd = code.indexOf(
+      '\n',
+      idx + 2,
+    );
+    return lineEnd === (-1) ? code.length : lineEnd;
+  }
+  return idx;
+}
+
+/**
+ Returns the cursor past any run of with-clause whitespace and comments
+ starting at `idx`, so a comment between a specifier and the keyword, or
+ between the keyword and its brace, hides neither.
+ 
+ One linear pass with no recursion: every iteration hands the cursor past a
+ whole gap segment, so a long run is O(n) time and O(1) stack.
+ 
+ @param code - source to scan
+ 
+ @param idx - cursor to begin scanning from
+ 
+ @returns first position at or after `idx` that starts neither whitespace nor a comment
+ */
+function skipClauseGap({
+  code,
+  idx,
+}: {
+  readonly code: string;
+  readonly idx: number;
+},): number {
+  /**
+   Cursor advanced past one gap segment per iteration until none starts here.
+   */
+  let cursor = idx;
+  for (;;) {
+    /**
+     Position past a whitespace run starting at the cursor.
+     */
+    const afterWhitespace = skipWithClauseWhitespace({
+      s: code,
+      idx: cursor,
+    },);
+    /**
+     Position past a comment starting where the whitespace run stopped.
+     */
+    const afterComment = skipComment({
+      code,
+      idx: afterWhitespace,
+    },);
+    if (afterComment === afterWhitespace)
+      return afterWhitespace;
+    cursor = afterComment;
+  }
+}
+
+/**
  Finds the start of the `with`/`assert` clause after a source literal
- by scanning whitespace with {@link skipWithClauseWhitespace} then checking
+ by scanning whitespace and comments with {@link skipClauseGap} then checking
  for the keyword.
  
  @param code - full source code
  
  @param fromPos - position to start scanning (typically `source.end`)
  
- @returns position of the clause start (including leading whitespace), or -1
+ @returns position of the clause start (including leading whitespace and comments), or -1
  */
 function findWithClauseStart({
   code,
@@ -97,10 +182,10 @@ function findWithClauseStart({
   readonly fromPos: number;
 },): number {
   /**
-   Position past the whitespace gap, where the `with`/`assert` keyword would begin.
+   Position past the gap, where the `with`/`assert` keyword would begin.
    */
-  const keywordStart = skipWithClauseWhitespace({
-    s: code,
+  const keywordStart = skipClauseGap({
+    code,
     idx: fromPos,
   },);
   if (
@@ -120,7 +205,7 @@ function findWithClauseStart({
 
 /**
  Finds the closing brace `}` of the `with`/`assert` clause after the
- last import attribute entry.
+ last import attribute entry, ignoring any `}` that sits inside a comment.
  
  @param code - full source code
  
@@ -136,13 +221,29 @@ function findWithClauseEnd({
   readonly afterLastAttr: number;
 },): number {
   /**
-   Offset of the brace that ends the attributes object; falls through when absent.
+   Cursor walked right through the gap after the last attribute; a comment it
+   enters is skipped whole, so the braces it holds are never read as the end.
    */
-  const closingBrace = code.indexOf(
-    '}',
-    afterLastAttr,
-  );
-  return (closingBrace === (-1) ? code.length : closingBrace) + 1;
+  let cursor = afterLastAttr;
+  while (cursor < code
+    .length) {
+    /**
+     Position past a comment starting at the cursor, or the cursor itself when none starts there.
+     */
+    const commentEnd = skipComment({
+      code,
+      idx: cursor,
+    },);
+    if (commentEnd !== cursor) {
+      cursor = commentEnd;
+      continue;
+    }
+    if (code.charAt(cursor,)
+      === '}')
+      return cursor + 1;
+    cursor += 1;
+  }
+  return code.length + 1;
 }
 
 //endregion Clause scanning
