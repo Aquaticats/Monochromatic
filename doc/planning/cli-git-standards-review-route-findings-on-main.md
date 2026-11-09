@@ -31,11 +31,11 @@ The callers and data flow are:
   not the destination for new entries.
 - `package/git-policy/cli/src/native/landing/service_work_drain_pending_claims.rs:204` runs reviews after the other work.
   `package/git-policy/cli/src/native/landing/service_work.rs:386` calls the review handler.
-- `package/git-policy/cli/src/native/service/service_review.rs:203` reads the changed names and message,
+- `package/git-policy/cli/src/native/service/service_review.rs:207` reads the changed names and message,
   then calls `review_landed` at line 216.
-  `package/git-policy/cli/src/native/standards_review/standards_review_source.rs:198` reads the patch and excerpt blobs.
-- `package/git-policy/cli/src/native/standards_review/standards_review_input.rs:279` builds the model input.
-  `package/git-policy/cli/src/native/standards_review/standards_review_request.rs:89` JSON-encodes it with fixed instructions,
+  `package/git-policy/cli/src/native/standards_review/standards_review_source.rs:199` reads the patch and excerpt blobs.
+- `package/git-policy/cli/src/native/standards_review/standards_review_input.rs:280` builds the model input.
+  `package/git-policy/cli/src/native/standards_review/standards_review_request.rs:90` JSON-encodes it with fixed instructions,
   choices and model name.
   The HTTP request adds the bearer header and JSON content type.
 - `package/git-policy/cli/src/native/standards_review/standards_review_run.rs:312` delivers the rendered entry.
@@ -80,10 +80,10 @@ The earlier policy-platform record is superseded where that rewrite removes exec
 Neither record authorizes sending unrelated files to a review endpoint.
 
 The relevant later owner decision is recorded in
-`doc/handover/cli-git-rust-implementation.md:6441`:
+`doc/handover/cli-git-rust-implementation.md:6444`:
 "Silence plus a ceiling (Recommended)" for non-Git tools,
 including standards review.
-The owner subsequently chose "5x (Recommended)" for the measured ceilings at line 6480.
+The owner subsequently chose "5x (Recommended)" for the measured ceilings at line 6479.
 `package/git-policy/cli/SPEC.md:2653` specifies a 60-second call ceiling,
 a 10-second service quiet window,
 and a 120-second wait for the whole review.
@@ -96,12 +96,45 @@ receipt or quoted-path findings in this page.
 Its later review-runner history does record the abandoned-worker limitation;
 that is not presented here as a new discovery.
 
+## Request provenance and limits
+
+The body contains the fixed model name,
+the `input` string,
+and the fixed `cost_verdict` question with its instructions and choices.
+The commit message is used in the local log,
+not added separately to the request.
+The commit's patch contains changed paths and content across all file types,
+not only the names classified as code.
+The excerpts add new-side text from up to 8 code files,
+with 30 lines of surrounding context.
+No secret redaction happens in this route.
+A secret in committed patch text or excerpt context can therefore be sent even without a finding in this page.
+
+The builder keeps up to 2,000 patch lines and cuts the combined model input to 24,000 UTF-16 units
+before JSON escaping.
+The excerpt loop stops adding files after its accumulated excerpt lines reach 4,000;
+a single selected window is built before that check runs again.
+The logged `truncated` field only describes the patch-line cap,
+not every source of input loss.
+The source reader checks its 64-MiB patch limit only after the Git runner returns its captured output.
+These facts describe the existing limits,
+not protection against every upstream allocation.
+
 ## Findings ranked by risk
+
+Candidate-content disclosure ranks first,
+then silently lost review records,
+then response-memory exposure,
+then incorrect excerpt context.
+The filename disclosure needs no converter configuration;
+the text-conversion disclosure reaches outside the repository but needs a configured converter.
+The receipt finding is directly reproduced;
+service exhaustion from a larger response was not attempted.
 
 ### Filename framing can send an unchanged committed file as another file's excerpt
 
 Status:
-**Reproduced** for a line-feed filename.
+**Reproduced** for line-feed and non-UTF-8 filenames.
 Risk:
 confidentiality and incorrect review input,
 without a configured diff converter or a malicious server.
@@ -143,6 +176,33 @@ This does not read an untracked file directly:
 it discloses a different committed blob that was not part of the reviewed change.
 The injected `HEAD` also resolves at review time,
 not necessarily to the item's landed object.
+
+A second reproduced sequence loses filename identity before request framing:
+
+1.  Commit a UTF-8 file named `bad-\u{fffd}.rs`,
+    where `\u{fffd}` denotes the replacement character,
+    containing `AUDIT_UNCHANGED_UTF8_ALIAS_MARKER`.
+2.  Create and commit only the distinct Linux filename whose bytes are `bad-`,
+    `ff` in hexadecimal,
+    and `.rs`.
+3.  `read_names` lossily decodes the `ff` byte as the replacement character at line 158.
+4.  `read_landed_commit` requests the valid UTF-8 alias instead of the changed native-byte path.
+    Because that alias exists in the commit,
+    Git returns a successful blob response,
+    not `missing`.
+5.  Capture the review request at the local mock.
+    The unchanged alias's marker is sent as the changed file's excerpt,
+    with no name-conversion refusal.
+
+Observed output:
+
+```text
+# standards_review_route_audit_non_utf8_tests.rs, local mock capture
+AUDIT non_utf8: changed_ff_byte_became_replacement_character=true unchanged_alias_sent=true
+```
+
+The `\u{fffd}` and `ff` spellings describe distinct real fixture paths,
+not a claimed byte-preserving representation in the current API.
 
 Suggested fix:
 retain raw path bytes,
@@ -200,60 +260,6 @@ Suggested fix:
 read a patch with text conversion explicitly disabled,
 and keep the source boundary at immutable committed objects.
 Test a converter that reads ignored and outside text as a negative control.
-
-### The remote response has no byte bound before collection and parsing
-
-Status:
-**Reproduced** for a bounded oversized error response;
-unbounded allocation and process-exhaustion consequences are **read from the code only**.
-Risk:
-availability of the service process,
-not a reproduced failed commit.
-
-Locations:
-`package/git-policy/cli/src/native/standards_review/standards_review_client.rs:371` to `:374`,
-and `package/git-policy/cli/src/native/standards_review/standards_review_request.rs:168` to `:169`.
-
-Sequence:
-
-1.  Have the local mock return status `503` with a 1,048,576-byte body.
-2.  Call the production `post_decision` with invented authentication and the mock URL.
-3.  The client reads and collects every body byte,
-    converts the aggregate to a byte vector and then a string,
-    and returns that whole string.
-4.  Only `read_answer`,
-    after collection,
-    rejects the status and retains a 200-UTF-16-unit diagnostic excerpt.
-
-Observed output:
-
-```text
-# standards_review_route_audit_tests.rs, local mock capture
-AUDIT response: status=503 collected_bytes=1048576 retained_failure_units=200 server=Whole
-```
-
-The 200-unit constant is explicitly a display cap,
-not an existing response-memory contract.
-The defect is the absence of any separate response-byte boundary,
-not failure to treat 200 as that boundary.
-A server can supply an arbitrarily larger finite body before the call ceiling,
-with allocation proportional to its bytes;
-the time ceiling is not a memory bound.
-Success bodies are also collected whole and then parsed into a JSON value.
-An allocation failure is not a normal returned transport error.
-No exhaustion experiment was run,
-and this page does not claim an observed service death or commit failure.
-
-This finding touches "Commits should never fail."
-and "nothing should ever wait forever or indefinitely":
-the remote call is advisory but uses the service's process and runtime resources.
-
-Suggested fix:
-bound bytes while streaming,
-including chunked and error responses,
-before aggregation and JSON parsing.
-Derive the bound from the actual decision-answer workload or an owner decision,
-not from the display excerpt constant.
 
 ### Arbitrary log text and an interrupted prefix count as completed reviews
 
@@ -313,8 +319,10 @@ and normal operation with "a process killed at any instruction":
 there is no proof of complete delivery before recovery suppresses the remaining review text.
 `O_APPEND` protects a write's file position;
 it does not make `write_all` and a process lifetime an indivisible entry transaction.
-Queue recovery may requeue an expired claim,
-but this log check then suppresses the retried review.
+`package/git-policy/cli/src/native/landing/service_work.rs:153` invokes expired-claim recovery;
+`package/git-policy/cli/src/native/landing/work_item_recovery.rs:205` requeues expired claimed or recovering files.
+If a fragment-bearing review is retried,
+the reproduced log check suppresses it.
 Nothing in this route repairs the fragment.
 
 Suggested fix:
@@ -324,6 +332,61 @@ Do not let subjects,
 probabilities or failure-message text create receipts.
 A lock-free per-entry publication scheme is a suggestion consistent with the existing append-only design,
 not a decision to add a repository-wide lock.
+
+### The remote response has no byte bound before collection and parsing
+
+Status:
+**Reproduced** for a bounded oversized error response;
+unbounded allocation and process-exhaustion consequences are **read from the code only**.
+Risk:
+availability of the service process,
+not a reproduced failed commit.
+
+Locations:
+`package/git-policy/cli/src/native/standards_review/standards_review_client.rs:371` to `:374`,
+and `package/git-policy/cli/src/native/standards_review/standards_review_request.rs:168` to `:169`.
+
+Sequence:
+
+1.  Have the local mock return status `503` with a 1,048,576-byte body.
+2.  Call the production `post_decision` with invented authentication and the mock URL.
+3.  The client reads and collects every body byte,
+    converts the aggregate to a byte vector and then a string,
+    and returns that whole string.
+4.  Only `read_answer`,
+    after collection,
+    rejects the status and retains a 200-UTF-16-unit diagnostic excerpt.
+
+Observed output:
+
+```text
+# standards_review_route_audit_tests.rs, local mock capture
+AUDIT response: status=503 collected_bytes=1048576 retained_failure_units=200 server=Whole
+```
+
+The 200-unit constant is explicitly a display cap,
+not an existing response-memory contract.
+The defect is the absence of any separate response-byte boundary,
+not failure to treat 200 as that boundary.
+Read from the code only:
+the collector accepts whatever finite body arrives before its time ceiling,
+without an explicit byte bound;
+the time ceiling is not a memory bound.
+Success bodies are also collected whole and then parsed into a JSON value.
+There is no response-size refusal before the aggregate is materialized.
+No exhaustion experiment was run,
+and this page does not claim an observed service death or commit failure.
+
+The remote call is advisory but uses the service's process and runtime resources.
+The audit did not measure how allocation pressure would affect a later commit or handoff,
+so this is not evidence that a remote error directly rejects a commit.
+
+Suggested fix:
+bound bytes while streaming,
+including chunked and error responses,
+before aggregation and JSON parsing.
+Derive the bound from the actual decision-answer workload or an owner decision,
+not from the display excerpt constant.
 
 ### Quoted Git paths silently receive the head excerpt instead of changed-line context
 
@@ -367,6 +430,10 @@ Distinguish a section that is truly hunkless from failure to match a section kno
 
 The temporary controls ran through the package's nextest task,
 not a rewritten implementation.
+The control sources are retained without committing them in
+`package/git-policy/cli/target/standards-review-audit/`.
+Their temporary registration in `standards_review_run_tests.rs` was removed,
+and `git diff --exit-code -- package/git-policy/cli` confirmed the crate returned to its original tracked state.
 The initial run reported:
 
 ```text
@@ -375,8 +442,10 @@ Starting 6 tests across 1 binary (5093 tests skipped)
 Summary [   0.118s] 6 tests run: 0 passed, 6 failed, 5093 skipped
 ```
 
-Those failures were the intended boundary assertions,
-with the captured wrong results quoted in each finding.
+Those failures exposed the captured wrong results quoted in each finding.
+The response control asserted the display-excerpt size as a convenient failing threshold;
+that assertion is not a requirement or a proposed response-memory limit.
+Its evidentiary result is the measured complete collection of the oversized error body.
 The command exited `100`.
 The first broader baseline attempt ended at its 240-second command deadline during dependency compilation,
 with exit `124`,
@@ -393,11 +462,47 @@ The first baseline used `CPUQuota=200%`,
 No synthetic host load,
 mutation campaign or full crate test run was used.
 
-The native-byte path control,
-existing route regression checks,
+The separately filtered native-byte path control reported:
+
+```text
+# mise run //package/git-policy/cli:native:test:host -- route_audit::non_utf8 --failure-output=final --success-output=final
+Starting 1 test across 1 binary (5099 tests skipped)
+Summary [   0.075s] 1 test run: 0 passed, 1 failed, 5099 skipped
+```
+
+It exited `100` on the intended wrong-blob assertion.
+That command had a 240-second deadline and the same cgroup limits as the other audit controls.
+
+The existing route and service-review controls,
+with the intentionally failing audit controls excluded,
+and a temporary transport matrix passed:
+
+```text
+# mise run //package/git-policy/cli:native:test:host -- standards_review:: service_review:: --no-fail-fast --success-output=final --failure-output=final -- --skip route_audit::audit --skip route_audit::non_utf8
+Starting 88 tests across 1 binary (5013 tests skipped)
+Summary [  28.859s] 88 tests run: 88 passed, 5013 skipped
+AUDIT transport: case=malformed-json explicit_failure_entry=true
+AUDIT transport: case=no-answer explicit_failure_entry=true
+AUDIT transport: case=error-status explicit_failure_entry=true
+AUDIT transport: case=half-body explicit_failure_entry=true
+AUDIT transport: case=non-utf8-body explicit_failure_entry=true
+```
+
+The command exited `0`,
+with a 300-second deadline and the audit-control cgroup limits.
+The output included the actual tests
+`a_silent_server_ends_after_the_quiet_window`,
+`a_reply_that_keeps_arriving_is_ended_at_the_ceiling`,
+`a_reply_that_keeps_arriving_is_never_cut_off`,
+`a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_reviewed_again_after`,
+and the transport matrix.
+These prove completion events and explicit failure entries,
+not a native-Git latency delta.
+
+The source-boundary tests on the restored tree,
+package Clippy,
 Markdown fixing,
 linting and rendered inspection are still being completed.
-Their final results will replace this verification-state paragraph.
 
 ## Limits of this audit
 
@@ -416,6 +521,9 @@ Their final results will replace this verification-state paragraph.
   but leaves a stalled worker outstanding and refuses further reviews until it ends.
   This behavior is already specified in `package/git-policy/cli/SPEC.md:2665`,
   not a newly discovered infinite wait in the HTTP client.
+  The handover records this state explicitly at line 6535:
+  "a timed-out review keeps the review log";
+  the implementation and regression now stop the service's wait but not the blocked worker.
 - The ceiling diagnostic suggests `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`.
   The root task is absent in this snapshot,
   and `doc/runbook/standards-review-gate.md:117` says nobody can start it by hand.
@@ -438,10 +546,12 @@ The following are source-verified boundaries;
 regression execution results are recorded in `Verification state`.
 
 - The request body is JSON-encoded rather than concatenating unescaped source text into JSON syntax.
-  The bearer credential is a separate HTTP header.
-  The production endpoint is fixed,
-  redirects are not followed,
-  and the client does not read proxy variables.
+  The bearer credential is a separate HTTP header at
+  `package/git-policy/cli/src/native/standards_review/standards_review_client.rs:368`.
+  The production endpoint is fixed at
+  `package/git-policy/cli/src/native/standards_review/standards_review_request.rs:24`.
+  The local redirect control passed,
+  and the client builds its connector without reading proxy variables.
 - Ordinary excerpts come from `cat-file` objects,
   not direct reads of unstaged worktree files.
   The filename and text-converter findings are concrete exceptions to claiming that only candidate text can leave.
@@ -459,7 +569,10 @@ regression execution results are recorded in `Verification state`.
 - Call silence and the overall HTTP ceiling are separate checks.
   The total ceiling wraps the exchange,
   including resolution and connection setup.
-  The whole-review wait also has a ceiling and a bounded handoff wait.
+  The whole-review wait also has a ceiling and a bounded handoff wait at
+  `package/git-policy/cli/src/native/standards_review/standards_review_run.rs:543`.
+  This is the worker-result handoff,
+  not the commit's service handoff.
 - Gateway errors become explicit `Luna failed: ...` entries,
   not commit-policy failures.
   Unreadable commits and unwritable logs become failed work items.
