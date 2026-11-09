@@ -308,9 +308,16 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             }));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
+        // A claim on the stale lock ends without an event on the lock's name, so the wait looks again at the poll pace while
+        //  one is held, and says so for the landing's log and for the controls.
+        let watched: bool = !busy;
+        let next_wake: Duration = until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), watched);
+        if !watched {
+            notes.polled = true;
+        }
         match watch.as_ref() {
             Some(active) => {
-                if !active.wait(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), !busy), lock_name) {
+                if !active.wait(next_wake, lock_name) {
                     // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
                     //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
                     drop(watch.take());
