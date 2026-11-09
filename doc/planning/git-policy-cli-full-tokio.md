@@ -4506,7 +4506,7 @@ becomes a future first.
 
 #### Controls
 
-`transaction/transaction_git_awaiting_tests.rs` (6):
+`transaction/transaction_git_awaiting_tests.rs` (7):
 `a_query_awaited_on_the_runtime_gives_gits_answer`,
 `an_input_awaited_on_the_runtime_reaches_git_and_comes_back_hashed` (a 4 MiB
 input),
@@ -4518,7 +4518,12 @@ from a task that carries a landing's state),
 `the_synchronous_face_of_the_same_query_is_refused_from_inside_the_runtime`
 (the positive control:
 without it the first control could pass for a reason
-other than the one it claims).
+other than the one it claims),
+and
+`a_branch_write_of_the_landing_asked_of_the_synchronous_face_inside_the_runtime_still_lands`,
+which pins why the synchronous face was not turned into a bridge:
+a step with an `Unbounded` bound makes no pipes,
+and the pipes are the only reason that face enters the runtime.
 
 `push/child_watch_output_watched_on_the_runtime_tests.rs` (5):
 `a_step_awaited_on_the_runtime_returns_every_byte_of_both_streams` (a step
