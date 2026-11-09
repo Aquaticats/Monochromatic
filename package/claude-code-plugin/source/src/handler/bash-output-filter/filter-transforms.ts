@@ -167,9 +167,73 @@ function hasPathPrefix(prefix: PathPrefix,): prefix is string {
 }
 
 /**
+ Replaces whichever of `prefixes` starts the line with `replacement`.
+ 
+ The one owner of the dual-prefix ordering rule: two spellings of the same
+ directory are available (a symlinked and a resolved form, or a workspace and
+ its worktree), and the longer spelling must be tried first, because a shorter
+ prefix can also match the start of the longer one. Sorting by length
+ descending states that rule once instead of nesting a comparison per caller.
+ 
+ Line-initial matching is deliberate: a prefix in the middle of a line belongs
+ to an error message or a JSON blob, where rewriting it would corrupt the text.
+ 
+ @param line - line to process
+ 
+ @param prefixes - candidate prefixes, in any order; unavailable entries are
+   ignored so callers pass their sentinel-bearing constants directly
+ 
+ @param replacement - text written in place of the matched prefix
+ 
+ @returns line with its initial prefix replaced, or `line` unchanged when no
+   prefix matches
+ 
+ @example
+ ```ts
+ collapseLineInitialPrefix({ line: '/repo/worktree/a.ts', prefixes: ['/repo/', '/repo/worktree/'], replacement: '' });
+ // 'a.ts', because the longer prefix wins
+ ```
+ */
+function collapseLineInitialPrefix(
+  {
+    line,
+    prefixes,
+    replacement,
+  }: {
+    readonly line: string;
+    readonly prefixes: readonly PathPrefix[];
+    readonly replacement: string;
+  },
+): string {
+  /**
+   Usable prefixes, longest first, so a prefix that also starts the longer one
+   never claims the match.
+   */
+  const longestFirst = prefixes
+    .filter(hasPathPrefix,)
+    .toSorted(function compareLength(
+      left,
+      right,
+    ): number {
+      return right.length
+        - left.length;
+    },);
+  /**
+   Longest prefix this line actually starts with, if any.
+   */
+  const matched = longestFirst.find(function startsLine(prefix,): boolean {
+    return line.startsWith(prefix,);
+  },);
+
+  if (matched === undefined)
+    return line;
+
+  return `${replacement}${line.slice(matched.length,)}`;
+}
+
+/**
  Replaces working-directory paths with relative equivalents, only when the
- path appears at the beginning of a line. Restricts replacement to line-initial
- position to avoid mangling paths embedded in error messages or JSON.
+ path appears at the beginning of a line.
  
  @param line - line to process
  
@@ -186,26 +250,14 @@ function collapseCwdPaths(line: string,): string {
   if (!hasPathPrefix(CWD_PREFIX,))
     return line;
 
-  if (hasPathPrefix(ALT_CWD_PREFIX,)) {
-    if (ALT_CWD_PREFIX.length
-      >= CWD_PREFIX
-        .length) {
-      if (line.startsWith(ALT_CWD_PREFIX,))
-        return line.slice(ALT_CWD_PREFIX.length,);
-      if (line.startsWith(CWD_PREFIX,))
-        return line.slice(CWD_PREFIX.length,);
-    }
-    else {
-      if (line.startsWith(CWD_PREFIX,))
-        return line.slice(CWD_PREFIX.length,);
-      if (line.startsWith(ALT_CWD_PREFIX,))
-        return line.slice(ALT_CWD_PREFIX.length,);
-    }
-  }
-  else if (line.startsWith(CWD_PREFIX,)) {
-    return line.slice(CWD_PREFIX.length,);
-  }
-  return line;
+  return collapseLineInitialPrefix({
+    line,
+    prefixes: [
+      CWD_PREFIX,
+      ALT_CWD_PREFIX,
+    ],
+    replacement: '',
+  },);
 }
 
 /**
@@ -226,26 +278,14 @@ function collapseHomePaths(line: string,): string {
   if (!hasPathPrefix(HOME_DIR,))
     return line;
 
-  if (hasPathPrefix(REAL_HOME_DIR,)) {
-    if (REAL_HOME_DIR.length
-      >= HOME_DIR
-        .length) {
-      if (line.startsWith(REAL_HOME_DIR,))
-        return `~${line.slice(REAL_HOME_DIR.length,)}`;
-      if (line.startsWith(HOME_DIR,))
-        return `~${line.slice(HOME_DIR.length,)}`;
-    }
-    else {
-      if (line.startsWith(HOME_DIR,))
-        return `~${line.slice(HOME_DIR.length,)}`;
-      if (line.startsWith(REAL_HOME_DIR,))
-        return `~${line.slice(REAL_HOME_DIR.length,)}`;
-    }
-  }
-  else if (line.startsWith(HOME_DIR,)) {
-    return `~${line.slice(HOME_DIR.length,)}`;
-  }
-  return line;
+  return collapseLineInitialPrefix({
+    line,
+    prefixes: [
+      HOME_DIR,
+      REAL_HOME_DIR,
+    ],
+    replacement: '~',
+  },);
 }
 
 //endregion
@@ -326,6 +366,7 @@ export {
   COLLAPSE_THRESHOLD,
   collapseCwdPaths,
   collapseHomePaths,
+  collapseLineInitialPrefix,
   collapseRepeatedChars,
   flushRepeated,
   shouldStripLine,
