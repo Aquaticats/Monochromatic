@@ -562,7 +562,8 @@ and every Windows and macOS leg.
   Section "The shared pnpm store inside a container" records the fix and what it measured.
 - The root `mise.toml` `runPlaywright` browser run:
   it ran on 2026-11-09T01:37:35Z and completed all 84 tests,
-  with 31 passed and 53 failed;
+  with 31 passed and 53 failed,
+  and a second run on the final revision died with SIGKILL at the same bound;
   the failures sit in the worker fan-out inside the 2 GiB and 2 CPU bound,
   not in the store or the image
   (section "The shared pnpm store inside a container" holds the per-project measurements).
@@ -809,6 +810,30 @@ counts above rather than on a stopwatch.
 - `mise run test:browser -- --project=firefox --workers=2`,
   2026-11-09T02:00:16Z:
   `28 passed` in 28.1 s.
+- `mise run test:browser` again on the final revision,
+  2026-11-09T02:15:15Z,
+  default worker count:
+  exit 1 after 16 min with `Killed` (podman status 137),
+  after chromium and firefox had passed;
+  one sample put the container at 2.123 GB of its 2.147 GB cap.
+  The earlier run of the same command at the same bound finished instead,
+  with 53 failures,
+  so the two disagree in how the bound bites,
+  not in whether it does.
+- `mise run test:browser -- --workers=2` on the final revision,
+  2026-11-09T02:34:41Z:
+  `82 passed`,
+  `1 skipped`,
+  `1 failed` in 50.7 s,
+  the same single webkit OPFS failure as at 2026-11-09T02:02:30Z.
+- `mise run //package/test-harness/core:test:browser`,
+  2026-11-09T02:36:06Z:
+  `6 passed` in 8.0 s,
+  exit 0.
+- `mise run //package/upstream-fork/deepmerge-ts.fuzz:fuzz:declared-types:control`,
+  2026-11-09T02:15:56Z:
+  exit 0 in 13 s with `positive control: 65 clean cases pass: true; tampered caught 42/45`,
+  which is the fuzz package's container shape against the store.
 - `mise run //package/upstream-fork/conf:test:container src/bytes.unit.test.ts`,
   2026-11-09T02:13:27Z:
   exit 0 in 3 s with `byte conversions` passing,
@@ -826,8 +851,9 @@ and why:
 - The default fan-out of 16 workers runs three browsers inside a 2 GiB,
   2 CPU bound,
   and under this host's load that
-  ends in page crashes and 30 s timeouts in firefox and webkit while chromium passes.
-  The same suite at `--workers=2` finishes in 30 s with one failure,
+  ends in page crashes and 30 s timeouts in firefox and webkit while chromium passes,
+  or in the whole container being killed.
+  The same suite at `--workers=2` finished twice with one failure (30.4 s and 50.7 s),
   so the bound and the worker count own these
   failures,
   not the mount.
