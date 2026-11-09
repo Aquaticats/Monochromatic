@@ -122,7 +122,7 @@ await describe({
         it({
           name: 'advances past a non-breaking space, which JavaScript counts as whitespace',
           fn: async () => {
-            expect(skipWithClauseWhitespace({ s: '\u00a0with', idx: 0, },),).toBe(1,);
+            expect(skipWithClauseWhitespace({ s: '\u00A0with', idx: 0, },),).toBe(1,);
           },
         },),
 
