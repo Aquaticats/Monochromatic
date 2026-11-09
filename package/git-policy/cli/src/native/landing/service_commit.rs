@@ -52,8 +52,8 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_engine::StageRequest;
 use crate::random_id::random_uuid;
 use crate::repository_facts::RepositoryFacts;
-use crate::scratch_location::SCRATCH_REFRESH_EVERY;
-use crate::service_client::{ClientConfig, FreshScratch, Submitted, submit_traced};
+use crate::service_client::{ClientConfig, Submitted};
+use crate::service_commit_waiting_notices::submit_saying_where_it_stands;
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
@@ -293,11 +293,9 @@ pub fn service_commit<F: RepositoryFacts>(
         provisioned = provision_when_needed(provisioning.as_ref(), provisioned, &mut timing.provision)?;
         // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command, and the
         //  removal of an abandoned tree, would otherwise take it from under a wait that outlasts its age.
-        let waiting_config: ClientConfig = ClientConfig {
-            keep_fresh: Some(FreshScratch { path: ready.scratch.0.clone(), every: SCRATCH_REFRESH_EVERY }),
-            ..config.clone()
-        };
-        let submitted: Result<Submitted, ClientFailure> = submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit);
+        //  Both bounds of that wait, the renewed directory and the notices a terminal which stopped draining cannot hold, are
+        //  in `service_commit_waiting_notices.rs`.
+        let submitted: Result<Submitted, ClientFailure> = submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit);
         // A request the service took is one whose tree the service removes once its landing is over, so this process leaves it
         //  alone; only a definite answer that the service never took the request leaves the tree to this process, which removes
         //  it as it ends.

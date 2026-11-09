@@ -65,6 +65,10 @@ pub mod child_class;
 /// each with a deadline and separate output streams.
 pub mod bounded_query;
 
+/// The thread that gives a second-pass command its request,
+/// and the bounds it runs under.
+pub mod bounded_query_input;
+
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 

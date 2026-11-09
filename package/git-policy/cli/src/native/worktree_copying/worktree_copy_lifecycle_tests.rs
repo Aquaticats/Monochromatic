@@ -1102,7 +1102,8 @@ struct LiveProcess(std::process::Child);
 impl LiveProcess {
     /// Start a `sleep` that outlives the call the control makes,
     /// which may take minutes on a contended disk:
-    /// measured on 2026-11-09, one run of this control took 217 s,
+    /// measured on 2026-11-09,
+    /// one run of this control took 217 s,
     /// longer than the minute its owner was first given,
     /// so the owner's own ending would have been read as a wait.
     fn sleeping(seconds: &str) -> LiveProcess {

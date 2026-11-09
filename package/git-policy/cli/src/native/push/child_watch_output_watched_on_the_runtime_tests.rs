@@ -137,3 +137,112 @@ fn a_step_on_a_directory_of_its_own_runs_and_leaves_its_marker() {
     assert!(marker.exists(), "the step ran, so its marker is there");
     remove(root.as_path());
 }
+
+/// What:
+///  Runs a step that outlives the bound it is given, releases it, and answers what the command said and whether the
+///  step's end was collected.
+/// Why:
+///  Both controls of the left-running path need the same step and the same measure, and they differ only in the state
+///  they put the runtime in.
+///  A step that ends while this process lives and is not collected is a zombie of it, which
+///  `process_tree::use_of` reports with the state the kernel holds it in.
+async fn a_step_left_running_released_and_collected(step_name: &str, bound: StepBound) -> (std::io::Error, bool) {
+    let directory: PathBuf = fixture(step_name);
+    let pid_file: PathBuf = directory.join("pid");
+    let release: PathBuf = directory.join("release");
+    let script: PathBuf = directory.join("step.sh");
+    std::fs::write(
+        &script,
+        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+    )
+    .expect("the step");
+    let mut command: Command = Command::new("/bin/sh");
+    command.arg(script.as_path()).stdin(Stdio::null());
+    let failure: std::io::Error = output_watched_within_for_a_stop_awaiting(&mut command, "a write", "a write", long_window_terms(), false, bound, false)
+        .await
+        .expect_err("the command stopped waiting for the step");
+    // The step was started before the command stopped waiting, and it writes its number as it begins.
+    let mut waited: u32 = 0;
+    while !pid_file.exists() && waited < 250 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        waited = waited.saturating_add(1);
+    }
+    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    // The start time proves which process the number names, so a number that passed to another one is not read as the step.
+    let started: u64 = crate::process_tree::use_of(pid).expect("the step runs as it waits").started;
+    // The step ends now, and whoever was given it must collect that end.
+    std::fs::write(&release, b"").expect("let the step end");
+    let mut collected: bool = false;
+    let mut looked: u32 = 0;
+    while !collected && looked < 500 {
+        match crate::process_tree::use_of(pid) {
+            // The step is gone, or its number names a process that started later: this one's end was collected.
+            None => collected = true,
+            Some(seen) if seen.started != started => collected = true,
+            // A process that is still there is the step, waiting as a zombie for a wait that never comes.
+            Some(_still_there) => tokio::time::sleep(Duration::from_millis(20)).await,
+        }
+        looked = looked.saturating_add(1);
+    }
+    // The cleanup runs before the answers are used, so a failing control leaves nothing running.
+    if !collected {
+        // SAFETY: `kill` takes two integers and touches no memory; the number is this control's own step, and a zombie ignores it.
+        let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    }
+    remove(directory.as_path());
+    return (failure, collected);
+}
+
+/// What:
+///  A step left running by a caller on the runtime is collected where the process's build of the runtime missed its
+///  deadline and the runtime it built arrived afterwards.
+/// Why:
+///  This path asked how the runtime was first built,
+/// so a late build was read as a process with no worker at all:
+/// the child was
+///  taken out of its owner and dropped, and nothing collected it when it ended
+///  (the fifth review's finding 4).
+///  The question is the one the rest of the branch asks,
+/// whether a task can run now, which a late build answers yes to
+///  (`a_control_stands_in_for_a_late_runtime`).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late() {
+    let late: crate::lazy_runtime::LateRuntimeForTheControl = crate::lazy_runtime::a_control_stands_in_for_a_late_runtime();
+    assert!(
+        matches!(crate::lazy_runtime::built_flavor(), Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline)),
+        "the control stands in for a build that missed its deadline"
+    );
+    assert!(crate::lazy_runtime::tasks_can_run(), "the runtime this process built can run a task, so the late build has workers");
+    let (failure, collected): (std::io::Error, bool) = crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
+        "child-watch-late-runtime",
+        StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(200) },
+    ))
+    .expect("the runtime");
+    drop(late);
+    assert!(failure.to_string().contains("left running"), "the command reports the step as left running: {failure}");
+    assert!(collected, "the step that was left running on the runtime was never collected: nothing waited for it");
+}
+
+/// What:
+///  A step left running where no task of this process can run is collected all the same.
+/// Why:
+///  With no worker the child is left running on purpose,
+/// and it was taken out of its owner and dropped:
+/// a step that
+///  ended while this process lived stayed a zombie of it, which the reaper list exists to prevent
+///  (the fifth review's finding 4, at the branch this control takes).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper() {
+    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    assert!(!crate::lazy_runtime::tasks_can_run(), "the control stands in for a system that can run no task of this process");
+    let (failure, collected): (std::io::Error, bool) = crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
+        "child-watch-no-task-to-wait",
+        StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(200) },
+    ))
+    .expect("the runtime");
+    drop(refused);
+    assert!(failure.to_string().contains("left running"), "the command reports the step as left running: {failure}");
+    assert!(collected, "the step that was left running where no task could run was never collected: nothing waited for it");
+}

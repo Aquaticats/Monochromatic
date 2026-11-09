@@ -71,6 +71,9 @@ pub struct LandingState {
     pub(crate) index_hardened: Cell<bool>,
     /// The syncs this landing has queued so far.
     pub(crate) queued_syncs: RefCell<Vec<Pending>>,
+    /// Every sync this landing made or handed to the background so far,
+    /// in the order it asked for them (`service_durable.rs`).
+    pub(crate) syncs: RefCell<Vec<crate::service_durable_syncs::SyncFigure>>,
 }
 
 impl LandingState {
@@ -93,6 +96,7 @@ impl LandingState {
             deferring_syncs: Cell::new(false),
             index_hardened: Cell::new(true),
             queued_syncs: RefCell::new(Vec::new()),
+            syncs: RefCell::new(Vec::new()),
         };
     }
 }

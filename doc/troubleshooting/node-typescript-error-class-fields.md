@@ -121,9 +121,15 @@ Private receipts are `policy-error-field-receipt.json`,
 `error-field-repro-assignment.log` and `error-field-repro-field.log` under
 `${HOME}/temp/agent/pi-mimo-preparation-failure-20261018`.
 The maintained [built error regression](../../package/pi-plugin/auto-mode/src/native-policy-slot-error.unit.test.ts)
-also checks constructor arity,
+also checked constructor arity,
 native prototypes,
 optional cause identity and facade/implementation identity.
+That file was removed on 2026-10-19 in `7ac15b19b4`,
+one day after this record landed,
+and nothing in `package/pi-plugin/auto-mode/src/` replaces it
+(the directory holds `index.ts` alone),
+so the regression is retired with the tree it tested;
+`package/pi-plugin/auto-mode/doc/build-lifecycle.md` names the worktree the old build is preserved in.
 
 ## Verified workaround
 

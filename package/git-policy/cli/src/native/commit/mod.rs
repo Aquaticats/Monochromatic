@@ -112,6 +112,14 @@ pub mod commit_index_builds;
 /// for the timing record.
 pub mod scratch_commit_step;
 
+/// What the preparation's own work did,
+/// by name,
+/// for the timing record:
+/// reading and copying the index,
+/// writing its entries,
+/// and each policy.
+pub mod prepare_work_spans;
+
 /// The refresh of an index's stat data before the scratch commit,
 /// so its ceiling does not end a commit over a moved worktree.
 pub mod commit_index_stat_refresh;

@@ -125,6 +125,48 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)
+
+The full container gate on `d21b9cd1b4` ended with 58 of 6,382 tests failed
+(`gpc-gate-wrapper-next-alpha-20261109T133202-0500.log` in `~/temp/agent/gate/`).
+The next alpha waits for a gate that passes on a commit holding the fixes.
+Until it ships the installed wrapper stops a signed scratch commit at 3006 ms,
+because the owner's "About 16 seconds" ceiling is on main only.
+
+- `policy::direct_fix*`:
+  `fix` refuses every correction when a file carries `security.selinux` and the replacement cannot take it
+  (`Operation not supported (os error 95)`).
+  The Pi agent `markdown-route-findings-fixed` owns this.
+  The worktree-copy agent's report states the same refusal is behind its container failures in `markdown`,
+  `version_cache` and `event_path`.
+- Every other failure:
+  the Pi agent `wrapper-gate-failures-on-main` owns them,
+  on the branch `fix/git-policy-cli-gate-failures-on-main`.
+  The `ALLOWED` entry for `health/doctor.rs` in `source_guard/no_self_invocation_tests.rs` is stale on main.
+- `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`:
+  the worktree-copy agent's report states it fails at that branch's parent as well,
+  5 of 45 kills at `6ac3bc7e07` and 4 of 45 with the branch.
+  The coordinator has not reproduced this.
+
+Next:
+when both agents land,
+gate a clean checkout of main with `launch-gate.ts`,
+then follow "Release order for the wrapper".
+
+`check-branch-after-merging-main.ts` (scratch) now stops with status 3 on a detached HEAD.
+It had merged main into a worktree the agent left detached,
+and printed 134 of 134 for a commit missing the branch's last 10 commits.
+The real result on the branch was 136 of 136.
+
+Installed `0.6.1-alpha.5` failed a live `git worktree add` while a landing's merge was open in the main checkout:
+"could not stage ignored state from" the main checkout,
+"Cause:
+No such file or directory (os error 2)".
+The add left its registration,
+branch and checked-out files,
+and no ignored state.
+The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
@@ -159,7 +201,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `git log main --first-parent -m -S'branch_digest'` is empty.
   `c3c6a50098` added the branch key,
   and `24bb297e9a` on another branch deleted it on the belief that main had gone back to the plain id.
-  Push run 7 restores it and rechecks that agent's other fixes against main.
+  Run 7 restored it in `83cd9bdaa9` on `fix/git-policy-cli-push-route-records-and-ceilings`,
+  with `two_branches_at_one_commit_are_both_queued` and `a_pending_record_of_an_earlier_release_is_claimed`,
+  after reproducing the collision on the plain id:
+  the second branch is answered `Known`,
+  and no record is left to claim.
+  The other eleven findings of that page are fixed on main:
+  every control the fix commits added is still there,
+  and all 23 of them pass on the merged tree.
 - `~/temp/agent/pi-runs/find-functions-lost-in-merges.ts` over commits since 2026-11-05:
   of the functions and tests added,
   134 are gone from main,
@@ -676,6 +725,21 @@ The old tree kept for the rollback stays until the owner deletes it.
   with `push-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   The session picked the fixture root on the disk over a per-run tmpfs,
   because the package documents that a shared tmpfs fills up (issue 1809).
+  Run 7 resumed after the provider ended it,
+  merged main,
+  restored finding 1 of the push-route audit,
+  and fixed the sixth review's one P2 (`${HOME}/temp/agent/reviews/push-route-round-6-sol.txt`):
+  the writer's successful write and the count it publishes are two steps,
+  so a child that read the whole request,
+  closed its input and exited zero,
+  could be reported as a request that could not be written whole.
+  The answer now waits for the writer's own finished result,
+  for at most `WRITER_SETTLE_CEILING`,
+  which is 500 ms,
+  fifty of the writer's own 10 ms pauses and far under the 30 s query window;
+  the session chose it and it is open to the owner's veto.
+  `6ba20daf37` adds the control for a writer still held at that ceiling,
+  so removing the bound fails a test of its own.
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
   with 22 of 22 selected tests passing on top of main.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
@@ -8611,6 +8675,102 @@ neither built:
 
 Not done here because both are the client's reach and message path (`service/client` and `landing/`),
 not the ceiling and notice this branch changes.
+
+What happened to the two,
+measured (2026-11-09T10:21:14-05:00):
+
+- The service sent no place,
+  and this is why.
+  `service_server_land_group.rs` told a request where it stood only when it was not the first of its batch
+  (`fresh.iter().enumerate().skip(1)`),
+  and every request of both runs was alone in its batch.
+  The journal since 2026-11-08 holds 2,241 `answered` lines:
+  2,223 with `size=1 position=1`,
+  18 with `size=0` (a repeat answered from memory),
+  and none with `size` of two or more.
+  So `Position` was never sent to anybody in this window,
+  and it could not have been:
+  the send whose line the journal holds at `read_ms=78085` had not been read at all,
+  so no batch held it.
+- The answer is that it was never sent,
+  not sent and unread:
+  a place that is not in a reply reaches no client,
+  and every one of the 919 records of both timing-log generations holds `positions: []`.
+
+What a waiting commit now says (branch `feat/git-policy-cli-commit-queue-position-reaches-the-person`):
+
+- Once a commit has waited `WAITING_NOTICE_AFTER`,
+  which is ten seconds,
+  twice the owner's bound on what a commit may add to native Git,
+  and so the wait of fewer than three commits in a hundred,
+  the client prints one line:
+  `Waiting for N earlier commits.`,
+  `This commit is next.` when the service named the first place,
+  or `The commit service has not said where this commit stands yet; it has waited N seconds.`
+  when the service named no place at all.
+  The words claim nothing about the landing,
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`;
+  the first wording said the service had not started and was still reading the request,
+  and the review of this branch showed both halves false.
+- The service now tells the first request of a batch its place once that request has waited as long,
+  which is the place `positions` never held.
+  A batch that begins at once still says nothing,
+  so a quick commit gains no line,
+  and a client of an earlier release,
+  which prints every place it is told,
+  sees one only for a commit that waited.
+- The telling waits for nothing,
+  takes no lock and writes no file:
+  it is one clock read of the loop the client already runs at each beat or silence,
+  and one line handed to a thread that writes the terminal.
+  A reader that stopped draining neither holds that line nor the answer
+  (`foundation/notice_stream_that_does_not_hold_its_writer.rs`,
+  which drops a line the writer still holds and waits `WARNING_WRITE_CEILING` at the end),
+  and the first draft of this notice did hold the commit:
+  its synchronous write left the only thread that reads `Landed` inside `write`.
+- A place belongs to the connection that named it.
+  A request sent again after its service went away starts with no place,
+  so the batch of a service that is gone is never printed as this wait's.
+- A service that names no place and a client that was never told are both ordinary cases,
+  so the two releases work together either way round.
+
+What it cannot say:
+
+- A service that is itself stalled reads no request line and lands no batch,
+  so it can name no place;
+  the client's words are then the ones about the service not having said where the commit stands,
+  with the seconds waited,
+  which is the only true thing anyone knows.
+  In the incident this is what both runs would have seen.
+- A landing that has begun behind another program's `index.lock` cannot be told from a request still
+  in the queue,
+  because the service names no place before a batch begins and has no message of its own for
+  "the landing started".
+  The words therefore claim neither,
+  and the landing's own waiting line (which names the lock's holder) is what tells a person what the
+  commit waits for.
+- The timing record holds the places the service named,
+  printed or not,
+  and no count of the telling itself;
+  `answered` lines of the service count the places a batch sent.
+
+Found while fixing the three review findings,
+and not fixed here:
+several notes of the commit path still write to standard error on the commit's own thread,
+so a terminal that stopped draining can still hold a commit.
+A line there is not bounded by anything.
+The executable-level control of the notice found one of them:
+with standard error a pipe nobody drains,
+the wrapper stayed in `commit/commit_command.rs`'s `write_stderr`
+(the post-landing policy report) above `Stderr::write_all`,
+which waits on the record lock the notice's writer thread held inside `write`.
+`service_prepare.rs` and `service_commit_requests_and_landing_report.rs` write the same way.
+`WARNING_WRITE_CEILING` and `foundation/notice_stream_that_does_not_hold_its_writer.rs` are the two
+shapes that bound such a line;
+which notes take one is open work,
+and it belongs with whoever owns the commit's own reporting,
+since every one of them is a line a person may live without.
 
 ### The scratch commit's ceiling, reviewed: what the review found and what is still open (2026-11-09T06:20:00-05:00)
 

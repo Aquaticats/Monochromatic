@@ -41,8 +41,8 @@ use crate::child_watch_step_bounds_and_errors::{NotKnown, Outlived, StepBound, e
 use crate::output_capture::Capture;
 /// The child the wrapper adopted and the pidfd its end is awaited through.
 use crate::child_awaited_through_a_pidfd::adopt;
-/// Whether a task can run on this process's runtime at all.
-use crate::lazy_runtime::{BuiltFlavor, built_flavor};
+/// Whether a task can run on this process's runtime at all, which is the question the rest of this run asks.
+use crate::lazy_runtime::tasks_can_run;
 /// Starts that ride out a short shortage of processes,
 /// without holding the worker.
 use crate::start_retry::spawn_retrying_without_blocking;
@@ -94,7 +94,10 @@ async fn output_of_a_step_left_running(
     let limit: Duration = after.saturating_add(extra);
     // `mut` lets the wait take the child to itself.
     let mut owned = adopt(child);
-    let waiting: bool = matches!(built_flavor(), Some(BuiltFlavor::MultiThread { .. }));
+    // The question is whether a task can run now, not how the runtime was first built: a build that missed its deadline can
+    //  have arrived since, and its workers take this child. Asking the first build left a step that was deliberately left
+    //  running to a drop that never collects it (the fifth review's finding 4).
+    let waiting: bool = tasks_can_run();
     let finished: std::io::Result<ExitStatus> = if waiting {
         // The child moves to a task that waits for it and is reaped there, so this command can stop waiting and the child goes on.
         let (sender, receiver) = tokio::sync::oneshot::channel::<std::io::Result<ExitStatus>>();
@@ -124,9 +127,12 @@ async fn output_of_a_step_left_running(
     } else {
         match tokio::time::timeout(limit, owned.wait()).await {
             Ok(status) => status,
-            // Nobody waits for the child from here on, and it is left running on purpose: its own end reaps it.
+            // Nobody waits for the child from here on, and it is left running on purpose: it is handed to a reaper, which
+            //  collects its end whenever the system lets it go, so a step that outlives this command is never a zombie of it.
             Err(_elapsed) => {
-                let _left: Option<Child> = owned.into_std_when_unreaped();
+                if let Some(unwaited) = owned.into_std_when_unreaped() {
+                    crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(unwaited);
+                }
                 return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
             }
         }
@@ -211,6 +217,9 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     if !stoppable {
         watch.never_stop();
     }
+    // Nothing watches this step, so this wait is what ends it at its ceiling; a step with no ceiling is waited for as before.
+    let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> =
+        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.unwatched().is_none());
     watch.begin();
     // Whether the step was left running, so what it writes from here on is read by nobody.
     let mut left_running: bool = false;
@@ -224,7 +233,7 @@ pub async fn output_watched_within_for_a_stop_awaiting(
             Err(error) => Err(error),
         },
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends_awaiting(child).await,
+            Some(open) => open.read_until_the_child_ends_awaiting(child, waiting_for, carried).await,
             None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
         },
         StepBound::Unbounded => {

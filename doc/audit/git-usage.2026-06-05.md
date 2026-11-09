@@ -162,8 +162,10 @@ passed the message (an agent or a `-m` string with escaped newlines) never got i
 `git log --oneline`,
  GitHub,
  and every tool that shows subjects gets a paragraph where one line belongs.
-This violates the repo's own GCG rule (two lines per group,
- blank line between subject and body) and
+This violates the repo's own GCG rule as it stood when this audit was taken (two lines per group,
+ blank line between subject and body;
+ as of 2026-11-09 GCG states the subject shape `<type>(<scope>): <subject>` and how to name the scope,
+ and the body shape this paragraph asks for is written down nowhere) and
 breaks Conventional Commits' 50/72 convention wholesale on those 696.
 
 Fix:
@@ -233,8 +235,13 @@ note it and move on.
 
 This is not an accident,
  it is policy:
- `AGENTS.md` rules GCE and GCU tell agents to commit at the earliest
-coherent checkpoint and never accumulate independent units.
+ `AGENTS.md` rules GCE and GCU told agents,
+ as of 2026-06-05,
+ to commit at the earliest
+coherent checkpoint and never accumulate independent units
+ (GCU left `AGENTS.md` on 2026-11-09,
+ and GCE now asks for a commit before the next work step,
+ never waiting for verification or completion).
  So this stays.
  But name the cost honestly:
 `git bisect` and `git blame` get noisy,

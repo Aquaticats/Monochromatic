@@ -265,7 +265,7 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
         }
     };
     match early {
-        EarlyAnswer::Landed(commit) => send(write_half, &ServiceMessage::Landed { id, commit, already: true }).await,
+        EarlyAnswer::Landed(commit) => send(write_half, &ServiceMessage::Landed { id, commit, already: true, landing: None }).await,
         EarlyAnswer::Withdrawn(words) => {
             send(write_half, &ServiceMessage::Waiting { text: words }).await;
             send(write_half, &ServiceMessage::Withdrawn { id }).await;
