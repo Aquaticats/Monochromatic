@@ -140,12 +140,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a cross-vendor review is running.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
   at `3509de3e01`:
-  its round answers all seven review findings,
-  and a cross-vendor review of that round is running.
-  Its agent says two gaps remain.
-  A held push whose client died before the answer is promoted by nothing.
-  A repair whose exclusion fails at the Git level still lets the commit go on,
-  with its index's content and one warning.
+  the cross-vendor review of its latest round
+  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
+  names seven more defects,
+  among them a failed reset that commits a deletion and an approved push left stranded.
+  Not ready to merge.
+  This one waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `landing-route-findings-fixed` as run 4,
+  with `landing-route-findings-fixed-round-4-prompt.md` and the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
   at `493e72d1e9`:
   the library suite passed 4835 of 4835.
@@ -160,8 +163,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the two-process race has no failing test,
   because nothing can hold a wrapper at a named step.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
-  finished,
-  and a cross-vendor review is running.
+  the cross-vendor review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-1-sol.txt`)
+  names defects in the stop,
+  among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
+  Not ready to merge.
+  This one waits for a free agent slot too:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 2,
+  with `scratch-commit-ceiling-round-2-prompt.md` and the session file named in run 1's `summary.json`.
   It raises the ceiling to 16,332 ms,
   makes the stop keep looking for a step that starts late,
   and logs what ran below each step.
