@@ -726,6 +726,52 @@ fn no_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
 /// so the
 ///  exact-output controls pass one that returns nothing and stay independent of the host.
 ///
+/// What:
+///  The parts of the doctor's standard-error explanation:
+/// the Git LFS shims it names,
+/// and the text sections that follow them.
+/// Why:
+///   The shims are pathnames and are already the bytes of those pathnames,
+/// while each other section is text;
+/// one struct keeps the four parts in the order the report prints them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ExplainedReport = { shims: Buffer; notes: string; discarded: string; section: string };
+/// ```
+struct ExplainedReport<'a> {
+    /// The shim explanation,
+    /// already the bytes of each pathname it names.
+    shims: Vec<u8>,
+    /// The notes about the configuration the report read.
+    notes: &'a str,
+    /// What became of the earlier release's names in the directory.
+    discarded: &'a str,
+    /// The informational filesystem section,
+    /// when the caller supplies one.
+    section: &'a str,
+}
+
+/// What:
+///  The doctor's standard-error explanation as one byte stream.
+/// Why:
+///   The shims' explanation names pathnames,
+/// which are bytes,
+/// and every section after it is text,
+/// so the report is assembled where the shapes meet rather than spelling a pathname as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.concat([report.shims, Buffer.from(report.notes + report.discarded + report.section)]);
+/// ```
+fn explained_shim_report(report: ExplainedReport<'_>) -> Vec<u8> {
+    let mut explained: Vec<u8> = report.shims;
+    for text in [report.notes, report.discarded, report.section] {
+        explained.extend_from_slice(text.as_bytes());
+    }
+    return explained;
+}
+
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function doctorWithSection({ context, cwd, home, section }): Promise<Action>;
@@ -755,7 +801,8 @@ pub async fn doctor_action_with_section(
             Err(error) => return doctor_failure(format!("cannot read a hook file: {error}").as_str()),
         }
     }
-    let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
+    // The shims are named by the bytes of their pathnames, as the list of other hooks is, so the explanation is bytes too.
+    let shim_report: Vec<u8> = if shims.is_empty() { Vec::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd).await;
     let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd).await);
     // A report changes nothing, so the earlier release's names in this directory are read where they are and never moved
@@ -766,21 +813,18 @@ pub async fn doctor_action_with_section(
     let viewpoint: CheckoutViewpoint<'_> = CheckoutViewpoint { checkout: checkout.as_deref(), layout, home };
     let section: String = filesystem_section(&viewpoint);
     if hooks.is_empty() && findings.hooks.is_empty() {
-        return Action::Exit {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!("{shim_report}{notes}{discarded}{section}"),
-        };
+        // Nothing is listed on standard output, and what explains the shims names their pathnames by their bytes.
+        let explaining: ExplainedReport<'_> = ExplainedReport { shims: shim_report, notes: notes.as_str(), discarded: discarded.as_str(), section: section.as_str() };
+        return Action::ExitBytes { code: 0, stdout: Vec::new(), stderr: explained_shim_report(explaining) };
     }
     let explanation: &str = if hooks.is_empty() { "" } else { FOUND_EXPLANATION };
     // The hook pathnames are bytes and the configured hooks are text, so the report is one byte stream.
     let mut report: Vec<u8> = render_hooks(hooks.as_slice());
     report.extend_from_slice(render_hook_lines(&findings).as_bytes());
-    return Action::ExitBytes {
-        code: HOOKS_FOUND_EXIT_CODE,
-        stdout: report,
-        stderr: format!("{explanation}{shim_report}{notes}{discarded}{section}"),
-    };
+    let explaining: ExplainedReport<'_> = ExplainedReport { shims: shim_report, notes: notes.as_str(), discarded: discarded.as_str(), section: section.as_str() };
+    let mut explanation_and_report: Vec<u8> = explanation.as_bytes().to_vec();
+    explanation_and_report.extend_from_slice(explained_shim_report(explaining).as_slice());
+    return Action::ExitBytes { code: HOOKS_FOUND_EXIT_CODE, stdout: report, stderr: explanation_and_report };
 }
 
 /// What:
