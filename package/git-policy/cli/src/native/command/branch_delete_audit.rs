@@ -98,10 +98,10 @@ pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, re
 }
 
 /// What:
-///  One `rev-parse` query of the repository,
+///  One query of the repository through a Git subcommand that reads only,
 ///  or nothing when Git cannot be asked at all.
 /// Why:
-///   Every question here is one `rev-parse`,
+///   Every question here is one such run,
 /// and a query that cannot start answers nothing rather than
 ///  failing the removal.
 ///
@@ -188,31 +188,34 @@ fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, re
     if commit_of(context, root, intended.as_os_str()).is_some() {
         return Some((intended, name.to_string_lossy().into_owned()));
     }
-    let symbolic: OsString = symbolic_reference(context, root, name)?;
-    let prefix: &[u8] = if remotes { REMOTES.as_bytes() } else { HEADS.as_bytes() };
-    let short: String = String::from_utf8_lossy(symbolic.as_encoded_bytes().strip_prefix(prefix)?).into_owned();
-    return Some((symbolic, short));
+    let expanded: OsString = expanded_branch_name(context, root, name)?;
+    let reference: OsString = reference_of(expanded.as_os_str(), remotes);
+    return Some((reference, expanded.to_string_lossy().into_owned()));
 }
 
 /// What:
-///  The full reference a name resolves to,
-///  or nothing when Git resolves it to no reference at all.
-///  `Option<String>` is "the reference or nothing".
+///  The branch name a deletion name expands to,
+///  or nothing when Git expands it to no branch name at all.
+///  `Option<OsString>` is "the expanded name or nothing".
 /// Why:
-///   `git rev-parse --symbolic-full-name` answers what a deletion name means to Git
-///  (`@{-1}` is
-///       `refs/heads/lost`),
-///  and a commit with no symbolic name (a detached `@{-1}`) is no branch to restore.
+///   `git branch -D` expands its operand with Git's `copy_branchname` under
+///  `INTERPRET_BRANCH_LOCAL`,
+///  and `git check-ref-format --branch` is that same expansion before the
+///       namespace is put in front of it,
+///  so `@{-1}` is the branch the worktree visited before the current one
+///  and a revision that is no branch name (`HEAD`,
+///  `@`,
+///  `main@{1}`) expands to nothing.
+///  General revision resolution would answer `refs/heads/main` for `HEAD`,
+///  and the line would then name a branch the deletion never took,
+///  where Git refused the deletion and deleted nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name]);
+/// const output = await runGit([...global, 'check-ref-format', '--branch', name]);
 /// ```
-fn symbolic_reference(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
-    let query: Vec<OsString> = query_arguments(
-        &["rev-parse", "--symbolic-full-name", "--verify", "--quiet"],
-        name,
-    );
+fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
+    let query: Vec<OsString> = query_arguments(&["check-ref-format", "--branch"], name);
     let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
         return None;
@@ -227,7 +230,7 @@ fn symbolic_reference(context: &GitContext, root: Option<&Path>, name: &OsStr) -
 }
 
 /// What:
-///  Whether one byte ends the line a `rev-parse` answer prints.
+///  Whether one byte ends the line a query's answer prints.
 /// Why:
 ///   A named function keeps the split of one answer free of a closure that captures nothing.
 ///

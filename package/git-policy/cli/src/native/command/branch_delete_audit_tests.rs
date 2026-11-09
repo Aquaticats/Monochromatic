@@ -126,6 +126,42 @@ fn real_git_records_the_branch_a_previous_branch_expression_names() {
 }
 
 /// Real Git:
+///  `HEAD` is no branch name,
+///  so a deletion of it records no branch,
+///  while a reference literally named `refs/heads/HEAD` is a branch of its own that the record keeps.
+/// Why:
+///  The line exists so a person can restore what the deletion took,
+///  and a line naming the branch `HEAD` resolves to would restore a branch no deletion touched.
+#[test]
+fn real_git_records_no_branch_for_a_revision_that_is_no_branch_name() {
+    let root: PathBuf = fixture("branch-delete-revision-not-branch");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    let reading: GitContext = context(repo.as_path());
+    // The control: general revision resolution answers the branch `HEAD` points at, and that is no branch named `HEAD`.
+    let symbolic: String = String::from_utf8_lossy(
+        git(repo.as_path(), &["rev-parse", "--symbolic-full-name", "HEAD"]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert_eq!(symbolic, "refs/heads/main", "the control needs HEAD to point at main");
+    // Git refuses `git branch -D HEAD` in this repository, so the record names no branch and no commit.
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("HEAD"), false), None);
+    assert_eq!(deletion_facts(&reading, Some(repo.as_path()), OsStr::new("HEAD"), false), None);
+    // A reference literally named `refs/heads/HEAD` is a branch: Git deletes it, and the record keeps it.
+    let commit: String = String::from_utf8_lossy(git(repo.as_path(), &["rev-parse", "main"]).stdout.as_slice())
+        .trim()
+        .to_owned();
+    git(repo.as_path(), &["update-ref", "refs/heads/HEAD", "main"]);
+    let facts: Vec<AuditFact> =
+        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("HEAD"), false).expect("the branch exists");
+    assert_eq!(value(&facts, "branch"), "HEAD");
+    assert_eq!(value(&facts, "reference"), "refs/heads/HEAD");
+    assert_eq!(value(&facts, "commit"), commit);
+    remove(root.as_path());
+}
+
+/// Real Git:
 ///  a branch whose name is not UTF-8 keeps its own reference and commit in the record,
 ///  because the
 ///       name reaches Git as bytes.

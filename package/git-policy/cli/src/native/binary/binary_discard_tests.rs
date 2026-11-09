@@ -1509,11 +1509,19 @@ fn a_deletion_of_a_revision_that_is_no_branch_leaves_no_line() {
         "a deletion that deleted nothing wrote {:?}",
         audit_lines_of(repo.as_path())
     );
-    // A branch named `HEAD` is still deleted and recorded, because that name is a branch of its own.
-    git(&fixture, repo.as_path(), &["branch", "HEAD"]);
+    // A reference literally named `refs/heads/HEAD` is a branch of its own, and Git deletes that one.
+    // `git branch` cannot create the name, so the reference is written by `update-ref`.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/heads/HEAD", "main"]);
     let deleted: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
     assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "HEAD"]).stdout.as_slice()),
+        "",
+        "Git deleted the branch named HEAD"
+    );
     let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    // `refs/heads/HEAD` in bytes: the identity of the branch Git deleted.
+    assert!(line.contains("\"reference\":\"refs/heads/HEAD\""), "{line}");
     assert!(line.contains("\"referenceHex\":\"726566732f68656164732f48454144\""), "{line}");
     remove(&fixture);
 }
