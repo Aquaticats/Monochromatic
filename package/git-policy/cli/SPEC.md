@@ -2749,17 +2749,30 @@ a permission,
 an I/O error,
 a record that cannot be parsed)
 is not an exit:
-the step's root is signalled all the same,
-the members are waited for,
-and the grace and the ceiling end the step as they would have.
+the root and the members are waited for as if they were alive,
+so the grace and the ceiling end the step as they would have.
 Reading a refusal as "the process is gone" signalled nothing,
 so a ceiling ended nothing,
 the wait outlasted it,
 and the lock sweep ran against a live tree
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 finding 4).
+A refusal is not a proof of which process the number names either,
+so nothing is signalled through it,
+and one line says that the step it names was not sent that signal:
+the member was found a moment ago and may have ended and been reaped since,
+and its number may belong to an unrelated process.
+The root of a step whose record could not be read therefore stays in the stop's waiting set
+(`src/native/push/child_watch_clock_marks_and_stopping.rs`),
+so a live Git gets the grace between the request and the kill that it would have had,
+and the wait after the kill;
+a stop that judged its wait by the tree alone sent the kill at once, because a refused root is no
+member of that tree.
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
+The stop reads its root's record at the signal itself,
+never across an awaited step such as the lock claim,
+because the thread that waits for the step reaps it as soon as it ends.
 
 A signal is sent through a descriptor that names the process,
 never to a number read a moment earlier.
@@ -2779,10 +2792,38 @@ and the window that remains is the pidfd's to close
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 finding 7).
 Two signals stay by number on purpose:
-the root of a step whose record could not be read (finding 4),
+the number-then-start-time path for a host whose kernel gives no pidfd (`PinnedProcess::signal`),
 and the whole process group of the repair tool,
 whose leader is unreaped at that moment,
 so the kernel cannot have given its number to anything else.
+The rule is one decision everywhere:
+a number is a safe address only while its process is this process's own unreaped child,
+and anything else goes through a descriptor taken while that identity was proven.
+A second look at a record that fails after the descriptor is open keeps the descriptor,
+because the descriptor already names the process and a refused record proves nothing about it;
+reading the refusal as an exit dropped a valid pin and sent nothing.
+
+A one-shot query's ceiling takes its descriptor at the start.
+`output_of_within_bound` (`src/native/process/captured_child_run_to_its_end.rs`) and the batch query
+of the manual push (`src/native/push/manual_push_range.rs`) hand the child to a thread that waits for
+it and reaps it,
+so the number the caller read may name another process by the time its deadline passes.
+The descriptor is taken straight after the start,
+while the number certainly names this process's own unreaped child
+(`pin_of_our_own_child`),
+and the ceiling signals through it.
+A host that gives no descriptor sends nothing and the sentence says the query was not ended.
+
+Both threads of a batch query, and the thread that waits for a one-shot query, are started before
+the child.
+A refused thread start then costs the command its start,
+and no killed child is left unreaped in a resident process,
+which is the shortage of processes such a refusal comes from.
+The thread that writes a batch query's request list is not joined:
+a program the query started can keep the read end of that list open without reading it,
+so the write lasts until the last read end closes (its next write then fails with `EPIPE`) or until
+the command exits.
+Joining it made the command wait past `RANGE_QUERY_CEILING` on a query that had already answered.
 
 A signal the wrapper catches is relayed to the child or it ends the wrapper;
 it is never swallowed.
@@ -2850,6 +2891,16 @@ What the read got before that moment is not returned as the step's answer:
 a step whose output may be incomplete is reported,
 never guessed at.
 
+The step's answer is its exit status and its standard output.
+A program that still holds the step's standard error open one second after the step ended therefore
+does not fail the step:
+the exit status and the whole of standard output come back,
+the bytes of standard error read before the drain ended come back with them,
+and one line names the program and says where that stream stops
+(`src/native/process/step_output_read_whole_through_pipes.rs`).
+A standard output a program still holds open stays a failure,
+because the answer itself may be incomplete.
+
 A read-only query the wrapper asks of Git ends at a ceiling of its own.
 The metadata questions (`src/native/repo_read/git_metadata.rs`) and the two one-shot questions of the
 invocation (`src/native/repo_read/git_system_config.rs`,
@@ -2863,6 +2914,10 @@ and such a query changes nothing of the repository,
 so ending it costs nothing
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 finding 5).
+A metadata answer has to be whole, though:
+a query whose output is longer than the `STEP_OUTPUT_LIMIT` bytes the capture keeps fails and says what
+was left out,
+because its bytes are parsed or compared and the last part of a cut answer is a wrong answer.
 A forwarded command (`src/native/invocation/forwarding.rs`,
 `status_retrying`) keeps no ceiling on purpose:
 there the person's Git owns the terminal,
