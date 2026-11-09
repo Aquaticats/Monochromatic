@@ -474,3 +474,33 @@ fn a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once() {
     assert!(message.contains("not a plain file") && message.contains("unreadable"), "{message}");
     remove(parent.as_path());
 }
+
+/// What:
+///  A resume refuses a subvolume at the stage's name that is not the one the journal recorded creating,
+///  and copies nothing into it.
+/// Why:
+///   The creation step is skipped when the journal records it as done,
+/// and nothing compared the subvolume at that
+///  name with the identity the journal recorded;
+/// the initial copy ran into the other subvolume and the deleting
+///  delta then removed the files it held,
+/// which exist nowhere else.
+#[test]
+fn a_resume_refuses_a_stage_that_is_not_the_subvolume_the_journal_recorded() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("migrate-foreign-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-create", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let aside: PathBuf = parent.join("staged-aside");
+    std::fs::rename(layout.new_path.as_path(), aside.as_path()).expect("move the stage aside");
+    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(resumed_code, REFUSED, "{resumed_lines:#?}");
+    let said: String = resumed_lines.join("\n");
+    assert!(said.contains("not the subvolume this migration created"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
+    assert!(aside.exists(), "the stage this migration made is left where it was moved");
+    remove(parent.as_path());
+}
