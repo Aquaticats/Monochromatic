@@ -2357,6 +2357,17 @@ Every pending transaction then reaches an end:
   recovery removes the private stage and journal,
   never touches the destination path,
   and writes one notice line.
+- A `gitdir` file that was not read whole proves nothing,
+  and neither does a recorded path that cannot be resolved,
+  because a command that unlinks,
+  truncates or rewrites that file leaves it empty,
+  cut short,
+  gone or unreadable for as long as it runs,
+  and a directory the recorded path crosses can lose its search permission while the registration stays.
+  The recorded path is compared as bytes,
+  with only the one line feed that ends the file removed,
+  because the first byte of a worktree's path can be a space that belongs to it.
+  Recovery keeps the stage and the journal and writes one notice line saying where they stay.
 - A destination a registration names whose `.git` file does not name that registration is the answer that proves
   nothing,
   because a command that unlinks,

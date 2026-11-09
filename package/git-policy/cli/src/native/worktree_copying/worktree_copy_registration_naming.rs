@@ -129,10 +129,13 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const naming = namingBy(admin, read('gitdir'), destination); // 'names' | 'names-nothing' | 'unproven'
+/// const line = read('gitdir').replace(/\n$/, ''); const marker = resolveLexically(admin, line); return namingOf(canonicalize(dirname(marker)), destination)
 /// ```
 fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
-    let line: &[u8] = recorded.trim_ascii();
+    // Git ends the file with one line feed and writes the path as it is (`write_file` in its `worktree.c`),
+    // and `bind_registration` removes that one line feed alone:
+    // trimming every space around it would rename a worktree whose path begins or ends with one.
+    let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded);
     if line.is_empty() {
         return Naming::Unproven;
     }
