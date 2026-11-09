@@ -1206,9 +1206,17 @@ order.
 A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason;
 it
  does not fail the add,
-because the worktree is already in place and complete,
-and it is never left for a later service to
-find.
+because the worktree is already in place and complete.
+Nothing else will ever empty it:
+this path writes no work item and keeps no durable record of the
+ manifest,
+so the line says that the trash stays inside the worktree,
+that no work item names it,
+that only the
+ person will remove it,
+and gives `rm --recursive --force -- '<path>'` with the path quoted for their shell.
+A line that
+ promised a later service would promise work nothing records.
 A work item of kind `trash` that an earlier release wrote is still emptied by the service's handler
 (`empty_trash`),
 with the same checks and the same identities,

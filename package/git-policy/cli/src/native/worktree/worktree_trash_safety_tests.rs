@@ -384,10 +384,30 @@ impl Drop for RestoreMode {
     }
 }
 
-/// Finding 15:
-/// a trash that cannot be emptied here is reported with its path and the reason.
+/// What:
+///  A trash that cannot be emptied is reported with its path and the reason,
+/// and the line says what is
+///  true of it:
+/// it stays,
+/// it is the person's to remove,
+/// and nothing else will empty it.
+/// Why:
+///   This path writes no work item and keeps no durable record of the manifest,
+/// so a line promising that
+///  the commit service names it later would promise work that never runs;
+/// the person is the only one who will
+///  empty it,
+/// and the line gives the command that does,
+/// quoted for their shell.
+/// It also says that no work item exists,
+/// which is the fact the old sentence got wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reason = await disposePendingTrash(...); expect(reason).toContain(`rm --recursive --force -- '${join(worktree, TRASH_PARENT, name)}'`); expect(reason).not.toContain('commit service');
+/// ```
 #[test]
-fn a_trash_that_cannot_be_emptied_here_is_reported_and_keeps_its_work_item() {
+fn a_trash_that_cannot_be_emptied_here_is_reported_as_the_persons_to_remove() {
     let name: String = "7".repeat(40);
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-unremovable", name.as_str(), 1);
     let parent: PathBuf = worktree.join(TRASH_PARENT);
@@ -397,8 +417,12 @@ fn a_trash_that_cannot_be_emptied_here_is_reported_and_keeps_its_work_item() {
     let mut notices: Vec<u8> = Vec::new();
     let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
     let reason: String = outcome.expect_err("the failure is returned, not swallowed");
-    assert!(reason.contains(name.as_str()), "the reason names the trash: {reason}");
-    assert!(reason.contains("stays"), "the reason says what happens to it: {reason}");
+    let trash_path: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let quoted: String = crate::shell_quote::shell_quote(trash_path.as_os_str().as_bytes());
+    assert!(reason.contains(quoted.as_str()), "the reason names the trash the way the person's shell reads it: {reason}");
+    assert!(reason.contains("stays inside the worktree") && reason.contains("only you will remove it"), "the reason says what is true of it: {reason}");
+    assert!(reason.contains(format!("rm --recursive --force -- {quoted}").as_str()), "the reason gives the command that removes it: {reason}");
+    assert!(!reason.contains("commit service"), "and promises no service that would never see it: {reason}");
     assert!(parent.join(&name).exists(), "the trash directory could not be removed from a read-only parent");
     let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
     assert!(!record.exists(), "no work item is written, so a later command does not report a trash it never made");

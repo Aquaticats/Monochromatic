@@ -653,7 +653,12 @@ Read-only commands,
    It does decline when a registered nested worktree holds a file the main checkout tracks.
      A trash that cannot be
    emptied is reported with its path and the reason,
-     and the worktree is whole either way.
+     the worktree is whole either way,
+     and the line says that nothing else will
+   empty it:
+     no work item names it,
+     only the person will remove it,
+     and it gives the `rm --recursive --force` command that does.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:

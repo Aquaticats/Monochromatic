@@ -37,6 +37,7 @@ use crate::worktree_trash_entries::{EntryRemoval, remove_entries};
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
+use std::os::unix::ffi::OsStrExt as _;
 use std::sync::Arc;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -133,7 +134,13 @@ fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashMa
     let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, so nothing another command was filling stays in it; this can take a while.", destination.display());
     return match delete_trash(destination, git_dir, manifest) {
         Ok(()) => Ok(()),
-        Err(reason) => Err(format!("the directories left out of the new worktree {} were not emptied ({reason}); the trash {} stays there and is named by the commit service when it next runs for this worktree", destination.display(), manifest.name)),
+        // No work item and no durable record of this manifest is written, so nothing else will ever empty it: the line says
+        //  that, names the directory, and gives the command that removes it the way the person's shell reads it.
+        Err(reason) => {
+            let trash: PathBuf = destination.join(TRASH_PARENT).join(&manifest.name);
+            let shown: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
+            Err(format!("the directories left out of the new worktree {} were not emptied ({reason}); the trash {shown} stays inside the worktree, no work item names it, and only you will remove it: `rm --recursive --force -- {shown}`", destination.display()))
+        }
     };
 }
 
