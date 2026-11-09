@@ -216,6 +216,23 @@ fn inserted_lines_take_the_paragraph_depth_and_existing_lines_keep_their_bytes()
     );
 }
 
+/// A break inside a partially marked lazy line takes the paragraph's full depth,
+///  while the author's own shorter line keeps the bytes it was written with.
+#[test]
+fn a_partially_marked_lazy_line_gets_the_paragraph_depth_on_the_inserted_line() {
+    let source: &str = "> > opening words\n> continued, further words.\n";
+    let output: String = fixed(source);
+    assert_eq!(
+        output,
+        "> > opening words\n> continued,\n> > further words.\n"
+    );
+    assert_eq!(
+        placements(output.as_str()),
+        placements(source),
+        "{output:?}"
+    );
+}
+
 /// A list item's continuation line keeps its item by starting at the item's content column,
 ///  because re-emitting `-`, `1.` or `[ ]` there would open a new block instead of continuing this one:
 ///  a paragraph's containers offer only list markers and quote markers,

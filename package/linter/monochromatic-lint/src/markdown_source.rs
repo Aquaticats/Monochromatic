@@ -436,6 +436,83 @@ pub(crate) fn paragraph_placements(
     return Ok(found);
 }
 
+/// What:
+///  Every block node in preorder with its depth,
+///  which records where block boundaries fall and which container holds them.
+/// Why:
+///  Paragraph ancestors alone cannot tell two adjacent quotations from one quotation with two paragraphs;
+///  a whitespace-only fix must not change either boundary.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function blockContainers(context: MarkdownSource): [number, MdastNodeType][];
+/// ```
+#[cfg(test)]
+pub(crate) fn block_containers(
+    context: &MarkdownSource,
+) -> Result<Vec<(usize, MdastNodeType)>, MarkdownError> {
+    let mut found: Vec<(usize, MdastNodeType)> = Vec::new();
+    for id in context.all_nodes() {
+        let kind: MdastNodeType = context.kind(*id);
+        if is_inline(kind) {
+            continue;
+        }
+        found.push((context.ancestors(*id)?.len(), kind));
+    }
+    return Ok(found);
+}
+
+/// Whether a node kind is inline content rather than a block boundary.
+#[cfg(test)]
+fn is_inline(kind: MdastNodeType) -> bool {
+    return matches!(
+        kind,
+        MdastNodeType::Text
+            | MdastNodeType::Emphasis
+            | MdastNodeType::Strong
+            | MdastNodeType::InlineCode
+            | MdastNodeType::Break
+            | MdastNodeType::Link
+            | MdastNodeType::Image
+            | MdastNodeType::LinkReference
+            | MdastNodeType::ImageReference
+            | MdastNodeType::FootnoteReference
+            | MdastNodeType::Delete
+            | MdastNodeType::InlineMath
+            | MdastNodeType::LeafDirective
+            | MdastNodeType::TextDirective
+            | MdastNodeType::Superscript
+            | MdastNodeType::Subscript
+            | MdastNodeType::MdxJsxTextElement
+            | MdastNodeType::MdxTextExpression
+            | MdastNodeType::Custom
+    );
+}
+
+/// What:
+///  The exact source of every code and raw HTML block, in document order.
+/// Why:
+///  The token comparison of a whole file sets line-leading markers aside everywhere,
+///  including inside a fence,
+///  so quoted source needs its own byte-for-byte comparison.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function verbatimBlocks(context: MarkdownSource): string[];
+/// ```
+#[cfg(test)]
+pub(crate) fn verbatim_blocks(context: &MarkdownSource) -> Result<Vec<String>, MarkdownError> {
+    let mut found: Vec<String> = Vec::new();
+    for id in context.all_nodes() {
+        let kind: MdastNodeType = context.kind(*id);
+        if kind != MdastNodeType::Code && kind != MdastNodeType::Html {
+            continue;
+        }
+        found.push(String::from(context.slice(*id)));
+    }
+    return Ok(found);
+}
+
 /// Direct native-arena guard controls,
 ///  independent of what malformed text the parser happens to emit.
 #[cfg(test)]
