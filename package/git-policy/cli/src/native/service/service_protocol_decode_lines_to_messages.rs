@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::PathBuf;
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path};
+use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path};
 
 /// What:
 ///  Reads and checks one client line.
@@ -51,14 +51,6 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 return Err(String::from("withdraw request is not acceptable"));
             }
             return Ok(ClientMessage::Withdraw { id: id.to_string() });
-        }
-        "scratch" => {
-            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
-            let path: PathBuf = path_bytes::read_field(&value, "path")?;
-            if !is_scratch_path(path.as_path(), git_dir.as_path()) {
-                return Err(String::from("scratch directory is not acceptable"));
-            }
-            return Ok(ClientMessage::Scratch { git_dir, path });
         }
         "warm" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
@@ -116,6 +108,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
         index: path_bytes::read_field(&value, "index")?,
+        scratch: path_bytes::read_field(&value, "scratch")?,
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         // A `cleanup` that is absent or null asks for none.
         cleanup: match value.get("cleanup") {
@@ -135,12 +128,12 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     // A cleanup, when asked for, belongs to a commit built elsewhere and names absolute directories without NUL; none is fine.
     let cleanup_clean: bool = match request.cleanup.as_ref() {
         Some(cleanup) => {
+            // The directory is the commit's own scratch tree, so it has to be one: inside the repository scratch directory this
+            //  release makes it in, or inside the worktree's Git directory as a release before this one made it.
             request.commit.is_some()
                 && cleanup.git_dir.is_absolute()
-                && cleanup.scratch.is_absolute()
-                && cleanup.scratch.starts_with(&cleanup.git_dir)
+                && is_scratch_path(cleanup.scratch.as_path(), cleanup.git_dir.as_path())
                 && !cleanup.git_dir.to_string_lossy().contains('\0')
-                && !cleanup.scratch.to_string_lossy().contains('\0')
         }
         None => true,
     };
@@ -158,6 +151,10 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && !request.git_dir.to_string_lossy().contains('\0')
         && request.index.is_absolute()
         && !request.index.to_string_lossy().contains('\0')
+        // The tree the service is asked to remove has to be one the wrapper makes, in one of the two places it makes them,
+        //  or a request could name any directory of the account for removal.
+        && request.scratch.is_absolute()
+        && is_scratch_path(request.scratch.as_path(), request.git_dir.as_path())
         && !request.committer.contains(['\0', '\n'])
         && author_clean
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
@@ -237,6 +234,73 @@ fn error_text(error: serde_json::Error) -> String {
 }
 
 /// What:
+///  The figures of a landing,
+/// as the `landing` field of an answer.
+/// Why:
+///   The client trusts nothing from a socket:
+/// every number here is checked,
+/// and a field that is not one is refused
+/// rather than guessed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landingFigures = (v) => ({ lockHoldMs: num(v.lockHoldMs), queuedBehind: num(v.queuedBehind), readsMs: num(v.readsMs), reads: entries(v.reads), syncs: v.syncs.map(sync) });
+/// ```
+fn landing_figures(value: &Value) -> Result<LandingFigures, String> {
+    let mut reads: Vec<(String, u64)> = Vec::new();
+    let Some(named_reads) = value.get("reads") else {
+        return Err(String::from("the figures of a landing name no reads"));
+    };
+    let Some(read_fields) = named_reads.as_object() else {
+        return Err(String::from("the reads of a landing are not an object"));
+    };
+    for (name, ms) in read_fields {
+        reads.push((name.clone(), number_field_value(ms, "a read of a landing")?));
+    }
+    let mut syncs: Vec<LandingSync> = Vec::new();
+    for each in value.get("syncs").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default() {
+        syncs.push(LandingSync {
+            what: field(each, "what")?.to_string(),
+            waited: each.get("waited").and_then(Value::as_bool).ok_or_else(no_word_on_waiting)?,
+            ms: number_field_value(each.get("ms").unwrap_or(&Value::Null), "a sync of a landing")?,
+        });
+    }
+    return Ok(LandingFigures {
+        lock_hold_ms: number_field_value(value.get("lockHoldMs").unwrap_or(&Value::Null), "the lock hold of a landing")?,
+        queued_behind: number_field_value(value.get("queuedBehind").unwrap_or(&Value::Null), "the commits queued behind a landing")?,
+        reads_ms: number_field_value(value.get("readsMs").unwrap_or(&Value::Null), "the reads of a landing")?,
+        reads,
+        syncs,
+    });
+}
+
+/// The sentence for a sync that does not say whether the landing waited for it.
+fn no_word_on_waiting() -> String {
+    return String::from("a sync of a landing does not say whether it was waited for");
+}
+
+/// What:
+///  The number of one JSON value,
+///  checked to be an unsigned whole number.
+/// Why:
+///   A figure that is not one,
+///  which is a negative number,
+///  a fraction or text,
+///  is refused,
+///  so a reader never takes a guess for a measurement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const numberFieldValue = (v, what) => Number.isInteger(v) && v >= 0 ? v : fail(`${what} is not a whole number`);
+/// ```
+fn number_field_value(value: &Value, what: &str) -> Result<u64, String> {
+    let Some(number) = value.as_u64() else {
+        return Err(format!("{what} is not a whole number"));
+    };
+    return Ok(number);
+}
+
+/// What:
 ///  Reads one service line.
 /// Why:
 ///   The client checks what it is told as strictly as the service checks what it is sent.
@@ -263,6 +327,11 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
             id: field(&value, "id")?.to_string(),
             commit: field(&value, "commit")?.to_string(),
             already: value.get("already").and_then(Value::as_bool).unwrap_or(false),
+            // A service of a release that does not send the figures leaves them absent, which the record states as none.
+            landing: match value.get("landing") {
+                None | Some(Value::Null) => None,
+                Some(landing) => Some(landing_figures(landing)?),
+            },
         }),
         "retry-prepare" => Ok(ServiceMessage::RetryPrepare {
             id: field(&value, "id")?.to_string(),

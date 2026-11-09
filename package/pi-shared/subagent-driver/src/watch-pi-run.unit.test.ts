@@ -23,7 +23,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  type CommandRequest,
   type ConnectionToPi,
+  COMMAND_ANSWER_MILLISECONDS,
   type DriverOptions,
   isRecord,
   type PiRecord,
@@ -301,9 +303,9 @@ function refuseDialog(): void {
 }
 
 /**
- A connection that never answers, stalling for exactly the bound the watch asked for, and recording that bound.
+ A connection that never answers, stalling for exactly the bound a wait has, and recording that bound.
 
- @param boundsAsked - where the bounds the watch asked for are recorded
+ @param boundsAsked - where the bounds the wait was given are recorded
 
  @returns the connection a watch reads
  */
@@ -314,18 +316,28 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
     write: function write() {
       throw new Error('the watch was not expected to write without waiting for an answer',);
     },
-    send: async function stall({ answerMilliseconds, }: { readonly answerMilliseconds?: number },) {
-      // A watch that asks for an answer with no bound would wait for ever, which is exactly what this file is about.
-      if (answerMilliseconds === undefined) {
-        throw new Error('the watch asked for an answer with no bound',);
+    send: async function stall({ answerMilliseconds = COMMAND_ANSWER_MILLISECONDS, deadline, }: CommandRequest,) {
+      // A wait with no deadline could last for ever, which is exactly what this file is about.
+      if (!Number.isFinite(deadline,)) {
+        throw new Error('the watch asked for an answer with no deadline',);
       }
-      boundsAsked.push(answerMilliseconds,);
-      // The timer holds this process up while it stalls, so a watch that asks for a long bound is waited out and judged, never
-      // left to a process that ran out of work and exited.
-      await wait(answerMilliseconds,);
+      /**
+       The bound this stall waits out: the silence the watch allows, or what the run has left, whichever ends first.
+       */
+      const bound = Math.min(answerMilliseconds, deadline - Date.now(),);
+      boundsAsked.push(bound,);
+      if (bound <= 0) {
+        return {
+          ending: 'deadline',
+          problem: 'no answer before the deadline',
+        };
+      }
+      // The timer holds this process up while it stalls, so a wait given a long bound is waited out and judged, never left to a
+      // process that ran out of work and exited.
+      await wait(bound,);
       return {
-        success: false,
-        error: `no answer in ${String(answerMilliseconds,)} ms`,
+        ending: 'silence',
+        problem: `no answer in ${String(bound,)} ms`,
       };
     },
     shutDown: async () => ({ stopped: true, }),
@@ -354,12 +366,15 @@ function answeringConnection({
     write: function write() {
       throw new Error('the watch was not expected to write without waiting for an answer',);
     },
-    send: async function send({ command, }: { readonly command?: PiRecord },) {
-      const message = command?.message;
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
       sent.push((typeof message) === 'string' ? message : '',);
       return {
-        success: true,
-        data: disposition === undefined ? {} : { disposition, },
+        ending: 'answered',
+        record: {
+          success: true,
+          data: disposition === undefined ? {} : { disposition, },
+        },
       };
     },
     shutDown: async () => ({ stopped: true, }),

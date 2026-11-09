@@ -182,6 +182,30 @@ pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_threa
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
 {
+    return build_with_deadline_and(plan, deadline, multi_thread_builder, current_thread);
+}
+
+/// What:
+///  `build_with_deadline` with the stand-in given as `fallback`.
+/// Why:
+///   The window in which a late build can be lost is the caller's own stand-in:
+/// a runtime sent after the deadline but before
+///  the channel is closed is neither received nor kept.
+/// A control can only order a build into that window if the caller can be held inside
+///  the stand-in,
+/// which is what this parameter is for;
+/// the process builds its own runtime through `build_with_deadline`,
+///  whose stand-in is the current-thread runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = buildWithDeadlineAnd(plan, deadline, multiThread, fallback);
+/// ```
+fn build_with_deadline_and<B, F>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B, fallback: F) -> std::io::Result<BuiltRuntime>
+where
+    B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
+    F: FnOnce() -> std::io::Result<Runtime>,
+{
     let RuntimePlan::MultiThread { workers, blocking_threads } = plan else {
         return Ok(BuiltRuntime { runtime: current_thread()?, flavor: BuiltFlavor::CurrentThread });
     };
@@ -210,11 +234,41 @@ where
         Ok(_helper) => match receiver.recv_timeout(deadline) {
             Ok(Ok(runtime)) => return Ok(BuiltRuntime { runtime, flavor: BuiltFlavor::MultiThread { workers } }),
             Ok(Err(_refused)) => BuiltFlavor::CurrentThreadAfterFailure,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => BuiltFlavor::CurrentThreadAfterDeadline,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // A build that finished between the deadline and here is already in the channel, and one that finishes
+                //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
+                let _kept: bool = keep_a_late_build(receiver.try_recv());
+                drop(receiver);
+                BuiltFlavor::CurrentThreadAfterDeadline
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
         },
     };
-    return Ok(BuiltRuntime { runtime: current_thread()?, flavor: flavor_when_replaced });
+    return Ok(BuiltRuntime { runtime: fallback()?, flavor: flavor_when_replaced });
+}
+
+/// What:
+///  Keeps a runtime that finished after its build deadline for the work it was built for,
+///  and gives whether it was one.
+/// Why:
+///   A runtime that arrived while the caller was still in its stand-in is in the channel when the caller times out,
+/// and the
+///  channel is closed a moment later:
+/// reading it at the deadline is what keeps that runtime,
+/// and a receiver already closed
+///  makes the build that arrives after it the helper's to keep.
+/// A build that failed keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = keepALateBuild(receiver.tryRecv()); // true when a runtime was kept
+/// ```
+fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::TryRecvError>) -> bool {
+    let Ok(Ok(late)) = outcome else { return false };
+    if let Err(unkept) = LATE_RUNTIME.set(late) {
+        std::mem::forget(unkept);
+    }
+    return true;
 }
 
 /// What:
@@ -276,6 +330,76 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
 }
 
 /// What:
+///  Whether a task of this process's runtime runs on a worker thread of its own.
+/// Why:
+///  A watcher runs beside a thread that is blocked in a read or a wait,
+/// so it needs a worker that runs without a caller driving
+///  it;
+/// a current-thread runtime runs tasks only while some thread calls `block_on`,
+/// so nothing watches there,
+///  and the caller is told that by this answer.
+/// `spawn_on_runtime` asks it,
+/// and so does every caller that must say why nothing will watch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tasksRun = runtime.workerCount > 0;
+/// ```
+pub fn tasks_can_run() -> bool {
+    #[cfg(test)]
+    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
+        return false;
+    }
+    return match RUNTIME.get_or_init(build_for_this_process) {
+        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
+        Err(_no_runtime) => LATE_RUNTIME.get().is_some(),
+    };
+}
+
+/// What:
+///  Whether a control stands in for a system that refuses every thread,
+/// so `tasks_can_run` answers false.
+/// Why:
+///  A control cannot exhaust this process's threads;
+/// the flag is the seam,
+/// and nextest gives every
+///  control its own process,
+/// so it cannot reach another.
+#[cfg(test)]
+static REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What:
+///  Makes `tasks_can_run` answer false until the returned value is dropped,
+/// standing in for a system that refused a thread.
+/// Why:
+///  The seam of the control above;
+/// the flag is cleared however the control ends,
+/// a panic included.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = refuseTasks(); // tasksCanRun() === false until refused.release()
+/// ```
+#[cfg(test)]
+pub fn a_control_refuses_every_task() -> RefusalForTheControl {
+    REFUSED.store(true, std::sync::atomic::Ordering::SeqCst);
+    return RefusalForTheControl;
+}
+
+/// The stand-in of `a_control_refuses_every_task`,
+/// cleared when it is dropped.
+#[cfg(test)]
+pub struct RefusalForTheControl;
+
+/// Clears the control's stand-in.
+#[cfg(test)]
+impl Drop for RefusalForTheControl {
+    fn drop(&mut self) {
+        REFUSED.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// What:
 ///  Starts `future` as a task of the process's runtime,
 /// building the runtime on the first call,
 /// and returns nothing where that
@@ -285,9 +409,7 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
 ///  A watcher runs beside a thread that is blocked in a read or a wait,
 /// so it needs a worker that runs without a caller driving
 ///  it;
-/// a current-thread runtime runs tasks only while some thread calls `block_on`,
-/// so a task spawned there would not run while
-///  the caller is blocked,
+/// `tasks_can_run` is that question,
 /// and `None` tells the caller that nothing watches.
 /// Callable from any context,
 /// the runtime itself
@@ -302,11 +424,17 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
+    if !tasks_can_run() {
+        return None;
+    }
     return match RUNTIME.get_or_init(build_for_this_process) {
         Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
         // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
         //  built for runs there.
-        Ok(_) | Err(_) => LATE_RUNTIME.get().map(|late: &Runtime| { return late.spawn(future); }),
+        Ok(_) | Err(_) => match LATE_RUNTIME.get() {
+            Some(late) => Some(late.spawn(future)),
+            None => None,
+        },
     };
 }
 
@@ -339,6 +467,39 @@ pub(crate) fn late_build_arrived() -> bool {
 }
 
 /// What:
+///  Whether a control stands in for a build that missed its deadline and arrived after it.
+/// Why:
+///   That state asks a caller to tell a process with no worker of its own from one whose workers arrived late,
+///   and it cannot be produced on demand here:
+///   the runtime is built once,
+///   and only a build the helper thread finished after `BUILD_DEADLINE` reaches it.
+///  The flag makes `built_flavor` answer the stand-in,
+/// while `tasks_can_run` and `spawn_on_runtime` keep answering for the runtime this process really has,
+///  which is the whole shape of that state.
+#[cfg(test)]
+static THE_BUILD_WAS_LATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Makes `built_flavor` answer the stand-in of a build that missed its deadline until the returned value is dropped.
+#[cfg(test)]
+pub fn a_control_stands_in_for_a_late_runtime() -> LateRuntimeForTheControl {
+    THE_BUILD_WAS_LATE.store(true, std::sync::atomic::Ordering::SeqCst);
+    return LateRuntimeForTheControl;
+}
+
+/// The stand-in of `a_control_stands_in_for_a_late_runtime`,
+/// cleared when it is dropped.
+#[cfg(test)]
+pub struct LateRuntimeForTheControl;
+
+/// Clears the control's stand-in.
+#[cfg(test)]
+impl Drop for LateRuntimeForTheControl {
+    fn drop(&mut self) {
+        THE_BUILD_WAS_LATE.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// What:
 ///  Runs `future` to its end on the process's runtime,
 /// building the runtime on the first call.
 /// Why:
@@ -365,6 +526,10 @@ pub fn run_on_runtime<F: std::future::Future>(future: F) -> Result<F::Output, Ru
 /// How the process's runtime was built,
 /// or nothing before the first need.
 pub fn built_flavor() -> Option<BuiltFlavor> {
+    #[cfg(test)]
+    if THE_BUILD_WAS_LATE.load(std::sync::atomic::Ordering::SeqCst) {
+        return Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    }
     let built: &BuiltRuntime = RUNTIME.get()?.as_ref().ok()?;
     return Some(built.flavor);
 }

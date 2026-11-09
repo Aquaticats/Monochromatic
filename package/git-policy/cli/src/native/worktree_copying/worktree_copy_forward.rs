@@ -378,6 +378,11 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         RemoveOutcome::Incomplete(report) => {
             return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::action::ENGINE_FAILURE_EXIT_CODE });
         }
+        RemoveOutcome::Refused(report) => {
+            // A refusal is not a failure of a step: nothing changed, and the status is the one every refusal of this wrapper
+            // uses.
+            return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::subvolume_command::REFUSED_EXIT_CODE });
+        }
     }
 }
 

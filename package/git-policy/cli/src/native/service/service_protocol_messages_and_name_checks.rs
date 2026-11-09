@@ -17,18 +17,25 @@
 use serde_json::Value;
 use crate::path_bytes as path_bytes;
 use crate::service_review_key::ReviewKey;
+use crate::common_directory_of_a_git_directory::common_directory_of;
+use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
+use crate::wrapper_names_old_and_new::SERVICE_SCRATCH_PREFIX;
 use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
-/// It is 8 because a commit request's changed paths carry their bytes beside the readable spelling,
+/// It is 9 because a commit request names its scratch tree in its own field,
+/// and a service of version 8 removes only the tree a request's cleanup names,
+/// which the tree of every commit that concludes nothing is not:
+/// the service would land the request and leave the tree to the age sweep.
+/// It was 8 because a commit request's changed paths carry their bytes beside the readable spelling,
 /// and a service of version 7 ignores that field and would commit the spelling instead:
 /// the release text cannot keep such a service from being served,
 /// because a rebuild of the same crate version names the same release,
 /// so the version a service announces in its welcome is what is compared,
 /// and a service of another version is asked to retire before any request is sent
 /// (`service_client_reach_service.rs`).
-pub const PROTOCOL_VERSION: u32 = 8;
+pub const PROTOCOL_VERSION: u32 = 9;
 
 /// The release of this build:
 /// the crate version,
@@ -229,6 +236,13 @@ pub struct CommitRequest {
     /// The real index of the worktree,
     /// whose lock the landing holds from before the branch moves until the new index is in place.
     pub index: PathBuf,
+    /// The commit's scratch tree,
+    /// which holds the private index and,
+    /// for a commit built elsewhere,
+    /// the conclusion copies the landing reads.
+    /// The service removes it once the landing of this request is over,
+    /// so the request says where it is instead of the service working it out from a path.
+    pub scratch: PathBuf,
     /// When the client finished capturing the worktree's bytes:
     /// nanoseconds of `CLOCK_MONOTONIC`,
     /// which one clock gives every
@@ -351,17 +365,6 @@ pub enum ClientMessage {
         /// as the client sent it.
         id: String,
     },
-    /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open;
-    /// the
-    ///  service removes the directory when the connection closes,
-    /// whatever closed it.
-    Scratch {
-        /// The worktree's own Git directory,
-        /// which holds the directory and names the instance that removes it.
-        git_dir: PathBuf,
-        /// The scratch directory (`monochromatic-git-policy-cli-service-<id>` in a Git directory of that repository).
-        path: PathBuf,
-    },
     /// Work items were written for this repository;
     /// run what is pending.
     Work {
@@ -390,6 +393,66 @@ pub enum ClientMessage {
     },
 }
 
+/// What:
+///  One sync of a landing,
+/// as the client's timing record states it.
+/// Why:
+///   A landing that made more syncs and one whose syncs met a stalling device look alike in the phases;
+/// the record needs what each was for and how long it took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LandingSync = { what: string; waited: boolean; ms: number };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LandingSync {
+    /// What the sync is for,
+    /// as the landing names it:
+    /// `built-index`,
+    /// `lock-marker`,
+    /// `intent-file` and the rest.
+    pub what: String,
+    /// Whether the landing waited for it,
+    /// false for one it handed to the background task.
+    pub waited: bool,
+    /// How long it took in whole milliseconds,
+    /// which is zero for one the landing never waited for.
+    pub ms: u64,
+}
+
+/// What:
+///  What one landing spent and what it held,
+/// carried in the answer so the client's record can state it.
+/// Why:
+///   The landing runs in the resident service,
+/// so the commit's own record said nothing about the 13.4 percent of its uncovered time
+/// that is the landing and about the commits queued behind it;
+/// the journal's `answered` line says both,
+/// and the record that explains a slow commit is read on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LandingFigures = { lockHoldMs: number; queuedBehind: number; readsMs: number; reads: Record<string, number>; syncs: LandingSync[] };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LandingFigures {
+    /// How long the landing held the index lock,
+    /// which is what the commits behind it queued on.
+    pub lock_hold_ms: u64,
+    /// How many requests were still waiting for their answer when the landing finished,
+    /// this batch's own taken out.
+    pub queued_behind: u64,
+    /// The whole of the residual reads,
+    /// of which `reads` names the parts.
+    pub reads_ms: u64,
+    /// The named reads and their whole milliseconds,
+    /// in the order the landing wrote them.
+    pub reads: Vec<(String, u64)>,
+    /// Every sync of the landing,
+    /// in the order it asked for them.
+    pub syncs: Vec<LandingSync>,
+}
+
 /// What the service sends.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServiceMessage {
@@ -403,7 +466,10 @@ pub enum ServiceMessage {
     Position { number: usize, of: usize },
     /// The commit is on the branch;
     /// `already` when an earlier request with the same identity landed it.
-    Landed { id: String, commit: String, already: bool },
+    /// `landing` states what the landing spent and held,
+    /// and a service of a release that did not send it leaves it absent,
+    /// which the client's record states as no figures rather than as zeros.
+    Landed { id: String, commit: String, already: bool, landing: Option<LandingFigures> },
     /// A named path changed on the branch since the base;
     /// prepare again from `base`.
     RetryPrepare { id: String, base: String, landed: Vec<LandedCapture> },
@@ -465,21 +531,9 @@ fn is_plain_part(part: &[u8]) -> bool {
     return !part.is_empty() && part != b"." && part != b".." && part != b".git";
 }
 
-/// What:
-///  Whether a byte may appear in a request identity or a scratch directory identity:
-/// an ASCII letter or digit,
-/// or a hyphen.
-/// Why:
-///  Both are used in file names,
-/// so no identity can name a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isIdentityByte = (byte: number) => /[A-Za-z0-9-]/.test(String.fromCharCode(byte));
-/// ```
-pub(crate) fn is_identity_byte(byte: &u8) -> bool {
-    return byte.is_ascii_alphanumeric() || *byte == b'-';
-}
+/// Whether a byte may appear in a request identity or a scratch directory identity.
+/// The rule and its reason are in the foundation module that names what this program keeps on disk.
+pub(crate) use crate::wrapper_names_old_and_new::is_identity_byte;
 
 /// What:
 ///  Whether one component of a directory path is a normal step:
@@ -517,8 +571,9 @@ pub fn is_plain_path(path: &Path) -> bool {
         && bytes.split(is_a_separator).all(is_plain_part);
 }
 
-/// The name prefix of a commit's scratch directory.
-pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
+/// The name prefix of a commit's scratch directory,
+/// which the foundation module that names everything this program keeps on disk holds.
+pub const SCRATCH_PREFIX: &str = SERVICE_SCRATCH_PREFIX;
 
 /// What:
 ///  Whether `path` is the scratch directory of a commit in the worktree whose own Git directory is `git_dir`.
@@ -527,7 +582,8 @@ pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
 /// so the name must be one only the
 ///  wrapper makes (the prefix and an identity of letters,
 /// digits and dashes) and the place must be directly inside the
-///  worktree's own Git directory,
+///  repository scratch directory of the worktree's Git directory,
+/// or directly inside that Git directory as releases before this one made it,
 /// with no relative part that could lead elsewhere.
 ///
 /// In TS you'd write (pseudocode):
@@ -537,8 +593,11 @@ pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
 pub fn is_scratch_path(path: &Path, git_dir: &Path) -> bool {
     let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
     let identity: &str = name.strip_prefix(SCRATCH_PREFIX).unwrap_or("");
+    // Where this release makes the tree: the repository scratch directory, which the sweep of a later command also covers.
+    let swept: PathBuf = common_directory_of(git_dir).join(REPOSITORY_SCRATCH_NAME);
+    let parent: Option<&Path> = path.parent();
     return git_dir.is_absolute()
-        && path.parent() == Some(git_dir)
+        && (parent == Some(git_dir) || parent == Some(swept.as_path()))
         && !identity.is_empty()
         && identity.as_bytes().iter().all(is_identity_byte)
         && git_dir.components().all(is_plain_component)

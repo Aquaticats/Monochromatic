@@ -205,9 +205,9 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir });
+/// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
-fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Result<(), RecoveryError> {
+fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
     if !merge_intents_to_recover(git_dir)? {
         return Ok(());
     }
@@ -215,8 +215,11 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Res
         git: context.clone(),
         cwd: PathBuf::from("."),
         common_dir: common_dir.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
     };
-    let outcomes = recover_interrupted_merges(&place, git_dir)?;
+    // The notices of what recovery did go to the command's standard error, so a person who ran a read-only command
+    //  learns that it finished a merge (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 1).
+    let outcomes = recover_interrupted_merges(&place, git_dir, out)?;
     if !outcomes.is_empty() {
         debug("startupGate", format!("isolated merge recovery outcomes: {outcomes:?}").as_str());
     }
@@ -271,7 +274,7 @@ pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeId
         Ok(false) => {}
         Err(error) => return stopped(&error),
     }
-    if let Err(error) = settle_merges(context, git_dir, common_dir) {
+    if let Err(error) = settle_merges(context, git_dir, common_dir, &mut std::io::stderr()) {
         return stopped(&error);
     }
     if let Some(note) = registry_note(git_dir.join(REGISTRY_DIRECTORY_NAME).as_path()) {

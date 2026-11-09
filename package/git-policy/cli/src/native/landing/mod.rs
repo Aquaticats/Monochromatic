@@ -30,6 +30,10 @@ pub mod maintenance_run;
 /// maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The digest a push's id carries for its branch,
+/// and what may follow the kind in an id.
+pub mod work_item_ids_and_names;
+
 /// The kinds of work a landed object can ask for,
 /// and the names that pick a consumer's handler.
 pub mod work_item_kinds_and_their_names;
@@ -166,7 +170,26 @@ pub mod service_index_watch;
 
 /// The preparation of a commit that the service lands,
 /// for every command line.
+/// The notices a commit's preparation prints on standard error,
+/// given to the descriptor under a ceiling.
+pub mod preparation_notice;
+
 pub mod service_prepare;
+
+/// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
+pub mod service_scratch_renewal;
+
+/// Which commit scratch trees a later command takes for abandoned,
+/// and which it leaves alone because their owner still runs.
+pub mod service_scratch_abandonment;
+
+/// The staging step of a preparation,
+/// for a control that asks it directly.
+#[cfg(test)]
+pub mod service_prepare_exclude_or_stop_for_test;
+
+/// The file a typed message is kept in when the commit it belonged to cannot be made.
+pub mod service_commit_saved_message;
 
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
@@ -193,6 +216,9 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
+
+/// Which end of a commit's scratch tree a submitted request leaves it to.
+pub mod service_commit_tree_ownership;
 
 /// What the branch shows once the commit service went silent after a commit was prepared.
 pub mod service_branch_shows;
@@ -289,6 +315,11 @@ pub mod service_pruned;
 /// made before return otherwise.
 pub mod service_durable;
 
+/// The syncs one landing made,
+/// what each was for and how long it took,
+/// and the words its answer gives for them.
+pub mod service_durable_syncs;
+
 pub mod service_land_finish;
 
 /// The removal of a stale index lock,
@@ -298,6 +329,9 @@ pub mod service_index_reclaim;
 /// How long a commit whose branch moved under its build is built again,
 /// and the line that says so.
 pub mod service_commit_rebuild_ceiling;
+
+/// The submission of a prepared commit whose waiting notices are written away from the thread that waits.
+pub mod service_commit_waiting_notices;
 
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.

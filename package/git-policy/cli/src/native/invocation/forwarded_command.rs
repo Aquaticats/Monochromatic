@@ -30,7 +30,7 @@ use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout, prefix
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// The command a Git alias really runs,
 ///  the executable Git selects first included.
-use crate::external_git_command::dashed_external_selected;
+use crate::external_git_command::{alias_run_directory, dashed_external_selected, effective_directory};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -358,9 +358,27 @@ fn resolve_command(
         if is_git_builtin(name.as_encoded_bytes()) {
             return resolved(current.as_slice(), &layout, route);
         }
+        // Where this frame's word runs. Every frame but the one the shell of a `!` alias starts runs in the directory
+        //  the caller's `-C` options reach. That frame runs at the top of the working tree Git changed to before it
+        //  started the shell (`git.c:388` to `git.c:407`), and the globals of this frame move it from there; applying
+        //  the inherited ones again would move it twice.
+        // `mut` allows the directory the word runs in to be filled in for a shell alias's frame.
+        let mut run_directory: Option<PathBuf> = None;
+        if shell_depth != 0
+            && let Some(directory) = alias_run_directory(context, inherited_globals, current_directory)
+        {
+            run_directory = Some(effective_directory(&directory, &current[..layout.prefix_len]));
+        }
         // Git runs an installed `git-<word>` before it looks for an alias of that word (git.c:905 to git.c:912), so
         //  such a word reaches no alias and the wrapper leaves it to Git.
-        if dashed_external_selected(context, environment, caller_globals.as_slice(), current_directory, name.as_os_str()) {
+        if dashed_external_selected(
+            context,
+            environment,
+            caller_globals.as_slice(),
+            current_directory,
+            run_directory.as_deref(),
+            name.as_os_str(),
+        ) {
             debug(
                 "resolveForwardedCommand",
                 format!("Git runs {} as an external command", name.to_string_lossy()).as_str(),

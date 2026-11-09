@@ -23,7 +23,7 @@ use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the validated object name a tree source is named by.
 use crate::candidate_object::ObjectId;
 /// Import the captured-query runner and the byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git_without, strip_git_line};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table and `HashSet<T>` a collection of distinct values.
 /// Why:
@@ -238,10 +238,12 @@ impl CandidateAttributes {
             Some(word) => word.to_string_lossy().into_owned(),
             None => String::from("(no command)"),
         };
-        let output: MetadataOutput = match run_metadata_git(
+        // The commands here name paths the wrapper reads, so no pathspec mode the caller set reaches them.
+        let output: MetadataOutput = match run_metadata_git_without(
             self.real_git.as_path(),
             arguments.as_slice(),
             self.overlay.as_slice(),
+            crate::conflict_side_modes::MODE_VARIABLES.as_slice(),
         ) {
             Ok(captured) => captured,
             Err(error) => {

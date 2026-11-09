@@ -13,7 +13,7 @@
 use serde_json::{Map, Value};
 use crate::path_bytes_in_records as path_bytes;
 use std::path::Path;
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, Change, Cleanup, CommitRequest, LandedCapture, ClientMessage, ServiceMessage};
+use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, Change, Cleanup, CommitRequest, LandedCapture, ClientMessage, LandingFigures, LandingSync, ServiceMessage};
 
 /// What:
 ///  One field of a message,
@@ -94,6 +94,41 @@ fn landed_json(entry: &LandedCapture) -> Value {
     ]));
 }
 
+/// What:
+///  What a landing spent and held,
+/// as the `landing` field of an answer.
+/// Why:
+///   The client's record states these figures beside its own phases,
+/// so a slow commit explains its landing without a second file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landingJson = (f) => ({ lockHoldMs: f.lockHoldMs, queuedBehind: f.queuedBehind, readsMs: f.readsMs, reads: Object.fromEntries(f.reads), syncs: f.syncs });
+/// ```
+/// One sync of a landing as a JSON object.
+fn one_sync_json(sync: &LandingSync) -> Value {
+    return Value::Object(Map::from_iter([
+        (String::from("what"), Value::from(sync.what.as_str())),
+        (String::from("waited"), Value::from(sync.waited)),
+        (String::from("ms"), Value::from(sync.ms)),
+    ]));
+}
+
+fn landing_figures_json(figures: &LandingFigures) -> Value {
+    let mut reads: Map<String, Value> = Map::new();
+    for (name, ms) in &figures.reads {
+        reads.insert(name.clone(), Value::from(*ms));
+    }
+    let syncs: Vec<Value> = figures.syncs.iter().map(one_sync_json).collect();
+    return Value::Object(Map::from_iter([
+        (String::from("lockHoldMs"), Value::from(figures.lock_hold_ms)),
+        (String::from("queuedBehind"), Value::from(figures.queued_behind)),
+        (String::from("readsMs"), Value::from(figures.reads_ms)),
+        (String::from("reads"), Value::Object(reads)),
+        (String::from("syncs"), Value::Array(syncs)),
+    ]));
+}
+
 /// One JSON object,
 /// written on one line from its entries.
 fn object(entries: Vec<(&str, Value)>) -> String {
@@ -141,14 +176,6 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("version", Value::from(PROTOCOL_VERSION)),
             ("id", Value::from(id.as_str())),
         ]),
-        ClientMessage::Scratch { git_dir, path } => {
-            let mut fields: Map<String, Value> = Map::new();
-            put(&mut fields, "type", Value::from("scratch"));
-            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
-            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
-            path_bytes::write_field(&mut fields, "path", path.as_path());
-            Value::Object(fields).to_string()
-        }
         ClientMessage::Warm { git_dir, repository } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("warm"));
@@ -191,6 +218,7 @@ pub fn commit_line(request: &CommitRequest) -> String {
     path_bytes::write_field(&mut fields, "commonDir", request.common_dir.as_path());
     path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
     path_bytes::write_field(&mut fields, "index", request.index.as_path());
+    path_bytes::write_field(&mut fields, "scratch", request.scratch.as_path());
     put(&mut fields, "reference", Value::from(request.reference.as_str()));
     put(&mut fields, "base", Value::from(request.base.as_str()));
     put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));
@@ -244,12 +272,14 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ServiceMessage::Position { number, of } => {
             object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
         }
-        ServiceMessage::Landed { id, commit, already } => object(vec![
-            ("type", Value::from("landed")),
-            ("id", Value::from(id.as_str())),
-            ("commit", Value::from(commit.as_str())),
-            ("already", Value::from(*already)),
-        ]),
+        ServiceMessage::Landed { id, commit, already, landing } => {
+            let mut entries: Vec<(&str, Value)> =
+                vec![("type", Value::from("landed")), ("id", Value::from(id.as_str())), ("commit", Value::from(commit.as_str())), ("already", Value::from(*already))];
+            if let Some(figures) = landing {
+                entries.push(("landing", landing_figures_json(figures)));
+            }
+            object(entries)
+        }
         ServiceMessage::RetryPrepare { id, base, landed } => object(vec![
             ("type", Value::from("retry-prepare")),
             ("id", Value::from(id.as_str())),

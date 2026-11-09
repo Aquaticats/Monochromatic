@@ -149,11 +149,11 @@ fn the_wrappers_own_overrides_do_not_warn() {
 fn the_writer_emits_one_line_or_nothing() {
     let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
     let warned: SharedSink = SharedSink::default();
-    warn_traditional_hooks(Some(&configured), warned.clone());
+    assert!(warn_traditional_hooks(Some(&configured), warned.clone()), "the line reached the stream");
     assert_eq!(warned.text().matches('\n').count(), 1);
     let silent: SharedSink = SharedSink::default();
-    warn_traditional_hooks(Some(&listing_snapshot(&[])), silent.clone());
-    warn_traditional_hooks(None, silent.clone());
+    assert!(warn_traditional_hooks(Some(&listing_snapshot(&[])), silent.clone()));
+    assert!(warn_traditional_hooks(None, silent.clone()));
     assert_eq!(silent.text(), "");
 }
 
@@ -175,7 +175,24 @@ fn a_hostile_value_stays_inside_one_line() {
     assert!(!line.contains("{\"type\":\"core-finding\""), "{line}");
 }
 
-/// What:
+///  A commit run inside a Git the wrapper started warns about the person's hooks path,
+///  not about the wrapper's own.
+/// Why:
+///   The wrapper's switches travel into a child Git as command-scope configuration,
+/// which Git places last,
+///  so the last entry of the key is the wrapper's and the person's path must be found before it;
+///  otherwise the
+///  warning says nothing about a repository whose hooks are configured.
+#[test]
+fn a_nested_run_warns_about_the_persons_hooks_path_and_not_the_wrappers() {
+    let own: String = format!("core.hookspath\n{NO_HOOKS_DIRECTORY}");
+    let nested: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\n/my/repository/hooks"), ("command", own.as_str())]);
+    assert_eq!(configured_hooks_path(&nested), Some(String::from("/my/repository/hooks")));
+    let line: String = traditional_hooks_warning(Some(&nested)).expect("a warning about the person's path");
+    assert!(line.contains("/my/repository/hooks"), "{line}");
+    assert!(!line.contains(NO_HOOKS_DIRECTORY), "{line}");
+}
+
 ///  A stream whose write waits for an answer that never comes,
 /// as a full pipe does.
 /// Why:
@@ -253,4 +270,24 @@ fn a_user_owned_shadow_shaped_path_still_warns() {
         traditional_hooks_warning(Some(&snapshot)).is_some(),
         "a directory the wrapper does not own is the person's choice and must warn"
     );
+}
+
+/// What:
+///  The warning reaches standard error while another thread holds standard error's shared lock,
+/// and the shared handle is untouched by it.
+/// Why:
+///  The write runs on a thread of its own and is abandoned at its ceiling;
+/// a worker still waiting inside a write
+///  through the shared handle would keep that lock,
+/// and the commit's next synchronous write would wait for it with no end.
+/// This
+///  control holds the lock the commit's own write takes and requires the warning to arrive anyway.
+#[cfg(unix)]
+#[test]
+fn a_warning_reaches_standard_error_while_its_shared_lock_is_held() {
+    let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
+    let held = std::io::stderr().lock();
+    let delivered: bool = warn_traditional_hooks(Some(&configured), crate::standard_error_descriptor::StandardErrorDescriptor);
+    drop(held);
+    assert!(delivered, "the warning needed the lock a synchronous writer holds, so a worker left at the ceiling would keep it");
 }

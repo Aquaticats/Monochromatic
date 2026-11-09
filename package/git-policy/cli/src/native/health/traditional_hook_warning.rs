@@ -32,9 +32,9 @@ use crate::config_snapshot::ConfigSnapshot;
 use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// The longest this optional line may take to reach the stream it is written to.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
-/// The job run on a thread of its own,
+/// The line given to the stream on a thread of its own,
 /// awaited no longer than that ceiling.
-use crate::work_awaited_within_a_ceiling::work_within;
+use crate::work_awaited_within_a_ceiling::write_within;
 use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 /// The spellings of the folder the wrapper keeps inside a Git directory.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -121,30 +121,39 @@ pub fn is_wrapper_hooks_path(scope: &str, value: &str) -> bool {
 ///   The last entry of the key is the value Git uses;
 /// a valueless or empty entry names no directory,
 /// and the
-///  wrapper's own overrides are not the user's.
+///  wrapper's own overrides are not the user's,
+/// so the last entry that is not one of them is the answer.
+///  A command-scope entry the wrapper injected travels into a child Git,
+/// so a commit run by such a child sees the
+///  wrapper's value last and must still warn about the person's.
+///  "The wrapper's own" is a value that reached Git as a `-c` option or through `GIT_CONFIG_PARAMETERS`
+/// and names the
+///  wrapper's own hooks-off directory (`is_wrapper_hooks_path`):
+/// a file that merely spells that path is somebody's
+///  choice and is reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// snapshot.entries.findLast((entry) => entry.key === 'core.hookspath')?.value;
+/// snapshot.entries.filter(isHooksPath).reverse().find((e) => !isWrapperHooksPath(e.scope, e.value))?.value;
 /// ```
 pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
-    let mut last_entry = None;
     for candidate in snapshot.entries().iter().rev() {
-        if candidate.key == HOOKS_PATH_KEY {
-            last_entry = Some(candidate);
-            break;
+        if candidate.key != HOOKS_PATH_KEY {
+            continue;
         }
+        // A valueless or empty entry is the person's own reset, and it names no directory.
+        let bytes: &[u8] = candidate.value.as_deref()?;
+        if bytes.is_empty() {
+            return None;
+        }
+        let text: String = String::from_utf8_lossy(bytes).into_owned();
+        // The wrapper's own entries sit last and are not the person's; what they override is.
+        if is_wrapper_hooks_path(candidate.scope.as_str(), text.as_str()) {
+            continue;
+        }
+        return Some(text);
     }
-    let entry = last_entry?;
-    let bytes: &[u8] = entry.value.as_deref()?;
-    if bytes.is_empty() {
-        return None;
-    }
-    let text: String = String::from_utf8_lossy(bytes).into_owned();
-    if is_wrapper_hooks_path(entry.scope.as_str(), text.as_str()) {
-        return None;
-    }
-    return Some(text);
+    return None;
 }
 
 /// What:
@@ -193,28 +202,30 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
 ///  than `WARNING_WRITE_CEILING`.
 /// A line still waiting then is left behind and logged;
 /// the commit goes on.
+///  `bool` is whether the line reached the stream,
+/// which a control reads and every caller may ignore.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const line = traditionalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) {
+pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) -> bool {
     let Some(line) = traditional_hooks_warning(snapshot) else {
-        return;
+        // A configuration with nothing to warn about lost nothing.
+        return true;
     };
-    let delivered: Option<std::io::Result<()>> = work_within(WARNING_WRITE_CEILING, move || {
-        let mut target = stream;
-        // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
-        return match target.write_all(line.as_bytes()) {
-            Ok(()) => target.flush(),
-            Err(error) => Err(error),
-        };
-    });
-    match delivered {
-        Some(Err(error)) => debug(TAG, format!("the warning could not be written: {error}").as_str()),
-        Some(Ok(())) => {}
-        None => debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str()),
-    }
+    let delivered: Option<std::io::Result<()>> = write_within(WARNING_WRITE_CEILING, stream, line);
+    return match delivered {
+        Some(Ok(())) => true,
+        Some(Err(error)) => {
+            debug(TAG, format!("the warning could not be written: {error}").as_str());
+            false
+        }
+        None => {
+            debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str());
+            false
+        }
+    };
 }
 
 /// Warning controls stay out of the release executable.

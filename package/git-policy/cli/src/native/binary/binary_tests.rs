@@ -23,6 +23,11 @@ mod support;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
+/// The names a wrapped command left behind in a repository's two scratch places,
+/// waited for within a bound.
+#[path = "binary_support_scratch_left_behind.rs"]
+mod support_scratch_left_behind;
+
 /// The limits a control puts on a fixture service process,
 /// and how it applies them.
 #[path = "binary_support_resource_limits.rs"]
@@ -31,6 +36,10 @@ mod support_resource_limits;
 /// The fixture of a control and the resident service process it may start.
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
+
+/// How a fixture tells that its service is at work and that it is ready.
+#[path = "binary_support_fixture_service_readiness.rs"]
+mod support_fixture_service_readiness;
 
 /// What a fixture's services write on their standard error:
 /// the pipe that keeps it while they run,

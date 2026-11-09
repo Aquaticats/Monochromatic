@@ -30,7 +30,6 @@ use crate::service_protocol::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::mpsc::UnboundedSender;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
@@ -52,7 +51,6 @@ pub(crate) struct ConnectionShared {
     /// Where after-commit work is announced.
     pub work: UnboundedSender<Wake>,
     /// The count of work in flight that keeps the service from exiting idle.
-    pub busy: Arc<AtomicUsize>,
     /// What the landing is inside,
     /// for the notes a waiting client is told.
     pub board: Arc<LandingBoard>,
@@ -63,18 +61,6 @@ pub(crate) struct ConnectionShared {
     pub instance: Option<String>,
 }
 
-/// Returns when the other end of the connection has closed it,
-/// or the connection failed.
-/// Anything the client sends is ignored.
-pub(crate) async fn wait_for_close(reader: &mut OwnedReadHalf) {
-    let mut sink: [u8; 64] = [0; 64];
-    loop {
-        match reader.read(&mut sink).await {
-            Ok(0) | Err(_) => return,
-            Ok(_) => {}
-        }
-    }
-}
 
 /// What:
 ///  The note for a connection's beat:
@@ -174,12 +160,11 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
         // A line that is not text, a failed read or a request line that is too slow: the connection is dropped.
         Ok(Err(_)) | Err(_) => return,
     }
-    let mut after_the_line: OwnedReadHalf = reader.into_inner().into_inner();
     if line.is_empty() {
         // A connection that only looked (a readiness probe) sends nothing and is not an error.
         return;
     }
-    answer_request(&line, &mut after_the_line, &mut write_half, &shared, accepted).await;
+    answer_request(&line, &mut write_half, &shared, accepted).await;
 }
 
 /// Whether a Git directory belongs to another instance of the service than this one,
@@ -211,7 +196,7 @@ async fn tell_unavailable(write_half: &mut OwnedWriteHalf) {
 /// refuses what another instance serves,
 /// answers what needs no landing,
 /// and queues the rest.
-async fn answer_request(line: &str, read_half: &mut OwnedReadHalf, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
+async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
@@ -222,11 +207,6 @@ async fn answer_request(line: &str, read_half: &mut OwnedReadHalf, write_half: &
             }
             Some(false) => queue_a_commit(request, write_half, shared, accepted).await,
             None => send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable }).await,
-        },
-        Ok(ClientMessage::Scratch { git_dir, path }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
-            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
-            Some(false) => hold_a_scratch_directory(path, read_half, shared).await,
-            None => tell_unavailable(write_half).await,
         },
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
@@ -285,7 +265,7 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
         }
     };
     match early {
-        EarlyAnswer::Landed(commit) => send(write_half, &ServiceMessage::Landed { id, commit, already: true }).await,
+        EarlyAnswer::Landed(commit) => send(write_half, &ServiceMessage::Landed { id, commit, already: true, landing: None }).await,
         EarlyAnswer::Withdrawn(words) => {
             send(write_half, &ServiceMessage::Waiting { text: words }).await;
             send(write_half, &ServiceMessage::Withdrawn { id }).await;
@@ -299,16 +279,6 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
             write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing))).await;
         }
     };
-}
-
-/// Holds a scratch directory for as long as the client's connection is open.
-async fn hold_a_scratch_directory(path: PathBuf, read_half: &mut OwnedReadHalf, shared: &ConnectionShared) {
-    // The connection is the client's claim on the directory. While it is open the service is not idle, and when it
-    //  closes, by the client's end or its death, the directory is no one's.
-    shared.busy.fetch_add(1, Ordering::SeqCst);
-    wait_for_close(read_half).await;
-    shared.busy.fetch_sub(1, Ordering::SeqCst);
-    let _queued = shared.queue.send(Job::Release(path));
 }
 
 /// The refusal paths of a connection are controlled in the test module.

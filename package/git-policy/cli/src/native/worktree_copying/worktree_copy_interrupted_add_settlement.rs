@@ -1,24 +1,21 @@
 //! What:
-//!  What recovery decided about one add's record,
-//! and how it decides whether that record's worktree is whole,
-//! gone or
-//!  unknown:
-//! the pointer's three answers,
-//! the index's entry count,
-//! the remedy the report prints,
-//! and the
-//!  settlement of a planned,
-//! a registered and an unreadable record.
+//!  What recovery settles an interrupted `git worktree add` to:
+//! the record it keeps,
+//! the notice it gives,
+//! and the proof that decides whether the checkout it left is whole or gone.
 //! Why:
-//!  Every report of an interrupted add comes from here,
-//! and each of its answers is read by
-//!  a command that then keeps or drops records for a person to act on,
-//! so the reasons are kept together and the
-//!  judging of live claims stays beside the sweep that uses it.
+//!  A record that cannot be read and a checkout that is not proven whole keep the record,
+//! so the next command reports the same obligation again;
+//! only a destination that is gone,
+//! or one whose index and empty worktree together prove the add finished,
+//! lets the record go.
+//! The proof reads Git's own pointer and index rather than running Git,
+//! because recovery never runs a Git command and never waits.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const settlement = await settleInterruptedAdd(record); // { notice, keep }
+//! const { notice, keep } = await reportInterruptedAdd(record);
+//! const whole = !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && (entryCount(index) === 0 || entries(destination).length > 1))
 //! ```
 
 use crate::json_record::quote;
@@ -177,7 +174,7 @@ fn add_is_finished(destination: &Path, admin: &Path) -> bool {
 /// ```ts
 /// const line = readFileSync(join(destination, '.git'), 'utf8'); return line.startsWith('gitdir: ') ? resolve(destination, line.slice(8).trim()) : undefined;
 /// ```
-pub fn registration_directory(destination: &Path) -> Option<PathBuf> {
+pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
     // Git's own reader, on bytes (`worktree_add_binding::pointer_target`): the rest of the file after the prefix, with only
     //  its trailing newlines removed, so a path holding a newline is whole and the remedy never names another repository.
     let pointer: Vec<u8> = std::fs::read(destination.join(POINTER)).ok()?;
@@ -201,7 +198,7 @@ pub fn registration_directory(destination: &Path) -> Option<PathBuf> {
 /// const lock = join(admin, 'index.lock')
 /// return exists(lock) ? lockedSentence(lock, finish) : finish
 /// ```
-pub fn finish_instructions(destination: &Path, admin: &Path) -> String {
+pub(crate) fn finish_instructions(destination: &Path, admin: &Path) -> String {
     // Both paths are read by the person's shell, so they are quoted the way a shell reads a word back, not the way JSON
     //  spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs `rm`.
     let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());

@@ -34,6 +34,11 @@ import {
   describeProblem,
   sidecarLockProblems,
 } from './native-sidecar-lock-check.ts';
+import {
+  type ImageName,
+  imageNames,
+  imagesToRemove,
+} from './native-image-retention.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
 import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
@@ -42,6 +47,28 @@ import {
   runCommand,
 } from './native-verification-process.ts';
 import { wrapperCrates, } from './native-wrapper-snapshot.ts';
+
+/**
+ Every name of the local image store, as the retention decisions read it.
+
+ @returns one entry per name podman lists; an unreadable listing is empty, so a gate never fails over it
+ */
+async function localImageNames(): Promise<readonly ImageName[]> {
+  /**
+   Result of asking podman for the store, which a host without podman answers with a failure instead of output.
+   */
+  const listing = await runCommand({
+    command: 'podman',
+    args: [
+      'images',
+      '--format',
+      '{{.ID}} {{.Repository}}:{{.Tag}}',
+    ],
+    capture: true,
+    allowFailure: true,
+  });
+  return imageNames({ output: listing.stdout, },);
+}
 
 // Resource limits default to the repository's test-container bounds; `--memory`, `--cpus` and `--pids-limit` override them.
 /**
@@ -108,6 +135,11 @@ const imageTag = gateImageTagOf(process.env);
  Source snapshot image this gate builds, tests, and lints.
  */
 const testImage = `${nativeTestImageRepository}:${imageTag}`;
+/**
+ Every name of the image store before this build, so the build removes the image it replaced instead of leaving one
+ untagged leftover of every earlier gate on the disk (issue 991).
+ */
+const namesBeforeBuild: readonly ImageName[] = await localImageNames();
 
 // Build one mount-free source image, then run tests and Clippy against that exact image identity.
 /**
@@ -196,6 +228,38 @@ const inspected = await runCommand({
  */
 const image = inspected.stdout
   .trim();
+/**
+ Images this build replaced, which is the one the tag carried before it while only the untagged marker names it
+ now: an image another tag names, and one a container still runs, stay where they are.
+ */
+const replacedImages: readonly string[] = imagesToRemove({
+  before: namesBeforeBuild,
+  after: await localImageNames(),
+  name: testImage,
+},);
+/**
+ The image this build replaced, which is none when the build reused the image the tag carried or a name holds it.
+ */
+const [replacedImage] = replacedImages;
+if (replacedImage !== undefined) {
+  /**
+   Result of the removal, which podman refuses while a container still runs the image.
+   */
+  const removal = await runCommand({
+    command: 'podman',
+    args: [
+      'image',
+      'rm',
+      replacedImage,
+    ],
+    capture: true,
+    allowFailure: true,
+  });
+  console.log(removal.status === 0
+    ? `Removed the gate image this build replaced: ${replacedImage}`
+    : `Kept the gate image this build replaced: ${replacedImage} (${removal.stderr
+      .trim()})`,);
+}
 /**
  Bounds of every gate container: removed on exit, no network, and the memory, CPUs and processes of the container limits.
  */

@@ -27,9 +27,10 @@
 
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
-use crate::service_work::Verdict;
+use crate::service_work::{Verdict, work_directory};
 use crate::transaction_git::GitContext;
-use crate::work_item::WorkItem;
+use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
+use crate::plain_file::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;
@@ -44,6 +45,11 @@ use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrashDispose";
+
+/// The most bytes of a work item record that is read:
+/// the manifest of one trash,
+/// which is short.
+const RECORD_LIMIT: u64 = 64 * 1024;
 
 /// The reference every trash work item carries;
 /// the service accepts only a reference under `refs/`.
@@ -187,6 +193,76 @@ pub fn dispose_pending_trash(_context: &GitContext, destination: &Path, git_dir:
 }
 
 /// What:
+///  Name every trash in this worktree that nothing will empty.
+/// Why:
+///   A command empties the trash of its own snapshot before it returns (`empty_before_returning`),
+/// so a trash that could not be emptied stays in the worktree,
+/// and nothing else would ever mention it again.
+/// The trash is a full copy of the directories the snapshot left out,
+/// so one that stays is disk a person cannot find without being told.
+/// A record an earlier release wrote accounts for its trash while the service still works on it,
+/// because its own handler empties that one (`empty_trash`);
+/// the service settles a trash it cannot empty as failed and never tries it again,
+/// so a failed record accounts for nothing here.
+/// This scan deletes nothing:
+/// a directory nothing recorded cannot be proven to be one the leave-out moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nameUnaccountedTrash(gitDir, worktree, notices);
+/// ```
+pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
+    // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
+    let parent: PathBuf = worktree.join(TRASH_PARENT);
+    if std::fs::symlink_metadata(&parent).is_err() {
+        return;
+    }
+    let work: PathBuf = work_directory(git_dir);
+    let mut accounted: Vec<String> = Vec::new();
+    for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
+        let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
+        for entry in listing.flatten() {
+            let record: PathBuf = entry.path();
+            // A record is a plain file: a named pipe or a device in a state directory is somebody's own entry, and
+            // opening it would wait for a writer that never comes, on every command in this worktree.
+            let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
+            let Ok(text) = String::from_utf8(bytes) else { continue };
+            let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
+            if item.kind != WorkKind::Trash {
+                continue;
+            }
+            // A record the service still works on accounts for its trash: its own handler empties that one, and naming
+            // it here would send the person to look at work that is not theirs. A failed record is settled for good,
+            // so the trash it names is left to the scan below, which names it and deletes nothing.
+            if state == FAILED {
+                continue;
+            }
+            accounted.push(item.oid.clone());
+        }
+    }
+    name_trash_nothing_will_empty(worktree, &accounted, notices);
+}
+
+/// Say what sits in the trash parent of `worktree` that nothing will empty.
+/// A directory nothing recorded cannot be proven to be one the leave-out moved,
+/// so it is only named.
+fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices: &mut dyn Write) {
+    let parent: PathBuf = worktree.join(TRASH_PARENT);
+    let Ok(listing) = std::fs::read_dir(&parent) else { return };
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if accounted.contains(&name) {
+            continue;
+        }
+        let _told = writeln!(
+            notices,
+            "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
+            entry.path().display()
+        );
+    }
+}
+
+/// What:
 ///  Empty one trash here and now,
 /// telling the person what is being done once.
 /// Why:
@@ -204,8 +280,10 @@ fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashMa
     let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, so nothing another command was filling stays in it; this can take a while.", destination.display());
     return match delete_trash(destination, git_dir, manifest) {
         Ok(()) => Ok(()),
-        // No work item and no durable record of this manifest is written, so nothing else will ever empty it: the line says
-        //  that, names the directory, and gives the command that removes it the way the person's shell reads it.
+        // No work item and no durable record of this manifest is written, so nothing else will ever empty it, and a
+        //  later command in this worktree only names it without deleting anything: the line says both, names the
+        //  directory the way the person's shell reads it, and gives the command that removes it only when that command
+        //  removes exactly what the snapshot made.
         Err(left) => {
             let trash: PathBuf = destination.join(TRASH_PARENT).join(&manifest.name);
             let shown: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
@@ -214,7 +292,7 @@ fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashMa
                 // The command could delete what the emptying kept, so the line names what is there and gives none.
                 false => String::from(". No removal command is given here: nothing showed that everything below that path is what this snapshot made, and a recursive removal would delete whatever the emptying left alone; remove by name only what you want gone"),
             };
-            Err(format!("the directories left out of the new worktree {} were not emptied ({}); the trash {shown} stays inside the worktree, no work item names it, and only you will remove it{removing}", destination.display(), left.reason))
+            Err(format!("the directories left out of the new worktree {} were not emptied ({}); the trash {shown} stays inside the worktree, no work item names it, a later command in this worktree names it and deletes nothing, and only you will remove it{removing}", destination.display(), left.reason))
         }
     };
 }

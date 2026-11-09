@@ -25,14 +25,13 @@
 //! ```
 
 use crate::service_client_settings_and_watches::RECONNECTS;
-use crate::service_client_listen_and_ask_to_retire::connect;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
 use crate::service_client_listen_and_ask_to_retire::{Heard, listen, read_message};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
+use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -163,6 +162,59 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
     }
 }
 
+/// What:
+///  The number of the place the service named,
+/// which is the part of it the person is told.
+/// Why:
+///   A place says which commit it is (`number`) and how many the batch holds (`of`),
+/// and every wording of it derives from the number alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeNumber([3, 7]) // 3
+/// ```
+fn place_number(place: (usize, usize)) -> usize {
+    let (number, _of) = place;
+    return number;
+}
+
+/// What:
+///  Says where a waiting commit stands once it has waited long enough to matter:
+/// how many commits the service put before it,
+/// or that the service has not said where it stands.
+/// Why:
+///   Two commits waited 62 and 32 seconds and said nothing about themselves,
+/// and a person cannot tell a commit the service has not
+///  reached from one it has lost.
+/// The telling costs one clock read of the loop the client already runs and one line;
+/// it waits for nothing,
+///  takes no lock and writes no file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sayWhereItStands(notices, config, parked, place, told)
+/// ```
+fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, place: Option<(usize, usize)>, told: &mut Option<Option<usize>>) {
+    let Some(since) = parked else {
+        return;
+    };
+    if since.elapsed() < config.waiting_notice_after {
+        return;
+    }
+    // What the person was last told: the place the service named, or nothing when it named none.
+    let named: Option<usize> = place.map(place_number);
+    if *told == Some(named) {
+        return;
+    }
+    *told = Some(named);
+    let words: String = match place {
+        Some((number, of)) => position_notice(number, of),
+        // What the client knows and no more: the service named no place, and how long the commit has waited.
+        None => unplaced_notice(since.elapsed()),
+    };
+    let _written = writeln!(notices, "{words}");
+}
+
 /// The sends and the waits of `submit_traced`.
 ///
 /// The wait for the answer lasts as long as the service keeps sending,
@@ -178,7 +230,10 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let mut announced: bool = false;
     let mut breaks: usize = 0;
-    let mut last_position: Option<usize> = None;
+    // The place the person was last told.
+    let mut told_place: Option<Option<usize>> = None;
+    // When the request line first reached the service, which is where the wait the telling answers begins.
+    let mut parked: Option<Instant> = None;
     let mut holder: Option<String> = None;
     let mut service_seen: bool = false;
     let mut last_break_was_silence: bool = false;
@@ -193,6 +248,18 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let answer_deadline: Instant = waiting_since + config.answer_ceiling;
     let mut last_renewed: Option<Instant> = None;
     loop {
+        // What:
+        //  The place the service named,
+        // which belongs to this connection and to no other.
+        // Why:
+        //  The place is a position in a batch the answering service decided,
+        // and a request sent again goes to a service that decides
+        //  its own,
+        // so a place read here cannot outlive the connection it came from.
+        // It is therefore held inside this loop,
+        // and
+        //  what the person was already told (`told_place`) is what outlives it.
+        let mut last_place: Option<(usize, usize)> = None;
         let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
         service_seen = true;
         let mut payload: String = line.clone();
@@ -206,9 +273,15 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             continue;
         }
         trace.sends += 1;
+        if parked.is_none() {
+            parked = Some(Instant::now());
+        }
         renew_scratch(config, &mut last_renewed);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
+            // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
+            //  in the same words as one that only beats: neither has started on this commit.
+            say_where_it_stands(notices, config, parked, last_place, &mut told_place);
             let heard: Heard = listen(&mut reader);
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
@@ -234,13 +307,20 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             }
             match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
-                    if last_position != Some(number) {
-                        last_position = Some(number);
+                    // Every place the service names is recorded, printed or not; the person is told it once the wait has
+                    //  mattered, so a commit that lands at once says nothing new. The record keeps every place every service
+                    //  named, which is what `positions` states; what may be printed is only ever this connection's place.
+                    if last_place.map(place_number) != Some(number) {
+                        last_place = Some((number, of));
                         trace.positions.push(number);
-                        let _written = writeln!(notices, "{}", position_notice(number, of));
                     }
                 }
-                Heard::Message(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
+                Heard::Message(ServiceMessage::Landed { commit, already, landing, .. }) => {
+                    // What the landing spent and held, for the record of this command: the service measured it, and only its
+                    //  answer can carry it.
+                    trace.landing = landing;
+                    break Some(Ok(Submitted::Landed { commit, already }));
+                }
                 Heard::Message(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
@@ -345,51 +425,6 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
         }
     }
     return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
-}
-
-/// A scratch directory handed to the service:
-/// the service removes it when this value is dropped,
-/// and when the process that
-///  holds it dies by any means,
-/// because the connection is the only thing that says the directory is still wanted.
-pub struct ScratchWatch {
-    /// The open connection.
-    /// Close-on-exec,
-    /// so no program the wrapper starts keeps it open after the wrapper is gone.
-    _connection: UnixStream,
-}
-
-/// What:
-///  Hands the commit's scratch directory to the service,
-/// which removes it when the connection closes.
-/// Why:
-///   A client killed without warning cannot remove what it made,
-/// and no one can tell afterwards whether it is gone or
-///  stopped:
-/// the open connection is the signal,
-/// without a process id and without a lock.
-/// The announcement is written at once
-///  and the greeting is not waited for,
-/// so a service that is frozen or still starting takes it when it reads,
-/// and a client
-///  killed meanwhile still loses its directory.
-/// A service that is not running takes nothing,
-/// and a service of another release
-///  refuses a message it does not know and closes nothing of the client's;
-/// in both the client removes the directory itself
-///  when it ends,
-/// as it always has.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const watch = watchScratch(config, gitDir, path) // undefined when nothing listens
-/// ```
-pub fn watch_scratch(config: &ClientConfig, git_dir: &std::path::Path, path: &std::path::Path) -> Option<ScratchWatch> {
-    let mut connection: UnixStream = connect(&config.address).ok()?;
-    let mut line: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.to_path_buf(), path: path.to_path_buf() });
-    line.push('\n');
-    connection.write_all(line.as_bytes()).ok()?;
-    return Some(ScratchWatch { _connection: connection });
 }
 
 /// What:

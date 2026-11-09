@@ -41,7 +41,7 @@ use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_snapshot_source::SnapshotSource;
-pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, dispose_pending_trash, empty_trash};
+pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, dispose_pending_trash, empty_trash, name_unaccounted_trash};
 pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::collections::HashSet;

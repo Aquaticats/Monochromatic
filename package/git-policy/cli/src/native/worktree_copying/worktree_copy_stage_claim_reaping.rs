@@ -1,7 +1,6 @@
 //! What:
 //!  The judging of stage claims and their temporaries,
-//! and the removal of the stages that interrupted copies and interrupted
-//!  `git worktree add` runs left behind.
+//! and the removal of the stages that interrupted copies left behind.
 //! Why:
 //!  A claim is the record that a stage may exist.
 //! A claim whose owner is dead and whose stage no journal adopted is reaped;
@@ -11,12 +10,8 @@
 //! so that stage is reported and never removed,
 //! and the claim stays so that the
 //!  next command reports it again.
-//! An add's record stays too while the worktree it names is not proven whole,
-//! whether the add was bound or killed
-//!  before the binding was written:
-//! a line on one command's standard error is not a place to keep an obligation a person has
-//!  to act on,
-//! and the destination's own pointer names the registration that proves the checkout whole or not.
+//! What an interrupted `git worktree add` settles to lives beside this file,
+//! and is named here so one import path reaches both.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,13 +32,14 @@ use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DE
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-#[path = "worktree_copy_stage_claim_settlement.rs"]
-mod settlement;
-
-pub use settlement::{Settlement, finish_instructions, registration_directory, settle_interrupted_add, settle_marker, settle_text};
-
-#[cfg(test)]
-pub(crate) use settlement::{INDEX, INDEX_LOCK};
+/// What an interrupted `git worktree add` settles to,
+/// the proof its checkout is whole or gone,
+/// and the names of the files that proof reads:
+/// re-exported so a reader of the claims and a control of them reach them here.
+/// The settlement lives in a file of its own (`worktree_copy_interrupted_add_settlement.rs`),
+/// which is where this
+///  branch's proof of the destination's pointer now is too.
+pub use crate::worktree_copy_interrupted_add_settlement::*;
 
 /// What:
 ///  The container and the owner a claim names.

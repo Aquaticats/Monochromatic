@@ -24,6 +24,7 @@
 //! ```
 
 use crate::service_protocol::{ServiceMessage, encode_service};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -46,11 +47,26 @@ pub struct Reply {
     sender: UnboundedSender<ServiceMessage>,
 }
 
+/// How many requests this process has taken and not yet answered.
+/// Why:
+///   A landing that holds the index is what the commits behind it wait for,
+/// and a count taken while it holds is
+///  the only thing that says how many did;
+/// the landing records it in the answer it writes.
+static WAITING: AtomicUsize = AtomicUsize::new(0);
+
 impl Reply {
     /// A reply and the end the writer task reads.
     pub fn new() -> (Self, UnboundedReceiver<ServiceMessage>) {
         let (sender, receiver) = unbounded_channel();
+        let _taken = WAITING.fetch_add(1, Ordering::SeqCst);
         return (Self { sender }, receiver);
+    }
+
+    /// How many requests this process has taken and not yet answered,
+    /// which is how many commits are waiting for a landing or for their turn.
+    pub fn waiting() -> usize {
+        return WAITING.load(Ordering::SeqCst);
     }
 
     /// Queues `message` for the client;
@@ -59,6 +75,12 @@ impl Reply {
     /// so the landing thread that sends and a task that writes never hold each other.
     pub fn send(&self, message: &ServiceMessage) {
         let _queued = self.sender.send(message.clone());
+    }
+}
+
+impl Drop for Reply {
+    fn drop(&mut self) {
+        let _answered = WAITING.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

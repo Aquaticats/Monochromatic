@@ -677,6 +677,15 @@ Read-only commands,
      or a file somebody put in the trash),
      and names the path and the reason instead,
      because removing that path recursively would delete what the emptying left alone.
+     A trash that could not be emptied stays there,
+   and the next command run in that worktree names it,
+     with its path;
+     the same command
+   names,
+     without deleting,
+     every directory in `.claude/cli-git-trash` that nothing will empty,
+     which is
+   one no record names and one only a record the service gave up on names.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:
@@ -721,6 +730,35 @@ Read-only commands,
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
    (`git -C <repository> worktree prune`);
      it does not run Git afterwards.
+  A worktree that still has a conversion's copy beside it is not removed,
+     and what proves the copy is a conversion's
+   is the record that conversion wrote beside the worktree,
+     and the object at that name must still be one the record holds:
+     a
+   directory that no record names,
+     or one the record's identities do not match,
+     or a record whose stage is gone,
+   is not a
+     copy a conversion left,
+     and the removal goes on and leaves the directory alone:
+     the command
+   refuses with status 1 and a report that names the copy and both commands that clear it
+   (`convert-worktree-to-subvolume <path>` to finish the conversion,
+     `--abandon <path>` to discard the copy),
+   because the removal deletes the registration and its journal is what names that copy.
+     `--force` and `prune` go to Git
+   and still remove the worktree,
+     leaving the copy behind,
+     which `--abandon` then reaches at its recorded identity.
+  The destroy is recorded beside the repository before it is made
+     (`monochromatic-git-policy-cli/recorded-destroys/<name>` under the common Git directory),
+     so a command killed between the destroy and the removal of the registration leaves a state the next command finishes
+   by itself,
+     and only after what the registration still holds is copied into the removal snapshot,
+     so a push failure nobody saw yet is shown instead of dying with it.
+     A destroy that failed,
+     and a removal that finished,
+     drop the record.
   From the main checkout the copy carries the dependencies and builds a new worktree needs to run at once
    (`node_modules`,
      `target/`,
@@ -1189,8 +1227,8 @@ a directory or any other name beside the journal is left alone.
 ```sh
 git monochromatic-git-policy-cli migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
 git monochromatic-git-policy-cli migrate-to-subvolume             # migrate; run it again after any stop and it resumes
-git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable]  # undo, finished or not
-git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable]  # delete the original tree
+git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--discard-left-out]  # undo, finished or not
+git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out]  # delete the original tree
 ```
 
 The steps,
@@ -1318,12 +1356,40 @@ Files that only the new subvolume holds and this user may not read cannot be car
 so `--rollback` refuses
  while there are any,
 unless `--discard-unreadable` is given with it.
+Both `--remove-old` and `--rollback` refuse when the directory at the checkout path is not the one the migration
+ installed
+ (its device and inode are recorded with the migration's last step),
+ because a checkout moved or replaced by hand since then
+ is one the migration never recorded.
+The carry writes through a descriptor on the directory whose identity was checked,
+ so a checkout moved aside and another
+ put at its path receives nothing,
+ and the old tree is kept when the name no longer leads to that directory.
+Before it deletes the new subvolume,
+ `--rollback` compares the identity at that name with the recorded one on every path that
+ reaches the deletion,
+ so a run resumed after the exchange was recorded keeps a subvolume another process put there
+ and names both identities.
 `--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
  their copy,
 and files the checkout lacks that are no older than the catch-up;
 older ones were deleted on purpose),
 then
  deletes the original.
+An entry it left out that way is either a file deleted from the checkout on purpose or a file restored into the original
+ tree after the migration (an unpacked backup carries old timestamps),
+and no check can tell the two apart:
+the command counts them,
+writes their relative paths to `.cli-git-migrate-<name>.left-out.txt` beside the checkout,
+names them,
+and deletes nothing until `--discard-left-out` is given with `--remove-old`
+ (or you delete the original tree yourself).
+A rollback's carry back leaves an entry out the same way when the original tree holds another kind of entry at its
+path,
+and the new subvolume's directory there is the only copy of what it holds:
+the rollback names those entries and
+ deletes nothing until `--discard-left-out` is given with `--rollback`
+ (or you delete the new subvolume yourself).
 Both deletions make the directories this user owns writable on the way down,
 so a mode-555 directory does not stop them.
 Both refuse,
@@ -1484,7 +1550,28 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   it completes the conversion in place.
   `--abandon` undoes one that has not
   reached its swap,
-  destroying only the subvolume its journal says it created.
+  destroying only the subvolume its journal says it created,
+  and refuses while a process has a shell or a file open inside it (the process is named).
+  The scan runs again immediately before the destroy,
+  so the window is one check wide;
+  it is not closed,
+  and a shell that enters the copy in that window is left in a `(deleted)` directory whose writes fail.
+  The identity of a leftover stage,
+  and the two directories a rollback exchanges,
+  are read again in the step before the call
+  that uses them,
+  so a directory another program renames into the name inside that interval is destroyed or exchanged:
+  neither call
+  takes a descriptor,
+  and binding them would need one.
+  It also reaches the copy a conversion left behind when its worktree was removed before the
+  conversion was finished (a worktree path without a `.git` that still has `<path>.cli-git-converting`
+  beside it):
+  the copy is destroyed,
+  nothing is destroyed while a process is inside it,
+  and nothing is destroyed whose identity is not one the conversion recorded beside the worktree
+  (`.cli-git-convert-<name>.leftover-stage.json`),
+  so a directory someone put at that name is kept and named.
 - Measured on a fixture of four ordinary worktrees of 22.3 thousand entries each:
   4.2 s per worktree under a scope of
   `CPUQuota=400%`,
@@ -3034,6 +3121,32 @@ Each line names what the command waits for,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
    A commit that opens the person's editor prints nothing and has no ceiling.
+- A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
+  `service/wait_ceilings.rs`;
+  twice the owner's bound of 5 s on what a commit may add to native Git,
+  and reached by 26 of the 909 answer waits in this host's commit timing log of 2026-11-09):
+  one line says where the commit stands,
+  and it is said once for each place the service names,
+  not on the repeat schedule above.
+  When the service named the place of the commit's batch it reads `Waiting for N earlier commits.`,
+  or `This commit is next.` for the first place;
+  when it named none it reads "The commit service has not said where this commit stands yet;
+  it has waited 12 seconds.",
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`,
+  and may claim nothing about whether the landing began.
+  A commit that lands within those 10 seconds prints nothing,
+  and `CLI_GIT_STANDING_NOTICE_SECONDS` (a positive number of seconds) sets the wait for a control.
+  The service names the place of a batch's first request only once that request has waited as long,
+  so a client of an earlier release,
+  which prints every place it is told,
+  sees one only for a commit that waited.
+  A place belongs to the connection that named it:
+  a request sent again after its service went away starts with no place,
+  so a stale one is never printed as this wait's.
+  Every line is written by a thread of its own and dropped when the terminal stops taking lines,
+  so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
+  and never its answer.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
    or one with a template or clean-up mode) is built again on the new tip,
@@ -3385,9 +3498,23 @@ its measurements and the evidence needed to change it are in
 
 The wrapper keeps its state beside the repository's Git data under `monochromatic-git-policy-cli*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
-A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` in the worktree's Git directory while it is made;
- the commit service removes it when the command ends,
-however it ends.
+A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>-<attempt>` in the repository scratch directory
+ `monochromatic-git-policy-cli-scratch` while it is made;
+ the commit service removes the tree of an attempt once that attempt's landing is over,
+and a command that no service took the tree from removes it itself as it ends.
+Nothing in a commit waits for that removal:
+ it happens beside the landing loop,
+bounded by `SCRATCH_REMOVAL_CEILING` (thirty seconds),
+ so a device that stalls costs a partial removal and a line in the service journal,
+never a slow commit.
+A tree no request ever named,
+because its command was killed before it submitted,
+goes once nothing has written it for two hours,
+and its command renews it every hour while it lives,
+so a running command never loses it;
+the trees a machine makes while no service answers are bounded by that rule (about 9 MiB each)
+ and by at most eight removed per command sweep;
+ other entries of the directory go once they are a day old.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
@@ -4858,10 +4985,50 @@ all durations in whole milliseconds taken from the monotonic clock:
   `unproven` for an owner nobody could prove alive,
   null when there was none),
   `reconnects` counts connections that broke and `sends` counts requests written.
+- `landing` states what the landing of this commit spent and held,
+  which the service measures and the answer carries,
+  and is `null` for a service of a release that sends no figures:
+  `lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
+  `queuedBehind` is how many requests were still waiting for their answer when the landing finished,
+  `readsMs` is the whole of the residual reads,
+  `reads` names each of them
+  (`config`,
+  `branch`,
+  `parents`,
+  `changed`,
+  `content`,
+  `witness`,
+  `conclusion`,
+  `owed`,
+  `follow`,
+  and never more than `readsMs` together),
+  and `syncs` is every file or directory sync the landing asked for,
+  in the order it asked,
+  each as `{"what": "built-index", "waited": true, "ms": 12}`,
+  with `waited` false for one it handed to the background task and never waited for.
 - `handoffMs` is one figure:
   leaving the work records and waking the service,
   which reaches the service a second time.
   It is not split into a reach and a wait.
+- `scratchRemovalMs`,
+  `removalsThatDidNotFinish` and `stderrMs`
+  are the two costs measured wherever they fell,
+  so a reading can say which of them a slow `otherMs` was:
+  the time spent removing scratch trees,
+  how many of those removals ended without finishing within their ceiling,
+  and the time spent writing to standard error,
+  which waits for whoever reads it.
+  They were added for the reading in
+  `doc/planning/cli-git-commit-latency-under-many-agents.md`.
+- `prepareParts` splits the preparation by the stretch of work it was in,
+  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  the seams are one line each in `src/native/landing/service_prepare.rs`,
+  each figure is the time that stretch spent without a Git child
+  (the steps are listed apart in `steps`),
+  a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
+  and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
+  It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
@@ -4890,6 +5057,31 @@ all durations in whole milliseconds taken from the monotonic clock:
   The service's `answered` line ends with `steps="git rev-parse@3+4;..."` (`name@offset+duration`,
   the offset from the request's
   acceptance) and `steps_dropped=<count>`.
+
+The landing's own figures are on the same line and in the record's `landing`:
+
+- `landing_ms` is the whole landing,
+  and its phases are `lock_wait_ms` (another program's hold on the index),
+  `reads_ms`,
+  `objects_ms`,
+  `journal_ms`,
+  `ref_ms` and `index_update_ms`.
+- `reads_ms` is named one read at a time by `reads_config_ms`,
+  `reads_branch_ms`,
+  `reads_parents_ms`,
+  `reads_changed_ms`,
+  `reads_content_ms`,
+  `reads_witness_ms`,
+  `reads_conclusion_ms`,
+  `reads_owed_ms` and `reads_follow_ms`,
+  which are parts of it and never more than it together.
+- `lock_hold_ms` is how long the landing held the index,
+  and `queued_behind` is how many requests were still waiting for their answer when it finished,
+  the batch's own taken out.
+- `syncs_waited` and `syncs_queued` count the syncs the landing waited for and the ones it handed to the background,
+  `sync_held_ms` is the time it spent waiting for its own,
+  and `syncs="built-index=12;intent-file=queued;..."` names each one with its milliseconds or with `queued`.
+  A background batch of a landing's records says in the journal how many it made and what they cost.
 
 The service writes to its standard error,
 which the service manager keeps in the journal of its unit.

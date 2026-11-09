@@ -5,8 +5,10 @@
 //! and the clean arguments.
 
 use super::*;
-use crate::package_repair_cargo_concurrent::map_concurrent;
-use crate::package_repair_cargo_workspaces::{distinct_workspaces, parse_metadata, read_workspace};
+use crate::package_repair_cargo_workspaces::{MANIFEST, distinct_workspaces, manifest_directories_awaiting, parse_metadata, read_workspace};
+use crate::transaction_git::GitContext;
+use crate::package_repair_command::ToolLimits;
+use crate::test_support::{fixture, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
 /// The `cargo metadata --no-deps` text of a workspace,
@@ -144,50 +146,6 @@ fn the_report_counts_the_entries_left_out() {
     assert_eq!(left_out_words(3), "; 3 unreadable entries were left out");
 }
 
-/// A worker that panics on one item gives that item a failure naming it;
-/// every other item still has its result,
-/// in item order.
-#[test]
-fn a_panicking_worker_is_a_failure_naming_its_item() {
-    let items: Vec<usize> = (0..6).collect();
-    let results: Vec<Result<usize, String>> = map_concurrent(items.as_slice(), 2, &|item: &usize| { return format!("item {item}"); }, &|item: &usize| {
-        assert_ne!(*item, 3, "this item breaks");
-        return *item * 10;
-    });
-    assert_eq!(results.len(), items.len(), "{results:?}");
-    for (item, outcome) in items.iter().zip(&results) {
-        if *item == 3 {
-            let reason: &String = outcome.as_ref().expect_err("the broken item fails");
-            assert!(reason.contains("item 3") && reason.contains("this item breaks"), "{reason}");
-        } else {
-            assert_eq!(outcome.as_ref().ok(), Some(&(*item * 10)), "item {item}");
-        }
-    }
-}
-
-/// Without a panic every item has its result in item order,
-/// for any number of workers.
-#[test]
-fn every_item_has_its_result_in_item_order() {
-    let items: Vec<usize> = (0..9).collect();
-    for workers in [0, 1, 4, 64] {
-        let results: Vec<Result<usize, String>> = map_concurrent(items.as_slice(), workers, &|item: &usize| { return format!("item {item}"); }, &|item: &usize| { return *item + 1; });
-        assert_eq!(results, items.iter().map(|item: &usize| { return Ok(*item + 1); }).collect::<Vec<Result<usize, String>>>());
-    }
-}
-
-/// Where the system starts no thread the workers' items are done on the calling thread,
-/// each with its result in item order.
-/// The body
-/// runs in a child that is refused every thread.
-#[test]
-fn concurrent_items_where_no_thread_can_start_are_done_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "concurrent_items_where_no_thread_can_start_are_done_in_turn") {
-        return;
-    }
-    every_item_has_its_result_in_item_order();
-}
-
 /// Output that was cut is never read as the metadata (sol-1 round 4:
 /// nothing exercised the refusal):
 /// a cargo that succeeds with more
@@ -203,4 +161,78 @@ fn metadata_that_was_cut_is_not_parsed() {
     let refused: String = read_workspace(cargo.as_path(), root.as_path(), limits).expect_err("cut output is refused");
     assert!(refused.contains("could not be taken whole"), "{refused}");
     crate::test_support::remove(root.as_path());
+}
+
+/// The tracked manifests are named from the top of the worktree and found whatever pathspec modes the caller set:
+/// a caller whose `-C` moved Git into a subdirectory must still be answered with `sub/Cargo.toml`,
+/// because every name is joined to the destination root.
+#[test]
+fn the_manifest_listing_answers_from_the_top_under_the_callers_prefix_and_modes() {
+    let root: PathBuf = crate::test_support::fixture("cargo-manifests-nested-c");
+    let destination: PathBuf = crate::test_support::repository(root.as_path(), "destination");
+    std::fs::create_dir(destination.join("sub")).expect("sub directory");
+    std::fs::write(destination.join("sub/Cargo.toml"), b"[package]\nname = \"sub\"\n").expect("manifest");
+    crate::test_support::git(destination.as_path(), &["add", "--", "sub/Cargo.toml"]);
+    // The caller wrote `-C <destination>/sub`, and two glob modes that disagree in its environment.
+    let mut context = crate::test_support::git_context();
+    context.global_prefix = vec![
+        std::ffi::OsString::from("-C"),
+        destination.join("sub").into_os_string(),
+    ];
+    context.overlay.push((std::ffi::OsString::from("GIT_GLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    context.overlay.push((std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    let environment: crate::package_repair_request::RepairEnvironment = crate::package_repair_request::RepairEnvironment {
+        search_path: None,
+        quiet_window: std::time::Duration::from_secs(60),
+        ceiling: std::time::Duration::from_secs(600),
+        workers: 1,
+    };
+    let request: crate::package_repair_request::RepairRequest<'_> = crate::package_repair_request::RepairRequest {
+        git: &context,
+        source: root.as_path(),
+        destination: destination.as_path(),
+        switch: crate::package_repair_request::RepairSwitch::default(),
+        environment: &environment,
+    };
+    let _ = &request;
+    let directories: Vec<PathBuf> = crate::lazy_runtime::run_on_runtime(crate::package_repair_cargo_workspaces::manifest_directories_awaiting(
+        &context,
+        destination.as_path(),
+    ))
+    .expect("this process's runtime starts")
+    .expect("the tracked manifests are listed");
+    assert_eq!(directories, vec![destination.join("sub")], "the manifest below the top is found by its repository-relative name");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  The tracked manifests are read as a job of the process's blocking pool,
+///  never on the task that polls the three repairs.
+/// Why:
+///  Whether a listed path is a regular file is a storage question,
+/// and this reading shares its task with the pnpm repair's quiet window and ceiling:
+/// a filesystem that stops answering would then stop those limits with it
+/// (`package_repair_cargo_workspaces.rs`,
+/// `directories_of_the_listing`).
+///  A control holds the process's only place,
+/// so it proves the reading reached the bound by asking for it.
+#[test]
+fn the_manifest_directories_are_read_as_a_job_of_the_pool() {
+    let root: PathBuf = fixture("cargo-manifest-place");
+    let worktree: PathBuf = repository(root.as_path(), "worktree");
+    std::fs::write(worktree.join(MANIFEST), b"").expect("manifest");
+    std::fs::create_dir_all(worktree.join("member")).expect("member directory");
+    std::fs::write(worktree.join("member").join(MANIFEST), b"").expect("member manifest");
+    let _staged: String = git_text(worktree.as_path(), &["add", "--", MANIFEST, "member/Cargo.toml"]);
+    let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
+    let git: GitContext = git_context();
+    let destination: PathBuf = worktree.clone();
+    let reading = crate::lazy_runtime::spawn_on_runtime(async move { return manifest_directories_awaiting(&git, destination.as_path()).await; });
+    assert!(reading.is_some(), "this process's runtime has a worker of its own");
+    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the control that holds the only place answered");
+    remove(&root);
+    assert!(
+        asked,
+        "the tracked manifests were read without asking for a place of the process's bound on blocking jobs, so the reading ran on the task that polls the repairs"
+    );
 }

@@ -94,7 +94,8 @@ fn a_process_a_test_starts_may_not_write_a_core_dump() {
 /// without looking at the run.
 /// How long the call took cannot say that:
 /// a thread the scheduler holds just before it makes a wait
-///  that looked slow, and one it holds just after a sleep makes one that slept look quick,
+///  that looked slow,
+/// and one it holds just after a sleep makes one that slept look quick,
 /// so the control reads the
 ///  looks this thread took.
 #[test]
@@ -125,7 +126,8 @@ fn a_wait_gives_up_when_the_run_shows_nothing() {
 /// Why:
 ///   The event is delivered by the wait's own predicate after this many looks,
 /// so the control holds the worker working for
-///  longer than the window without depending on the clock: a thread the scheduler holds only delays the looks.
+///  longer than the window without depending on the clock:
+/// a thread the scheduler holds only delays the looks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,7 +142,8 @@ fn looks_past_the_window(window: std::time::Duration) -> usize {
 /// so a slow event is waited for however long it takes.
 /// The worker stops only once the wait has looked at the run for two of its windows,
 /// which is what the
-///  predicate counts: the control cannot pass with a worker that finished before the wait began.
+///  predicate counts:
+/// the control cannot pass with a worker that finished before the wait began.
 #[test]
 fn a_wait_outlives_its_window_while_the_run_keeps_working() {
     let window: std::time::Duration = std::time::Duration::from_millis(200);
@@ -221,4 +224,45 @@ fn two_waits_do_not_keep_each_other_alive() {
 #[test]
 fn the_controls_window_is_below_the_watchdogs() {
     assert!(STILL_WORKING_WINDOW < QUIET_WINDOW, "{STILL_WORKING_WINDOW:?} is not below {QUIET_WINDOW:?}");
+}
+
+/// What:
+///  A wait whose own predicate does the work the event is made of is waited for,
+///  and the watchdog still sees that work.
+/// Why:
+///   The registration that keeps a waiter's `/proc` reads from counting as work must not hide the work the predicate
+/// itself does:
+/// the controls that make a retry or a round inside the predicate do real disk work on the waiting thread,
+/// and a
+///  registration that covered the predicate would hide the very `D` state and bytes `run_progress` reads as work.
+/// This one writes 64 KiB at every call and delivers its event on the eighth,
+/// which is several windows of a 300 ms
+///  window later,
+/// so a wait that hid the writes gives up and a wait that sees them does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = waitUntilFor({ window: 300, done: () => { write(64 * 1024); sleep(40); return ++calls >= 8 } });
+/// ```
+#[test]
+fn a_wait_whose_predicate_works_is_not_abandoned() {
+    let window: std::time::Duration = std::time::Duration::from_millis(300);
+    // The event is delivered after twice as many calls as a window holds looks, each of them doing real work on this thread.
+    let calls_to_deliver: usize = 8;
+    let calls: std::cell::Cell<usize> = std::cell::Cell::new(0);
+    let began: std::time::Instant = std::time::Instant::now();
+    let held: bool = wait_until_for(WaitingFor {
+        window,
+        done: &|| {
+            use std::io::Write as _;
+            let mut sink: std::fs::File = std::fs::OpenOptions::new().write(true).open("/dev/null").expect("a sink");
+            sink.write_all(&[b'w'; 64 * 1024]).expect("a write of the predicate's own");
+            std::thread::sleep(std::time::Duration::from_millis(40));
+            calls.set(calls.get() + 1);
+            return calls.get() >= calls_to_deliver;
+        },
+    });
+    assert!(held, "the wait gave up although its predicate was doing the work the event is made of");
+    assert!(calls.get() >= calls_to_deliver, "the event was delivered: {} calls", calls.get());
+    assert!(began.elapsed() >= window, "the event came later than the window: {:?}", began.elapsed());
 }

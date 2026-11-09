@@ -66,6 +66,11 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// How long each stretch of a commit's preparation held no Git child,
+/// by name,
+/// for the timing record.
+pub mod commit_prepare_part_durations;
+
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 
@@ -106,6 +111,14 @@ pub mod commit_index_builds;
 /// What the waiting notice of the scratch `git commit` saw while the step ran,
 /// for the timing record.
 pub mod scratch_commit_step;
+
+/// What the preparation's own work did,
+/// by name,
+/// for the timing record:
+/// reading and copying the index,
+/// writing its entries,
+/// and each policy.
+pub mod prepare_work_spans;
 
 /// The refresh of an index's stat data before the scratch commit,
 /// so its ceiling does not end a commit over a moved worktree.

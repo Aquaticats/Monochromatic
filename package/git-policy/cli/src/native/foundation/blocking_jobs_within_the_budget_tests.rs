@@ -403,3 +403,95 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
     assert!(!started_text.contains("will not run"), "the job runs, so nothing may promise it will not: {started_text}");
     assert_eq!(other_bound.available_permits(), 0, "the place stays with the job that holds it");
 }
+
+/// What one job of the fallback control reads:
+/// how many times its work has run.
+/// Why:
+///   The control proves the work ran once,
+/// in turn,
+/// where no thread could start it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const countTheRun = (state: AtomicUsize) => state.fetchAdd(1) + 1;
+/// ```
+fn count_the_run(state: Arc<AtomicUsize>) -> usize {
+    return state.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+}
+
+/// Where the system refuses every thread the work of the job runs in turn on the awaiting task,
+/// once,
+/// and its value is the job's.
+/// The body runs in a child that is refused every thread.
+#[test]
+fn a_job_refused_a_thread_runs_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_job_refused_a_thread_runs_in_turn") {
+        return;
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runs: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let value = runtime.block_on(run_a_job_or_in_turn(Arc::clone(&runs), count_the_run));
+    assert_eq!(value, Ok(1), "the work gave its value from the task that awaited it");
+    assert_eq!(runs.load(std::sync::atomic::Ordering::SeqCst), 1, "the work ran once, in turn");
+}
+
+/// What one fallback of the bound's control does:
+/// tells the control it is inside its work,
+/// then holds that work open until the control lets it end.
+/// Why:
+///  The control reads the process's places while this work is open,
+/// and a value it returned at once would leave nothing to read.
+///  Both waits are bounded,
+/// so a control that catches the defect still ends.
+/// The release travels in a lock because a fallback's state is cloned for the job it may never run,
+/// and a receiver is not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tellAndWait = ([inside, release]: [Sender, Mutex<Receiver>]) => { inside.send(); return release.lock().recvTimeout(PATIENCE).isOk(); };
+/// ```
+fn tell_and_wait_inside((inside, release): (std::sync::mpsc::Sender<()>, Arc<Mutex<std::sync::mpsc::Receiver<()>>>)) -> bool {
+    let _told = inside.send(());
+    let waited = release.lock().expect("lock").recv_timeout(PATIENCE);
+    return waited.is_ok();
+}
+
+/// What:
+///  Where the system refuses every thread,
+///  the work of the fallback runs while a place of the process's bound is held for it.
+/// Why:
+///  The fallback does the same blocking work the job would have done,
+/// so the place the job gave back before the start must be held again for the work itself;
+/// otherwise a second job takes that place and the process runs more blocking work at once than its bound allows
+/// (`foundation/blocking_jobs_within_the_budget.rs`,
+/// `run_a_job_or_in_turn`).
+///  The place is read from the bound itself,
+/// and the same read shows the place free before the work starts,
+/// so a control that could never see a place held cannot pass this one.
+/// The body runs in a child that is refused every thread.
+#[test]
+fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_fallback_that_runs_in_turn_holds_a_place_of_the_bound") {
+        return;
+    }
+    hold_blocking_jobs_to(ONE_PLACE);
+    // The runtime is built while a thread may start,
+    // because the workers the control reads the bound beside are threads too.
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a runtime of two workers");
+    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
+    assert_eq!(budget().places.available_permits(), ONE_PLACE, "the control can see the process's one place while no work runs");
+    let (inside, has_inside) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let ran = runtime.spawn(async move { return run_a_job_or_in_turn((inside, Arc::new(Mutex::new(waiting))), tell_and_wait_inside).await; });
+    assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "the fallback never reached its work, so the system did not refuse its thread");
+    let free: usize = budget().places.available_permits();
+    let _let_go = release.send(());
+    let ended = runtime.block_on(async { return tokio::time::timeout(PATIENCE, ran).await; });
+    std::mem::forget(runtime);
+    assert_eq!(ended.expect("the fallback ended").expect("the fallback's task"), Ok(true), "the work ended when the control let it go");
+    assert_eq!(
+        free, 0,
+        "the fallback ran its blocking work with the process's place free, so a second job took that place and both ran at once"
+    );
+}

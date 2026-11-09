@@ -238,6 +238,136 @@ fn something_in_the_trash_that_was_not_moved_there_stays() {
     remove(root.as_path());
 }
 
+/// What:
+///  A trash that a command could not empty is named to the person by the next command in its worktree,
+///  with its path,
+///  and nothing deletes it.
+/// Why:
+///   A command empties the trash of its own snapshot before it returns (`empty_before_returning`),
+/// so a disposal that failed leaves the directory in the worktree with no record naming it,
+/// and nothing else would ever mention it again.
+/// The trash is a full copy of the directories the leave-out moved,
+/// so a person who is not told cannot find it,
+/// and a scan that deleted what it cannot prove is a trash would discard another command's state.
+#[test]
+fn a_trash_that_could_not_be_emptied_is_named_and_left_alone() {
+    let name: String = "9".repeat(40);
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-named", name.as_str(), 2);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the person is told which trash stays: {said}");
+    assert!(trash.join("d0").is_dir() && trash.join("d1").is_dir(), "nothing in it is deleted");
+    // Said once for the command it is said in, and again by the next one, so a long-lived worktree does not lose it.
+    let mut second: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut second);
+    assert!(String::from_utf8_lossy(second.as_slice()).contains(trash.to_str().expect("UTF-8")), "the next command says it again: {}", String::from_utf8_lossy(second.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash that a record of this worktree names is not named as unaccounted for,
+///  and the record and the trash are left as they are.
+/// Why:
+///   The record is work of the service,
+/// whose own handler empties the trash it names (`empty_trash`),
+/// and a command that emptied a trash the service is working on would be a second writer,
+/// while naming it would send the person to look at work that is not theirs.
+#[test]
+fn a_trash_a_record_accounts_for_is_not_named() {
+    let name: String = "a".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-recorded", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("record");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(!said.contains(trash.to_str().expect("UTF-8")), "a trash its record accounts for is not named: {said}");
+    assert!(trash.join("d0/file").is_file(), "the trash the record names is not touched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose record the commit service gave up on is named to the person and left alone.
+/// Why:
+///   The service settles a trash item it cannot empty as failed and never claims it again,
+/// so that record accounts for nothing,
+/// and without this scan the trash,
+/// a full copy of what a snapshot left out,
+/// would sit in the worktree unmentioned for ever.
+#[test]
+fn a_trash_the_service_gave_up_on_is_named_and_left_alone() {
+    let name: String = "b".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-given-up", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
+    std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash of a given-up record is named: {said}");
+    assert!(failed.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe among the trash records does not hold the command that reads them,
+///  and the trash they account for is left alone.
+/// Why:
+///   This scan runs on every command in a worktree that has a trash,
+/// so an entry that is not a plain file would make every
+///  command wait for a writer that never comes.
+#[test]
+fn a_named_pipe_among_the_trash_records_does_not_hold_the_command() {
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-pipe", "8".repeat(40).as_str(), 1);
+    let failed: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::FAILED);
+    std::fs::create_dir_all(failed.as_path()).expect("the failed records' directory");
+    let pipe: PathBuf = failed.join("pipe-not-a-record");
+    let name = std::ffi::CString::new(pipe.as_os_str().as_encoded_bytes()).expect("path text");
+    // SAFETY: `name` is NUL-terminated and outlives the call; mode 0600 is this test's own.
+    assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0, "the named pipe");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let (git_dir_for_scan, worktree_for_scan) = (git_dir.clone(), worktree.clone());
+    let runner = std::thread::spawn(move || {
+        let mut said: Vec<u8> = Vec::new();
+        name_unaccounted_trash(git_dir_for_scan.as_path(), worktree_for_scan.as_path(), &mut said);
+        let _sent = sender.send(said);
+    });
+    let said: Vec<u8> = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
+        Ok(said) => said,
+        Err(_still_waiting) => panic!("the trash retry waited on a named pipe instead of skipping it"),
+    };
+    runner.join().expect("the scan ends");
+    assert!(pipe.exists(), "the named pipe itself is left alone");
+    assert!(String::from_utf8_lossy(said.as_slice()).contains("holds directories a snapshot left out"), "the trash is still named: {}", String::from_utf8_lossy(said.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory in the trash parent that no record names is named to the person and never deleted.
+/// Why:
+///   Removing trash deletes a person's folders,
+/// and a directory nobody recorded cannot be proven to be one the leave-out moved,
+///  so the sweep only says it is there.
+#[test]
+fn a_trash_no_record_names_is_named_and_left_alone() {
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-unrecorded", "7".repeat(40).as_str(), 1);
+    let unrecorded: PathBuf = worktree.join(TRASH_PARENT).join("6".repeat(40));
+    put(unrecorded.as_path(), "d0/precious", b"copied by hand\n");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(unrecorded.to_str().expect("UTF-8")), "the person is told what sits there: {said}");
+    assert!(unrecorded.join("d0/precious").exists(), "nothing is deleted");
+    remove(root.as_path());
+}
+
 /// Finding 12:
 /// the service's handler does not follow a link at `.claude`,
 /// so a trash that is only reached through a link is

@@ -291,9 +291,10 @@ fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_ho
         commit: None,
         cleanup: None,
         index: git_dir.join("index"),
+        scratch: git_dir.join("monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-heartbeat-landing-0"),
         captured: 0,
     };
-    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None };
+    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE, units_record_dir: None };
     let (told, hearing) = std::sync::mpsc::channel::<()>();
     let letting_go = std::thread::spawn(move || {
         hearing.recv_timeout(PATIENCE).expect("the client was told the request waits");

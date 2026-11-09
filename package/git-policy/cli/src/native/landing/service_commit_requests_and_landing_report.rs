@@ -59,6 +59,7 @@ pub(crate) fn request_for_git_built(invocation: &CommitInvocation<'_>, ready: &R
         commit: Some(built_commit),
         cleanup: ready.cleanup.clone(),
         index: native_inputs.capture.layout.real_index_path.clone(),
+        scratch: ready.scratch.0.clone(),
         captured: ready.captured_at,
     };
 }
@@ -91,6 +92,7 @@ pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, 
         commit: None,
         cleanup: None,
         index: native_inputs.capture.layout.real_index_path.clone(),
+        scratch: ready.scratch.0.clone(),
         captured: ready.captured_at,
     };
 }

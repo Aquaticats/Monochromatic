@@ -4,7 +4,8 @@
 //! Why:
 //!  The fixture and its service are one lifecycle:
 //! the fixture owns the service and stops it when it is dropped,
-//! so they live in a file that depends on the limits file only.
+//! so they live together in a file that depends on the limits file and on the readiness checks,
+//! which say when a service is at work and when it serves.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,6 +15,7 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use crate::support_fixture_service_readiness::{SERVICE_QUIET_WINDOW, SignsOfWork, service_is_serving, wait_until_nothing_listens};
 use crate::support_resource_limits::{ServiceLaunch, restrict_to_one_cpu};
 
 /// One disposable directory with a `bin/git` link to the wrapper.
@@ -238,71 +240,6 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
     return answer.recv().expect("the spawner thread answers");
 }
 
-/// What:
-///  Whether the service that listens at `socket` is serving:
-/// it answers a connection with its greeting.
-/// Why:
-///   The kernel accepts a connection as soon as the service listens,
-/// before the service has recovered its journal and started
-///  the threads that answer,
-/// so an accepted connection says nothing about the service's state.
-/// A control that changes the
-///  service right after the fixture started it (a lowered process limit) met a service that had not started its work thread and
-///  ended it at once with status 4.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
-/// ```
-pub fn service_is_serving(socket: &Path) -> bool {
-    use std::io::BufRead;
-    let Ok(stream) = std::os::unix::net::UnixStream::connect(socket) else { return false };
-    // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
-    //  caller's loop, which has its own bound.
-    let _timeout = stream.set_read_timeout(Some(GREETING_READ));
-    let mut line: String = String::new();
-    // An empty read is a connection that ended without a greeting: the service went away as it was starting.
-    return std::io::BufReader::new(stream).read_line(&mut line).is_ok_and(|read| { return read > 0; });
-}
-
-/// How long one readiness check waits for the greeting.
-/// A service answers within milliseconds once its threads run,
-/// so a second
-///  is far past it;
-/// a longer start (a loaded host) is covered by the repeated checks of the caller,
-/// not by a longer read.
-const GREETING_READ: std::time::Duration = std::time::Duration::from_secs(1);
-
-/// How long a fixture waits for an ended service's socket to stop answering before it says the service is still there.
-pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
-
-/// What:
-///  Waits until nothing answers at `socket`:
-/// the file is absent,
-/// or it is a stale socket whose listener is gone.
-/// Why:
-///   Ending a service that runs under a tracer reaps the tracer,
-/// and the traced service dies a moment later,
-/// so its socket can
-///  still answer after the fixture counts the service as ended.
-/// A new service cannot take such a socket,
-/// and a readiness poll
-///  that connects to it reports a service that is not the new one.
-///
-/// # Panics
-/// When something still answers after `SOCKET_RELEASE_PATIENCE`,
-/// which is a service the fixture did not end.
-pub fn wait_until_nothing_listens(socket: &Path) {
-    let began: std::time::Instant = std::time::Instant::now();
-    loop {
-        match std::os::unix::net::UnixStream::connect(socket) {
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound) => return,
-            Ok(_) | Err(_) => {}
-        }
-        assert!(began.elapsed() < SOCKET_RELEASE_PATIENCE, "something still answers at {} although the fixture ended its service", socket.display());
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-}
 
 impl FixtureService {
     /// What:
@@ -389,8 +326,11 @@ impl FixtureService {
             }
         }
         let child: Child = spawn_for_the_process_lifetime(command).expect("the fixture's commit service starts");
+        let service_pid: u32 = child.id();
         children.insert(key.clone(), child);
+        let mut signs: SignsOfWork = SignsOfWork::of(service_pid);
         let began: std::time::Instant = std::time::Instant::now();
+        let mut last_change: std::time::Instant = std::time::Instant::now();
         while !service_is_serving(&socket) {
             // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
             //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
@@ -404,7 +344,19 @@ impl FixtureService {
                 children.remove(&key);
                 panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", socket.display());
             }
-            assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
+            // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds
+            //  its socket. The fixture ends the wait on the service's own silence, never on the clock, because six
+            //  concurrent cases once reached a stated minute while every service was still starting (report
+            //  kill-sweeps-reach-the-calls-they-name-1, 2026-11-09).
+            if signs.changed(service_pid) {
+                last_change = std::time::Instant::now();
+            }
+            assert!(
+                last_change.elapsed() < SERVICE_QUIET_WINDOW,
+                "the fixture's commit service at {} showed no sign of work for {:?} while it was starting",
+                socket.display(),
+                SERVICE_QUIET_WINDOW
+            );
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }

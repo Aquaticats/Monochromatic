@@ -216,6 +216,37 @@ A same-vendor subagent is a second pass:
  label it so,
  never as independent.
 
+XVW:
+ Reviews and audits,
+ `timeout` sized in seconds:
+ `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
+
+XVB:
+ Every `codex` run passes `--dangerously-bypass-approvals-and-sandbox`,
+ because its auto mode has too many issues,
+ and names `xhigh` explicitly.
+
+XVS:
+ Keep GPT runs small,
+ one narrow question each:
+ GPT models cannot be trusted on long-horizon work.
+
+PFW:
+ Alongside advisor,
+ never instead:
+ a `gpt-6.1-sol` review reads the paths its prompt names,
+ whole files and the diff,
+ never prose.
+Background it;
+ never poll or kill it;
+ it may never return.
+
+WGH:
+ A reviewer told to find issues returns issues whether or not any are worth fixing:
+ weigh each finding with your own judgement,
+ fix those that earn it,
+ and dismiss the rest.
+
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
 Component removal,
@@ -572,9 +603,11 @@ UPN:
  Never run bare `mpm upgrade --all`.
 
 TRB:
- External tool fails with a diagnostic:
- `rg` its message in `doc/troubleshooting/` before any workaround;
- follow a recorded verified workaround as written.
+ External tool diagnostic:
+ `rg` its message in `doc/troubleshooting/`;
+ apply an authorized repair unasked,
+ follow recorded workarounds as written,
+ then recheck the emitting tool.
 
 EDR:
  Parallel tool calls may run in any order,

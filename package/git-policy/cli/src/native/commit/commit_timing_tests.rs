@@ -18,10 +18,12 @@
 
 /// The record and its writer.
 use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+use crate::commit_prepare_part_durations::PreparePart;
+use crate::time_spent_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
 use crate::service_instance::instance_of;
-use crate::service_protocol::RELEASE;
+use crate::service_protocol::{LandingFigures, LandingSync, RELEASE};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -40,6 +42,43 @@ const GATE_MS: u64 = 37;
 const HANDOFF_MS: u64 = 41;
 /// Time the controls leave to no phase.
 const UNCOVERED_MS: u64 = 43;
+/// The figures a control landing states:
+/// how long it held the index,
+/// how many commits queued behind it,
+/// and the reads and syncs it names.
+const LANDING_HOLD_MS: u64 = 47;
+const LANDING_QUEUED_BEHIND: u64 = 3;
+const LANDING_READS_MS: u64 = 53;
+const LANDING_READ_BRANCH_MS: u64 = 2;
+const LANDING_READ_WITNESS_MS: u64 = 5;
+const LANDING_SYNC_INDEX_MS: u64 = 7;
+
+/// The stretches of the preparation the controls record,
+/// two of one name,
+/// so a sum and its count both show.
+const LAYOUT_MS: u64 = 7;
+const CAPTURE_MS: u64 = 11;
+/// How many stretches the controls say were dropped.
+const PREPARE_PARTS_DROPPED: usize = 3;
+
+/// Time the controls give the two costs outside the phases.
+const SCRATCH_REMOVAL_MS: u64 = 47;
+const REMOVALS_THAT_DID_NOT_FINISH: u64 = 2;
+const STANDARD_ERROR_MS: u64 = 53;
+
+/// The figures of the landing the controls state.
+fn landing_figures() -> LandingFigures {
+    return LandingFigures {
+        lock_hold_ms: LANDING_HOLD_MS,
+        queued_behind: LANDING_QUEUED_BEHIND,
+        reads_ms: LANDING_READS_MS,
+        reads: vec![(String::from("branch"), LANDING_READ_BRANCH_MS), (String::from("witness"), LANDING_READ_WITNESS_MS)],
+        syncs: vec![
+            LandingSync { what: String::from("built-index"), waited: true, ms: LANDING_SYNC_INDEX_MS },
+            LandingSync { what: String::from("intent-file"), waited: false, ms: 0 },
+        ],
+    };
+}
 
 /// A timing with every phase set,
 /// and the sum of those the record counts as disjoint.
@@ -54,6 +93,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.build = Duration::from_millis(BUILD_MS);
     timing.provision = Duration::from_millis(PROVISION_MS);
     timing.submit = SubmitTrace {
+        landing: Some(landing_figures()),
         total: Duration::from_millis(SUBMIT_MS),
         reach: ReachTrace {
             tries: 5,
@@ -74,6 +114,17 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.after_landing = Duration::from_millis(AFTER_LANDING_MS);
     timing.gate = Duration::from_millis(GATE_MS);
     timing.handoff = Duration::from_millis(HANDOFF_MS);
+    timing.prepare_parts = vec![
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+        PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS) },
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+    ];
+    timing.prepare_parts_dropped = PREPARE_PARTS_DROPPED;
+    timing.outside = OutsideThePhases {
+        scratch_removal: Duration::from_millis(SCRATCH_REMOVAL_MS),
+        removals_that_did_not_finish: REMOVALS_THAT_DID_NOT_FINISH,
+        standard_error: Duration::from_millis(STANDARD_ERROR_MS),
+    };
     let covered: Duration = timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff;
     return (timing, covered);
 }
@@ -135,6 +186,14 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     let total: Duration = covered + Duration::from_millis(UNCOVERED_MS);
     let value: serde_json::Value = parsed(timing.line(total, 0).as_str());
     assert_eq!(value["otherMs"], UNCOVERED_MS);
+    assert_eq!(value["scratchRemovalMs"], SCRATCH_REMOVAL_MS);
+    assert_eq!(value["removalsThatDidNotFinish"], REMOVALS_THAT_DID_NOT_FINISH);
+    assert_eq!(value["stderrMs"], STANDARD_ERROR_MS);
+    assert_eq!(value["prepareParts"]["layout"]["ms"], LAYOUT_MS * 2);
+    assert_eq!(value["prepareParts"]["layout"]["calls"], 2);
+    assert_eq!(value["prepareParts"]["capture"]["ms"], CAPTURE_MS);
+    assert_eq!(value["prepareParts"]["capture"]["calls"], 1);
+    assert_eq!(value["preparePartsDropped"], PREPARE_PARTS_DROPPED);
     let phases: u64 = ["prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
         .iter()
         .map(|name| { return value[*name].as_u64().expect("a number"); })
@@ -281,7 +340,7 @@ fn the_holder_kind_follows_what_the_notice_says() {
         "unproven"
     );
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made").as_str()),
+        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made", crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT).as_str()),
         "unproven",
         "the diagnostic that ends a wait is not a holder proven alive"
     );
@@ -387,4 +446,78 @@ fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
     assert_eq!(holder_kind_after(Some("unproven"), proven.as_str()), "proven-alive");
     assert_eq!(holder_kind_after(Some("unproven"), unproven.as_str()), "unproven");
     assert_eq!(holder_kind_after(None, unproven.as_str()), "unproven");
+}
+
+/// The record states what the preparation's own work did,
+/// by name,
+/// with how often it ran,
+/// the whole of its time and its longest run,
+/// so the next slow preparation names the step that spent the milliseconds instead of the phase alone.
+#[test]
+fn the_record_states_the_preparations_own_work_by_name() {
+    use crate::prepare_work_spans::note_span;
+    let root: PathBuf = fixture("timing-prepare-spans");
+    let (timing, _covered) = filled(root.as_path());
+    note_span("index copy", Duration::from_millis(12));
+    note_span("index copy", Duration::from_millis(30));
+    note_span("policy security/forbidden-strings at pre-forward", Duration::from_millis(7));
+    timing.finish(0);
+    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let value: serde_json::Value = parsed(text.as_str());
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"[{"name":"index copy","calls":2,"totalMs":42,"longestMs":30},{"name":"policy security/forbidden-strings at pre-forward","calls":1,"totalMs":7,"longestMs":7}]"#,
+    )
+    .expect("the split of two names");
+    assert_eq!(value["prepareSpans"], expected, "every named step of the preparation is stated with its count and its time: {value}");
+    // A commit that recorded nothing states an empty list, so a reader never tells a missing field from a commit that ran nothing.
+    let (quiet, _) = filled(root.as_path());
+    quiet.finish(0);
+    let lines: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let last: serde_json::Value = parsed(lines.lines().last().map(|line| { return format!("{line}\n"); }).expect("a line").as_str());
+    assert_eq!(last["prepareSpans"], serde_json::Value::from(Vec::<u64>::new()));
+    remove(root.as_path());
+}
+
+/// What:
+///  The record states what the landing of this commit spent and held:
+/// the reads it names,
+/// the time it held what others queued on,
+/// how many commits queued behind it,
+/// and each of its syncs with its time.
+/// Why:
+///   The landing runs in the resident service,
+/// so the record of the commit said nothing about it,
+/// and a landing that held the index for a second
+///  under a queue of others could only be found in a second file.
+#[test]
+fn the_record_states_what_the_landing_spent_and_held() {
+    let root: PathBuf = fixture("commit-timing-landing");
+    let (timing, total) = filled(root.as_path());
+    let record: serde_json::Value = parsed(timing.line(total, 0).as_str());
+    let landing: &serde_json::Value = &record["landing"];
+    assert_eq!(landing["lockHoldMs"], LANDING_HOLD_MS, "{record}");
+    assert_eq!(landing["queuedBehind"], LANDING_QUEUED_BEHIND, "{record}");
+    assert_eq!(landing["readsMs"], LANDING_READS_MS, "{record}");
+    assert_eq!(landing["reads"]["branch"], LANDING_READ_BRANCH_MS, "{record}");
+    assert_eq!(landing["reads"]["witness"], LANDING_READ_WITNESS_MS, "{record}");
+    let syncs: &Vec<serde_json::Value> = landing["syncs"].as_array().expect("the syncs");
+    assert_eq!(syncs.len(), 2, "{record}");
+    assert_eq!(syncs[0]["what"], "built-index");
+    assert_eq!(syncs[0]["waited"], true);
+    assert_eq!(syncs[0]["ms"], LANDING_SYNC_INDEX_MS);
+    assert_eq!(syncs[1]["what"], "intent-file");
+    assert_eq!(syncs[1]["waited"], false);
+    remove(root.as_path());
+}
+
+/// A commit whose service sent no figures says so in the record,
+/// so a reader never takes a zero for a figure nobody measured.
+#[test]
+fn a_record_of_a_service_without_figures_states_none() {
+    let root: PathBuf = fixture("commit-timing-no-landing");
+    let (mut timing, total) = filled(root.as_path());
+    timing.submit.landing = None;
+    let record: serde_json::Value = parsed(timing.line(total, 0).as_str());
+    assert!(record["landing"].is_null(), "{record}");
+    remove(root.as_path());
 }

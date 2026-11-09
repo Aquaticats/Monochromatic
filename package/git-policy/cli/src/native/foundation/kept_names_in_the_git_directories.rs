@@ -237,6 +237,57 @@ pub fn data_folder_for_reading(directory: &Path) -> PathBuf {
 /// ```ts
 /// function relativePathForReading(directory: string, relative: string): string;
 /// ```
+/// What:
+///  Every relative path below a Git directory a reader must visit for `relative`,
+/// one for each data folder that exists,
+///  the current name first.
+///  `Vec<String>` is owned relative paths.
+/// Why:
+///   A repository can hold both data-folder names at once,
+/// and the earlier one can hold saved copies while the current one
+///  holds none;
+/// a reader that moves nothing must look at both,
+/// and one that looked only at the name it found first hid
+///  the other folder's data from the person who asked.
+///  When neither folder exists the current spelling is answered once,
+/// because a folder that is absent is not a
+///  failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function relativePathsForReading(directory: string, relative: string): string[];
+/// ```
+pub fn relative_paths_for_reading(directory: &Path, relative: &str) -> Vec<String> {
+    let prefix: String = format!("{}/", DATA_FOLDER.current);
+    let Some(rest) = relative.strip_prefix(prefix.as_str()) else {
+        return vec![relative.to_string()];
+    };
+    let mut paths: Vec<String> = Vec::new();
+    for name in [DATA_FOLDER.current, DATA_FOLDER.earlier] {
+        if directory.join(name).exists() {
+            paths.push(format!("{name}/{rest}"));
+        }
+    }
+    if paths.is_empty() {
+        paths.push(format!("{prefix}{rest}"));
+    }
+    return paths;
+}
+
+/// What:
+///  The relative path below a Git directory a reader must use for `relative`,
+/// under the current data
+///  folder,
+/// or under the earlier one when only that exists.
+/// Why:
+///   A reader that visits one folder and never both is answered here;
+/// a reader that must not miss a folder uses
+///  `relative_paths_for_reading`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function relativePathForReading(directory: string, relative: string): string;
+/// ```
 pub fn relative_path_for_reading(directory: &Path, relative: &str) -> String {
     let prefix: String = format!("{}/", DATA_FOLDER.current);
     let Some(rest) = relative.strip_prefix(prefix.as_str()) else {
