@@ -103,6 +103,10 @@ pub mod owed_index_update;
 /// The repair that repeats a landed batch's owed index update for the entries the landing left.
 pub mod owed_index_repair;
 
+/// How the repair reads one entry of a tree or an index,
+/// and the listings it compares.
+pub mod owed_index_entries;
+
 pub mod service_land_start;
 
 /// The commit service's hold on Git's index lock across a landing.

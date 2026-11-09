@@ -339,10 +339,9 @@ fn land_batch_body(
         };
         // The index update is owed from this instant, and its own record is written before the branch moves: a kill between the
         //  move and the index install leaves it where the person's next command reads it (`owed_index_update.rs`).
-        crate::owed_index_update::write(&crate::owed_index_update::of_intent(&intent));
-        // The push of every commit this batch would land is held before the branch moves, so a kill after the move leaves the
-        //  obligation where another command's promotion and the service's start can finish it (`work_item_holding.rs`).
-        crate::service_server_land_group::hold_the_pushes_of(&intent);
+        // Everything the batch owes is taken here, before the branch moves, so a kill after the move leaves the record of the index
+        //  update and the held push of every commit it would land (`work_item_holding.rs`).
+        crate::service_server_land_group::what_a_batch_owes(&intent);
         // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
         //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
         crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq);
@@ -366,9 +365,7 @@ fn land_batch_body(
         let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
-            crate::owed_index_update::remove(first.git_dir.as_path(), seq);
-            // Nothing of this batch lands, so its pushes are not owed.
-            crate::service_server_land_group::forget_the_pushes_of(&intent);
+            crate::service_server_land_group::forget_what_a_batch_owes(&intent);
             let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             return match still {
                 Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
@@ -412,8 +409,7 @@ fn land_batch_body(
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent, what the batch owes and the scratch branch, and build it again.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
-            crate::owed_index_update::remove(first.git_dir.as_path(), seq);
-            crate::service_server_land_group::forget_the_pushes_of(&intent);
+            crate::service_server_land_group::forget_what_a_batch_owes(&intent);
             remove_start(context.journal.as_path(), seq);
             let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.

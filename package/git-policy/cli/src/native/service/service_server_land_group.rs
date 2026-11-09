@@ -166,6 +166,38 @@ impl Announcer for AnnounceToStreams<'_> {
 /// ```ts
 /// await holdThePush(request, commit);
 /// ```
+/// What:
+///  Takes everything a batch owes before its branch moves:
+/// the record of the index update it will owe,
+/// and the held push of every commit it would land.
+/// Why:
+///   One call for the landing,
+/// so a kill after the branch move leaves both obligations and neither is forgotten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// whatABatchOwes(intent) // owed-index record, held pushes
+/// ```
+pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent) {
+    crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
+    hold_the_pushes_of(intent);
+}
+
+/// What:
+///  Gives back everything a batch that does not land owes.
+/// Why:
+///   One call for every path that removes the intent,
+/// so a record or a held push of a batch that never landed survives nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetWhatABatchOwes(intent)
+/// ```
+pub(crate) fn forget_what_a_batch_owes(intent: &crate::service_journal::Intent) {
+    crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
+    forget_the_pushes_of(intent);
+}
+
 pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
     for commit in &intent.commits {
         hold_one(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());

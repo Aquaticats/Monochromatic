@@ -9,46 +9,39 @@
 //! and a
 //!  commit of that index would record the landed commit's own paths as their old content,
 //! or as a staged deletion.
-//!   The question is not who owns an entry but what the commit is about to record:
-//! the record names a path with the entry the
-//!  landing replaced (`old`) and the entry it landed (`new`),
-//! and a path is left out exactly while the commit's own index still
-//!  holds `old` there.
+//! The question is not who owns an entry but what the commit is about to record:
+//! the record names a path
+//!  with the entry the landing replaced and the entry it landed,
+//! and a path is left out exactly while the commit's own
+//!  index still holds the entry the landing replaced.
 //! That asks about content,
 //! so an amend,
 //! a `reset --hard`,
-//! an attach from a detached head and an
-//!  alternate index need no rule of their own.
-//! The price is that a person's deliberate restoration of that same content is left out
-//!  too,
+//! an attach from a
+//!  detached head and an alternate index need no rule of their own.
+//! The price is that a person's deliberate restoration of that same
+//!  content is left out too,
 //! with the notice that names the path and both ways on,
 //! and their staging stays in the live index.
-//! A path whose
-//!  live entry moved after the commit copied the index is left out as well:
-//! that snapshot is older than the index,
-//! so what the
-//!  commit would record there is not the person's current intent.
-//! Nothing here writes the live index or removes a record:
-//! a record that no
-//!  longer matches anything costs a comparison,
-//! and the service settles it when it installs the index.
+//! A path whose live entry moved after the commit copied the index is left out as well:
+//! that snapshot is older
+//!  than the index,
+//! so what the commit would record there is not the person's current intent.
+//! Nothing here writes the live index or removes a record.
+//! What it reads is `owed_index_entries.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const left = await excludeWhatALandedCommitLeft(git, gitDir, liveIndex, commitIndex);
 //! ```
 
+use crate::owed_index_entries::{Entry, head_entries, index_entries, is_unmerged, moved_since_listing, names_in, specs_of, tree_entries};
 use crate::owed_index_update::{Owed, records_of};
-use crate::service_protocol::{FailureCode, is_zero_object};
+use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStringExt as _;
 use std::path::{Path, PathBuf};
-
-/// One entry of a tree or an index:
-/// its mode and its object.
-type Entry = (String, String);
 
 /// The paths one record's update covers,
 /// derived from the two branch values when the batch names none.
@@ -65,156 +58,131 @@ fn names_of(git: &GitContext, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> 
 }
 
 /// What:
-///  The names of a NUL-separated listing,
-/// each as the bytes Git wrote.
+///  The paths in which a commit's own index differs from the live index.
 /// Why:
-///  A `-z` listing of paths needs no quoting and no character set,
-/// so the bytes are kept as they are.
+///   A writer replaces the index file whole,
+/// so a live index that is another file than the one the commit copied may
+///  hold entries the commit's copy does not:
+/// the paths that differ are where the copy is older.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// namesIn(bytes) // split on NUL, drop the empty tail
+/// movedSince(liveIndex, commitIndex) // `git write-tree` then `diff-index --cached <tree>` on the copy
 /// ```
-fn names_in(listing: &[u8]) -> Vec<Vec<u8>> {
-    let mut names: Vec<Vec<u8>> = Vec::new();
-    for name in listing.split(is_zero_byte) {
-        if !name.is_empty() {
-            names.push(name.to_vec());
-        }
-    }
-    return names;
-}
-
-/// Whether a byte is the NUL that ends one record of a `-z` listing.
-fn is_zero_byte(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// Whether a byte is the tab that separates an entry's words from its path.
-fn is_tab_byte(byte: &u8) -> bool {
-    return *byte == b'\t';
-}
-
-/// Whether a byte is the space between one entry's words.
-fn is_space_byte(byte: &u8) -> bool {
-    return *byte == b' ';
-}
-
-/// Whether an index entry's stage column names a conflict.
-fn is_conflict_stage(stage: &&[u8]) -> bool {
-    return *stage != b"0";
+fn moved_since(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
+    let mut tree: GitRequest = GitRequest::new(repository, &["write-tree"]);
+    tree.index = Some(live_index.to_path_buf());
+    let written = match run_git(git, &tree) {
+        Ok(answer) if answer.succeeded() => answer,
+        _ => return Err(FailureCode::Unavailable),
+    };
+    let held: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
+    let mut moved: GitRequest = GitRequest::new(repository, &["diff-index", "--cached", "--name-only", "-z", held.as_str()]);
+    moved.index = Some(commit_index.to_path_buf());
+    let listing = match run_git(git, &moved) {
+        Ok(output) if output.succeeded() => output,
+        _ => return Err(FailureCode::Unavailable),
+    };
+    return Ok(names_in(listing.stdout.as_slice()));
 }
 
 /// What:
-///  One line of a NUL-delimited index or tree listing,
-/// read by its fields from the front:
-/// three words,
-/// a tab,
-/// and the path.
+///  Sets an index to the worktree's head at `paths`,
+/// removing whatever it held there and below them first,
+/// and leaves the file exactly as it was when any step fails.
 /// Why:
-///   A path may hold a tab,
-/// so the tab that ends an entry's words is the first one,
-/// never the last:
-///   `100644 <object> 0<TAB>z<TAB>b` is the entry `z<TAB>b` at stage zero,
-/// and reading it from the back would
-///  take the file `b` for a conflict of a file named `0<TAB>z`.
+///   A path the landing added can stand beside entries a program staged below it
+/// (`p` and `p/child`),
+/// and the head holds one of
+///  the two:
+/// an index that holds both cannot be written to a tree,
+/// so the commit's own index takes the head's shape for
+///  the path.
+/// The removal is forced,
+/// because the entry may hold neither the head's content nor the worktree's,
+/// which is
+///  exactly what a failed index update leaves.
+/// The two steps are not atomic,
+/// so the file is copied first and put back when either
+///  fails:
+/// a removal that outlived a refused reset would make the commit record a deletion the person never made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [mode, second, third, path] = frontFields(record); // three words, a tab, then the path
+/// await setToHead(owed, index, paths) // copy aside; rm --cached -r --force; reset HEAD; restore on failure
 /// ```
-fn front_fields(record: &[u8]) -> Option<([&[u8]; 3], &[u8])> {
-    let first: usize = record.iter().position(is_space_byte)?;
-    let second: usize = record[first + 1..].iter().position(is_space_byte)? + first + 1;
-    let third: usize = record[second + 1..].iter().position(is_tab_byte)? + second + 1;
-    return Some(([&record[..first], &record[first + 1..second], &record[second + 1..third]], &record[third + 1..]));
+fn set_to_head(git: &GitContext, owed: &Owed, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
+    return set_to_head_with(git, owed.repository.as_path(), index, paths, index);
 }
 
-/// The paths as literal pathspecs from the top of the worktree.
-fn specs_of(names: &[Vec<u8>]) -> Vec<OsString> {
-    let mut specs: Vec<OsString> = Vec::with_capacity(names.len());
-    for name in names {
-        let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-        spec.extend_from_slice(name.as_slice());
-        specs.push(OsString::from_vec(spec));
+/// `set_to_head` with the repository given,
+/// for a caller whose index is not the record's own.
+fn set_to_head_with(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>], _named: &Path) -> Result<(), FailureCode> {
+    if paths.is_empty() {
+        return Ok(());
     }
-    return specs;
+    let kept: PathBuf = index.with_extension("before-head");
+    if let Err(error) = std::fs::copy(index, kept.as_path()) {
+        crate::diagnostic_log::warn("servicePrepare", format!("the commit's own index cannot be copied aside before it is set to the head ({error})").as_str());
+        return Err(FailureCode::Unavailable);
+    }
+    let restored: Result<(), FailureCode> = set_to_head_unchecked(git, repository, index, paths);
+    if restored.is_err() && let Err(error) = std::fs::copy(kept.as_path(), index) {
+        crate::diagnostic_log::warn("servicePrepare", format!("the commit's own index could not be put back after a refused step ({error})").as_str());
+    }
+    let _gone: std::io::Result<()> = std::fs::remove_file(kept.as_path());
+    return restored;
 }
 
-/// One Git question with `names` as literal pathspecs,
-/// answered or not.
-fn with_specs(git: &GitContext, repository: &Path, index: Option<&Path>, words: &[&str], names: &[Vec<u8>]) -> Result<crate::transaction_git::GitOutput, FailureCode> {
-    let specs: Vec<OsString> = specs_of(names);
-    let mut arguments: Vec<&OsStr> = words.iter().map(OsStr::new).collect();
-    arguments.push(OsStr::new("--"));
-    arguments.extend(specs.iter().map(OsString::as_os_str));
-    let mut request: GitRequest = GitRequest::new(repository, arguments.as_slice());
-    request.index = index.map(Path::to_path_buf);
-    return match run_git(git, &request) {
-        Ok(output) if output.succeeded() => Ok(output),
+/// The two steps of `set_to_head`,
+/// each of which may refuse.
+fn set_to_head_unchecked(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
+    let specs: Vec<OsString> = specs_of(paths);
+    let mut prune_words: Vec<&OsStr> = vec![
+        OsStr::new("rm"),
+        OsStr::new("--cached"),
+        OsStr::new("-r"),
+        OsStr::new("--force"),
+        OsStr::new("--ignore-unmatch"),
+        OsStr::new("--quiet"),
+        OsStr::new("--"),
+    ];
+    prune_words.extend(specs.iter().map(OsString::as_os_str));
+    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice());
+    prune.index = Some(index.to_path_buf());
+    match run_git(git, &prune) {
+        Ok(output) if output.succeeded() => {}
+        _ => return Err(FailureCode::Unavailable),
+    }
+    if crate::service_land_follow::reset_entries(git, repository, Some(index), "HEAD", paths).is_ok() {
+        return Ok(());
+    }
+    // A `reset` this wrapper refuses is not the only way to the head: the entries are written where the head's tree has them.
+    let head: BTreeMap<Vec<u8>, Entry> = head_entries(git, repository, paths)?;
+    let mut listing: Vec<u8> = Vec::new();
+    for path in paths {
+        let (mode, object) = match head.get(path) {
+            Some((mode, object)) => (mode.clone(), object.clone()),
+            // The head holds nothing there, so the entry goes.
+            None => (String::from("0"), String::from("0".repeat(40))),
+        };
+        listing.extend_from_slice(format!("{mode} {object} 0\t").as_bytes());
+        listing.extend_from_slice(path.as_slice());
+        listing.push(0);
+    }
+    let mut write: GitRequest = GitRequest::new(repository, &["update-index", "-z", "--index-info"]);
+    write.index = Some(index.to_path_buf());
+    write.input = Some(listing);
+    return match run_git(git, &write) {
+        Ok(answer) if answer.succeeded() => Ok(()),
         _ => Err(FailureCode::Unavailable),
     };
 }
 
-/// What:
-///  The entries a tree holds at `names`.
-/// Why:
-///   The entry the landing replaced is read from the tree before it,
-/// and an unborn branch has none at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// treeEntries(old, names) // `ls-tree -z --full-tree <old> -- :(top,literal)<name>...`
-/// ```
-fn tree_entries(git: &GitContext, owed: &Owed, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    if names.is_empty() || is_zero_object(owed.old.as_str()) {
-        return Ok(BTreeMap::new());
-    }
-    let output = with_specs(git, owed.repository.as_path(), None, &["ls-tree", "-z", "--full-tree", owed.old.as_str()], names)?;
-    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in output.stdout.split(is_zero_byte) {
-        // A tree line is `<mode> <type> <object> TAB <path>`.
-        let Some(([mode, _kind, object], path)) = front_fields(record) else { continue };
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
-    }
-    return Ok(found);
-}
-
-/// What:
-///  The entries one index file holds at `names`,
-/// leaving out every path with unmerged stages,
-/// which is a merge's own and never a landing's leftover.
-/// Why:
-///   What the commit is about to record for a path is this entry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// indexEntries(index, names) // `ls-files -s -z -- :(top,literal)<name>...`
-/// ```
-fn index_entries(git: &GitContext, owed: &Owed, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    if names.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let output = with_specs(git, owed.repository.as_path(), Some(index), &["ls-files", "-s", "-z"], names)?;
-    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in output.stdout.split(is_zero_byte) {
-        // An index line is `<mode> <object> <stage> TAB <path>`; a stage other than zero is a conflict.
-        let Some(([mode, object, stage], path)) = front_fields(record) else { continue };
-        if is_conflict_stage(&stage) {
-            let _dropped = found.remove(path);
-            found.insert(path.to_vec(), (String::from("unmerged"), String::new()));
-            continue;
-        }
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
-    }
-    return Ok(found);
-}
-
-/// Whether an index entry is a conflict's,
-/// which is left alone.
-fn is_unmerged(entry: Option<&Entry>) -> bool {
-    let Some((mode, _)) = entry else { return false };
-    return mode == "unmerged";
+/// `set_to_head` for paths whose old entry is no record's,
+/// with the worktree's head as the entry to take.
+fn set_to_head_paths(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
+    return set_to_head_with(git, repository, index, paths, index);
 }
 
 /// What:
@@ -357,215 +325,6 @@ pub fn exclude_what_a_landed_commit_left(
         }
     }
     return left;
-}
-
-/// What:
-///  The paths in which a commit's own index differs from the live index.
-/// Why:
-///   A writer replaces the index file whole,
-/// so a live index that is another file than the one the commit copied may
-///  hold entries the commit's copy does not:
-/// the paths that differ are where the copy is older.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// movedSince(liveIndex, commitIndex) // `git write-tree` then `diff-index --cached <tree>` on the copy
-/// ```
-fn moved_since(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let mut tree: GitRequest = GitRequest::new(repository, &["write-tree"]);
-    tree.index = Some(live_index.to_path_buf());
-    let written = match run_git(git, &tree) {
-        Ok(answer) if answer.succeeded() => answer,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    let held: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
-    let mut moved: GitRequest = GitRequest::new(repository, &["diff-index", "--cached", "--name-only", "-z", held.as_str()]);
-    moved.index = Some(commit_index.to_path_buf());
-    let listing = match run_git(git, &moved) {
-        Ok(output) if output.succeeded() => output,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    return Ok(names_in(listing.stdout.as_slice()));
-}
-
-/// What:
-///  `moved_since` by whole listings,
-/// for an index a tree cannot be written from (a path in conflict).
-/// Why:
-///   A listing of both indexes needs no tree,
-/// so the check that protects a stale snapshot is never lost to an
-///  unmerged entry somewhere else in the index.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// movedSinceByListing(liveIndex, commitIndex) // every path whose entry differs, from `ls-files -s -z`
-/// ```
-fn moved_since_listing(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let live: BTreeMap<Vec<u8>, Entry> = whole_listing(git, repository, live_index)?;
-    let held: BTreeMap<Vec<u8>, Entry> = whole_listing(git, repository, commit_index)?;
-    let mut moved: Vec<Vec<u8>> = Vec::new();
-    for (path, entry) in &live {
-        if held.get(path) != Some(entry) {
-            moved.push(path.clone());
-        }
-    }
-    for path in held.keys() {
-        if !live.contains_key(path) {
-            moved.push(path.clone());
-        }
-    }
-    return Ok(names_in(&moved.join(&0)));
-}
-
-/// What:
-///  Every entry of one index,
-/// as a map from the path to its mode and object.
-/// Why:
-///   The whole listing is what `moved_since` falls back to when a tree cannot be written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// wholeListing(index) // `ls-files -s -z`
-/// ```
-fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, &["ls-files", "-s", "-z"]);
-    request.index = Some(index.to_path_buf());
-    let output = match run_git(git, &request) {
-        Ok(answer) if answer.succeeded() => answer,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in output.stdout.split(is_zero_byte) {
-        let Some(([mode, object, stage], path)) = front_fields(record) else { continue };
-        if is_conflict_stage(&stage) {
-            let _dropped = found.remove(path);
-            found.insert(path.to_vec(), (String::from("unmerged"), String::new()));
-            continue;
-        }
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
-    }
-    return Ok(found);
-}
-
-/// `set_to_head` for paths whose old entry is no record's,
-/// with the worktree's head as the entry to take.
-fn set_to_head_paths(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
-    return set_to_head_with(git, repository, index, paths, index);
-}
-
-/// What:
-///  Sets an index to the worktree's head at `paths`,
-/// removing whatever it held there and below them first,
-/// and leaves the file exactly as it was when any step fails.
-/// Why:
-///   A path the landing added can stand beside entries a program staged below it
-/// (`p` and `p/child`),
-/// and the head holds one of
-///  the two:
-/// an index that holds both cannot be written to a tree,
-/// so the commit's own index takes the head's shape for
-///  the path.
-/// The removal is forced,
-/// because the entry may hold neither the head's content nor the worktree's,
-/// which is
-///  exactly what a failed index update leaves.
-/// The two steps are not atomic,
-/// so the file is copied first and put back when either
-///  fails:
-/// a removal that outlived a refused reset would make the commit record a deletion the person never made.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await setToHead(owed, index, paths) // copy aside; rm --cached -r --force; reset HEAD; restore on failure
-/// ```
-fn set_to_head(git: &GitContext, owed: &Owed, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
-    return set_to_head_with(git, owed.repository.as_path(), index, paths, index);
-}
-
-/// `set_to_head` with the repository given,
-/// for a caller whose index is not the record's own.
-fn set_to_head_with(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>], _named: &Path) -> Result<(), FailureCode> {
-    if paths.is_empty() {
-        return Ok(());
-    }
-    let kept: PathBuf = index.with_extension("before-head");
-    if let Err(error) = std::fs::copy(index, kept.as_path()) {
-        crate::diagnostic_log::warn("servicePrepare", format!("the commit's own index cannot be copied aside before it is set to the head ({error})").as_str());
-        return Err(FailureCode::Unavailable);
-    }
-    let restored: Result<(), FailureCode> = set_to_head_unchecked(git, repository, index, paths);
-    if restored.is_err() && let Err(error) = std::fs::copy(kept.as_path(), index) {
-        crate::diagnostic_log::warn("servicePrepare", format!("the commit's own index could not be put back after a refused step ({error})").as_str());
-    }
-    let _gone: std::io::Result<()> = std::fs::remove_file(kept.as_path());
-    return restored;
-}
-
-/// The two steps of `set_to_head`,
-/// each of which may refuse.
-fn set_to_head_unchecked(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
-    let specs: Vec<OsString> = specs_of(paths);
-    let mut prune_words: Vec<&OsStr> = vec![
-        OsStr::new("rm"),
-        OsStr::new("--cached"),
-        OsStr::new("-r"),
-        OsStr::new("--force"),
-        OsStr::new("--ignore-unmatch"),
-        OsStr::new("--quiet"),
-        OsStr::new("--"),
-    ];
-    prune_words.extend(specs.iter().map(OsString::as_os_str));
-    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice());
-    prune.index = Some(index.to_path_buf());
-    match run_git(git, &prune) {
-        Ok(output) if output.succeeded() => {}
-        _ => return Err(FailureCode::Unavailable),
-    }
-    if crate::service_land_follow::reset_entries(git, repository, Some(index), "HEAD", paths).is_ok() {
-        return Ok(());
-    }
-    // A `reset` this wrapper refuses is not the only way to the head: the entries are written where the head's tree has them.
-    let head: BTreeMap<Vec<u8>, Entry> = match head_entries(git, repository, paths) {
-        Ok(entries) => entries,
-        Err(code) => return Err(code),
-    };
-    let mut listing: Vec<u8> = Vec::new();
-    for path in paths {
-        let (mode, object) = match head.get(path) {
-            Some((mode, object)) => (mode.clone(), object.clone()),
-            // The head holds nothing there, so the entry goes.
-            None => (String::from("0"), String::from("0".repeat(40))),
-        };
-        listing.extend_from_slice(format!("{mode} {object} 0\t").as_bytes());
-        listing.extend_from_slice(path.as_slice());
-        listing.push(0);
-    }
-    let mut write: GitRequest = GitRequest::new(repository, &["update-index", "-z", "--index-info"]);
-    write.index = Some(index.to_path_buf());
-    write.input = Some(listing);
-    return match run_git(git, &write) {
-        Ok(answer) if answer.succeeded() => Ok(()),
-        _ => Err(FailureCode::Unavailable),
-    };
-}
-
-/// What:
-///  The entries the worktree's head holds at `paths`.
-/// Why:
-///   A refused `reset` leaves the entries to be written by index-info from the head's tree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// headEntries(paths) // `ls-tree -z --full-tree HEAD -- :(top,literal)<path>...`
-/// ```
-fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", "HEAD"], paths)?;
-    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in output.stdout.split(is_zero_byte) {
-        let Some(([mode, _kind, object], path)) = front_fields(record) else { continue };
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
-    }
-    return Ok(found);
 }
 
 /// What:

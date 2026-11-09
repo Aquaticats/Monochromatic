@@ -354,6 +354,16 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
     };
 }
 
+pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &crate::service_journal::Intent, journal: &Path) -> bool {
+    let Some(cleanup) = intent.cleanup.as_ref() else { return true };
+    // The client's own scratch directory is the service's to remove when that client is gone, so the copy the landing kept in
+    //  the journal is what the comparison reads once it is: a cleanup that failed once would otherwise remove nothing and answer
+    //  success, and the next commit would conclude the same merge again.
+    let kept: std::path::PathBuf = crate::conclusion_state_copy::path_of(journal, intent.seq);
+    let surviving: Option<&Path> = kept.exists().then_some(kept.as_path());
+    return remove_conclusion_state(git, repository, cleanup, surviving);
+}
+
 /// What:
 ///  Removes the conclusion state real Git removed in the scratch repository,
 /// from the worktree's Git directory.
