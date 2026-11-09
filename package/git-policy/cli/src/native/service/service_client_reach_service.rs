@@ -168,16 +168,16 @@ pub(crate) fn reach(
                     //       fails the command in a bounded time (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
                     //       finding 2 of the round-4 review).
                     if reloads == 0
-                        && let (Some(watch), Some(directory)) = (&config.start_watch, config.units_record_dir.as_ref())
-                        && (watch.reload)(watch.bus.as_path())
+                        && let (Some(asking), Some(directory)) = (&config.start_watch, config.units_record_dir.as_ref())
+                        && (asking.reload)(asking.bus.as_path())
                     {
                         reloads += 1;
                         // The record certified the files against a manager that holds another unit, so it is dropped: the
                         // next command provisions and reloads instead of trusting the fast path.
                         crate::service_provision_loaded_unit_texts::forget(directory.as_path());
-                        let _forgotten = (watch.reset)(watch.bus.as_path(), watch.unit.as_str());
-                        let _socket_forgotten = (watch.reset)(watch.bus.as_path(), watch.socket_unit.as_str());
-                        let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
+                        let _forgotten = (asking.reset)(asking.bus.as_path(), asking.unit.as_str());
+                        let _socket_forgotten = (asking.reset)(asking.bus.as_path(), asking.socket_unit.as_str());
+                        let _taken = (asking.start)(asking.bus.as_path(), asking.unit.as_str());
                         started = Instant::now();
                         last_start_request = Some(Instant::now());
                         failed_answers = 0;
