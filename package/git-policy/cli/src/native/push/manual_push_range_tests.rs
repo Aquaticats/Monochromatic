@@ -10,6 +10,7 @@ use crate::candidate_prediction::{CandidateRequest, PushedScope, prepare_candida
 use crate::manual_push_probe::PushUpdate;
 use crate::test_support::{fixture, git, remove};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// Environment of every Git child of these fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
@@ -286,11 +287,12 @@ fn the_range_error_displays_its_message() {
 fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
     let root: PathBuf = fixture("manual-push-range-pipes");
     let program: PathBuf = root.join("stand-in-git");
-    let pid_file: PathBuf = root.join("stand-in-pid");
-    // The stand-in answers more than a pipe holds before it reads a request; it then reads the whole list and answers once.
+    // The stand-in answers more than a pipe holds before it reads a request; it then reads the whole list and answers once. The
+    //  read is bounded by a count larger than the list, so the stand-in ends by itself whatever happens: a control that killed it
+    //  by a number it read from a file would kill an unrelated process once the stand-in had been reaped and its number reused.
     std::fs::write(
         &program,
-        format!("#!/bin/sh\necho $$ > '{}'\nprintf '%300000s' ''\ncat > /dev/null\nprintf 'answered\\n'\n", pid_file.display()),
+        "#!/bin/sh\nprintf '%300000s' ''\nhead -c 200000 > /dev/null\nprintf 'answered\\n'\n",
     )
     .expect("the stand-in");
     let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
@@ -313,19 +315,91 @@ fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
             .expect("the control's thread")
     };
     let answer: Result<Result<Vec<u8>, ManualPushRangeError>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(20));
-    // The stand-in is ended whatever happened, so a query that deadlocked is released and the control's thread ends.
-    let stand_in: Result<String, std::io::Error> = std::fs::read_to_string(&pid_file);
-    if let Ok(text) = stand_in.as_ref()
-        && let Ok(number) = text.trim().parse::<libc::pid_t>()
-    {
-        // SAFETY: the number is the stand-in's own, which it wrote; `kill` takes two integers and touches no memory.
-        let _ended = unsafe { libc::kill(number, libc::SIGKILL) };
-    }
-    let _joined = querying.join();
     remove(root.as_path());
+    // The answer is asserted before the join: the thread sends it and then ends, so the join is bounded once it arrived, while a
+    //  query that never answered is reported here instead of hanging the run.
     let returned = answer.expect("the query returned; a full request pipe deadlocked it");
+    let _joined = querying.join();
     let bytes: Vec<u8> = returned.expect("the query answers");
     // The stand-in's answer is what it wrote before it read the list, and the line it wrote after it.
     assert_eq!(bytes.len(), 300_000 + "answered\n".len(), "the query read every byte the stand-in wrote");
     assert!(bytes.ends_with(b"answered\n"), "the query read the answer that came after the request list: {} bytes", bytes.len());
+}
+
+/// What:
+///  A query that answers is returned even though a program it started still holds the read end of its input.
+/// Why:
+///  The request list goes in from a thread of its own;
+/// a helper that inherited the query's input and never reads it keeps
+///  that thread in `write_all` for as long as it lives,
+/// so waiting for it after the answer arrived would outlast
+///  `RANGE_QUERY_CEILING` and hang the command on a query that had already answered.
+/// The helper ends by itself (`sleep`), so the control kills nothing.
+#[test]
+fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
+    let root: PathBuf = fixture("manual-push-range-held-input");
+    let program: PathBuf = root.join("stand-in-git");
+    // The helper inherits the query's input and reads none of it; the answer is written and the query exits at once.
+    std::fs::write(&program, "#!/bin/sh\nsleep 8 >/dev/null 2>&1 &\nprintf 'answered\\n'\n").expect("the stand-in");
+    let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(&program, mode).expect("the stand-in runs");
+    let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
+    let requests: String = "0123456789abcdef\n".repeat(8000);
+    let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
+    // The query runs on a thread of its own and is taken with a deadline, so a wait that never ends is reported here instead of
+    //  hanging the run.
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, ManualPushRangeError>>();
+    let querying = {
+        let for_the_query: PushGit = git.clone();
+        let list: String = requests;
+        std::thread::Builder::new()
+            .name(String::from("manual-push-held-input-control"))
+            .spawn(move || {
+                let _abandoned = sender.send(run_git_bytes(&for_the_query, arguments.as_slice(), Some(list.as_str())));
+            })
+            .expect("the control's thread")
+    };
+    let began: Instant = Instant::now();
+    let answer: Result<Result<Vec<u8>, ManualPushRangeError>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(15));
+    let waited: Duration = began.elapsed();
+    remove(root.as_path());
+    let returned = answer.expect("the query returned; a helper that never reads its input held it up");
+    let _joined = querying.join();
+    let bytes: Vec<u8> = returned.expect("the query answers");
+    assert_eq!(bytes, b"answered\n".to_vec(), "the answer is the query's own");
+    assert!(waited < Duration::from_secs(3), "the answer was held up for {waited:?} by a helper that never reads the input");
+}
+
+/// What:
+///  A thread that cannot be started starts no query,
+/// so no killed child is left unreaped.
+/// Why:
+///   Both threads of the query exist before Git does,
+/// and a refused start costs the query its start;
+///  a Git that was started and then killed by a caller that could not wait for it stays a zombie in a resident
+///  process,
+/// which is the resource shortage the path exists for.
+#[test]
+fn a_thread_that_cannot_be_started_starts_no_query() {
+    let root: PathBuf = fixture("manual-push-range-refused-thread");
+    let program: PathBuf = root.join("stand-in-git");
+    let ran: PathBuf = root.join("ran");
+    std::fs::write(&program, format!("#!/bin/sh\nprintf ran > '{}'\nprintf 'answered\\n'\n", ran.display())).expect("the stand-in");
+    let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(&program, mode).expect("the stand-in runs");
+    let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
+    let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
+    let failure: ManualPushRangeError = run_git_bytes_starting_with(&git, arguments.as_slice(), Some("a request"), &refusing_a_thread)
+        .expect_err("a thread that could not be started is the query's failure");
+    let started: bool = ran.exists();
+    remove(root.as_path());
+    assert!(!started, "git ran although nothing could wait for it, so a killed child would be left unreaped");
+    assert!(failure.message.contains("no thread could"), "{failure}");
+}
+
+/// A thread start that the process limit refuses.
+fn refusing_a_thread(_name: &str, _body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
+    return Err(std::io::Error::other("the process limit refused a thread"));
 }

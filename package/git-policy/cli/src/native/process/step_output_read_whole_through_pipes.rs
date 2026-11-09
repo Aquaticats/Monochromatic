@@ -132,13 +132,7 @@ pub const OUTPUT_DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
 /// `${waitingFor} ended, but a program it started still holds its output open (${holders}); ...`
 /// ```
 fn output_held_open_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
-    let named: String = match holders.first() {
-        Some(holder) => match holder.command.as_ref() {
-            Some(command) => format!("process {} ({command})", holder.pid),
-            None => format!("process {}", holder.pid),
-        },
-        None => String::from("a program it started, which no longer shows in the process table"),
-    };
+    let named: String = holder_named(holders);
     return format!(
         "{waiting_for} ended, but {named} still holds the step's output open, so the output this command read may be incomplete and \
          the wait for it ended after {} seconds of it. Check with `ps` what that program is and whether it is still needed, end it if \
@@ -147,17 +141,73 @@ fn output_held_open_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
     );
 }
 
-/// The error of a wait whose step ended but whose output a program the step started still held open.
+/// What:
+///  The sentence for a step that ended with its standard error cut short:
+/// its exit status and its standard output were read whole,
+///  and a program it started still holds its standard error open.
+/// Why:
+///  What the step printed to standard output is its answer,
+/// so the answer is returned and the person is told that the standard error
+///  read here stops where the program still holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} ended and its exit status and standard output were read whole, but ${named} still holds its standard error open ...`
+/// ```
+fn error_cut_short_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
+    let named: String = holder_named(holders);
+    return format!(
+        "{waiting_for} ended and its exit status and standard output were read whole, but {named} still holds its standard error open, so \
+         the standard error read here stops {} seconds after the step ended. Check with `ps` what that program is and whether it is \
+         still needed; the step's own end is what the repository state shows.",
+        OUTPUT_DRAIN_AFTER_EXIT.as_secs()
+    );
+}
+
+/// What:
+///  The program that still holds a stream of the step,
+/// named as the person knows it.
+/// Why:
+///  Both sentences about a held-open stream name the same program,
+/// and a number alone tells the person nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holders.length === 0 ? 'a program it started, which no longer shows in the process table' : `process ${holders[0].pid} (${holders[0].command})`;
+/// ```
+fn holder_named(holders: &[ProcessUser]) -> String {
+    return match holders.first() {
+        Some(holder) => match holder.command.as_ref() {
+            Some(command) => format!("process {} ({command})", holder.pid),
+            None => format!("process {}", holder.pid),
+        },
+        None => String::from("a program it started, which no longer shows in the process table"),
+    };
+}
+
+/// What:
+///  The error of a read whose stream a program the step started still held open,
+/// with the bytes read before the drain ended and the programs that held it.
+/// Why:
+///   The caller decides what the loss costs:
+/// a step whose standard output was cut short has no answer,
+///  while one whose standard error was cut short still has its exit status and its standard output,
+/// so the bytes
+///  taken before the drain ended have to reach that decision.
 #[derive(Debug)]
-struct OutputHeldOpen(
+struct OutputHeldOpen {
     /// The sentence that names the step,
     /// the program and what to do.
-    String,
-);
+    waiting_for: String,
+    /// The programs that held the stream open when the drain ended.
+    holders: Vec<ProcessUser>,
+    /// The bytes read of the stream before the drain ended.
+    read: Vec<u8>,
+}
 
 impl std::fmt::Display for OutputHeldOpen {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(self.0.as_str());
+        return formatter.write_str(output_held_open_text(self.waiting_for.as_str(), self.holders.as_slice()).as_str());
     }
 }
 
@@ -297,7 +347,37 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
     };
     let status: ExitStatus = waited?;
     let (read_output, read_error) = read;
-    return Ok(Output { status, stdout: read_output?, stderr: read_error? });
+    // The step's answer is its exit status and its standard output, so neither is thrown away because a program the step started
+    //  still holds its standard error: what was read of that stream is returned and the person is told where it stops.
+    let stdout: Vec<u8> = read_output?;
+    let stderr: Vec<u8> = match read_error {
+        Ok(bytes) => bytes,
+        Err(error) => match cut_short(&error) {
+            Some((bytes, sentence)) => {
+                crate::diagnostic_log::warn("stepOutput", sentence.as_str());
+                bytes
+            }
+            None => return Err(error),
+        },
+    };
+    return Ok(Output { status, stdout, stderr });
+}
+
+/// What:
+///  The bytes read before the drain ended of a stream a program the step started still held open,
+/// and the sentence that
+///  names that program.
+/// Why:
+///   Only that one loss may be forgiven;
+/// a read that failed for any other reason is still the error of the wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cutShort(error: Error): { bytes: Buffer; sentence: string } | undefined;
+/// ```
+fn cut_short(error: &std::io::Error) -> Option<(Vec<u8>, String)> {
+    let held: &OutputHeldOpen = error.get_ref()?.downcast_ref::<OutputHeldOpen>()?;
+    return Some((held.read.clone(), error_cut_short_text(held.waiting_for.as_str(), held.holders.as_slice())));
 }
 
 /// What:
@@ -330,7 +410,11 @@ async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync
         () = drain => {}
     }
     let holders: Vec<ProcessUser> = held.map(holding_processes).unwrap_or_default();
-    return Err(std::io::Error::other(OutputHeldOpen(output_held_open_text(waiting_for, holders.as_slice()))));
+    return Err(std::io::Error::other(OutputHeldOpen {
+        waiting_for: waiting_for.to_owned(),
+        holders,
+        read: bytes,
+    }));
 }
 
 /// Awaits the moment the step ended,

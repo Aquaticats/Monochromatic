@@ -28,9 +28,13 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 /// Pipes for the batch queries' stdin and stdout.
 use std::io::Write;
+/// The child a query starts, handed to the thread that waits for it.
+use std::process::Child;
 use std::process::Stdio;
 /// How long a range query may run.
 use std::time::Duration;
+/// The descriptor that names the query for good.
+use crate::pinned_member_signalled_through_a_pidfd::{Delivered, PinnedProcess, pin_of_our_own_child};
 
 /// Remote-tracking ref namespace Git's default fetch refspec writes.
 const TRACKING_NAMESPACE: &str = "refs/remotes/";
@@ -107,6 +111,26 @@ pub fn run_git_bytes(
     arguments: &[OsString],
     input: Option<&str>,
 ) -> Result<Vec<u8>, ManualPushRangeError> {
+    return run_git_bytes_starting_with(git, arguments, input, &start_a_named_thread);
+}
+
+/// What:
+///  The body of `run_git_bytes`,
+/// with the starts of its two threads supplied by the caller.
+/// Why:
+///  A control has to make one of those starts fail,
+/// which no real process limit lets it do without starving the whole test process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runGitBytes(git, args, input, startThread): Buffer;
+/// ```
+fn run_git_bytes_starting_with(
+    git: &PushGit,
+    arguments: &[OsString],
+    input: Option<&str>,
+    start_thread: &dyn Fn(&str, Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>>,
+) -> Result<Vec<u8>, ManualPushRangeError> {
     let mut command = git_command(git, arguments);
     command
         .stdin(if input.is_some() {
@@ -116,60 +140,80 @@ pub fn run_git_bytes(
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = match command.spawn_retrying() {
-        Ok(started) => started,
-        Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"))),
-    };
-    let pid: u32 = child.id();
-    let requests: Option<String> = input.map(str::to_owned);
-    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
+    // Both threads are started before Git is, so a refused start costs the query its start and never leaves Git, killed and
+    //  unreaped, behind a command that met a shortage of processes.
+    let (stdin_hand_over, stdin_taken) = std::sync::mpsc::channel::<std::process::ChildStdin>();
     // The input is written on this thread while `wait_with_output` reads both replies on the caller's: neither can hold the
     //  other up, which is what a request list larger than a pipe did before.
-    let writing = match child.stdin.take() {
-        Some(mut stdin) => {
-            let text: String = requests.unwrap_or_default();
-            match std::thread::Builder::new().name(String::from("cli-git-range-input")).spawn(move || {
+    let writing: Option<std::thread::JoinHandle<()>> = match input {
+        Some(requests) => {
+            let text: String = requests.to_owned();
+            match start_thread("cli-git-range-input", Box::new(move || {
+                // Nothing is handed over when the start below fails, and then there is no request list to write.
+                let Ok(mut stdin) = stdin_taken.recv() else {
+                    return;
+                };
                 // A Git exit before reading the whole input surfaces through its status, so the write error is ignored here.
                 let _written = stdin.write_all(text.as_bytes());
-            }) {
+            })) {
                 Ok(written) => Some(written),
-                Err(error) => {
-                    end_by_number(pid);
-                    return Err(range_error(ManualPushCause::GitSilent, format!(
-                        "git was started but no thread could be given its request list: {error}. Hint: check the process limit \
-                         (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
-                    )));
-                }
+                Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!(
+                    "git was not started, because no thread could be given its request list: {error}. Hint: check the process limit \
+                     (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
+                ))),
             }
         }
         None => None,
     };
-    let answering = std::thread::Builder::new().name(String::from("cli-git-range-answer")).spawn(move || {
+    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
+    let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
+    if let Err(error) = start_thread("cli-git-range-answer", Box::new(move || {
+        // Nothing is handed over when the start below fails, and then there is no child to wait for.
+        let Ok(child) = taken.recv() else {
+            return;
+        };
         // This thread owns the child until it ends; a caller that stopped waiting took the failure.
         let _abandoned = sender.send(child.wait_with_output());
-    });
-    if let Err(error) = answering {
-        end_by_number(pid);
-        return Err(range_error(ManualPushCause::GitSilent, format!("git was started but no thread could wait for it: {error}")));
+    })) {
+        return Err(range_error(ManualPushCause::GitNotStarted, format!(
+            "git was not started, because no thread could wait for it: {error}. Hint: check the process limit (`ulimit -u`) and the \
+             control group's `pids.max`, free some, and run the command again"
+        )));
     }
+    let mut child: Child = match command.spawn_retrying() {
+        Ok(started) => started,
+        Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"))),
+    };
+    // The descriptor is taken while the number certainly names this process's own unreaped child, so the signal a ceiling sends
+    //  later reaches that child and never a number that was reused after the answering thread reaped it.
+    let reach: Option<PinnedProcess> = pin_of_our_own_child(child.id());
+    if let Some(stdin) = child.stdin.take() {
+        let _handed_over = stdin_hand_over.send(stdin);
+    }
+    let _handed_over = hand_over.send(child);
     let answered: std::io::Result<std::process::Output> = match receiver.recv_timeout(RANGE_QUERY_CEILING) {
         Ok(output) => output,
         Err(_timed_out) => {
-            // The answering thread has not reaped the child (this caller stopped waiting first), so its number cannot name
-            //  another process yet.
-            end_by_number(pid);
+            let ended: bool = end_the_query(&reach);
             let shown: String = words_of(arguments);
+            let ending: &str = if ended {
+                "and was ended"
+            } else {
+                "and nothing was signalled, because no descriptor naming it could be taken before it was reaped, so check with `ps` \
+                 whether it is still running"
+            };
             return Err(range_error(ManualPushCause::GitSilent, format!(
-                "git {shown} did not answer within {} seconds, the longest one of these queries waits, and was ended. Hint: check \
-                 with `ps` what that Git waits for, and run the command again.",
+                "git {shown} did not answer within {} seconds, the longest one of these queries waits, {ending}. Hint: check with `ps` \
+                 what that Git waits for, and run the command again.",
                 RANGE_QUERY_CEILING.as_secs()
             )));
         }
     };
-    // The writer's end is joined so a failure of the write is not reported after the answer it belongs to.
-    if let Some(written) = writing {
-        let _joined = written.join();
-    }
+    // What: the thread that writes the request list is not joined.
+    // Why:  a program the query started can hold the read end of its input without reading it, so the write stays in
+    //       `write_all` past the answer and past `RANGE_QUERY_CEILING`. What ends it is the last read end of that input
+    //       closing, whose next write fails with `EPIPE`, or this process exiting, which ends every thread of it.
+    let _input_thread_left_to_end = writing;
     let output = match answered {
         Ok(finished) => finished,
         Err(error) => return Err(range_error(ManualPushCause::GitSilent, format!("git did not finish: {error}"))),
@@ -188,6 +232,34 @@ pub fn run_git_bytes(
     return Ok(output.stdout);
 }
 
+/// Start a thread of this wrapper by name.
+fn start_a_named_thread(name: &str, body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
+    return std::thread::Builder::new().name(name.to_owned()).spawn(body);
+}
+
+/// What:
+///  End a query past its ceiling with `SIGKILL`,
+/// through the descriptor taken while the number certainly named it.
+/// Why:
+///  A number is a safe address only while its process is this process's own unreaped child,
+/// and the answering thread reaps the
+///  query as soon as it ends.
+/// The descriptor reaches that one process or fails, and never a successor;
+///  a host that gave
+/// none proves nothing about what the number names by now,
+/// so nothing is signalled and the sentence says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endTheQuery(reach: Pin | undefined): boolean;
+/// ```
+fn end_the_query(reach: &Option<PinnedProcess>) -> bool {
+    return match reach {
+        Some(pinned) => pinned.signal(libc::SIGKILL) == Delivered::Sent,
+        None => false,
+    };
+}
+
 /// One argument as the words a message shows it with.
 fn word_of(argument: &OsString) -> String {
     return argument.to_string_lossy().into_owned();
@@ -197,27 +269,6 @@ fn word_of(argument: &OsString) -> String {
 /// for a message that names the command.
 fn words_of(arguments: &[OsString]) -> String {
     return arguments.iter().map(word_of).collect::<Vec<String>>().join(" ");
-}
-
-/// What:
-///  Send `SIGKILL` to the query with this number,
-/// whose child this process has not reaped.
-/// Why:
-///  A query past its ceiling is ended;
-/// the answering thread reaps it,
-/// and until then the number cannot name another
-///  process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(pid, 'SIGKILL');
-/// ```
-fn end_by_number(pid: u32) {
-    let Ok(number) = libc::pid_t::try_from(pid) else {
-        return;
-    };
-    // SAFETY: `kill` takes two integers and touches no memory; the child was not reaped when this was called.
-    let _ended: libc::c_int = unsafe { libc::kill(number, libc::SIGKILL) };
 }
 
 /// Split Git line output into non-empty lines.

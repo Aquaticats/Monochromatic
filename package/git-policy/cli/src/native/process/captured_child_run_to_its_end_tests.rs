@@ -87,12 +87,9 @@ fn a_synchronous_run_past_its_ceiling_is_ended_and_says_so() {
     while runs(pid) && ending.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(10));
     }
+    // Nothing is signalled here: the stand-in ends by itself if the ceiling failed to end it (`sleep 6`), and a number read from
+    //  a file may name an unrelated process once the stand-in was reaped.
     let still_running: bool = runs(pid);
-    // The assertions come after the cleanup, so a failure leaves nothing running.
-    if still_running {
-        // SAFETY: `kill` takes two integers and touches no memory; the number named the control's own stand-in.
-        let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
-    }
     crate::test_support::remove(root.as_path());
     assert!(waited < Duration::from_secs(3), "the run outlasted its ceiling by {waited:?}");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
@@ -119,5 +116,56 @@ fn the_one_shot_git_questions_no_longer_block_a_thread_on_command_output() {
         let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
         assert!(!code.contains(".output()"), "{name} still blocks a thread on `Command::output`");
         assert!(code.contains("output_of_within_bound"), "{name} does not use the captured run");
+    }
+}
+
+/// What:
+///  A thread that cannot be started starts no child at all,
+/// so no killed child is left unreaped.
+/// Why:
+///  The thread that waits for a query is started before the child,
+/// so a refusal costs the command its start.
+///  A child that was started and then killed by a caller that could not wait for it stays a zombie until the wrapper
+///  exits,
+/// and these paths exist for the shortage of processes that produces such refusals.
+#[test]
+fn a_thread_that_cannot_be_started_starts_no_child() {
+    let root: std::path::PathBuf = crate::test_support::fixture("captured-run-refused-thread");
+    let ran: std::path::PathBuf = root.join("ran");
+    let mut command = shell(format!("printf ran > '{}'", ran.display()).as_str());
+    let failure = captured_run_within_bound_starting_with(&mut command, Duration::from_secs(30), &refusing_a_thread)
+        .expect_err("a thread that could not be started is the command's failure");
+    let started: bool = ran.exists();
+    crate::test_support::remove(root.as_path());
+    assert!(!started, "the command ran although nothing could wait for it, so a killed child would be left unreaped");
+    assert!(failure.to_string().contains("no thread could be started"), "{failure}");
+}
+
+/// A thread start that the process limit refuses.
+fn refusing_a_thread(_name: &str, _body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
+    return Err(std::io::Error::other("the process limit refused a thread"));
+}
+
+/// What:
+///  Neither query path signals a process by its number.
+/// Why:
+///  A number is a safe address only while its process is this process's own unreaped child,
+/// and the thread that waits for
+///  a query reaps it as soon as it ends,
+/// so the number read at the start may name another process by the time a ceiling
+///  is reached.
+/// The signal goes through a descriptor taken while the number certainly named the query
+///  (`pin_of_our_own_child`);
+/// a host that gives none sends nothing and says so.
+#[test]
+fn neither_query_path_signals_by_number() {
+    let sources: [(&str, &str); 2] = [
+        ("process/captured_child_run_to_its_end.rs", include_str!("captured_child_run_to_its_end.rs")),
+        ("push/manual_push_range.rs", include_str!("../push/manual_push_range.rs")),
+    ];
+    for (name, source) in sources {
+        let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+        assert!(!code.contains("libc::kill"), "{name} still signals a process by its number");
+        assert!(code.contains("pin_of_our_own_child"), "{name} does not take a descriptor of the query at its start");
     }
 }

@@ -89,6 +89,11 @@ pub fn run_metadata_git(
 /// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 /// finding 5),
 ///  and a control needs a ceiling short enough to reach.
+/// The answer is the query's exact output or an error:
+///  a query that
+/// printed more than the capture keeps fails and says what was left out,
+/// because its bytes are parsed or compared
+///  and the last part of a cut answer is a wrong answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -106,15 +111,16 @@ pub fn run_metadata_git_within(
     }
     // What: `.stdin(Stdio::null())` connects the child's input to nothing, and the captured run takes its output into files
     //       and waits for it under the ceiling. A trailing `?` returns a start failure, or a query that did not answer.
-    // Why:  A query that never answers has no watch and no meter, so its ceiling is the only end it has.
+    // Why:  A query that never answers has no watch and no meter, so its ceiling is the only end it has; and its bytes are
+    //       parsed or compared, so an answer that was cut short is not the answer: it fails instead.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const result = await execWithDeadline(realGit, args, { stdin: 'ignore' }, ceiling);
+    // const result = await execWithDeadline(realGit, args, { stdin: 'ignore' }, ceiling); // throws when the answer did not fit
     // ```
     let mut command: std::process::Command = git_command(real_git, arguments, overlay);
     command.stdin(Stdio::null());
-    let output: std::process::Output = crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, ceiling)?;
+    let output: std::process::Output = crate::captured_child_run_to_its_end::output_of_whole_within_bound(&mut command, ceiling)?;
     // `Ok(...)` is the success variant carrying the captured result.
     return Ok(MetadataOutput {
         success: output.status.success(),

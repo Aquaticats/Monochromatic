@@ -167,3 +167,35 @@ fn a_query_that_does_not_answer_is_ended_and_says_so() {
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
     assert!(failure.to_string().contains("did not answer within"), "{failure}");
 }
+
+/// What:
+///  A query whose answer does not fit the capture fails and says what was left out,
+/// and never answers with the last part of it;
+///  an answer that fits comes back whole.
+/// Why:
+///   A metadata query's bytes are parsed or compared,
+/// and the reader this replaced returned the query's exact
+///  output,
+/// so a silently cut answer is a wrong answer
+/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+///  the captured run's tail).
+/// The same stand-in at a size that fits answers the other way,
+/// so the control can see both.
+#[test]
+fn a_query_whose_answer_does_not_fit_the_capture_fails_and_says_so() {
+    let root: PathBuf = fixture("git-metadata-capture-limit");
+    let small: PathBuf = root.join("small");
+    let over: PathBuf = root.join("over");
+    executable(small.as_path(), b"#!/bin/sh\nprintf 'the whole answer\\n'\n");
+    let too_many: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1;
+    executable(over.as_path(), format!("#!/bin/sh\nhead -c {too_many} /dev/zero\n").as_bytes());
+    let arguments: [OsString; 1] = [OsString::from("capture-limit-probe")];
+    let answers_git: [(OsString, OsString); 1] = [(OsString::from(crate::repo_read_hook::SWITCH_VARIABLE), OsString::from("off"))];
+    let ceiling: std::time::Duration = std::time::Duration::from_secs(60);
+    let whole: MetadataOutput = run_metadata_git_within(small.as_path(), &arguments, &answers_git, ceiling).expect("an answer that fits");
+    let cut: std::io::Error = run_metadata_git_within(over.as_path(), &arguments, &answers_git, ceiling).expect_err("a cut answer is not an answer");
+    remove(root.as_path());
+    assert_eq!(whole.stdout, b"the whole answer\n".to_vec(), "an answer that fits is returned whole");
+    assert!(cut.to_string().contains("does not fit"), "{cut}");
+    assert!(cut.to_string().contains("left out"), "the failure says what was left out: {cut}");
+}
