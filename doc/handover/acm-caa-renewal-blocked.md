@@ -132,7 +132,7 @@ measured what that means here.
   so Njalla publishes the edge set it resolves,
   not the querier's nearest edge.
 
-That yields a seventh option no earlier section considered:
+That yields a seventh option the `Options and ranking` section did not consider:
 replace the CNAME at `aws.aquati.cat` with an ANAME to the same target,
 and publish the four Amazon `issue` records at `aws.aquati.cat` itself.
 The climb for that FQDN then terminates at the leaf,

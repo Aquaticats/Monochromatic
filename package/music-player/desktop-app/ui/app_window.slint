@@ -249,6 +249,7 @@ export component AppWindow inherits Window {
     callback open-files();
     callback toggle-picker();
     callback select-folder(string);
+    callback name-pointer-event(string, string);
     callback open-search();
     callback close-search();
     callback search-query-edited(string);
@@ -409,6 +410,7 @@ export component AppWindow inherits Window {
             wants-focus: root.focus-request == 1;
             focus-tick: root.focus-tick;
             select-folder(name) => { root.select-folder(name); }
+            name-pointer-event(name, kind) => { root.name-pointer-event(name, kind); }
             page-rows(n) => { root.folder-page-rows = n; }
             focused => { root.list-focused(1); }
         }
@@ -485,6 +487,7 @@ export component AppWindow inherits Window {
             wants-focus: root.focus-request == 1;
             focus-tick: root.focus-tick;
             select-folder(name) => { root.select-folder(name); }
+            name-pointer-event(name, kind) => { root.name-pointer-event(name, kind); }
             page-rows(n) => { root.folder-page-rows = n; }
             focused => { root.list-focused(1); }
         }

@@ -3092,11 +3092,13 @@ In practice it's 16."
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
-
-- The wizard skill emits TypeScript root scripts (owner:
-  "Wizard writes TypeScript").
-- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
-  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
+The two items this section listed are gone:
+the wizard-skill TypeScript conversion became void once the owner asked for the skill itself to go
+("Remove and Blocklist the wizard skill.",
+recorded under "Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00" in
+[`questions-for-the-owner.md`](questions-for-the-owner.md)),
+and the `zbus` and `turso_sync_engine` compile question closed,
+as `### Known flakes and failures not yet fixed` records for the pinned `nightly-2026-11-08`.
 Only these wait on the repository move's last stages:
 the merge named first in the list of ordered work,
 the checksum and the IDE check themselves,
@@ -3111,6 +3113,34 @@ Converting the remaining worktrees waits on a defect instead:
 and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
+
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` told the reader to run `mpm update -g <tool id>`
+for the machine-global lock.
+Measured 2026-11-08 and fixed on branch `fix/mpm-shadow-printed-global-update-reaches-the-shadow`:
+what decides is the program the shell starts,
+not the verb.
+`toolchain-global/exposure/mpm` is a link to `~/.local/bin/mpm`,
+the uv tool `meta-package-manager`,
+which the global plan's `mpm` entry exposes;
+no scope but a worktree's `PATH` ever makes `mpm` the shadow,
+through `.cache/mpm-shadow-bin/mpm`,
+the `mpm-shadow` entry's postinstall link.
+Started as `mpm`,
+the real program maps `update` onto its own `upgrade` and refuses `-g`;
+started as `mpm-shadow`,
+the shadow runs the verb (`names_a_declared_verb`,
+`src/main.rs`).
+The sentence and the README now name `mpm-shadow`,
+and `tests/printed_remedy.rs` runs the warning's own command in a disposable home.
+
+Still open,
+because it is the owner's file under the config directory:
+the machine-global plan declares no `mpm-shadow` entry,
+so `mpm-shadow` is not on the machine `PATH` either.
+Adding the entry the repository plan carries (`route: archive`,
+`bins: ["mpm-shadow"]`,
+`tagPrefix: monochromatic-mpm-shadow-v`,
+then `mpm-shadow install -g`) exposes it in the global exposure directory.
 
 Ordered behind other work rather than waiting for a slot:
 
@@ -4491,12 +4521,20 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
+- the summary's skipped count is zero beside lines that say a worktree is already a subvolume,
+  and no counter names an undone conversion:
+  `ConversionReport::on_event` (`worktree/worktree_convert_command.rs`) counts `WouldConvert` and a
+  `Skipped` verdict but neither `AlreadySubvolume` nor `Abandoned`.
+  Measured 2026-11-08T18:54:31-05:00:
+  the third run of `all_worktrees_are_listed_then_converted` printed
+  "2 worktree(s) looked at,
+  0 converted or completed,
+  0 skipped."
+  under two lines saying the worktree is already a subvolume.
+  Not fixed;
+  the owner's wording call:
+  count both in the skipped count,
+  or give each its own counter in the summary;
 - the `node_modules` links that point nowhere are counted (read only,
   nothing relinked,
   2026-11-08T17:10:51-05:00):
@@ -4558,6 +4596,16 @@ Two small fixes this section listed are done:
   the other half of this line was already done when it was written:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
+
+Converting the remaining worktrees no longer waits on a defect either:
+the conversion compared a registration's text with the real path and refused a worktree spelled
+through the repository link,
+which 301 of the 353 registrations did at 2026-11-08T16:24
+(`--all` looked at 15 of them without saying so).
+Merge `1486f5c112` (2026-11-08T17:37:33-05:00,
+branch `fix/git-policy-cli-registration-compared-as-the-same-file`)
+compares registrations by the file each one names
+(`package/git-policy/cli/src/native/subvolume/subvolume_registered_worktrees.rs`).
 
 ### Worktree add follow-ups
 
@@ -4739,6 +4787,70 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   with the wait 3237 and 2999 ms and the disposal 5871 and 5658 ms beside a repair of 2632 and 2657 ms.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
+
+### The disposal's notice stream and the thread it did not need (2026-11-08T18:54:15-05:00)
+
+Two questions were left by `b1e1818bab`,
+on branch `fix/git-policy-cli-worktree-add-disposal-notices-and-thread`.
+
+The first was whether a notice is lost or misplaced because the emptying of a snapshot's trash wrote to the
+process's standard error while the rest of the add's report went to the writer the command was given
+(`worktree_copy_after_lock.rs`, `dispose_timed`).
+It is misplaced, and only for a caller that hands in its own stream:
+the shipped caller passes `&mut std::io::stderr()` (`worktree_copy_forward.rs`, `run_settled`),
+so the person at a terminal reads the line,
+but a caller that passes another writer reads the repair's findings and never the one line that says why the
+add is taking longer.
+The controls in `worktree_copy_after_lock_tests.rs` show that, and their positive control beside a real repair
+shows the same line missing there too.
+The fix gives both threads the command's stream through one lock (`foundation/shared_notice_stream.rs`):
+a line is rendered first,
+then written whole while the lock is held,
+and the lock is never held across the file work either thread does,
+so neither waits for the other's work and no line can be split.
+The notice keeps the place `SPEC.md` gives it ("after one plain line on standard error that names the worktree
+and says why the service could not take it over"),
+before the emptying and not after it.
+The stream the public entry asks for is now `&mut (dyn Write + Send)`,
+because a thread writes through it.
+The add's timing record is unchanged: the work `disposeTrash`,
+the step `disposeTrashWait` and the step `repair` mean what they meant.
+What was not changed is the second place that writes a report line beside the writer:
+`finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
+output Git's checkout line goes to,
+so that note needs a second writer plumbed through the ladder, which is a change of its own.
+
+The second question was whether a background thread starts where nothing overlaps it,
+and what that costs.
+Today the early return answers the case the sentence names most literally:
+with no trash there is no thread at all (`finish_trash_and_repair`, the `let Some(pending) = after.trash.as_ref()
+else` arm).
+The case left is the one where a trash exists and the package repair beside it has nothing to do:
+a bare repository has no source to repair from,
+a copy that failed leaves no whole worktree to repair,
+and `--no-checkout` asked for no checkout (the add plan declines that form, so a snapshot never carries one).
+A snapshot of a successful add always carries one created worktree,
+so this is a path of failures, not of the common add.
+It now empties the trash on the calling thread, timed as before,
+with a panic of the disposal reported and not failing the add, as the thread's join reported it.
+Measured on 2026-11-08T18:54:07-05:00 at load average 53 to 57 on eight CPUs,
+with a program that copies `in_thread_scope` and `start_or_run_with` line for line and times them against
+calling the job directly (seven alternating repetitions,
+2000 calls each,
+run-to-run spread first):
+the scoped thread with its slot costs a median 37.66 µs per call (every reading from 35.74 to 41.81,
+a spread of 1.2 times),
+and the job on the calling thread is below the timer's resolution.
+So it costs 37.66 µs of the person's time and one thread slot per occurrence,
+which is 0.0002 percent of the 16.6 s add this section measured,
+and it is gone.
+Not measured, because the path is not reachable from a successful add:
+an end-to-end add delta for this case.
+Not done, because it puts the service's preparation on the critical path and that cost was not measured:
+splitting the hand-over from the foreground emptying, so that a trash the service takes over costs no thread at
+all rather than a thread that runs to the service and back.
+That reading of the question was left open, since a wedged service would then delay the repair by its start
+wait.
 
 Not done:
 parallelism audit of loops over independent items (branch `perf/git-policy-cli-parallel-independent-work` merged the
@@ -6954,6 +7066,34 @@ are in append mode now).
   and the cause inside the claim tests is not measured.
   Not the four fixes on that branch:
   none of them is in `landing/`.
+- `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+  aborted one host full-suite run on
+  `fix/git-policy-cli-service-home-and-convert-dry-run-count`
+  (2026-11-08T19:08:21-05:00,
+  4768 tests,
+  1181 tests run;
+  1180 passed,
+  1 failed,
+  the run stopped after the failure)
+  through the crate's own watchdog:
+  "the unit-test run exceeded 120s:
+  a test is stuck",
+  `SIGABRT` at 123.2 s.
+  Measured alone in the same tree:
+  72.3 s,
+  then 5.4 s,
+  both passing,
+  so this test's cost varies by more than a factor of ten on this host,
+  and its slow end alone sits only 1.7 times under the `RUN_LIMIT` of
+  `testing/test_support.rs` that a full suite's concurrency eats.
+  Not the branch's two comment-only edits,
+  which touch neither `src/native/foundation` nor the watchdog.
+  Not fixed:
+  what makes one iteration expensive is not measured,
+  and the shape of a fix is open
+  (a shorter loop,
+  a cheaper fixture,
+  or its own bound).
 
 ### Questions waiting for the owner
 
@@ -9206,6 +9346,62 @@ what the ten minutes is worth and what the three ceilings now rest on.
   so that basis would make it two minutes rather than the twenty it ships.
   Another change owns the constant;
   it was not touched here.
+
+### The lock ceilings' waits read again with the service journal (2026-11-08T18:43-05:00)
+
+The citations beside the lock ceilings now carry the count,
+median,
+95th and 99th percentile and maximum
+of the wait each bounds,
+from the timing log and the service journal together.
+No value changed.
+The entry before this one answered the same question from the timing log alone.
+
+- Read:
+  both generations of the commit timing log (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z,
+  134 worktrees,
+  releases 0.5.34 to 0.6.1-alpha.5)
+  and the service journal (4,386 `answered` lines,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
+  read-only,
+  by a scratch script under `${HOME}/temp/agent/lock-ceiling-journal` (not committed).
+- The journal needs both identifiers:
+  `cli-git-service` before the program was renamed and `monochromatic-git-policy-cli-service` after.
+  A read with the current identifier alone returns 1,429 of the 4,386 answers.
+- Figures:
+  the landing's wait for the index (`lock_wait_ms`) has 3,777 zeros in 4,386 answers,
+  median 0 ms,
+  95th percentile 6 ms,
+  99th percentile 158 ms,
+  longest 600,718 ms;
+  609 landings waited at all and 20 waited over a second;
+  14 of those landed (largest 11,490 ms counted with the wrapper's own staging of a cold index,
+  8,000 ms at the holder's place),
+  one more landed only when a person removed the lock,
+  and five were refused by the lock that never went.
+  The settle's 99th percentile is 17 ms and its longest 172 ms over the same 4,386 answers,
+  and the service's own hold of the index is 119,721 ms at most.
+  The whole command is 1,228,797 ms at most and the answer wait 1,200,776 ms.
+- What the values rest on:
+  one minute still holds at 7.5 times the longest place wait and 5.2 times the longest acquisition,
+  the settle's whole-minute rounding still gives one minute,
+  and the ten minutes is 52 times the longest whole lock acquisition;
+  no wait takes it.
+  The merge and the reconciliation still have no sample of their own:
+  none of the 1,608 records is a merge and none names a `git reset` step.
+- Section:
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceilings' waits read again from the service journal".
+- Open,
+  for the owner:
+  `FOREIGN_OWNER_PATIENCE` (1,200 s) is 28,797 ms shorter than the longest whole command in the log
+  (1,228,797 ms,
+  one of the commits that stopped at the lock that never went),
+  and the log times a command rather than a record's hold,
+  so it does not prove the patience too short.
+  Another change owns that constant;
+  nothing was changed here.
 
 ### Design stance
 

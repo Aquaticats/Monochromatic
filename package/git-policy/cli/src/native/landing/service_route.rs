@@ -217,6 +217,10 @@ pub(crate) fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
 /// routeFromEnvironment(realGit, gitDir) // undefined: no way to reach a service
 /// ```
 pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> {
+    // The read of this process's environment is the read of the invocation's: `main` hands the entry `std::env::vars_os()` as
+    //  that environment, and nothing in the crate changes the wrapper's own environment, so a command started with another
+    //  `HOME` reads that home here. No service chooses a route (a service start goes to `service_main` before any command's
+    //  route is picked), so this read never answers with a manager's home while serving.
     let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
     let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");

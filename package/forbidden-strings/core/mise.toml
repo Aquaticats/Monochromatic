@@ -65,7 +65,8 @@ depends = ["test:mutation:image"]
 # rootless Podman container with no network, never on the host. The crate is baked into the snapshot image, not mounted;
 # the crate's .cargo/mutants.toml excludes the proven-equivalent mutants. One campaign runs one container; several run
 # at once through the launcher of package/mutation-test/cli-cargo-mutants (its slot limiter bounds how many).
-run = ["node bin/build-test-image.ts", "node bin/mutate-container.ts"]
+# Mechanism D: the campaign writes a mutation- record of its own, so the task sweeps the run records first.
+run = ["cargo-shadow lean records target/verification", "node bin/build-test-image.ts", "node bin/mutate-container.ts"]
 
 [tasks."lint:scripts:types"]
 description = "Type-check the verification scripts in bin (TypeScript)"

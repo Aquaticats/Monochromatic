@@ -13,18 +13,14 @@ import {
 import {
   createPathGuardMatcher,
   evaluatePathGuard,
-} from './path-guard.ts';
-import {
   extractToolPath,
+  GUARDRAIL_NOT_BLOCKED,
   normalizeToolPath,
   TOOL_PATH_NOT_FOUND,
   TOOL_PATH_NOT_MATCHABLE,
-} from './path-normalize.ts';
-import {
-  GUARDRAIL_NOT_BLOCKED,
   type GuardrailDecision,
   type PathRule,
-} from './types.ts';
+} from '../dist/final/node/index.mjs';
 
 /**
  Project root used by path normalization tests.

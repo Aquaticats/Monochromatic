@@ -389,7 +389,7 @@ Seven of the ten controls replaced less text than the SMALLEST damaged region,
  and a shorter replacement has less room to drop anything,
 so the control's
  quiet is partly a statement about length.
-An earlier note in this document gave the control range as 12 to 63 characters;
+`The control arm, run 002` first gave the control range as 12 to 63 characters;
  that was read off the first four lines before the run finished,
 and the full
  range is 12 to 316.
@@ -566,8 +566,9 @@ Each judged against the ORIGINAL rather than
     The hi3861 video sentence is
      untranslated in BOTH texts,
     so the edit did not delete it.
-    The earlier note
-     in this document saying it did was wrong.
+    The `2/7/11/15` entry in
+     [the repair sheet record][repair-sheet-record] said it did,
+     and was wrong.
 -   Anilovr.
     The BEFORE text reverses the source's sentence order and adds "On
      that day".
@@ -589,8 +590,9 @@ Each judged against the ORIGINAL rather than
     Source:
     私信里编号式地问上十几个问题。编号式地 IS "in numbered form"
      and 私信里 IS "via private messages".
-    The earlier note calling those
-     inventions was wrong;
+    The `43` entry in
+     [the repair sheet record][repair-sheet-record] called those inventions,
+     and was wrong;
     they are in the source,
     and the AFTER also restores a
      whole first half the BEFORE text omitted.
@@ -629,3 +631,5 @@ and the
  probe agreeing with a re-reading of the same five is not a measurement of the
  corpus.
 A fresh sample judged against the source is.
+
+[repair-sheet-record]: translation-repair-history-2026-08-07-to-12-round-three-graded-and-repair-sheet-not-gradeable.md#the-repair-sheet-is-not-gradeable-and-the-reason-is-not-the-sheet
