@@ -9739,6 +9739,90 @@ then we have a defect and should log more."
   and a named entry is a lower bound.
   A step whose `below` holds no signing program may still have signed for less than the interval.
 
+### Two commits told "not known whether the commit was made", one of which landed 73 s later (2026-11-09T07:44:20Z)
+
+Reported from `.claude/worktrees/pi-repo-read-and-index-route-findings-on-main`.
+Nothing was lost and nothing doubled;
+the person was told something untrue by omission while the service still held the commit.
+
+The records,
+all for that worktree:
+
+- The wrapper's timing log (`.git/monochromatic-git-policy-cli-commit-timing.jsonl`),
+  two `warn` entries,
+  each naming `outcome: "stopped"` and `sends: 6`:
+  `fdca390c` at 02:43:35 (total 62,307 ms,
+  `answerWaitMs` 31,066) and `b4a0ab9a` at 02:44:20 (total 32,403 ms,
+  `answerWaitMs` 31,124).
+  Both hold `positions: []`:
+  no queue position ever reached the person.
+- The service journal (`journalctl --user`),
+  six `answered` lines for `b4a0ab9a` at 02:44:48.608-609,
+  all `outcome=branch-moved`,
+  and one `landed` for `fdca390c` at 02:44:48.607 with `landing_ms=74`,
+  `queued_ms=104022`.
+- The reflog:
+  `1ad4ad25d7` at 02:44:48,
+  which is that landing.
+- A third run at 02:47:41 landed in 6,014 ms with one send.
+
+What `read_ms` measures is in `service/service_timing.rs`
+(`Arrival.read`):
+the time from the service accepting the connection to the whole request line being read.
+It is not a landing figure and not a figure about Git.
+It reached 78,085 ms on one of those connections because the service process read no request line between 02:43:30 and 02:44:48,
+not because the client was slow to send:
+six connections of two runs were accepted over that window and all were read within 60 ms of 02:44:48.
+`queued_ms` (88,471 to 116,478 ms on the same burst) is the other half:
+a request that was read at once and then waited for its batch.
+
+Why the service stopped for 105 s:
+the whole user journal has no line between 02:42:35 and 02:44:48,
+for every unit,
+not only the service,
+and every queued landing then ran in one burst.
+The service's own logging cannot explain it:
+its lines go through `send_without_waiting` (`service/journald_native.rs`),
+which is `MSG_DONTWAIT` on a socket and a polled page-sized write on a pipe,
+so a journal that stops drinking drops lines instead of blocking the service.
+The stall was the host's.
+This host's disk and scheduler pressure is `NHR`'s normal,
+and the wrapper cannot see it.
+
+What the wrapper does with it is right and what it says is not:
+`HEARTBEAT_SILENCE` is 5 s and `RECONNECTS` sends are tried
+(`service/service_client.rs`),
+so two runs each spent about 31 s on six sends and then printed
+`ClientFailure::ServiceSilent`:
+"so it is not known whether the commit was made".
+The service sends a `Heartbeat` every `HEARTBEAT_EVERY` and a `Position` when a batch starts
+(`service/service_reply.rs`,
+`service_server_land_group.rs`),
+so the client's silence bound is a bound on a *silent service*,
+not on a slow commit:
+extending it would be waiting without evidence,
+which the owner's "nothing should ever wait forever or indefinitely" rules out.
+
+The two honest improvements,
+neither built:
+
+1. Before printing the silence message,
+   read the branch once (a bounded `git rev-parse`) and say what it shows:
+   the branch is at the commit this command prepared,
+   or it is not.
+   That turns "not known whether the commit was made" into a fact in the common case,
+   costs one Git start,
+   and waits for nothing.
+   In this incident it would have told run A that its commit was made and run B that its prepared commit was not on the branch.
+2. Make a waiting person see the queue:
+   `Position` lines exist and `positions` stayed empty here,
+   so a request that waits minutes shows nothing at all.
+   A position notice is a heartbeat with meaning,
+   and it is what lets a bound on silence be tight without hiding a long queue.
+
+Not done here because both are the client's reach and message path (`service/client` and `landing/`),
+not the ceiling and notice this branch changes.
+
 ### The scratch commit's ceiling, reviewed: what the review found and what is still open (2026-11-09T06:20:00-05:00)
 
 A cross-vendor reviewer read the branch that added the ceiling and its record
@@ -9749,9 +9833,12 @@ and seven findings of the review and two of the audit met in this file.
 Each was a failing control first:
 
 - A process number reused between the identity read and the signal
-  (`process/process_tree.rs`, `signal_members`).
+  (`process/process_tree.rs`,
+  `signal_members`).
   The signal now travels through a pidfd opened while the number is proven to name the member
-  (start time read, descriptor opened, start time read again),
+  (start time read,
+  descriptor opened,
+  start time read again),
   the same shape `binary/binary_supervisor_pin.rs` uses for the binary tests' hang guard.
   A number cannot be reused on demand,
   so the control injects the reuse behind one identity read
@@ -9765,7 +9852,8 @@ Each was a failing control first:
   A line that cannot be handed over is dropped and counted (`linesDropped`).
 - A step's ceiling ended every child of the process,
   another landing's Git among them (audit finding 1,
-  owner's answer "B: let a branch write finish").
+  owner's answer "B:
+  let a branch write finish").
   The step's own number is handed to the notice the moment it starts
   (`run_child_telling_its_number`),
   and every look and every stop is rooted at it.
@@ -9777,23 +9865,27 @@ Each was a failing control first:
   so a commit that landed could be refused as stopped.
   `member_read` tells a process that ended from a record that could not be read,
   and the stop is recorded only when the step itself was signalled.
-- The record credited time to a name, not to a process,
+- The record credited time to a name,
+  not to a process,
   and dropped a program it saw only once.
   It now credits only the same process number and start time at both looks,
   and keeps a program seen once with a zero lower bound.
 
-Still open, and needing the owner:
+Still open,
+and needing the owner:
 
 - A `git commit` that the kernel holds in uninterruptible sleep (`D`) cannot complete its end
   when the ceiling's `SIGKILL` reaches it,
-  so the thread that waits for it (`commit_preparation.rs`, through `SignalGuard::run_child`,
+  so the thread that waits for it (`commit_preparation.rs`,
+  through `SignalGuard::run_child`,
   `process/signal_relay.rs:748-752`) waits for the kernel operation.
   Nothing in the wrapper can make that operation finish.
   `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md` records the fact.
   The three honest answers,
   none built:
   1. Keep waiting and say so:
-     after the ceiling, print that the stop was sent and the kernel has not released the step yet,
+     after the ceiling,
+     print that the stop was sent and the kernel has not released the step yet,
      so the person knows the wait is the disk's.
      A person's commit waits exactly as long as today;
      only the words change.
@@ -9804,8 +9896,10 @@ Still open, and needing the owner:
      and the wrapper's exit no longer waits for what it killed;
      the scratch directory may be removed while that process still holds it open,
      which is safe for its files and leaves nothing of the person's.
-  3. Stop enforcing after the first look that fails, which is what the code did before this round:
-     rejected, because it is how a step ran on with no ceiling at all.
+  3. Stop enforcing after the first look that fails,
+     which is what the code did before this round:
+     rejected,
+     because it is how a step ran on with no ceiling at all.
 - The audit's finding 4 (a `/proc` read that fails is read as "the process is gone",
   so a watched step's root is never signalled,
   `push/child_watch_clock_marks_and_stopping.rs:191-198`) is the same shape as the notice's,
