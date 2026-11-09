@@ -8,14 +8,25 @@
 //!  every
 //!      corrected file must still hold the bytes the fix read,
 //!  each replacement is written
-//!      beside its file and renamed over it,
-//!  a copy of the old file is kept until the end,
-//!      and the real index must hold the same bytes afterwards.
-//!  Any failure restores every
-//!      file already replaced.
+//!      beside its file and swapped with it,
+//!  and the real index must hold the same bytes afterwards.
+//!      Any failure restores every file already replaced.
 //!  Failure messages name no file,
-//!  because a pathname can hold
-//!      the text a scan exists to keep out of output.
+//!  because a
+//!      pathname can hold the text a scan exists to keep out of output.
+//!
+//! What window remains:
+//!  A swap (`exchange`) puts the corrected file in place and leaves the file it
+//!  displaced readable at the prepared path, so the bytes that were really there
+//!  are compared after nothing can overwrite them any more, and a difference
+//!  swaps them back (owner: "never discard user data").
+//!  Two writes can still be lost or replaced, and neither is ours to prevent:
+//!  a write through a descriptor a program opened before the swap lands in the
+//!  displaced file after the comparison and before the prepared file is removed,
+//!  and a write to the path after the swap replaces the corrected bytes (the
+//!  newest bytes win, which is what the person asked for).
+//!  Both windows are the microseconds between one file system call and the next,
+//!  not the length of a policy pass.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -75,28 +86,90 @@ pub struct InstallChange {
 /// What:
 ///  One prepared replacement:
 ///  the file,
-///  the new bytes beside it,
-///  and a copy of the
-///       old file beside it.
+///  the corrected bytes beside it,
+///  and the bytes
+///       the fix read.
 /// Why:
-///   Renaming the new file over the old one replaces it in one step,
-///  and the copy
-///       restores it if a later step fails.
+///   Swapping the prepared file with its destination replaces it in one step and
+///       leaves the replaced file at the prepared path,
+///  so the bytes that were really there can
+///       be compared after the swap,
+///  and the same swap puts them back when they differ.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PreparedReplacement = { destination: string; prepared: string; backup: string };
+/// type PreparedReplacement = { destination: string; prepared: string; original: Uint8Array };
 /// ```
 #[derive(Debug)]
 pub struct Replacement {
     /// The worktree file.
     destination: PathBuf,
-    /// The corrected bytes,
-    ///  written beside it.
+    /// The corrected bytes before the swap,
+    ///  and the bytes the swap displaced after it,
+    ///       beside the file.
     prepared: PathBuf,
-    /// A copy of the file as it was,
-    ///  beside it.
-    backup: PathBuf,
+    /// The bytes the fix read,
+    ///  which the displaced file must still hold.
+    original: Rc<[u8]>,
+}
+
+/// What:
+///  Swap the two files `first` and `second` name in one step.
+/// Why:
+///   A rename replaces a file without reading what it replaced,
+///  so bytes another writer
+///       put there after the fix read the file are lost;
+///  `RENAME_EXCHANGE` puts the corrected
+///       file in place and leaves the displaced one readable,
+///  so the bytes that were really there are
+///       compared after they can no longer be overwritten,
+///  and the same call puts them back when they
+///       differ.
+///  Both names must exist and share a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // renameat2(AT_FDCWD, first, AT_FDCWD, second, RENAME_EXCHANGE)
+/// ```
+pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        /// `CString` is a pathname as the operating system wants it: bytes and a terminator.
+        use std::ffi::CString;
+        /// `OsStrExt` lends a path's bytes.
+        use std::os::unix::ffi::OsStrExt;
+        // A pathname with a NUL byte in it cannot name a file, and the call would truncate it.
+        let Ok(first_name) = CString::new(first.as_os_str().as_bytes()) else {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        };
+        let Ok(second_name) = CString::new(second.as_os_str().as_bytes()) else {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        };
+        // SAFETY: `renameat2` reads two NUL-terminated pathnames and writes nothing of this process;
+        // both names outlive the call.
+        let status: libc::c_int = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                first_name.as_ptr(),
+                libc::AT_FDCWD,
+                second_name.as_ptr(),
+                libc::RENAME_EXCHANGE,
+            )
+        };
+        if status == 0 {
+            return Ok(());
+        }
+        return Err(std::io::Error::last_os_error());
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        // Only Unix swaps two files in one step; elsewhere nothing is replaced.
+        let _ = (first, second);
+        return Err(std::io::Error::other(
+            "this system has no way to swap two files in one step",
+        ));
+    }
 }
 
 /// What:
@@ -159,18 +232,18 @@ fn cleanup(replacements: &[Replacement]) {
         // await rm(prepared, { force: true });
         // ```
         let _ = std::fs::remove_file(replacement.prepared.as_path());
-        let _ = std::fs::remove_file(replacement.backup.as_path());
     }
 }
 
 /// What:
-///  Rename each installed file's backup over it,
+///  Swap each installed file with the bytes it displaced before it,
 ///  last installed first.
 ///       `Result<(), String>` is success or the first restore that failed.
 /// Why:
-///   The worktree returns to the bytes it held before the fix.
-///  A backup that cannot
-///       be restored is left in place,
+///   The worktree returns to the bytes it held before the fix,
+///  in the very files that held
+///       them;
+///  a file that cannot be restored is left in place,
 ///  so its bytes are not lost.
 ///
 /// In TS you'd write (pseudocode):
@@ -180,8 +253,8 @@ fn cleanup(replacements: &[Replacement]) {
 fn rollback(installed: &[Replacement]) -> Result<(), String> {
     // `.iter().rev()` visits the installed files in reverse order.
     for replacement in installed.iter().rev() {
-        if let Err(error) = std::fs::rename(
-            replacement.backup.as_path(),
+        if let Err(error) = exchange(
+            replacement.prepared.as_path(),
             replacement.destination.as_path(),
         ) {
             return Err(format!(
@@ -283,20 +356,14 @@ pub fn prepare_replacements(
         let prefix: String = format!("{INSTALL_SIBLING_PREFIX}{}", unique_suffix());
         let replacement: Replacement = Replacement {
             prepared: parent.join(format!("{prefix}.new")),
-            backup: parent.join(format!("{prefix}.old")),
+            original: Rc::clone(&change.original),
             destination,
         };
-        let written: std::io::Result<()> = match std::fs::copy(
-            replacement.destination.as_path(),
-            replacement.backup.as_path(),
-        ) {
-            Ok(_) => write_new(
-                replacement.prepared.as_path(),
-                &change.replacement,
-                change.mode,
-            ),
-            Err(error) => Err(error),
-        };
+        let written: std::io::Result<()> = write_new(
+            replacement.prepared.as_path(),
+            &change.replacement,
+            change.mode,
+        );
         // Recorded before the failure check, so a failure still removes what was written.
         replacements.push(replacement);
         if let Err(error) = written {
@@ -310,16 +377,20 @@ pub fn prepare_replacements(
 }
 
 /// What:
-///  Rename every prepared file over its destination,
-///  then prove the real index still
-///       holds `index_before`.
+///  Swap every prepared file with its destination,
+///  compare the bytes each swap displaced
+///       with the bytes the fix read,
+///  then prove the real index still holds `index_before`.
 ///  `&Option<Vec<u8>>` borrows the bytes read before,
 ///  or absence.
 /// Why:
 ///   The fix changes the worktree only.
-///  A rename that fails,
+///  A swap that fails,
+///  a file whose displaced bytes
+///       are no longer the ones the fix read,
 ///  an index that changed,
-///       or an index that cannot be read restores every file already replaced.
+///  or an index that cannot be
+///       read restores every file already replaced (see "What window remains" in `direct_fix_install.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -333,14 +404,59 @@ pub fn install_prepared(
     let mut installed: usize = 0;
     let mut failure: Option<String> = None;
     for replacement in replacements {
-        if let Err(error) = std::fs::rename(
+        if let Err(error) = exchange(
             replacement.prepared.as_path(),
             replacement.destination.as_path(),
         ) {
-            failure = Some(format!("replacing a corrected file failed ({error})"));
+            failure = Some(format!("putting a corrected file in place failed ({error})"));
             break;
         }
         installed += 1;
+        // What: The prepared path now holds the file the swap displaced, so its bytes are the bytes the
+        //       destination held at the instant of the swap.
+        // Why:  A write that arrived after the fix read the file is compared here, after nothing can overwrite it any
+        //       more, and a difference saves it by swapping it back. A path that is no longer a regular file changed
+        //       in a way no byte comparison answers (a directory, a symbolic link), and is refused the same way.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const displaced = await lstat(prepared);
+        // ```
+        let displaced_kind: std::io::Result<std::fs::FileType> =
+            match std::fs::symlink_metadata(replacement.prepared.as_path()) {
+                Ok(found) => Ok(found.file_type()),
+                Err(error) => Err(error),
+            };
+        match displaced_kind {
+            Ok(kind) if kind.is_file() => {}
+            Ok(_) => {
+                failure = Some(String::from(
+                    "a selected file changed while monochromatic-git-policy-cli fix ran",
+                ));
+                break;
+            }
+            Err(error) => {
+                failure = Some(format!(
+                    "reading the bytes a corrected file displaced failed ({error})"
+                ));
+                break;
+            }
+        }
+        match std::fs::read(replacement.prepared.as_path()) {
+            Ok(displaced) if displaced.as_slice() == &*replacement.original => {}
+            Ok(_) => {
+                failure = Some(String::from(
+                    "a selected file changed while monochromatic-git-policy-cli fix ran",
+                ));
+                break;
+            }
+            Err(error) => {
+                failure = Some(format!(
+                    "reading the bytes a corrected file displaced failed ({error})"
+                ));
+                break;
+            }
+        }
     }
     if failure.is_none() {
         failure = match read_index(real_index) {

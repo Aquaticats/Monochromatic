@@ -21,7 +21,7 @@
 /// Import the module under test.
 use super::{
     INSTALL_SIBLING_PREFIX, InstallChange, Replacement, install_corrections, install_prepared,
-    prepare_replacements, read_index,
+    prepare_replacements, read_index, rollback,
 };
 use crate::candidate_object::CandidateMode;
 use crate::test_support::{fixture, remove};
@@ -291,23 +291,74 @@ fn an_index_that_is_not_as_read_restores_every_file() {
     remove(fixture_tree.root.as_path());
 }
 
-/// A rename that fails restores the files already replaced;
-///  a restore that fails keeps
-/// the backup it needs and says so.
+/// What:
+///  A write that lands after the fix read a file is kept:
+///  the install refuses,
+///  the
+///       newer bytes stay,
+///  and nothing is left beside the files.
+/// Why:
+///  The person's editor,
+///  a formatter or another agent can save between the read and the
+///       replacement;
+///  those bytes are the newest state of the file and the owner's "never discard
+///       user data" forbids losing them silently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // prepareReplacements(); await write(current); await expect(installPrepared()).rejects.toThrow('changed while')
+/// ```
 #[test]
-fn a_failed_replacement_restores_and_a_failed_restore_keeps_its_backup() {
-    let fixture_tree: Tree = tree("install-rename");
+fn a_write_that_arrives_after_preparation_is_kept() {
+    let fixture_tree: Tree = tree("install-late-write");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
     let prepared: Vec<Replacement> =
         prepare_replacements(&fixture_tree.top, changes().as_slice()).expect("prepared");
-    // The second destination becomes a non-empty directory, so renaming over it fails.
+    std::fs::write(fixture_tree.top.join("a.txt"), b"newer edit\n").expect("late write");
+    let refused: String = install_prepared(prepared.as_slice(), &fixture_tree.index, &before)
+        .expect_err("a write that arrived after preparation");
+    assert_eq!(
+        refused,
+        String::from(
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran, so every corrected file was restored. Run monochromatic-git-policy-cli fix again."
+        )
+    );
+    assert_eq!(
+        std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
+        b"newer edit\n".to_vec()
+    );
+    assert_eq!(contents(&fixture_tree.top).1, b"#!/bin/sh".to_vec());
+    assert_eq!(siblings(&fixture_tree.top), Vec::<String>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A destination that cannot take its correction stops the install,
+///  restores every file
+///  already swapped,
+///  and leaves nothing beside them.
+/// Why:
+///   A file deleted,
+///  renamed or turned into a directory while the fix ran is not the file the
+///       fix read;
+///  the worktree must be as it was and the person must be told to run the fix again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // prepareReplacements(); await rm(second); await expect(installPrepared()).rejects.toThrow('in place failed')
+/// ```
+#[test]
+fn a_destination_that_cannot_take_the_correction_restores_every_file() {
+    let fixture_tree: Tree = tree("install-vanished");
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Replacement> =
+        prepare_replacements(&fixture_tree.top, changes().as_slice()).expect("prepared");
     std::fs::remove_file(fixture_tree.top.join("sub/run.sh")).expect("remove");
-    std::fs::create_dir_all(fixture_tree.top.join("sub/run.sh/inside")).expect("directory");
     let failed: String = install_prepared(prepared.as_slice(), &fixture_tree.index, &before)
-        .expect_err("rename fails");
+        .expect_err("the destination is gone");
     assert!(
         failed.starts_with(
-            "monochromatic-git-policy-cli fix could not install its corrections: replacing a corrected file failed ("
+            "monochromatic-git-policy-cli fix could not install its corrections: putting a corrected file in place failed ("
         ) && failed.ends_with("), so every corrected file was restored. Run monochromatic-git-policy-cli fix again."),
         "{failed}"
     );
@@ -316,48 +367,76 @@ fn a_failed_replacement_restores_and_a_failed_restore_keeps_its_backup() {
         b"a"
     );
     assert_eq!(siblings(&fixture_tree.top), Vec::<String>::new());
-    // Back to two files; this time the first backup vanishes before the index changes.
-    std::fs::remove_dir_all(fixture_tree.top.join("sub/run.sh")).expect("directory");
-    std::fs::write(fixture_tree.top.join("sub/run.sh"), b"#!/bin/sh").expect("script");
-    let lost: Vec<Replacement> =
-        prepare_replacements(&fixture_tree.top, changes().as_slice()).expect("prepared");
-    let first_backup: PathBuf = top_backup(&fixture_tree.top).expect("first backup");
-    std::fs::remove_file(&first_backup).expect("lose the backup");
-    std::fs::write(&fixture_tree.index, b"changed index").expect("change index");
-    let unrestored: String =
-        install_prepared(lost.as_slice(), &fixture_tree.index, &before).expect_err("restore fails");
-    assert!(
-        unrestored.starts_with(
-            "monochromatic-git-policy-cli fix could not install its corrections: the index changed while monochromatic-git-policy-cli fix ran, and restoring a corrected file failed ("
-        ) && unrestored.ends_with(
-            "); its original bytes remain beside it in a file whose name starts with .cli-git-direct-fix-."
-        ),
-        "{unrestored}"
-    );
-    // The later file was restored first; its backup was used, and no prepared file is left.
-    assert_eq!(
-        std::fs::read(fixture_tree.top.join("sub/run.sh")).expect("script"),
-        b"#!/bin/sh"
-    );
-    for name in siblings(&fixture_tree.top) {
-        assert!(!name.ends_with(".new"), "{name}");
-    }
     remove(fixture_tree.root.as_path());
 }
 
-/// The backup the fix wrote beside the top-level file,
-///  if any.
-fn top_backup(directory: &Path) -> Option<PathBuf> {
-    for entry in std::fs::read_dir(directory).expect("directory") {
-        let path: PathBuf = entry.expect("entry").path();
-        let name: String = path
-            .file_name()
-            .expect("name")
-            .to_string_lossy()
-            .into_owned();
-        if name.starts_with(INSTALL_SIBLING_PREFIX) && name.ends_with(".old") {
-            return Some(path);
-        }
-    }
-    return None;
+/// What:
+///  A destination that changed its kind is refused the same way a changed file is.
+/// Why:
+///   A directory at the path holds no bytes to compare,
+///  so the correction must not stay there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // prepareReplacements(); await rm(second); await mkdir(second); await expect(installPrepared()).rejects.toThrow('changed while')
+/// ```
+#[test]
+fn a_destination_that_changed_its_kind_stops_the_install() {
+    let fixture_tree: Tree = tree("install-kind");
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Replacement> =
+        prepare_replacements(&fixture_tree.top, changes().as_slice()).expect("prepared");
+    std::fs::remove_file(fixture_tree.top.join("sub/run.sh")).expect("remove");
+    std::fs::create_dir_all(fixture_tree.top.join("sub/run.sh/inside")).expect("directory");
+    let failed: String = install_prepared(prepared.as_slice(), &fixture_tree.index, &before)
+        .expect_err("the destination became a directory");
+    assert_eq!(
+        failed,
+        String::from(
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran, so every corrected file was restored. Run monochromatic-git-policy-cli fix again."
+        )
+    );
+    assert_eq!(
+        std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
+        b"a"
+    );
+    // The directory is back where it was, and nothing of the fix stays beside it.
+    assert!(fixture_tree.top.join("sub/run.sh/inside").is_dir());
+    assert_eq!(siblings(&fixture_tree.top), Vec::<String>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A restore that cannot swap the displaced bytes back keeps them beside the file and says so.
+/// Why:
+///   The bytes a fix displaced are the newest state of that file;
+///  a restore that fails must
+///       never remove them,
+///  and the person must be told where they are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await rollback([{ destination, prepared: missing, original }]) // throws naming the prefix
+/// ```
+#[test]
+fn a_restore_that_cannot_swap_back_keeps_the_original_bytes_beside_the_file() {
+    let fixture_tree: Tree = tree("install-lost-backup");
+    let lost: Vec<Replacement> = vec![Replacement {
+        destination: fixture_tree.top.join("a.txt"),
+        prepared: fixture_tree.top.join(".cli-git-direct-fix-gone.new"),
+        original: Rc::from(&b"a"[..]),
+    }];
+    let refused: String = rollback(lost.as_slice()).expect_err("nothing to swap back");
+    assert!(
+        refused.starts_with("restoring a corrected file failed (")
+            && refused.ends_with(
+                "); its original bytes remain beside it in a file whose name starts with .cli-git-direct-fix-"
+            ),
+        "{refused}"
+    );
+    assert_eq!(
+        std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
+        b"a"
+    );
+    remove(fixture_tree.root.as_path());
 }
