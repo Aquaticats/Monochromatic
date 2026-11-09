@@ -415,14 +415,20 @@ await describe({
          */
         const previousCwd = process.cwd();
         process.chdir(home,);
-        await runtime.provider.refreshModels?.({
-          allowNetwork: true,
-          signal: new AbortController().signal,
-          publish: function publish(): Promise<boolean> {
-            return Promise.resolve(true);
-          },
-        },);
-        process.chdir(previousCwd,);
+        try {
+          await runtime.provider.refreshModels?.({
+            allowNetwork: true,
+            signal: new AbortController().signal,
+            publish: function publish(): Promise<boolean> {
+              return Promise.resolve(true);
+            },
+          },);
+        }
+        finally {
+          // A refresh that throws must not leave the process in a removed
+          // scratch directory, where every later test's relative path fails.
+          process.chdir(previousCwd,);
+        }
         await Promise.all(Object.keys(watched).map(async function assertWatched(name: string,) {
           expect(await readFile(join(home, name,), 'utf8',)).toBe(watched[name] ?? '');
         },));
