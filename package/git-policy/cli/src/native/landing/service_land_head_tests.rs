@@ -90,7 +90,10 @@ fn a_late_switch_keeps_the_batch_open_while_its_cleanup_is_pending() {
     let world: World = world("service-head-late-cleanup");
     git(world.repo.as_path(), &["branch", "other"]);
     let scratch: PathBuf = world.root.join("scratch");
-    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
+    // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
     let mut mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     mine.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
     let repo: PathBuf = world.repo.clone();
