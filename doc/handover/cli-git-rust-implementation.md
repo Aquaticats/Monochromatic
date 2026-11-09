@@ -59,49 +59,89 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
-the branch and agent lists below them are older and carry their own times.
+### Where the work stands (2026-11-08T23:47:13-05:00)
+
+This subsection is the current picture.
+`### Release in flight`,
+`### Unmerged branches and worktrees of this effort` and `### Agents and gates running` date from 2026-11-03 and 2026-11-04.
+They no longer describe now,
+and the Pi agent `wrapper-handover-stale-sections-moved-out` is moving their durable facts to canonical docs and deleting them.
+
+Main is at `3e48c84c17`.
+Merged since the last record here:
+`71795ab77a`,
+the audit of the wrapper's entry and service lifecycle route
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`);
+`a8295d5de8`,
+the second pass over open wrapper issues (`doc/planning/git-wrapper-open-issues-round-2.md`);
+and `3e48c84c17`,
+landing and lock controls that read what happened rather than a clock.
+
+Issues closed against main in this stretch:
+634,
+635,
+4576,
+4563,
+6003,
+2135,
+2108,
+4530,
+4585,
+4505,
+4514,
+4515 and 4516.
+Issue 6005 stays open for its surviving instance,
+`landing/service_handoff.rs` against `service_work_handlers_replanning_and_acceptance.rs`.
+
+#### The 860 move
+
+`package/repository-move/cli/src/run-repository-move.ts status` is the live record;
+stages through `c25-pnpm-links` are done.
+`c26-kopia-snapshot` has failed three times,
+each for a different reason:
+kopia could not re-create `/mnt/pcloud/rclone` while the pCloud client restarted;
+the coordinator removed a worktree during a snapshot;
+and a Pi agent finished while kopia read its per-worktree wrapper service folder
+(`.git/worktrees/pi-index-reset-keeps-stat-data/monochromatic-git-policy-cli-service-*/shadow/objects`),
+which kopia counted as one fatal error.
+That third run still created snapshot `99b6c01bdec1c8a50a491236552601e3`,
+but `kopia snapshot create` exits non-zero on a fatal error,
+so the stage stops before its own check,
+`kopia snapshot list`.
+
+Next:
+rerun the cut-over once no worktree is being removed.
+If it fails again only on a folder that vanished during the read,
+change that stage in `package/repository-move/cli/src/guided-cutover-stages.data.ts` rather than rerunning,
+because with Pi agents running another vanished service folder is likely.
+After it come `c27-container-bind`,
+the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
+and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
+The old tree kept for the rollback stays until the owner deletes it.
+
+#### Reviews and landings in progress
+
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
+  its round-four commits pass 201 tests on top of main.
+  The cross-vendor review of them found two defects,
+  and the agent is on round five.
+  A `.gitattributes` rewritten on the same inode between two reads can mix two versions and still match the current size,
+  so an obsolete rule can record a falsely clean entry.
+  An interrupted read of that file drops stat data for the rest of the landing.
+- `fix/test-browser-runs-fit-their-container-limits`:
+  finished,
+  waiting for the coordinator's check and merge.
+
+Running agents are the `pi-*.service` user units,
+each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
-  row `cargo:monochromatic-git-policy-cli`,
-  lock commit `e6bb6fbb62`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
-  shadowing git at /usr/bin/git" over Git 2.56.0).
-  Installed by `upgrade-wrapper.ts 0.5.32`:
-  the 0.5.31 service retired on the client's request,
-  0.5.32 started (protocol 7),
-  and the sample commit on main landed in 1680 ms in all,
-  1215 ms of it provisioning the new service (landing 31 ms,
-  lock hold 28 ms).
-  Its commit service unit runs with systemd's defaults
-  (`systemctl --user show` at 2026-11-03T10:47-05:00:
-  `MemoryMax=infinity`,
-  `MemoryHigh=infinity`,
-  `CPUQuotaPerSecUSec=infinity`,
-  `IOWeight` not set,
-  `TasksMax=75462`,
-  systemd's own default).
-- `monochromatic-mpm-shadow` 0.2.5,
-  `monochromatic-pnpm-shadow` 0.1.1,
-  `monochromatic-search-shadow` 0.2.1,
-  `monochromatic-file-enforcer-cli` 0.1.1,
-  `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
-  after the cargo-shadow merge reached main;
-  0.1.0 is the earlier version.
-- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
-  (`mise run //package/cargo-shadow/cli:publish`);
-  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
-  `cargo-publish.yml`,
-  no environment,
-  `repository_owner_id` 343218767) was created through the API.
-  It is not yet in `toolchain.lock.json`.
-- The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
-  on
-  2026-11-03;
-  its copy from before that move is `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715`.
+`toolchain.lock.json` records what is installed,
+and `git --version` prints the wrapper's own.
+At 2026-11-08T23:47:13-05:00 that was wrapper `0.6.1-alpha.5` over Git 2.56.0.
+The wrapper commits on main after that release are not published yet.
+Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footprint.md`).
 
 ### Release in flight
 
@@ -7273,6 +7313,85 @@ are in append mode now).
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
+
+### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog,
+and the cause is its own durability work,
+measured with `strace --follow-forks --summary-only --trace=fsync,fdatasync` on the test binary:
+one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
+with single calls 1.755,
+1.211 and 1.071 s apart,
+and the same control alone then took 34.73 s,
+9.64 s and 1.83 s in three runs with nothing changed.
+A bad minute of the disk is what carries 306 commits past 120 s,
+and the earlier "side by side" change cut the waiting but not the number of commits.
+
+What each kill point tests is the fold's steps and their outcomes:
+the stop is the fold's own step boundary,
+not a crash,
+so what a crash would leave is not in question and the flush of each step is pure cost.
+`private_storage::skip_the_durability_syncs_here` makes the process's durability syncs no-ops in test builds
+while still recording them,
+so their order stays observable,
+and nothing of it is in the release executable;
+it reaches the fold's journal,
+its moved log,
+the log append and `sync_directory`.
+The two sweeps beside it in `earlier_log_lines_added_to_current_log_tests.rs`
+(`a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line` and
+`a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line`)
+were aborted by the same watchdog in a filtered run of the same modules,
+so they use the switch too.
+Measured after it on the same binary and disk:
+0 `fsync` calls and 0.48 s for the walk,
+and 0.054 s and 0.061 s for the two sweeps that had been aborted.
+Each sweep was broken and failed before being restored,
+and the plants and their messages are in the report of
+`fix/git-policy-cli-landing-controls-wait-on-order-everywhere`.
+
+### A lock control's wait said nothing, and its holder's thread then held the failure for a minute
+
+One host full-suite run reported `landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+as an empty list where a waiting line was expected.
+Not reproduced here:
+five runs of that control and its sibling,
+thirty copies in six processes,
+three module runs at half a processor and one run beside the fold sweep all passed.
+The state it reports is reachable and has one shape:
+a look that finds the lock gone says nothing,
+and the acquisition then places it at its next attempt.
+Planted that state (the lock removed at the reclaimer's own point,
+a staging flush slower than the hold),
+the control failed in 5.518 s with
+`the wait said nothing at all, so the lock it was to wait for went away first`,
+and the same plant without the guard that lets the holder go took 60.022 s with the holder's `Timeout`,
+because four of those controls join a holder thread that waits for the wait's own line.
+Those four now hold that guard,
+and the three that read what the wait said name that state in those words instead of printing `[]`.
+No verdict is claimed about which control the reported run failed,
+because the recorded control reads its list only after joining the holder,
+which cannot happen unless the wait did say a line.
+
+The whole host suite on that branch (2026-11-08T23:26:23-05:00,
+`mise run //package/git-policy/cli:native:test:host`)
+ran 4028 of 4812 tests and 4023 passed;
+the five failures are all of `subvolume::`,
+`subvolume_btrfs_tests::a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange`
+and four of `subvolume_migrate::tests`,
+each aborted by the run's own watchdog between 122.3 and 149.7 s.
+That module is not touched by the branch,
+and its controls are the family this record already calls slow on this host
+("Two lock controls claim their endings",
+and the btrfs measurement under it).
+The 784 tests the run then stopped include the 709 of
+`testing::`,
+`transaction::`,
+`worktree::` and `worktree_copying::`,
+which passed when run on their own,
+and 75 inside `subvolume::` itself,
+which that run did not reach.
 
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main

@@ -362,22 +362,43 @@ fn clone_accepts_and_copies(source: &std::fs::File, destination: &std::fs::File)
 /// an accepted clone of a settled file returns the source's stamp;
 ///  an accepted clone of a file changed within the timestamp granularity returns none,
 /// so its bytes are compared later.
+/// The clock is the control's,
+/// pinned to an instant stated against the source's own change time,
+/// so the question is answered by the order
+///  (change time to clock) and never by how long the host took between the write and the look:
+/// a run of this
+///  control failed once with `left: Some(FileStamp { .. })` because that gap was more than the 20 ms
+///  granularity.
 #[cfg(unix)]
 #[test]
 fn a_stamp_comes_only_from_a_clone_of_a_settled_file() {
     let root: PathBuf = fixture("stage-stamp");
     std::fs::write(root.join("source"), b"payload").expect("source");
+    let written: FileStamp = stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata")).expect("a stamp of the source");
+    let changed: i128 = stamp_nanos(written.changed);
+    // The clock stands at the very instant of the change: nothing about it can prove a write does not follow.
+    let at_the_change: ClockPin = clock_reads(changed);
     let recent: Option<FileStamp> =
         copy_file_exclusive_with(root.join("source").as_path(), root.join("recent").as_path(), clone_accepts_and_copies)
             .expect("recent");
-    assert_eq!(recent, None, "a file changed this instant is within the timestamp granularity");
-    std::thread::sleep(std::time::Duration::from_millis(2 * 20));
+    assert_eq!(recent, None, "a file whose change time is the clock's own instant is within the timestamp granularity");
+    drop(at_the_change);
+    // One nanosecond short of the granularity is still too close.
+    let just_short: ClockPin = clock_reads(changed + RECENT_CHANGE_NANOS - 1);
+    let still_recent: Option<FileStamp> =
+        copy_file_exclusive_with(root.join("source").as_path(), root.join("still-recent").as_path(), clone_accepts_and_copies)
+            .expect("still recent");
+    assert_eq!(still_recent, None, "a change time one nanosecond inside the granularity proves nothing either");
+    drop(just_short);
+    // A whole granularity later the stamp proves the bytes.
+    let settled_at: ClockPin = clock_reads(changed + RECENT_CHANGE_NANOS);
     let settled: Option<FileStamp> =
         copy_file_exclusive_with(root.join("source").as_path(), root.join("settled").as_path(), clone_accepts_and_copies)
             .expect("settled");
     let source_stamp: Option<FileStamp> = stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata"));
     assert!(settled.is_some());
     assert_eq!(settled, source_stamp);
+    drop(settled_at);
     let refused: Option<FileStamp> =
         copy_file_exclusive_with(root.join("source").as_path(), root.join("refused").as_path(), clone_refuses).expect("refused");
     assert_eq!(refused, None);

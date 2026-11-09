@@ -156,7 +156,11 @@ impl HeldJournal {
         line.extend_from_slice(journal_text(round).as_bytes());
         self.file.seek(SeekFrom::End(0))?;
         self.file.write_all(line.as_slice())?;
-        return self.file.sync_all();
+        // A control whose subject is not what a crash leaves skips the flush, which on a bad disk costs a second and more.
+        if crate::private_storage::syncing_is_faithful() {
+            self.file.sync_all()?;
+        }
+        return Ok(());
     }
 
     /// Whether the journal holds no byte.
@@ -169,6 +173,9 @@ impl HeldJournal {
     pub(crate) fn clear(&mut self) -> std::io::Result<()> {
         self.file.set_len(0)?;
         self.file.seek(SeekFrom::Start(0))?;
-        return self.file.sync_all();
+        if crate::private_storage::syncing_is_faithful() {
+            self.file.sync_all()?;
+        }
+        return Ok(());
     }
 }

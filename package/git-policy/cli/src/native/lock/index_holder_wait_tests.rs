@@ -109,7 +109,8 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     let text: String = sink.text();
     assert!(text.contains("cannot be proven alive") && text.contains("has the lock open"), "what is known is said: {text}");
     assert!(text.contains(format!("removing the file {}", lock.display()).as_str()), "the way out is named: {text}");
-    assert!(!text.contains("stops waiting"), "an unproven owner is never given up on: {text}");
+    assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
+    assert!(!text.contains("stops waiting"), "a notice while the wait goes on never says the command stopped; only the ceiling's line does: {text}");
     remove(root.as_path());
 }
 
@@ -252,7 +253,8 @@ fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
     let text: String = sink.text();
     assert!(text.contains("proven by its Git lock PID file"), "{text}");
     assert!(text.contains("still waiting for"), "the line repeats while the holder holds: {text}");
-    assert!(!text.contains("giving up") && !text.contains("stops waiting"), "a proven holder is never given up on: {text}");
+    assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
+    assert!(!text.contains("giving up") && !text.contains("stops waiting"), "a notice while the wait goes on never says the wait ended; only the ceiling's line does: {text}");
     remove(root.as_path());
 }
 
