@@ -58,7 +58,7 @@ use crate::service_messages::{ClientFailure, render};
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
-use crate::service_protocol::CommitRequest;
+use crate::service_protocol::{CommitRequest, commit_request_fits};
 use crate::service_provision::provision;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
@@ -257,6 +257,17 @@ pub fn service_commit<F: RepositoryFacts>(
                 embedded = None;
             } else {
                 tree = Some(written_tree);
+            }
+        }
+        // The service reads one line (`MAX_LINE_BYTES`), and a request over it is refused as too long; a commit must not
+        //  fail for the names it changes, so one that does not fit is built by Git instead,
+        //  which is the route it took before a changed path carried its bytes.
+        if !ready.needs_native
+            && let Some(made) = embedded.as_ref()
+        {
+            let fitting: CommitRequest = request_for_embedded(&ready, native_inputs, id.as_str(), made, &tree);
+            if !commit_request_fits(&fitting) {
+                embedded = None;
             }
         }
         let native: bool = ready.needs_native || embedded.is_none();

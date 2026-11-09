@@ -208,6 +208,71 @@ fn fields(fixture: &Fixture, repo: &Path, revision: &str) -> (String, String, St
     );
 }
 
+/// What:
+///  A commit whose changed paths would not fit one protocol line is built by Git and still lands.
+/// Why:
+///   "Commits should never fail."
+/// A name that is not text carries its bytes beside the readable spelling,
+/// so a request of the most changes at the path length the line ceiling was measured for is longer than the line the
+///  service reads;
+/// before a changed path carried its bytes such a commit took the route where the wrapper builds it,
+/// and it must again, with no word the person did not get from that route before.
+#[test]
+fn a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway() {
+    use git_policy_cli::service_protocol::{MAX_CHANGES, P99_CHANGED_PATH_CHARACTERS};
+    use std::os::unix::ffi::OsStrExt;
+    let fixture: Fixture = fixture("service-line-ceiling");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    // The most changes a request may carry, each at the path length the line ceiling was measured for, and each holding a
+    //  byte that is not text: the readable spelling and the bytes together are more than one line holds.
+    std::fs::create_dir(repo.join("many")).expect("a directory of the control");
+    let stem: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS - 5);
+    // The pathspec file names every one of them, so the command line stays short and the commit names its paths.
+    let mut pathspec: Vec<u8> = Vec::new();
+    for number in 0..MAX_CHANGES {
+        let mut name: Vec<u8> = format!("{number:04}-{stem}").into_bytes();
+        name.push(0xff);
+        std::fs::write(repo.join("many").join(OsStr::from_bytes(name.as_slice())), "x\n").expect("a file of the control");
+        pathspec.extend(b"many/");
+        pathspec.extend(name);
+        pathspec.push(0);
+    }
+    let pathspec_file: PathBuf = fixture.root.join("names.pathspec");
+    std::fs::write(pathspec_file.as_path(), pathspec.as_slice()).expect("the pathspec file");
+    git(&fixture, &repo, &["add", "--all"]);
+    let name: String = format!("ceiling-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let served: Output = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &[
+            "commit",
+            "--quiet",
+            "--message=many names",
+            "--pathspec-from-file",
+            pathspec_file.to_str().expect("a text path"),
+            "--pathspec-file-nul",
+        ],
+    );
+    assert!(served.status.success(), "{}", String::from_utf8_lossy(&served.stderr));
+    // The commit Git built is sent whole: the batch the service landed names the commit and no list of changes.
+    let journal: PathBuf = fixture.root.join("journal");
+    let done: Vec<PathBuf> = std::fs::read_dir(journal.as_path())
+        .expect("journal")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path.extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::DONE_EXTENSION; }); })
+        .collect();
+    assert_eq!(done.len(), 1, "the service landed the commit the wrapper built: {done:?}");
+    let intent: String = std::fs::read_to_string(&done[0]).expect("the intent");
+    assert!(intent.contains("derived=1"), "the request carried no list of changes: {intent}");
+    let listed: String = query(&fixture, &repo, &["ls-tree", "-r", "--name-only", "HEAD"]);
+    assert_eq!(listed.lines().count(), MAX_CHANGES, "every staged name is in the commit");
+    service.kill().expect("the service ends");
+    remove_settled(&fixture);
+}
+
 /// A scoped commit with messages lands through the service and equals the commit native Git makes of the same input.
 #[test]
 fn a_scoped_commit_through_the_service_equals_the_native_commit() {

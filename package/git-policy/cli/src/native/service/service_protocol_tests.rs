@@ -430,6 +430,36 @@ fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_li
     assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
 }
 
+/// What:
+///  The most changes at the path length the line ceiling was measured for fit one line while their names are text,
+///  and do not fit once each name must carry its bytes.
+/// Why:
+///   This is the size the preparation measures before it decides whether the service can carry the request
+/// (`commit_request_fits`):
+/// a request that does not fit is one the wrapper builds itself, so the boundary is the one a person's commit obeys.
+#[test]
+fn the_most_changes_fit_one_line_only_while_their_names_are_text() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let stem: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS - 5);
+    let of_names = |ending: Option<u8>| -> Vec<Change> {
+        return (0..MAX_CHANGES)
+            .map(|number| {
+                let mut bytes: Vec<u8> = format!("{number:04}-{stem}").into_bytes();
+                if let Some(byte) = ending {
+                    bytes.push(byte);
+                }
+                return Change { path: PathBuf::from(OsStr::from_bytes(bytes.as_slice())), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) };
+            })
+            .collect();
+    };
+    let mut sent: CommitRequest = request();
+    sent.changes = of_names(Some(0xff));
+    assert!(!commit_request_fits(&sent), "the bytes beside the readable spelling are more than one line holds");
+    sent.changes = of_names(None);
+    assert!(commit_request_fits(&sent), "a text name of the same length fits the line the ceiling was measured for");
+}
+
 /// The most changes a request may carry is the most the decoder accepts,
 /// and one more is refused.
 #[test]

@@ -8169,6 +8169,18 @@ and the checks for paths that changed or that two requests share compare bytes.
 The readable plain field is used only where a path is a key for something else:
 the compiled-rules warm-up after a landing.
 
+A request whose line would not fit `MAX_LINE_BYTES` is not sent.
+The wrapper measures the line the client would write (`commit_request_fits` in
+`src/native/service/service_protocol_encode_messages_to_lines.rs`)
+and, when it does not fit, builds the commit itself and sends it whole,
+which is the route such a commit took before a changed path carried its bytes
+(`service_commit.rs`).
+Nothing is printed about the choice:
+the words are the ones that route already says.
+The ceiling itself does not move,
+so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
+and only a name that is not text pays for its bytes.
+
 The commit request speaks protocol version 8,
 the first that carries a changed path's bytes.
 The version is what keeps a service built before them from being served,

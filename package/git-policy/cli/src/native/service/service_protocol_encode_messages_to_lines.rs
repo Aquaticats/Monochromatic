@@ -13,7 +13,7 @@
 use serde_json::{Map, Value};
 use crate::path_bytes_in_records as path_bytes;
 use std::path::Path;
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, Change, Cleanup, LandedCapture, ClientMessage, ServiceMessage};
+use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, Change, Cleanup, CommitRequest, LandedCapture, ClientMessage, ServiceMessage};
 
 /// What:
 ///  One field of a message,
@@ -167,29 +167,60 @@ pub fn encode_client(message: &ClientMessage) -> String {
             }
             Value::Object(fields).to_string()
         }
-        ClientMessage::Commit(request) => {
-            let mut fields: Map<String, Value> = Map::new();
-            put(&mut fields, "type", Value::from("commit"));
-            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
-            put(&mut fields, "id", Value::from(request.id.as_str()));
-            path_bytes::write_field(&mut fields, "repository", request.repository.as_path());
-            path_bytes::write_field(&mut fields, "commonDir", request.common_dir.as_path());
-            path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
-            path_bytes::write_field(&mut fields, "index", request.index.as_path());
-            put(&mut fields, "reference", Value::from(request.reference.as_str()));
-            put(&mut fields, "base", Value::from(request.base.as_str()));
-            put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));
-            put(&mut fields, "message", Value::from(request.message.as_str()));
-            put(&mut fields, "author", request.author.as_deref().map_or(Value::Null, Value::from));
-            put(&mut fields, "committer", Value::from(request.committer.as_str()));
-            put(&mut fields, "amend", Value::from(request.amend));
-            put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
-            put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
-            put(&mut fields, "captured", Value::from(request.captured));
-            put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
-            Value::Object(fields).to_string()
-        }
+        ClientMessage::Commit(request) => commit_line(request.as_ref()),
     };
+}
+
+/// What:
+///  The line for one commit request.
+/// Why:
+///   `encode_client` writes it,
+/// and the preparation asks the same function whether the request fits the ceiling both sides accept,
+/// so the line the service is given and the line that was measured cannot differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commitLine = (request: CommitRequest) => JSON.stringify({ type: 'commit', version: PROTOCOL_VERSION, ...request });
+/// ```
+pub fn commit_line(request: &CommitRequest) -> String {
+    let mut fields: Map<String, Value> = Map::new();
+    put(&mut fields, "type", Value::from("commit"));
+    put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+    put(&mut fields, "id", Value::from(request.id.as_str()));
+    path_bytes::write_field(&mut fields, "repository", request.repository.as_path());
+    path_bytes::write_field(&mut fields, "commonDir", request.common_dir.as_path());
+    path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
+    path_bytes::write_field(&mut fields, "index", request.index.as_path());
+    put(&mut fields, "reference", Value::from(request.reference.as_str()));
+    put(&mut fields, "base", Value::from(request.base.as_str()));
+    put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));
+    put(&mut fields, "message", Value::from(request.message.as_str()));
+    put(&mut fields, "author", request.author.as_deref().map_or(Value::Null, Value::from));
+    put(&mut fields, "committer", Value::from(request.committer.as_str()));
+    put(&mut fields, "amend", Value::from(request.amend));
+    put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
+    put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
+    put(&mut fields, "captured", Value::from(request.captured));
+    put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
+    return Value::Object(fields).to_string();
+}
+
+/// What:
+///  Whether the line that carries `request` is one the service accepts.
+/// Why:
+///   The reader refuses a line over `MAX_LINE_BYTES` (`decode_client`),
+/// and the client writes the line and one line break,
+/// so a request at the ceiling is one whose line and break fit together.
+/// A request that does not fit is a commit the wrapper builds itself instead (`service_commit.rs`):
+/// "Commits should never fail."
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commitRequestFits = (request: CommitRequest) => Buffer.byteLength(commitLine(request)) + 1 <= MAX_LINE_BYTES;
+/// ```
+pub fn commit_request_fits(request: &CommitRequest) -> bool {
+    // The reader counts the line break it reads as part of the line, so the break is part of the budget here too.
+    return commit_line(request).len() + 1 <= MAX_LINE_BYTES;
 }
 
 /// What:
