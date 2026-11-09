@@ -333,26 +333,29 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
         );
     };
     let waiting = async {
-        let status: std::io::Result<ExitStatus> = owned.wait().await;
+        // The ceiling bounds this wait for the child, and the reads run beside it: a ceiling around both reported a step that
+        //  finished inside its ceiling as ended at it, because a program the step started still held one stream open (the third
+        //  review's finding 5).
+        let status: std::io::Result<ExitStatus> = match ceiling {
+            Some(carried) => match tokio::time::timeout(carried.limit, owned.wait()).await {
+                Ok(status) => status,
+                Err(_elapsed) => {
+                    // Nothing ended this step before its ceiling, so this wait carries it: whatever the watch could not do, a step
+                    //  never outlives the ceiling the wrapper gives it.
+                    ended.send_replace(Some(Instant::now()));
+                    owned.end_and_reap();
+                    Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, carried)))
+                }
+            },
+            None => owned.wait().await,
+        };
+        // The moment the child ended, told to both reads so each can end its drain of whatever a program it started still writes.
         ended.send_replace(Some(Instant::now()));
         return status;
     };
-    // The ceiling bounds the wait for the child, and the reads are bounded by their own drain once the child has ended: a
-    //  ceiling that wrapped both reported a step that finished inside its ceiling as ended at it, because a program the step
-    //  started still held one stream open (the third review's finding 5).
-    let waited: std::io::Result<ExitStatus> = match ceiling {
-        Some(carried) => match tokio::time::timeout(carried.limit, waiting).await {
-            Ok(status) => status,
-            Err(_elapsed) => {
-                // Nothing ended this step before its ceiling, so this wait carries it: whatever the watch could not do, a step
-                //  never outlives the ceiling the wrapper gives it.
-                owned.end_and_reap();
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, carried)));
-            }
-        },
-        None => waiting.await,
-    };
-    let read: (std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>) = reading.await;
+    // Both are awaited together: the reads must drain while the child runs, or a step that writes more than a pipe holds waits
+    //  for a reader for good.
+    let (read, waited): ((std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>), std::io::Result<ExitStatus>) = tokio::join!(reading, waiting);
     let status: ExitStatus = waited?;
     let (read_output, read_error) = read;
     // The step's answer is its exit status and its standard output, so neither is thrown away because a program the step started
