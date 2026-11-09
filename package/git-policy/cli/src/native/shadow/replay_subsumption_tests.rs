@@ -319,7 +319,7 @@ fn deciding_the_unordered_paths_reads_the_text_list_once_per_path() {
         .collect();
     assert_eq!(candidates.len(), width, "every path is a text candidate");
     let checked: u64 = crate::collected_elements_looked_at::looked_at();
-    let text_paths: Vec<String> = subsumed_text_paths(
+    let text_paths: Vec<Vec<u8>> = subsumed_text_paths(
         &git_context(),
         repo.join(".git").as_path(),
         repo.as_path(),

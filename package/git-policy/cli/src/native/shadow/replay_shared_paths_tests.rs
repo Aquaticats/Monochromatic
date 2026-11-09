@@ -228,7 +228,7 @@ fn listing_shared_paths_reads_each_change_once() {
     .expect("shared paths");
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
     assert_eq!(shared.len(), width, "the paths both sides changed, in the landed listing's order");
-    assert!(!shared.iter().any(|entry| return entry.path == "landed-only.txt"));
+    assert!(!shared.iter().any(|entry| return entry.path == b"landed-only.txt".to_vec()));
     assert_eq!(
         looked,
         2 * width as u64 + 1,
