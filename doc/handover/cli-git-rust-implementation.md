@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:54:54-05:00)
+#### Reviews and landings in progress (2026-11-09T03:00:59-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -229,11 +229,31 @@ The old tree kept for the rollback stays until the owner deletes it.
   among them that a missing publish configuration fails a commit,
   against the agent's report that commits were unaffected.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  and goes ahead of the reader round:
-  resume the run `dependent-version-publish-list-fixed` as run 2,
-  with `dependent-version-publish-list-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
+- `fix/mpm-shadow-open-issues-batch`:
+  695 of 695 tests passed on top of main before the coordinator took one fix back.
+  That fix (`e1ff956920`) replaced `android sdk install` with `sdkmanager` on the claim of issue 2622 that the Android tools archive ships no `android` program,
+  but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
+  and the installed copy answers `android sdk install --help`.
+  Issue 2622 therefore does not hold for the locked version and gets a comment saying so.
+  The tests and Clippy are rerunning on the corrected branch.
+  Its cross-vendor review comes next,
+  and the issues it fixes are closed only after that.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
+  319 of 319 selected tests pass on top of main.
+  The first review of its last round was given too wide a range (246 commits),
+  so it does not count as a review of that round,
+  and a second one over the round's own commits is running as `copy-records-round-7-narrow`.
+  Lands if that one is clean.
+- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  654 of 654 selected tests pass on top of main.
+  Its review `commit-checks-round-2` is running.
+- That too-wide review named two defects in code already on main,
+  and reading the code bears both out.
+  A read in `read_by_chunks` retries `EINTR` without a ceiling,
+  which is now the third item of `repo-read-findings-fixed-prompt.md`.
+  The test `a_running_renewal_renews_the_held_claims_until_it_is_dropped` compares against a snapshot taken before the drop,
+  which went to the inbox of `controls-witness-their-race-by-ordering`.
 - `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
   Waits for a free agent slot,
   since all twenty are taken:
