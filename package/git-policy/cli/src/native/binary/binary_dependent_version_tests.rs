@@ -526,3 +526,46 @@ fn literal_pathspecs_check_all_like_plain_mode() {
     assert_eq!(literal, plain);
     remove(&fixture);
 }
+
+/// A configuration nested deeper than the generated one stops the policy with a
+/// diagnostic naming the first line past its deepest key,
+/// instead of reading it and judging:
+/// the reader's block recursion is bounded by that
+///       indentation,
+/// so no input can grow the stack.
+#[test]
+fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
+    let fixture: Fixture = fixture("dependent-version-too-deep");
+    let repo: PathBuf = app_workspace(&fixture);
+    let mut text: String = publish_set(&["@s/base", "app"]);
+    text.push_str("deeper:\n");
+    for level in 1..=13 {
+        text.push_str(&" ".repeat(level));
+        text.push_str("a:\n");
+    }
+    let deepest: usize = text.lines().count();
+    write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
+    let refused: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
+    assert_eq!(
+        refused.code,
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+    let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
+    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains(
+            format!(
+                "is indented deeper than the generated configuration's deepest key, which sits 12 spaces in on line {deepest}"
+            )
+            .as_str()
+        ),
+        "{events}"
+    );
+    remove(&fixture);
+}
