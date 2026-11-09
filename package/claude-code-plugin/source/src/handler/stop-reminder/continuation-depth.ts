@@ -191,6 +191,107 @@ function parseRecord(line: string,): TranscriptRecord | typeof UNPARSABLE {
 const UNPARSABLE: unique symbol = Symbol('claude-code-plugin/stop-reminder/unparsable-transcript-line',);
 
 /**
+ Sentinel for a newest-first transcript scan that reached the start of its
+ window without any record producing a verdict.
+ 
+ A unique symbol rather than `undefined`: a verdict may itself be falsy (a
+ `false` "no work happened" answer is a real outcome), so absence needs a value
+ no classifier can return.
+ */
+const SCAN_FINISHED: unique symbol = Symbol('stop-reminder/transcript-scan-found-no-verdict',);
+
+/**
+ Walks transcript records newest first, skipping blanks and unreadable lines,
+ and returns the first verdict a caller's classifier produces.
+ 
+ One owner for the scan shape the transcript readers share: index down from the
+ end, read `lines[index] ?? ''`, skip blanks, parse, skip {@link UNPARSABLE},
+ then classify. It lives beside {@link parseRecord} because that function
+ already owns transcript-line parsing for every reader in this folder, so a
+ separate module would import back into this one and close a loop.
+ 
+ @param lines - transcript JSONL lines, oldest first
+ 
+ @param acceptLine - cheap pre-filter; a line it rejects is never parsed, which
+   keeps the scan to the handful of records that can change a verdict
+ 
+ @param classifyRecord - returns a verdict to end the scan, or
+   {@link SCAN_FINISHED} to keep looking at older records
+ 
+ @returns the first verdict produced, or {@link SCAN_FINISHED} when the window
+   held no such record
+ 
+ @example
+ ```ts
+ const firstRecording = scanTranscriptNewestFirst({
+   lines,
+   classifyRecord: function classify(record) {
+     return record.type === 'user' ? record : SCAN_FINISHED;
+   },
+ });
+ ```
+ */
+function scanTranscriptNewestFirst<TVerdict,>(
+  {
+    lines,
+    acceptLine,
+    classifyRecord,
+  }: {
+    readonly lines: readonly string[];
+    readonly acceptLine?: (line: string,) => boolean;
+    readonly classifyRecord: (record: TranscriptRecord,) => TVerdict | typeof SCAN_FINISHED;
+  },
+): TVerdict | typeof SCAN_FINISHED {
+  for (let index = lines.length - 1; index >= 0; index--) {
+    /**
+     Raw transcript line under inspection.
+     */
+    const line = lines[index] ?? '';
+
+    if (line === '')
+      continue;
+    if ((acceptLine !== undefined) && (!acceptLine(line,)))
+      continue;
+
+    /**
+     Parsed record, or the sentinel for a truncated line.
+     */
+    const record = parseRecord(line,);
+
+    if (record === UNPARSABLE)
+      continue;
+
+    /**
+     Verdict this record produced, or {@link SCAN_FINISHED} to keep scanning.
+     */
+    const verdict = classifyRecord(record,);
+
+    if (verdict !== SCAN_FINISHED)
+      return verdict;
+  }
+  return SCAN_FINISHED;
+}
+
+/**
+ Cheap pre-filter for the depth scan: only a line mentioning either marker can
+ change the outcome, so the scan parses a handful of records rather than the
+ whole tail.
+ 
+ @param line - raw transcript line
+ 
+ @returns whether the line could be a block or a human turn
+ 
+ @example
+ ```ts
+ mentionsCountableMarker('{"type":"user","origin":{"kind":"human"}}'); // true
+ ```
+ */
+function mentionsCountableMarker(line: string,): boolean {
+  return line.includes(CONTINUATION_MARKER,)
+    || line.includes('"kind":"human"',);
+}
+
+/**
  Counts forced continuations already issued since the last human turn.
  
  Scans transcript records newest first and stops at the first genuine human
@@ -214,43 +315,27 @@ const UNPARSABLE: unique symbol = Symbol('claude-code-plugin/stop-reminder/unpar
  ```
  */
 function continuationDepth(transcriptLines: readonly string[],): number {
-  /**
-   Running count of this hook's own feedback records seen so far.
-   */
-  let depth = 0;
-
-  for (let index = transcriptLines.length - 1; index >= 0; index--) {
+  return (function countForcedContinuations(): number {
     /**
-     Raw transcript line under inspection.
+     Running count of this hook's own feedback records seen so far.
      */
-    const line = transcriptLines[index] ?? '';
+    let depth = 0;
 
-    // Cheap pre-filter: only lines mentioning either marker can change the outcome,
-    // so the scan parses a handful of records rather than the whole tail.
-    if ((line === '')
-      || ((!line.includes(CONTINUATION_MARKER,))
-        && (!line.includes('"kind":"human"',)))) {
-      continue;
-    }
-
-    /**
-     Parsed record for a line that might be a block or a human turn.
-     */
-    const record = parseRecord(line,);
-
-    if (record === UNPARSABLE) {
-      continue;
-    }
-    if (isForcedContinuationRecord(record,)) {
-      depth += 1;
-      continue;
-    }
-    // A human turn closes the window; anything before it belongs to an earlier turn.
-    if (isHumanTurnRecord(record,)) {
-      return depth;
-    }
-  }
-  return depth;
+    scanTranscriptNewestFirst<number>({
+      lines: transcriptLines,
+      acceptLine: mentionsCountableMarker,
+      classifyRecord: function classifyDepthRecord(record,): number | typeof SCAN_FINISHED {
+        if (isForcedContinuationRecord(record,)) {
+          depth += 1;
+          return SCAN_FINISHED;
+        }
+        // A human turn closes the window; anything before it belongs to an
+        // earlier turn, so the count reached here is the answer.
+        return isHumanTurnRecord(record,) ? depth : SCAN_FINISHED;
+      },
+    },);
+    return depth;
+  })();
 }
 
 /**
@@ -411,6 +496,8 @@ export {
   maxContinuationDepth,
   parseRecord,
   readTranscriptTail,
+  SCAN_FINISHED,
+  scanTranscriptNewestFirst,
   TAIL_BYTES,
   UNPARSABLE,
 };

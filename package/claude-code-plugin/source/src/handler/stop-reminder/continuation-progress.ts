@@ -36,8 +36,8 @@ import type {
 
 import {
   isForcedContinuationRecord,
-  parseRecord,
-  UNPARSABLE,
+  SCAN_FINISHED,
+  scanTranscriptNewestFirst,
 } from './continuation-depth.ts';
 
 /**
@@ -157,32 +157,40 @@ function isRunningTask(task: BackgroundTask,): boolean {
  ```
  */
 function workedSinceLastForcedContinuation(transcriptLines: readonly string[],): boolean {
-  for (let index = transcriptLines.length - 1; index >= 0; index--) {
-    /**
-     Raw transcript line under inspection.
-     */
-    const line = transcriptLines[index] ?? '';
+  /**
+   Verdict from the scan: whether the turn after the most recent block issued a
+   tool call, or {@link SCAN_FINISHED} when the window holds no block at all.
+   */
+  const verdict = scanTranscriptNewestFirst<boolean>({
+    lines: transcriptLines,
+    classifyRecord: classifyProgressRecord,
+  },);
 
-    if (line === '') {
-      continue;
-    }
+  // No block in range means nothing has been pushed yet, so the first block is
+  // allowed rather than suppressed on an absence this reader cannot verify.
+  return verdict === SCAN_FINISHED ? true : verdict;
+}
 
-    /**
-     Parsed record, or the sentinel for a truncated line.
-     */
-    const record = parseRecord(line,);
-
-    if (record === UNPARSABLE) {
-      continue;
-    }
-    if (isForcedContinuationRecord(record,)) {
-      return false;
-    }
-    if (recordCarriesToolUse(record,)) {
-      return true;
-    }
-  }
-  return true;
+/**
+ Classifies one record for the progress scan: the most recent block decides, and
+ the first tool call after it counts as work.
+ 
+ @param record - parsed transcript record
+ 
+ @returns `false` at the most recent block, `true` at the first tool call after
+   it, or {@link SCAN_FINISHED} to keep scanning older records
+ 
+ @example
+ ```ts
+ classifyProgressRecord({ type: 'assistant', message: { content: [{ type: 'tool_use' }] } }); // true
+ ```
+ */
+function classifyProgressRecord(record: TranscriptRecord,): boolean | typeof SCAN_FINISHED {
+  if (isForcedContinuationRecord(record,))
+    return false;
+  if (recordCarriesToolUse(record,))
+    return true;
+  return SCAN_FINISHED;
 }
 
 /**

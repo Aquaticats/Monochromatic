@@ -24,6 +24,8 @@ import {
   MAX_DEPTH_ENV,
   maxContinuationDepth,
   readTranscriptTail,
+  SCAN_FINISHED,
+  scanTranscriptNewestFirst,
   TAIL_BYTES,
 } from './continuation-depth.ts';
 
@@ -437,6 +439,118 @@ await describe({
               .toContain(TAIL_RECORD,);
             expect(anyLineCarriesNul(tail.lines,),)
               .toBe(false,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: scanTranscriptNewestFirst.name,
+      children: [
+        it({
+          name: 'returns the verdict of the newest record that produces one',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, ASSISTANT_LINE,],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'assistant'
+                    ? 'newest assistant'
+                    : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('newest assistant',);
+          },
+        },),
+        it({
+          name: 'keeps scanning past records that produce no verdict',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, ASSISTANT_LINE,],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'user' ? 'older user' : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('older user',);
+          },
+        },),
+        it({
+          name: 'skips blank lines without classifying them',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, '',],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'user' ? 'human turn' : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('human turn',);
+          },
+        },),
+        it({
+          name: 'skips an unparsable line instead of throwing',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, '{"type":"user","mess',],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'user' ? 'human turn' : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('human turn',);
+          },
+        },),
+        it({
+          name: 'never classifies a line the pre-filter rejects',
+          fn: async () => {
+            /**
+             Record types the classifier saw, so a rejected line shows up as an absence.
+             */
+            const classified: string[] = [];
+            /**
+             Verdict of a scan whose pre-filter keeps every fixture line out.
+             */
+            const verdict = scanTranscriptNewestFirst<string>({
+              lines: [HUMAN_LINE, ASSISTANT_LINE,],
+              acceptLine: function mentionsToolUse(line,) {
+                return line.includes('tool_use',);
+              },
+              classifyRecord: function classify(record,) {
+                classified.push(String(record.type,),);
+                return 'classified';
+              },
+            },);
+            expect(verdict,)
+              .toBe(SCAN_FINISHED,);
+            expect(classified,)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'returns SCAN_FINISHED when no record produces a verdict',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, ASSISTANT_LINE,],
+                classifyRecord: function classify() {
+                  return SCAN_FINISHED;
+                },
+              },),
+            ).toBe(SCAN_FINISHED,);
+          },
+        },),
+        it({
+          name: 'returns a falsy verdict rather than treating it as no verdict',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<false>({
+                lines: [HUMAN_LINE,],
+                classifyRecord: function classify() {
+                  return false;
+                },
+              },),
+            ).toBe(false,);
           },
         },),
       ],
