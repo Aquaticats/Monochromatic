@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use crate::ticker_beside_a_wait::with_a_ticker_beside;
 use std::path::PathBuf;
 
 /// Stand-in Git behavior for one test.
@@ -352,5 +353,48 @@ fn what_maintenance_says_is_kept_in_the_journal() {
     });
     assert_eq!(entries.len(), 1, "{entries:?}");
     assert!(entries[0].message.contains(format!("git maintenance run --auto --detach said: {words}").as_str()), "{:?}", entries[0]);
+    remove(root.as_path());
+}
+
+/// What:
+///  The wait for maintenance is the runtime's:
+/// a task beside it runs while Git works.
+/// Why:
+///   The landing round runs as tasks of the runtime,
+/// and a wait that held its thread would stop the round's other
+///  directories;
+/// the count is zero for a wait that slept the thread
+/// (`testing/ticker_beside_a_wait.rs`).
+#[cfg(unix)]
+#[test]
+fn the_wait_for_maintenance_lets_other_tasks_run() {
+    let root: PathBuf = fixture("maintenance-awaiting-wait");
+    let path: PathBuf = root.join("git");
+    // The config read is answered at once; the run takes a moment, so only the run's wait can be seen.
+    let script: String = String::from("#!/bin/sh\ncase \" $* \" in *\" config \"*) printf 'fatal: none\\n' >&2; exit 1;; esac\nsleep 0.3\nexit 0\n");
+    executable(path.as_path(), script.as_bytes());
+    let (outcome, ticks): (Result<AutoMaintenanceOutcome, MaintenanceError>, u32) =
+        with_a_ticker_beside(run_auto_maintenance_with_awaiting(&stand_context(path, &[]), root.as_path(), None));
+    assert_eq!(outcome.expect("maintenance ran"), AutoMaintenanceOutcome::Exited(0));
+    assert!(ticks > 0, "the wait for maintenance held the thread: the task beside it never ran");
+    remove(root.as_path());
+}
+
+/// What:
+///  Real Git:
+/// the awaited face answers what the synchronous face answers.
+/// Why:
+///   The two faces read one configuration and run one command line;
+/// a difference between them would be a landing whose upkeep differs from
+///  a command's.
+#[test]
+fn the_awaited_face_answers_what_the_synchronous_face_answers() {
+    let root: PathBuf = fixture("maintenance-awaiting-same-answer");
+    let context: GitContext = git_context();
+    let answered: AutoMaintenanceOutcome = run_auto_maintenance(&context, root.as_path()).expect("maintenance ran");
+    let (awaited, ticks): (Result<AutoMaintenanceOutcome, MaintenanceError>, u32) =
+        with_a_ticker_beside(run_auto_maintenance_with_awaiting(&context, root.as_path(), None));
+    assert_eq!(awaited.expect("maintenance ran"), answered);
+    assert!(ticks > 0, "the wait for maintenance held the thread: the task beside it never ran");
     remove(root.as_path());
 }
