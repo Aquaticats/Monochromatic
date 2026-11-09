@@ -112,12 +112,16 @@ const CHANNEL_LABELS: Record<ChannelKey, string> = {
  values. Currently only the search field's initial value reaches the
  renderer with user-controlled content (via URL-hash bookmark).
  
+ Every attribute this module emits is double-quoted, and the apostrophe is
+ escaped as well as the double quote so a later single-quoted attribute
+ cannot break out of its quotes.
+ 
  Order is critical: `&` must be replaced first or other replacements
  would double-escape it.
  
  @param raw - Source string from state.
  
- @returns Escaped string safe for double-quoted attribute embedding.
+ @returns Escaped string safe for single-quoted or double-quoted attribute embedding.
  */
 function escapeAttr(raw: string,): string {
   return raw
@@ -128,6 +132,10 @@ function escapeAttr(raw: string,): string {
     .replaceAll(
     '"',
     '&quot;',
+    )
+    .replaceAll(
+    '\'',
+    '&#39;',
     )
     .replaceAll(
     '<',
