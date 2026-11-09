@@ -211,3 +211,8 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
     let first: Option<String> = paths.first().map(plain_path_text);
     return Ok(ChangedPaths { count: paths.len(), first, attributes_changed });
 }
+
+/// Controls for the two listings.
+#[cfg(test)]
+#[path = "worktree_snapshot_source_changed_paths_tests.rs"]
+mod tests;
