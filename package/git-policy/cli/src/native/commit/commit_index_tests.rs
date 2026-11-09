@@ -144,6 +144,25 @@ fn index_with_tracked_staging_stages_only_tracked_changes() {
     remove(root.as_path());
 }
 
+/// `commit -a` stages tracked changes with a `:/` pathspec the wrapper wrote,
+/// so two glob modes that disagree in the caller's environment must not make that start fail the commit.
+#[test]
+fn index_with_tracked_staging_survives_the_callers_conflicting_glob_modes() {
+    let root: PathBuf = fixture("commit-index-tracked-glob-modes");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    let pathspecs: Vec<OsString> = Vec::new();
+    let mut choice: IndexSelection = selection(TransactionMode::Index, &pathspecs, &base);
+    choice.stage_tracked_changes = true;
+    let mut inherited: GitContext = git_context();
+    inherited.overlay.push((OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")));
+    inherited.overlay.push((OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")));
+    initialize_commit_index(&inherited, repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
+        .expect("the tracked staging start survives the caller's modes");
+    assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
+    remove(root.as_path());
+}
+
 /// An include stages the named paths into the copy,
 /// and the real index stays as it was.
 #[test]
@@ -240,6 +259,33 @@ fn unmerged_paths_are_listed_once() {
     assert_eq!(
         list_unmerged_index_paths(&git_context(), repo.as_path(), indexes.commit_index.as_path()).expect("unmerged"),
         vec![b"a.txt".to_vec()]
+    );
+    remove(root.as_path());
+}
+
+/// The unmerged paths are named to `:(top,literal)` specs and to the person,
+/// so a commit run from a subdirectory must be answered with repository-relative names:
+/// `git ls-files` alone answers relative to the directory Git runs in.
+#[test]
+fn unmerged_paths_of_a_nested_directory_are_named_from_the_top() {
+    let root: PathBuf = fixture("commit-index-unmerged-nested");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::create_dir(repo.join("sub")).expect("sub directory");
+    std::fs::write(repo.join("sub/f"), b"conflict\n").expect("write sub/f");
+    let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "sub/f"]);
+    let info: String = format!("100644 {blob} 1\tsub/f\n100644 {blob} 2\tsub/f\n100644 {blob} 3\tsub/f\n");
+    let mut request = indexed_request(
+        repo.as_path(),
+        &["update-index", "--index-info"],
+        Some(indexes.commit_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    request.input = Some(info.into_bytes());
+    run_git_checked(&git_context(), &request).expect("conflict stages");
+    assert_eq!(
+        list_unmerged_index_paths(&git_context(), repo.join("sub").as_path(), indexes.commit_index.as_path()).expect("unmerged"),
+        vec![b"sub/f".to_vec()],
+        "the path is named as the specs and the warning write it"
     );
     remove(root.as_path());
 }
