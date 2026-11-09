@@ -13,7 +13,8 @@
 
 /// The rules under control.
 use super::{Removal, SCRATCH_REMOVAL_CEILING, remove_within, unfinished_removals};
-/// Holding the process's places for blocking work to one, so a stalled removal has nowhere to go.
+/// Holding the process's places for blocking work to one,
+/// so a stalled removal has nowhere to go.
 use crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to;
 /// The record's count of removals that did not finish.
 use crate::time_spent_outside_the_phases::outside_the_phases;

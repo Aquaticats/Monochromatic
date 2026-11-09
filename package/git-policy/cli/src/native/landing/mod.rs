@@ -175,6 +175,14 @@ pub mod service_scratch_renewal;
 /// and which it leaves alone because their owner still runs.
 pub mod service_scratch_abandonment;
 
+/// The staging step of a preparation,
+/// for a control that asks it directly.
+#[cfg(test)]
+pub mod service_prepare_exclude_or_stop_for_test;
+
+/// The file a typed message is kept in when the commit it belonged to cannot be made.
+pub mod service_commit_saved_message;
+
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
 

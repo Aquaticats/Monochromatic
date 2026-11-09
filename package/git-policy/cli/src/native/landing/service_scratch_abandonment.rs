@@ -96,7 +96,8 @@ fn older_than_the_unmarked_age(age: Duration) -> bool {
 }
 
 /// What:
-///  Whether the entry at `path`, listed with `metadata`,
+///  Whether the entry at `path`,
+/// listed with `metadata`,
 ///  may be removed now:
 ///  the one decision the sweep of a scratch place and the collection a preparation does both make.
 /// Why:
@@ -104,7 +105,9 @@ fn older_than_the_unmarked_age(age: Duration) -> bool {
 ///  a sweep that removed a tree by its age alone took the private index and the typed message of a command that still runs,
 ///  because age says nothing about the command that made the tree.
 ///  A commit tree therefore goes only when its marker names a process `/proc` proves is gone,
-///  or, with no marker at all, once it is older than `UNMARKED_SCRATCH_TREE_AGE`;
+///  or,
+/// with no marker at all,
+/// once it is older than `UNMARKED_SCRATCH_TREE_AGE`;
 ///  a live command's tree stays however old it is,
 ///  and one whose marker the reader cannot judge stays too,
 ///  which keeps a live command's work rather than taking it.
@@ -116,16 +119,16 @@ fn older_than_the_unmarked_age(age: Duration) -> bool {
 /// mayGo(entry, metadata, now, day) // true when nothing may still read it
 /// ```
 pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_age: Duration) -> bool {
-    let name: Option<&str> = path.file_name().and_then(std::ffi::OsStr::to_str);
-    let named_a_tree: bool = name
-        .and_then(|text| { return text.strip_prefix(SERVICE_SCRATCH_PREFIX); })
-        .is_some_and(|identity| { return !identity.is_empty() && identity.as_bytes().iter().all(is_identity_byte); })
-        && metadata.is_dir();
+    let named_a_tree: bool = names_a_trees_file(path) && metadata.is_dir();
     // An entry whose age cannot be told is never old enough to remove, and one dated in the future is kept: a wrong clock must
     //  not delete live files.
-    let age: Option<Duration> = metadata.modified().ok().and_then(|modified| { return now.duration_since(modified).ok(); });
+    let age: Option<Duration> = age_before(metadata, now);
     if !named_a_tree {
-        return age.is_some_and(|found| { return found > max_age; });
+        let past_the_age: bool = match age {
+            Some(found) => found > max_age,
+            None => false,
+        };
+        return past_the_age;
     }
     let marker: PathBuf = path.join(OWNER_MARKER);
     if is_reclaimable(marker.as_path()) {
@@ -137,7 +140,26 @@ pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_ag
     if marked {
         return false;
     }
-    return age.is_some_and(older_than_the_unmarked_age);
+    return match age {
+        Some(found) => older_than_the_unmarked_age(found),
+        None => false,
+    };
+}
+
+/// Whether `path` is named as one of the wrapper's commit scratch trees:
+/// the prefix and an identity of letters,
+/// digits and dashes.
+fn names_a_trees_file(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
+    let Some(identity) = name.strip_prefix(SERVICE_SCRATCH_PREFIX) else { return false };
+    return !identity.is_empty() && identity.as_bytes().iter().all(is_identity_byte);
+}
+
+/// How long before `now` the entry was last modified,
+/// or nothing when the time cannot be told or lies in the future.
+fn age_before(metadata: &std::fs::Metadata, now: SystemTime) -> Option<Duration> {
+    let modified: SystemTime = metadata.modified().ok()?;
+    return now.duration_since(modified).ok();
 }
 
 /// What:

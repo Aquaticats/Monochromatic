@@ -387,16 +387,3 @@ pub fn prepare<F: RepositoryFacts>(
     ready.leaves_open = leaves_open;
     return Ok(Prepared::Ready(ready));
 }
-
-/// The step above,
-/// for a control that asks it directly.
-#[cfg(test)]
-pub(crate) fn exclude_or_stop_for_test(
-    context: &GitContext,
-    capture: &InvocationCapture,
-    indexes: &CaptureIndexes,
-    mode: TransactionMode,
-    captured: &crate::service_land_start::IndexWitness,
-) -> Result<(Vec<String>, Option<String>), TransactionStop> {
-    return crate::owed_index_update::exclude_or_stop(context, capture, indexes, mode, captured);
-}

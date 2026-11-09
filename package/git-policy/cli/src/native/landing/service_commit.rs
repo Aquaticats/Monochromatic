@@ -42,6 +42,8 @@ use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktr
 use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
 use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
+/// The file a typed message is kept in when the commit cannot be made.
+use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
@@ -162,16 +164,8 @@ pub fn service_commit<F: RepositoryFacts>(
         let mut ready: Box<Ready> = match prepared? {
             Prepared::Conflict(conflict) => {
                 // The message is kept so the person can commit again once their files agree with the commit that landed first.
-                let saved: PathBuf = conflict.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
-                // The typed message is kept beside the conflict when it can be written.
-                let mut kept: Option<&PathBuf> = None;
-                if let Some(text) = last_message.as_ref() {
-                    match std::fs::write(&saved, text.as_str()) {
-                        Ok(()) => kept = Some(&saved),
-                        Err(error) => warn("serviceCommit", format!("saving the message failed: {error}").as_str()),
-                    }
-                }
-                let result: TransactionResult = conflict_result(&conflict, kept.map(PathBuf::as_path));
+                let kept: Option<PathBuf> = keep_the_typed_message(conflict.git_dir.as_path(), id.as_str(), last_message.as_deref());
+                let result: TransactionResult = conflict_result(&conflict, kept.as_deref());
                 return Ok(ServiceCommit { result, handoff: None });
             }
             Prepared::Ended(result) => {

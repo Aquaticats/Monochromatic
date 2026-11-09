@@ -397,7 +397,8 @@ fn the_sweep_keeps_an_entry_exactly_at_the_bound_and_removes_one_past_it() {
 /// A sweep removes a stale entry within the ceiling it is given,
 /// and one whose removal cannot finish inside that ceiling is reported and left for a later sweep,
 /// never waited for:
-/// the caller is a commit, and an entry another command left must not hold it.
+/// the caller is a commit,
+/// and an entry another command left must not hold it.
 #[test]
 fn a_sweep_removes_within_its_ceiling_and_leaves_what_it_cannot() {
     let root: PathBuf = fixture("scratch-sweep-bounded");

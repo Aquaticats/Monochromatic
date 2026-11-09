@@ -419,6 +419,13 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             }
         }
         land_then_release(
+            #[cfg_attr(
+                dylint_lib = "monochromatic_lint_closure",
+                expect(
+                    avoidable_closure,
+                    reason = "the landings are this function's own loop body, whose locals the closure borrows; the order the two arguments are called in is the behaviour this control guards, so the phases stay one argument each"
+                )
+            )]
             || {
                 for (_, queued_group) in groups.drain(..) {
             // The shutdown waits for this landing and refuses one that would begin after the stop.
@@ -466,6 +473,13 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                     }
                 }
             },
+            #[cfg_attr(
+                dylint_lib = "monochromatic_lint_closure",
+                expect(
+                    avoidable_closure,
+                    reason = "the releases are this batch's own list, and the second argument is the phase that may run only after the first; naming it as a value would hide the order this function exists to hold"
+                )
+            )]
             || {
                 // The batch is landed and answered, so no landing reads these any more; each removal runs beside this loop,
                 //  bounded, and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
