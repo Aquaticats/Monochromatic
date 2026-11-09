@@ -124,7 +124,9 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
 
 /// What the attribute-tree precedence came to for a merge that must name a tree.
 enum AttributeChoice {
-    /// The person named one (`--attr-source`, `GIT_ATTR_SOURCE`, a resolving `attr.tree`),
+    /// The person named one (`--attr-source`,
+    /// `GIT_ATTR_SOURCE`,
+    /// a resolving `attr.tree`),
     /// or nothing can say whether one is named.
     ThePerson,
     /// Nothing names one.
@@ -204,7 +206,7 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
 }
 
 /// What:
-///  Whether a path is a `.gitattributes` file.
+///  Whether a conflicted path is a `.gitattributes` file.
 /// Why:
 ///   A `.gitattributes` names the rules of its own folder and of everything below it,
 /// so one the merge left conflicted
@@ -212,9 +214,10 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isGitattributes = (path: Uint8Array) => path === '.gitattributes' || path.endsWith('/.gitattributes');
+/// const isConflictedGitattributes = (conflict: Conflict) => conflict.path === '.gitattributes' || conflict.path.endsWith('/.gitattributes');
 /// ```
-fn is_gitattributes(path: &[u8]) -> bool {
+fn is_conflicted_gitattributes(conflict: &Conflict) -> bool {
+    let path: &[u8] = conflict.path.as_slice();
     return path == b".gitattributes" || path.ends_with(b"/.gitattributes");
 }
 
@@ -240,7 +243,7 @@ fn is_gitattributes(path: &[u8]) -> bool {
 pub fn merge_attribute_source<'a>(tree: &'a str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> AttributeSource<'a> {
     return match attribute_choice(probe) {
         AttributeChoice::ThePerson => AttributeSource::Invocation,
-        AttributeChoice::Free if conflicts.iter().any(|conflict| { return is_gitattributes(conflict.path.as_slice()); }) => AttributeSource::Unknown,
+        AttributeChoice::Free if conflicts.iter().any(is_conflicted_gitattributes) => AttributeSource::Unknown,
         AttributeChoice::Free => AttributeSource::Tree(tree),
     };
 }

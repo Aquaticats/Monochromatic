@@ -12,7 +12,8 @@ use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 
 /// The variables of a hermetic environment for the attribute-tree choice:
-/// a home of the fixture's own, and no global or system configuration.
+/// a home of the fixture's own,
+/// and no global or system configuration.
 fn hermetic_variables(root: &Path) -> Vec<(OsString, OsString)> {
     return vec![
         (OsString::from("HOME"), root.to_path_buf().into_os_string()),

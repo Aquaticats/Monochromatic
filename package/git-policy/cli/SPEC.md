@@ -7306,7 +7306,8 @@ with the fields
 `CLI_GIT_WORD_MERGE_OPERATION`,
 `CLI_GIT_WORD_MERGE_PARTS` and
 `CLI_GIT_WORD_MERGE_BLOBS`
-(`base=<oid>,ours=<oid>,theirs=<oid>`, with `none` for a stage the merge had not).
+(`base=<oid>,ours=<oid>,theirs=<oid>`,
+with `none` for a stage the merge had not).
 
 The list ends with one line that names what the pass staged
 (`monochromatic-git-policy-cli: word-level merge: staged as resolved by the second merge pass: <paths>. ...`),
@@ -7323,7 +7324,8 @@ the operation did not finish,
 the resolved files stay staged,
 the conflict they replaced is gone,
 and the command that ends that operation is named for it
-(`git commit` for a merge or a pull, `git rebase --continue`,
+(`git commit` for a merge or a pull,
+`git rebase --continue`,
 `git cherry-pick --continue`,
 `git revert --continue`).
 The failing step's own words describe that step alone,
@@ -7556,7 +7558,8 @@ so a rule the merge introduces governs the pass:
 the candidates are asked of one `git check-attr --source=<tree>` start,
 and a `--source` outranks `--attr-source` and `GIT_ATTR_SOURCE` in Git 2.56.0.
 The tree is named as that source only where the person named no source above;
-where a person's choice cannot be read, the pass names none.
+where a person's choice cannot be read,
+the pass names none.
 A `.gitattributes` that the merge itself left conflicted names no source at all:
 its file in the merge tree holds Git's markers,
 no side's rule can be read from between them,

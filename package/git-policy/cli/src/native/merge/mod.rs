@@ -19,6 +19,9 @@ pub mod word_merge;
 /// and the lines that list each merged part.
 pub mod merge_second_pass;
 
+/// The words that list a merged part and the journal entry for a merged file.
+pub mod merge_second_pass_report;
+
 /// The conflicted files of a merge tree and the reading of `git merge-tree` output into conflicts.
 pub mod merge_second_pass_conflicts;
 

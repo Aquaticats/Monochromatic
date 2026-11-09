@@ -13,6 +13,7 @@
 
 use super::*;
 use crate::transaction_git::GitContext;
+use crate::word_merge::LineSpan;
 use std::ffi::OsString;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use std::path::PathBuf;

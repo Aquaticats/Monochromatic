@@ -34,39 +34,16 @@
 //! const verdicts = await secondPass(runner, conflicts); // [{ merged: { path, mode, bytes, parts } } | { left: { path, why } }]
 //! ```
 
-use crate::client_journal::record_entry_as;
-use crate::diagnostic_log::debug;
-use crate::journald_native::Priority;
-use crate::path_bytes::path_message_text;
-use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
-pub use crate::merge_second_pass_conflicts::{Conflict, Stage, conflicts_of_merge_tree};
 use crate::merge_second_pass_conflicts::{is_nul_byte, split_once};
+pub use crate::merge_second_pass_conflicts::{Conflict, Stage, conflicts_of_merge_tree};
 pub use crate::merge_second_pass_git_runner::{ContextRunner, GitReply, GitRunner, config_options};
+/// The report words and the journal entry live in a file of their own;
+/// named here so every `merge_second_pass::name` path stays the same.
+pub use crate::merge_second_pass_report::{BLOBS_FIELD, EXCERPT_CHARACTERS, FILE_FIELD, INPUTS_HINT, OPERATION_FIELD, PARTS_FIELD, REPORT_MARK, journal_entry, journal_merged, part_text, report_lines};
+use crate::path_bytes::path_message_text;
+use crate::word_merge::{MergedPart, WordMerge, merge_by_word};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-/// Tag used for diagnostics from this module.
-const TAG: &str = "wordMerge";
-
-/// The words every line about a merged part carries,
-/// so a reader finds them in a long output.
-pub const REPORT_MARK: &str = "word-level merge";
-
-/// The journal field that names the file of an entry.
-pub const FILE_FIELD: &str = "CLI_GIT_WORD_MERGE_FILE";
-
-/// The journal field that names the operation that produced the conflict.
-pub const OPERATION_FIELD: &str = "CLI_GIT_WORD_MERGE_OPERATION";
-
-/// The journal field that counts the parts of the file that were merged by word.
-pub const PARTS_FIELD: &str = "CLI_GIT_WORD_MERGE_PARTS";
-
-/// The journal field that names the three inputs of a merged file,
-/// so `git cat-file blob <oid>` reaches each of them after the stages are gone.
-pub const BLOBS_FIELD: &str = "CLI_GIT_WORD_MERGE_BLOBS";
-
-/// The sentence that says how to read an input a part line names.
-pub const INPUTS_HINT: &str = "Each part line ends with the three blobs it came from; `git cat-file blob <oid>` shows one.";
 
 /// The number of leading bytes in which Git looks for a NUL byte to call a file binary:
 /// `FIRST_FEW_BYTES` in Git 2.56.0's
@@ -101,9 +78,6 @@ const PASS_COST_LIMIT_BYTES: usize = 8 * 1024 * 1024;
 /// The largest blob the second pass re-merges:
 /// the smaller of Git's own limit and the one measured above.
 const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE { PASS_COST_LIMIT_BYTES } else { GIT_MAX_XDIFF_SIZE };
-
-/// The most characters of a merged part a report line shows.
-const EXCERPT_CHARACTERS: usize = 100;
 
 /// The modes of a plain file,
 /// with and without the executable bit.
@@ -238,7 +212,8 @@ fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
 /// with `-merge` or with `merge=binary` must be merged the way its setting says,
 /// not by a second
 ///  pass that ignores the setting.
-/// `source` decides where the setting is read: the invocation's own source,
+/// `source` decides where the setting is read:
+/// the invocation's own source,
 /// or the tree the merge
 ///  produced,
 /// whose `--source` outranks `--attr-source` and `GIT_ATTR_SOURCE` in Git 2.56.0.
@@ -467,149 +442,6 @@ pub fn tree_with_files(runner: &dyn GitRunner, tree: &str, files: &[(&[u8], u32,
         return Err(format!("git write-tree failed: {}", String::from_utf8_lossy(&written.stderr).trim()));
     }
     return Ok(String::from_utf8_lossy(&written.stdout).trim().to_owned());
-}
-
-/// The words for a run of lines.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// span.count === 0 ? `no line (before line ${span.first})` : span.count === 1 ? `line ${span.first}` : `lines ${span.first} to ${span.first + span.count - 1}`
-/// ```
-fn span_text(span: &LineSpan) -> String {
-    return match span.count {
-        0 => format!("no line (before line {})", span.first),
-        1 => format!("line {}", span.first),
-        count => format!("lines {} to {}", span.first, span.first + count - 1),
-    };
-}
-
-/// What:
-///  What a merged part became,
-/// as one escaped line of at most `EXCERPT_CHARACTERS` characters.
-/// Why:
-///   The reader sees the new text without opening the file;
-/// escaping keeps a terminal control sequence in a file from
-///  reaching the terminal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// JSON.stringify(text).slice(0, EXCERPT_CHARACTERS)
-/// ```
-fn excerpt(merged: &[u8]) -> String {
-    let escaped: String = String::from_utf8_lossy(merged).escape_debug().to_string();
-    return match escaped.char_indices().nth(EXCERPT_CHARACTERS) {
-        Some((end, _)) => format!("\"{}...\"", &escaped[..end]),
-        None => format!("\"{escaped}\""),
-    };
-}
-
-/// What:
-///  The words that name one input of a part as a blob that outlives the pass.
-/// Why:
-///   The stages the part was merged from are gone from the index once the file is staged as resolved,
-/// so
-///  `git show :2:<path>` answers nothing;
-/// the object name is the one handle a person can still open.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const blobText = (stage?: Stage) => (stage ? `blob ${stage.oid}` : 'no blob');
-/// ```
-fn blob_text(stage: Option<&Stage>) -> String {
-    return match stage {
-        Some(found) => format!("blob {}", found.oid),
-        None => String::from("no blob"),
-    };
-}
-
-/// One part as a sentence fragment:
-/// where it was in the three texts,
-/// what it became,
-/// and the three blobs those texts are.
-pub fn part_text(part: &MergedPart, stages: &Conflict) -> String {
-    return format!(
-        "base {}, ours {}, theirs {} became {} from base {}, ours {}, theirs {}",
-        span_text(&part.base),
-        span_text(&part.ours),
-        span_text(&part.theirs),
-        excerpt(part.merged.as_slice()),
-        blob_text(stages.base.as_ref()),
-        blob_text(stages.ours.as_ref()),
-        blob_text(stages.theirs.as_ref())
-    );
-}
-
-/// What:
-///  The lines that list a merged file:
-/// one per part,
-/// or one for the file when it needed no word pass.
-/// Why:
-///   The owner's decision is that every merged part is visible by file and by part.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function reportLines(prefix: string, merged: Merged): string[];
-/// ```
-pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
-    let path: String = path_message_text(merged.path.as_slice());
-    if merged.parts.is_empty() {
-        return vec![format!("{prefix}{REPORT_MARK}: {path}: resolved without a word pass (every region took one side)")];
-    }
-    let mut lines: Vec<String> = Vec::new();
-    for (at, part) in merged.parts.iter().enumerate() {
-        lines.push(format!("{prefix}{REPORT_MARK}: {path}: part {} of {}: {}", at + 1, merged.parts.len(), part_text(part, &merged.stages)));
-    }
-    return lines;
-}
-
-/// What:
-///  The message and the fields of the journal entry for a merged file.
-/// Why:
-///   One entry names the file,
-/// the operation and every part,
-/// so `journalctl` finds a merge by file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// journalEntry('merge', merged) // { message, fields }
-/// ```
-pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static str, String)>) {
-    let path: String = path_message_text(merged.path.as_slice());
-    let message: String = report_lines("", merged).join("; ");
-    let blobs: String = format!(
-        "base={},ours={},theirs={}",
-        blob_oid(merged.stages.base.as_ref()),
-        blob_oid(merged.stages.ours.as_ref()),
-        blob_oid(merged.stages.theirs.as_ref())
-    );
-    return (
-        message,
-        vec![(FILE_FIELD, path), (OPERATION_FIELD, operation.to_owned()), (PARTS_FIELD, merged.parts.len().to_string()), (BLOBS_FIELD, blobs)],
-    );
-}
-
-/// The object name of one input,
-/// or `none` when the merge had no such stage.
-fn blob_oid(stage: Option<&Stage>) -> String {
-    return stage.map_or_else(|| String::from("none"), |found| { return found.oid.clone(); });
-}
-
-/// What:
-///  Send one journal entry for a merged file under the identifier of the program that merged it.
-/// Why:
-///   The wrapper's standard error is a terminal or a capture that is gone when the command ends;
-/// the journal keeps the
-///  file and each part for later.
-/// Code that runs inside the service sends under the service's identifier.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// recordEntryAs(identifier, 'warning', `word-level merge: ${path}: ${parts.join('; ')}`, { CLI_GIT_WORD_MERGE_FILE: path, ... });
-/// ```
-pub fn journal_merged(identifier: &str, operation: &str, merged: &Merged) {
-    let (message, fields) = journal_entry(operation, merged);
-    let sent: bool = record_entry_as(identifier, Priority::Warning, message.as_str(), fields.as_slice());
-    debug(TAG, format!("journal entry for a merged file: sent={sent}").as_str());
 }
 
 /// Controls for the parsing,
