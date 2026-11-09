@@ -9,7 +9,7 @@ Status:
 
 ## The problem
 
-The repo has fifteen `Cargo.toml` files and no Cargo workspace.
+The repo has one `Cargo.toml` per crate and no Cargo workspace.
  Every crate is its own workspace root,
  several with an explicit empty
  `[workspace]` table (`package/music-player/truepeak-core/Cargo.toml`,
