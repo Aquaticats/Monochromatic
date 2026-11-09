@@ -325,6 +325,9 @@ pub mod service_index_reclaim;
 /// and the line that says so.
 pub mod service_commit_rebuild_ceiling;
 
+/// The submission of a prepared commit whose waiting notices are written away from the thread that waits.
+pub mod service_commit_waiting_notices;
+
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.
 pub mod service_index_unheld_removal;

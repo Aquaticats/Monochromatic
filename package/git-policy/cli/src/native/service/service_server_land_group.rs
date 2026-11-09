@@ -270,8 +270,53 @@ pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
     }
 }
 
+/// The place each request of a batch is told,
+/// as `(number, of)`,
+/// in the order of the batch.
+/// Why:
+///   A request that is not the batch's first goes behind the ones before it,
+/// so it is told how many commits go first however
+///  short its wait;
+/// the first is next,
+/// and is told so only once its own wait has mattered,
+/// so a batch that begins at once says
+///  nothing new to anybody (and a client of an earlier release,
+/// which prints every place it is told,
+/// sees no new line for a quick commit).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeNotices(3, 12_000, 10_000) // [[1,3],[2,3],[3,3]]
+/// ```
+fn place_notices(size: usize, waited: Duration, threshold: Duration) -> Vec<(usize, usize)> {
+    let mut places: Vec<(usize, usize)> = Vec::new();
+    for index in 0..size {
+        if index == 0 && waited < threshold {
+            continue;
+        }
+        places.push((index + 1, size));
+    }
+    return places;
+}
+
+/// How long the first request of a batch has waited since its connection was accepted,
+/// which is the wait the telling answers.
+/// Nothing when the batch holds no request,
+/// which lands nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitedSinceAccepted(group[0]) // milliseconds
+/// ```
+fn waited_since_accepted(queued: &Queued) -> Duration {
+    return queued.2.accepted.elapsed();
+}
+
 /// Lands one group of jobs that share a branch,
 /// and answers each client.
+/// `place_after` is the wait a batch's first request must have borne before it is told it is next
+/// (`wait_ceilings.rs`,
+/// `WAITING_NOTICE_AFTER`).
 pub(crate) fn land_group(
     context: &LandContext,
     instance: Option<&str>,
@@ -279,6 +324,7 @@ pub(crate) fn land_group(
     group: Vec<Queued>,
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
+    place_after: Duration,
 ) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
@@ -331,8 +377,14 @@ pub(crate) fn land_group(
         }
     };
     *seq = claim.seq();
-    for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
-        stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
+    // The first request of a batch has waited since its connection was accepted; the wait that matters for being told
+    //  it is next is the one it has borne when the batch begins to land.
+    let waited: Duration = fresh.first().map_or(Duration::ZERO, waited_since_accepted);
+    for (number, of) in place_notices(fresh.len(), waited, place_after) {
+        let Some((_, stream, _)) = fresh.get(number - 1) else {
+            continue;
+        };
+        stream.send(&ServiceMessage::Position { number, of });
     }
     let mut requests: Vec<CommitRequest> = Vec::new();
     for (request, _, _) in &fresh {
@@ -399,3 +451,8 @@ pub(crate) fn land_group(
         }
     }
 }
+
+/// What a batch tells its requests is controlled in the test module.
+#[cfg(test)]
+#[path = "service_server_land_group_tests.rs"]
+mod tests;
