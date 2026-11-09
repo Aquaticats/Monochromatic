@@ -239,10 +239,11 @@ fn settlements_racing_renewals_lose_no_claim() {
                 let _ = driver.renew(&clock().advanced(Duration::from_secs(round)));
             }
         });
+        let letting_go: StopRenewing<'_> = StopRenewing(&stop);
         for id in &ids {
             held.settle(work_dir.as_path(), id.as_str(), DONE).expect("settled while renewals run");
         }
-        stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        drop(letting_go);
         renewing.join().expect("the renewals finished");
     });
     drop(renewal);
@@ -255,6 +256,21 @@ fn settlements_racing_renewals_lose_no_claim() {
 
 /// How many claims the race holds at once.
 const RACED_CLAIMS: usize = 40;
+
+/// What:
+///  The flag that ends the renewal thread of a control.
+/// Why:
+///   The flag goes down when the control lets go and also when the control ends however it ends,
+/// so a settlement that fails
+///  cannot leave the scope joining a thread that renews without end.
+struct StopRenewing<'flag>(&'flag std::sync::atomic::AtomicBool);
+
+impl Drop for StopRenewing<'_> {
+    /// End the renewal thread.
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
 
 /// The number of threads this process has,
 /// read from its status.
