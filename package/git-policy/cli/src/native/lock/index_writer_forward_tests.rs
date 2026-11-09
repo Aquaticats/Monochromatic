@@ -192,7 +192,7 @@ fn plain_route_death_of_a_git_killed_by_sigterm() -> CoordinatedRun {
     let mut forward: CoordinatedForward = add_forward(repo.as_path());
     // `--patch` reads the person's answers, so the command is never run again and its Git runs once.
     forward.arguments = vec![OsString::from("-C"), repo.as_os_str().to_owned(), OsString::from("add"), OsString::from("--patch")];
-    forward.command = ResolvedCommand { arguments: forward.arguments.clone(), subcommand_index: 2, subcommand: Some(OsString::from("add")), route: Route::Direct };
+    forward.command = ResolvedCommand { arguments: forward.arguments.clone(), subcommand_index: 2, subcommand: Some(OsString::from("add")), route: Route::Direct, shell_command: None };
     assert!(!may_run_again(forward.command.word(), forward.command.region()), "this control is the plain route only if the command may not run again");
     let scripts: PathBuf = root.join("scripts");
     std::fs::create_dir_all(&scripts).expect("script directory");
@@ -340,6 +340,7 @@ fn merge_forward(repo: &Path, after: &[&str], real_git: &Path) -> CoordinatedFor
         subcommand_index: 2,
         subcommand: Some(OsString::from("merge")),
         route: Route::Direct,
+        shell_command: None,
     };
     return CoordinatedForward {
         real_git: real_git.to_path_buf(),
