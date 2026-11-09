@@ -251,45 +251,10 @@ function isolateReviewOptions(
   /* oxlint-enable typescript/no-unsafe-type-assertion */
 }
 
-/**
- Assert model carries exact API discriminant.
- 
- @param input - selected model and expected API literal
- 
- @returns nothing
- 
- @throws when model API differs from expected literal
- 
- @example
- ```ts
- const input = { model, api: 'openai-responses' } as const;
- assertModelUsesApi(input);
- ```
- */
-function assertModelUsesApi<const TApi extends Api,>(
-  input: {
-    readonly model: ForeignBorrowed<Model<Api>>;
-    readonly api: TApi;
-  },
-): asserts input is {
-  readonly model: ForeignBorrowed<Model<TApi>>;
-  readonly api: TApi;
-} {
-  if (input.model
-    .api
-    !== input.api) {
-    throw new Error(
-      `Expected review model API ${input.api} but received ${input.model
-        .api}`,
-    );
-  }
-}
-
 export {
   cloneReviewMessages,
   isolateReviewContext,
   isolateReviewModel,
   isolateReviewOptions,
-  assertModelUsesApi,
 };
 export type { ReviewSimpleStreamOptions, };

@@ -176,7 +176,7 @@ await describe({
         /**
          Dispatch failure message listing supported APIs.
          */
-        const message = (error as Error).message;
+        const { message, } = error as Error;
         expect(message,).toContain('No Pi AI API implementation available',);
         for (const api of EXPECTED_DISPATCHED_APIS)
           expect(message,).toContain(api);
