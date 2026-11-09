@@ -87,3 +87,72 @@ fn real_git_answers_the_commit_and_whether_head_contains_it() {
     assert_eq!(branch_commit(&reading, None, OsStr::new("unmerged"), false).as_deref(), Some(commit.as_str()));
     remove(root.as_path());
 }
+
+/// Real Git:
+///  a deletion that names the previous branch records the branch Git expanded it to,
+///  with that
+///       branch's own commit,
+///  and a name no reference answers still writes no line.
+#[test]
+fn real_git_records_the_branch_a_previous_branch_expression_names() {
+    let root: PathBuf = fixture("branch-delete-expression");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "lost"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=lost"]);
+    let commit: String =
+        String::from_utf8_lossy(git(repo.as_path(), &["rev-parse", "lost"]).stdout.as_slice()).trim().to_owned();
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    let reading: GitContext = context(repo.as_path());
+    // The control: Git resolves the expression the record reads.
+    let symbolic: String = String::from_utf8_lossy(
+        git(repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert_eq!(symbolic, "refs/heads/lost");
+    let expression: &std::ffi::OsStr = std::ffi::OsStr::new("@{-1}");
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), expression, false).as_deref(), Some(commit.as_str()));
+    let facts: Vec<AuditFact> =
+        deletion_facts(&reading, Some(repo.as_path()), expression, false).expect("the branch exists");
+    assert_eq!(value(&facts, "branch"), "lost");
+    assert_eq!(value(&facts, "reference"), "refs/heads/lost");
+    assert_eq!(value(&facts, "commit"), commit);
+    // A name no reference answers writes no line, and the typed reference is asked about first.
+    let missing: &std::ffi::OsStr = std::ffi::OsStr::new("@{-9}");
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), missing, false), None);
+    assert_eq!(deletion_facts(&reading, Some(repo.as_path()), missing, false), None);
+    remove(root.as_path());
+}
+
+/// Real Git:
+///  a branch whose name is not UTF-8 keeps its own reference and commit in the record,
+///  because the
+///       name reaches Git as bytes.
+#[cfg(unix)]
+#[test]
+fn real_git_records_a_branch_name_that_is_not_utf8() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("branch-delete-non-utf8");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    let name: std::ffi::OsString = std::ffi::OsString::from_vec(b"lost-\xff".to_vec());
+    git(repo.as_path(), &[OsStr::new("branch"), name.as_os_str()]);
+    let commit: String = String::from_utf8_lossy(
+        git(repo.as_path(), &[OsStr::new("rev-parse"), name.as_os_str()]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    let reading: GitContext = context(repo.as_path());
+    let facts = deletion_facts(&reading, Some(repo.as_path()), name.as_os_str(), false).expect("the branch exists");
+    assert_eq!(value(&facts, "commit"), commit);
+    assert!(value(&facts, "reference").starts_with("refs/heads/lost-"), "{facts:?}");
+    // The control: the same reference spelled as bytes is the branch Git holds.
+    let listed: String = String::from_utf8_lossy(
+        git(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/heads"]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert!(listed.contains("lost-"), "{listed}");
+    remove(root.as_path());
+}

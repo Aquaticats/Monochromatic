@@ -171,3 +171,8 @@ pub mod worst_delay_seen_on_this_host;
 /// The collected elements a pass over unbounded input has looked at,
 /// counted for the controls of the passes that must stay linear.
 pub mod collected_elements_looked_at;
+
+/// A blocking job on a thread of its own,
+/// awaited no longer than a ceiling,
+/// because a file system call can wait in the kernel with no end.
+pub mod work_awaited_within_a_ceiling;

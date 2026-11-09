@@ -12,9 +12,9 @@
 use super::*;
 use crate::index_lock_holders::{ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
 use crate::service_fault::hooks;
-use crate::service_index_lock::{Announce, LockFailure, acquire, acquire_within, lock_path_of};
+use crate::service_index_lock::{Announce, LockFailure, acquire_on, acquire_within, lock_path_of};
 use crate::service_index_marker::{marker_text, own_identity};
-use crate::service_index_placement::SYSTEM;
+use crate::service_index_placement::{Platform, SYSTEM};
 use crate::service_protocol::FailureCode;
 use crate::test_support::{fixture, remove};
 use std::sync::Mutex;
@@ -318,19 +318,34 @@ fn the_journal_and_the_person_are_given_the_proof_and_its_limit() {
     assert!(told.ends_with('\n'));
 }
 
-/// The acquisition that meets an unheld lock removes it,
-/// takes its own lock at once instead of waiting a notice interval,
-/// and tells the person what was removed.
+/// What:
+///  The acquisition that meets an unheld lock removes it on its first look,
+///  takes its own lock instead of waiting a notice interval,
+///  and tells the person what was removed.
+/// Why:
+///   The first look is what the removal is decided at,
+/// and a wait for a lock is what the person hears while there is one;
+/// so the removal being the only line,
+/// and the first line,
+/// is the event this control means.
+/// A clock cannot say it:
+/// on 2026-11-09 this control failed alone at 11 to 40 s against its own 8 s bound while the host's scan of 1,253
+/// processes was cut at its budget,
+/// which the removal cannot act on,
+/// and the acquisition then waited a notice interval for a lock nothing held.
+/// The scan is the platform's,
+/// so the control gives it a scan that finished and found no holder,
+/// and the host's process table stops deciding what this controls.
 #[test]
 fn a_landing_over_an_unheld_lock_removes_it_and_goes_on() {
     let (root, index) = index_in("unheld-acquire");
     std::fs::write(lock_path_of(&index), "").expect("empty foreign lock");
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-    let began: Instant = Instant::now();
-    let lock = acquire(&index, 3, &|note| { heard.lock().expect("lock").push(note); }).expect("taken over the unheld lock");
-    assert!(began.elapsed() < Duration::from_secs(8), "the acquisition waited a notice interval: {:?}", began.elapsed());
+    let unheld: Platform = Platform { scan: complete_and_empty, ..SYSTEM };
+    let lock = acquire_on(&unheld, &index, 3, &|note| { heard.lock().expect("lock").push(note); }).expect("taken over the unheld lock");
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
-    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("removed") && text.contains("index.lock")); }), "{said:?}");
+    assert_eq!(said.len(), 1, "the person hears the removal and no wait for a lock nothing holds: {said:?}");
+    assert!(matches!(&said[0], Announce::Waiting(text) if text.contains("removed") && text.contains("index.lock")), "the first line is the removal: {said:?}");
     assert!(std::fs::read_to_string(lock_path_of(&index)).expect("the service's lock").starts_with("cli-git-service "));
     drop(lock);
     remove(root.as_path());
