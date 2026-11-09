@@ -38,7 +38,7 @@ fn a_commit_a_later_commit_sits_on_top_of_was_made() {
     let earlier: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
     crate::test_support::git(root.as_path(), &["commit", "--quiet", "--allow-empty", "--message=later"]);
     let later: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
-    let elsewhere: String = {
+    let off_the_branch: String = {
         // A commit that is not on the branch at all.
         crate::test_support::git(root.as_path(), &["checkout", "--quiet", "--detach", "HEAD~1"]);
         crate::test_support::git(root.as_path(), &["commit", "--quiet", "--allow-empty", "--message=elsewhere"]);
@@ -49,7 +49,7 @@ fn a_commit_a_later_commit_sits_on_top_of_was_made() {
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let on_top: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", earlier.as_str());
     let the_tip: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", later.as_str());
-    let elsewhere: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", elsewhere.as_str());
+    let elsewhere: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", off_the_branch.as_str());
     crate::test_support::remove(root.as_path());
     assert_eq!(on_top, WhatTheBranchShows::Made, "a commit the branch's tip sits on top of was made by this command");
     assert_eq!(the_tip, WhatTheBranchShows::Made, "the tip itself is the commit this command prepared");

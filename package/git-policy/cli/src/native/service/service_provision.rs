@@ -384,8 +384,8 @@ mod never_starts_at_login_tests;
 /// ```ts
 /// provisioned = provisionWhenNeeded(host, provisioned, timing);
 /// ```
-pub(crate) fn provision_when_needed(host: Option<&ProvisionHost>, provisioned: bool, timing: &mut std::time::Duration) -> Result<bool, crate::commit_transaction::TransactionStop> {
-    let Some(host) = host else {
+pub(crate) fn provision_when_needed(named: Option<&ProvisionHost>, provisioned: bool, timing: &mut std::time::Duration) -> Result<bool, crate::commit_transaction::TransactionStop> {
+    let Some(host) = named else {
         return Ok(provisioned);
     };
     if provisioned {

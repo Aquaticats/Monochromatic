@@ -136,11 +136,11 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
         ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, placed.ready.reference.as_str(), placed.commit),
         other => Some(other),
     };
-    let Some(worded) = worded else {
+    let Some(reported) = worded else {
         // The branch holds the commit this command prepared, so the commit was made, and the command succeeds.
         return Ok(the_landed_commit(placed));
     };
-    return Err(TransactionStop::Message(render(&worded)));
+    return Err(TransactionStop::Message(render(&reported)));
 }
 
 /// What:
