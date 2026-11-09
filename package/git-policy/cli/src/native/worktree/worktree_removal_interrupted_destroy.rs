@@ -34,7 +34,8 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, open_root, remove_at};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
-use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, promote_snapshot, snapshot_one};
+use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
+use crate::worktree_removal_snapshot_promotion::promote_snapshot;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
@@ -133,6 +134,11 @@ struct DestroyRecord {
     target: PathBuf,
 }
 
+/// Whether one byte of a record is the newline that ends its identity line.
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
 /// The fields of a record,
 /// or the reason it cannot be used.
 fn read_record(path: &Path) -> Result<DestroyRecord, String> {
@@ -140,7 +146,7 @@ fn read_record(path: &Path) -> Result<DestroyRecord, String> {
         Ok(read) => read,
         Err(error) => return Err(format!("it cannot be read ({error})")),
     };
-    let Some(split_at) = bytes.iter().position(|byte: &u8| { return *byte == b'\n'; }) else {
+    let Some(split_at) = bytes.iter().position(is_newline) else {
         return Err(String::from("it has no identity line"));
     };
     let (identity_bytes, rest): (&[u8], &[u8]) = bytes.split_at(split_at);
@@ -173,14 +179,32 @@ fn remove_recorded_registration(worktrees: &File, id: &OsStr, admin: &Path, reco
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(format!("{} cannot be opened ({error})", admin.display())),
     };
-    let found: ObjectId = identity_of(&held).map_err(|error: std::io::Error| { return format!("the identity of {} cannot be read ({error})", admin.display()); })?;
+    let found: ObjectId = step_reason(identity_of(&held), admin, "its identity cannot be read")?;
     if found != *recorded {
         return Err(format!("{} is not the registration the destroy was recorded for, so it is left alone", admin.display()));
     }
-    verify_below(&held, admin).map_err(|error: std::io::Error| { return format!("{} holds something this command does not delete ({error})", admin.display()); })?;
-    empty_directory(&held, admin).map_err(|error: std::io::Error| { return format!("the content of {} cannot be removed ({error})", admin.display()); })?;
+    step_reason(verify_below(&held, admin), admin, "it holds something this command does not delete")?;
+    step_reason(empty_directory(&held, admin), admin, "its content cannot be removed")?;
     drop(held);
-    return remove_at(worktrees, id, true).map_err(|error: std::io::Error| { return format!("{} cannot be removed from its parent ({error})", admin.display()); });
+    return step_reason(remove_at(worktrees, id, true), admin, "it cannot be removed from its parent");
+}
+
+/// What:
+///  The outcome of one step on `shown`,
+/// or the sentence for the person when it failed.
+/// Why:
+///   Every failure of the finish reads the same way,
+/// and a named function keeps that shape without a closure per step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stepReason(outcome, shown, 'its content cannot be removed')
+/// ```
+fn step_reason<T>(outcome: std::io::Result<T>, shown: &Path, what: &str) -> Result<T, String> {
+    return match outcome {
+        Ok(value) => Ok(value),
+        Err(error) => Err(format!("{what} ({error}): {}", shown.display())),
+    };
 }
 
 /// What:
@@ -210,7 +234,8 @@ pub fn finish_interrupted_destroys(common_dir: &Path) -> Vec<String> {
     return problems;
 }
 
-/// Finish one record, or say why it stays.
+/// Finish one record,
+/// or say why it stays.
 fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<String>) {
     let read: DestroyRecord = match read_record(record) {
         Ok(found) => found,

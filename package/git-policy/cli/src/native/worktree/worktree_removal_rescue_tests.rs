@@ -7,7 +7,9 @@
 //!  worktree which stays loses nothing and shows nothing.
 
 use super::*;
-use crate::push_failure_notice::{record_push_failure, take_orphaned_failures};
+use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, record_push_failure, take_orphaned_failures};
+use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of, name_of};
+use crate::work_item::WorkItem;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, remove};
 use crate::work_item::enqueue;

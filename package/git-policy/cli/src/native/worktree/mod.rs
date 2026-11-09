@@ -85,6 +85,10 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// What a removal snapshot kept,
+/// promoted to the notices every worktree shows.
+pub mod worktree_removal_snapshot_promotion;
+
 /// The finish of a removal whose destroy happened and whose registration did not go.
 pub mod worktree_removal_interrupted_destroy;
 

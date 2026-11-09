@@ -161,7 +161,8 @@ pub struct Journal {
     /// Step name to the time in milliseconds after the epoch at which it got its current state.
     times: BTreeMap<String, i64>,
     /// Named values a step records beside its state
-    /// (the identity of the subvolume the migration installed, for one),
+    /// (the identity of the subvolume the migration installed,
+    /// for one),
     /// kept in key order.
     values: BTreeMap<String, String>,
     /// Whether the file exists on disk.

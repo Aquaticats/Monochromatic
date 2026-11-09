@@ -216,7 +216,8 @@ pub fn retry_given_up_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn W
     let mut recorded: Vec<String> = Vec::new();
     for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
         let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
-        for record in listing.flatten().map(|entry: std::fs::DirEntry| { return entry.path(); }) {
+        for entry in listing.flatten() {
+            let record: PathBuf = entry.path();
             let Ok(text) = std::fs::read_to_string(record.as_path()) else { continue };
             let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
             if item.kind != WorkKind::Trash {
@@ -233,7 +234,9 @@ pub fn retry_given_up_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn W
     name_unrecorded_trash(worktree, &recorded, notices);
 }
 
-/// One record the service gave up on: empty its trash, or say why it still stays.
+/// One record the service gave up on:
+/// empty its trash,
+/// or say why it still stays.
 fn retry_one_trash(item: &WorkItem, record: &Path, notices: &mut dyn Write) {
     let shown: PathBuf = Path::new(item.repository.as_str()).join(TRASH_PARENT).join(item.oid.as_str());
     match empty_trash(item) {
@@ -259,13 +262,14 @@ fn retry_one_trash(item: &WorkItem, record: &Path, notices: &mut dyn Write) {
 }
 
 /// Say what sits in the trash parent of `worktree` that no record names.
-/// A directory nobody recorded cannot be proven to be one the leave-out moved, so it is only named.
+/// A directory nobody recorded cannot be proven to be one the leave-out moved,
+/// so it is only named.
 fn name_unrecorded_trash(worktree: &Path, recorded: &[String], notices: &mut dyn Write) {
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     let Ok(listing) = std::fs::read_dir(&parent) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if recorded.iter().any(|known: &String| { return *known == name; }) {
+        if recorded.contains(&name) {
             continue;
         }
         let _told = writeln!(

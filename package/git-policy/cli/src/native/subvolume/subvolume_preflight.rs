@@ -460,7 +460,10 @@ pub fn rollback_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     if journal.has_begun("rollback-swap") || journal.state("exchange") == Some("rolled-back") {
         return Vec::new();
     }
-    return wrong_root_refusal(layout, journal).map_or_else(Vec::new, |found| vec![found]);
+    return match wrong_root_refusal(layout, journal) {
+        Some(found) => vec![found],
+        None => Vec::new(),
+    };
 }
 
 /// What:
