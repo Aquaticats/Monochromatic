@@ -365,7 +365,7 @@ pub fn run_policy_stage(
         let began: std::time::Instant = std::time::Instant::now();
         let outcome: PolicyOutcome = checks.check(*policy, request.trigger);
         crate::prepare_work_spans::note_span(
-            crate::prepare_work_spans::policy_span_name(policy_descriptor(*policy).name).as_str(),
+            crate::prepare_work_spans::policy_span_name(policy_descriptor(*policy).name, request.trigger).as_str(),
             began.elapsed(),
         );
         // `match` unpacks the three outcomes; only `Findings` continues past it.

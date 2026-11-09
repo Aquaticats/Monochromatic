@@ -9199,15 +9199,19 @@ empty for a commit that noted no step:
 `totalMs` the whole of its time and `longestMs` its longest run;
 the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
 `index read` for reading an index's bytes to decide whether it may seed a private index,
+`index equals base` for the in-process answer of whether the captured index already holds the base's tree,
 `index copy` for a copy of an index into a private one,
 `policy blob write` for storing a correction's bytes,
 `policy entry write` for pointing a private index entry at a corrected blob,
-and `policy <name>` for every policy a pass evaluated,
-with that policy's registry name,
-summed over the convergence rounds that ran it again;
+and `candidates prepared` for the candidate set a pass's content policies share,
+which the first content policy that asks pays for,
+`policy <name> at <lifecycle point>` for every policy a pass evaluated,
+with that policy's registry name and the trigger whose pass ran it,
+summed over the convergence rounds that ran it again,
+so a preparation's own pass is told from the post-commit gate's;
 a step that starts Git is stated here as the work and in `steps` as the child it started),
 `prepareSpansDropped`
-(how many step names came after that list reached its bound,
+(how many step names came after that list reached its bound of 64,
 so a longer run is counted rather than lost),
 `indexBuilds`
 (one entry per build of the private commit index,

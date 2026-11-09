@@ -401,12 +401,12 @@ fn the_record_states_the_preparations_own_work_by_name() {
     let (timing, _covered) = filled(root.as_path());
     note_span("index copy", Duration::from_millis(12));
     note_span("index copy", Duration::from_millis(30));
-    note_span("policy security/forbidden-strings", Duration::from_millis(7));
+    note_span("policy security/forbidden-strings at pre-forward", Duration::from_millis(7));
     timing.finish(0);
     let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
     let value: serde_json::Value = parsed(text.as_str());
     let expected: serde_json::Value = serde_json::from_str(
-        r#"[{"name":"index copy","calls":2,"totalMs":42,"longestMs":30},{"name":"policy security/forbidden-strings","calls":1,"totalMs":7,"longestMs":7}]"#,
+        r#"[{"name":"index copy","calls":2,"totalMs":42,"longestMs":30},{"name":"policy security/forbidden-strings at pre-forward","calls":1,"totalMs":7,"longestMs":7}]"#,
     )
     .expect("the split of two names");
     assert_eq!(value["prepareSpans"], expected, "every named step of the preparation is stated with its count and its time: {value}");

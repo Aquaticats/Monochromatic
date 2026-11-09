@@ -43,15 +43,17 @@ use std::time::Duration;
 /// the index read,
 /// the index copies,
 /// the entry writes,
-/// and one name per policy the pass evaluates.
+/// and one name per policy the pass evaluates,
+/// per lifecycle point.
 /// The registry holds ten policies (`policy_registry.rs`),
-/// a pass evaluates a policy any number of times over its convergence rounds under one name,
-/// and the work above adds fewer than ten names,
-/// so 32 names cover every commit with room to spare;
-/// the record names how many names went unlisted,
+/// one commit evaluates them at its pre-forward point and again at its post-commit gate,
+/// so thirty names at most,
+/// and the work above adds fewer than ten;
+/// 64 is the next power of two above that,
+/// and the record names how many names went unlisted,
 /// so a longer run is counted,
 /// not lost silently.
-pub const MAX_SPAN_NAMES: usize = 32;
+pub const MAX_SPAN_NAMES: usize = 64;
 
 /// What:
 ///  The name of the step that answers whether the real index still records its worktree's stat data.
@@ -69,6 +71,26 @@ pub const INDEX_STAT_CHECK: &str = "index stat check";
 /// The reading of an index's bytes to decide whether it may seed a private index.
 pub const INDEX_READ: &str = "index read";
 
+/// The answer of whether the captured index already holds the base's tree,
+/// read from the index and the tree rather than asked of Git.
+pub const INDEX_EQUALS_BASE: &str = "index equals base";
+
+/// What:
+///  The name of the step that prepares a pass's candidate set:
+/// the private index its listings read,
+/// the listings,
+/// and the content and attributes behind each path.
+/// Why:
+///   The first content policy of a pass pays for the whole set,
+/// so a record that names only the policies blames whichever policy asked first
+/// for work every content policy shares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CANDIDATES_PREPARED = 'candidates prepared';
+/// ```
+pub const CANDIDATES_PREPARED: &str = "candidates prepared";
+
 /// The copying of an index into a private one.
 pub const INDEX_COPY: &str = "index copy";
 
@@ -79,17 +101,20 @@ pub const POLICY_BLOB_WRITE: &str = "policy blob write";
 pub const POLICY_ENTRY_WRITE: &str = "policy entry write";
 
 /// What:
-///  The name one policy's evaluation is noted under.
+///  The name one policy's evaluation is noted under,
+/// with the lifecycle point it evaluated.
 /// Why:
 ///   A policy's registry name is the word its findings and its configuration use,
-/// so a record that names it can be read beside the person's configuration and the tool's events.
+/// so a record that names it can be read beside the person's configuration and the tool's events,
+/// and the lifecycle point tells a preparation's own pass from the post-commit gate's,
+/// which spends `gateMs` and not `prepareMs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const policySpanName = (registryName: string) => `policy ${registryName}`;
+/// export const policySpanName = (registryName: string, trigger: string) => `policy ${registryName} at ${trigger}`;
 /// ```
-pub fn policy_span_name(registry_name: &str) -> String {
-    return format!("policy {registry_name}");
+pub fn policy_span_name(registry_name: &str, trigger: crate::policy_trigger::Trigger) -> String {
+    return format!("policy {registry_name} at {}", crate::policy_trigger::trigger_name(trigger));
 }
 
 /// What:

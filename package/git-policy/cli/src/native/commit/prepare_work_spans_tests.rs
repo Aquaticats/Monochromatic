@@ -97,3 +97,13 @@ fn the_record_states_the_list_and_escapes_a_name() {
     let parsed: serde_json::Value = serde_json::from_str(spans_json(spans.as_slice()).as_str()).expect("JSON");
     assert_eq!(parsed[0]["name"], "policy a\"b\\c");
 }
+
+/// A policy's span names its registry name and the lifecycle point whose pass ran it,
+/// so a preparation's own pass reads apart from the post-commit gate's,
+/// which spends the gate's milliseconds and not the preparation's.
+#[test]
+fn a_policy_span_names_the_policy_and_the_lifecycle_point() {
+    use crate::policy_trigger::Trigger;
+    assert_eq!(policy_span_name("security/forbidden-strings", Trigger::PreForward), "policy security/forbidden-strings at pre-forward");
+    assert_eq!(policy_span_name("final-newline", Trigger::PostCommit), "policy final-newline at post-commit");
+}
