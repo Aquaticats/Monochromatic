@@ -305,6 +305,29 @@ fn an_installation_that_lands_while_the_prune_runs_is_never_deleted() {
     assert!(!version_directory(&root, "fd-find", "1.0.0").exists(), "a version that was there and unnamed is still pruned");
 }
 
+/// A link this run already removed is not nothing: a failure on the next crate says what went,
+/// the way the recursive removals do.
+#[test]
+fn a_link_removal_failure_after_another_link_says_what_was_removed() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for crate_name in ["monochromatic-a", "monochromatic-b"] {
+        finish_install(&version_directory(&root, crate_name, "1.0.0"), crate_name, "1.0.0", &[crate_name]);
+        std::os::unix::fs::symlink("1.0.0", current_link(&root, crate_name)).expect("current");
+    }
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("a lock that names nothing");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    // `monochromatic-b`'s crate directory may be read and searched but not written, so its link cannot be removed.
+    let unlistable = root.join("cargo").join("monochromatic-b");
+    set_mode(&unlistable, 0o555);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&unlistable, 0o755);
+    let error = pruned.expect_err("the second link cannot be removed");
+    let gone = current_link(&root, "monochromatic-a");
+    assert!(error.message.contains(&gone.display().to_string()), "the report names the link it removed: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a link was removed: {error}");
+}
+
 /// The link removal takes only a version this run deletes or one that is already gone:
 /// a `current` another command moved to a version it just installed is that command's to keep.
 #[test]
