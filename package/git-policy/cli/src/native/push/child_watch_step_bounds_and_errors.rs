@@ -18,9 +18,35 @@
 //! const isNotKnown = (error: Error): boolean => error instanceof NotKnown;
 //! ```
 
+use crate::child_class::CHILD_WAIT_VARIABLE;
 use crate::output_capture::Capture;
 use std::process::Output;
 use std::time::Duration;
+
+/// What:
+///  The sentence for a watched wait that showed no sign of work for the quiet window.
+/// Why:
+///   It names what was waited for,
+/// the window,
+/// where to change it and what to do next.
+///  It sits beside the other wordings of a watch's ending,
+/// so the synchronous wait and the task that awaits it say
+///  the same (`child_watch.rs`,
+/// `child_watch_output_watched_on_the_runtime.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} showed no sign of work for ${limit} seconds and was stopped ...`
+/// ```
+pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
+    return format!(
+        "{waiting_for} showed no sign of work for {} seconds and was stopped ({CHILD_WAIT_VARIABLE} changes this). \
+         If the step belonged to a commit, the next Git command of this wrapper finishes or undoes that commit, so \
+         run the command again. If the step is quiet while it works, raise the window with {CHILD_WAIT_VARIABLE}=<seconds>; \
+         if it stalls again, check with `ps` what that process waits for.",
+        limit.as_secs()
+    );
+}
 
 /// What:
 ///  How long a watched step is waited for,
@@ -224,4 +250,74 @@ pub fn is_ended_by_stop(error: &std::io::Error) -> bool {
         Some(inner) => inner.is::<EndedByStop>(),
         None => false,
     };
+}
+
+/// What:
+///  What a watch saw of a wait that has just ended:
+/// whether the service's stop ended the child,
+/// or its ceiling
+///  passed,
+/// or it showed no sign of work.
+/// Why:
+///   The wait itself is made two ways (a synchronous caller's bridge and a task of the runtime),
+/// and the endings must read the same
+///  from both,
+/// so the checks that word them live here and both faces call them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Outlived = { endedByTheStop: boolean; ceilingMs?: number; ceilingHit: boolean; expired: boolean; limitMs: number };
+/// ```
+pub(crate) struct Outlived {
+    /// Whether the service's stop ended the child.
+    pub(crate) ended_by_the_stop: bool,
+    /// The ceiling the wait ran under,
+    /// or nothing when it had none.
+    pub(crate) ceiling: Option<Duration>,
+    /// Whether the ceiling passed and the child was ended because of it.
+    pub(crate) ceiling_hit: bool,
+    /// Whether the child showed no sign of work for the quiet window and was ended.
+    pub(crate) expired: bool,
+    /// The quiet window the wait ran under.
+    pub(crate) limit: Duration,
+}
+
+/// What:
+///  The error a watched wait ended with,
+/// or nothing when it ended on its own.
+/// Why:
+///   One wording of the three endings,
+/// for the synchronous face of the wait and the task that awaits it
+/// (`push/child_watch.rs`,
+/// `push/child_watch_output_watched_on_the_runtime.rs`).
+/// The stop is told first,
+/// because a step the stop ended must be treated as one,
+/// whatever its own end looked like;
+/// then the ceiling (a step that keeps working is not a quiet one),
+/// then the quiet window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (outlived.endedByTheStop) return endedByTheStop(waitingFor);
+/// if (outlived.ceiling !== undefined && outlived.ceilingHit) return ceilingReached(waitingFor, outlived.ceiling);
+/// if (outlived.expired) return watchedTimeout(waitingFor, outlived.limit);
+/// return undefined;
+/// ```
+pub(crate) fn ending_of_a_watched_step(waiting_for: &str, outlived: Outlived) -> Option<std::io::Error> {
+    let Outlived { ended_by_the_stop: ended, ceiling, ceiling_hit, expired, limit } = outlived;
+    if ended {
+        return Some(ended_by_the_stop(waiting_for));
+    }
+    if let Some(reached) = ceiling
+        && ceiling_hit
+    {
+        return Some(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", reached.as_secs())),
+        ));
+    }
+    if expired {
+        return Some(std::io::Error::new(std::io::ErrorKind::TimedOut, watched_timeout_text(waiting_for, limit)));
+    }
+    return None;
 }

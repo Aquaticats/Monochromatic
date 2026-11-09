@@ -4904,7 +4904,8 @@ What was not changed is the second place that writes a report line beside the wr
 `finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
 output Git's checkout line goes to,
 so that note needs a second writer plumbed through the ladder,
-which is a change of its own.
+which is a change of its own,
+since made ("The snapshot note's stream and the index-lock wake control" in this file).
 
 The second question was whether a background thread starts where nothing overlaps it,
 and what that costs.
@@ -4986,6 +4987,59 @@ On the built binary at a disposable btrfs checkout:
 a dry run printed none,
 a real run and a `--remove-old` each printed it once as the first line of standard error,
 and a refused `--rollback` printed none.
+
+### The snapshot note's stream and the index-lock wake control (2026-11-08T19:45:57-05:00)
+
+Two follow-ups of the branch `fix/git-policy-cli-snapshot-note-on-the-commands-stream-and-wake-control`.
+
+The first closes the item "The disposal's notice stream and the thread it did not need" left open.
+`finish_snapshot` wrote the note a snapshot of the main checkout publishes to `std::io::stderr()`,
+because the ladder's `out` is the standard output Git's checkout line goes to.
+The ladder now takes the command's note stream beside `out` (`Ladder::finish`),
+and both lines of that block go there:
+the snapshot note and the one naming the uncommitted changes left out.
+`settle_creation` hands in the stream the command was given (`worktree_copy.rs`).
+It is one plain writer and no lock:
+those lines are written before `finish_trash_and_repair` starts the disposal thread,
+so no second thread exists while either is written,
+and the lock the disposal's stream needs would buy nothing here.
+The control is `btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in`
+(`worktree_copy_lifecycle_tests.rs`):
+with the note put back on the process's standard error the control fails,
+its own stream empty and the line on the harness's standard error.
+
+The control `a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself`
+claimed two things from one stopwatch over a 400 ms hold.
+The count of placement attempts is now the order of the placements:
+the `rename` stand-in records whether the foreign lock stood at each of them,
+so the verdict is that only the first met the holder.
+A wait woken by a file of its own meets the holder over and over;
+no clock enters that claim.
+With the wait made to block for one millisecond instead of for the removal,
+the control fails naming every placement that met the holder,
+one for each millisecond of the hold.
+
+How soon the wake came is the one claim no order can show,
+so it stays one clock reading,
+taken from the wait's own line instead of from before the staging a slow flush can stretch
+(10.2 s against a 400 ms hold,
+measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
+The bound is half of the interval that repeats the holder's line:
+over ten runs the wake came 400.35 to 400.51 ms after the line,
+and 10.0018 to 10.0090 s over three runs with the watch blinded to the lock's removal.
+The old bound sat at the whole interval,
+which is where the blinded arm lands,
+so it was a knife edge of about a millisecond rather than a separation.
+A fifth of that interval was tried first and failed once,
+in a run of the thirty-six controls beside it with other agents building on this host,
+and that failure's message carried no reading of the interval,
+so the bound sits at the half,
+which reads a stall of up to 4.6 s as an event and still refuses the timer.
+
+A witness that the line did not repeat cannot replace that reading:
+the line was said once in both arms,
+because a wake from the interval's timer places the lock before it repeats anything,
+which the blinded arm measured three times.
 
 ### Service follow-ups
 
