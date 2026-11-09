@@ -7,6 +7,15 @@
 use super::*;
 use std::io::Write as _;
 
+/// The answer every read of this file's first control is given,
+/// so a whole answer is one the stream closed after writing this.
+const THE_ANSWER: &[u8] = b"answer";
+
+/// How many pipes the first control reads:
+/// one choice of the select per pipe,
+/// so a poll that answered differently would show.
+const READS: usize = 64;
+
 /// What:
 ///  An end of file that is ready at the same poll as the drain after the step ended is the answer.
 /// Why:
@@ -16,19 +25,24 @@ use std::io::Write as _;
 /// and the step was reported as one whose output a
 ///  program still held open
 ///  (the fifth review's finding 5).
-///  Both branches are ready at their first poll here:
-/// the drain's moment is a second in the past,
-///  and a pipe whose
-///  write end is closed answers a read to its end at once.
-///  The choice is repeated, so a random order has to show.
+///  The drain is ready at its first poll here,
+/// because its moment is a whole drain and a second in the past,
+/// and the pipe holds
+///  the whole answer with every write end closed.
+///  A read the reactor has not yet woken for answers nothing at that poll,
+/// which is why telling the select which branch
+///  comes first is not what answers:
+/// the answer is the read of the descriptor itself.
+///  The read is made of sixty-four pipes, so one that
+///  answered nothing by luck would show.
 #[cfg(target_os = "linux")]
 #[test]
 fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
     let answers: Vec<std::io::Result<Vec<u8>>> = crate::lazy_runtime::run_on_runtime(async {
         let mut answers: Vec<std::io::Result<Vec<u8>>> = Vec::new();
-        for _attempt in 0..64 {
+        for _read in 0..READS {
             let (reader, mut writer) = std::io::pipe().expect("a pipe");
-            writer.write_all(b"answer").expect("the answer goes into the pipe");
+            writer.write_all(THE_ANSWER).expect("the answer goes into the pipe");
             let pipe: Receiver = Receiver::from_owned_fd(OwnedFd::from(reader)).expect("the read end");
             // The write end closes here, so every writer has closed and the pipe answers a read to its end.
             drop(writer);
@@ -54,7 +68,7 @@ fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
         }
     }
     assert_eq!(failures, 0, "a read whose end of file was ready reported the output as held open {failures} times");
-    assert_eq!(read.len(), 6 * 64, "every answer of every read came back whole");
+    assert_eq!(read.len(), THE_ANSWER.len() * READS, "every answer of every read came back whole");
 }
 
 /// What:
