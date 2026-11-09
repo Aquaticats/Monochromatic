@@ -676,3 +676,74 @@ Still open after this work:
 - Which `.gitattributes` `git merge-tree` itself should read
   stays the owner's item,
   unchanged by this work.
+
+## The cross-vendor review of that branch, and what it found
+
+The review of `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`
+(model `openai/gpt-6.1-sol`,
+2026-11-09)
+judged the branch and reported seven findings,
+each reproduced here before it was fixed,
+and each with a control that failed first and failed again with the fix removed.
+The page above stands as the record of the audited revision.
+
+- Finding 1,
+  a resolution another command staged was replaced by `install`,
+  `ad36b527dc`:
+  the index stages of each merged path are read again just before the install,
+  and the worktree file's device,
+  inode,
+  length and modification time are compared with what they were when the stages were read;
+  a path that moved is left as it is and named.
+  Controls:
+  `a_resolution_another_command_staged_is_left_alone`,
+  `a_worktree_file_edited_after_it_was_read_is_left_alone`,
+  `a_path_that_did_not_move_is_installed`.
+- Finding 2,
+  a worktree `.gitattributes` holding Git's markers was read as a rule,
+  `2a99eb2035`:
+  a `.gitattributes` among the unmerged paths makes the source `Unknown`,
+  which the tree arm already answered.
+  Control:
+  `a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass`.
+- Finding 3,
+  `-c attr.tree=<spec>` on the command line was not read,
+  `924670342b`:
+  the invocation's `-c` pairs are read before the configuration files.
+  The remaining gap is `--config-env=attr.tree=<variable>`,
+  which is the same mechanism and which `config_options` drops before the pass's own `check-attr`.
+  Controls:
+  `a_configuration_option_on_the_command_line_names_the_tree`,
+  `a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge`.
+- Finding 4,
+  a merge driver that never returns held the reconcile merge for good,
+  `a223881c35`:
+  every command of the reconcile merge's second pass runs under the push query's bound,
+  with its request on standard input and an answer ceiling of one stage per name it asks for.
+  Control:
+  `a_merge_driver_that_never_returns_stops_the_reconcile_merge`,
+  which hung until the package's unit-test watchdog ended the run before the fix.
+- Findings 5 and 6,
+  the line after a finish described the pre-continuation state and named `git commit` for a rebasing pull,
+  `662509bde4`:
+  the index is read again after the failed step and the ending command comes from the state files.
+  Controls:
+  `a_rebase_that_stops_again_is_told_what_is_conflicted_now`,
+  `a_rebasing_pull_that_stops_again_is_told_to_continue_the_rebase`,
+  `the_ending_command_is_the_one_the_state_files_name`.
+- Finding 7,
+  a worktree path ending in a space became a false replay conflict,
+  `4bdc760360`:
+  the replay's `rev-parse --show-toplevel` output keeps every byte except its line break.
+  Control:
+  `the_toplevel_keeps_a_trailing_space_in_a_directory_name`.
+  The reconcile merge reads the same line through `git_output`,
+  whose JavaScript trim is right for every other caller of it,
+  so that call still trims a trailing space;
+  it is recorded here as open rather than changed with one caller in view.
+
+The gap the audit left open is closed for both unattended merges:
+`a_rule_the_remote_introduces_keeps_the_reconcile_merge_from_merging_the_file` and
+`a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file`
+start a merge whose own `.gitattributes` excludes the conflicted file,
+and both fail when `merge_attribute_source` is forced to `Invocation`.
