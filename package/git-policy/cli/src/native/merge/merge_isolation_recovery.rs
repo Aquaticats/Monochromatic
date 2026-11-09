@@ -70,6 +70,9 @@ pub struct MergeRecoveryOutcome {
     pub target_ref: Option<String>,
     /// The merge commit the record names.
     pub new_oid: String,
+    /// The side ref that keeps the merge commit,
+    /// for a merge that was saved because the index was locked.
+    pub side_ref: Option<String>,
 }
 
 /// What:
@@ -108,10 +111,20 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
             "monochromatic-git-policy-cli: {reference} moved while a merge was being prepared here, so that merge did not land; its \
              files were put back and the checkout matches the branch.\n"
         )),
+        // The merge was reported saved, so it is not dropped: the record goes, and the side ref keeps its commit.
+        MergeRecoveryAction::SavedBranchMoved => Some(format!(
+            "monochromatic-git-policy-cli: the merge saved on {} does not apply: {reference} moved after it was saved, so it cannot \
+             land as it was saved. Nothing was changed. The merge commit {} is kept on that ref, which nothing removes: land it with \
+             `git merge {}`, or delete the ref once you have decided.\n",
+            outcome.side_ref.as_deref().unwrap_or("its side ref"),
+            outcome.new_oid,
+            outcome.new_oid
+        )),
         MergeRecoveryAction::OwnerActive
         | MergeRecoveryAction::Discarded
         | MergeRecoveryAction::AlreadyLanded
-        | MergeRecoveryAction::IndexHeld => None,
+        | MergeRecoveryAction::IndexHeld
+        | MergeRecoveryAction::DeferredRefused => None,
     };
 }
 
@@ -213,6 +226,7 @@ pub fn recover_interrupted_merges(
             action,
             target_ref: intent.target_ref.clone(),
             new_oid: intent.new_oid.clone(),
+            side_ref: intent.side_ref.clone(),
         };
         if let Some(line) = recovery_notice(&outcome) {
             // A closed terminal is not a reason to stop the command the person asked for.
@@ -326,6 +340,12 @@ pub fn settle_failed_merge(
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
         Some(head) => {
+            if intent.side_ref.is_some() {
+                // A merge that a command already reported as saved must not vanish: the record goes, so nothing stops a later
+                //  command, and the side ref keeps its commit and is named.
+                remove_record(record)?;
+                return Ok(MergeRecoveryAction::SavedBranchMoved);
+            }
             let action: MergeRecoveryAction = settle_moved_branch(place, record, intent, head, out)?;
             if action == MergeRecoveryAction::BranchMoved {
                 drop_side_ref(place, root, intent);

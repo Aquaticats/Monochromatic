@@ -3168,6 +3168,11 @@ on the commit path:
   the finish stops and names the file.
   A merge whose commit cannot be kept on a side ref is refused with nothing changed,
   never promised for a finish it may not reach.
+  A branch that advances after the merge was saved makes that merge unable to land as it was saved:
+  its record goes, so no later command is stopped for it,
+  the side ref keeps the merge commit,
+  and the line names the ref,
+  the commit and `git merge <commit>` as the way to land it.
   The index reconciliation of a commit with no change left ends the same
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,

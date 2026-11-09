@@ -84,6 +84,70 @@ fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -
     return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
 }
 
+/// What:
+///  A repository where the branch holds `dir/child.txt` and the merge deletes it and adds a file named `dir`,
+///  with the merge commit ready and nothing of it in the checkout.
+/// Why:
+///  That shape makes the worktree state of the added path a directory,
+/// which is neither side of the change and used to
+///  refuse the merge for good.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repository(...); write('dir/child.txt'); commit(); /* feature: rm dir/child.txt, write file 'dir' */ const merge = mergeTreeCommit(...);
+/// ```
+fn directory_to_file_world(name: &str) -> World {
+    let parent: PathBuf = fixture(name);
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::create_dir(repo.join("dir")).expect("directory");
+    std::fs::write(repo.join("dir/child.txt"), b"child base\n").expect("file");
+    std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "dir/child.txt", "h.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    // `git rm` prunes the emptied directory, so the path is free for a file.
+    git(repo.as_path(), &["rm", "--quiet", "--", "dir/child.txt"]);
+    std::fs::write(repo.join("dir"), b"the merge's file\n").expect("a file where the directory stood");
+    git(repo.as_path(), &["add", "--", "dir"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let new_oid: String = git_text(
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    );
+    let git_dir: PathBuf = repo.join(".git");
+    return World { parent, repo, git_dir, old_oid, new_oid };
+}
+
+/// What:
+///  The record of a merge that was saved on `side_ref` because the index was locked,
+///  and the side ref itself.
+/// Why:
+///  A merge that met a live holder leaves that state,
+/// and the controls about a saved merge start there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMergeRecord({ ...intent, sideRef }); await git(['update-ref', '--no-deref', sideRef, newOid]);
+/// ```
+fn deferred_record_of(world: &World, id: &str, side_ref: &str) -> PathBuf {
+    git(world.repo.as_path(), &["update-ref", "--no-deref", side_ref, world.new_oid.as_str()]);
+    let intent: MergeIntent = MergeIntent {
+        owner: dead_owner(id),
+        repository_root: world.repo.to_string_lossy().into_owned(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: world.old_oid.clone(),
+        new_oid: world.new_oid.clone(),
+        side_ref: Some(String::from(side_ref)),
+    };
+    return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record of a saved merge");
+}
+
 /// Everything about the staged entries and the worktree that another session would notice.
 fn snapshot(world: &World) -> (String, String) {
     return (
@@ -109,6 +173,7 @@ fn a_merge_that_never_began_is_discarded() {
             action: MergeRecoveryAction::Discarded,
             target_ref: Some(String::from("refs/heads/main")),
             new_oid: world.new_oid.clone(),
+            side_ref: None,
         }]
     );
     assert!(!record.exists());
@@ -1004,5 +1069,244 @@ fn a_file_whose_mode_changed_after_the_judgement_is_not_replaced() {
     assert!(refused.0.contains("f.txt"), "{}", refused.0);
     let mode: u32 = std::fs::metadata(location.as_path()).expect("the file").permissions().mode() & 0o777;
     assert_eq!(mode, 0o755, "the person's executable bit is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A saved merge whose branch advanced is kept and named,
+///  and the command that finds it goes on.
+/// Why:
+///  The holder of the index commits an unrelated file,
+/// so the branch is no longer the commit the merge was computed on;
+///  the merge cannot land as it was saved,
+/// and the command that reported it saved had already exited 0
+///  (`SPEC.md:2187`).
+/// Settling it as an ordinary moved-branch record dropped the record and the side ref,
+/// so the
+///  acknowledged merge vanished and its commit became collectable
+/// (a cross-vendor review's finding on the second round).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = deferredRecord(world, 'refs/cli-git/kept/7'); commitUnrelated(); const outcomes = await recover(...); expect(sink).toContain('refs/cli-git/kept/7'); expect(await revParse(side)).toEqual(mergeOid); expect(exists(record)).toBe(false);
+/// ```
+#[test]
+fn a_saved_merge_whose_branch_moved_is_kept_and_named() {
+    let world: World = world("merge-recovery-saved-branch-moved");
+    let record: PathBuf = deferred_record_of(&world, "17171717-0000-4000-8000-000000000017", "refs/cli-git/kept/7");
+    // The holder of the index commits an unrelated file: the branch is no longer the merge's first parent.
+    std::fs::write(world.repo.join("z.txt"), b"committed meanwhile\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "z.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("refs/cli-git/kept/7"), "where the merge is kept is said: {text}");
+    assert!(text.contains(world.new_oid.as_str()), "the merge commit is named: {text}");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/7"]), world.new_oid, "the saved merge is kept");
+    assert!(!record.exists(), "the record is gone, so nothing stops the next command");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the holder's");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::SavedBranchMoved);
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A staged edit of a path the saved merge replaces stops the finish,
+///  and the staged content is still in the index.
+/// Why:
+///  The judgement reads the worktree,
+/// where the branch's content stands,
+/// so a version staged only in the index was
+///  overwritten with the merge's without a warning or a copy
+/// (a cross-vendor review's finding on the second round).
+/// The staged version has no other name,
+/// so the finish must stop and name the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('f.txt', C); git add f.txt; write('f.txt', A); await expect(recover(...)).rejects.toMatch(/f.txt/); expect(indexOf('f.txt')).toEqual(C);
+/// ```
+#[test]
+fn a_staged_edit_of_a_merge_path_stops_the_finish_and_is_kept() {
+    let world: World = world("merge-recovery-staged-only");
+    let _record: PathBuf = deferred_record_of(&world, "18181818-0000-4000-8000-000000000018", "refs/cli-git/kept/8");
+    // Another program stages its own version of `f.txt` and then puts the worktree back to the branch's content.
+    std::fs::write(world.repo.join("f.txt"), b"f.txt staged by someone else\n").expect("the staged version");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\n").expect("the worktree back to the branch's content");
+    let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
+    assert!(staged_entry.contains("f.txt"), "the index holds the staged entry under test: {staged_entry}");
+    let before = snapshot(&world);
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a staged edit of a merge path stops the finish");
+    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    assert!(refused.0.contains("index"), "it says the index holds it: {}", refused.0);
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the staged version is still in the index");
+    assert_eq!(snapshot(&world), before, "nothing of the merge was written");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A directory the merge replaces with a file does not stop the finish,
+///  because the directory holds the branch's own files that the merge deletes.
+/// Why:
+///  `worktree_state` reads a directory as neither the old nor the new content,
+/// so the saved merge refused at every
+///  later command, and restoring the path from the branch recreated the same directory
+/// (a cross-vendor review's finding on the
+///  second round).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = directoryToFile(); await recover(...); expect(read('dir')).toEqual(fileContent); expect(exists('dir/child.txt')).toBe(false);
+/// ```
+#[test]
+fn a_saved_merge_that_replaces_a_directory_with_a_file_finishes() {
+    let world: World = directory_to_file_world("merge-recovery-directory-to-file");
+    let _record: PathBuf = deferred_record_of(&world, "19191919-0000-4000-8000-000000000019", "refs/cli-git/kept/9");
+    assert!(world.repo.join("dir/child.txt").is_file() && !world.repo.join("dir").is_file(), "the old tree holds a directory");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the merge is finished, not refused");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
+    assert_eq!(std::fs::read(world.repo.join("dir")).expect("the file the merge adds"), b"the merge's file\n", "the path is the merge's file");
+    assert!(!world.repo.join("dir/child.txt").exists(), "the path the merge deletes is gone");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file whose name fills the file system's limit is taken aside and finished,
+///  because the private name does not carry it whole.
+/// Why:
+///  The private name embedded the whole file name and then added a prefix,
+/// a PID,
+/// a count and a clock
+///  reading,
+/// so a valid file name made a name the file system refuses (`ENAMETOOLONG`),
+/// and the retained record then
+///  stopped every command (a cross-vendor review's finding on the second round).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const long = 'l'.repeat(240) + '.txt'; await installEntries(...); expect(read(long)).toEqual(mergeContent);
+/// ```
+#[test]
+fn a_file_whose_name_is_at_the_file_systems_limit_is_taken_and_finished() {
+    let world: World = world("merge-recovery-long-name");
+    let (mut changes, mut judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let long: String = format!("{}.txt", "l".repeat(240));
+    std::fs::write(world.repo.join(long.as_str()), b"old long\n").expect("a valid long file name");
+    let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(world.repo.join(long.as_str()).as_path());
+    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", long.as_str()]).trim().to_owned();
+    let next_oid: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]).trim().to_owned();
+    changes.push(extra_change(long.as_str(), "100644", "100644", old_oid.as_str(), next_oid.as_str()));
+    judgements.push(Judged { standing: Standing::Old, identity });
+    let mut said: Vec<u8> = Vec::new();
+    let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said);
+    assert!(installed.is_ok(), "a valid file name is taken and finished: {installed:?} {}", String::from_utf8_lossy(&said));
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A saved merge whose finish is refused says so and lets the command go on.
+/// Why:
+///  A record that cannot be finished must not stop unrelated commands
+/// (the shape behind two cross-vendor review
+///  findings):
+/// nothing of a saved merge is in the checkout,
+/// so a command that only reads it has nothing to
+///  be stopped for,
+/// and the line says where the merge is and what blocked it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// deferredRecord(); stage('f.txt', C); const outcomes = await recover(...); expect(outcomes[0].action).toBe('deferred-refused'); expect(indexOf('f.txt')).toEqual(C);
+/// ```
+#[test]
+fn a_saved_merge_that_cannot_be_finished_does_not_stop_the_command() {
+    let world: World = world("merge-recovery-saved-refused");
+    let record: PathBuf = deferred_record_of(&world, "20202020-0000-4000-8000-000000000020", "refs/cli-git/kept/20");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt staged by someone else\n").expect("the staged version");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\n").expect("the worktree back");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused);
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("refs/cli-git/kept/20") && text.contains("f.txt"), "where it is and what blocked it: {text}");
+    assert!(record.exists(), "the merge is still to be finished once the path is free");
+    assert!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]).contains("f.txt"), "the staged version is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A begun merge whose finish is refused still stops the command.
+/// Why:
+///  The checkout may hold the merge's files,
+/// so a command must not read it as another session's staged work;
+/// only a
+///  saved merge,
+/// with nothing of it in the checkout,
+/// goes on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// begunRecord(); write('f.txt', mine); await expect(recover(...)).rejects.toMatch(/f.txt/);
+/// ```
+#[test]
+fn a_begun_merge_whose_finish_is_refused_still_stops_the_command() {
+    let world: World = world("merge-recovery-begun-refused");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let _record: PathBuf = record_of(&world, dead_owner("21212121-0000-4000-8000-000000000021"), Some("refs/heads/main"));
+    std::fs::write(world.repo.join("f.txt"), b"my own edit\n").expect("the person's edit");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a begun merge stops the command");
+    assert!(refused.0.contains("f.txt"), "{}", refused.0);
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file a process has open is never removed with its private name,
+///  and a file nothing has open is.
+/// Why:
+///  A writer that opened the file before the take writes into the inode the take renamed,
+/// so removing the
+///  private name deletes the only name that edit has;
+/// a check just before the unlink cannot close that,
+/// but a
+///  scan for a process that has the file open can prove the file has no writer left,
+/// which is the proof the commit
+///  service's lock removal acts on (a cross-vendor review's finding on the second round).
+/// The limit is the same as that removal's:
+/// a process in another
+///  user namespace, or one that cannot be read, is not seen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = holderOf(aside); finishAsides([take], sink); expect(exists(aside)).toBe(true); expect(sink).toContain(aside); release(held); finishAsides([take], sink); expect(exists(aside)).toBe(false);
+/// ```
+#[test]
+fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
+    let world: World = world("merge-recovery-held-open-aside");
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = stranded_name(location.as_path());
+    std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
+    let taken = file_identity(aside.as_path()).expect("the identity the take checked");
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk { location: location.clone(), aside: aside.clone(), taken }];
+    // A writer that had the file open before the take holds the very inode the take renamed.
+    let held: std::fs::File = std::fs::File::options().write(true).open(aside.as_path()).expect("the writer's descriptor");
+    let mut said: Vec<u8> = Vec::new();
+    finish_asides(&entries, &mut said).expect("the asides are finished");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(aside.exists(), "a file a process holds open is never removed");
+    assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
+    // With the writer gone, nothing proves a write can still arrive, and the private name goes.
+    drop(held);
+    let mut afterwards: Vec<u8> = Vec::new();
+    finish_asides(&entries, &mut afterwards).expect("the asides are finished");
+    assert!(!aside.exists(), "a file nothing holds open is removed once its content was checked");
     remove(world.parent.as_path());
 }

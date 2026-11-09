@@ -95,6 +95,17 @@ pub enum MergeRecoveryAction {
     /// the record was kept,
     /// and the next command in the worktree finishes the merge.
     IndexHeld,
+    /// The branch advanced after the merge was saved on a side ref,
+    /// so that merge cannot land as it was saved;
+    /// the record went and the
+    ///  side ref keeps the merge commit,
+    /// which the line names.
+    SavedBranchMoved,
+    /// A merge that was saved on a side ref could not be finished now;
+    /// nothing of it is in the checkout,
+    /// so the command goes
+    ///  on and the line says where the merge is and what blocked it.
+    DeferredRefused,
 }
 
 /// What:
