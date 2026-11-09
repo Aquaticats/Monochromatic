@@ -78,6 +78,8 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
+
 import { RELAXATIONS, } from './port-betterleaks-relaxations.ts';
 
 /**
@@ -135,9 +137,9 @@ function escapeResharpOnlyMeta({ pattern, }: { readonly pattern: string; },): st
   while (i < pattern
     .length) {
     /**
-     Current character under the cursor; shorthand to avoid repeating `pattern[i]!`.
+     Current character under the cursor; shorthand to avoid repeating `pattern[i]`.
      */
-    const c = pattern[i]!;
+    const c = nonNullishOrThrow(pattern[i],);
     // Pass an escape sequence through unmodified (consumes two chars).
     if ((c === '\\') && ((i + 1) < pattern
       .length)) {
@@ -256,9 +258,9 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
     const parts: string[] = [initial,];
     i += 1;
     while ((i < lines
-      .length) && (!lines[i]!
+      .length) && (!nonNullishOrThrow(lines[i],)
         .includes("'''",))) {
-      parts.push(lines[i]!,);
+      parts.push(nonNullishOrThrow(lines[i],),);
       i += 1;
     }
     if (i < lines
@@ -266,7 +268,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
       /**
        Closing line containing the terminating `'''`.
        */
-      const close = lines[i]!;
+      const close = nonNullishOrThrow(lines[i],);
       /**
        Position of `'''` inside `close`, used to trim the trailing content.
        */
@@ -285,7 +287,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
     /**
      Current TOML line at the cursor, tested for table headers.
      */
-    const line = lines[i]!;
+    const line = nonNullishOrThrow(lines[i],);
     // Look for top-level rule opener `[[rules]]` (not `[[rules.something]]`).
     if (/^\[\[rules]]\s*$/.test(line,)) {
       i += 1;
@@ -323,7 +325,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
         /**
          Current line inside the rule body.
          */
-        const rl = lines[i]!;
+        const rl = nonNullishOrThrow(lines[i],);
         // Sub-tables of the current rule: `[[rules.required]]` /
         // `[[rules.allowlists]]`. Mark `hasRequired` when applicable
         // and skip through their bodies.
@@ -339,7 +341,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
           while (
             (i < lines
               .length)
-              && (!(lines[i]!).startsWith("[",))
+              && (!nonNullishOrThrow(lines[i],).startsWith("[",))
           ) {
             i += 1;
           }
@@ -363,7 +365,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
          */
         const descM = /^description\s*=\s*"((?:[^"\\]|\\.)*)"/.exec(rl,);
         if (descM !== null) {
-          description = descM[1]!
+          description = nonNullishOrThrow(descM[1],)
             .replaceAll(
             String.raw`\"`,
             '"',
@@ -379,7 +381,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
           /**
            Remainder of the opening line after `regex = '''`, passed to the body reader.
            */
-          const initial = rl.slice(regexOpen[0]!
+          const initial = rl.slice(nonNullishOrThrow(regexOpen[0],)
             .length,);
           regex = readTripleQuoted({ initial, },);
           continue;
@@ -392,7 +394,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
           /**
            Remainder of the opening line after `path = '''`, passed to the body reader.
            */
-          const initial = rl.slice(pathOpen[0]!
+          const initial = rl.slice(nonNullishOrThrow(pathOpen[0],)
             .length,);
           pathScope = readTripleQuoted({ initial, },);
           continue;
@@ -403,7 +405,7 @@ function parseRules({ toml, }: { readonly toml: string; },): readonly RawRule[] 
         const sgM = /^secretGroup\s*=\s*(\d+)/.exec(rl,);
         if (sgM !== null) {
           secretGroup = Number.parseInt(
-            sgM[1]!,
+            nonNullishOrThrow(sgM[1],),
             10,
           );
           i += 1;
