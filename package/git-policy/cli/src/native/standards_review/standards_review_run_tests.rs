@@ -51,7 +51,7 @@ fn code_names() -> Vec<ChangedPath> {
 
 /// A reader that returns a small commit with the code file's text.
 fn reader(names: &[ChangedPath]) -> Result<LandedCommit, String> {
-    let mut commit: LandedCommit = LandedCommit { sha: String::from("sha"), subject: String::from("s"), patch: String::from("patch\n"), ..LandedCommit::default() };
+    let mut commit: LandedCommit = LandedCommit { sha: String::from("sha"), subject: String::from("s"), patch: b"patch\n".to_vec(), ..LandedCommit::default() };
     commit.contents.insert(names[0].clone(), String::from("code\n"));
     return Ok(commit);
 }

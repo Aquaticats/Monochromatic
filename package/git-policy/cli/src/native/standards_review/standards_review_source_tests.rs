@@ -49,7 +49,7 @@ fn a_landed_commit_is_read_in_two_starts_worth_of_data() {
     let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
     let names: Vec<ChangedPath> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
     let commit: LandedCommit = read_landed_commit(&git_context(), root.as_path(), sha.as_str(), "change", names.as_slice()).expect("read");
-    assert_eq!(commit.patch, git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]) + "\n");
+    assert_eq!(commit.patch, (git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]) + "\n").into_bytes(), "the patch is kept as the bytes Git wrote");
     let named = |text: &str| return ChangedPath::from_bytes(text.as_bytes().to_vec());
     assert_eq!(commit.contents.get(&named("keep.ts")).map(String::as_str), Some("one\nchanged\n"));
     assert_eq!(commit.contents.get(&named("new.mjs")).map(String::as_str), Some("fresh\n"));
