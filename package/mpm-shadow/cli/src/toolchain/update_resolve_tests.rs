@@ -587,3 +587,17 @@ fn a_release_tag_is_percent_encoded_as_one_path_segment() {
     assert_eq!(release["tag_name"], "v1.0#1+2");
     assert_eq!(rig.http.requests(), vec![url.to_string()]);
 }
+
+/// A checksum file that could not be read is named in the error,
+/// beside the missing row it caused,
+/// so a network failure is not reported as a checksum file that lacks the archive.
+#[test]
+fn a_node_checksum_fetch_failure_is_named_when_no_row_is_found() {
+    let rig = Rig::new();
+    rig.http.fail("https://unofficial-builds.nodejs.org/download/release/v1.0.0/SHASUMS256.txt", "connection refused");
+    let error = resolve_node(&rig.context(), Some("1.0.0")).expect_err("no checksum rows");
+    let message: &str = error.message();
+    assert!(message.contains("no row for node-v1.0.0-linux-"), "{message}");
+    assert!(message.contains("connection refused"), "the failed fetch is named: {message}");
+    assert!(message.contains("HTTP 404"), "the primary host's non-2xx status is named: {message}");
+}
