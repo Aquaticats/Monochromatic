@@ -25,8 +25,12 @@ use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recov
 use crate::journald_native::Priority;
 use crate::service_timing::{Answered, Arrival, LandTiming, answered_line, log_entry};
 use crate::service_protocol::{
-    CommitRequest, FailureCode, ServiceMessage,
+    CommitRequest, FailureCode, LandingFigures, LandingSync, ServiceMessage,
 };
+/// What a batch of landings owes,
+/// named here so every caller of the group keeps one path.
+pub(crate) use crate::service_server_land_group_owed_pushes::*;
+
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 /// Finishes the open batches this instance owns:
@@ -69,13 +73,64 @@ pub(crate) struct BatchTimes {
     /// When the landing returned,
     /// which starts the answers.
     landed_at: Instant,
+    /// How many requests were still waiting for their answer when the landing finished,
+    /// this batch's own taken out:
+    /// how many commits queued behind it.
+    queued_behind: usize,
 }
 
 impl BatchTimes {
     /// The times of a request that no batch landed.
     fn not_landed(group_began: Instant) -> Self {
-        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now() };
+        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now(), queued_behind: 0 };
     }
+}
+
+/// What:
+///  What one landing spent and held,
+/// as the answer to its clients states it.
+/// Why:
+///   The landing runs in this service,
+/// so the commit's own record knows nothing about the reads,
+/// the hold or the syncs of its landing
+/// unless the answer carries them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const figuresOf = (times) => ({ lockHoldMs: ms(times.landing.hold), queuedBehind: times.queuedBehind, readsMs: ms(times.landing.reads(times.landTotal)), reads: {...}, syncs: [...] });
+/// ```
+fn landing_figures_of(times: &BatchTimes) -> LandingFigures {
+    let split: crate::service_timing::ReadSplit = times.landing.reads_split;
+    let named: [(&'static str, Duration); 9] = [
+        ("config", split.config),
+        ("branch", split.branch),
+        ("parents", split.parents),
+        ("changed", split.changed),
+        ("content", split.content),
+        ("witness", split.witness),
+        ("conclusion", split.conclusion),
+        ("owed", split.owed),
+        ("follow", split.follow),
+    ];
+    let mut reads: Vec<(String, u64)> = Vec::new();
+    for (name, took) in named {
+        reads.push((String::from(name), u64::try_from(took.as_millis()).unwrap_or(u64::MAX)));
+    }
+    let mut syncs: Vec<LandingSync> = Vec::new();
+    for sync in &times.landing.syncs {
+        syncs.push(LandingSync {
+            what: String::from(sync.what),
+            waited: sync.waited,
+            ms: u64::try_from(sync.took.as_millis()).unwrap_or(u64::MAX),
+        });
+    }
+    return LandingFigures {
+        lock_hold_ms: u64::try_from(times.landing.hold.as_millis()).unwrap_or(u64::MAX),
+        queued_behind: u64::try_from(times.queued_behind).unwrap_or(u64::MAX),
+        reads_ms: u64::try_from(times.landing.reads(times.land_total).as_millis()).unwrap_or(u64::MAX),
+        reads,
+        syncs,
+    };
 }
 
 /// The repository-relative path a change names,
@@ -105,6 +160,7 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         batch: times.batch,
         size: times.size,
         position,
+        queued_behind: times.queued_behind,
         arrival: *arrival,
         queued,
         settle: times.settle,
@@ -154,124 +210,53 @@ impl Announcer for AnnounceToStreams<'_> {
     }
 }
 
-/// What:
-///  Holds the push record of a commit this service landed,
-/// where nothing runs it until the wrapper's post-commit gate approves it.
+/// The place each request of a batch is told,
+/// as `(number, of)`,
+/// in the order of the batch.
 /// Why:
-///   The wrapper writes its own record after the answer,
-/// so a wrapper killed between the two would lose the push
-///  (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
-/// finding 3 of the first review).
-/// The service knows the commit landed,
-/// and a held record runs nothing:
-/// only the wrapper's promotion lets the queue see
-///  it,
-/// so a blocking gate still keeps the commit local.
+///   A request that is not the batch's first goes behind the ones before it,
+/// so it is told how many commits go first however
+///  short its wait;
+/// the first is next,
+/// and is told so only once its own wait has mattered,
+/// so a batch that begins at once says
+///  nothing new to anybody (and a client of an earlier release,
+/// which prints every place it is told,
+/// sees no new line for a quick commit).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await holdThePush(request, commit);
+/// placeNotices(3, 12_000, 10_000) // [[1,3],[2,3],[3,3]]
 /// ```
-/// What:
-///  Takes everything a batch owes before its branch moves:
-/// the record of the index update it will owe,
-/// and the held push of every commit it would land.
-/// Why:
-///   One call for the landing,
-/// so a kill after the branch move leaves both obligations and neither is forgotten.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// whatABatchOwes(intent) // owed-index record, held pushes
-/// ```
-pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent) {
-    crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
-    hold_the_pushes_of(intent);
-}
-
-/// What:
-///  Gives back everything a batch that does not land owes.
-/// Why:
-///   One call for every path that removes the intent,
-/// so a record or a held push of a batch that never landed survives nowhere.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// forgetWhatABatchOwes(intent)
-/// ```
-pub(crate) fn forget_what_a_batch_owes(intent: &crate::service_journal::Intent) {
-    crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
-    forget_the_pushes_of(intent);
-}
-
-pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
-    for commit in &intent.commits {
-        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());
-    }
-}
-
-/// The push record of one landed commit of a worktree,
-/// named by the item's own id:
-/// the kind,
-/// the commit and the digest of the branch.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const item = { kind: 'push', repository, gitDir, branchRef: reference, oid: commit, parent, created: nowIso(), tries: 0 };
-/// ```
-fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) -> crate::work_item::WorkItem {
-    return crate::work_item::WorkItem {
-        kind: crate::work_item::WorkKind::Push,
-        repository: repository.to_path_buf(),
-        git_dir: git_dir.to_path_buf(),
-        branch_ref: reference.to_string(),
-        oid: commit.to_string(),
-        parent: parent.to_string(),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
-    };
-}
-
-/// Forgets the pushes of a batch that does not land,
-/// under the name this release writes and under the name a release before it wrote.
-pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
-    let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
-    for commit in &intent.commits {
-        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());
-        for name in [item.id(), item.id_before_the_branch()] {
-            crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+fn place_notices(size: usize, waited: Duration, threshold: Duration) -> Vec<(usize, usize)> {
+    let mut places: Vec<(usize, usize)> = Vec::new();
+    for index in 0..size {
+        if index == 0 && waited < threshold {
+            continue;
         }
+        places.push((index + 1, size));
     }
+    return places;
 }
 
-/// Holds one push record for a commit a batch lands.
-fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
-    let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent);
-    let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
-    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
-        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
-    }
-}
-
-pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
-        kind: crate::work_item::WorkKind::Push,
-        repository: request.repository.clone(),
-        git_dir: request.git_dir.clone(),
-        branch_ref: request.reference.clone(),
-        oid: commit.to_string(),
-        parent: request.base.clone(),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
-    };
-    let work_dir: std::path::PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
-    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
-        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
-    }
+/// How long the first request of a batch has waited since its connection was accepted,
+/// which is the wait the telling answers.
+/// Nothing when the batch holds no request,
+/// which lands nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitedSinceAccepted(group[0]) // milliseconds
+/// ```
+fn waited_since_accepted(queued: &Queued) -> Duration {
+    return queued.2.accepted.elapsed();
 }
 
 /// Lands one group of jobs that share a branch,
 /// and answers each client.
+/// `place_after` is the wait a batch's first request must have borne before it is told it is next
+/// (`wait_ceilings.rs`,
+/// `WAITING_NOTICE_AFTER`).
 pub(crate) fn land_group(
     context: &LandContext,
     instance: Option<&str>,
@@ -279,6 +264,7 @@ pub(crate) fn land_group(
     group: Vec<Queued>,
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
+    place_after: Duration,
 ) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
@@ -293,7 +279,7 @@ pub(crate) fn land_group(
     }
     let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
     for (request, stream, arrival) in again {
-        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
+        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true, landing: None });
         log_answer(&unlanded, &request, &arrival, 1, "already");
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
@@ -331,8 +317,14 @@ pub(crate) fn land_group(
         }
     };
     *seq = claim.seq();
-    for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
-        stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
+    // The first request of a batch has waited since its connection was accepted; the wait that matters for being told
+    //  it is next is the one it has borne when the batch begins to land.
+    let waited: Duration = fresh.first().map_or(Duration::ZERO, waited_since_accepted);
+    for (number, of) in place_notices(fresh.len(), waited, place_after) {
+        let Some((_, stream, _)) = fresh.get(number - 1) else {
+            continue;
+        };
+        stream.send(&ServiceMessage::Position { number, of });
     }
     let mut requests: Vec<CommitRequest> = Vec::new();
     for (request, _, _) in &fresh {
@@ -344,7 +336,11 @@ pub(crate) fn land_group(
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
     // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
     drop(claim);
-    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
+    // How many requests were still waiting when this landing finished: the batch's own are still unanswered here, so they come
+    //  out of the count, and what is left is how many commits queued behind this landing.
+    let waiting: usize = crate::service_reply::Reply::waiting();
+    let queued_behind: usize = waiting.saturating_sub(fresh.len());
+    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now(), queued_behind };
     match result {
         Ok(outcomes) => {
             // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
@@ -360,7 +356,7 @@ pub(crate) fn land_group(
                         if repeat.id != request.id {
                             continue;
                         }
-                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
+                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true, landing: None });
                         log_answer(&times, repeat, arrival, 1, "already");
                     }
                 }
@@ -375,7 +371,7 @@ pub(crate) fn land_group(
                         //  gate is what promotes it.
                         hold_the_push(request, commit.as_str());
                         landed.insert(request.id.clone(), commit.clone());
-                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
+                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
                         "landed"
                     }
                     Outcome::RetryPrepare { base } => {
@@ -399,3 +395,8 @@ pub(crate) fn land_group(
         }
     }
 }
+
+/// What a batch tells its requests is controlled in the test module.
+#[cfg(test)]
+#[path = "service_server_land_group_tests.rs"]
+mod tests;

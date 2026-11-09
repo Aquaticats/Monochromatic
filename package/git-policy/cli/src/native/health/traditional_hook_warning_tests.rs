@@ -149,11 +149,11 @@ fn the_wrappers_own_overrides_do_not_warn() {
 fn the_writer_emits_one_line_or_nothing() {
     let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
     let warned: SharedSink = SharedSink::default();
-    warn_traditional_hooks(Some(&configured), warned.clone());
+    assert!(warn_traditional_hooks(Some(&configured), warned.clone()), "the line reached the stream");
     assert_eq!(warned.text().matches('\n').count(), 1);
     let silent: SharedSink = SharedSink::default();
-    warn_traditional_hooks(Some(&listing_snapshot(&[])), silent.clone());
-    warn_traditional_hooks(None, silent.clone());
+    assert!(warn_traditional_hooks(Some(&listing_snapshot(&[])), silent.clone()));
+    assert!(warn_traditional_hooks(None, silent.clone()));
     assert_eq!(silent.text(), "");
 }
 
@@ -270,4 +270,24 @@ fn a_user_owned_shadow_shaped_path_still_warns() {
         traditional_hooks_warning(Some(&snapshot)).is_some(),
         "a directory the wrapper does not own is the person's choice and must warn"
     );
+}
+
+/// What:
+///  The warning reaches standard error while another thread holds standard error's shared lock,
+/// and the shared handle is untouched by it.
+/// Why:
+///  The write runs on a thread of its own and is abandoned at its ceiling;
+/// a worker still waiting inside a write
+///  through the shared handle would keep that lock,
+/// and the commit's next synchronous write would wait for it with no end.
+/// This
+///  control holds the lock the commit's own write takes and requires the warning to arrive anyway.
+#[cfg(unix)]
+#[test]
+fn a_warning_reaches_standard_error_while_its_shared_lock_is_held() {
+    let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
+    let held = std::io::stderr().lock();
+    let delivered: bool = warn_traditional_hooks(Some(&configured), crate::standard_error_descriptor::StandardErrorDescriptor);
+    drop(held);
+    assert!(delivered, "the warning needed the lock a synchronous writer holds, so a worker left at the ceiling would keep it");
 }

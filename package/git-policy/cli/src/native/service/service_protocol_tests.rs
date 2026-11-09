@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::command_test_support::{fixture, remove};
+use crate::service_protocol::{LandingFigures, LandingSync};
 use crate::service_review_key::ReviewKey;
 use std::path::PathBuf;
 
@@ -97,7 +98,19 @@ fn service_messages_round_trip() {
         ServiceMessage::Position { number: 3, of: 7 },
         ServiceMessage::Heartbeat,
         ServiceMessage::Withdrawn { id: String::from("x") },
-        ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true },
+        ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true, landing: None },
+        ServiceMessage::Landed {
+            id: String::from("x"),
+            commit: String::from(BLOB),
+            already: false,
+            landing: Some(LandingFigures {
+                lock_hold_ms: 47,
+                queued_behind: 3,
+                reads_ms: 53,
+                reads: vec![(String::from("branch"), 2), (String::from("witness"), 5)],
+                syncs: vec![LandingSync { what: String::from("built-index"), waited: true, ms: 7 }, LandingSync { what: String::from("intent-file"), waited: false, ms: 0 }],
+            }),
+        },
         ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() },
         ServiceMessage::RetryPrepare {
             id: String::from("x"),
@@ -109,6 +122,34 @@ fn service_messages_round_trip() {
     for message in messages {
         assert_eq!(decode_service(encode_service(&message).as_str()), Ok(message.clone()), "{message:?}");
     }
+}
+
+/// What:
+///  An answer of a release that sends no landing figures still decodes,
+///  as an answer with none.
+/// Why:
+///   A client of this release may meet a service of an older one until that service retires;
+///  the field was added without a new protocol version,
+///  so its absence must read as no figures and never as an error.
+#[test]
+fn an_answer_without_landing_figures_decodes_as_none() {
+    let line: String = format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false}}");
+    assert_eq!(
+        decode_service(line.as_str()),
+        Ok(ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: false, landing: None })
+    );
+}
+
+/// Landing figures that are not whole numbers or that name no reads are refused,
+/// never guessed.
+#[test]
+fn damaged_landing_figures_are_refused() {
+    let line: String =
+        format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false,\"landing\":{{\"lockHoldMs\":-1,\"queuedBehind\":0,\"readsMs\":0,\"reads\":{{}},\"syncs\":[]}}}}");
+    assert!(decode_service(line.as_str()).is_err(), "a negative figure is not a whole number");
+    let no_reads: String =
+        format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false,\"landing\":{{\"lockHoldMs\":1,\"queuedBehind\":0,\"readsMs\":0,\"syncs\":[]}}}}");
+    assert!(decode_service(no_reads.as_str()).is_err(), "figures that name no reads are refused");
 }
 
 /// Unknown words,

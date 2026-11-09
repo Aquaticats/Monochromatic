@@ -33,6 +33,9 @@ use crate::control_tables::{CONTROL_TOKENS, TABLE_COMMANDS, VALUELESS_TOKENS};
 use git_policy_cli::candidate_error::{CandidateError, CandidateFailure};
 use git_policy_cli::candidate_prediction::{CandidateRequest, PreparedCandidates};
 use git_policy_cli::command_commit::parse_commit_region;
+/// The record of one tool cache directory the policy may exempt,
+///  which the shipped checks take as their allowed worktree directories.
+use git_policy_cli::effective_target::ToolCacheDirectory;
 use git_policy_cli::global_arguments::{GlobalOutcome, global_layout};
 /// The production conversion of raw bytes to an argument,
 /// so the generators feed the code under test the same way.
@@ -396,7 +399,7 @@ pub fn check_separator(arguments: &[OsString], separator: usize) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean };
+/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; stash: boolean; cleanDeletes: boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct FixedFacts {
@@ -411,6 +414,13 @@ pub struct FixedFacts {
     pub sequencer: SequencerState,
     /// The answer to `remote_guess_creates_branch`.
     pub remote_guess: bool,
+    /// The ignored files the tree a forced form writes also tracks;
+    ///  empty unless the mode byte asks for them.
+    pub ignored_and_tracked: Vec<String>,
+    /// The answer to `repository_holds_a_stash`.
+    pub stash: bool,
+    /// The answer to `clean_would_delete`.
+    pub clean_deletes: bool,
 }
 
 /// What:
@@ -436,6 +446,33 @@ impl RepositoryFacts for FixedFacts {
 
     fn worktree_dirty(&mut self, _scope: DirtyScope) -> Result<bool, String> {
         return Ok(self.dirty);
+    }
+
+    /// What:
+    ///  Answer with the ignored files the tree a forced form writes also tracks,
+    ///  which that form overwrites.
+    /// Why:
+    ///   A non-empty answer is what makes a forced checkout reject in a linked worktree,
+    ///  and the mode byte chooses it so the fuzzer reaches that rejection.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ignoredFilesTheTreeTracks(revision) { return this.ignoredAndTracked; }
+    /// ```
+    fn ignored_files_the_tree_tracks(&mut self, _revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+        return Ok(self.ignored_and_tracked.clone());
+    }
+
+    /// The answer to `repository_holds_a_stash`,
+    ///  which decides whether `stash drop` and `stash clear` reject.
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        return Ok(self.stash);
+    }
+
+    /// The answer to `clean_would_delete`,
+    ///  which decides whether a clean carrying its own exclusions rejects.
+    fn clean_would_delete(&mut self, _arguments: Vec<OsString>) -> Result<bool, String> {
+        return Ok(self.clean_deletes);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
@@ -527,7 +564,7 @@ pub fn mode_is_linked(mode: u8) -> bool {
 ///  Fixed facts chosen by one byte:
 ///  a linked worktree or no repository,
 ///  and the
-///       three other answers from its higher bits.
+///       six other answers from its higher bits.
 /// Why:
 ///   Neither location exists on disk,
 ///  so no configuration and no leftover state is
@@ -566,6 +603,14 @@ pub fn fixed_facts(mode: u8) -> FixedFacts {
         },
         dirty: mode & 16 == 16,
         remote_guess: mode & 8 == 8,
+        // `vec![...]` is an owned list holding the one path a forced form would overwrite.
+        ignored_and_tracked: if mode & 32 == 32 {
+            vec![String::from("ignored/kept.env")]
+        } else {
+            Vec::<String>::new()
+        },
+        stash: mode & 64 == 64,
+        clean_deletes: mode & 128 == 128,
     };
 }
 
@@ -677,7 +722,7 @@ pub fn check_frontier(arguments: &[OsString], mode: u8) -> FrontierSeen {
         fixed_facts(mode),
         stripped.arguments.clone(),
         LifecycleContent::None,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     // `&[]` is an empty environment: no lease is inherited.
     let outcome: WrappedOutcome = run_wrapped_command(&stripped, &[], &mut checks);

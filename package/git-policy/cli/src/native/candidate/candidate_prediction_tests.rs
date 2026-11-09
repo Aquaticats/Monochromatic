@@ -720,3 +720,32 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
 fn the_argument_chunk_sizes_are_one_value() {
     assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE);
 }
+
+/// A request that only lists the index prepares its candidates with the Git directory closed to writing,
+/// which a copy into that directory could not do,
+/// and the index it read in place is byte for byte as it was.
+/// Why this is the control:
+/// the private copy of a three-megabyte index is what a commit waited 2,288 ms and 4,813 ms on
+/// in two traced commits,
+/// and a request that never writes the index has nothing to protect by copying it.
+#[test]
+fn a_listing_request_prepares_without_a_private_copy_of_the_index() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("predict-no-copy");
+    let repo: PathBuf = base(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"tracked, edited\n").expect("edit");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    let before: Vec<u8> = index_bytes(repo.as_path());
+    let scope: Vec<OsString> = vec![OsString::from(":(top,literal)tracked.txt")];
+    let git_dir: PathBuf = repo.join(".git");
+    let writable: std::fs::Permissions = std::fs::metadata(git_dir.as_path()).expect("Git directory").permissions();
+    std::fs::set_permissions(git_dir.as_path(), std::fs::Permissions::from_mode(0o555)).expect("closed for writing");
+    let listed_without_a_copy: Result<PreparedCandidates, CandidateError> =
+        prepare_with(repo.as_path(), &[], &CandidateRequest::Staged(scope));
+    std::fs::set_permissions(git_dir.as_path(), writable).expect("writable again");
+    let prepared: PreparedCandidates = listed_without_a_copy.expect("a request that only lists the index needs no private copy of it");
+    assert_eq!(listed(&prepared), vec![(String::from("tracked.txt"), CandidateChange::Modified)]);
+    assert_eq!(index_bytes(repo.as_path()), before, "the index it listed in place is byte for byte as it was");
+    assert_eq!(private_leftovers(git_dir.as_path()), Vec::<String>::new());
+    remove(root.as_path());
+}

@@ -115,6 +115,11 @@ pub mod scoped_start;
 /// each a function and the state it reads.
 pub mod side_by_side_threads;
 
+/// Jobs of the blocking pool beside each other or beside the calling task's own work,
+/// each a function and the state it owns,
+/// under the process's bound on blocking jobs.
+pub mod side_by_side_on_the_runtime;
+
 /// The names this program answers to and keeps on disk,
 ///  each as the current spelling and the one an earlier release used.
 pub mod wrapper_names_old_and_new;
@@ -192,3 +197,10 @@ pub mod collected_elements_looked_at;
 /// awaited no longer than a ceiling,
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;
+
+/// The process's own standard error descriptor,
+/// written without the lock the standard library's shared handle takes.
+pub mod standard_error_descriptor;
+/// A stream of a command's notices written by a thread of its own,
+/// so a reader that stopped draining never holds the command.
+pub mod notice_stream_that_does_not_hold_its_writer;

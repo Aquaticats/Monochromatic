@@ -146,6 +146,32 @@ fn no_message_leaks_an_implementation_term() {
             assert!(!contains_whole(notice.as_str(), term), "{notice:?} leaks {term:?}");
         }
     }
+    for waited in [Duration::ZERO, Duration::from_millis(400), Duration::from_secs(1), Duration::from_secs(12), Duration::from_secs(3_600)] {
+        let notice: String = unplaced_notice(waited);
+        for term in DENYLIST {
+            assert!(!contains_whole(notice.as_str(), term), "{notice:?} leaks {term:?}");
+        }
+    }
+}
+
+
+/// What:
+///  A commit the service named no place for is told what the client knows,
+/// and the seconds it has waited,
+/// and nothing about whether the landing has begun.
+/// Why:
+///   The landing may be waiting behind another program's `index.lock` while the client is told this,
+/// so every claim about
+///  the landing would be a claim the client cannot make.
+#[test]
+fn the_unplaced_notice_says_what_the_client_knows_and_no_more() {
+    let waited: String = unplaced_notice(Duration::from_secs(12));
+    assert_eq!(waited, "The commit service has not said where this commit stands yet; it has waited 12 seconds.");
+    assert_eq!(unplaced_notice(Duration::from_secs(1)), "The commit service has not said where this commit stands yet; it has waited 1 second.");
+    assert_eq!(unplaced_notice(Duration::from_millis(400)), "The commit service has not said where this commit stands yet; it has waited 1 second.", "a part second is a second waited");
+    for claim in ["has not started", "still reading", "has begun", "is waiting for the index"] {
+        assert!(!waited.contains(claim), "the notice may not say {claim:?}: {waited}");
+    }
 }
 
 /// The denylist check can fail:

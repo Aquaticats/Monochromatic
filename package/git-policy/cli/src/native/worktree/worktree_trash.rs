@@ -36,13 +36,12 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
 use crate::fs_kind::{is_stand_in, is_subvolume_root};
 use crate::random_id::random_uuid;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_snapshot_source::SnapshotSource;
-pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, dispose_pending_trash, empty_trash, name_unaccounted_trash};
+pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, delete_trash_awaiting, dispose_pending_trash, dispose_pending_trash_awaiting, empty_trash, name_unaccounted_trash};
 pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::collections::HashSet;
@@ -75,30 +74,6 @@ const DIRECTORY_MODES: [u32; 2] = [0o040_000, 0o160_000];
 
 /// The mode bits that carry the type of an index entry.
 const TYPE_MASK: u32 = 0o170_000;
-
-/// What:
-///  Whether Git ignores the place the trash would be made at in this worktree.
-/// Why:
-///   A trash directory Git does not ignore would list as untracked until emptied,
-/// so the leave-out removes in the foreground
-///  instead when the answer is no or unknown.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await runGit(['check-ignore', '--no-index', '--', `${TRASH_PARENT}/probe/x`]).exitCode === 0
-/// ```
-pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
-    let request: GitRequest = GitRequest {
-        cwd: root.to_path_buf(),
-        arguments: ["check-ignore", "--no-index", "--"].iter().map(std::ffi::OsString::from).chain(std::iter::once(std::ffi::OsString::from(format!("{TRASH_PARENT}/probe/x")))).collect(),
-        without_prefix: true,
-        ..GitRequest::default()
-    };
-    return match run_git(context, &request) {
-        Ok(output) => output.code == Some(0),
-        Err(_not_started) => false,
-    };
-}
 
 /// A name for one trash directory:
 /// forty hexadecimal digits,

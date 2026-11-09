@@ -161,6 +161,10 @@ Strengths:
    push restrictions,
    commit restrictions,
   and status-hint handling.
+  The TypeScript wrapper was deleted on 2026-10-13,
+   in `642b6d72cb`;
+   the native wrapper runs the same pipeline in registry order from
+  `package/git-policy/cli/src/native/policy/policy_engine.rs`.
 
 Risks:
 
@@ -174,6 +178,9 @@ Risks:
    The file documents this as phase-1 design,
   so the risk is understood,
    but it remains a concurrency and deployment constraint.
+  That package moved to `package-paused/webapp-forge` on 2026-05-25,
+   in `e26035dbb2`,
+   so the file is `package-paused/webapp-forge/server/src/server/runtime.ts`.
 - `package/module/es/package.json` exposes deep taxonomy paths such as `./ts/*`
   and selected concrete implementation paths.
    That gives callers access,
@@ -183,6 +190,9 @@ Risks:
   That warning is useful honesty,
    but it means the package's public overview is
   not a dependable guide to the current export taxonomy.
+  `package/module/es` moved to `package-paused/module/es` on 2026-06-10,
+   in `73997634ea`,
+   so both cited files are under the paused tree.
 
 Measured code-quality signals from TypeScript scans under `package/**/*.ts`:
 
@@ -238,8 +248,12 @@ Risks:
   `package/dev-script/inference-canary`,
    with 1,303 non-test TypeScript files.
   This count includes generated or artifact-like source files under the package.
+  That package moved to `package-paused/dev-script/inference-canary` on 2026-06-06,
+   in `db317e8506`.
 - Other notable source packages without colocated tests include
   `package/desktop-daemon/editord`,
+   which moved to `package-paused/desktop-daemon/editord` on 2026-05-25,
+   in `e26035dbb2`;
    `package/webapp-productivity/done`,
   `package/webapp-productivity/done-postcss`,
    `package/ssg/aquati.cat`,
@@ -262,6 +276,9 @@ Strengths:
    high-entropy strings,
    or unstable ownership
   in that scan.
+  `AUDIT.md` was deleted on 2026-05-24,
+   in `0a16d0fed4`;
+   the scan record now lives under the Socket CLI scan heading of `doc/audit/README.md`.
 - `pnpm-workspace.yaml` contains 117 catalog entries.
 - The workspace has 17 removal overrides,
    3 link-shim overrides,
@@ -282,6 +299,12 @@ Risks:
   My scan found 15 publishable packages,
    while `.github/workflows/publish.yml`
   filters 10 unique package names.
+  `.github/workflows/publish.yml` was deleted on 2026-09-06,
+   in `77ba3948a4`,
+   which added `.github/workflows/npm-release.yml`;
+   publishing today is split across `.github/workflows/npm-publish.yml`,
+   `.github/workflows/cargo-publish.yml`,
+   and `.github/workflows/pnpr-publish.yml`.
 - Publishable packages missing from the workflow filter are:
   `@monochromatic-dev/config-oxlint`,
   `@monochromatic-dev/dev-script-watch-restart`,
@@ -327,6 +350,10 @@ Risks and remediations applied:
    while `LGPL-3.0-or-later.txt` is LGPL-3.0
   and `package.json` declares `LGPL-3.0-or-later AND CC-BY-SA-4.0`.
   I updated the license section in commit `fdea6d18`.
+  The license text is `LICENSES/LGPL-3.0-or-later.txt`:
+   the root `LICENSE` was renamed into `LICENSES/` on 2026-05-24,
+   in `0057b61d22`,
+   and no root file named `LGPL-3.0-or-later.txt` is tracked.
 
 ## Priority recommendations
 
@@ -336,6 +363,9 @@ Risks and remediations applied:
     and `mise run test`,
    or a documented scoped equivalent if runtime cost is too high.
 2. Align `.github/workflows/publish.yml` with the publishable package set,
+   which is now `.github/workflows/npm-publish.yml` for the npm registry
+   (the original workflow was deleted on 2026-09-06,
+   in `77ba3948a4`),
    or mark packages private if they are not intended for publication.
 3. Create a test-coverage backlog for packages with source but no colocated tests.
    Start with `inference-canary`,

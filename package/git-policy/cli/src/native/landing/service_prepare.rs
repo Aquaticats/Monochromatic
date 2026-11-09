@@ -42,6 +42,7 @@ use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, norma
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
 use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
+use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use crate::commit_facts::PrivateIndexFacts;
@@ -67,40 +68,13 @@ use crate::service_protocol::{Change, Cleanup};
 use crate::merge_second_pass::Merged as MergedFile;
 use crate::service_replay::{MergeSite, Merged, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
 use crate::external_hooks::warn_external_hooks;
+use crate::preparation_notice::deliver_notice;
+use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, run_git_checked};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
-
-/// What:
-///  The staging start that puts the working copy of every unmerged file into the commit's own index,
-/// each named with `:(top,literal)` magic.
-/// Why:
-///   Every name is a pathspec the wrapper wrote,
-/// and this start skips the caller's prefix,
-/// so every mode the caller set is removed from the child's environment:
-/// under literal mode the names would match nothing,
-/// and two glob modes at once make Git refuse the start and fail the commit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unmergedStagingRequest = (cwd, index, objects, paths) => ownPathspecs(indexedRequest(cwd, ['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects));
-/// ```
-fn unmerged_staging_request(cwd: &Path, index: &Path, object_directory: &Path, paths: &[Vec<u8>]) -> GitRequest {
-    let mut staging: Vec<OsString> = vec![
-        OsString::from("add"),
-        OsString::from("--all"),
-        OsString::from("--"),
-    ];
-    for path in paths {
-        let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-        spec.extend_from_slice(path.as_slice());
-        staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
-    }
-    return indexed_request(cwd, staging.as_slice(), Some(index), Some(object_directory)).own_pathspecs();
-}
 
 /// What the preparation reads that does not change between two preparations of one command.
 pub struct PrepareInputs<'a> {
@@ -136,8 +110,10 @@ pub fn prepare<F: RepositoryFacts>(
     let mut part: PreparePartClock = PreparePartClock::begin("layout");
     let layout = capture_invocation_layout(context, cwd, region.amend)?;
     if inputs.first {
-        warn_traditional_hooks(layout.config_snapshot.as_ref(), std::io::stderr());
-        warn_external_hooks(layout.config_snapshot.as_ref(), std::io::stderr());
+        // The descriptor itself, not the standard library's shared handle: a worker left at the ceiling holds no lock this
+        //  command's own writes would wait for (`foundation/standard_error_descriptor.rs`).
+        warn_traditional_hooks(layout.config_snapshot.as_ref(), StandardErrorDescriptor);
+        warn_external_hooks(layout.config_snapshot.as_ref(), StandardErrorDescriptor);
     }
     part.next("unmergedBefore");
     // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
@@ -269,13 +245,13 @@ pub fn prepare<F: RepositoryFacts>(
     //  its own selection, so only the notice is given for it.
     let (excluded, unreadable_note): (Vec<String>, Option<String>) = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
     if inputs.first && let Some(note) = unreadable_note.as_ref() {
-        let _written = std::io::stderr().write_all(note.as_bytes());
-        let _newline = std::io::stderr().write_all(b"\n");
+        // A notice is worth less than a commit that returns: what cannot be said within the ceiling is left unsaid.
+        let _delivered = deliver_notice(format!("{note}\n"));
     }
     if inputs.first
         && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())
     {
-        let _written = std::io::stderr().write_all(notice.as_bytes());
+        let _delivered = deliver_notice(notice);
     }
     part.next("interactive");
     // The bytes are captured now; a retry keeps the stamp of the capture it replays.

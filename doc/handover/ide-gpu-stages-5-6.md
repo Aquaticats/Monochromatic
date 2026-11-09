@@ -805,7 +805,7 @@ restored passes,
 for all
 (`tile-taken-by-the-step` shares the baseline of `tile-left-for-next-step`).
 The other 150 guards were not run.
-The counts above come from `~/temp/agent/tile-ab-1.jsonl`,
+The guard counts come from `~/temp/agent/tile-ab-1.jsonl`,
 `tile-ab-2.jsonl`,
 `tile-ab-3.jsonl` and `tile-ab-4.jsonl`.
 
@@ -843,7 +843,7 @@ tile,
 tile build and wheel targets only,
 in every arm.
 The host load average stayed between 7 and 10 from other sessions;
-the counts below are over runs,
+the latency counts are over runs,
 not single runs.
 The driver and the analysis are `~/temp/agent/lat-run.mjs`,
 `lat-stats.mjs`,

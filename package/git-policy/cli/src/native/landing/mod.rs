@@ -81,6 +81,20 @@ pub mod earlier_service_unsure_program;
 pub mod service_land_context;
 
 /// Takes the index lock for a batch that is ready to land.
+/// What became of one request of a batch,
+/// and the announcement a landing makes when nobody is told.
+/// What a landing starts with:
+/// how many times its batch may be built again,
+/// and what it reads once.
+pub mod service_land_settings;
+
+/// The landing itself:
+/// one batch written,
+/// journaled and moved onto a branch.
+pub mod service_land_batch_body;
+
+pub mod service_land_outcomes;
+
 pub mod service_land_take_index_lock;
 
 /// The Git steps of a landing,
@@ -170,7 +184,14 @@ pub mod service_index_watch;
 
 /// The preparation of a commit that the service lands,
 /// for every command line.
+/// The notices a commit's preparation prints on standard error,
+/// given to the descriptor under a ceiling.
+pub mod preparation_notice;
+
 pub mod service_prepare;
+
+/// The staging start that puts every unmerged file's working copy into the commit's own index.
+pub mod service_prepare_unmerged_staging;
 
 /// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
 pub mod service_scratch_renewal;
@@ -311,6 +332,11 @@ pub mod service_pruned;
 /// made before return otherwise.
 pub mod service_durable;
 
+/// The syncs one landing made,
+/// what each was for and how long it took,
+/// and the words its answer gives for them.
+pub mod service_durable_syncs;
+
 pub mod service_land_finish;
 
 /// The removal of a stale index lock,
@@ -320,6 +346,9 @@ pub mod service_index_reclaim;
 /// How long a commit whose branch moved under its build is built again,
 /// and the line that says so.
 pub mod service_commit_rebuild_ceiling;
+
+/// The submission of a prepared commit whose waiting notices are written away from the thread that waits.
+pub mod service_commit_waiting_notices;
 
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.

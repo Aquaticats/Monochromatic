@@ -498,6 +498,12 @@ Known break the user chose to fix later:
  `package/dev-script/file-enforcer/src/toolchain/update.ts:632-633` TS7006
  fails that package's `lint:types`;
  batch verification treats this as preexisting.
+That package moved to `package/file-enforcer/core` on 2026-10-29,
+ in `592d78b143`,
+ and the TypeScript core was deleted on 2026-10-31,
+ in `e7b5130459`;
+ `src/toolchain/update.ts` has no successor in the Rust rewrite (`package/file-enforcer/core-rust`),
+ so the break it records cannot recur.
 
 `monochromatic-fb` released Rust crate moves after `fd0bd03540`.
 It also approved path-only edits in `check-mode.ts`,

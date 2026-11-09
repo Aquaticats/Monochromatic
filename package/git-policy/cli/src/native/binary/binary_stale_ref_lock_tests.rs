@@ -22,8 +22,7 @@
 //! ```
 
 use super::support::{Fixture, Observed, direct, fixture, git, remove, repository, run_wrapped};
-use git_policy_cli::pid_namespace::current_pid_namespace;
-use git_policy_cli::stale_ref_lock_judge::{Judge, MARGIN};
+use git_policy_cli::stale_ref_lock_judge::MARGIN;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -182,19 +181,12 @@ fn stderr_text(seen: &Observed) -> String {
     return String::from_utf8_lossy(seen.stderr.as_slice()).into_owned();
 }
 
-/// Whether this process can prove a pid file's process gone:
-/// it runs in the initial PID namespace.
-fn proof_available() -> bool {
-    return Judge::here().pid_view_complete && current_pid_namespace().is_some();
-}
-
-/// A lock left by a killed fetch with a pid file:
-/// the wrapper removes it where it can prove the holder gone,
-/// otherwise it
-/// describes it;
-/// either way Git's own result follows.
+/// A lock left by a killed fetch with a pid file beside it:
+/// the wrapper names it and gives the command,
+/// because nothing ties that number to this lock,
+/// and Git refuses.
 #[test]
-fn a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_gone() {
+fn a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them() {
     let stage: Stage = stage("stale-ref-locks-killed-fetch", true);
     let mut held: Held = hold_fetch(&stage);
     assert!(stage.gone_lock().exists(), "the fetch holds the lock before it is killed");
@@ -202,16 +194,11 @@ fn a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_go
     age_past_margin();
     let seen: Observed = wrapped_fetch(&stage);
     let words: String = stderr_text(&seen);
-    if proof_available() {
-        assert_eq!(seen.code, Some(0), "{words}");
-        assert!(words.contains("monochromatic-git-policy-cli: removed the reference lock"), "{words}");
-        assert!(!stage.gone_lock().exists());
-    } else {
-        assert_ne!(seen.code, Some(0), "{words}");
-        assert!(words.contains("monochromatic-git-policy-cli: left the reference lock"), "{words}");
-        assert!(words.contains("rm -- "), "{words}");
-        assert!(stage.gone_lock().exists());
-    }
+    assert_ne!(seen.code, Some(0), "{words}");
+    assert!(words.contains("monochromatic-git-policy-cli: left the reference lock"), "{words}");
+    assert!(words.contains("rm -- "), "{words}");
+    assert!(words.contains("cannot lock ref") || words.contains("Unable to create"), "Git's own refusal follows: {words}");
+    assert!(stage.gone_lock().exists());
     remove(&stage.fixture);
 }
 
