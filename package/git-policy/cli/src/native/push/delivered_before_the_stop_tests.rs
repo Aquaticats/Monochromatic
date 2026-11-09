@@ -35,6 +35,31 @@ fn the_region_is_what_follows_the_push_word_past_the_options_before_it() {
     assert_eq!(after_the_subcommand(arguments(&["fetch", "origin"]).as_slice()), None, "not a push");
 }
 
+/// What:
+///  The words Git reads as global options are kept whole and in order,
+/// and nothing else is.
+/// Why:
+///   `-C` names the repository and `-c` the configuration every question reads,
+/// so a split at the wrong word would ask another
+///  repository or drop the configuration the push saw.
+#[test]
+fn the_global_options_are_the_words_git_reads_before_the_subcommand() {
+    let typed: Vec<OsString> = arguments(&["-C", "/there", "-c", "core.hooksPath=/dev/null/x", "--no-pager", "push", "origin", "refs/heads/main:refs/heads/main"]);
+    assert_eq!(
+        globals_before_the_command(typed.as_slice()).map(<[OsString]>::to_vec),
+        Some(arguments(&["-C", "/there", "-c", "core.hooksPath=/dev/null/x", "--no-pager"]))
+    );
+    // One word forms are globals too, and a value that looks like an option belongs to the option before it.
+    let inline: Vec<OsString> = arguments(&["--git-dir=/there/.git", "-c", "--no-pager", "push", "origin"]);
+    assert_eq!(
+        globals_before_the_command(inline.as_slice()).map(<[OsString]>::to_vec),
+        Some(arguments(&["--git-dir=/there/.git", "-c", "--no-pager"]))
+    );
+    assert_eq!(globals_before_the_command(arguments(&["push", "origin"]).as_slice()), Some([].as_slice()), "a start without globals keeps none");
+    assert_eq!(globals_before_the_command(arguments(&["--version"]).as_slice()), None, "a query names no command");
+    assert_eq!(globals_before_the_command(arguments(&["--unknown-option", "push"]).as_slice()), None, "Git refuses that option itself");
+}
+
 /// A refspec names the reference to ask the local repository and the remote about.
 #[test]
 fn a_refspec_gives_the_reference_on_each_side() {
@@ -105,6 +130,7 @@ fn a_reference_is_delivered_when_the_remote_holds_the_object_the_local_reference
         program: PathBuf::from(REAL_GIT),
         cwd: Some(repo.clone()),
         environment: crate::test_support::scratch_environment(),
+        globals: Vec::new(),
     };
     let sending: Vec<String> = crate::lazy_runtime::run_on_runtime(objects_the_push_will_send(
         &asking,
@@ -192,6 +218,7 @@ fn the_proof_asks_the_destination_the_push_went_to_and_not_the_fetched_repositor
         program: PathBuf::from(REAL_GIT),
         cwd: Some(repo.clone()),
         environment: crate::test_support::scratch_environment(),
+        globals: Vec::new(),
     };
     let sending: Vec<String> = crate::lazy_runtime::run_on_runtime(objects_the_push_will_send(
         &asking,

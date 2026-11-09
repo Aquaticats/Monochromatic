@@ -40,6 +40,9 @@ use crate::bounded_query::run_bounded_query_awaiting;
 /// Git's own `push` option table,
 /// which decides where the destination and the refspecs sit.
 use crate::command_push::push_shape;
+/// Git's own reading of the options that come before the subcommand,
+/// which decide which repository and configuration a start reads.
+use crate::global_arguments::{GlobalOutcome, global_layout};
 use std::ffi::{OsStr, OsString};
 /// The program the push ran,
 /// and the directory it ran in.
@@ -77,37 +80,50 @@ pub struct DeliveryQuestion {
 }
 
 /// What:
+///  The words before the subcommand: Git's global options,
+/// or nothing when the arguments name no subcommand.
+/// Why:
+///   `-C` names another repository and `-c` another configuration,
+/// so a question asked without them reads what the push
+///  never read:
+/// a mismatched repository answered about references the push did not touch.
+///  Git reads its own prefix, so the wrapper does not approximate it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// globalLayout(arguments).outcome === 'command' ? arguments.slice(0, layout.prefixLen) : undefined;
+/// ```
+pub fn globals_before_the_command(arguments: &[OsString]) -> Option<&[OsString]> {
+    let layout = global_layout(arguments);
+    if layout.outcome != GlobalOutcome::Command {
+        return None;
+    }
+    return arguments.get(..layout.prefix_len);
+}
+
+/// What:
 ///  The arguments after the `push` word,
 /// past the options that come before the subcommand.
 /// Why:
 ///   Every start of the wrapper carries its `-c` switches before the subcommand,
-/// and `-c` and `-C` take a
+/// and a global option may take a
 ///  value,
-/// so the push region begins after the first word that is not an option or its value.
+/// so the push region begins after the words Git reads as globals.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const at = arguments.findIndex((word, i) => !word.startsWith('-') && arguments[i - 1] !== '-c');
-/// return at < 0 ? undefined : arguments.slice(at + 1);
+/// const layout = globalLayout(arguments);
+/// return layout.outcome === 'command' && arguments[layout.prefixLen] === 'push' ? arguments.slice(layout.prefixLen + 1) : undefined;
 /// ```
 pub fn after_the_subcommand(arguments: &[OsString]) -> Option<&[OsString]> {
-    let mut position: usize = 0;
-    while position < arguments.len() {
-        let word: &OsStr = arguments[position].as_os_str();
-        if word == "-c" || word == "-C" {
-            position += 2;
-            continue;
-        }
-        if word.to_string_lossy().starts_with('-') {
-            position += 1;
-            continue;
-        }
-        if word == "push" {
-            return arguments.get(position + 1..);
-        }
+    let layout = global_layout(arguments);
+    if layout.outcome != GlobalOutcome::Command {
         return None;
     }
-    return None;
+    if arguments.get(layout.prefix_len)? != "push" {
+        return None;
+    }
+    return arguments.get(layout.prefix_len + 1..);
 }
 
 /// What:
@@ -182,10 +198,12 @@ impl DeliveryQuestion {
 /// started the way the push itself was started so that the remote's location,
 /// its
 ///  configuration and the caller's settings are the ones the push saw.
+/// The push's global options are repeated for the
+///  same reason: `-C` names the repository the push read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AskingGit = { program: string; cwd?: string; environment: [string, string][] };
+/// type AskingGit = { program: string; cwd?: string; environment: [string, string][]; globals: string[] };
 /// ```
 #[derive(Clone, Debug)]
 pub struct AskingGit {
@@ -195,6 +213,9 @@ pub struct AskingGit {
     pub cwd: Option<PathBuf>,
     /// The complete environment the push ran with.
     pub environment: Vec<(OsString, OsString)>,
+    /// The global options the push carried,
+    /// which name the repository and the configuration it read.
+    pub globals: Vec<OsString>,
 }
 
 /// One question of the proof:
@@ -240,6 +261,8 @@ async fn ask_answering(
     for pair in &git.environment {
         command.env(&pair.0, &pair.1);
     }
+    // The push's own global options: `-C` decides which repository is asked and `-c` which configuration.
+    command.args(git.globals.as_slice());
     command.args(arguments);
     // The questions are bounded by what they show, like every other query of the push: one that stalls is no answer.
     let answer_outcome = run_bounded_query_awaiting(command, label, window, grace, git.environment.as_slice()).await;

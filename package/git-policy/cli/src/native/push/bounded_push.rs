@@ -57,7 +57,7 @@ use crate::lazy_runtime::run_on_runtime;
 /// and the pause between two looks at a running push.
 use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
 /// The question that proves a stopped push had already delivered its references.
-use crate::delivered_before_the_stop::{AskingGit, DeliveryQuestion, objects_the_push_will_send, refs_already_delivered};
+use crate::delivered_before_the_stop::{AskingGit, DeliveryQuestion, globals_before_the_command, objects_the_push_will_send, refs_already_delivered};
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
@@ -464,12 +464,13 @@ pub async fn run_bounded_push_awaiting(
     let label: String = command_label(&command);
     // Read while the command still has its arguments: a push stopped after its remote wrote the references must not be
     //  called a failure, and what the remote holds is the only proof of that.
+    let arguments: Vec<OsString> = command.get_args().map(OsString::from).collect();
     let asking: AskingGit = AskingGit {
         program: PathBuf::from(command.get_program()),
         cwd: command.get_current_dir().map(Path::to_path_buf),
         environment: environment.to_vec(),
+        globals: globals_before_the_command(arguments.as_slice()).unwrap_or_default().to_vec(),
     };
-    let arguments: Vec<OsString> = command.get_args().map(OsString::from).collect();
     let question: Option<DeliveryQuestion> = DeliveryQuestion::of(arguments.as_slice());
     // The objects the push is about to send are recorded before it starts: the reference they come from may name
     //  another object by the time the push is stopped, and the remote must hold what was sent and not what the

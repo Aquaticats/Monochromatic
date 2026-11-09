@@ -194,3 +194,130 @@ fn a_local_reference_that_moved_under_the_push_is_not_taken_for_what_the_push_se
     assert!(!Path::new(format!("/proc/{hook_pid}").as_str()).exists(), "the remote's hook was ended: process {hook_pid}");
     remove(root.as_path());
 }
+
+/// What:
+///  A bare remote whose hook called `hook_name` records itself and then never works again.
+/// Why:
+///   `pre-receive` runs before the remote writes the reference and `post-receive` after it,
+/// so the two place the stop on either side of the update.
+fn remote_with_a_stalled_hook(root: &Path, remote: &Path, hook_name: &str) {
+    git(remote, &["config", "core.fsync", "none"]);
+    let markers: PathBuf = root.join(format!("markers-{hook_name}.txt"));
+    let hook: PathBuf = remote.join("hooks").join(hook_name);
+    std::fs::create_dir_all(remote.join("hooks")).expect("hooks directory");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho ran >> '{}'\nexec sleep 600\n", markers.display())).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
+}
+
+/// The push of `destination` run from `cwd` with Git's `-C` naming another repository,
+/// with the environment the wrapper gives its pushes.
+fn push_naming_a_directory(destination: &Path, cwd: &Path, pairs: &[(OsString, OsString)]) -> Command {
+    let mut command: Command = Command::new(REAL_GIT);
+    command
+        .args(["-C", destination.to_str().expect("UTF-8"), "push", "origin", "refs/heads/main:refs/heads/main"])
+        .current_dir(cwd)
+        .env_clear();
+    for pair in pairs {
+        command.env(&pair.0, &pair.1);
+    }
+    return command;
+}
+
+/// What:
+///  The questions ask the repository the push's own global options name.
+/// Why:
+///   `git -C <directory> push` reads that directory's references and remotes,
+/// so a proof that kept only the process's
+///  working directory asked another repository,
+/// and references that agreed there read as a delivery of a push that
+///  delivered nothing.
+#[test]
+fn the_proof_asks_the_repository_the_global_options_of_the_push_name() {
+    let root: PathBuf = fixture("stopped-push-with-a-directory-option");
+    let caller: PathBuf = repository(root.as_path(), "caller");
+    let target: PathBuf = repository(root.as_path(), "target");
+    let caller_remote: PathBuf = root.join("caller-remote.git");
+    let target_remote: PathBuf = root.join("target-remote.git");
+    git(root.as_path(), &["init", "--quiet", "--bare", caller_remote.to_str().expect("UTF-8")]);
+    git(root.as_path(), &["init", "--quiet", "--bare", target_remote.to_str().expect("UTF-8")]);
+    git(caller.as_path(), &["remote", "add", "origin", caller_remote.to_str().expect("UTF-8")]);
+    git(target.as_path(), &["remote", "add", "origin", target_remote.to_str().expect("UTF-8")]);
+    // The caller's own branch and its remote agree, so a proof asking the caller would find nothing to deliver.
+    git(caller.as_path(), &["push", "--quiet", "origin", "refs/heads/main:refs/heads/main"]);
+    git(target.as_path(), &["push", "--quiet", "origin", "refs/heads/main:refs/heads/main"]);
+    // The push sends an object the destination does not have, and the remote's hook stalls before it writes it.
+    git(target.as_path(), &["commit", "--quiet", "--allow-empty", "--message=two"]);
+    let held: String = crate::test_support::git_text(target_remote.as_path(), &["rev-parse", "refs/heads/main"]);
+    let sent: String = crate::test_support::git_text(target.as_path(), &["rev-parse", "refs/heads/main"]);
+    assert_ne!(sent, held, "the push sends an object the destination does not hold");
+    remote_with_a_stalled_hook(root.as_path(), target_remote.as_path(), "pre-receive");
+    let pairs: Vec<(OsString, OsString)> = environment(root.as_path());
+    let attempt: PushAttempt = run_bounded_push(
+        push_naming_a_directory(target.as_path(), caller.as_path(), pairs.as_slice()),
+        Patience::Progress { stall: STALL },
+        GRACE,
+        pairs.as_slice(),
+    )
+    .expect("the push runs");
+    assert_eq!(
+        crate::test_support::git_text(target_remote.as_path(), &["rev-parse", "refs/heads/main"]),
+        held,
+        "the destination never wrote the pushed object: {}",
+        attempt.output
+    );
+    assert!(
+        !attempt.output.contains(DELIVERED_BEFORE_THE_STOP),
+        "nothing is claimed as delivered for a push that delivered nothing: {}",
+        attempt.output
+    );
+    assert!(attempt.output.contains("made no progress"), "the report is the plain stop: {}", attempt.output);
+    remove(root.as_path());
+}
+
+/// What:
+///  The questions find the delivery in the repository the push's own global options name.
+/// Why:
+///   The same proof must answer yes when the destination really holds the object,
+/// which the caller's repository does not:
+///  only the `-C` directory's own remote does.
+#[test]
+fn the_proof_finds_a_delivery_in_the_repository_the_global_options_of_the_push_name() {
+    let root: PathBuf = fixture("stopped-push-delivered-with-a-directory-option");
+    let caller: PathBuf = repository(root.as_path(), "caller");
+    let target: PathBuf = repository(root.as_path(), "target");
+    let caller_remote: PathBuf = root.join("caller-remote.git");
+    let target_remote: PathBuf = root.join("target-remote.git");
+    git(root.as_path(), &["init", "--quiet", "--bare", caller_remote.to_str().expect("UTF-8")]);
+    git(root.as_path(), &["init", "--quiet", "--bare", target_remote.to_str().expect("UTF-8")]);
+    git(caller.as_path(), &["remote", "add", "origin", caller_remote.to_str().expect("UTF-8")]);
+    git(target.as_path(), &["remote", "add", "origin", target_remote.to_str().expect("UTF-8")]);
+    // The caller's remote holds nothing, so only the destination the push names can show the delivery.
+    git(target.as_path(), &["commit", "--quiet", "--allow-empty", "--message=two"]);
+    let sent: String = crate::test_support::git_text(target.as_path(), &["rev-parse", "refs/heads/main"]);
+    remote_with_a_stalled_hook(root.as_path(), target_remote.as_path(), "post-receive");
+    let pairs: Vec<(OsString, OsString)> = environment(root.as_path());
+    let attempt: PushAttempt = run_bounded_push(
+        push_naming_a_directory(target.as_path(), caller.as_path(), pairs.as_slice()),
+        Patience::Progress { stall: STALL },
+        GRACE,
+        pairs.as_slice(),
+    )
+    .expect("the push runs");
+    assert_eq!(
+        crate::test_support::git_text(target_remote.as_path(), &["rev-parse", "refs/heads/main"]),
+        sent,
+        "the destination wrote the pushed object before its hook stalled: {}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.contains(DELIVERED_BEFORE_THE_STOP),
+        "the report says what the destination holds: {}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.contains("refs/heads/main"),
+        "the report names the reference the destination holds: {}",
+        attempt.output
+    );
+    remove(root.as_path());
+}
