@@ -687,7 +687,8 @@
   and with the run's own control group at `TasksMax=4000`,
   the conditions the section above records,
   with one addition the next agent needs:
-  the fixture root has **two** length limits, not one.
+  the fixture root has **two** length limits,
+  not one.
   It must be short enough for a Unix socket under it to fit `SUN_LEN`,
   and it must be at least six path segments deep,
   because `worktree_add_binding`'s control `a_relative_pointer_without_links_is_bound`

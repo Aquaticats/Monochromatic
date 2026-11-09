@@ -4741,7 +4741,8 @@ Two rules from the previous agent are kept:
   runtime entry is made by the synchronous face,
   on the calling thread.
 
-One limit of this step, said rather than hidden:
+One limit of this step,
+said rather than hidden:
 the report's storage reads (the hooks directory scan,
 the configuration file and the
 `/proc` reads of the filesystem section) run on the worker that carries the
@@ -4885,6 +4886,76 @@ The fixture root the two runs used is in the handover,
 with the second length limit this step measured:
 it must be six path segments deep,
 not only short enough for `SUN_LEN`.
+
+#### Latency, and why this host cannot answer the commit bar today
+
+Three `native:perf` runs,
+on a host where other sessions and these two suites had been running,
+the third arm a binary without this step's change
+(main's tip `bbadfac560`,
+the nine files put back,
+built and measured minutes after the second arm,
+then restored):
+
+- Arm 1,
+  this tree (2026-11-08T20:55:14-05:00):
+  forwarded commands added median 1.7,
+  1.9,
+  1.6 and 1.9 ms;
+  commit through the service added median 83.2 ms and paired delta maximum
+  1220.1 ms;
+  signed commit 45.8 ms,
+  maximum 137.5 ms;
+  no bound broken.
+- Arm 2,
+  the same binary
+  (2026-11-08T20:59:22-05:00):
+  forwarded 1.6,
+  1.9,
+  1.6 and 1.8 ms;
+  commit 213.8 ms,
+  maximum 5437.5 ms;
+  signed 178.1 ms,
+  maximum 2188.6 ms;
+  the commit bound broken.
+- Arm 3,
+  without this step's change
+  (2026-11-08T21:01:22-05:00):
+  forwarded 1.8,
+  2.1,
+  1.7 and 1.5 ms;
+  commit 382.7 ms,
+  maximum 10801.4 ms;
+  signed 59.9 ms,
+  maximum 687.1 ms;
+  the commit bound broken,
+  by twice as much as arm 2.
+
+What that says,
+and what it does not:
+
+- Forwarded commands are inside the record either way (1.4 to 2.2 ms in the T11
+  section;
+  1.5 to 2.1 ms here),
+  and no arm broke that bound.
+- The commit path is not measurable on this host in this window:
+  two runs of the **same** binary differ by 2.6 times (83.2 against 213.8 ms),
+  and the run of the **unchanged** tree is worse than both (382.7 ms,
+  maximum 10.8 s).
+  The spread is larger than any plausible effect,
+  so these three arms cannot attribute anything to this step,
+  and this step's diff cannot sit on that path in any case:
+  no doctor function has a caller outside `health/` and `plan_doctor`,
+  and the one read the commit path shares with this step
+  (`read_config_snapshot`) keeps its command,
+  its parse and its order,
+  with its body split into `config_listing_request` and `snapshot_of`.
+- The T11 record of 19.6 to 26.0 ms was taken on a much quieter host.
+  The bar the owner set is on the merge,
+  not on this branch,
+  and the next agent should take the arms again in a quiet window and with
+  the alternation the earlier sections used,
+  because on this host the unchanged tree breaks it too.
 
 ### Where the remaining steps stand after T5
 
