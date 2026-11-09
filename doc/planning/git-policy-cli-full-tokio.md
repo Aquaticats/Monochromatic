@@ -5158,6 +5158,33 @@ the runner's jobs on the runtime"):
   so a bridge that starts a child (`output_of_blocking`) refuses there;
   `LinuxPlatform::with_its_conversion_environment_settled` is the shape that answers such a
   question before the run instead.
+- After the snapshot source and the clean check
+  (2026-11-09T14:35:00-05:00,
+  "Step T12,
+  the snapshot source and the clean check move to the runtime"):
+  `worktree/worktree_clean.rs` and
+  `worktree/worktree_snapshot_source.rs` start no thread and no scoped job:
+  the untracked scan of the clean check and the configuration read and trash rule of the source
+  check are awaits of the same task,
+  and the proof of the tracked files is a job of the blocking pool beside them.
+  The production files of `worktree/` therefore hold no `std::thread` at all;
+  what still starts one is
+  `worktree_copying/` (`worktree_copy_compare.rs`,
+  `worktree_copy_after_lock.rs`,
+  `worktree_copy_install.rs`,
+  `worktree_copy_stage_leaf_copying.rs`,
+  `worktree_copy_journal_removal.rs`),
+  `commit/commit_index_stat_staleness.rs`,
+  `landing/service_durable.rs`
+  and the scoped-thread runner of `foundation/parallel_runner.rs` itself.
+  What is left of item 3 is unchanged after those,
+  then item 2 (the landing's handlers and `landing/service_round.rs`),
+  then T13's guards.
+  A conversion of a site whose Git half is a job rather than an await must copy the one rule
+  this step measured:
+  the scan and both source reads had to become awaiting faces
+  (`run_git_awaiting`),
+  because a job of the pool is inside the runtime and the synchronous face refuses there.
 
 ### Step T12, the line path and the state of the pure-file sites, 2026-11-08T21:47:00-05:00
 
@@ -7086,6 +7113,122 @@ The wording of a refusal:
 - Not done:
   the container gate (`native:test:container`) was not run,
   and no mutation campaign was started (paused by the owner).
+
+## Step T12, the snapshot source and the clean check move to the runtime, 2026-11-09T14:35:00-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-worktree-snapshot-and-clean-threads-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-worktree-snapshot-and-clean`,
+  from main at `a2d927fb55`,
+  with main merged as `4781ab04a2` when it had moved to `33562f4ff7` (233 commits,
+  no conflict).
+  Not merged into main.
+  Commits `3cb3e4efbc` (the controls),
+  `a334dfe771` (the clean check),
+  `f7ae9e8f09` (the source's three checks) and
+  `41dd04d1c5` (the two splits the line limit asked for).
+- Converted,
+  in `package/git-policy/cli/src/native/worktree/`:
+  `worktree_clean.rs` (the untracked scan and the tracked proof,
+  once one scoped thread beside the calling thread) and
+  `worktree_snapshot_source.rs` (three reads,
+  once two levels of `run_beside_caller`).
+  Each is now a wait of a task:
+  the scan is
+  `scan_for_untracked_file_awaiting` over `run_git_awaiting`,
+  the tracked proof is `run_a_job_or_in_turn` of
+  `check_tracked_files_in_a_job`,
+  and the source's configuration read and trash rule are
+  `read_config_snapshot_awaiting` and `trash_location_is_ignored_awaiting`.
+  The synchronous faces stay (`check_clean`,
+  `scan_for_untracked_file`,
+  `untracked_file`,
+  `read_configuration_timed`,
+  `trash_location_ignored_timed`,
+  `the_checks_of_the_source_in_turn`),
+  because `worktree_remove.rs` and `worktree_ladder_run.rs` call them from plain threads,
+  and each enters the runtime once (`run_on_runtime`).
+  The awaiting faces beside them are `check_clean_awaiting` and
+  `the_checks_of_the_source`.
+- What each wait is bounded by did not change:
+  every Git child is the step its class gives it
+  (`terms_for_request`,
+  the quiet window and the ceiling),
+  and the proof of the tracked files was unbounded and still is,
+  now as a job of the pool.
+  What did change is one diagnostic:
+  the three steps `check_tracked` enters with `add_timing::begin_step`
+  (`readIndexAndTree`,
+  `indexAgainstTree`,
+  `walkSource`)
+  are a thread-local recorder,
+  so a job of the pool does not reach the add's timing record and their time lands in
+  `checkSource`'s own share.
+  The `untrackedScan`,
+  `readConfig` and `trashIgnored` work names still arrive,
+  because that ledger is the process's.
+- Two rules the sites keep,
+  both recorded rather than invented here:
+  `run_a_job_or_in_turn` runs a refused job's work on the awaiting task under a place of the
+  process's bound,
+  which is the fallback `SPEC.md` already records for the package-manager repair
+  (owner,
+  2026-11-09),
+  and each synchronous face falls back to running its checks one after another on the calling
+  thread where no runtime can be built,
+  as `repair_worktree` does.
+- Controls:
+  `worktree_clean_tests.rs`,
+  `the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool` (written first,
+  failed before the move),
+  `a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start` (replaces
+  `a_clean_worktree_is_clean_where_no_thread_can_start`,
+  whose seam this move takes away from the site;
+  the body runs in a child refused every thread) and
+  `worktree_snapshot_source_tests.rs`,
+  `btrfs_the_checks_of_the_source_take_a_place_of_the_processs_bound` (written first,
+  failed before the move).
+  Both place controls fail without the move and read:
+  "the tracked files were proven without asking for a place of the process's bound on blocking
+  jobs" and
+  "the files of the source were proven clean without asking for a place of the process's bound
+  on blocking jobs".
+  Proof by removal:
+  with the job planted as `run_blocking_job_within_the_budget` (so a refusal is answered instead
+  of the work being run),
+  the child control fails with
+  "the tracked files could not be proven (the system refused a thread for a blocking step ...)".
+- Counted before the move,
+  `worktree_clean::tests` and `worktree_snapshot_source::tests` together:
+  24 run,
+  22 passed,
+  2 failed.
+  After it:
+  16 of 16 and 8 of 8,
+  and 163 of 163 over the clean,
+  source,
+  trash,
+  ladder and remove filters;
+  91 of 91 over the same set with `worktree_ladder`;
+  159 of 159 over convert,
+  clone,
+  remove and checkout workers.
+- `native:clippy` clean;
+  `monochromatic-lint` over the nine files this step touches reports nothing,
+  after the two files it pushed over 300 code lines were split
+  (`worktree_clean_untracked_scan.rs`,
+  `worktree_trash_ignore_rule.rs`)
+  and one doc line was broken.
+  The package-wide lint is not green on this tree and was not before this step:
+  `rust/max-lines` and `markdown/semantic-line-breaks` findings stand in
+  `push/`,
+  `testing/` and `worktree_copying/`,
+  none of them touched here.
+- Not done:
+  `worktree_copying/` (another agent holds it),
+  the container gate (`native:test:container`),
+  `native:perf` and the mutation campaigns (paused by the owner),
+  and Win and mac were left alone.
 
 ## Limits
 
