@@ -95,18 +95,47 @@ pub fn keep(cleanup: &Cleanup, journal: &Path, seq: u64) -> Option<PathBuf> {
     if !cleanup.scratch.exists() {
         return None;
     }
+    // The copy is built beside its name and renamed onto it, so a copy that failed half way never takes the name the cleanup
+    //  reads, and a landing that could not keep everything is a landing that kept nothing.
     let kept: PathBuf = path_of(journal, seq);
+    let staging: PathBuf = journal.join(format!("{seq}.{COPY_EXTENSION}.tmp"));
+    let _stale: std::io::Result<()> = remove_tree(staging.as_path());
+    if let Some(failed) = copy_into(cleanup, journal, seq, staging.as_path()) {
+        let _gone: std::io::Result<()> = remove_tree(staging.as_path());
+        return failed;
+    }
+    if let Err(error) = std::fs::rename(staging.as_path(), kept.as_path()) {
+        crate::service_error!("batch {seq}: the copy of the conclusion state cannot be published as {} ({error})", kept.display());
+        let _gone: std::io::Result<()> = remove_tree(staging.as_path());
+        return None;
+    }
+    return Some(kept);
+}
+
+/// What:
+///  Copies what the cleanup compares into `kept`,
+/// answering the failure that stops it.
+/// Why:
+///   A copy that cannot be made says which part it lost,
+/// and the caller publishes nothing of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// copyInto(cleanup, kept) // null when everything was copied
+/// ```
+fn copy_into(cleanup: &Cleanup, journal: &Path, seq: u64, kept: &Path) -> Option<Option<PathBuf>> {
+    let _ = journal;
     let copies: PathBuf = cleanup.scratch.join(CONCLUSION_COPY_DIRECTORY);
     if copies.exists()
         && let Err(error) = copy_tree(copies.as_path(), kept.join(CONCLUSION_COPY_DIRECTORY).as_path())
     {
         crate::service_error!("batch {seq}: the conclusion state it must remove cannot be copied into {} ({error})", kept.display());
-        return None;
+        return Some(None);
     }
     let shadow: PathBuf = cleanup.scratch.join(SHADOW_FOLDER);
     if let Err(error) = create_private_directory_all(kept.join(SHADOW_FOLDER).as_path()) {
         crate::service_error!("batch {seq}: the conclusion state it must remove cannot be copied into {} ({error})", kept.display());
-        return None;
+        return Some(None);
     }
     for name in CONCLUSION_STATE_FILES {
         let source: PathBuf = shadow.join(name);
@@ -115,10 +144,26 @@ pub fn keep(cleanup: &Cleanup, journal: &Path, seq: u64) -> Option<PathBuf> {
         }
         if let Err(error) = std::fs::copy(source.as_path(), kept.join(SHADOW_FOLDER).join(name)) {
             crate::service_error!("batch {seq}: the conclusion state {name} cannot be copied into {} ({error})", kept.display());
-            return None;
+            return Some(None);
         }
     }
-    return Some(kept);
+    return None;
+}
+
+/// What:
+///  Keeps the copy of a batch's conclusion state,
+/// when the batch has one.
+/// Why:
+///   The landing calls this before the branch moves,
+/// so no other caller restates the record it needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepOf(cleanup, journal, seq)
+/// ```
+pub fn keep_of_intent(cleanup: Option<&Cleanup>, journal: &Path, seq: u64) -> Option<PathBuf> {
+    let named: &Cleanup = cleanup?;
+    return keep(named, journal, seq);
 }
 
 /// Removes one batch's copy;

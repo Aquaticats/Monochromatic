@@ -5625,12 +5625,12 @@ Each commit passes through three phases:
     hand the push and the upkeep to the service as work items.
     A blocked gate keeps the commit local and exits `2`.
 
-The service leaves the push work item of a commit it landed itself,
-before it answers that commit's client,
-and wakes its own work thread for it.
-A wrapper that is killed or whose terminal closes between the answer and its hand-off therefore loses no push:
-the record's id is the commit's,
-so the hand-off writes the same record and one of the two is skipped (see "What a landed batch leaves behind").
+The wrapper leaves the push work item of a commit the service landed before it runs the post-commit gate,
+and takes it back when the gate blocks,
+so the gate alone decides whether a landed commit may be published and a wrapper killed while the gate runs
+loses no push (see "What a landed batch leaves behind").
+The service leaves no push record of its own:
+it cannot know the gate's verdict.
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
@@ -5747,23 +5747,39 @@ A record that cannot be read is therefore a person's to remove,
 or to open,
 once what its batch owed has been settled from the record above.
 
-The commit that runs next in that worktree settles what is owed before it copies the index:
-each path of the record whose index entry still holds what the landed batch started from is set to the landed
-commit,
-and a path whose entry holds anything else was staged by a program since and is left alone.
-The wrapper says which paths it set.
-The command it makes therefore never records the landed commit's own paths against it,
-so a file that commit added is not a staged deletion the next commit would record,
-and staging that is the person's own is kept.
+Which entries are the unfinished landing's own cannot be decided from what they hold:
+a person can stage the batch's old content back,
+another branch can hold the same bytes,
+a staged child of an added path leaves no entry at that path,
+an unmerged path is represented by its stages,
+and a program can stage between any comparison and any write.
+A repair that wrote the live index could therefore discard staging that is the person's,
+which is the worse outcome,
+so no commit writes the live index for this reason.
+
+What a commit does instead is record nothing about those paths.
+For every path of an applicable record whose live index entry differs from the worktree's head,
+the commit's own private index is set to that head,
+and the commit prints one line naming the paths and both ways on:
+`git reset -- <paths>` to catch the index up with the branch,
+or `git commit -- <paths>` to take the worktree's content for them.
+A path with unmerged stages is left alone,
+because a merge in progress is the person's own act,
+and an explicit-path commit names its own selection and is never changed.
+The record is forgotten when the index agrees with the head at every path it names,
+or when the worktree has left the branch the landing happened on:
+an index describes the branch the worktree has checked out.
+
 A restart that finds the index file is not the one the landing saw finishes the batch,
 leaves the index as its writers left it,
 and keeps the record,
-so the next commit's own step is what puts the entries right.
+so the commit above is what protects the next command.
 
 A landing that concludes a merge,
 a cherry-pick or a revert keeps a copy of the conclusion state the commit removes
 in its journal at `<batch>.cleanup`,
-made before the branch moves.
+made beside that name and renamed onto it before the branch moves,
+so a copy that failed half way never takes the name the cleanup reads.
 The state files are removed only while they still hold the bytes copied at preparation,
 and the copies the comparison reads are the client's own,
 which the service removes when that client is gone.

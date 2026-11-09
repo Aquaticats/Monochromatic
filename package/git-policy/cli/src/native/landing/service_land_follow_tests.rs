@@ -175,6 +175,30 @@ fn concluded_merge_with_the_scratch_gone(name: &str) -> (PathBuf, PathBuf, Clean
     return (root, repo, cleanup, kept);
 }
 
+/// A copy of the comparison that cannot be made publishes nothing:
+/// the name the cleanup reads is never taken by a partial copy,
+/// so a landing that could not keep everything is one that kept nothing.
+#[test]
+fn a_copy_of_the_conclusion_state_that_fails_half_way_publishes_nothing() {
+    let root: PathBuf = fixture("service-follow-partial-copy");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let scratch: PathBuf = root.join("scratch");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("copies");
+    std::fs::write(copies.join("MERGE_HEAD"), "0123456789012345678901234567890123456789\n").expect("copy");
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), "{}\n").expect("store record");
+    // The shadow's entry cannot be copied: a directory stands where its file belongs.
+    std::fs::create_dir_all(scratch.join("shadow").join("MERGE_HEAD")).expect("a directory in the way");
+    let cleanup: Cleanup = Cleanup { git_dir, scratch, reftable: false };
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9).is_none(), "a copy that cannot be made keeps nothing");
+    assert!(!crate::conclusion_state_copy::path_of(&journal, 9).exists(), "the name the cleanup reads is never taken by a partial copy");
+    assert!(!journal.join("9.cleanup.tmp").exists(), "the staging copy goes with the failure");
+    remove(root.as_path());
+}
+
 /// A cleanup that failed once is finished after the client's scratch directory is gone:
 /// the copy the landing kept in its journal is what the comparison reads,
 /// so the concluded merge's state goes and the next

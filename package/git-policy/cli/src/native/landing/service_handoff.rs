@@ -24,7 +24,7 @@ use crate::service_messages::ClientFailure;
 use crate::service_work::work_directory;
 use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
-use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all};
+use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -116,6 +116,65 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
     }
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
     return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices);
+}
+
+/// What:
+///  Leaves the push record for a commit the service landed,
+/// before the post-commit gate decides whether the backup runs.
+/// Why:
+///   The record must outlive a wrapper killed between the answer and the gate,
+/// and it must not run before the gate:
+///  the service writes no record of its own,
+/// so nothing pushes a commit whose gate blocked it,
+/// and a record the gate
+///  then allows is the one the hand-off wakes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await leaveThePush(handoff, landed)
+/// ```
+///
+/// # Errors
+///
+/// The work queue's own words when the record cannot be written.
+pub fn leave_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
+    let item: WorkItem = push_item(handoff, landed);
+    return match enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item) {
+        Ok(_enqueued) => Ok(()),
+        Err(reason) => Err(ClientFailure::WorkNotHandedOver(reason)),
+    };
+}
+
+/// What:
+///  Takes the push record back when the post-commit gate blocks the backup.
+/// Why:
+///   A blocked gate keeps the commit local,
+/// and a record left behind would push it at the next wake.
+/// A record another round already
+///  claimed is not reached here:
+/// the gate is what says whether the push may run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetThePush(handoff, landed) // unlink the pending record
+/// ```
+pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
+    let _removed: std::io::Result<()> =
+        std::fs::remove_file(state_directory(work_directory(handoff.git_dir.as_path()).as_path(), crate::work_item::PENDING).join(push_item(handoff, landed).id()));
+}
+
+/// The push record of one landed commit of a worktree.
+fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: handoff.repository.display().to_string(),
+        git_dir: handoff.git_dir.display().to_string(),
+        branch_ref: handoff.reference.clone(),
+        oid: landed.to_string(),
+        parent: handoff.parent.clone(),
+        created: now_iso(),
+        tries: 0,
+    };
 }
 
 /// What:

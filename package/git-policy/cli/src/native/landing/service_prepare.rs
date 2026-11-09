@@ -141,16 +141,6 @@ pub fn prepare<F: RepositoryFacts>(
         pathspecs.push(region_arguments[*at].clone());
     }
     let retry: Option<&Retry<'_>> = inputs.replay.as_ref();
-    if retry.is_none() {
-        // A commit that landed but did not finish its index update leaves this worktree's index describing the branch before that
-        //  landing, so a plain commit of this index would record the landed commit's own paths as their old content and, for a path
-        //  it added, as a staged deletion. The entries the landing left are set to the landed commit here, before anything is copied
-        //  from the index, and only those: an entry a program staged since holds something else and is left alone
-        //  (`owed_index_update.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`, findings 1 and 2).
-        if let Some(notice) = crate::owed_index_update::restated_notice(restate_what_a_landed_commit_left(context, &capture).as_slice()) {
-            let _written = std::io::stderr().write_all(notice.as_bytes());
-        }
-    }
     if named && retry.is_none() {
         // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
         let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(
@@ -229,6 +219,26 @@ pub fn prepare<F: RepositoryFacts>(
         if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
             return Err(failed(error.0));
         }
+    }
+    // A commit that landed but did not finish its index update leaves this worktree's index describing the branch before that
+    //  landing, so a plain commit of this index would record the landed commit's own paths as their old content, and a path it added
+    //  as a staged deletion. Which entries are the landing's own cannot be decided from what they hold, so nothing here writes the
+    //  live index: this commit's own index is set to the head for the paths whose entry disagrees with it, and the person is told
+    //  (`owed_index_repair.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`). An explicit-path commit names
+    //  its own selection, so only the notice is given for it.
+    let excluded: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        context,
+        capture.layout.git_dir.as_path(),
+        capture.layout.real_index_path.as_path(),
+        match selection.mode {
+            TransactionMode::Index => Some(indexes.commit_index.as_path()),
+            TransactionMode::ExplicitPath => None,
+        },
+    );
+    if inputs.first
+        && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())
+    {
+        let _written = std::io::stderr().write_all(notice.as_bytes());
     }
     // The bytes are captured now; a retry keeps the stamp of the capture it replays.
     let captured_at: u64 = match retry {
@@ -352,10 +362,4 @@ pub fn prepare<F: RepositoryFacts>(
     ready.committed_conflicted.extend(unmerged_files);
     ready.leaves_open = leaves_open;
     return Ok(Prepared::Ready(ready));
-}
-
-/// The entries a landed commit left in this worktree's index,
-/// set to that commit (`crate::owed_index_update`).
-fn restate_what_a_landed_commit_left(context: &GitContext, capture: &InvocationCapture) -> Vec<String> {
-    return crate::owed_index_update::restate_leftovers(context, capture.layout.git_dir.as_path(), capture.layout.real_index_path.as_path());
 }

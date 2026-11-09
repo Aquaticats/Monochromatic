@@ -17,22 +17,24 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::unbounded_channel;
 
-/// Owner's rule "Commits should never fail" and the standing expectation that a landed commit is pushed:
-/// the wrapper hands the push over after the answer,
-/// so a wrapper killed or closed between the two loses it.
-/// The service knows the commit landed,
-/// and leaves the push record before it answers.
+/// The post-commit gate runs in the wrapper,
+/// after the answer,
+/// and only its verdict may let a landed commit be pushed:
+/// a blocked gate keeps the commit local.
+/// The service therefore leaves no push record of its own,
+/// so nothing it does can publish a commit whose gate blocks it,
+/// and the wrapper's own record is the one that outlives a killed client.
 #[test]
-fn a_landed_commit_leaves_its_push_record_before_the_client_is_answered() {
+fn a_landed_commit_leaves_no_push_record_of_the_services_own() {
     let world: World = world("service-land-owed-push");
     let asked: CommitRequest = request(&world, "pushed", "pushed.txt", "pushed\n");
     let (reply, mut messages) = Reply::new();
-    let (wake, mut wakes) = unbounded_channel();
+    let (_wake, mut wakes) = unbounded_channel::<crate::service_work::Wake>();
     let group = vec![(Box::new(asked.clone()), reply, Arrival { accepted: Instant::now(), read: Duration::ZERO })];
     let mut seq: u64 = 0;
     let mut landed: HashMap<String, String> = HashMap::new();
     let mut captures: CaptureMemory = CaptureMemory::default();
-    land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures, &wake);
+    land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures);
     let Some(ServiceMessage::Landed { commit, already, .. }) = messages.try_recv().ok() else {
         panic!("the client is answered that the commit landed");
     };
@@ -40,8 +42,8 @@ fn a_landed_commit_leaves_its_push_record_before_the_client_is_answered() {
     let git_dir: PathBuf = world.repo.join(".git");
     let work_dir: PathBuf = crate::service_work::work_directory(git_dir.as_path());
     let record: PathBuf = state_directory(work_dir.as_path(), PENDING).join(format!("{}-{commit}", WorkKind::Push.name()));
-    assert!(record.exists(), "the service left the push of the commit it landed at {}", record.display());
-    let woken: (PathBuf, Option<crate::service_review_key::ReviewKey>) = wakes.try_recv().expect("the work thread is woken for the record");
-    assert_eq!(woken.0, git_dir, "the wake names the worktree whose commit landed");
+    assert!(!record.exists(), "the service left a push record at {}, which its gate never allowed", record.display());
+    assert!(wakes.try_recv().is_err(), "the service wakes no work of its own: the wrapper's hand-off is what asks for the push");
+    let _ = &world;
     remove(world.root.as_path());
 }

@@ -1,299 +1,382 @@
 //! What:
-//!  The repair of an index update a landed batch owes:
-//! which of its paths still hold what the batch started from,
-//! and the reset that sets those to the
-//!  landed commit.
+//!  What a commit does about the index entries a landed batch still owes:
+//! it records nothing about those paths,
+//! and it says so.
 //! Why:
-//!  The record of the owed update is `owed_index_update.rs`;
-//! this is what the next commit and the landing's own step do with it.
-//!  Only entries that still hold what the batch started from are reset,
-//! so staging that is the program's own is kept and named.
+//!   A batch's branch moves before its index is installed,
+//! so the worktree's index can describe the branch before a landing.
+//! A commit of that index would record the landed commit's own paths as their old content,
+//! and a path the
+//!  commit added as a staged deletion.
+//! Which entries are the landing's own cannot be decided from what they hold:
+//! a person can stage the
+//!  batch's old content back,
+//! another branch can hold the same bytes,
+//! a staged child of an added path leaves no entry at that path,
+//! an unmerged path is
+//!  represented by its stages,
+//! and a program can stage between any comparison and any write.
+//! A repair that wrote the live index would
+//!  therefore be able to discard staging that is the person's,
+//! which is the worse outcome
+//!  (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+//! findings 2 to 6 of the round-2 review).
+//!   So nothing here writes the live index.
+//! The commit's own private index is set to the worktree's head for each path whose entry
+//!  disagrees with that head,
+//! so the commit records nothing about it,
+//! and the notice names the paths and both ways on:
+//! `git reset -- <paths>` catches the index up with the branch,
+//! and `git commit -- <paths>` takes the worktree's content for them.
+//! A path with unmerged stages is left to the person:
+//! a merge in progress is their own act.
+//! The obligation
+//!  goes when the live index agrees with the head for every path it names,
+//! or when the worktree has left the branch that landed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const left = await leftovers(owed, index); await resetEntries(left); const said = restatedNotice(left);
+//! const left = await excludeWhatALandedCommitLeft(git, gitDir, liveIndex, commitIndex, explicitPaths);
 //! ```
 
 use crate::owed_index_update::{Owed, records_of, remove};
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
-/// One entry of a tree or an index:
-/// its mode and its object.
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Entry {
-    mode: String,
-    object: String,
+/// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
+const NOT_AN_ANCESTOR: i32 = 1;
+
+/// The paths one record's update covers,
+/// derived from the two branch values when the batch names none.
+fn names_of(git: &GitContext, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> {
+    if !owed.derived {
+        let mut listed: Vec<Vec<u8>> = Vec::with_capacity(owed.paths.len());
+        for path in &owed.paths {
+            listed.push(path.clone().into_bytes());
+        }
+        return Ok(listed);
+    }
+    return Ok(names_in(crate::service_land_follow::derived_names(git, owed.repository.as_path(), owed.old.as_str(), owed.new.as_str())?.as_slice()));
 }
 
 /// What:
-///  The entries a tree holds at `names`,
-/// each as the mode and object a comparison with an index needs.
+///  The names of a NUL-separated listing,
+/// each as the bytes Git wrote.
 /// Why:
-///   A repair resets a path only while the index still holds what the batch started from,
-/// and that is this value.
+///  A `-z` listing of paths needs no quoting and no character set,
+/// so the bytes are kept as they are.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// treeEntries(tree, names) // `ls-tree -z --full-tree <tree> -- :(top,literal)<name>...`
+/// namesIn(bytes) // split on NUL, drop the empty tail
 /// ```
-fn tree_entries(git: &GitContext, repository: &Path, tree: &str, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let specs: Vec<std::ffi::OsString> = names.iter().map(path_spec).collect();
-    let mut arguments: Vec<&std::ffi::OsStr> = vec![std::ffi::OsStr::new("ls-tree"), std::ffi::OsStr::new("-z"), std::ffi::OsStr::new("--full-tree"), std::ffi::OsStr::new(tree), std::ffi::OsStr::new("--")];
-    arguments.extend(specs.iter().map(std::ffi::OsString::as_os_str));
-    let output = run(git, repository, arguments.as_slice(), None)?;
-    return Ok(entries_of(output.stdout.as_slice(), TabShape::Tree));
+fn names_in(listing: &[u8]) -> Vec<Vec<u8>> {
+    let mut names: Vec<Vec<u8>> = Vec::new();
+    for name in listing.split(is_zero_byte) {
+        if !name.is_empty() {
+            names.push(name.to_vec());
+        }
+    }
+    return names;
 }
 
-/// The path the record's paths become,
-/// which is where the repair is told which entries to look at.
-/// What:
-///  Whether a byte is the NUL that ends one record of a `-z` listing.
-/// Why:
-///  A listing's records are split by this byte.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isZeroByte = (byte: number) => byte === 0;
-/// ```
+/// The offset of the tab that ends one entry's words,
+/// or nothing when it holds none.
+fn last_tab(record: &[u8]) -> Option<usize> {
+    return record.iter().rposition(is_tab_byte);
+}
+
+/// Whether a byte is the NUL that ends one record of a `-z` listing.
 fn is_zero_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// Whether a byte is the tab that separates the entry's words from its path.
+/// Whether a byte is the tab that separates an entry's words from its path.
 fn is_tab_byte(byte: &u8) -> bool {
     return *byte == b'\t';
 }
 
-/// Whether a byte is the space between the entry's words.
-fn is_space_byte(byte: &u8) -> bool {
-    return *byte == b' ';
-}
-
-/// Whether an entry from a listing is not the empty name two NULs in a row leave.
-fn is_not_empty(name: &&[u8]) -> bool {
-    return !name.is_empty();
-}
-
-/// Whether a stage column names an unmerged entry,
-/// which is a program's own and not the landing's leftover.
-fn is_unmerged(stage: &&[u8]) -> bool {
-    return *stage != b"0";
-}
-
-/// A path of a record as the bytes of a pathspec.
-fn path_bytes(path: &String) -> Vec<u8> {
-    return path.as_bytes().to_vec();
-}
-
-/// A path of a record as a literal pathspec.
-fn path_spec(name: &Vec<u8>) -> std::ffi::OsString {
-    return literal_spec(name.as_slice());
-}
-
-/// What:
-///  The one line the wrapper prints when it set the entries a landed commit left,
-/// and nothing when it set none.
-/// Why:
-///   The command the person runs must say why its index entries were changed before it read them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// restatedNotice(paths)
-/// ```
-pub fn restated_notice(paths: &[String]) -> Option<String> {
-    if paths.is_empty() {
-        return None;
-    }
-    return Some(format!(
-        "monochromatic-git-policy-cli: a commit that landed did not finish updating this worktree's index.
-\
-The entries of {} were set to that commit for this one, so this commit does not record them against it.
-",
-        paths.join(", ")
-    ));
-}
-
-/// What:
-///  Sets the index entries a landed commit left in this worktree to that commit,
-/// and gives the paths it set.
-/// Why:
-///   A commit that landed but did not finish its index update leaves the index describing the branch before it,
-/// so a plain commit of that index records the landed commit's own paths as their old content,
-/// and a path it added as a staged deletion.
-/// Only the entries that still hold what the landed batch started from are set:
-/// an entry a program staged since holds something else and is left,
-/// with the pieces of its obligation forgotten.
-/// Nothing here can fail a commit:
-/// a repair that cannot be made is said,
-/// the record stays,
-/// and the next commit tries it again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const restated = restateLeftovers(git, gitDir, realIndex); // the paths set
-/// ```
-pub fn restate_leftovers(git: &GitContext, git_dir: &Path, real_index: &Path) -> Vec<String> {
-    let mut restated: Vec<String> = Vec::new();
-    for owed in records_of(git_dir) {
-        // A batch of another index file (`GIT_INDEX_FILE`) is not this commit's to settle.
-        if owed.index != real_index {
-            continue;
-        }
-        match settle_leftovers(git, &owed, real_index) {
-            Ok(set) => {
-                for path in set {
-                    restated.push(crate::path_bytes::path_message_text(path.as_slice()));
-                }
-                remove(git_dir, owed.seq);
-            }
-            Err(code) => crate::diagnostic_log::warn(
-                "servicePrepare",
-                format!("the index update batch {} still owes in {} could not be made ({code:?}), so this commit records none of it and the record stays", owed.seq, real_index.display()).as_str(),
-            ),
-        }
-    }
-    return restated;
-}
-/// A path of a record as a literal pathspec.
-fn literal_spec(name: &[u8]) -> std::ffi::OsString {
-    let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-    spec.extend_from_slice(name);
-    return <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec);
-}
-
-/// Which of the two listings a line belongs to.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum TabShape {
-    /// `<mode> SP <type> SP <object> TAB <path>`,
-    /// as `ls-tree -z` writes it.
-    Tree,
-    /// `<mode> SP <object> SP <stage> TAB <path>`,
-    /// as `ls-files -s -z` writes it;
-    /// a stage other than zero is an unmerged entry,
-    /// which is the person's own.
-    Index,
-}
-
-/// The entries a NUL-terminated listing holds,
-/// split at its words and its tab.
-fn entries_of(listing: &[u8], shape: TabShape) -> BTreeMap<Vec<u8>, Entry> {
-    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in listing.split(is_zero_byte) {
-        if record.is_empty() {
-            continue;
-        }
-        let Some(tab) = record.iter().position(is_tab_byte) else {
-            continue;
-        };
-        let words: Vec<&[u8]> = record[..tab].split(is_space_byte).collect();
-        let name: Vec<u8> = record[tab + 1..].to_vec();
-        // An unmerged path is not the landing's leftover, whatever else the index holds for it.
-        if shape == TabShape::Index && words.last().is_some_and(is_unmerged) {
-            let _dropped = found.remove(name.as_slice());
-            continue;
-        }
-        // A tree line is `<mode> <type> <object>` and an index line is `<mode> <object> <stage>`.
-        let object: usize = if shape == TabShape::Tree { 2 } else { 1 };
-        found.insert(name, Entry { mode: String::from_utf8_lossy(words.first().copied().unwrap_or_default()).into_owned(), object: String::from_utf8_lossy(words.get(object).copied().unwrap_or_default()).into_owned() });
-    }
-    return found;
-}
-
-/// The entries one index file holds at `names`.
-fn index_entries(git: &GitContext, repository: &Path, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let specs: Vec<std::ffi::OsString> = names.iter().map(path_spec).collect();
-    let mut arguments: Vec<&std::ffi::OsStr> = vec![std::ffi::OsStr::new("ls-files"), std::ffi::OsStr::new("-s"), std::ffi::OsStr::new("-z"), std::ffi::OsStr::new("--")];
-    arguments.extend(specs.iter().map(std::ffi::OsString::as_os_str));
-    let mut request: GitRequest = GitRequest::new(repository, &arguments);
-    request.index = Some(index.to_path_buf());
-    let output = match run_git(git, &request) {
-        Ok(answer) if answer.succeeded() => answer,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    return Ok(entries_of(output.stdout.as_slice(), TabShape::Index));
-}
-
-/// The paths a record's update covers,
-/// derived from the two branch values when the batch names none.
-fn names_of(git: &GitContext, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> {
-    if !owed.derived {
-        return Ok(owed.paths.iter().map(path_bytes).collect());
-    }
-    let names: Vec<Vec<u8>> = crate::service_land_follow::derived_names(git, owed.repository.as_path(), owed.old.as_str(), owed.new.as_str())?
-        .split(is_zero_byte)
-        .filter(is_not_empty)
-        .map(<[u8]>::to_vec)
-        .collect();
-    return Ok(names);
-}
-
-/// What:
-///  The paths of a record whose entries in `index` still hold what the batch started from,
-/// which are the entries the landing left.
-/// Why:
-///   Only those may be reset:
-/// a path the person staged since the landing holds something else,
-/// and resetting it
-///  would discard their staging.
-/// A path whose old entry does not exist is the batch's own addition,
-/// and an index with no entry
-///  there matches it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// leftovers(owed, index)
-/// ```
-pub fn leftovers(git: &GitContext, owed: &Owed, index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let names: Vec<Vec<u8>> = names_of(git, owed)?;
-    if names.is_empty() {
-        return Ok(names);
-    }
-    let started: BTreeMap<Vec<u8>, Entry> = tree_entries(git, owed.repository.as_path(), owed.old.as_str(), names.as_slice())?;
-    let current: BTreeMap<Vec<u8>, Entry> = index_entries(git, owed.repository.as_path(), index, names.as_slice())?;
-    let mut left: Vec<Vec<u8>> = Vec::new();
+/// The paths as literal pathspecs from the top of the worktree.
+fn specs_of(names: &[Vec<u8>]) -> Vec<OsString> {
+    let mut specs: Vec<OsString> = Vec::with_capacity(names.len());
     for name in names {
-        if current.get(name.as_slice()) == started.get(name.as_slice()) {
-            left.push(name);
-        }
+        let mut spec: Vec<u8> = b":(top,literal)".to_vec();
+        spec.extend_from_slice(name.as_slice());
+        specs.push(OsString::from_vec(spec));
     }
-    return Ok(left);
+    return specs;
 }
 
-/// What:
-///  Settles one owed record for one index:
-/// the entries the landing left are reset to the commit the batch landed,
-/// and the ones a program staged since are left,
-/// with the ones reset given back.
-/// Why:
-///   The reset is the landing's own idempotent step (`service_land_follow.rs`),
-/// made here through Git's own lock,
-/// so a concurrent
-///  staging of a path whose entry is not the landing's is never a candidate,
-/// and a concurrent staging of one that is ends
-///  in the one thing Git's own `reset` does with a lock.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reset = await settleLeftovers(owed, realIndex); // the paths this settled
-/// ```
-pub fn settle_leftovers(git: &GitContext, owed: &Owed, index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let left: Vec<Vec<u8>> = leftovers(git, owed, index)?;
-    if !left.is_empty() {
-        crate::service_land_follow::reset_entries(git, owed.repository.as_path(), Some(index), owed.new.as_str(), left.as_slice())?;
-    }
-    return Ok(left);
-}
-
-/// Runs one Git step,
-/// naming no answer as a failure the caller can classify.
-fn run(git: &GitContext, repository: &Path, arguments: &[&std::ffi::OsStr], input: Option<Vec<u8>>) -> Result<crate::transaction_git::GitOutput, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, arguments);
-    request.input = input;
+/// One Git question with `names` as literal pathspecs,
+/// answered or not.
+fn with_specs(git: &GitContext, repository: &Path, index: &Path, arguments: &[&str], names: &[Vec<u8>]) -> Result<crate::transaction_git::GitOutput, FailureCode> {
+    let specs: Vec<OsString> = specs_of(names);
+    let mut words: Vec<&OsStr> = arguments.iter().map(OsStr::new).collect();
+    words.push(OsStr::new("--"));
+    words.extend(specs.iter().map(OsString::as_os_str));
+    let mut request: GitRequest = GitRequest::new(repository, words.as_slice());
+    request.index = Some(index.to_path_buf());
     return match run_git(git, &request) {
         Ok(output) if output.succeeded() => Ok(output),
         _ => Err(FailureCode::Unavailable),
     };
+}
+
+/// What:
+///  The paths of the record whose entry in the live index differs from the worktree's head.
+/// Why:
+///   Those are the entries a commit of that index would record against the head,
+/// and the commit that
+///  follows records nothing about them:
+/// what they hold may be the unfinished landing's or a program's,
+///  and only the person can say which.
+/// A deletion,
+/// an addition,
+/// a change and a staged child all appear in
+///  this listing;
+/// an unmerged path does too,
+/// and is left out here because a merge in progress is the person's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// differingFromHead(owed, liveIndex) // `git diff --cached --name-only -z HEAD -- <specs>`
+/// ```
+fn differing_from_head(git: &GitContext, owed: &Owed, live_index: &Path, names: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, FailureCode> {
+    if names.is_empty() {
+        return Ok(Vec::new());
+    }
+    let output: crate::transaction_git::GitOutput =
+        with_specs(git, owed.repository.as_path(), live_index, &["diff", "--cached", "--name-only", "-z", "HEAD"], names)?;
+    let differing: Vec<Vec<u8>> = names_in(output.stdout.as_slice());
+    let unmerged: Vec<Vec<u8>> = unmerged_of(git, owed, live_index, names)?;
+    let mut kept: Vec<Vec<u8>> = Vec::with_capacity(differing.len());
+    for path in differing {
+        if !unmerged.contains(&path) {
+            kept.push(path);
+        }
+    }
+    return Ok(kept);
+}
+
+/// The paths that hold unmerged entries in the live index,
+/// which are a merge's own and never a landing's leftover.
+fn unmerged_of(git: &GitContext, owed: &Owed, live_index: &Path, names: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, FailureCode> {
+    let output: crate::transaction_git::GitOutput = with_specs(git, owed.repository.as_path(), live_index, &["ls-files", "-u", "-z"], names)?;
+    let mut unmerged: Vec<Vec<u8>> = Vec::new();
+    for record in output.stdout.split(is_zero_byte) {
+        // Each record is `<mode> SP <object> SP <stage> TAB <path>`.
+        let Some(tab) = last_tab(record) else { continue };
+        let name: &[u8] = &record[tab + 1..];
+        if !name.is_empty() && !unmerged.contains(&name.to_vec()) {
+            unmerged.push(name.to_vec());
+        }
+    }
+    return Ok(unmerged);
+}
+
+/// What a record's applicability came to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Applies {
+    /// The worktree is on the branch that landed,
+    /// and the landed commit is in its history.
+    Yes,
+    /// The worktree is on another branch,
+    /// or the landed commit is not in this branch's history:
+    /// its index describes the branch the person moved to,
+    /// and nothing is owed here.
+    No,
+    /// A question could not be answered,
+    /// so nothing is decided and the record stays.
+    Unknown,
+}
+
+/// What:
+///  Whether a batch's owed index update still names this worktree's branch.
+/// Why:
+///   An index belongs to the branch the worktree has checked out.
+/// A worktree that has left the branch the landing happened on has
+///  an index that describes another branch,
+/// and the same rule finishes such a batch in the service
+/// (`still_checked_out`,
+///  `service_land_finish.rs`);
+/// with the branch values checked here,
+/// the same bytes on another branch are
+///  never taken for this landing's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// applies(owed) // the branch `HEAD` names, and `new` below `HEAD`
+/// ```
+fn applies(git: &GitContext, owed: &Owed) -> Applies {
+    if owed.reference != "HEAD" {
+        let request: GitRequest = GitRequest::new(owed.repository.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
+        let named: String = match run_git(git, &request) {
+            Ok(output) if output.succeeded() => String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string(),
+            // A detached head names no branch, so this record's branch is not checked out.
+            Ok(output) if output.code == Some(NOT_AN_ANCESTOR) => return Applies::No,
+            _ => return Applies::Unknown,
+        };
+        if named != owed.reference {
+            return Applies::No;
+        }
+    }
+    let request: GitRequest = GitRequest::new(owed.repository.as_path(), &["merge-base", "--is-ancestor", owed.new.as_str(), "HEAD"]);
+    return match run_git(git, &request) {
+        Ok(output) if output.succeeded() => Applies::Yes,
+        Ok(output) if output.code == Some(NOT_AN_ANCESTOR) => Applies::No,
+        _ => Applies::Unknown,
+    };
+}
+
+/// What:
+///  Sets the commit's own index to the worktree's head for the paths whose live entry the commit would
+///  record against that head,
+///  and gives those paths.
+/// Why:
+///   This is the whole of what a commit does about a landed batch's owed index update.
+/// The live index is
+///  never written:
+/// nothing that may be a program's staging is replaced,
+/// so a deliberate reversal,
+/// a staged child,
+/// a conflict's stages and a stage made while the commit prepares all stand.
+/// The paths are set to the head rather than to the
+///  landed commit,
+/// so this commit records nothing about them whatever the branch has done since.
+/// An explicit-path commit names its own selection,
+/// which is the person's statement,
+/// so nothing is
+///  taken from it and the notice alone is given.
+/// A record whose branch this worktree has left is forgotten,
+/// and one whose entries all agree with the head is
+///  settled and forgotten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// excludeWhatALandedCommitLeft(git, gitDir, liveIndex, commitIndex) // the paths this commit leaves out
+/// ```
+pub fn exclude_what_a_landed_commit_left(git: &GitContext, git_dir: &Path, live_index: &Path, commit_index: Option<&Path>) -> Vec<String> {
+    let mut left: Vec<String> = Vec::new();
+    for owed in records_of(git_dir) {
+        // A batch of another index file (`GIT_INDEX_FILE`) is not this commit's to settle.
+        if owed.index != live_index {
+            continue;
+        }
+        match applies(git, &owed) {
+            Applies::Yes => {}
+            Applies::No => {
+                crate::service_log!("the record of the index update batch {} owes in {} is forgotten: the worktree is on another branch", owed.seq, live_index.display());
+                remove(git_dir, owed.seq);
+                continue;
+            }
+            Applies::Unknown => {
+                crate::diagnostic_log::warn(
+                    "servicePrepare",
+                    format!("the branch of the index update batch {} owes in {} cannot be read, so this commit leaves the record and its paths as they are", owed.seq, live_index.display()).as_str(),
+                );
+                continue;
+            }
+        }
+        let names: Vec<Vec<u8>> = match names_of(git, &owed) {
+            Ok(names) => names,
+            Err(code) => {
+                crate::diagnostic_log::warn("servicePrepare", format!("the paths of the index update batch {} owes cannot be read ({code:?}), so the record stays", owed.seq).as_str());
+                continue;
+            }
+        };
+        let differing: Vec<Vec<u8>> = match differing_from_head(git, &owed, live_index, names.as_slice()) {
+            Ok(differing) => differing,
+            Err(code) => {
+                crate::diagnostic_log::warn(
+                    "servicePrepare",
+                    format!("the entries the index update of batch {} owes cannot be compared ({code:?}), so this commit leaves them as they are and the record stays", owed.seq).as_str(),
+                );
+                continue;
+            }
+        };
+        if differing.is_empty() {
+            // The live index holds the head's entry at every path the batch named: nothing is owed any more.
+            remove(git_dir, owed.seq);
+            continue;
+        }
+        if let Some(index) = commit_index
+            && let Err(code) = set_to_head(git, &owed, index, differing.as_slice())
+        {
+            crate::diagnostic_log::warn(
+                "servicePrepare",
+                format!("the commit's own index could not be set to the head for the entries batch {} owes ({code:?}), so this commit records them as the index holds them", owed.seq).as_str(),
+            );
+        }
+        for path in &differing {
+            left.push(crate::path_bytes::path_message_text(path.as_slice()));
+        }
+    }
+    return left;
+}
+
+/// What:
+///  Sets the commit's own index to the worktree's head at `paths`,
+/// and removes whatever that index held below them.
+/// Why:
+///   A path the landing added can stand beside entries a program staged below it
+/// (`p` and `p/child`),
+/// and the head holds
+///  one of the two:
+/// an index that holds both cannot be written to a tree,
+/// so the commit's own index takes the
+///  head's shape for the path.
+/// What the program staged below the path stays in the live index,
+/// and the commit
+///  records nothing about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await setToHead(owed, commitIndex, paths) // git rm --cached -r; git reset HEAD
+/// ```
+fn set_to_head(git: &GitContext, owed: &Owed, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
+    let specs: Vec<OsString> = specs_of(paths);
+    let mut prune_words: Vec<&OsStr> = vec![
+        OsStr::new("rm"),
+        OsStr::new("--cached"),
+        OsStr::new("-r"),
+        OsStr::new("--ignore-unmatch"),
+        OsStr::new("--quiet"),
+        OsStr::new("--"),
+    ];
+    prune_words.extend(specs.iter().map(OsString::as_os_str));
+    let mut prune: GitRequest = GitRequest::new(owed.repository.as_path(), prune_words.as_slice());
+    prune.index = Some(index.to_path_buf());
+    if let Ok(output) = run_git(git, &prune)
+        && !output.succeeded()
+    {
+        return Err(FailureCode::Unavailable);
+    }
+    return crate::service_land_follow::reset_entries(git, owed.repository.as_path(), Some(index), "HEAD", paths);
+}
+
+/// What:
+///  The one line a commit prints about the index entries it left out,
+/// and nothing when it left none.
+/// Why:
+///   A commit whose content differs from the index must say why,
+/// and name both ways on:
+/// catching the index up with the
+///  branch,
+/// and taking the worktree's content for those paths.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// excludedNotice(paths)
+/// ```
+pub fn excluded_notice(paths: &[String]) -> Option<String> {
+    if paths.is_empty() {
+        return None;
+    }
+    return Some(format!(
+        "monochromatic-git-policy-cli: a commit that landed did not finish updating this worktree's index, and these entries differ from the branch. They were left out of this commit: {}. To take the branch's content: git reset -- <paths>. To commit the worktree's content for them: git commit -- <paths>.\n",
+        paths.join(", ")
+    ));
 }

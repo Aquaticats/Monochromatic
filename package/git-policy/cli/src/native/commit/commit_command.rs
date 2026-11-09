@@ -21,7 +21,7 @@
 //! ```
 use crate::commit_timing::CommitTiming;
 use crate::service_commit::{ServiceCommit, service_commit};
-use crate::service_handoff::{ServiceHandoff, hand_over};
+use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, leave_the_push};
 use crate::service_messages::render;
 use crate::commit_transaction::{CommitInvocation, TransactionStop};
 use crate::config_schema::CliGitConfig;
@@ -257,11 +257,17 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         controls: command.controls.clone(),
     };
     let mut stderr = std::io::stderr();
+    // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
+    //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.
+    if let Err(failure) = leave_the_push(handoff, landed) {
+        write_stderr(format!("{}\n", render(&failure)).as_str());
+    }
     let gating: Instant = Instant::now();
     let gate = run_post_commit_gate(&request);
     timing.gate += gating.elapsed();
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
+        forget_the_push(handoff, landed);
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
     }
     let handing_over: Instant = Instant::now();

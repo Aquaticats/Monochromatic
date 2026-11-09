@@ -32,7 +32,7 @@
 //! ```
 
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-pub use crate::owed_index_repair::{leftovers, restate_leftovers, restated_notice, settle_leftovers};
+pub use crate::owed_index_repair::{exclude_what_a_landed_commit_left, excluded_notice};
 use crate::service_journal::Intent;
 use crate::work_item::WORK_DIRECTORY;
 use serde_json::{Map, Value};

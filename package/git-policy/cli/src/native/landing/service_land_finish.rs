@@ -108,10 +108,6 @@ impl Record for RecordIndexed<'_> {
 /// whether or not the conclusion state could be removed.
 /// Whether both are done.
 pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock, journal: &Path) -> bool {
-    // The index update is owed from this instant, and the record of it is written in the worktree's own Git directory before
-    //  anything tries to install it, so a kill, a failing step or a restart that declines to replay leaves the obligation where
-    //  the person's next commit reads it (`owed_index_update.rs`).
-    crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
     let cleaned: bool = cleanup_done(git, repository, intent, journal);
     if crate::service_fault::fails("build-index") {
         return false;
