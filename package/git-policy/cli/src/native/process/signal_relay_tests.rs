@@ -569,6 +569,30 @@ fn dropping_the_guard_restores_the_previous_dispositions() {
     unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
 }
 
+/// A signal the process already ignores stays ignored while the guard lives and after it is dropped,
+/// so the Git child inherits the ignore the wrapper was started with.
+#[cfg(unix)]
+#[test]
+fn an_inherited_ignore_is_not_replaced_by_the_guard() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
+    // SAFETY: installs the ignore disposition for a valid signal number.
+    unsafe { libc::signal(libc::SIGHUP, libc::SIG_IGN) };
+    let guard: SignalGuard = SignalGuard::install().expect("guard");
+    assert_eq!(
+        disposition_of(libc::SIGHUP),
+        libc::SIG_IGN,
+        "an ignored signal is not replaced while the guard lives"
+    );
+    drop(guard);
+    assert_eq!(
+        disposition_of(libc::SIGHUP),
+        libc::SIG_IGN,
+        "an ignored signal is still ignored after the drop"
+    );
+    // SAFETY: returns the signal to its default so no later test sees the ignore.
+    unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
+}
+
 /// The wait ends when the child has exited,
 /// reports its status and leaves it reaped.
 #[cfg(target_os = "linux")]
