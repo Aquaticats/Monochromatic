@@ -3403,6 +3403,95 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
 
+### The round-5 review of the leave-out's sweep and the removal line (2026-11-09T13:33:01-05:00)
+
+Source:
+`/var/home/user/temp/agent/reviews/worktree-add-round-5-sol.txt`,
+which read source only;
+every finding was reproduced here before it was fixed.
+Branch `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`,
+which merged `origin/main` at `caeeadacf5` first.
+The owner's requirement in force is "never discard user data".
+All three findings held.
+
+- A directory set aside whole is swept for another command's stage containers,
+  and the sweep stopped at the first `.git` entry.
+  The directory it is handed is that checkout,
+  so an ordinary nested checkout, whose `.git` is a real directory,
+  had nothing swept at all;
+  only a linked worktree lost the marker,
+  because `unlink_pointer` removes a `.git` file and never a directory.
+  Held.
+  `86d56bb567` makes the sweep walk everything below the directory it sets aside.
+  Control `btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it`
+  (`23f5c46e14`) reported "the container beside its .git marker is not in the trash"
+  before the change, and the three controls of the previous round still pass.
+- An entry the sweep could not look at was skipped as though it held nothing to sweep,
+  and the leave-out reported success.
+  Held, with the review's reproduction corrected:
+  measured here,
+  `rename` of a `0400` directory answers `EACCES`,
+  so the shape the review describes fails at the rename before anything moves;
+  a directory at `0600` can be listed and renamed and not searched,
+  and that is the shape that reaches the trash.
+  `b75f35ebe5` makes the look answer with a reason, so the leave-out refuses and names the path,
+  and `bf65e86b3d` fixes the control's own planted path.
+  Control `btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named`
+  (`a7cc0af818`) reported "pruning must refuse a subtree it cannot examine,
+  but it returned Ok(...) and the credentials are gone".
+- The line that reports a trash the emptying kept ended in
+  `rm --recursive --force -- <path>` whatever the reason,
+  including the reasons that exist to preserve what is in the trash.
+  Held.
+  `delete_trash` now answers with `TrashLeft`: the reason,
+  and whether everything the trash holds is what the snapshot made;
+  `47f8fc6cef` gives the removal command only for the empty trash directory the snapshot
+  made itself, and names the path, says that nothing showed the rest to be the snapshot's,
+  and gives no command otherwise.
+  `be0816a4ba` keeps that sentence true of a refusal that stopped before it could look.
+  Controls `a_trash_that_is_not_the_snapshots_is_not_given_a_removal_command`,
+  `a_trash_holding_what_was_not_moved_there_is_not_given_a_removal_command` and
+  `a_trash_entry_that_was_replaced_is_not_given_a_removal_command`
+  (`54c3535643`) each failed on the old line;
+  the read-only-parent control keeps the command and still passes.
+- Verification of the three:
+  `native:clippy` clean;
+  `monochromatic-lint --max-warnings 0` on the five changed files reports nothing;
+  each fix was removed from the tree,
+  its control failed with the message above,
+  and the fix was put back.
+  The whole suite,
+  `native:test:host:btrfs` at `be0816a4ba` in one run with nothing else building:
+  6353 run, 6324 passed (39 slow), 29 failed, 17 skipped, in 2724 s.
+  The 29 are not this branch's:
+  four `source_guard::no_self_invocation_tests` tests
+  (two of them fail alone,
+  and both files are byte for byte `origin/main`'s,
+  so main fails them today: the LFS hook-shim text arrived with its allow-list out of date),
+  twenty-three `native_binary` tests the planning record below already names as failing on main
+  (`fault_trace` kill sweeps,
+  `package_repair::pnpm_runs_after_the_snapshot_rung`,
+  `worktree_snapshot`,
+  `worktree_dirty_snapshot`,
+  `worktree_copy`,
+  `service`,
+  `service_provision`,
+  `version_cache`,
+  `word_merge`),
+  and `subvolume::subvolume_index_files::parallel_tests::the_lines_of_a_run_are_the_ones_recorded_before_the_step`,
+  which passes alone.
+  A filtered run of the package's whole suite was not needed beyond that,
+  and no whole-suite run repeated the one above.
+- One site of the same shape as the second finding is left alone by this round:
+  `is_directory_entry` (`worktree/worktree_trash_set_aside_entries.rs`)
+  reads a failure of `file_type()` as "not a directory",
+  so an entry of the trash parent that cannot be examined is not moved into this add's trash
+  and travels into the new worktree instead.
+  That keeps the person's data,
+  which is why it is not this round's finding,
+  but it is the wrong answer for the same reason,
+  and it is the next round's work.
+
 ### The disposal's notice stream and the thread it did not need (2026-11-08T18:54:15-05:00)
 
 Two questions were left by `b1e1818bab`,
