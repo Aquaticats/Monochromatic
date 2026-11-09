@@ -95,10 +95,16 @@ impl std::error::Error for AtTheCeiling {}
 /// Whether a wait that met its ceiling left the child running,
 /// for the sentence the caller prints.
 pub fn left_running_when_the_ceiling_was_reached(error: &std::io::Error) -> bool {
-    let Some(reached) = error.get_ref().and_then(|inner| { return inner.downcast_ref::<AtTheCeiling>(); }) else {
+    let Some(reached) = error.get_ref().and_then(ceiling_reached_in) else {
         return false;
     };
     return reached.left_running;
+}
+
+/// The ceiling answer inside an error,
+/// when it is this error's cause.
+fn ceiling_reached_in<'cause>(inner: &'cause (dyn std::error::Error + Send + Sync + 'static)) -> Option<&'cause AtTheCeiling> {
+    return inner.downcast_ref::<AtTheCeiling>();
 }
 
 /// What:
@@ -155,8 +161,7 @@ pub fn ceiling_reached_text(program: &str, ceiling: Duration, left_running: bool
 /// ```ts
 /// function waitWithin(child: Child, ceiling: Duration): ExitStatus; // throws and hands a stuck child to a reaper
 /// ```
-pub fn wait_within(child: Child, ceiling: Duration) -> std::io::Result<ExitStatus> {
-    let mut child: Child = child;
+pub fn wait_within(mut child: Child, ceiling: Duration) -> std::io::Result<ExitStatus> {
     let began: Instant = Instant::now();
     loop {
         if let Some(status) = child.try_wait()? {
@@ -180,14 +185,8 @@ pub fn wait_within(child: Child, ceiling: Duration) -> std::io::Result<ExitStatu
             //  when the kernel lets it go, and this command stops waiting and says what it left.
             let _watching: std::thread::JoinHandle<()> = std::thread::Builder::new()
                 .name(String::from("cli-git-query-reaper"))
-                .spawn(move || {
-                    let mut child: Child = child;
-                    let _reaped = child.wait();
-                })
-                .unwrap_or_else(|_error| {
-                    // No thread could be given the child, so the system's init or subreaper reaps it when it ends.
-                    std::thread::spawn(|| {})
-                });
+                .spawn(move || reap_when_the_kernel_lets_go(child))
+                .unwrap_or_else(no_reaper_to_give_the_child_to);
             return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: true }));
         }
         std::thread::sleep(LOOK_INTERVAL);
@@ -230,13 +229,11 @@ pub fn output_within(mut child: Child, ceiling: Duration) -> std::io::Result<Out
     let status: ExitStatus = wait_within(child, ceiling)?;
     // The streams end when the child's write ends close; a program the child started can hold one past that, so each read is
     //  taken with a bound of its own and what was read before that bound is kept.
-    let answers: std::sync::mpsc::Receiver<FromAReader> = answered;
-    let complaints: std::sync::mpsc::Receiver<FromAReader> = complained;
-    let (stdout, stdout_cut): (Vec<u8>, bool) = gather(answers)?;
+    let (stdout, stdout_cut): (Vec<u8>, bool) = gather(answered)?;
     if stdout_cut {
         return Err(std::io::Error::other(cut_short_text("standard output")));
     }
-    let (stderr, stderr_cut): (Vec<u8>, bool) = gather(complaints)?;
+    let (stderr, stderr_cut): (Vec<u8>, bool) = gather(complained)?;
     if stderr_cut {
         // The answer was read whole, so it comes back with what the query wrote to its standard error before the read stopped.
         crate::diagnostic_log::warn("queryOutput", cut_short_text("standard error").as_str());
@@ -388,6 +385,27 @@ fn cut_short_text(stream: &str) -> String {
         crate::output_capture::STEP_OUTPUT_LIMIT
     );
 }
+
+/// What:
+///  Waits for a child this command has stopped waiting for,
+/// so its end is collected when the kernel releases it.
+/// Why:
+///  A child in an uninterruptible call cannot be reaped until that call returns,
+/// and a process that nobody waits for stays a zombie;
+/// this thread is the one that collects it.
+fn reap_when_the_kernel_lets_go(mut left: Child) {
+    let _reaped = left.wait();
+}
+
+/// The reaper a command falls back to when no thread could be given the child:
+/// the system's init or subreaper collects it instead.
+fn no_reaper_to_give_the_child_to(_error: std::io::Error) -> std::thread::JoinHandle<()> {
+    return std::thread::spawn(nothing_to_do);
+}
+
+/// A thread body that does nothing,
+/// for the fallback reaper.
+fn nothing_to_do() {}
 
 /// What:
 ///  Ends a child this value owns and has not reaped,

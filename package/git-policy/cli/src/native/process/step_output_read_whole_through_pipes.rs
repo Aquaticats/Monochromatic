@@ -475,14 +475,16 @@ fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
 }
 
 /// What:
-///  The step's own ceiling, carried by the wait for its output,
+///  The step's own ceiling,
+/// carried by the wait for its output,
 /// and why no watch ended the step before it.
 /// Why:
 ///   A watch announces a wait and ends the child at its ceiling,
 /// but the thread it needs can be refused,
 ///  and a
 /// watch that runs is not allowed to end every step it waits for.
-/// Whatever it could not do, the wait for the output keeps the
+/// Whatever it could not do,
+/// the wait for the output keeps the
 ///  ceiling,
 /// so no step outlives it
 /// (the third review's finding 2).
@@ -494,7 +496,9 @@ fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
 pub struct CarriedCeiling {
     /// The longest the step may run.
     pub limit: Duration,
-    /// Why the wait, and not a watch, ends the step at that ceiling.
+    /// Why the wait,
+    /// and not a watch,
+    /// ends the step at that ceiling.
     pub why: CeilingWhy,
 }
 
@@ -504,15 +508,32 @@ pub enum CeilingWhy {
     /// No watch could run at all:
     /// the system refused the thread it needs.
     NoWatcher,
-    /// A watch runs, and it could not end the step: nothing proved which process to stop,
+    /// A watch runs,
+    /// and it could not end the step:
+    /// nothing proved which process to stop,
     /// so this wait is what ends it at the ceiling.
     TheWatchCouldNotEndIt,
 }
 
-/// The ceiling a wait carries and the reason it carries it,
-/// for a step whose own ceiling is `limit`.
-pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
-    return CarriedCeiling { limit, why };
+/// What:
+///  The ceiling a wait carries for a step whose own ceiling is `limit`,
+/// and why it is the wait that ends it.
+/// Why:
+///   The reason is the watch's to tell:
+/// a watch that could not run at all,
+/// or one that runs and could not end this step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// CarriedCeiling.forAStepWith(limit, aWatchRuns);
+/// ```
+impl CarriedCeiling {
+    /// `limit` for a step,
+    /// where `a_watch_runs` says whether a watch exists at all.
+    pub fn for_a_step_with(limit: Duration, a_watch_runs: bool) -> Self {
+        let why: CeilingWhy = if a_watch_runs { CeilingWhy::TheWatchCouldNotEndIt } else { CeilingWhy::NoWatcher };
+        return Self { limit, why };
+    }
 }
 
 /// What:

@@ -157,7 +157,8 @@ fn a_standard_output_held_open_is_not_an_answer() {
 ///  A program the query started can keep writing into a stream it holds open after the query exited,
 /// and a reader
 ///  that gathers it without a cap grows for as long as that program writes.
-/// The third review's finding 4: the
+/// The third review's finding 4:
+/// the
 ///  reader stayed alive and kept growing after the wait had given up.
 /// What is kept is bounded by `STEP_OUTPUT_LIMIT`,
 /// and once it is reached the wait stops wanting the
@@ -188,7 +189,8 @@ fn a_stream_that_outgrows_the_cap_ends_the_read_at_the_cap() {
 ///  A query that fails writes its explanation to standard error,
 /// so throwing that away leaves the caller a failure with
 ///  nothing to give the person.
-/// The third review's finding 6: the reader kept what it read until an end of stream that never
+/// The third review's finding 6:
+/// the reader kept what it read until an end of stream that never
 ///  came.
 #[test]
 fn diagnostics_written_before_the_standard_error_was_held_come_back() {

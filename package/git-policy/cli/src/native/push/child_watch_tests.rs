@@ -439,8 +439,10 @@ fn a_root_that_could_not_be_pinned_is_not_signalled() {
 ///  ends,
 /// so the child's number can name another command by the moment the stop begins
 /// (the third review's finding 1).
-/// The watch takes the pin at the start, while the child is this process's own unreaped
-///  child, and every signal of the stop goes through that pin.
+/// The watch takes the pin at the start,
+/// while the child is this process's own unreaped
+///  child,
+/// and every signal of the stop goes through that pin.
 #[test]
 fn the_root_is_pinned_when_its_child_starts() {
     let watch: &str = include_str!("child_watch.rs");
@@ -952,18 +954,23 @@ fn the_wait_after_the_kill_is_bounded() {
 ///  A step whose watch cannot prove which process to stop is still ended at its ceiling,
 /// and says so.
 /// Why:
-///  A watch exists, so the wait for the output used to carry no ceiling of its own:
+///  A watch exists,
+/// so the wait for the output used to carry no ceiling of its own:
 /// when the watch's own signals
-///  proved nothing, the step ran for as long as it lived,
+///  proved nothing,
+/// the step ran for as long as it lived,
 /// which is the third review's finding 2.
 /// Whatever the
-///  watch could not do, the wait for the output keeps the step's ceiling.
-///  The watch's descriptor is refused here, which is the state its signals cannot leave:
+///  watch could not do,
+/// the wait for the output keeps the step's ceiling.
+///  The watch's descriptor is refused here,
+/// which is the state its signals cannot leave:
 /// `refuse_the_next_descriptors` is
 ///  armed on this thread,
 /// where the pin of the child is taken.
 /// The step runs on a thread of its own and is taken with a
-///  deadline, so a wait that never ends is reported here rather than hanging the run.
+///  deadline,
+/// so a wait that never ends is reported here rather than hanging the run.
 #[test]
 fn a_step_the_watch_cannot_end_is_ended_at_its_ceiling() {
     let sink: SharedSink = SharedSink::default();
@@ -1059,10 +1066,14 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
 /// so a step that ended inside the ceiling was reported as ended at it when a program held its
 ///  standard error past the ceiling
 /// (the third review's finding 5).
-/// The ceiling bounds the wait for the child; the
-///  drain after its end is bounded by `OUTPUT_DRAIN_AFTER_EXIT`, which is much shorter.
+/// The ceiling bounds the wait for the child;
+/// the
+///  drain after its end is bounded by `OUTPUT_DRAIN_AFTER_EXIT`,
+/// which is much shorter.
 /// The ceiling here is below
-///  that drain, and no watch runs, so the state the review describes is the one this step is in.
+///  that drain,
+/// and no watch runs,
+/// so the state the review describes is the one this step is in.
 #[test]
 fn a_step_that_finishes_inside_its_ceiling_is_answered() {
     let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
@@ -1096,7 +1107,8 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
 ///  the standard error was never found,
 /// and the sentence said it no longer shows in the process table
 /// (the third review's finding 7).
-/// The first half of this control reads the module's own wiring; the second shows that
+/// The first half of this control reads the module's own wiring;
+/// the second shows that
 ///  the identity of a pipe is what finds the program holding it,
 /// so the reader that is given the wrong pipe cannot
 ///  find that program at all.
