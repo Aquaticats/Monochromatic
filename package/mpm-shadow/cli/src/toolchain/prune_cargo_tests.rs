@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use super::cargo_installs::{current_link, running_version, version_directory};
 use super::fakes::Rig;
 use super::fakes_cargo::finish_install;
-use super::prune_cargo::{PresentVersion, named_versions, plan_prune, prune_toolchain};
+use super::prune_cargo::{PresentVersion, named_by_all, named_versions, plan_prune, prune_toolchain};
 use super::worktrees::worktree_lock_files;
 
 fn present(entries: &[(&str, &[&str])]) -> BTreeMap<String, Vec<PresentVersion>> {
@@ -162,7 +162,48 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
 }
 
-/// An explicit `--lock` path that does not exist refuses the prune:
+/// An explicit `--lock` whose file is gone by the time the command reads it refuses the prune:
+/// a check that runs before the read can be outrun by a concurrent rename,
+/// and then the lock would protect nothing while the prune deletes the version it names.
+#[test]
+fn an_explicit_lock_that_vanishes_before_it_is_read_refuses_the_prune_and_deletes_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    let clone_lock = write_lock(&rig._directory.path().join("clone"), "fd-find", "1.1.0");
+    let moved_aside = clone_lock.with_file_name("toolchain.lock.json.moved");
+    let vanished = clone_lock.clone();
+    // A concurrent command renames the lock away while this run lists worktrees, before it reads any lock.
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            if vanished.exists() {
+                fs::rename(&vanished, &moved_aside).expect("move the lock aside");
+            }
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&clone_lock), false).expect_err("the named lock is gone when it is read");
+    assert!(error.message.contains(&clone_lock.display().to_string()), "the message names the path: {error}");
+    assert!(error.message.contains("cannot be read"), "the refusal comes from the read and not from a check before it: {error}");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
+}
+
+/// The read stage itself tells the two kinds of lock apart:
+/// one discovery reported may be absent,
+/// one the caller named may not.
+#[test]
+fn the_read_stage_refuses_a_missing_explicit_lock_and_skips_a_missing_discovered_one() {
+    let rig = Rig::new();
+    let absent: PathBuf = rig._directory.path().join("absent").join("toolchain.lock.json");
+    assert!(named_by_all(std::slice::from_ref(&absent), &[]).is_ok(), "a lock discovery reports may be absent");
+    let error = named_by_all(&[], std::slice::from_ref(&absent)).expect_err("a lock the caller named must be readable");
+    assert!(error.message.contains(&absent.display().to_string()), "the message names the path: {error}");
+    assert!(error.message.contains("nothing was deleted"), "the message says nothing happened: {error}");
+}
+
+/// An explicit `--lock` path that never existed refuses the prune too:
 /// a deletion command must not read a mistyped path as protecting nothing.
 #[test]
 fn an_explicit_lock_file_that_does_not_exist_refuses_the_prune_and_deletes_nothing() {

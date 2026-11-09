@@ -11,7 +11,9 @@
 //! the lock of every worktree `git worktree list` reports for the repository,
 //! and any file given with `--lock`;
 //! the command refuses to delete anything when a listed worktree's lock cannot be read,
-//! because an unreadable lock might name a version that is about to be deleted.
+//! because an unreadable lock might name a version that is about to be deleted,
+//! and a file given with `--lock` names versions or refuses the command:
+//! it may not be absent, since a file that said what to keep cannot be read as keeping nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -177,16 +179,35 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
     return Ok(named);
 }
 
-/// The cargo versions and the release-archive tools every lock in `lock_files` names;
-/// a file that does not exist names none,
-/// one that cannot be read or is not a lock refuses.
-fn named_by_all(lock_files: &[PathBuf]) -> Result<(BTreeMap<String, BTreeSet<String>>, BTreeMap<String, NamedArchive>), ToolchainError> {
+/// What:
+/// The cargo versions and the release-archive tools every lock the two lists give names.
+/// Why:
+/// The two lists differ in what an absent file means.
+/// A lock `git worktree list` reported may be gone by the time it is read (another run moved it on),
+/// so a missing one names none.
+/// A lock the caller named with `--lock` may not be missing:
+/// reading it as naming nothing would let this deletion command delete the version it names,
+/// so the refusal is raised where the file is read,
+/// never by a check that runs before the read,
+/// which a concurrent rename can outrun.
+pub(super) fn named_by_all(
+    discovered: &[PathBuf],
+    explicit: &[PathBuf],
+) -> Result<(BTreeMap<String, BTreeSet<String>>, BTreeMap<String, NamedArchive>), ToolchainError> {
     let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut archives: BTreeMap<String, NamedArchive> = BTreeMap::new();
-    for file in lock_files {
+    let mut locks_to_read: Vec<(&PathBuf, bool)> = discovered.iter().map(|file| return (file, false)).collect();
+    locks_to_read.extend(explicit.iter().map(|file| return (file, true)));
+    for (file, named_by_the_caller) in locks_to_read {
         let text: String = match fs::read_to_string(file) {
             Ok(text) => text,
-            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) if error.kind() == ErrorKind::NotFound && !named_by_the_caller => continue,
+            Err(error) if named_by_the_caller => {
+                return Err(ToolchainError::failure(format!(
+                    "the --lock file {} cannot be read: {error}; nothing was deleted",
+                    file.display()
+                )));
+            }
             Err(error) => {
                 return Err(ToolchainError::failure(format!("cannot read the lock {}: {error}; nothing was deleted", file.display())));
             }
@@ -287,18 +308,7 @@ pub fn prune_toolchain(
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
-    // An explicit `--lock` is the caller's statement about what to keep, so a path that names no file refuses
-    // instead of quietly protecting nothing; only a lock found by discovery may be absent.
-    for extra_lock in extra_locks {
-        if !extra_lock.exists() {
-            return Err(ToolchainError::failure(format!(
-                "the --lock file {} does not exist; nothing was deleted",
-                extra_lock.display()
-            )));
-        }
-    }
-    lock_files.extend(extra_locks.iter().cloned());
-    let (named, named_archive_tools) = named_by_all(&lock_files)?;
+    let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
     let present = present_versions(&scope.toolchain_root);
     let mut removed: Vec<PathBuf> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
