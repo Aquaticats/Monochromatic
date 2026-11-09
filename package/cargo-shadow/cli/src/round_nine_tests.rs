@@ -866,7 +866,9 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
 /// a record write that returns having written only part of the line,
 /// and a record whose durability barrier fails all start no program,
 /// in the delegated path and in the weaker path (forced through the route settings).
-/// The sequence is append, then its barrier, then the spawn:
+/// The sequence is append,
+/// then its barrier,
+/// then the spawn:
 /// the trace shows the record step and no launch,
 /// and the control shows the three in order.
 /// The cut-short write is the real result of the write call (half the line reaches the file),
