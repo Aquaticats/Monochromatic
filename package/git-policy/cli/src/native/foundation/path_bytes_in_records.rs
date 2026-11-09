@@ -179,7 +179,8 @@ pub fn write_field(fields: &mut Map<String, Value>, key: &str, path: &Path) {
 /// Why:
 ///   A record written before the second field existed holds only text,
 /// and so does one whose name the plain field spells exactly
-/// (a change of a commit request, which leaves the bytes out for names that are text);
+/// (a change of a commit request,
+/// which leaves the bytes out for names that are text);
 /// reading the bytes first means the plain text is never used for a path that has them.
 ///
 /// In TS you'd write (pseudocode):
