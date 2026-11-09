@@ -203,6 +203,29 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
+/// What:
+///  This test binary started on one test,
+/// with `variable` set so the child knows it is the child.
+/// Why:
+///  A descriptor,
+///  a signal mask and a record of one process belong to that process,
+/// so each control of them runs its own body in a child and
+///  asserts what the parent sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
+/// ```
+pub(crate) fn child_this_test(variable: &str, name: &str) -> std::process::Output {
+    let binary: PathBuf = this_test_binary().expect("the test binary");
+    return std::process::Command::new(binary)
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env(variable, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child test runs");
+}
+
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
@@ -246,6 +269,31 @@ pub(crate) fn age(path: &Path) {
 /// Remove only the fixture directory a test created.
 pub(crate) fn remove(root: &Path) {
     std::fs::remove_dir_all(root).expect("remove only the fixture");
+}
+
+/// What:
+///  Shows each notice to a buffer and answers the words it wrote,
+/// as a command's standard error would have received them
+///  without the newline the show adds.
+/// Why:
+///   A record goes only once its words are written out,
+/// so a control reads them through the step the person's terminal
+///  receives them by,
+/// and a record whose words could not be written stays as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// notices.map((notice) => { const out = []; notice.show(out); return out.join('').replace(/\n$/, '') })
+/// ```
+pub(crate) fn shown_notices(notices: Vec<crate::push_failure_notice::Notice>) -> Vec<String> {
+    let mut texts: Vec<String> = Vec::new();
+    for notice in notices {
+        let mut written: Vec<u8> = Vec::new();
+        notice.show(&mut written).expect("a buffer takes the words");
+        let text: String = String::from_utf8(written).expect("the words are UTF-8");
+        texts.push(text.strip_suffix('\n').map(str::to_owned).unwrap_or(text));
+    }
+    return texts;
 }
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
@@ -551,6 +599,84 @@ pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
             return done();
         }
     }
+}
+
+/// What:
+///  The number of descriptors this process holds now,
+///  the directory handle of the listing itself not counted.
+/// Why:
+///   A limit is set from the count a control read,
+///  so the control sweeps exactly the room it means to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const openDescriptors = () => readdirSync('/proc/self/fd').length - 1;
+/// ```
+pub(crate) fn open_descriptors() -> usize {
+    let listed: usize = std::fs::read_dir("/proc/self/fd").expect("the descriptor listing").count();
+    return listed - 1;
+}
+
+/// What:
+///  Sets the soft descriptor limit and answers the one it replaced,
+///  so the caller restores it.
+/// Why:
+///   A descriptor limit is the privilege-free way to make an open fail at `EMFILE`,
+///  which is how a control makes the reads of `/proc` a look needs fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = getrlimit('nofile'); setrlimit('nofile', { soft }); return before;
+/// ```
+pub(crate) fn set_soft_limit(soft: u64) -> rustix::process::Rlimit {
+    let before: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nofile);
+    let lowered: rustix::process::Rlimit = rustix::process::Rlimit { current: Some(soft), maximum: before.maximum };
+    rustix::process::setrlimit(rustix::process::Resource::Nofile, lowered).expect("a soft limit below the hard one can be set");
+    return before;
+}
+
+/// Puts a soft descriptor limit back to the value `set_soft_limit` answered.
+pub(crate) fn restore_limit(before: rustix::process::Rlimit) {
+    rustix::process::setrlimit(rustix::process::Resource::Nofile, before).expect("the limit can be raised back to the hard one");
+}
+
+/// What:
+///  Opens descriptors until `free` of them are left under the limit,
+///  and answers the ones held.
+/// Why:
+///   The caller drops them when the step under test is done,
+///  so exactly `free` opens work for as long as that step runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = openUntilFree(free); // dropped when the step ends
+/// ```
+pub(crate) fn leave_free(free: usize) -> Vec<std::fs::File> {
+    let mut held: Vec<std::fs::File> = Vec::new();
+    loop {
+        match std::fs::File::open("/dev/null") {
+            Ok(file) => held.push(file),
+            Err(error) => {
+                assert_eq!(error.raw_os_error(), Some(libc::EMFILE), "only the limit stops the opens: {error}");
+                break;
+            }
+        }
+    }
+    // Give back `free` of them, so that exactly that many opens still work.
+    for _ in 0..free {
+        held.pop();
+    }
+    // What the step under test sees must be exactly that room:
+    // an open one past it fails with `EMFILE`,
+    // so a limit that was set from a stale count is reported here and not as a look that answered.
+    let mut probes: Vec<std::fs::File> = Vec::new();
+    for _ in 0..free {
+        probes.push(std::fs::File::open("/dev/null").expect("the room that was given back is usable"));
+    }
+    let refused: std::io::Error = std::fs::File::open("/dev/null").expect_err("the limit refuses the open after the room it leaves");
+    assert_eq!(refused.raw_os_error(), Some(libc::EMFILE), "only the limit stops the open after the room it leaves: {refused}");
+    drop(probes);
+    return held;
 }
 
 /// Controls for the fixture helpers above.
