@@ -106,7 +106,8 @@ function importAttributesPlugin(): Plugin {
      scanner before transform ran (for dynamic imports where the scanner
      processes the original AST).
      
-     @mutates options through the this.resolve Rolldown capability
+     The options object is read, never written: `this.resolve` receives a fresh
+     spread copy with `skipSelf: true`, so a caller can reuse its own object.
      
      For untagged specifiers, scans the importer's source via
      {@link scanImporterForAttribute} to check whether the import had a
