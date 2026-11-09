@@ -179,10 +179,92 @@ fn the_workers_are_what_the_host_offers() {
     assert_eq!(workers_for(0), 1, "a host that reports nothing still runs one worker");
 }
 
-/// Where the system starts no thread the pnpm and toolchain repairs are made on the calling thread and the report is the same (the
-/// starts are refused to this thread by the seam of `scoped_start`).
+/// Give the scene's destination a launcher record that names another checkout's lock,
+/// which is what a copy leaves behind,
+/// and a fixture mpm-shadow that rewrites it as an install does.
+fn with_a_stale_launcher(scene: &Scene) {
+    let launchers: PathBuf = scene.destination.join(".cache/toolchain-launchers");
+    std::fs::create_dir_all(&launchers).expect("launchers");
+    std::fs::write(launchers.join("mpm.launch"), b"{\"lockFile\":\"/elsewhere/toolchain.lock.json\"}\n").expect("record");
+    let record: PathBuf = launchers.join("mpm.launch");
+    let own: PathBuf = scene.destination.join("toolchain.lock.json");
+    executable(
+        scene.bin.join("mpm-shadow").as_path(),
+        format!(
+            "#!/bin/sh\ncase \"$1\" in\n  install) printf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{record}' ;;\nesac\nexit 0\n",
+            own = own.display(),
+            record = record.display()
+        )
+        .as_bytes(),
+    );
+}
+
+/// The pnpm and the toolchain repairs really run beside each other:
+/// each tool names its start and then waits,
+/// bounded,
+/// for the other's name,
+/// which only an overlap can bring about.
+/// A repair that ran its tools one after another would let that wait run out and fail the tool.
 #[test]
-fn a_working_repair_reports_the_same_where_no_thread_can_start() {
-    let _refused = crate::scoped_start::RefusedStarts::here();
-    a_working_repair_reports_one_line_unless_quiet();
+fn the_tools_run_beside_each_other() {
+    /// How many times a fixture tool looks for the other's name before it gives up:
+    /// three seconds at ten milliseconds a look.
+    const LOOKS: usize = 300;
+    let scene: Scene = scene("repair-overlap");
+    with_a_stale_launcher(&scene);
+    let pnpm_marked: PathBuf = scene.root.join("pnpm-started");
+    let toolchain_marked: PathBuf = scene.root.join("toolchain-started");
+    let waiting_tool = |mine: &Path, theirs: &Path| {
+        return format!(
+            "#!/bin/sh\ntouch '{mine}'\nlooked=0\nwhile [ ! -f '{theirs}' ]; do looked=$((looked + 1)); [ \"$looked\" -gt {LOOKS} ] && exit 1; sleep 0.01; done\nexit 0\n",
+            mine = mine.display(),
+            theirs = theirs.display()
+        );
+    };
+    executable(scene.bin.join("pnpm").as_path(), waiting_tool(pnpm_marked.as_path(), toolchain_marked.as_path()).as_bytes());
+    // The install names its start, waits for pnpm's, then rewrites the launcher record as a real install does.
+    let record: PathBuf = scene.destination.join(".cache/toolchain-launchers/mpm.launch");
+    let own_lock: PathBuf = scene.destination.join("toolchain.lock.json");
+    let installing: String = format!(
+        "#!/bin/sh\ntouch '{mine}'\nlooked=0\nwhile [ ! -f '{theirs}' ]; do looked=$((looked + 1)); [ \"$looked\" -gt {LOOKS} ] && exit 1; sleep 0.01; done\nprintf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{record}'\nexit 0\n",
+        mine = toolchain_marked.display(),
+        theirs = pnpm_marked.display(),
+        own = own_lock.display(),
+        record = record.display()
+    );
+    executable(scene.bin.join("mpm-shadow").as_path(), installing.as_bytes());
+    let (findings, printed) = repair(&scene, RepairSwitch::default());
+    assert!(pnpm_marked.exists() && toolchain_marked.exists(), "both tools were not started: {printed}");
+    assert_eq!(findings.len(), 2, "{findings:?} {printed}");
+    for finding in &findings {
+        assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "{finding:?} {printed}");
+    }
+    remove(&scene.root);
+}
+
+/// Where the system gives no thread and no process,
+/// the repair reports each tool in plain words,
+/// changes nothing,
+/// and does not panic.
+/// The body runs in a child that is refused every thread.
+#[test]
+fn a_refused_system_is_reported_in_plain_words_and_changes_nothing() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_refused_system_is_reported_in_plain_words_and_changes_nothing") {
+        return;
+    }
+    // The fixture tools are started as processes of their own, so the limit is lifted while the scene is made and put
+    //  back for the part this control measures.
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    let scene: Scene = scene("repair-refused");
+    fake_pnpm(&scene, 0);
+    let lockfile: PathBuf = scene.destination.join("pnpm-lock.yaml");
+    let before: Vec<u8> = std::fs::read(lockfile.as_path()).expect("the lockfile");
+    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
+    let (findings, printed) = repair(&scene, RepairSwitch::default());
+    let Outcome::Failed { reason, run_instead } = &findings[0].outcome else { panic!("expected a failure: {findings:?} {printed}") };
+    assert_eq!(findings[0].tool, Tool::Pnpm, "{findings:?}");
+    assert!(reason.contains("pnpm"), "{reason}");
+    assert!(printed.contains(run_instead.as_str()), "{printed}");
+    assert_eq!(std::fs::read(lockfile.as_path()).expect("the lockfile"), before, "the repair changed the worktree");
+    remove(&scene.root);
 }
