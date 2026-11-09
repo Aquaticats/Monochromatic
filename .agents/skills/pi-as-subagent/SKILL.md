@@ -99,6 +99,14 @@ later that day:
 and
 "Still pass in xhigh explicitly for codex."
 The command is rule `XVW` in `AGENTS.md`.
+The owner then limited those runs:
+"Keep GPT runs small.
+GPT models cannot be trusted on any long horizon work."
+and moved the long ones:
+"Use Claude Sonnet on long horizon reviews and audits."
+That holds in every harness,
+Pi included:
+rule `LHZ` in `AGENTS.md`.
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
