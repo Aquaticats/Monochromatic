@@ -217,7 +217,7 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 /// before the first attempt,
 /// so the attempts themselves create and remove nothing in the watched
 ///  directory.
-/// A holder is waited for however long it holds,
+/// A holder is waited for until it lets go or `LANDING_LOCK_CEILING` passes,
 /// and a dead owner (a PID file naming a process that is gone) ends the wait at once with
 ///  nothing changed;
 /// the clients learn who held the lock.
