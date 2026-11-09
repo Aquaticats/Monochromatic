@@ -346,8 +346,9 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
 /// What:
 ///  A system that refuses every thread refuses the guard's thread and says which limit did it.
 /// Why:
-///  The markdown check of a commit runs the linked linter on a thread of its own, so a refused thread must end the
-///  check with the limit that refused it: a person cannot change anything in the command to make a thread appear.
+///  The markdown check of a commit runs the linked linter on a thread of its own,
+/// so a refused thread must end the check with the limit that refused it:
+///  a person cannot change anything in the command to make a thread appear.
 ///  The child is refused every thread for real (`RLIMIT_NPROC`).
 ///
 /// In TS you'd write (pseudocode):

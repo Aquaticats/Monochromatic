@@ -644,9 +644,12 @@ fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
 /// What:
 ///  A service whose after-commit work thread is refused says which limit refused it before it ends.
 /// Why:
-///  The service that cannot start the thread for its after-commit work answers no commit, so it ends and the manager
-///  starts another. What it says is all a person has, and a line that names only the system's error sends them looking
-///  for a defect of this program. The limit is real (`RLIMIT_NPROC` on the service), not armed by a control.
+///  The service that cannot start the thread for its after-commit work answers no commit,
+/// so it ends and the manager starts another.
+///  What it says is all a person has,
+/// and a line that names only the system's error sends them looking for a defect of this program.
+///  The limit is real (`RLIMIT_NPROC` on the service),
+/// not armed by a control.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

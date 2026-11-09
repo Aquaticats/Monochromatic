@@ -1400,13 +1400,20 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
 /// What:
 ///  A step left running whose waiter thread is refused ends the wait with a sentence that names the limit.
 /// Why:
-///  The step has already started, so the refusal costs the command the answer and nothing else: the step runs on and
-///  a reaper collects it. A person who meets this has to be told which limit refused the thread, because nothing in
-///  the command can be changed to work around it.
-/// The refusal is armed rather than made of a real limit, and it has to be: the step is a process of this very
-/// process, which `RLIMIT_NPROC` refuses as well, and the waiter's start comes a moment after the child starts, so a
-/// limit lowered once the child exists (measured: the step's number is visible 30 ms after it starts) never arrives
-/// before the start it has to refuse.
+///  The step has already started,
+/// so the refusal costs the command the answer and nothing else:
+///  the step runs on and a reaper collects it.
+///  A person who meets this has to be told which limit refused the thread,
+/// because nothing in the command can be changed to work around it.
+/// The refusal is armed rather than made of a real limit,
+/// and it has to be:
+///  the step is a process of this very process,
+/// which `RLIMIT_NPROC` refuses as well,
+/// and the waiter's start comes a moment after the child starts,
+///  so a limit lowered once the child exists
+/// (measured:
+/// the step's number is visible 30 ms after it starts)
+///  never arrives before the start it has to refuse.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

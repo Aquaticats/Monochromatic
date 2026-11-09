@@ -7689,16 +7689,20 @@ The wording of a refusal:
   `push/child_watch.rs` (the waiter of a step left running),
   `markdown/markdown_linter_guard.rs` (the linked linter of a commit),
   `service/service_server.rs` (the service's after-commit work thread,
-  which ended the service), and
+  which ended the service),
+  and
   `standards_review/standards_review_run.rs`,
   which answered a refused thread as `Contained::Panicked`,
   so `service/service_review.rs` told the person
   "the review of <oid> stopped with an internal error".
 - `foundation/scoped_start.rs::refused_thread_sentence` is the one sentence now:
-  "no thread could be started to <what>: the system refused the thread (<the system's error>).
-  Hint: check the process limit (`ulimit -u`),
+  "no thread could be started to <what>:
+  the system refused the thread (<the system's error>).
+  Hint:
+  check the process limit (`ulimit -u`),
   the address-space limit (`ulimit -v`) and the control group's `pids.max`,
-  free some, and run the command again".
+  free some,
+  and run the command again".
 - `Contained` gained `NoThread(String)`,
   and gave up `Copy` with it because the sentence is owned;
   nothing in the tree copied a `Contained`.

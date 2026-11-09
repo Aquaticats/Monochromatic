@@ -523,11 +523,13 @@ fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
 /// What:
 ///  A system that refuses every thread leaves a query's request unwritten and says which limit refused it.
 /// Why:
-///  The write half of a push query is a thread of its own, because a command may answer before it reads its
-///  input (`bounded_query_input.rs`); without the writer the command reads nothing and its answer is not about
-///  the request. A person who meets this has to be told the limit that refused the thread, because nothing in
-///  the command can be changed to work around it. The child is refused every thread for real (`RLIMIT_NPROC`),
-///  and the reader it writes to is started while a process may still start.
+///  The write half of a push query is a thread of its own,
+/// because a command may answer before it reads its input (`bounded_query_input.rs`);
+///  without the writer the command reads nothing and its answer is not about the request.
+///  A person who meets this has to be told the limit that refused the thread,
+/// because nothing in the command can be changed to work around it.
+///  The child is refused every thread for real (`RLIMIT_NPROC`),
+/// and the reader it writes to is started while a process may still start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -399,12 +399,16 @@ fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_rev
 }
 
 /// What:
-///  A review whose thread the system refuses fails its item with the limit that refused the thread, and never as an
+///  A review whose thread the system refuses fails its item with the limit that refused the thread,
+/// and never as an
 ///  internal error of this program.
 /// Why:
-///  The item is the review of a commit that is being pushed or landed, so a person reads its verdict: a refusal that
-///  is reported as "an internal error" sends them to report a defect of this program that does not exist. The child is
-///  refused every thread for real (`RLIMIT_NPROC`), and its fixture is made while a process may still start.
+///  The item is the review of a commit that is being pushed or landed,
+/// so a person reads its verdict:
+///  a refusal that is reported as "an internal error" sends them to report a defect of this program that does not
+/// exist.
+///  The child is refused every thread for real (`RLIMIT_NPROC`),
+/// and its fixture is made while a process may still start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
