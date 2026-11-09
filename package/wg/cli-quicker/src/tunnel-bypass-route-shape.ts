@@ -134,7 +134,29 @@ export function projectRoute({ tokens, }: { readonly tokens: readonly string[]; 
  ```
  */
 function isPlainUint(value: string,): boolean {
-  return /^(?:0|[1-9]\d{0,9})$/u.test(value,) && (Number(value,) <= MAX_UINT32);
+  if (value === '')
+    return false;
+  /**
+   Cursor over the written characters.
+   */
+  const cursor = { index: 0, };
+  while (cursor.index < value.length) {
+    /**
+     Character under the cursor,
+     guaranteed by the loop bound.
+     */
+    const character = value[cursor.index] ?? '';
+    if ((character < '0') || (character > '9'))
+      return false;
+    cursor.index += 1;
+  }
+  /**
+   Whether the number is written without a leading zero,
+   the lone `0` aside,
+   because `ip` reads a leading zero under a base rule of its own.
+   */
+  const plainSpelling = (value === '0') || (!value.startsWith('0',));
+  return plainSpelling && (Number(value,) <= MAX_UINT32);
 }
 
 /**
@@ -182,20 +204,17 @@ function isValueOf(
     readonly table: string;
   },
 ): boolean {
-  switch (keyword) {
-    case 'via':
-      return isPlainAddress(value,);
-    case 'dev':
-      return isValidInterfaceName({ interfaceName: value, },);
-    case 'metric':
-      return isPlainUint(value,);
-    case 'table':
-      return value === table;
-    case 'proto':
-      return value === String(BYPASS_ROUTE_PROTOCOL,);
-    default:
-      return false;
-  }
+  if (keyword === 'via')
+    return isPlainAddress(value,);
+  if (keyword === 'dev')
+    return isValidInterfaceName({ interfaceName: value, },);
+  if (keyword === 'metric')
+    return isPlainUint(value,);
+  if (keyword === 'table')
+    return value === table;
+  if (keyword === 'proto')
+    return value === String(BYPASS_ROUTE_PROTOCOL,);
+  return false;
 }
 
 /**
@@ -279,7 +298,9 @@ export function isOwnedRoute(
       table: tableText,
     },)))
       return false;
-    if (unreachable && (keyword !== 'table') && (keyword !== 'proto') && ((keyword !== 'metric') || (value !== String(UNREACHABLE_METRIC,))))
+    if (unreachable && (keyword !== 'table')
+      && (keyword !== 'proto')
+      && ((keyword !== 'metric') || (value !== String(UNREACHABLE_METRIC,))))
       return false;
     cursor.index += 2;
   }

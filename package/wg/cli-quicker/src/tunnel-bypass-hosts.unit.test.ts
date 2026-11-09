@@ -14,12 +14,14 @@ import {
   runHostRefreshLoop,
   sleepUnlessAborted,
 } from '../dist/final/node/bypass-host-refresh.mjs';
-import { MAX_REFRESH_SECONDS, MIN_REFRESH_SECONDS, } from '../dist/final/node/tunnel-bypass-hosts.mjs';
 import { MAX_CONCURRENT_IP_COMMANDS, } from '../dist/final/node/host-rule-limits.data.mjs';
+import { PROVIDER_HOSTS, } from '../dist/final/node/provider-hosts.data.mjs';
 import {
   ABSENT_REFRESHES_BEFORE_REMOVAL,
   hostRuleArguments,
   isPublicAddress,
+  MAX_REFRESH_SECONDS,
+  MIN_REFRESH_SECONDS,
   normalizeAddress,
   parseOwnedHostRules,
   planHostRules,
@@ -33,9 +35,7 @@ import {
   removeUpdateHostRules,
   syncUpdateHostRules,
 } from '../dist/final/node/tunnel-bypass-hosts-sync.mjs';
-import { PROVIDER_HOSTS, } from '../dist/final/node/provider-hosts.data.mjs';
 import { UPDATE_HOSTS, } from '../dist/final/node/update-hosts.data.mjs';
-
 
 /**
  State claiming table 52000 and preference 50.
