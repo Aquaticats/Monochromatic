@@ -876,17 +876,44 @@ fn a_stale_lock_that_vanishes_before_its_removal_is_taken_at_once() {
     remove(root.as_path());
 }
 
+/// How many acquisitions the controls of the count below make:
+/// two would already show a count shared between acquisitions,
+/// and the third leaves one spare for a scheduling race.
+/// Why not forty:
+/// a lock is placed and its marker flushed for each one,
+/// so one acquisition cost the contended disk 1.7 s on 2026-11-09,
+/// and forty
+///  of them on two indexes took this control 140.7 s alone,
+/// which a suite run met as the runner's five-minute limit.
+const ACQUISITIONS: usize = 3;
+
+/// One acquisition that met no holder makes one attempt:
+/// the number is the acquisition's own.
+#[test]
+fn one_acquisition_counts_one_attempt() {
+    let (root, index) = index_in("index-lock-attempts-one");
+    let attempts_made: Cell<usize> = Cell::new(0);
+    let counting = |from: &Path, to: &Path| -> std::io::Result<()> {
+        attempts_made.set(attempts_made.get() + 1);
+        return rename_noreplace(from, to);
+    };
+    let platform: Platform = Platform { rename: &counting, ..SYSTEM };
+    drop(acquire_on(&platform, &index, 0, &|_| {}).expect("taken"));
+    assert_eq!(attempts_made.get(), 1, "one attempt for an acquisition that met no holder");
+    remove(root.as_path());
+}
+
 /// The number of attempts is that of one acquisition:
 /// another acquisition running at the same time,
 /// on its own thread and its own index,
 /// adds nothing to it.
 #[test]
-fn attempts_are_counted_per_acquisition() {
+fn another_acquisitions_attempts_are_not_counted() {
     let (root, index) = index_in("index-lock-attempts");
     let (other_root, other_index) = index_in("index-lock-attempts-other");
     let busy = std::thread::spawn(move || {
-        for seq in 0..40 {
-            drop(acquire(&other_index, 1000 + seq, &|_| {}).expect("taken"));
+        for seq in 0..ACQUISITIONS {
+            drop(acquire(&other_index, 1000 + u64::try_from(seq).expect("a small count"), &|_| {}).expect("taken"));
         }
     });
     let attempts_made: Cell<usize> = Cell::new(0);
@@ -895,11 +922,11 @@ fn attempts_are_counted_per_acquisition() {
         return rename_noreplace(from, to);
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
-    for seq in 0..40 {
-        drop(acquire_on(&platform, &index, seq, &|_| {}).expect("taken"));
+    for seq in 0..ACQUISITIONS {
+        drop(acquire_on(&platform, &index, u64::try_from(seq).expect("a small count"), &|_| {}).expect("taken"));
     }
     busy.join().expect("thread");
-    assert_eq!(attempts_made.get(), 40, "one attempt for each of the acquisitions that met no holder");
+    assert_eq!(attempts_made.get(), ACQUISITIONS, "one attempt for each of the acquisitions that met no holder");
     remove(root.as_path());
     remove(other_root.as_path());
 }
