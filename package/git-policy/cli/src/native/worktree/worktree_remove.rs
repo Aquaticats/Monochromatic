@@ -58,7 +58,7 @@ use crate::worktree_clean::check_clean;
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report};
+use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, stage_state};
 use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
 use std::fs::File;
@@ -480,7 +480,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // person's own, and refusing on the name alone would block the removal with nothing able to clear it.
     let converting: PathBuf = crate::worktree_convert::converting_path(target);
     if crate::worktree_convert_leftover_stage_record::recorded_stage_of(target).is_some() {
-        let report: String = leftover_stage_report(target, converting.as_path());
+        let report: String = leftover_stage_report(target, converting.as_path(), stage_state(registration.admin.as_path(), target, converting.as_path()));
         debug(TAG, report.as_str());
         return RemoveOutcome::Refused(report);
     }

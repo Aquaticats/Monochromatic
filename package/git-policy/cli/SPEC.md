@@ -1855,6 +1855,16 @@ directory.
 These narrow the window to a few system calls;
 they do not close it.
 
+The remedy the refusal names depends on how far that conversion got:
+a copy whose journal is at or past the exchange is finished
+by the conversion itself (which resumes,
+rewrites the index,
+removes the copy and drops the journal),
+and `--abandon`
+cannot help there because it refuses every conversion at or past its exchange;
+a copy whose journal is earlier may be finished
+or discarded with `--abandon`,
+and a copy with no journal at all is the one `--abandon` discards.
 A worktree that has a conversion's copy beside it is not removed when a conversion's record beside the worktree
 (`.cli-git-convert-<name>.leftover-stage.json`) proves the copy is a conversion's;
 a directory at that name that no record
@@ -1993,6 +2003,25 @@ a command that may still be removing keeps the snapshot,
 and so does evidence that cannot be read.
 The registration of a worktree whose checkout is gone is left to the person,
 which `git worktree prune` removes.
+That settle cannot tell a checkout a person moved aside from one a removal destroyed,
+because a removal that was cut short
+leaves the same two things:
+a registration and no checkout.
+A removal of one worktree snapshots every worktree that has records,
+so a
+worktree whose checkout is absent while another worktree's removal runs is settled as removed on the next command:
+its
+records are promoted and its snapshot deleted.
+Nothing the person wrote is lost (the snapshot is a copy,
+and the registration keeps
+its own records),
+and the person sees two things:
+after `git worktree repair` the same notice appears again,
+because the
+registration still holds it,
+and an unfinished push is reported as one that may not have finished even though the worktree
+still exists and the service still runs it.
+Repairing a worktree before another removal runs avoids both.
 
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory

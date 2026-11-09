@@ -585,6 +585,37 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
 }
 
 /// What:
+///  The refusal for a conversion that stopped past its exchange names the remedy that works there,
+///  and not `--abandon`,
+///  which refuses every conversion at or past the exchange.
+/// Why:
+///   The remedy is what the person acts on:
+/// a report that names a command which answers "past the swap:
+/// run the
+///  command again" leaves the removal blocked with no way forward.
+#[test]
+fn the_refusal_for_a_post_swap_stage_names_the_finishing_command() {
+    let root: PathBuf = fixture("remove-leftover-stage-past-swap");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let platform: crate::subvolume_test_support::PlainPlatform = crate::subvolume_test_support::PlainPlatform::new();
+    let options = crate::worktree_convert::ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
+    // A conversion stopped right after its exchange: the original tree waits at the converting name, and the journal says
+    // `Exchanged`, which is the state `--abandon` refuses.
+    let killed = crate::worktree_convert::convert_worktree(&platform, worktree.as_path(), options, &crate::subvolume_error::Interrupt::at("exchanged", 0), &mut |_text: &str| {});
+    assert!(killed.is_err(), "the conversion is stopped at its exchange");
+    let converting: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the original tree is at the converting name");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    let RemoveOutcome::Refused(report) = outcome else { panic!("the removal is refused while the copy is there, but it was {outcome:?}") };
+    assert!(report.contains("which completes it in place"), "the report names the command that finishes a post-swap conversion: {report}");
+    assert!(!report.contains("or discard"), "and not the remedy for a copy that is still there: {report}");
+    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    remove(root.as_path());
+}
+
+/// What:
 ///  Recovery leaves the record of a removal whose owner may still be running,
 ///  so that owner can still mark its
 ///  success,
