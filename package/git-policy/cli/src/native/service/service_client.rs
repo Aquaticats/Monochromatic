@@ -250,6 +250,17 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let answer_deadline: Instant = waiting_since + config.answer_ceiling;
     let mut last_renewed: Option<Instant> = None;
     loop {
+        // What:
+        //  A place comes from one connection, so it is forgotten when that connection is replaced.
+        // Why:
+        //  The place is the position in a batch the answering service decided,
+        // and the request is sent again to a service that decides its own:
+        // a
+        //   place read from a service that went away would be printed as this wait's,
+        // and it is not.
+        //  What the person was already told stays told,
+        // so the words of the new service are compared with them.
+        last_place = None;
         let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
         service_seen = true;
         let mut payload: String = line.clone();
@@ -298,7 +309,8 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
                     // Every place the service names is recorded, printed or not; the person is told it once the wait has
-                    //  mattered, so a commit that lands at once says nothing new.
+                    //  mattered, so a commit that lands at once says nothing new. The record keeps every place every service
+                    //  named, which is what `positions` states; what may be printed is only ever this connection's place.
                     if last_place.map(place_number) != Some(number) {
                         last_place = Some((number, of));
                         trace.positions.push(number);
