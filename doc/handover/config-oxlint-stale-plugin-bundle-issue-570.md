@@ -1,5 +1,10 @@
 # Handover: config-oxlint stale plugin bundle (issue #570)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/task-util/src/oxlint-wrapper.ts` is now
+> `package/monorepo-task/core-exec/src/oxlint-wrapper.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

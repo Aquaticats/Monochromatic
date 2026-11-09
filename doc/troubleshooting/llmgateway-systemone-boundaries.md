@@ -247,6 +247,12 @@ if (detail.error_type === 'max_tokens_exceeded') {
 }
 ```
 
+`package/pi-plugin/auto-mode/src/assessment-http-failure.ts` was removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries it now.
+
 Malformed JSON,
 unknown codes,
 wrong types,

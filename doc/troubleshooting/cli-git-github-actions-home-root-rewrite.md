@@ -61,6 +61,16 @@ this changed an existing repository root into a different path identity.
 The resulting nonexistent candidate was treated as config absence,
 which made trust return `trust-failed`.
 
+`package/git-policy/cli/src/trust/config-discovery.ts` was removed on 2026-10-13 in `642b6d72cb`
+(refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow);
+no
+file in the working tree carries it now.
+`package/fs-path/core/src/find-monorepo-root.unit.test.ts` is not in the working tree and no commit
+in this repository carries it.
+
 The fix in `package/fs-path/core/src/root-discovery.ts:635` to `642` returns the path that actually matched:
 
 ```ts

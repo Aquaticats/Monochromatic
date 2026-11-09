@@ -1390,6 +1390,10 @@ execFileSync('pnpm', ['install'], { stdio: 'inherit' })
 
 # Forge shortcut tasks (forge:dev, forge:seed, forge:stress, prepare:garage) were removed when
 # webapp-forge moved to package-paused/. Re-add them on un-pause.
+# Also re-add the `isomorphic-git` entry to the `catalog:` block in
+# pnpm-workspace.yaml: it was removed on 2026-11-08 because
+# package-paused/webapp-forge/{server,stress}/package.json were its only
+# declarers, and both still say 'catalog:'.
 
 # The canary task was removed when inference-canary moved to package-paused/
 # (superseded by marginlab.ai). Re-add it on un-pause.

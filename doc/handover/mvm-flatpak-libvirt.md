@@ -1,5 +1,34 @@
 # `mvm` on a host whose libvirt lives only in the virt-manager Flatpak
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/mvm/src/guest-exec.ts` is now `package/mvm/cli/src/guest-exec.ts`
+> (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/guest-exec.unit.test.ts` is now
+> `package/mvm/cli/src/guest-exec.unit.test.ts` (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/libvirt-tools.ts` is now `package/mvm/cli/src/libvirt-tools.ts`
+> (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/libvirt-tools.unit.test.ts` is now
+> `package/mvm/cli/src/libvirt-tools.unit.test.ts` (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/cli-libvirt.unit.test.ts` is now
+> `package/mvm/cli/src/cli-libvirt.unit.test.ts` (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/file-transfer-route.ts` is now
+> `package/mvm/cli/src/file-transfer-route.ts` (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/guest-file-retry.ts` is now `package/mvm/cli/src/guest-file-retry.ts`
+> (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/virsh-wait.ts` is now `package/mvm/cli/src/virsh-wait.ts`
+> (2026-10-29 `113633b259`).
+> `//package/cli/mvm:buildAndTest` is now `//package/mvm/cli:buildAndTest`
+> (2026-10-29 `113633b259`).
+> `//package/cli/mvm:lint:types` is now `//package/mvm/cli:lint:types`
+> (2026-10-29 `113633b259`).
+> `//package/cli/mvm:lint:oxlint` is now `//package/mvm/cli:lint:oxlint`
+> (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/cli-file-transfer.unit.test.ts` is now
+> `package/mvm/cli/src/cli-file-transfer.unit.test.ts` (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/spawn-errors.ts` is now `package/mvm/cli/src/spawn-errors.ts`
+> (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

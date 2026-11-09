@@ -1,5 +1,12 @@
 # cli-git implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+> is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+> `package/file-enforcer/core/src/watch/notify.ts` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/core-rust` serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.
@@ -7143,32 +7150,6 @@ are in append mode now).
   The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
   (2026-11-08T15:41:28-05:00),
   so the container tasks are on the pin from now on.
-- `foundation::parallel_runner_on_the_runtime::tests::items_run_at_the_same_time` fails whenever the test process is
-  allowed 2 CPUs and passes on the same tree when it is allowed 5.
-  Measured 2026-11-08 on the branch of the conversion-summary and fold kill-point work in the test's own cgroup
-  (`CPUQuota=200%`,
-  `MemoryMax=2G`,
-  `TasksMax=512`,
-  `IOWeight=10`;
-  logs `~/temp/agent/fold-kill-cost/19-items-run-alone.log` and `20-items-run-cpu500.log`):
-  `left: 2` against `right: 4` after 10.010 s at the 200% cap,
-  and a pass in 0.012 s at 500%.
-  `nproc` inside those scopes printed 2 and 5,
-  which is the positive control that the allowance is what moves it.
-  The control asks the run for `ITEMS` workers,
-  but the runtime's worker count is `budgeted_workers` off `available_parallelism`,
-  which the quota lowers,
-  so a point every item must reach can never be met and the two workers that did start wait out `PATIENCE`
-  (10 s in `parallel_test_support.rs`).
-  The gate container runs at 2 CPUs,
-  so this control fails there;
-  it came in with the tokio runtime's first part (`2b1f830568`,
-  linted in `c1e6a78a4c`,
-  merged by `6240b51a7a`) and nothing on this branch touched it.
-  Not fixed here:
-  the choice is between a control that asks for no more items than the plan's workers and a floor the budget may not
-  go below,
-  which is the runtime's design and not this work's.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
@@ -7450,6 +7431,25 @@ and a copy into a registration the command did not create),
 so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
+
+No review covers the publishing route either:
+the push record a landing or a merge leaves,
+the queue,
+the retry plan and the reconcile.
+Its audit,
+with twelve findings ranked by what they risk losing,
+four of them reproduced,
+one of those in part,
+is `doc/planning/cli-git-push-route-findings-on-main.md`
+(2026-11-09;
+main at `554f973343`).
+The first two leave a branch of a landed commit unpublished with no record that says so:
+a push record keyed by the commit alone
+(the second branch reaching a commit is never queued),
+and a retry notice written before the retry plan is durable.
+The waits that no ceiling ends,
+the one move that can advance a branch the reconcile never checked,
+and the notice deleted before it is shown are there with `path:line` and suggested fixes.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

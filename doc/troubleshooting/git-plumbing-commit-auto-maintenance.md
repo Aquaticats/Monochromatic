@@ -47,6 +47,14 @@ builtin/merge.c:509:			run_auto_maintenance(the_repository, verbosity < 0);
 builtin/rebase.c:572:	run_auto_maintenance(the_repository,
 ```
 
+The paths this record names under `package/git-policy/cli/src/policy-engine/` were removed on
+2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins
+and trust workflow);
+no file in the working tree carries them now.
+
 Native `git commit` runs it right after updating `HEAD` and before `post-commit`
 (`builtin/commit.c:1964`):
 

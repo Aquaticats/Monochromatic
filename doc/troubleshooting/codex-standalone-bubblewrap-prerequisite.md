@@ -100,6 +100,17 @@ The isolated research branch's runnable owner is:
 RESEARCH_RUST_PROFILE=codex-host mise run //package/monorepo-task/core-exec:research:rust:host
 ```
 
+`package/dev-script/task-util` is not in the working tree;
+it became `package/monorepo-task/core-exec` on 2026-10-29 in `592d78b143`
+(refactor(*):
+eliminate the module,
+rust-module,
+shim,
+stub,
+dev-script,
+desktop-app,
+and remaining generic categories).
+
 The task exists only on branch `research/depot-reuse-20261018`
 (commit `3a64b255fb` on 2026-10-18),
 when the package was still `package/dev-script/task-util`,

@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-15 to 2026-08-19: the window trial's pre-flight and plumbing, its blockers, the comments filed on the wrong tracker and the state the next session inherits
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint` is now `//package/translation-repair/*:lint`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+
 The pre-flight and plumbing for running production selection with a wider window,
 the review finding that the two-arm design does not measure the window,
 the missing verdict at document scale,

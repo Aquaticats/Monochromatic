@@ -71,6 +71,17 @@ The research branch owns this runnable task:
 mise run //package/monorepo-task/core-exec:research:rust:corpus-audit
 ```
 
+`package/dev-script/task-util` is not in the working tree;
+it became `package/monorepo-task/core-exec` on 2026-10-29 in `592d78b143`
+(refactor(*):
+eliminate the module,
+rust-module,
+shim,
+stub,
+dev-script,
+desktop-app,
+and remaining generic categories).
+
 That branch is `research/depot-reuse-20261018`,
 created on 2026-10-18 (commit `6a235b5892`),
 when the package was still `package/dev-script/task-util`;

@@ -1,5 +1,16 @@
 # Unified-linter executable handoff
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint/src/source-position.ts` is deleted (2026-10-13 `5db89c1b61`)
+> and `package/linter/monochromatic-lint` serves its job today.
+> `//package/linter/rust:build` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/linter/rust` today is a different package with no `build` task.
+> `package/cli/markdown-lint/src/cli.ts` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/linter/monochromatic-lint.fuzz/bin/container.mjs` is deleted
+> (2026-10-30 `ba6a0c3d7c`) and its TypeScript replacement serves its job today.
+
 Note 2026-10-30:
 `package/linter/monochromatic-lint.fuzz/bin/container.mjs`,
 named below,

@@ -1,5 +1,14 @@
 # Catalog specifier policy
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dependency-catalog/core-specifier-policy` is not a path this repository held;
+> the specifier policy is `package/catalog-specifier/core-rust` today
+> (2026-11-01 `d3a44a3f6a`).
+> `package/dependency-catalog/cli-specifier-policy` is not a path this repository held;
+> the specifier policy is `package/catalog-specifier/core-rust` today
+> (2026-11-01 `d3a44a3f6a`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

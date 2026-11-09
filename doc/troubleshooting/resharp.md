@@ -147,6 +147,11 @@ forbidden-strings consumer guards.
        so the
   only consumer change is the dependency floor bump to 0.6.11.
 
+`package/forbidden-strings/cli/src/rule/engine.rs` is not in the working tree and no commit in this
+repository carries it.
+`package/forbidden-strings/cli/src/rule/nesting.rs` is not in the working tree and no commit in
+this repository carries it.
+
 ## Bug A: `\b`, `\B`, `^`, `$` inside complement bodies fail with `Algebra(UnsupportedPattern)`
 
 ### Symptom

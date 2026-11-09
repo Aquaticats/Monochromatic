@@ -40,6 +40,17 @@ passes the supplied object directly:
 env: environment,
 ```
 
+`package/pi-plugin/auto-mode/src/native-process-network.unit.test.ts` was removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries it now.
+`package/pi-plugin/auto-mode/native/contract/integration/native-host/process-network-guard.ts` was
+removed on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi
+build);
+no file in the working tree carries it now.
+
 The invocation intended to exercise absence supplies only the fixture-child marker.
 Omission from this object does not replace the whole child environment.
 Upstream `source/options.js:16` merges parent and supplied values:

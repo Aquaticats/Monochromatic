@@ -27,6 +27,12 @@ uses the in-memory question type in a supposedly serializable DTO:
 readonly freeOrder: BlockPairingQuestion['freeOrder'];
 ```
 
+The paths this record names under `package/module/translation-repair/src/` were removed on
+2026-09-15 in `cbedea3574` (refactor(translation-repair):
+remove the provider-free preparation
+infrastructure no pass reaches);
+no file in the working tree carries them now.
+
 The referenced `FreeOrderBlocks` at
 `package/translation-repair/stage/src/pair-blocks-wire.ts:274` contains sets:
 

@@ -1,5 +1,19 @@
 # Lane outcome vocabulary handover: the 2026-08-17 corpus pass, its freeze and the stop at six entries
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:slice-cost-report` is now
+> `//package/translation-repair/slice-cache:slice-cost-report` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:rendering-audit-settled` is now
+> `//package/translation-repair/probe:rendering-audit-settled` (2026-10-18 `4bd1aea8d5`).
+
 The sittings around the 2026-08-17 corpus pass,
 newest first:
 the two settled pools and what six entries measured,

@@ -1,5 +1,13 @@
 # Translation repair MiMo trial: log of 2026-10-05, the coverage attributions re-verified
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/json-guard.ts` is now
+> `package/translation-repair/document-structure/src/json-guard.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/test/src/describe.ts` is now `package/test-harness/core/src/describe.ts`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

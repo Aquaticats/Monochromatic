@@ -15,16 +15,27 @@ The package moved on 2026-10-20:
  and moves the advisor-specific selection wrapper into that core.
  Planned moves below that are not part of that series stay open.
 
+The absence convention changed on 2026-05-31
+ (commit `3bb4ce7f8c`,
+`2026-05-31T11:38:59-04:00`):
+ the generic `ABSENT` symbol and `Maybe<T>` alias,
+ which the original plan collected in `src/maybe.ts`,
+ became one exported `unique symbol` per expected miss,
+ and `src/maybe.ts` was deleted.
+ The decisions here and the `Absence convention` section state the current convention.
+
 ## Decisions captured here
 
 - Keep the package at `package/agent-harness-shared/model-selection/` with package name
   `@monochromatic-dev/agent-harness-shared-model-selection`.
-- Use one shared package,
-   but split its public surface by dependency tier with subpath exports.
+- Use one shared package whose manifest exposes `.` and `./ts` only,
+   with the feature modules kept internal to the single entry.
 - Move the full planned surface,
    including budget-model strategy orchestration.
 - Leave only registry authentication and extension-host adapters in consumers.
-- Use `ABSENT` and `Maybe<T>` for non-exceptional absence in shared APIs.
+- Signal a non-exceptional absence in shared APIs with one exported `unique symbol` per expected miss,
+   returning `T | typeof SENTINEL` and narrowing with `=== SENTINEL`;
+   this replaced the `ABSENT` and `Maybe<T>` pair on 2026-05-31 (commit `3bb4ce7f8c`).
 - Preserve lightweight consumers by keeping dependency-free helpers out of platform-coupled modules.
 
 ## Problem
@@ -91,6 +102,9 @@ Some files contain consumer-specific adapters that become thinner rather than di
   - `maybe.ts`,
      44 lines:
      `ABSENT` and `Maybe<T>` sentinel.
+     The file was removed on 2026-05-31 by commit `3bb4ce7f8c`,
+      which replaced it with the per-purpose sentinels the absence section lists;
+      the line count is the 2026-05-26 measurement.
   - `types.ts`,
      273 lines:
      advisor config,
@@ -158,74 +172,84 @@ the extraction and should be kept with the package README.
 
 ## Public export policy
 
-Do not make the root export a broad barrel that imports every module.
-The root export and `./core` export dependency-free helpers only.
-Consumers import heavier modules through explicit subpaths.
+The shipped manifest has two entries,
+ read from `package/agent-harness-shared/model-selection/package.json` on 2026-11-08:
 
-- `.` and `./core`:
-   dependency-free helpers and types.
-- `./scope`:
-   scope pattern,
-   settings,
-   and effective-scope helpers.
-- `./cost`:
-   advisor-style cost scoring and ranking helpers.
-- `./budget`:
-   budget-model strategy and override selection with injected auth callbacks.
-- `./pi-coding-agent`:
-   optional wrappers that directly import pi-coding-agent helpers,
-   such as token estimation.
-- `./pi-ai`:
-   optional wrappers that directly import pi-ai helpers,
-   if keeping `modelsAreEqual` is necessary.
+- `.`:
+   the built bundle `dist/final/node/index.mjs`,
+   which re-exports every feature module through the single `src/index.ts` entry:
+   core,
+   scope,
+   cost,
+   budget,
+   and text token estimation.
+- `./ts`:
+   the TypeScript source entry `src/index.ts`.
 
-Thinking-defaults imports only `@monochromatic-dev/agent-harness-shared-model-selection/core` or the root dependency-free
-surface.
-Advisor and auto-mode may import the heavier subpaths.
+`rolldown.node.config.ts` records why the per-feature bundles are gone:
+ no consumer imports a feature subpath.
+The feature modules (`core.ts`,
+`scope.ts`,
+`cost.ts`,
+`budget.ts`,
+`token-estimate.ts`) stay inside the package,
+ and none of them is an export subpath,
+ so `@monochromatic-dev/agent-harness-shared-model-selection/core` fails with
+`ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+Every workspace consumer imports the `/ts` entry (rule ST3):
+`package/agent-harness-shared/advisor`,
+`package/dsh-plugin/advisor`,
+`package/pi-plugin/advisor`,
+`package/pi-plugin/goal`,
+and `package/pi-plugin/thinking-default`.
+Thinking-defaults imports only `getModelIdLeaf` from that entry.
 
 ## Dependency policy
 
-The package is one physical package,
- but its modules stay tiered by coupling.
-Platform peers are optional so pure consumers do not need to declare them merely to consume string helpers.
+One physical package,
+ one dependency tier.
+Commit `54cb3ef443` (2026-11-05) removed both Pi peer dependencies and both Pi development
+ dependencies when the former `./pi-coding-agent` wrapper became the Pi-free
+`src/token-estimate.ts`.
+The manifest now declares no `peerDependencies` and no `peerDependenciesMeta`,
+ so the earlier policy "mark both platform peers optional" is retired:
+ no peer is left to mark,
+ and nothing in the package imports Pi.
 
-Runtime dependencies:
+Runtime dependencies,
+ as the manifest declares them:
 
-- `zeptomatch: catalog:`,
-   used by scope glob resolution.
+- `@monochromatic-dev/caught-value-core: workspace:*`,
+   error text for failed settings validation.
+- `@monochromatic-dev/ownership-marker-foreign-borrowed: workspace:*`,
+   foreign-borrowed markers on the shared structural types.
 - `type-fest: catalog:`,
    used for readonly helper types where needed.
 - `valibot: catalog:`,
    used at runtime by settings validation.
-
-Peer dependencies:
-
-- `@earendil-works/pi-ai: *`,
-   optional.
-- `@earendil-works/pi-coding-agent: *`,
-   optional.
-
-Peer dependency metadata:
-
-- Mark both platform peers optional.
-- Keep imports from optional peers out of the root and `./core` entry points.
+- `zeptomatch: catalog:`,
+   used by scope glob resolution.
 
 Development dependencies:
 
-- `@earendil-works/pi-ai: ^0.74.0`.
-- `@earendil-works/pi-coding-agent: catalog:`.
-- `@monochromatic-dev/config-tsdown: workspace:*`.
+- `@monochromatic-dev/config-rolldown: workspace:*`.
 - `@monochromatic-dev/config-typescript: workspace:*`.
 - `@monochromatic-dev/test-harness-core: workspace:*`.
-- `@types/bun: catalog:`.
+- `@types/node: catalog:`.
+- `typescript: catalog:`.
 
 Consumer dependencies:
 
-- Add `@monochromatic-dev/agent-harness-shared-model-selection: workspace:*` to advisor,
-   auto-mode,
-  and thinking-defaults before changing imports.
-- Do not add `@earendil-works/pi-ai` or `@earendil-works/pi-coding-agent` to thinking-defaults unless
-  thinking-defaults starts importing coupled subpaths.
+- `@monochromatic-dev/agent-harness-shared-model-selection: workspace:*` in
+   `package/agent-harness-shared/advisor`,
+   `package/dsh-plugin/advisor`,
+   `package/pi-plugin/advisor`,
+   `package/pi-plugin/goal`,
+   and `package/pi-plugin/thinking-default`.
+- Consumers declare `@earendil-works/pi-ai` or `@earendil-works/pi-coding-agent` only for their own
+  Pi imports;
+  this package needs neither.
 
 ## Type strategy
 
@@ -259,15 +283,42 @@ narrowed `api` typing is explicit at the call site.
 
 ## Absence convention
 
-Shared APIs use `ABSENT` and `Maybe<T>` for expected misses.
-This avoids `T | undefined` unions while keeping no-match flows non-exceptional.
+Shared APIs report an expected miss with one exported `unique symbol`,
+ returning `T | typeof SENTINEL` and narrowing with `=== SENTINEL`.
+This avoids a banned `T | undefined` union while keeping no-match flows
+ non-exceptional.
+Name each sentinel after the miss it reports;
+ a word that fits any miss,
+such as `ABSENT`,
+names none.
+Declare it in the module that first returns it,
+ unless a callback crosses the package boundary,
+ where it belongs in a module both sides import without a cycle,
+ as `NO_AUTH` does in `types.ts`.
 
-Use `Maybe<T>` for:
+Sentinels the package exports today:
 
-- exact match helpers.
-- pattern parse helpers when no model matches.
-- budget auth callbacks when a candidate lacks usable credentials.
-- registry lookup adapters that may not find a model.
+- `NO_EXACT_MATCH`:
+   no unambiguous exact model reference.
+- `MALFORMED_SLUG`:
+   a slug is not a `provider/model` pair.
+- `NO_ARGV_MODELS`:
+   argv holds no `--models` value.
+- `NO_LIVE_SCOPE`:
+   the runtime exposes no usable live model scope.
+- `NO_CANDIDATE`:
+   no budget candidate survives version filtering.
+- `NO_MAJOR_VERSION`:
+   a model id holds no parseable major version.
+- `NO_AUTH`:
+   the budget auth callback finds no usable credentials for a model.
+- `NO_OVERRIDE_MODEL`:
+   a registry lookup finds no model for a budget override slug.
+
+Three more stay internal to the module that raises them:
+ `NO_PATTERN_MATCH`,
+ `NO_THINKING_LEVEL`,
+ and `NO_SETTINGS_FILE`.
 
 Use thrown errors for invalid inputs,
  impossible internal states,
@@ -279,8 +330,10 @@ Use optional object fields for optional metadata,
 
 ### Core modules
 
-- `maybe.ts`:
-   move `ABSENT` and `Maybe<T>` from advisor.
+- one exported `unique symbol` per expected miss,
+   declared in the module that returns it,
+   as the `Absence convention` section requires;
+   the planned `maybe.ts` was dropped on 2026-05-31 (commit `3bb4ce7f8c`).
 - `types.ts`:
    define structural model,
    scope,
@@ -337,11 +390,11 @@ The narrow scope context should include only:
 - optional live scope getter or live scope property.
 - optional argv and home overrides for tests.
 
-Before replacing `pi-ai`'s `modelsAreEqual` with canonical-slug deduplication,
- read the pi-ai source and verify
-that provider/id canonical equality preserves behavior.
-If not verified,
- keep `modelsAreEqual` isolated behind the optional `./pi-ai` path.
+`pi-ai`'s `modelsAreEqual` was replaced by canonical-slug deduplication after the source check
+ recorded in `src/scope-patterns.ts`:
+provider and id equality is the same predicate.
+Any surviving `modelsAreEqual` use stays in the consumer that owns a Pi dependency;
+ this package has none.
 
 ### Cost modules
 
@@ -355,9 +408,9 @@ If not verified,
 - Keep advisor-specific `AdvisorModelSelection` in advisor.
 - Keep advisor-specific reason text either in advisor or as an injectable reason formatter.
 
-Token estimation should not force every consumer to import pi-coding-agent.
-Either keep token estimation in advisor or place the direct `estimateTokens` wrapper in the optional
-`./pi-coding-agent` subpath.
+Token estimation must not force every consumer to import pi-coding-agent.
+Commit `54cb3ef443` (2026-11-05) settled this in the package instead:
+`src/token-estimate.ts` counts UTF-16 code units and never loads a Pi SDK.
 
 ### Budget modules
 
@@ -378,10 +431,10 @@ Move budget selection strategy into shared while keeping host-specific auth in a
 Budget selection must accept callbacks instead of importing auto-mode context directly:
 
 ```typescript
-// package/agent-harness-shared/model-selection/src/budget-selection.ts
+// package/agent-harness-shared/model-selection/src/types.ts
 export type ResolveBudgetAuth<TModel> = (
   options: { readonly model: TModel; },
-) => Promise<Maybe<BudgetModelAuth>>;
+) => Promise<BudgetModelAuth | typeof NO_AUTH>;
 
 export type BudgetModelSelectionOptions<TModel extends ModelPricing> = {
   readonly activeModel: TModel;
@@ -394,7 +447,7 @@ export type BudgetModelSelectionOptions<TModel extends ModelPricing> = {
 ```
 
 Auto-mode keeps the adapter that calls `ctx.modelRegistry.getApiKeyAndHeaders`,
- translates failures to `ABSENT`,
+ returns `NO_AUTH` when the registry reports no usable credentials,
 and passes registry-backed callbacks into shared budget selection.
 
 ## Consumer responsibilities after migration
@@ -444,7 +497,7 @@ and passes registry-backed callbacks into shared budget selection.
 - GPT detection if it remains policy-specific.
 - Extension hook code in `apply-thinking-default.ts`.
 
-Thinking-defaults imports `getModelIdLeaf` from the dependency-free core surface only.
+Thinking-defaults imports `getModelIdLeaf` from the package's `/ts` entry only.
 
 ## Test strategy
 
@@ -519,7 +572,7 @@ Add characterization tests before rewiring imports:
      `mise.toml`,
     `tsdown.node.config.ts`,
      `README.md`,
-     and subpath exports.
+     and its export map.
 2.  Add `@monochromatic-dev/agent-harness-shared-model-selection: workspace:*` to advisor,
      auto-mode,
     and thinking-defaults.
@@ -566,13 +619,12 @@ Add characterization tests before rewiring imports:
    `pi-shared` differs from the nested `hook-types` precedent.
   Mitigation:
    document the category rule in the package README and keep actual extensions in `package/pi-plugin/`.
-- Single package with optional platform peers:
-   broad root exports could make lightweight consumers pay for
-  pi-ai or pi-coding-agent.
+- Single package with a broad root entry:
+   one root barrel could make lightweight consumers pay for a heavy runtime.
   Mitigation:
-   root and `./core` stay dependency-free;
-   coupled modules require explicit subpath imports;
-  platform peers are optional.
+   the package keeps no Pi peer and no Pi import,
+   so its single root entry stays free of the Pi SDK;
+  Pi-coupled helpers live in the consumers.
 - Full budget extraction:
    auto-mode selection is strategy,
    ratio gating,
@@ -595,7 +647,7 @@ Add characterization tests before rewiring imports:
    scope dedup may require pi-ai at runtime.
   Mitigation:
    verify pi-ai equality semantics before replacing it;
-   otherwise isolate it behind an optional subpath.
+   otherwise keep it in the consumer that already depends on pi-ai.
 - Promoted helpers:
    `isThinkingLevel`,
    `isAlias`,

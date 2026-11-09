@@ -137,6 +137,12 @@ on independently recorded Node `26.8.2` test processes.
 Its restored build and tests pass;
 records are retained under `/var/home/user/temp/agent/namespace-guard-proof-20260912`.
 
+The paths this record names under `package/module/translation-repair/src/` were removed on
+2026-09-15 in `cbedea3574` (refactor(translation-repair):
+remove the provider-free preparation
+infrastructure no pass reaches);
+no file in the working tree carries them now.
+
 ## Verified workarounds
 
 The existing consumer boundary in

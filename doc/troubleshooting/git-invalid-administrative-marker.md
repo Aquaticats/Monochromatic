@@ -26,6 +26,15 @@ The wrapper therefore overrode Git based only on a filesystem name that Git did 
 assumption.
 Neither path inspected directory signatures or gitfile content.
 
+`package/fs-path/core/src/find-monorepo-root.unit.test.ts` is not in the working tree and no commit
+in this repository carries it.
+`package/fs-path/core/src/find-monorepo-root.ts` is not in the working tree and no commit in this
+repository carries it.
+`package/git-policy/cli/src/rules/require-root.ts` is not in the working tree and no commit in this
+repository carries it.
+`package/git-policy/cli/src/rules/require-root.unit.test.ts` is not in the working tree and no
+commit in this repository carries it.
+
 Git itself applies stronger checks in upstream commit `f60db8d575adb79761d363e026fb49bddf330c73`:
 
 - [`validate_headref`][validate-head] requires a symbolic `refs/` HEAD or a detached hexadecimal object ID;

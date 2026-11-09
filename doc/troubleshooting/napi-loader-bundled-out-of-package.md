@@ -65,6 +65,17 @@ markdown-lint externals: /^node:/u /^ignore(\/|$)/u /^satteri(\/|$)/u /^type-fes
 satteri external? true
 ```
 
+The paths this record names under `package/cli/markdown-lint/` were removed on 2026-10-06 in
+`5bc05682ec` (chore(*):
+delete the five linter packages monochromatic-lint replaces);
+no file in
+the working tree carries them now.
+`package/git-policy/markdown-lint` is not in the working tree;
+the newest commit touching it is
+`a2b56c548c` (refactor(*):
+delete the dependent-version and configuration differentials and the
+four git-policy authoring packages) on 2026-10-13.
+
 That covers both of the linter's artifacts,
 the `bin` and the library entry,
 so the linter is not the problem and never was.

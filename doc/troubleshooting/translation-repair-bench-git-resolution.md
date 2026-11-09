@@ -66,6 +66,11 @@ return [...SELF_SHIM_MARKERS,].some(function hasSelfShimMarker(marker,) {
 },);
 ```
 
+`package/git-policy/cli/src/resolve-git.ts` was removed on 2026-08-28 in `2aef2d409a`
+(refactor(git-policy-cli):
+use shared Git resolver);
+no file in the working tree carries it now.
+
 In the measured image,
 `/usr/bin/git` was 4537488 bytes and decoded to 4475298 UTF-16 code units.
 The whole corpus's 184 page files totalled only 841615 bytes.

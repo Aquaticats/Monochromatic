@@ -178,6 +178,12 @@ Two files used `Bun.Glob`:
    **Migrated**
   to `node:fs/promises` glob.
 
+`package/file-enforcer/core/src/io/glob.ts` was removed on 2026-10-31 in `e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own generator);
+no
+file in the working tree carries it now.
+
 ## Verified workarounds
 
 ### Use `Bun.Glob` with `dot: true`

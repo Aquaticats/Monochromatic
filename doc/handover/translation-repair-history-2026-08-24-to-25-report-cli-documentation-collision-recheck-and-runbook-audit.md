@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-24 to 2026-08-25: documenting the three report commands, re-checking the landing for collisions and auditing the runbook against the source
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 The documentation of the three report commands,
 found necessary by measuring what the readiness question required,
 how the documented output was obtained,

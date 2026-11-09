@@ -1,5 +1,10 @@
 # Translation repair handover 2026-09-06: the checkpoint of 2026-10-18, the package split, the shared lint analysis and the rounds after it
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:coverage-census` is now
+> `//package/translation-repair/coverage-census:coverage-census` (2026-10-18 `4bd1aea8d5`).
+
 The checkpoint of 2026-10-18:
 the split of the package into `package/translation-repair/<name>`,
 the shared lint analysis that answered why lint was slow,

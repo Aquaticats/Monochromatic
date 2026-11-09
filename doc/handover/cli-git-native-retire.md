@@ -1,5 +1,19 @@
 # cli-git native retirement lane
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/api` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper under
+> `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/forbidden-strings` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper
+> under `package/git-policy/cli/src/native/` serves its job today.
+> `package/dev-script/file-enforcer/src/generated-policy-contracts.unit.test.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
 Scratch note 2026-11-08:
 `package/git-policy/cli/dist` and `package/git-policy/cli/.cache` were build and cache
 outputs of the TypeScript wrapper,
