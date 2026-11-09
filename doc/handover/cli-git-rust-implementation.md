@@ -7162,8 +7162,10 @@ was aborted once by the run's own 120 s watchdog,
 and the cause is its own durability work,
 measured with `strace --follow-forks --summary-only --trace=fsync,fdatasync` on the test binary:
 one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
-with single calls 1.755, 1.211 and 1.071 s apart,
-and the same control alone then took 34.73 s, 9.64 s and 1.83 s in three runs with nothing changed.
+with single calls 1.755,
+1.211 and 1.071 s apart,
+and the same control alone then took 34.73 s,
+9.64 s and 1.83 s in three runs with nothing changed.
 A bad minute of the disk is what carries 306 commits past 120 s,
 and the earlier "side by side" change cut the waiting but not the number of commits.
 
@@ -7222,11 +7224,15 @@ and four of `subvolume_migrate::tests`,
 each aborted by the run's own watchdog between 122.3 and 149.7 s.
 That module is not touched by the branch,
 and its controls are the family this record already calls slow on this host
-("Two lock controls claim their endings", and the btrfs measurement under it).
+("Two lock controls claim their endings",
+and the btrfs measurement under it).
 The 784 tests the run then stopped include the 709 of
-`testing::`, `transaction::`, `worktree::` and `worktree_copying::`,
+`testing::`,
+`transaction::`,
+`worktree::` and `worktree_copying::`,
 which passed when run on their own,
-and 75 inside `subvolume::` itself, which that run did not reach.
+and 75 inside `subvolume::` itself,
+which that run did not reach.
 
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
