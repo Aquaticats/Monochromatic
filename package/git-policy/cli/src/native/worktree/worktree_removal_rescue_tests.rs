@@ -146,24 +146,57 @@ fn a_command_that_settles_while_the_removal_is_under_way_keeps_the_snapshot() {
     remove(repo.root.as_path());
 }
 
-/// A removal cut short after Git deleted the checkout leaves a registration with no checkout:
-/// that is not a refusal,
-/// so the
-///  snapshot is kept until the registration goes too.
+/// A removal cut short after Git deleted the checkout is settled by the next command,
+/// which shows what the snapshot kept,
+///  and the registration is left to the person.
 #[test]
-fn a_removal_cut_short_after_the_checkout_was_deleted_keeps_the_snapshot() {
+fn a_removal_cut_short_after_the_checkout_was_deleted_settles_the_snapshot() {
     let repo: Repo = repo("rescue-cut-short");
     records(&repo);
     snapshot_linked_worktrees(repo.common.as_path());
     end_attempts(&repo);
     std::fs::remove_dir_all(&repo.checkout).expect("Git deleted the checkout");
     assert!(settle_removals(repo.common.as_path()).is_empty());
-    assert!(snapshot_of(&repo).exists(), "the snapshot is kept");
-    assert!(shown(&repo).is_empty());
+    assert!(!snapshot_of(&repo).exists(), "the checkout cannot come back, so the snapshot is settled");
+    assert_eq!(shown(&repo).len(), 2, "the records are shown, not kept for ever");
+    // The registration is the person's to remove: the wrapper changes no registration it was not asked to.
+    assert!(repo.linked.is_dir());
     std::fs::remove_dir_all(&repo.linked).expect("a later prune removes the registration");
     assert!(settle_removals(repo.common.as_path()).is_empty());
-    assert_eq!(shown(&repo).len(), 2);
     remove(repo.root.as_path());
+}
+
+/// What:
+///  A registered worktree whose checkout went while its registration stayed is a removal that will never finish,
+/// so the
+///  snapshot taken for it is settled by the next command instead of sitting there for ever.
+/// Why:
+///   A worktree whose directory is gone cannot run a command,
+/// so nothing would ever show the records its Git directory still holds:
+///  they reach the person only through the settle.
+/// The live-taker arm is the seam:
+/// a command that took the snapshot and may still be removing keeps it,
+///  because the originals go with the removal.
+#[test]
+fn a_snapshot_whose_checkout_is_gone_is_settled_and_shown() {
+    for (label, ended) in [("ended", true), ("live", false)] {
+        let repo: Repo = repo(format!("rescue-checkout-gone-{label}").as_str());
+        records(&repo);
+        snapshot_linked_worktrees(repo.common.as_path());
+        if ended {
+            end_attempts(&repo);
+        }
+        std::fs::remove_dir_all(&repo.checkout).expect("the checkout is gone");
+        assert!(settle_removals(repo.common.as_path()).is_empty());
+        if ended {
+            assert!(!snapshot_of(&repo).exists(), "the taker ended and the checkout is gone, so the removal is decided");
+            assert_eq!(shown(&repo).len(), 2, "both records reached the person");
+        } else {
+            assert!(snapshot_of(&repo).exists(), "the taker may still be removing, so the snapshot is kept");
+            assert!(shown(&repo).is_empty());
+        }
+        remove(repo.root.as_path());
+    }
 }
 
 /// A pending push of a commit whose failure was already recorded does not replace Git's words with the vaguer ones.

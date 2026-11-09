@@ -24,11 +24,15 @@
 //!  removal.
 //! A Git directory that is still there proves a refusal only once the command that took the snapshot has ended
 //!  (the process keeps its identity when it becomes Git,
-//! so the snapshot names it) and the worktree's checkout is intact;
-//!  while that command lives,
-//! or a checkout is missing from a Git directory that is still registered,
-//! the removal may be
-//!  under way or cut short,
+//! so the snapshot names it) and the worktree's checkout is intact.
+//! A Git directory that is still registered once its checkout is gone is a removal that will never finish,
+//! whether the
+//!  destroy or the person's own deletion took the checkout:
+//! a worktree without a directory can run no command,
+//! so the records reach the person only if a settle promotes them,
+//! and the registration is left to the person.
+//! While the command that took the snapshot lives,
+//! the removal may be under way,
 //! and the snapshot is kept.
 //! A snapshot that cannot be fully promoted,
 //! or fully taken,
@@ -88,17 +92,17 @@ const LOOK_ROUNDS: usize = 2;
 /// and the checkout say about a removal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Removal {
-    /// The Git directory is gone:
-    /// Git removed the worktree.
+    /// The Git directory is gone,
+    /// or it is still registered and its checkout is gone:
+    /// the worktree is removed,
+    /// or never will be finished.
     Done,
     /// Every command that took the snapshot has ended and the checkout is intact:
     /// Git refused,
     /// or it was a dry run.
     Refused,
     /// A command that took the snapshot may still be removing,
-    /// the checkout is missing from a registered worktree,
-    /// or the
-    ///  evidence cannot be read:
+    /// or the evidence cannot be read:
     /// not decided yet.
     Undecided,
 }
@@ -297,9 +301,11 @@ fn checkout_present(git_dir: &Path) -> Option<bool> {
 /// So a missing Git
 ///  directory is a removal;
 /// an intact checkout whose taker has ended is a refusal;
-/// anything else may be a removal in progress
-///  or one that was cut short,
-/// and deciding on it would either lose the records or keep them for nothing.
+/// a checkout that is gone
+///  while its taker has ended cannot come back,
+/// so the removal is over however it ended and the records must reach the person;
+/// while the taker lives the removal may be under way,
+/// and a checkout whose state cannot be read decides nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -314,7 +320,11 @@ fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
     if attempt_may_be_running(snapshot) {
         return Removal::Undecided;
     }
-    return if checkout_present(git_dir) == Some(true) { Removal::Refused } else { Removal::Undecided };
+    return match checkout_present(git_dir) {
+        Some(true) => Removal::Refused,
+        Some(false) => Removal::Done,
+        None => Removal::Undecided,
+    };
 }
 
 /// What:

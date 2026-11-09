@@ -1698,6 +1698,24 @@ and removes the empty `worktrees` directory when the
 last registration goes,
 as the wrapper does.
 
+The unshown push-failure notices and the unfinished push records of a linked worktree live in its own Git directory,
+which the removal deletes,
+so before `git worktree remove` or `git worktree prune` runs,
+the wrapper copies them into a snapshot under `<common>/monochromatic-git-policy-cli/removal-snapshots/<instance>`,
+last writing the Git directory it was taken from and first recording the process that took it
+(`src/native/worktree/worktree_removal_rescue.rs`).
+Every wrapped command settles each snapshot once the command that took it has ended:
+a Git directory that is gone,
+and one that is still registered while its checkout is gone,
+promote the records to the notices every worktree shows,
+because a worktree without a directory can run no command that would show them;
+a checkout that is intact is a removal Git refused,
+and the snapshot is discarded;
+a command that may still be removing keeps the snapshot,
+and so does evidence that cannot be read.
+The registration of a worktree whose checkout is gone is left to the person,
+which `git worktree prune` removes.
+
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
 below the tree's parent without following a link or crossing a mount,
