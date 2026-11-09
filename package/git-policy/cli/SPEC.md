@@ -2319,7 +2319,7 @@ A rejection by the server with a reason no rule names is tried again,
 and the journal names its line.
 The classification reads Git's own words,
 which are cited beside the rules in `src/native/push/push_retry.rs`.
-The plan is owned by the service's work loop alone:
+The schedule of the plan is owned by the service's work loop alone:
 a round takes what is due for each repository out of it before the
 repositories are drained side by side,
 hands it to that repository's worker as a value,
@@ -2336,7 +2336,8 @@ rebuilt when the service starts,
 and the loop wakes for it with no wrapper command.
 A worker keeps its branch's file there itself,
 before the words that promise the retry reach the person,
-although the loop alone decides when the try is due:
+although the loop alone decides when the try is due
+(`Replanning::keep_the_plan`):
 the loop applies the workers' changes only once every repository of the round is drained,
 and a kill before that would leave a notice that says the service keeps trying and nothing that keeps it.
 
