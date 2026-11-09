@@ -144,9 +144,62 @@ fn a_reused_number_is_not_signalled() {
 /// A process with no children has no descendants.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_leaf_has_no_descendants() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
+fn a_leaf_has_no_descendants() {    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
     assert_eq!(descendants_of(i32::try_from(sleeper.id()).expect("a process number")), Vec::<TreeMember>::new());
     sleeper.kill().expect("sleep is killed");
     sleeper.wait().expect("sleep is collected");
+}
+
+/// What:
+///  What a look at a process's record answers:
+/// alive,
+/// gone,
+/// or unreadable.
+/// Why:
+///   The third is the case a stop used to read as the second,
+/// which signalled nothing and ended nothing.
+/// The refused record is a directory where the record should be (`EISDIR`),
+/// a refusal this process cannot
+///  make go away by waiting,
+/// so no control has to exhaust the host's descriptors.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_record_that_cannot_be_read_is_unknown_and_not_gone() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: std::path::PathBuf = crate::test_support::fixture("process-tree-look");
+    let own: i32 = i32::try_from(std::process::id()).expect("a process number");
+    // The positive controls of the three answers.
+    let alive: ProcessLook = look_of(own);
+    assert!(matches!(alive, ProcessLook::Alive(_)), "this process is alive: {alive:?}");
+    assert_eq!(look_of(i32::MAX - 1), ProcessLook::Gone, "a number nothing names is gone");
+    // A record that refuses to be read, in a process table of its own.
+    let refusing: std::path::PathBuf = root.join("refusing");
+    let record: std::path::PathBuf = refusing.join(own.to_string());
+    std::fs::create_dir_all(record.join("stat").as_path()).expect("a directory where the record should be");
+    std::fs::set_permissions(record.join("stat").as_path(), std::fs::Permissions::from_mode(0o644)).expect("the record's mode");
+    let refused: ProcessLook = look_of_through(refusing.as_path(), own);
+    let ended: ProcessLook = look_of_through(refusing.as_path(), own + 1);
+    crate::test_support::remove(root.as_path());
+    assert_eq!(refused, ProcessLook::Unknown, "a record that could not be read says nothing about the process");
+    assert_eq!(ended, ProcessLook::Gone, "a record that is not there says the process is gone");
+}
+
+/// A member whose record could not be read is waited for and signalled:
+/// nothing about the read proves it ended.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_member_whose_record_could_not_be_read_is_not_taken_for_one_that_ended() {
+    let own: i32 = i32::try_from(std::process::id()).expect("a process number");
+    let found: TreeMember = match look_of(own) {
+        ProcessLook::Alive(member) => member,
+        other => panic!("this process is alive: {other:?}"),
+    };
+    assert!(still_running_when(look_of(own), &found), "a live process is still running");
+    assert!(still_running_when(ProcessLook::Unknown, &found), "a record that could not be read proves nothing about the process");
+    assert!(!still_running_when(ProcessLook::Gone, &found), "a record that is not there is a process that ended");
+    assert!(
+        !still_running_when(ProcessLook::Alive(TreeMember { pid: found.pid, started: found.started + 1 }), &found),
+        "another start time is another process"
+    );
+    assert!(!still_running(&TreeMember { pid: i32::MAX - 1, started: found.started }), "a number nothing names is gone");
 }

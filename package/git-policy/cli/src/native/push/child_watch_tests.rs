@@ -377,8 +377,11 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     crate::test_support::remove(root.as_path());
 }
 
-/// What a failed look at the step's own record must not cost: the signal.
-/// A look that fails (a descriptor limit, a permission, an I/O error) says nothing about the process,
+/// What a failed look at the step's own record must not cost:
+/// the signal.
+/// A look that fails (a descriptor limit,
+/// a permission,
+/// an I/O error) says nothing about the process,
 /// so the step's root is signalled all the same;
 /// reading the failure as "the process is gone" signals nothing,
 /// so the ceiling ends nothing and the wait outlasts it.
@@ -388,14 +391,30 @@ fn a_root_whose_record_could_not_be_read_is_still_signalled() {
     let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     assert!(helper_is_running(pid), "the premise: the process runs");
-    // The state a stop is in when `/proc/<pid>/stat` could not be read for the root: no member was found for it.
-    crate::child_watch_clock_marks_and_stopping::signal_root(&None, true, pid, libc::SIGKILL);
+    // The state a stop is in when `/proc/<pid>/stat` could not be read for the root.
+    crate::child_watch_clock_marks_and_stopping::signal_root(&crate::process_tree::ProcessLook::Unknown, pid, libc::SIGKILL);
     let began: Instant = Instant::now();
     while helper_is_running(pid) {
         assert!(began.elapsed() < Duration::from_secs(10), "the root of the step kept running: a look that failed was read as a process that was gone");
         std::thread::sleep(Duration::from_millis(10));
     }
     sleeper.wait().expect("the sleeper is collected");
+}
+
+/// The other half of the same rule:
+/// a root a look found gone is not signalled at all,
+/// because its number may be another process's by now.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_root_a_look_found_gone_is_not_signalled() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    crate::child_watch_clock_marks_and_stopping::signal_root(&crate::process_tree::ProcessLook::Gone, pid, libc::SIGKILL);
+    std::thread::sleep(Duration::from_millis(300));
+    let survived: bool = helper_is_running(pid);
+    sleeper.kill().expect("the control ends its sleeper");
+    sleeper.wait().expect("the sleeper is collected");
+    assert!(survived, "a root whose record was read as gone was signalled");
 }
 
 /// A command that finishes at once prints nothing;

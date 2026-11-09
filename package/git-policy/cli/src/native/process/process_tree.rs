@@ -29,6 +29,14 @@
 //! ```ts
 //! const tree = await descendantsOf(child.pid); child.kill('SIGTERM'); for (const process of tree) process.signalIfSame('SIGTERM');
 //! ```
+//!
+//! A look at a record answers three things,
+//! not two:
+//! the member is there and is the one that was found,
+//! it is gone,
+//! or its record could not be read.
+//! The third is signalled and waited for like the first,
+//! because a stop that reads a refusal as an exit ends nothing and sweeps the locks of a live tree.
 
 /// One process of a tree and the start time that proves it is still that process.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -158,15 +166,150 @@ pub fn member_of(_pid: i32) -> Option<TreeMember> {
 /// it exists,
 /// is not a zombie,
 /// and has the recorded start time.
+///  A record that cannot be read says nothing about the process,
+/// so it is waited for and signalled as if it were alive:
+/// reading a refusal as an exit ends nothing and lets a stop's lock sweep run against a live tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const look = lookOf(member.pid); return look.kind !== 'gone' && (look.kind !== 'alive' || look.started === member.started);
+/// ```
 #[cfg(target_os = "linux")]
 pub fn still_running(member: &TreeMember) -> bool {
-    let Ok(text) = std::fs::read_to_string(format!("/proc/{}/stat", member.pid)) else {
-        return false;
+    return still_running_when(look_of(member.pid), member);
+}
+
+/// What:
+///  What a look at a record means for the member that was found:
+/// it is still that process or nothing proves it ended.
+/// Why:
+///   The rule both the wait and the signal share,
+/// so an unreadable record is never taken for an exit in one of them and not in
+///  the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillRunningWhen = (look, member) => look.kind === 'unknown' || (look.kind === 'alive' && look.member.started === member.started);
+/// ```
+pub fn still_running_when(look: ProcessLook, member: &TreeMember) -> bool {
+    return match look {
+        ProcessLook::Alive(found) => found.started == member.started,
+        ProcessLook::Gone => false,
+        ProcessLook::Unknown => true,
+    };
+}
+
+/// What:
+///  What a look at one process's record came to.
+/// Why:
+///   A process number can name a live process,
+/// nothing at all,
+/// or a record that could not be read (a
+///  descriptor limit,
+/// a permission,
+/// an I/O error,
+/// a record that could not be parsed).
+/// The third is not the second:
+///  the step is signalled and waited for on an unknown record,
+/// because a stop that treats a refusal as an exit ends nothing
+///  and sweeps the locks of a live tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProcessLook = { kind: 'alive'; member: Member } | { kind: 'gone' } | { kind: 'unknown' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProcessLook {
+    /// The record was read and names a process that has not exited.
+    Alive(TreeMember),
+    /// The record is not there,
+    /// or names a zombie:
+    /// the process has ended.
+    Gone,
+    /// The record could not be read or understood for a reason that is not the process's end,
+    /// so nothing is known about it.
+    Unknown,
+}
+
+/// The error kinds that mean the process ended while it was being looked at,
+/// never a refusal.
+#[cfg(target_os = "linux")]
+fn exited(error: &std::io::Error) -> bool {
+    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+}
+
+/// What:
+///  What a look at the record of process `pid` below `proc_root` came to.
+/// Why:
+///   The record's own directory is the seam a control uses to read a record that refuses,
+/// so a refusal is
+///  proven without exhausting this process's descriptors.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lookOfThrough(procRoot: string, pid: number): ProcessLook;
+/// ```
+#[cfg(target_os = "linux")]
+pub fn look_of_through(proc_root: &std::path::Path, pid: i32) -> ProcessLook {
+    let text: String = match std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")) {
+        Ok(text) => text,
+        Err(error) if exited(&error) => return ProcessLook::Gone,
+        // A refusal, an I/O error or a record that was not there for the process's end: nothing is known.
+        Err(_unreadable) => return ProcessLook::Unknown,
     };
     let Some((_parent, started, zombie)) = parse_stat(text.as_str()) else {
-        return false;
+        // A record that cannot be understood is not proof that the process ended.
+        return ProcessLook::Unknown;
     };
-    return started == member.started && !zombie;
+    if zombie {
+        return ProcessLook::Gone;
+    }
+    return ProcessLook::Alive(TreeMember { pid, started });
+}
+
+/// The root of the process table on Linux,
+/// where a record is read from.
+#[cfg(target_os = "linux")]
+const PROC: &str = "/proc";
+
+/// What a look at the record of process `pid` came to.
+#[cfg(target_os = "linux")]
+pub fn look_of(pid: i32) -> ProcessLook {
+    return look_of_through(std::path::Path::new(PROC), pid);
+}
+
+/// Only Linux reads a process's record;
+/// elsewhere nothing is known about a process,
+/// so a stop signals its root without an identity check,
+/// as it always did.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn look_of(_pid: i32) -> ProcessLook {
+    return ProcessLook::Unknown;
+}
+
+/// What:
+///  Send `signal` to each member that is still the process that was found;
+/// the others are left alone.
+/// Why:
+///   A number that was reused by an unrelated process must never be signalled.
+///  A member whose record could not be read is signalled:
+/// the number was a member of the tree a moment
+///  ago,
+/// and a stop that sends nothing because a look was refused is a stop that ends nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const member of tree) if (member.stillRunning()) process.kill(member.pid, signal);
+/// ```
+#[cfg(unix)]
+pub fn signal_members(members: &[TreeMember], signal: i32) {
+    for member in members {
+        if still_running(member) {
+            // SAFETY: `kill` takes no pointers; a failure is ignored because the process may have ended since the check.
+            unsafe { libc::kill(member.pid, signal) };
+        }
+    }
 }
 
 /// What:
@@ -223,26 +366,6 @@ pub fn state_letter_of(member: &TreeMember) -> Option<char> {
 #[cfg(not(target_os = "linux"))]
 pub fn still_running(_member: &TreeMember) -> bool {
     return false;
-}
-
-/// What:
-///  Send `signal` to each member that is still the process that was found;
-/// the others are left alone.
-/// Why:
-///   A number that was reused by an unrelated process must never be signalled.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const member of tree) if (member.stillRunning()) process.kill(member.pid, signal);
-/// ```
-#[cfg(unix)]
-pub fn signal_members(members: &[TreeMember], signal: i32) {
-    for member in members {
-        if still_running(member) {
-            // SAFETY: `kill` takes no pointers; a failure is ignored because the process may have ended since the check.
-            unsafe { libc::kill(member.pid, signal) };
-        }
-    }
 }
 
 /// Platforms without signals stop only the root.

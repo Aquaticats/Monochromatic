@@ -2704,6 +2704,32 @@ everything below the command ended with `SIGKILL`,
 the command failing with a message that says nothing was committed and to run the same command again;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
 
+##### What a stop reads about a step, and what it sends
+
+A look at a process's record (`/proc/<pid>/stat`,
+`src/native/process/process_tree.rs`)
+answers one of three things,
+never two:
+the process is there and is the one that was found,
+it is gone,
+or its record could not be read.
+A refusal (a descriptor limit,
+a permission,
+an I/O error,
+a record that cannot be parsed)
+is not an exit:
+the step's root is signalled all the same,
+the members are waited for,
+and the grace and the ceiling end the step as they would have.
+Reading a refusal as "the process is gone" signalled nothing,
+so a ceiling ended nothing,
+the wait outlasted it,
+and the lock sweep ran against a live tree
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 4).
+A member whose record reads as gone is never signalled:
+its number may be another process's by now.
+
 ##### The quiet windows are labelled unmeasured
 
 No log held a quiet gap before this change:

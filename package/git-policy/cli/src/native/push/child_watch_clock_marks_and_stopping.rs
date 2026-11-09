@@ -27,7 +27,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use crate::stopped_git_locks::LockLedger;
 use crate::bounded_push::STOP_GRACE;
 use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
-use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+use crate::process_tree::{ProcessLook, TreeMember, descendants_of, kill_members, look_of, still_running, terminate_members};
 use std::time::{Duration, Instant};
 
 /// The shortest sleep of the watcher,
@@ -183,14 +183,21 @@ impl Marks {
     }
 }
 
-/// Send `signal` to the process `raw` only while it is still the process that was found (by its recorded start time);
-/// where
-/// no start time can be read,
-/// the signal is sent without that check.
+/// Send `signal` to the process `raw` while a look at its record does not say it is gone.
+/// Where the record could not be read,
+/// the signal goes out all the same:
+/// nothing about the read proves the process ended,
+/// and a step that is never signalled because its record could not be read keeps running past its ceiling.
 #[cfg(unix)]
-pub(crate) fn signal_root(root: &Option<TreeMember>, identified: bool, raw: i32, signal: libc::c_int) {
-    if root.as_ref().map_or(!identified, still_running) {
-        // SAFETY: `kill` takes no pointers; the process was checked a moment ago to be the one that was found.
+pub(crate) fn signal_root(root: &ProcessLook, raw: i32, signal: libc::c_int) {
+    let send: bool = match root {
+        ProcessLook::Alive(found) => still_running(found),
+        ProcessLook::Unknown => true,
+        ProcessLook::Gone => false,
+    };
+    if send {
+        // SAFETY: `kill` takes no pointers; the process was checked a moment ago to be the one that was found, or its record
+        //  could not be read and the signal is sent as the platform without `/proc` always did.
         unsafe {
             libc::kill(raw, signal);
         }
@@ -230,14 +237,18 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
     // wait for that output would outlast the bound by as long as they live.
     let below: Vec<TreeMember> = descendants_of(raw);
-    let root: Option<TreeMember> = member_of(raw);
-    let mut tree: Vec<TreeMember> = root.iter().cloned().collect();
+    // Three answers, not two: a record that could not be read is not a process that has gone, so the root is still
+    //  signalled (`signal_root`) and still waited for (`still_running`).
+    let root: ProcessLook = look_of(raw);
+    let mut tree: Vec<TreeMember> = match root.clone() {
+        ProcessLook::Alive(found) => vec![found],
+        ProcessLook::Gone | ProcessLook::Unknown => Vec::new(),
+    };
     tree.extend(below.iter().cloned());
     // A process number can be reused once the waiting thread has reaped the child, and the child is reaped as soon as it
     // ends, which may be well before the grace is over (a helper below it can outlive it). The signals therefore go to the
-    // root only while it is still the process that was found, by its recorded start time; where no start time can be read
-    // (a platform without `/proc`) the root is signalled without that check, and with nothing to look at the grace ends at once,
-    // as the kill alone did before.
+    // root only while it is still the process that was found, by its recorded start time; where its record could not be read
+    // it is signalled without that check (`signal_root`), because a refusal is not an exit.
     // The locks the tree holds are claimed while their pid files still name the holders: the signals below can cut Git's cleanup
     //  between the removal of a pid file and the removal of its lock.
     let seen: Vec<TreeMember> = tree.clone();
@@ -249,14 +260,13 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
             locks.clone()
         }
     };
-    let identified: bool = cfg!(target_os = "linux");
-    signal_root(&root, identified, raw, libc::SIGTERM);
+    signal_root(&root, raw, libc::SIGTERM);
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
     while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && tree.iter().any(still_running) {
         tokio::time::sleep(STOP_POLL).await;
     }
-    signal_root(&root, identified, raw, libc::SIGKILL);
+    signal_root(&root, raw, libc::SIGKILL);
     kill_members(below.as_slice());
     // The waiting thread reaps the child, so the watcher only looks. A step in an uninterruptible call ends when the kernel
     // lets it go, which can be long after the bound; the locks it creates on the way out are swept then, or when the watch
