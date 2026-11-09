@@ -1852,9 +1852,11 @@ exiting with status 1 when any stands;
 only a mode whose refusals are all clear says what it would do.
 So `--dry-run --remove-old` on a checkout with no finished migration refuses with the lines the
 real run gives instead of promising a deletion the real run refuses.
-The one refusal a preview cannot reach is the one a later read of the old tree adds while the
-carry-back copies it,
-because finding it writes files.
+The refusals a preview cannot reach are the ones a later read of the tree adds while the
+carry copies it:
+a file that turns out unreadable,
+and an entry the carry-back keeps because the destination holds another kind of entry at its path,
+because finding either writes files.
 Before this release
 the migration had no such guard:
 a second run resumed the first one's journal with the first one's token.
