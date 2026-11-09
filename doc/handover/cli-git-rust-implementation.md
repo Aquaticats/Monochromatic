@@ -5818,6 +5818,72 @@ are in append mode now).
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
 
+- `subvolume::subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`
+  was aborted by nextest's 300 s bound in a filtered suite and passed alone in 260.6 s
+  (2026-11-09,
+  a host full-suite run also hit the bound on `subvolume_migrate::` and on
+  `worktree_convert::ownership_tests::`).
+  Cause,
+  measured on this host:
+  the stand-in platform says its writes stay in memory
+  (`Platform::flushes_to_disk`),
+  and the migration's journal,
+  locks and index rewrites already asked that switch,
+  but the claim file's write and its directory flush did not,
+  nor did the index rewrite's install,
+  which runs on a thread of the blocking pool that never inherits the answer.
+  One migration command took 79 s at a load average of 119,
+  of which the claim's take and release were 44 s and the two index installs 7 s
+  (per-step probes,
+  `~/temp/agent/time-limits/`);
+  after the change the claim took 1.0 ms and the index rewrite 5.0 ms.
+  The sweep then fell to 110 s one after another and 25.2 s with its twelve kill points
+  walking side by side (load average 115 and 119),
+  and the whole `ownership_tests` module from 193.1 s to 55.4 s,
+  its slowest control from 144.5 s to 33.0 s (load average 81).
+  Commits:
+  `75d8a46bcb` (the switch reaches the claim and the index rewrites,
+  with `a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice` and
+  `a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere` plus a flushing sibling each;
+  both failed before the change with `SyncCounts { made: 0, skipped: 0 }` and `made: 4, skipped: 0`),
+  `a6d7341191` (the sweep walks its points side by side).
+  On the final binary all 37 controls of `push_slow_server_tests`,
+  `subvolume_migrate::tests`,
+  `ownership_tests` and the four new ones passed under the standard bound in 71.9 s,
+  the sweep in 4.5 s at a load average of 36.
+- `push::push_slow_server_tests::a_server_that_holds_the_connection_without_answering_is_waited_for`
+  failed once inside a 5,603-test run,
+  reporting 1.70 s against its own 3 s floor.
+  Cause:
+  the control could not tell a fixture that lost the connection from a wrapper that stopped one.
+  Its server swallowed the answer of `listener.accept` (`if let Ok(..)`) and held exactly one connection,
+  so a refused accept ended that thread and dropped the listener under the push,
+  and its only verdict on earliness was the push's duration against its own 4 s sleep.
+  Measured 2026-11-09:
+  with the listener dropped before the push Git ends in 12.6 ms,
+  with the connection closed at once in 105.1 ms,
+  both exit 128 with no stall line and no wait note,
+  so both would have failed that floor and nothing else.
+  The product's wait itself was right in every run made:
+  4.10 s,
+  4.12 s and 4.19 s against its 4 s hold,
+  each saying the wait,
+  while the disconnected control beside it still stops at the 1 s stall window.
+  The control now lets the connection go only when it says so,
+  accepts every connection the push opens,
+  and fails naming the push's own exit status and output;
+  planted with `push_progress` ignoring an open connection it fails in 4.93 s with
+  "the push ended while the server still held the connection ... after 1.596346729s with 124:
+  ... (limit=stall ...)".
+  Commit `b7c5eeb5a1`.
+  Not measured,
+  and left open:
+  whether a single sample that does not attribute the push's socket to its process tree
+  (`push_progress::Meter::observe_sockets` over `descendants_of`) can stop a connected push;
+  the new control would now name that as `limit=stall` instead of as a clock,
+  which is what a
+  reproduction would need.
+
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 
 `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
