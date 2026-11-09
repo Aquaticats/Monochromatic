@@ -6,13 +6,18 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 //region Logging
 
 /**
  Logger for this module, re-tagged with the enclosing function name at each
  site.
  */
-const responseLogger = tagged({ tag: 'mcp-mvm-response', },);
+const responseLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'response',
+},);
 
 //endregion Logging
 
