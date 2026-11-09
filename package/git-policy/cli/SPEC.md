@@ -470,10 +470,22 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   for the Git directory itself
   (`git rev-parse --path-format=absolute --git-common-dir` and `--absolute-git-dir`),
   and for `core.hooksPath`
-  (`git config --type=path --get core.hooksPath`).
+  (`git config --type=path --null --show-scope --get-all core.hooksPath`).
   Each pathname is asked for on its own,
-  and each answer is read as bytes with only its one terminating line feed removed,
+  and each answer is read as bytes with only its one terminator removed,
   so a pathname that holds a line feed or bytes that are not UTF-8 is read exactly as Git printed it.
+  The hooks path is every value of the key with its scope,
+  NUL-delimited:
+  a configured directory whose name holds a line feed is one value,
+  and splitting the listing on line feeds read it as two and scanned a directory the person never named.
+  The configured directory is the last value that is not one of the wrapper's own hooks-off
+  directories:
+  a run inside a Git the wrapper started carries the wrapper's value last as command-scope configuration,
+  and must scan the person's directory and not `/dev/null/cli-git-no-hooks`.
+  A value counts as the wrapper's own only when Git reported it in the `command` scope and it names the
+  wrapper's own directory (see "Commit hooks"),
+  so a configuration file that merely spells such a path stays the person's and is scanned
+  (`src/native/health/doctor.rs`).
 - It scans `<git-common-dir>/hooks` and,
   when `core.hooksPath` is set,
   the directory it names.
@@ -489,6 +501,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   except names ending in `.sample`.
   Plain files without an execute bit,
   directories and samples are not hooks.
+  An entry that is gone by the time it is looked at,
+  deleted or replaced by another terminal or by a Git LFS upgrade after the directory was listed,
+  is not a hook and does not end the scan:
+  the report lists the hooks that are there.
+  A directory that cannot be read,
+  and an entry that fails to be looked at for any other reason,
+  is still an error with status 2.
 - A hook file that is byte for byte the shim git-lfs writes for its own name
   (`pre-push`,
   `post-checkout`,
@@ -3222,18 +3241,40 @@ of the review call and of the whole review).
   so it
   does not die of `SIGPIPE` when the command exits,
   and the system's init or subreaper reaps it.
-- The person's hook is never ended.
-  No hook of the person runs below a step the wrapper starts,
+- The person's hook is never ended by a step the wrapper starts for itself.
+  No hook of the person runs below such a step,
   because every Git the wrapper starts carries
   `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`),
   so the watch
   needs no way
   to tell a hook from Git.
   The stop signals the step and the processes it started and never a process beside it.
-  If hooks are ever started below a watched step,
-  a descendant that is a hook must count as work before this rule is
-  true.
-  The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+  A push to a local path or a `file://` remote is the one place a hook of the person runs below a watched step:
+  the setting does not follow the push into the remote,
+  so the remote's own `receive-pack` runs its `pre-receive`,
+  `update` and
+  `post-receive` hooks in the push's tree,
+  and the stop of a stalled push ends them with it (`src/native/push/bounded_push.rs`).
+  Such a stop is reported as what is known and nothing more:
+  that the push was stopped,
+  that the remote may or may not
+  have taken it,
+  and whether a retry is planned.
+  Nothing asks the remote what it holds,
+  because no question can
+  settle it:
+  the wrapper cannot know which object Git really sent,
+  which of a remote's push URLs went first,
+  or
+  which configuration shaped the attempt,
+  and a claim of delivery is one a person stops pushing on.
+  The retry settles the
+  question instead:
+  a push of something the remote already has succeeds,
+  and that success clears the record of the
+  stopped push for the person (`src/native/push/bounded_push.rs`,
+  `service_push_retry_tests.rs`,
+  "a_stopped_push_whose_reference_landed_is_settled_by_its_retry_and_claims_nothing").
 - The thread that gives a second-pass command its input is bounded by the same window applied to the input:
   the pipe's
   writing end is non-blocking,
@@ -3447,6 +3488,9 @@ so a walk taken while the step was alive is discarded when it ended in the meant
 and signals the step whatever that walk came to,
 recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
 so one of them may still be running),
+and a signal the kernel refused is recorded as `belowUnended` and said in the same words,
+because a program that was listed and could not be ended may still be running too,
+and the person is the one who can end it
 a stop recorded only when a signal was really taken for the step,
 only `ESRCH` from the descriptor's signal read as the step being gone,
 with every other refusal,
@@ -3491,10 +3535,16 @@ whose number the kernel keeps until it is reaped,
 so no process that took the number can be reached;
 the programs below it are read before the signal,
 while the step still holds its number,
-and ended through descriptors pinned the same way;
+and ended through descriptors pinned the same way,
+with every program it could not pin or not signal counted as `belowUnended`,
+so the stop says what it could not end instead of reporting a walk that ended everything it listed;
 and the child is reaped there,
 a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
-so the kernel's release of it never holds the command.
+so the kernel's release of it never holds the command,
+and the status that reap collects decides what ended the step:
+a step that finished by itself between the ceiling and the signal is answered with its own exit and no stop,
+because a kill cannot turn an exit into a signal,
+and only a status that is the `SIGKILL` this wait sent is a ceiling stop.
 
 That second enforcer is why the ceiling survives both failures the notice cannot:
 a system that refuses its thread,
@@ -3849,7 +3899,10 @@ on the commit path:
   and an open
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
-  Hooks are never ended by the wrapper.
+  A step of the landing never ends a hook of the person:
+  every Git it starts carries the hooks-off options,
+  and the one place a hook of the person runs below a step of the wrapper is a push to a local path
+  (see "The person's hook is never ended by a step the wrapper starts for itself").
 - A landing that ends before its intent is in the journal,
   and a restart that drops an open batch whose branch has not moved,
   keep the same two things:
@@ -4751,7 +4804,10 @@ in-process reader can) gives every value of the multi-valued keys.
   the connection closes or TCP gives up.
   A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime`
   reach Git unchanged and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
-  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
+  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before;
+  a stop says that the remote may or may not have taken the push and whether a retry is planned,
+  and the retry
+  is what settles it (`src/native/push/bounded_push.rs`).
   There is no ceiling:
   no total time ends a run that shows progress or holds an open connection (pick 5,
   above).
@@ -4810,7 +4866,14 @@ in-process reader can) gives every value of the multi-valued keys.
   seconds after a stop,
   which justify the kill and the sweep and not five seconds;
   an open question for the owner),
-  and reported as failed with exit code 124.
+  and reported with exit code 124.
+  The report names what was cut short,
+  says that the remote may or may not have taken the push,
+  and says whether a retry is planned;
+  it never claims a delivery,
+  because no question of the remote can settle one
+  (see "Commit hooks",
+  `src/native/push/bounded_push.rs`).
   The same stop (a catchable request,
   five seconds,
   then the kill) ends every Git child the wrapper stops:
@@ -4939,6 +5002,40 @@ in-process reader can) gives every value of the multi-valued keys.
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
   A successful push shows only the `remote:` lines and the lines of the reconcile.
+- The record a later command shows carries what the push came to,
+  as the first line of the record file,
+  and the notice is
+  worded from that:
+  a push Git refused delivered nothing,
+  so the note says the commit exists only on this computer;
+  a push
+  that was stopped or failed for a reason that can pass proves nothing about the remote,
+  so the note says it did not
+  finish,
+  that the remote may or may not have taken the commit,
+  and what happens next,
+  which follows the retry plan that still exists:
+  the service keeps the push in its retry plan,
+  or,
+  when the round that wrote the
+  record kept none,
+  it is not trying the push again by itself and the person pushes by hand
+  (`src/native/push/push_failure_notice_wording.rs`).
+  A round says so as it writes the record,
+  because it is the round that plans the next try or forgets the
+  branch's plan,
+  and a notice promising a try that was forgotten sends the person to wait for nothing.
+  No wording is ever chosen from the
+  text of Git's output or a remote hook's,
+  because a remote's hook controls that text:
+  a hook that prints the wrapper's own
+  delivery sentence is shown as what Git said and changes no framing
+  (`src/native/push/push_failure_notice.rs`).
+  The notice claims no delivery at all,
+  in any framing:
+  a stopped or unfinished push says only that it did not finish and that the remote may or may
+  not have taken the commit,
+  and the retry is what settles it.
 
 ### Manual push
 
@@ -6779,11 +6876,18 @@ a line still waiting at that ceiling is abandoned and logged.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
+The value it names is the last entry of the key that is not one of those overrides:
+an entry a
+wrapper-started Git put into a child as command-scope configuration is last in that child,
+and the warning is
+about the path the person configured,
+not about the one the wrapper injected.
 An override is recognized only as a `command` scope value
 (the only place the wrapper's overrides come from)
 that names `<git-common-dir>/<data folder>/shadow/<transaction>/no-hooks`,
 where the data folder is `monochromatic-git-policy-cli` or its earlier spelling:
-a path that merely ends the same way belongs to whoever made it and still warns.
+a path that merely ends the same way belongs to whoever made it and still warns,
+and so does such a path written into a configuration file.
 
 ### Core finding event
 
@@ -8860,6 +8964,36 @@ and the executable does not read the name it was started under.
   events and the ways forward (remove the keys,
   or express what the hook checked as a monochromatic-git-policy-cli policy under `policies`
   in `monochromatic-git-policy-cli.config.jsonc`).
+  A hook the author switched off is not named:
+  neither by its own `hook.<name>.enabled=false` nor by every event it asks for having
+  `hook.<event>.enabled=false`,
+  which is Git's own switch for the whole event
+  (`git hook list` reports such a hook as `event-disabled`).
+  The two switches are read from different places,
+  because the wrapper supplies only one of them:
+  - `hook.<event>.enabled` is read from the configuration files,
+    the `command` scope left out,
+    because the
+    wrapper itself supplies `false` for every event on every Git it starts,
+    a Git child passes those values on through
+    `GIT_CONFIG_PARAMETERS`,
+    and reading them here let the wrapper's own suppression hide a hook the person
+    configured,
+    from doctor and from the commit warning alike.
+  - `hook.<name>.enabled` is read the way Git reads it,
+    every scope,
+    the `command` one last and
+    winning,
+    because the wrapper writes no such switch at all:
+    a `-c hook.<name>.enabled=true` is the caller's own
+    choice,
+    and a `-c ...=false` is too,
+    so neither is discarded.
+  A hook that asks for no event,
+  or has an event and no command,
+  is named:
+  the first never runs and the second makes Git refuse the event,
+  and the warning says neither runs through the wrapper.
   `git monochromatic-git-policy-cli doctor` lists the same hooks,
   one `hook.<name> (events: ...)` line each,
   and exits 1 while any remain.
@@ -8957,39 +9091,53 @@ For injected commit-only semantics:
     233,618,538 bytes of LFS content cleaned and 3.6 s for an index built from the base alone,
     against 0.1 s for a copy).
     Intent-to-add entries stay in the copy,
-    because they carry no cached stat data and copy as they are:
-    the reset to the base then leaves a mark whose mode and object name match the entry the base holds,
-    replaces one that differs,
-    and drops one the base does not hold,
-    exactly as native Git's own reset does.
+    because they carry no cached stat data and copy as they are,
+    and the paths they name are cleared before the reset
+    (`copy_index_for_reset`,
+    `commit_index_copying.rs`):
+    the reset to the base then writes the base's own entry at each of those paths,
+    replaces one whose mode or object name differs,
+    and drops one the base does not hold.
+    A mark whose mode and object name match the base's entry survives native Git's own reset,
+    and a tree built from an index that holds it leaves the path out as soon as anything invalidates the cached tree
+    (measured with Git 2.56.0:
+    staging the selected path does,
+    and so does a scratch-commit hook),
+    so the wrapper keeps a tracked file nobody named.
     The selected additions are carried afterwards
     (`git diff-index --cached --diff-filter=A` against the base,
     step 2),
     and that step is never skipped for an index holding such a mark:
     a force-added ignored file the real index holds as intent-to-add is an addition the selection names,
     and native Git records it with its worktree content (measured against Git 2.56.0).
-    A tracked file whose intent-to-add entry equals the base's entry stays in the commit's tree,
-    where native Git leaves that path out:
-    the scratch `git commit` builds its tree from the base for every path the command does not name,
-    and the wrapper never records a removal the person did not make.
     An index that holds an assume-unchanged or skip-worktree entry,
     or one the in-process readers do not understand,
     is built from the base alone instead:
     a copied mark makes `git add --all` skip or refuse a file the commit named,
     where native Git stages it.
     A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
+    from the same copy and through the same clearing,
+    so it holds exactly the requested tree,
     with the same answers,
-    and one thing more:
-    it writes the requested tree's own entry over every path an intent-to-add mark names,
-    before the reset.
-    A rebuild holds exactly that tree,
-    so an entry the reset would leave marked must not survive:
-    a scratch-commit hook that restages an unrelated file invalidates the cached tree,
-    and a surviving mark would leave a tracked file nobody named out of the tree the index writes.
-    Native Git's own reset leaves such a mark,
-    and a tree built from that index omits the path (measured with Git 2.56.0);
-    the wrapper keeps the file,
-    as it does for the first preparation.
+    and neither preparation keeps a rule of its own.
+    One window stays open in that rebuild and is written here rather than closed
+    (`initialize_retry_index`,
+    `commit_index.rs`):
+    the real index is classified at the start of the build and copied after the stat refresh,
+    and a command that replaces it between the two
+    leaves the copy holding intent-to-add entries the classification never named,
+    so the clearing above does not reach them.
+    A second program inside those few instructions can therefore make a retry record a deletion the person did not make:
+    the reset keeps a mark whose mode and object name match the requested tree's entry,
+    and a scratch-commit hook that restages a file the commit names invalidates the cached tree,
+    after which the tree written from that index leaves the tracked file out
+    (measured with Git 2.56.0:
+    the mark survives the reset,
+    the tree still holds the path while the cached tree stands,
+    and the restage drops it).
+    No lock covers it:
+    the real index belongs to the person and their other commands,
+    and a lock held across the stat refresh would stop them to protect a path nothing named.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
@@ -9188,27 +9336,63 @@ measuring the read on the development host on 2026-11-09 took 1.56 ms for 16 MiB
 medians of five runs each,
 so the two reads of a 14 MiB conflicted file cost about 0.6 ms beside the 396 ms and 403 ms the whole merge step
 of a 7 MiB conflict was measured at;
-a file larger than three times the pass's 8 MiB stage limit is never compared by its bytes,
-and the pass leaves that conflict alone;
+a file larger than three times the pass's 8 MiB stage limit is never compared by its bytes;
 the index stages are read again just before the install,
-and the worktree file's device,
-inode,
-length and modification time are compared with what they were when the stages were read,
-so a path that moved in either place keeps the version that is there now and is never replaced by the pass.
+and a path whose stages or bytes are not the ones the merge read keeps the version that is there now
+and is never replaced by the pass.
 Where every merged file moved,
 nothing is installed and that line alone is printed.
-The check and the install are two Git commands,
-so a second process that resolves and stages the same path in the few instructions between them still loses that resolution:
-`git update-index --index-info` replaces its stage 0 entry and `git checkout-index --force` replaces its worktree bytes.
+
+Not being able to compare a path is not finding it unchanged:
+a file past that limit,
+one that cannot be read,
+and one that is no plain file when opened
+(a named pipe,
+a device,
+a directory,
+a link)
+are recorded as nothing to compare,
+two nothings are never equal,
+and such a path keeps what is there now,
+with a line of its own naming it
+(`src/native/merge/merge_second_pass_worktree_unchanged.rs`).
+The type is judged on the open handle,
+which is opened with `O_NONBLOCK` and `O_NOFOLLOW`
+(`src/native/foundation/plain_file.rs`),
+because opening a named pipe for reading waits for a writer that may never come,
+and a writer that holds one open without writing moves that wait into the read,
+which no byte limit bounds either.
+
+Two windows are recorded here rather than closed,
+each a few instructions wide,
+and each needs another process to land inside it.
+The first is between the pass reading the worktree for the last time and the step that installs:
+a save written to the worktree file then is replaced by `git checkout-index --force`,
+and a resolution another process stages then is replaced by `git update-index --index-info`.
 The owner's instruction of 2026-11-09 is to record that window rather than close it with more mechanism
 (`doc/planning/cli-git-conflict-resolution-route-findings-on-main.md`),
 and what the person sees if they are in it is their resolution replaced:
 the file holds the pass's merged bytes,
 the line names the path among those staged as resolved,
-and `git diff --cached -- <path>` and the file itself show the merge rather than what they wrote.
+`git diff --cached -- <path>` and the file itself show the merge rather than what they wrote,
+and with every other conflicted file resolved the finish commits that merge.
 Nothing else is lost:
-/// the index stages,
-/// the merge's own inputs and the commit are untouched.
+the index stages,
+the merge's own inputs and the commit are untouched.
+
+The second window is between Git writing the conflict and the pass reading what the worktree holds:
+the snapshot is taken when Git exits,
+so an edit saved in between is what it records,
+the comparison before the install matches that edit,
+the pass stages its own merge over it,
+and the line names that path among those staged as resolved rather than among those left alone.
+The person therefore loses the resolution saved between Git stopping and the pass starting,
+and sees the pass's bytes in the file and in the commit that follows,
+with nothing said about what they wrote.
+The worktree is read before the merge is computed,
+so that no edit made during the pass's own work can become that baseline;
+nothing inside the pass can tell an edit saved after Git wrote the conflict from the conflict Git wrote
+(`resolve_after` in `src/native/merge/merge_second_pass_worktree.rs`).
 When a finish is planned the line says the wrapper finishes the operation below;
 otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,
@@ -9414,8 +9598,14 @@ leaves the operation stopped with the files staged and Git's exit status,
 A file that does not resolve keeps the stop of Git for every operation.
 A merge that Git completes costs one in-process read of the index before Git starts and nothing after it;
   the Git starts above happen only after a conflict,
-and they run from the top of the worktree with the invocation's `-c` options only,
-  because `check-attr` and `checkout-index` read paths relative to the directory they run in.
+and they run from the top of the worktree with the invocation's configuration options only
+  (`-c`,
+  `--config-env`,
+  and `--attr-source`,
+  each in the forms Git accepts),
+  because `check-attr` and `checkout-index` read paths relative to the directory they run in,
+  and because every one of those options can name the attribute tree the person chose:
+  a pass that dropped one read attributes from another source and merged a file their rules exclude.
 
 Merges from objects (the isolated merge,
 the auto-push reconcile merge,
@@ -9446,6 +9636,16 @@ so a resolving one there is the person's choice even where a file sets the key,
 and one that is no tree is ignored as a configured one is;
 `-c attr.tree` with no value sets `true`,
 which no tree resolves to.
+A `--config-env=attr.tree=<variable>` in either of its forms sets the same key,
+with the value the environment the Git children get holds under that name,
+read after the last `=` of the entry as Git splits it;
+an empty value there is no value and is ignored as a configured one is,
+and a variable the environment does not hold makes Git stop before it reads anything,
+so no tree is named over that either.
+`-cattr.tree=<spec>`,
+with no space after `-c`,
+is no form Git accepts,
+so there is none to read.
 The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`,
 the
 reconcile merge's branch tip,
@@ -9864,6 +10064,9 @@ kept with a zero bound when a look saw it only once,
 `belowCpuMs` the processor time everything below the step had used at the last look,
 `belowUnlisted` whether the programs below the step could not be listed when it was ended,
 so one of them may still be running,
+`belowUnended` how many programs below the step were not ended because the kernel refused a descriptor for one of them
+or refused the signal to it,
+so each of those may still be running and the stop's words say so,
 `blindLooks` how many looks could not be made at all because `/proc` refused the read,
 and `blockedLooks` how many looks found one of them in uninterruptible sleep;
 an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;
@@ -10640,16 +10843,60 @@ and leave one audit line each
   because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
   and a record that read the local branch would name the wrong commit to restore.
   A reference name is bytes and not text:
-  a branch name that is not UTF-8 is passed to `rev-parse` as it is written
-  and named in the line as JSON can hold it,
-  because a name converted to text would arrive empty and the deletion would leave no line.
-  A name Git expands before deleting (`@{-1}`,
-  the branch the worktree visited before the current one) is read through
-  `git rev-parse --symbolic-full-name --verify`,
-  and the line names the branch that expression resolved to and its commit,
+  a branch name that is not UTF-8 is passed to `rev-parse` as it is written,
+  and the line names it twice,
+  `reference` as its text and `referenceHex` as its bytes,
+  the way the record's own `gitDirHex`,
+  `cwdHex` and `argumentsHex` keep theirs.
+  The text field is how a person reads the line;
+  the hex field is the identity,
+  because a text field for `refs/heads/lost-\xff` holds replacement characters,
+  and restoring from it would create a different branch.
+  A name Git expands before deleting is read through the expansion Git's own branch deletion performs,
+  which depends on the namespace it deletes from.
+  A local one is `git check-ref-format --branch`,
+  Git's `copy_branchname` under `INTERPRET_BRANCH_LOCAL` behind Git's own branch-name checks,
+  so `@{-1}` (the branch the worktree visited before the current one) resolves to that branch,
+  and a revision that is no branch name (`HEAD`,
+  `@`,
+  `main@{1}`) resolves to nothing.
+  A remote-tracking one is `git rev-parse --symbolic-full-name --verify`,
+  read only when the operand spells a branch mark (`@{`) and Git's answer is a `refs/remotes/`
+  reference,
+  which is what `INTERPRET_BRANCH_REMOTE` leaves of `@{u}` and `@{push}`,
+  and which `@{-1}` and `HEAD` never are because they resolve to a local branch.
+  General revision resolution is never asked for a name of its own:
+  it answers `refs/heads/main` for `HEAD`,
+  and a line naming `main` for a deletion Git refused would restore a branch the command
+  never took,
+  where the owner's line states what the deletion took.
+  The line names the branch the typed or expanded name resolved to and its commit,
   so the owner's line is written for every deletion Git runs;
   the typed reference is asked about first,
-  so a plain name costs the one query it always did.
+  so a plain name costs the one query it always did,
+  and a reference literally named `refs/heads/HEAD` is still a branch of its own that Git
+  deletes and the line records.
+  A line states what the deletion was about to take,
+  not what it took.
+  `deletion_facts` reads the reference and its commit,
+  `record_audited` appends the line,
+  and only then does real Git resolve the reference again and delete it,
+  so the read,
+  the line and the deletion are three steps,
+  and the wrapper holds no lock across them.
+  Another command can move the branch in that gap
+  (`git update-ref refs/heads/lost <newer> <older>`),
+  and Git then deletes the newer tip while the line names the older one:
+  restoring from the line restores a tip the deletion did not remove,
+  and the tip it did remove is named by no line.
+  The deleted branch's own reflog goes with its reference
+  (measured on Git 2.56.0:
+  no `.git/logs/refs/heads/<name>` survives `git branch -D <name>`),
+  so that tip stays only where the object store and any other reference or reflog still reach it.
+  `writtenBeforeGitRuns` already says the line is no result,
+  and the gap is accepted rather than closed by a lock:
+  "Use as few locks as possible",
+  and a lock over the reference would have to be held across the person's whole Git command.
   The region is read with the wrapper's own `git branch` option table and tokenizer,
   the same ones every other `git branch` fact uses,
   so every spelling and abbreviation Git accepts is read
