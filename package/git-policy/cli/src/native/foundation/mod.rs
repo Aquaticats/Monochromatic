@@ -41,6 +41,10 @@ pub mod iso_time;
 /// Lexical path normalization.
 pub mod lexical_path;
 
+/// A path kept as text in a record,
+/// with its bytes in hexadecimal beside the plain text.
+pub mod path_bytes_in_records;
+
 /// How many workers independent items may use together,
 /// from the CPUs allowed,
 /// the memory free and a measured ceiling.

@@ -26,7 +26,7 @@ const THIRD_OID: &str = "456789abcdef0123456789abcdef0123456789ab";
 struct Recorder {
     verdict: Verdict,
     pushes: RefCell<Vec<Vec<String>>>,
-    upkeeps: RefCell<Vec<String>>,
+    upkeeps: RefCell<Vec<PathBuf>>,
     reviews: RefCell<Vec<String>>,
 }
 
@@ -73,8 +73,8 @@ fn repo(name: &str) -> Repo {
 fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
     return WorkItem {
         kind,
-        repository: repo.worktree.display().to_string(),
-        git_dir: repo.common.display().to_string(),
+        repository: repo.worktree.to_path_buf(),
+        git_dir: repo.common.to_path_buf(),
         branch_ref: branch.to_string(),
         oid: oid.to_string(),
         parent: String::new(),
@@ -247,7 +247,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
 #[test]
 fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     let repo: Repo = repo("work-refused");
-    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere").display().to_string(), ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), ..item(&repo, WorkKind::Push, OID, BRANCH) };
     let bad_reference: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/a b");
     for refused in [&elsewhere, &bad_reference] {
         assert!(!is_acceptable(refused, repo.common.as_path()), "{refused:?}");
@@ -863,8 +863,8 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let common: PathBuf = root.join(".git");
     let review: WorkItem = WorkItem {
         kind: WorkKind::Review,
-        repository: root.display().to_string(),
-        git_dir: common.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: common.to_path_buf(),
         branch_ref: BRANCH.to_string(),
         oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
         parent: String::new(),

@@ -48,8 +48,8 @@ fn repo(name: &str) -> Repo {
 fn item(kind: WorkKind, commit: &str) -> WorkItem {
     return WorkItem {
         kind,
-        repository: String::from("/nowhere"),
-        git_dir: String::from("/nowhere/.git"),
+        repository: PathBuf::from("/nowhere"),
+        git_dir: PathBuf::from("/nowhere/.git"),
         branch_ref: BRANCH.to_string(),
         oid: commit.to_string(),
         parent: String::new(),

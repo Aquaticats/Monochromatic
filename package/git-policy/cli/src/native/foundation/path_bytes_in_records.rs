@@ -1,0 +1,127 @@
+//! What:
+//!  A path written into a record as hexadecimal bytes,
+//! and the plain text record that a path was written as before.
+//! Why:
+//!  A record is text,
+//! so a path that goes into one as `display()` loses every byte that is not UTF-8,
+//! and a reader
+//!  that compares the value with the directory it came from then refuses what the writer accepted.
+//! A record now carries the path's bytes in hexadecimal under a second field,
+//! and a reader prefers it;
+//! the plain field stays beside it,
+//! so a record written by an earlier release is still read,
+//! and so is one written by this release for a repository whose path is text.
+//! Log messages are not of this kind:
+//! a byte lost in a line the person reads changes nothing.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! record.gitDir = path.toString(); record.gitDirHex = Buffer.from(path).toString('hex')
+//! ```
+
+use serde_json::{Map, Value};
+use std::path::{Path, PathBuf};
+
+/// What:
+///  The end of the second field of a path:
+/// the plain field's name and this make `gitDirHex`,
+/// which holds the path's bytes.
+/// Why:
+///  `write_field` and `read_field` both build the name from the one suffix,
+/// so a reader and a writer cannot disagree about where the bytes are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HEX_SUFFIX = 'Hex';
+/// ```
+pub const HEX_SUFFIX: &str = "Hex";
+
+/// What:
+///  The path's bytes as lowercase hexadecimal digits.
+/// Why:
+///  `write_field` stores this,
+/// and it is the only form of a path that a record can hold without losing a byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathBytesHex = (path: string) => Buffer.from(path).toString('hex');
+/// ```
+pub fn hex_of_path(path: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    let mut hex: String = String::with_capacity(path.as_os_str().as_bytes().len() * 2);
+    for byte in path.as_os_str().as_bytes() {
+        hex.push_str(format!("{byte:02x}").as_str());
+    }
+    return hex;
+}
+
+/// What:
+///  The path whose bytes the digits spell,
+/// nothing when they are not an even number of hexadecimal digits.
+/// Why:
+///  `read_field` turns the second field back into the directory the writer named,
+/// and a field that is not of that form is no path at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathOfHex = (hex: string) => hex.length % 2 === 0 && /^[0-9a-f]*$/i.test(hex) ? Buffer.from(hex, 'hex').toString() : undefined;
+/// ```
+pub fn path_of_hex(hex: &str) -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStringExt;
+    if hex.len() % 2 != 0 || !hex.as_bytes().iter().all(u8::is_ascii_hexdigit) {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(hex.len() / 2);
+    for pair in hex.as_bytes().chunks(2) {
+        bytes.push(u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?);
+    }
+    return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes)));
+}
+
+/// What:
+///  Put `path` into the record `fields` under `key` as plain text and under `key` followed by
+/// `HEX_SUFFIX` as its bytes.
+/// Why:
+///   A reader that predates the second field reads the plain text,
+/// which is the whole path whenever the path is text,
+/// and this release's reader takes the bytes,
+///  which are the whole path always.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fields[key] = path.toString(); fields[key + HEX_SUFFIX] = pathBytesHex(path);
+/// ```
+pub fn write_field(fields: &mut Map<String, Value>, key: &str, path: &Path) {
+    fields.insert(String::from(key), Value::from(path.display().to_string()));
+    fields.insert(format!("{key}{HEX_SUFFIX}"), Value::from(hex_of_path(path)));
+}
+
+/// What:
+///  The path a record holds under `key`:
+/// its bytes from the second field when the record has them,
+/// the plain text otherwise.
+/// Why:
+///   A record written before the second field existed holds only text,
+/// and one written now holds both;
+/// reading the bytes first means the plain text is never used for a path that has them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readPathField = (record, key) => record[key + HEX_SUFFIX] !== undefined ? pathOfHex(record[key + HEX_SUFFIX]) : record[key];
+/// ```
+pub fn read_field(value: &Value, key: &str) -> Result<PathBuf, String> {
+    match value.get(format!("{key}{HEX_SUFFIX}")) {
+        Some(Value::String(hex)) => return path_of_hex(hex.as_str()).ok_or_else(|| { return format!("the {key} field is not the bytes of a path"); }),
+        Some(_not_text) => return Err(format!("the {key} field is not the bytes of a path")),
+        None => {}
+    }
+    return match value.get(key).and_then(Value::as_str) {
+        Some(text) => Ok(PathBuf::from(text)),
+        None => Err(format!("the record has no {key} field")),
+    };
+}
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "path_bytes_in_records_tests.rs"]
+mod tests;

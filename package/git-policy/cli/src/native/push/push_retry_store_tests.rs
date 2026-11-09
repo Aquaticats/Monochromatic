@@ -20,8 +20,8 @@ fn plan(branch: &str, oid: &str, attempt: u32) -> StoredPlan {
         git_dir: PathBuf::from("/srv/repo/.git"),
         item: WorkItem {
             kind: WorkKind::Push,
-            repository: String::from("/srv/repo"),
-            git_dir: String::from("/srv/repo/.git"),
+            repository: PathBuf::from("/srv/repo"),
+            git_dir: PathBuf::from("/srv/repo/.git"),
             branch_ref: branch.to_owned(),
             oid: oid.to_owned(),
             parent: String::new(),
