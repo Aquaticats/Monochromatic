@@ -25,7 +25,6 @@
 
 use crate::autostash_carry::carry_stash;
 use crate::conclusion_cleanup::reproduce_conclusion_cleanup;
-use crate::conflict_side_modes::MODE_VARIABLES;
 use crate::diagnostic_log::warn;
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_within};
 use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
@@ -36,7 +35,6 @@ pub use crate::service_land_copy::PrivateCopy;
 use crate::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_journal::RefFormat;
-use std::ffi::OsString;
 use std::path::Path;
 
 /// How many times the index update is tried again when the lock was gone by the time it was looked at:
@@ -85,17 +83,11 @@ pub enum IndexPaths<'a> {
 }
 
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, arguments);
+    // Every pathspec this module writes is its own, so the caller's pathspec mode must not reach it
+    // (`GitRequest::without_pathspec_modes`).
+    let mut request: GitRequest = GitRequest::new(repository, arguments).without_pathspec_modes();
     request.input = input;
     request.index = index.map(Path::to_path_buf);
-    // Every pathspec this module writes is its own, so no pathspec mode the service inherited reaches it:
-    // `GIT_ICASE_PATHSPECS=1` makes `:(top,literal)a.txt` match `A.txt` too, and the reset then replaces the staged entry
-    // of a path the batch never selected. Measured against Git 2.56.0: no option turns case-insensitive matching off
-    // (`--no-icase-pathspecs` is an unknown global), and `GIT_GLOB_PATHSPECS=1` beside `GIT_NOGLOB_PATHSPECS=1` is
-    // refused outright ("global 'glob' and 'noglob' pathspec settings are incompatible"), which removing both avoids.
-    for name in MODE_VARIABLES {
-        request.unset.push(OsString::from(name));
-    }
     return match run_git(git, &request) {
         Ok(output) => Ok(output),
         Err(_unstartable) => Err(FailureCode::Unavailable),

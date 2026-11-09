@@ -576,6 +576,50 @@ fn a_refused_reset_still_sets_the_entry_to_the_head() {
     remove(world.root.as_path());
 }
 
+/// The repair changes the paths it decided on and nothing else:
+/// with `GIT_ICASE_PATHSPECS=1` in the service's environment,
+/// `:(top,literal)a.txt` matches `A.txt` as well,
+/// so the removal before the write takes the staged entry of `A.txt` out of the commit's index,
+/// and the commit records that path as a deletion.
+#[test]
+fn a_repair_removes_no_staged_entry_of_a_case_twin() {
+    let world: World = world("service-land-owed-icase-prune");
+    std::fs::write(world.repo.join("A.txt"), "upper\n").expect("write A.txt");
+    std::fs::write(world.repo.join("a.txt"), "lower\n").expect("write a.txt");
+    git(world.repo.as_path(), &["add", "--", "A.txt", "a.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base", "--", "A.txt", "a.txt"]);
+    let landed: CommitRequest = request(&world, "landed", "a.txt", "lower changed\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    // The commit stages its own edit of `A.txt` into its copy, and the worktree copy goes back,
+    // so those contents exist in the index and the object store alone.
+    std::fs::write(world.repo.join("A.txt"), "staged only\n").expect("stage other contents");
+    index_run(&world, commit_index.as_path(), &["add", "--", "A.txt"]);
+    std::fs::write(world.repo.join("A.txt"), "worktree again\n").expect("overwrite the worktree copy");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["show", ":A.txt"]), "staged only", "the commit's copy holds the staged entry");
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.overlay.push((std::ffi::OsString::from("GIT_ICASE_PATHSPECS"), std::ffi::OsString::from("1")));
+    let captured: crate::service_land_start::IndexWitness =
+        crate::service_land_start::witness_of(real_index_of(&world).as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &captured,
+    )
+    .expect("the repair of the landed path");
+    assert_eq!(left, vec![String::from("a.txt")], "the landed path is left out");
+    assert_eq!(
+        index_text(&world, commit_index.as_path(), &["show", ":A.txt"]),
+        "staged only",
+        "the staged entry the batch never selected stays in the commit's index"
+    );
+    remove(world.root.as_path());
+}
+
 /// When every way to set the entry to the head refuses,
 /// the commit's index is left exactly as it was:
 /// a successful removal never outlives a refused write.
