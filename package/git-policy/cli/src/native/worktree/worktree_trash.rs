@@ -36,8 +36,6 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
 use crate::fs_kind::{is_stand_in, is_subvolume_root};
 use crate::random_id::random_uuid;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
@@ -76,62 +74,6 @@ const DIRECTORY_MODES: [u32; 2] = [0o040_000, 0o160_000];
 
 /// The mode bits that carry the type of an index entry.
 const TYPE_MASK: u32 = 0o170_000;
-
-/// What:
-///  The run that asks Git whether it ignores the place the trash would be made at.
-/// Why:
-///   Both faces of the question start the same child,
-/// so they cannot ask different things.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // `git check-ignore --no-index -- .claude/cli-git-trash/probe/x`
-/// ```
-fn trash_ignore_request(root: &Path) -> GitRequest {
-    return GitRequest {
-        cwd: root.to_path_buf(),
-        arguments: ["check-ignore", "--no-index", "--"].iter().map(std::ffi::OsString::from).chain(std::iter::once(std::ffi::OsString::from(format!("{TRASH_PARENT}/probe/x")))).collect(),
-        without_prefix: true,
-        ..GitRequest::default()
-    };
-}
-
-/// What:
-///  Whether Git ignores the place the trash would be made at in this worktree.
-/// Why:
-///   A trash directory Git does not ignore would list as untracked until emptied,
-/// so the leave-out removes in the foreground
-///  instead when the answer is no or unknown.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await runGit(['check-ignore', '--no-index', '--', `${TRASH_PARENT}/probe/x`]).exitCode === 0
-/// ```
-pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
-    return match run_git(context, &trash_ignore_request(root)) {
-        Ok(output) => output.code == Some(0),
-        Err(_not_started) => false,
-    };
-}
-
-/// What:
-///  `trash_location_is_ignored` with the Git child awaited on the runtime.
-/// Why:
-///   The source check asks this beside the configuration read and the cleanliness check,
-/// on a task of the runtime,
-///  which cannot enter that runtime to run a child;
-/// the run's bound and quiet window are the synchronous face's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function trashLocationIsIgnoredAwaiting(context: GitContext, root: string): Promise<boolean>;
-/// ```
-pub async fn trash_location_is_ignored_awaiting(context: &GitContext, root: &Path) -> bool {
-    return match run_git_awaiting(context, &trash_ignore_request(root)).await {
-        Ok(output) => output.code == Some(0),
-        Err(_not_started) => false,
-    };
-}
 
 /// A name for one trash directory:
 /// forty hexadecimal digits,

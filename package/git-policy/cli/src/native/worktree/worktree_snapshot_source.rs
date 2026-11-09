@@ -35,7 +35,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, check_clean_awaiting, dirty_source};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_trash::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
+use crate::worktree_trash_ignore_rule::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
