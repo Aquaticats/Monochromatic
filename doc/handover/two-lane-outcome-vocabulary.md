@@ -1,5 +1,12 @@
 # Handover: the lane outcome vocabulary and what is mid-flight
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `//package/module/translation-repair:rendering-audit-settled` is now
+> `//package/translation-repair/probe:rendering-audit-settled` (2026-10-18 `4bd1aea8d5`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

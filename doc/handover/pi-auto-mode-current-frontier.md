@@ -1,5 +1,18 @@
 # Auto-mode current frontier
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `doc/error-name-contract.md` is now
+> `package/pi-plugin/auto-mode/doc/error-name-contract.md` (2026-10-18 `5984de85c8`).
+> `doc/build-lifecycle.md` is now `package/pi-plugin/auto-mode/doc/build-lifecycle.md`
+> (2026-10-17 `14d426f328`).
+> `package/module/logger/doc/file-destinations.md` is now
+> `package/logger/core/doc/file-destinations.md` (2026-10-29 `592d78b143`).
+> `doc/compact-review-design.md` is now
+> `package/pi-plugin/auto-mode/doc/compact-review-design.md` (2026-10-17 `a861a7c1be`).
+> `package/pi-plugin/auto-mode/native/contract/integration/policy-source/policy-input-collector.mjs`
+> is deleted (2026-10-19 `ff55ced353`) and no path of that name exists today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

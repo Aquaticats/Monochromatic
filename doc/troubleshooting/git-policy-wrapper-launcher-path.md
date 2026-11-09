@@ -102,6 +102,15 @@ The wrapper README already describes the PATH bypass.
 The required durable remedy is an observable launcher preflight,
 not another documentation-only warning.
 
+`package/git-policy/cli/src/native/rule_commit_only.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/commit/rule_commit_only.rs` in `a004a6ab2c`
+(refactor(git-policy-cli):
+move the commit path modules into a commit folder).
+`package/git-policy/cli/src/native/shadow_links.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/shadow/shadow_links.rs` in `373765289c`
+(refactor(git-policy-cli):
+move the shadow repository and replay modules into a shadow folder).
+
 [Issue 1768](https://github.com/Aquaticats/Monochromatic/issues/1768) records this UX and integration gap.
 [Issue 575](https://github.com/Aquaticats/Monochromatic/issues/575) covers related explicit real-Git invocations.
 Recognizing only absolute paths would miss this incident's ordinary `git` spelling.

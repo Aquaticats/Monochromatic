@@ -1,5 +1,24 @@
 # HANDOVER.resharp-panic-fix
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/forbidden-strings/Cargo.toml` is now
+> `package/forbidden-strings/cli/Cargo.toml` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/rule.rs` is now
+> `package/forbidden-strings/cli/src/rule.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/rule/engine.rs` is deleted (2026-07-17 `a85bf020f2`)
+> and `package/forbidden-strings/core` serves its job today.
+> `package/cli/forbidden-strings/src/rule/engine_tests.rs` is deleted
+> (2026-07-17 `a85bf020f2`) and `package/forbidden-strings/core` serves its job today.
+> `//package/cli/forbidden-strings:test` is now `//package/forbidden-strings/cli:test`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:build` is now `//package/forbidden-strings/cli:build`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:lint` is now `//package/forbidden-strings/cli:lint`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:lint:clippy` is now
+> `//package/forbidden-strings/cli:lint:clippy` (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

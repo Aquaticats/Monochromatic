@@ -1,5 +1,22 @@
 # cli-git native post-landing lane
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/bin.ts` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional` is deleted (2026-10-13 `642b6d72cb`) and
+> `package/forbidden-strings/core` and `package/linter/monochromatic-lint` carry its two
+> features in Rust today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/rule` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine/commit-transaction-conclusion.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.

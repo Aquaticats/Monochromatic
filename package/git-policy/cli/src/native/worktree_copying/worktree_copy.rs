@@ -45,6 +45,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure_of};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_source_still_being_filled::{source_is_still_being_filled, source_still_being_filled_notice};
 use crate::worktree_copy_registry::{
     CreatedWorktrees, WorktreeCopyObservation, destination_is_registered, find_created_worktree, observe_copy_source,
 };
@@ -356,6 +357,15 @@ fn synchronize_after(
     match observation.source_root.as_ref() {
         None => {}
         Some(source) => {
+            // A source that is itself receiving a copy holds only part of its ignored files, so nothing is staged from it;
+            // the new worktree is made whole by the same add once that copy has finished, and the person is told so.
+            if source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())? {
+                let line: String = source_still_being_filled_notice(destination, source.as_path());
+                stderr
+                    .write_all(line.as_bytes())
+                    .map_err(raw_failure_of)?;
+                return Ok(Vec::new());
+            }
             for created in &found.created {
                 copied += synchronize_created_worktree_noting(
                     &invocation.context,

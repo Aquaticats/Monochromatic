@@ -1,5 +1,10 @@
 # Unified-linter processor mutation survivors
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/linter/monochromatic-lint/bin/test-container.mjs` is deleted
+> (2026-10-30 `4264752442`) and its TypeScript replacement serves its job today.
+
 Note 2026-10-30:
 `package/linter/monochromatic-lint/bin/test-container.mjs` and `clippy-container.mjs` are
 TypeScript files now;

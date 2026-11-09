@@ -91,6 +91,12 @@ Timeline from file times (all 2026-10-29 -0400 unless noted):
 - `node_modules/.pnpm-workspace-state-v1.json` rewritten 08:45:34,
   consistent with the user's `pnpm i`.
 
+`package/file-enforcer/core/package.json` was removed on 2026-10-31 in `e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own generator);
+no
+file in the working tree carries it now.
+
 ## Root cause
 
 ### Question 1: the wanted lockfile lists `config-typescript`

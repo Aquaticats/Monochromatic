@@ -1,5 +1,10 @@
 # Translation repair history, first handover document: loss of the run directory, worktree move and promotion of the driver, 2026-07-24
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+
 The accidental removal of the temporary directory that held the old driver and pass artifacts,
 the recovery into a durable gitignored location,
 the move of the worktree out of the repository,

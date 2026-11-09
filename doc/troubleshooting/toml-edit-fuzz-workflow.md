@@ -111,6 +111,9 @@ Commit `4e2e0e65e87949e46b7475a3802cde3cc3c2b1e2` refroze
 mise run //package/toml-edit/core.fuzz:fuzz:coverage --write
 ```
 
+`package/toml-edit/core/coverage-baseline.json` is not in the working tree and no commit in this
+repository carries it.
+
 A subsequent check-mode invocation passed locally.
 GitHub Actions run
 [32286257673](https://github.com/Aquaticat/Monochromatic/actions/runs/32286257673)

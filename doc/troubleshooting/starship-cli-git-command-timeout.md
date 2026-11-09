@@ -239,6 +239,14 @@ if (!willShortCircuit)
   },);
 ```
 
+The paths this record names under `package/git-policy/cli/src/` were removed on 2026-10-13 in
+`642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust
+workflow);
+no file in the working tree carries them now.
+
 The same identity reaches final forwarding at
 `package/git-policy/cli/src/bin.ts:338-348`:
 

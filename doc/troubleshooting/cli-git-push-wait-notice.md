@@ -69,6 +69,18 @@ return format!(
 );
 ```
 
+`package/git-policy/cli/src/native/auto_push.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/push/auto_push.rs` in `d88fd7ab2a` (refactor(git-policy-cli):
+move the push modules into a push folder).
+`package/git-policy/cli/src/native/bounded_push.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/push/bounded_push.rs` in `d88fd7ab2a` (refactor(git-policy-cli):
+move the push modules into a push folder).
+`package/git-policy/cli/src/native/owner_lock.rs` was removed on 2026-11-01 in `69d275d92b`
+(refactor(git-policy-cli):
+delete the in-process auto-push and the push lock family);
+no file in
+the working tree carries it now.
+
 `auto_push.rs:319` installs it as the coordinator's wait callback:
 
 ```rust

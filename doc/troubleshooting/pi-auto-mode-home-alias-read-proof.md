@@ -163,6 +163,12 @@ for (const command of executedCommands) {
 }
 ```
 
+The paths this record names under `package/pi-plugin/auto-mode/src/` were removed on 2026-10-17 in
+`a3955898f1` (refactor(pi-plugin-auto-mode):
+remove superseded extension pipeline);
+no file in the
+working tree carries them now.
+
 The shared analyzer now preserves each parsed argument value with its original shell spelling at
 `package/agent-harness-shared/shell-command-analyzer/src/types.ts:130-164`.
 It also preserves literal loop source spellings at lines 10 to 28.

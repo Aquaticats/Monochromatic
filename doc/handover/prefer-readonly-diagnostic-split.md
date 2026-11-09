@@ -1,5 +1,10 @@
 # Handover: split readonly diagnostics by evidence
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/caught-value:lint:oxlint` is now
+> `//package/caught-value/core:lint:oxlint` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

@@ -1,5 +1,10 @@
 # Pi advisor DSH variant grilling
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/pi-shared/model-selection` is now `package/agent-harness-shared/model-selection`
+> (2026-10-20 `b710410e81`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

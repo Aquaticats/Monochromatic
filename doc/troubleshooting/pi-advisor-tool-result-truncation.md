@@ -21,6 +21,11 @@ The current repository's Advisor uses a summarization serializer for review cont
 const serialized = serializeConversation(convertToLlm(messages,),);
 ```
 
+`package/pi-plugin/advisor/src/context.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/context.ts` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+
 In the installed `@earendil-works/pi-coding-agent@1.0.0`,
 `dist/core/compaction/utils.js:82` fixes a per-tool-result limit:
 

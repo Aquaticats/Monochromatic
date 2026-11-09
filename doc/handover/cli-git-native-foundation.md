@@ -1,5 +1,10 @@
 # cli-git native foundation
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git/executable/src/self-shim.ts` is now
+> `package/git-executable/core/src/self-shim.ts` (2026-10-29 `592d78b143`).
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.

@@ -24,6 +24,21 @@ The shared question scope is defined in
 `package/pi-plugin/auto-mode/native/contract/integration/action-policy/permission-review-scope.ts`.
 Both automatic review phases consume it.
 
+The paths this record names under `package/pi-plugin/auto-mode/native/contract/integration/` were
+removed on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi
+build);
+no file in the working tree carries them now.
+`package/pi-plugin/auto-mode/src/request-material-obligations.ts` was removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries it now.
+None of the `mise run` targets this record names resolves today:
+those tasks were removed on
+2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build).
+
 `package/pi-plugin/auto-mode/native/contract/integration/policy-source/decision-context.mjs:31`
 selects readable project policy sources and visible conversation before clause indexing:
 

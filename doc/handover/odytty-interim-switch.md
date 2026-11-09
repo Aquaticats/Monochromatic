@@ -1,5 +1,10 @@
 # Interim switch to OdyTTY
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/config/dotfiles/ghostty/config` is deleted (2026-11-02 `39113fdeba`) and no path
+> of that name exists today.
+
 ## Authorized scope
 
 On 2026-11-02 the user requested:

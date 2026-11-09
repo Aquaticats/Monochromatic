@@ -167,6 +167,9 @@ declare const rows: Row[];
 rows[0]!.outcome = 'verified';
 ```
 
+`package/monorepo-task/core-exec/src/issue-442-repro.ts` is not in the working tree and no commit
+in this repository carries it.
+
 With workspace dependencies available in that disposable worktree,
 run the same consumer boundary used by the repository:
 

@@ -39,6 +39,12 @@ continue to propagate.
 The existing metadata device check remains a useful exclusion,
 but cannot prove link availability.
 
+`package/pi-plugin/auto-mode/native/build-reuse.ts` was removed on 2026-10-19 in `ff55ced353`
+(refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no file in the working tree
+carries it now.
+
 ## Consumer verification and tradeoff
 
 `package/pi-plugin/auto-mode/native/build-reuse.platform.test.ts` invokes the actual `native/build.ts` command
