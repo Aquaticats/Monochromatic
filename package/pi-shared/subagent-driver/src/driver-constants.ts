@@ -71,6 +71,25 @@ export const NO_RUN_FAILURE: RunFailure = Object.freeze({ failed: false, });
 export const MODEL_ERROR_WITHOUT_TEXT = 'the model reported an error and said nothing about it';
 
 /**
+ How many attempts the driver makes after a model error another attempt may fix, chosen to match the `retry.maxRetries` default
+ Pi's own automatic retry uses (`docs/settings.md` in Pi 1.5.0) rather than guessed here.
+ */
+export const MODEL_ERROR_RETRY_CAP = 3;
+
+/**
+ Seconds before the first attempt after a model error, doubling with each attempt, chosen to match the `retry.baseDelayMs`
+ default Pi's own automatic retry uses (`docs/settings.md` in Pi 1.5.0).
+ */
+export const MODEL_ERROR_RETRY_BASE_SECONDS = 2;
+
+/**
+ Longest wait before one attempt after a model error, chosen to match the `retry.maxAgentDelayMs` default Pi's own automatic
+ retry uses (`docs/settings.md` in Pi 1.5.0). It bounds a provider that names an hour of backoff, and it bounds the growth of a
+ delay that doubles, so no run waits longer than this for one attempt.
+ */
+export const MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS = 60_000;
+
+/**
  Longest text of one kind kept on a feed line, carried over from the driver the recorded runs used. They bound the size of a feed
  line and change nothing about the run.
  */
@@ -84,4 +103,5 @@ export const FEED_PREVIEW_CHARACTERS = {
   eventDetail: 300,
   inboxMessage: 300,
   unreadableLine: 160,
+  modelError: 700,
 } as const;

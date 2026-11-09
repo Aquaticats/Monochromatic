@@ -295,6 +295,10 @@ pub use foundation::*;
 /// Test-only fixtures shared by many unit tests,
 ///  never part of the release executable.
 #[cfg(test)]
+#[path = "foundation/room_for_blocking_jobs_in_a_control.rs"]
+pub mod room_for_blocking_jobs_in_a_control;
+
+#[cfg(test)]
 pub mod testing;
 
 /// The same re-export for `testing`.

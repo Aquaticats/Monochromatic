@@ -11,7 +11,11 @@
 //! the lock of every worktree `git worktree list` reports for the repository,
 //! and any file given with `--lock`;
 //! the command refuses to delete anything when a listed worktree's lock cannot be read,
-//! because an unreadable lock might name a version that is about to be deleted.
+//! because an unreadable lock might name a version that is about to be deleted,
+//! and a file given with `--lock` names versions or refuses the command:
+//! it may not be absent, since a file that said what to keep cannot be read as keeping nothing.
+//! A crate directory the scan cannot read refuses the command too:
+//! reading it as empty would remove the whole directory, including a version a lock names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -152,6 +156,9 @@ fn crate_of_entry(id: &str, entry: &Value) -> String {
 /// Other worktrees may sit on a commit whose lock is in an older format;
 /// only `tools.<id>.version` and `route` are needed,
 /// and both are part of the lock's frozen surface.
+/// A `cargo-binstall` row without a `version` text is not such a surface:
+/// it is refused rather than read as naming nothing,
+/// because naming nothing is what lets the prune delete the crate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,23 +177,47 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
         if entry.get("route").and_then(Value::as_str) != Some("cargo-binstall") {
             continue;
         }
-        if let Some(version) = entry.get("version").and_then(Value::as_str) {
-            named.entry(crate_of_entry(id, entry)).or_default().insert(version.to_string());
-        }
+        let Some(version) = entry.get("version").and_then(Value::as_str) else {
+            // A row this command cannot read would protect nothing, and this is a deletion command: refusing keeps
+            // the crate it installs instead of reading the lock as if the row were not there.
+            return Err(ToolchainError::failure(format!(
+                "{origin} names a cargo-binstall tool without a version, so nothing was deleted; tools.{id} has no `version` text"
+            )));
+        };
+        named.entry(crate_of_entry(id, entry)).or_default().insert(version.to_string());
     }
     return Ok(named);
 }
 
-/// The cargo versions and the release-archive tools every lock in `lock_files` names;
-/// a file that does not exist names none,
-/// one that cannot be read or is not a lock refuses.
-fn named_by_all(lock_files: &[PathBuf]) -> Result<(BTreeMap<String, BTreeSet<String>>, BTreeMap<String, NamedArchive>), ToolchainError> {
+/// What:
+/// The cargo versions and the release-archive tools every lock the two lists give names.
+/// Why:
+/// The two lists differ in what an absent file means.
+/// A lock `git worktree list` reported may be gone by the time it is read (another run moved it on),
+/// so a missing one names none.
+/// A lock the caller named with `--lock` may not be missing:
+/// reading it as naming nothing would let this deletion command delete the version it names,
+/// so the refusal is raised where the file is read,
+/// never by a check that runs before the read,
+/// which a concurrent rename can outrun.
+pub(super) fn named_by_all(
+    discovered: &[PathBuf],
+    explicit: &[PathBuf],
+) -> Result<(BTreeMap<String, BTreeSet<String>>, BTreeMap<String, NamedArchive>), ToolchainError> {
     let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut archives: BTreeMap<String, NamedArchive> = BTreeMap::new();
-    for file in lock_files {
+    let mut locks_to_read: Vec<(&PathBuf, bool)> = discovered.iter().map(|file| return (file, false)).collect();
+    locks_to_read.extend(explicit.iter().map(|file| return (file, true)));
+    for (file, named_by_the_caller) in locks_to_read {
         let text: String = match fs::read_to_string(file) {
             Ok(text) => text,
-            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) if error.kind() == ErrorKind::NotFound && !named_by_the_caller => continue,
+            Err(error) if named_by_the_caller => {
+                return Err(ToolchainError::failure(format!(
+                    "the --lock file {} cannot be read: {error}; nothing was deleted",
+                    file.display()
+                )));
+            }
             Err(error) => {
                 return Err(ToolchainError::failure(format!("cannot read the lock {}: {error}; nothing was deleted", file.display())));
             }
@@ -218,42 +249,72 @@ fn named_by_all(lock_files: &[PathBuf]) -> Result<(BTreeMap<String, BTreeSet<Str
 /// ```ts
 /// function pruneArchives(scope: Scope, named: Map<string, NamedArchive>, dryRun: boolean): string[]
 /// ```
-fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run: bool) -> Result<Vec<PathBuf>, ToolchainError> {
+fn prune_archives(
+    scope: &Scope,
+    named: &BTreeMap<String, NamedArchive>,
+    dry_run: bool,
+    removed: &mut Vec<PathBuf>,
+) -> Result<(), ToolchainError> {
     let present = present_archive_versions(&scope.toolchain_root, named);
-    let mut removed: Vec<PathBuf> = Vec::new();
+    if !dry_run {
+        // What: every named archive tool's `current` is repointed before anything is deleted.
+        // Why: it names the newest finished version, which is never one of the deletions below,
+        // so moving the link first leaves a run killed at any later point with a link that resolves.
+        for (id, archive) in named {
+            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)
+                .map_err(|error| return after_removing(error, removed))?;
+        }
+    }
     for (id, version) in plan_archive_prune(&present) {
-        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)?;
+        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)
+            .map_err(|error| return after_removing(error, removed))?;
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
+            return Err(after_removing(
+                ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())),
+                removed,
+            ));
         }
         removed.push(directory);
     }
-    if !dry_run {
-        for (id, archive) in named {
-            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)?;
-        }
-    }
-    return Ok(removed);
+    return Ok(());
 }
 
-/// Every crate and version directory under `<toolchain root>/cargo`.
-fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersion>> {
+/// What:
+/// Every crate and version directory under `<toolchain root>/cargo`,
+/// or an error naming the first directory whose contents could not be read.
+/// Why:
+/// The prune deletes the versions no lock names,
+/// and the scan it runs after those deletions decides whether a crate directory still holds one.
+/// A directory this walk cannot read must therefore be reported and not left out:
+/// left out, it reads as "this crate holds nothing" and the whole crate directory goes,
+/// including a version a lock names.
+/// A crate directory that is gone holds nothing, so its absence is not a failed read.
+pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String, Vec<PresentVersion>>, ToolchainError> {
     let mut present: BTreeMap<String, Vec<PresentVersion>> = BTreeMap::new();
-    let Ok(crates) = fs::read_dir(toolchain_root.join(CARGO_NAMESPACE)) else {
-        return present;
+    let crates_dir: PathBuf = toolchain_root.join(CARGO_NAMESPACE);
+    let crates = match fs::read_dir(&crates_dir) {
+        Ok(entries) => entries,
+        // No cargo directory yet: nothing is installed under it, so nothing can be deleted from it.
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(present),
+        Err(error) => return Err(cannot_walk(&crates_dir, &error)),
     };
-    for crate_entry in crates.flatten() {
+    for listed_crate in crates {
+        let crate_entry: fs::DirEntry = listed_crate.map_err(|error| return cannot_walk(&crates_dir, &error))?;
         let crate_name: String = crate_entry.file_name().to_string_lossy().to_string();
-        let Ok(versions) = fs::read_dir(crate_entry.path()) else {
-            continue;
+        let versions = match fs::read_dir(crate_entry.path()) {
+            Ok(entries) => entries,
+            // The crate directory is gone: it holds no version that could be deleted.
+            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) => return Err(cannot_walk(&crate_entry.path(), &error)),
         };
         let mut found: Vec<PresentVersion> = Vec::new();
-        for version_entry in versions.flatten() {
+        for listed_version in versions {
+            let version_entry: fs::DirEntry = listed_version.map_err(|error| return cannot_walk(&crate_entry.path(), &error))?;
             let version: String = version_entry.file_name().to_string_lossy().to_string();
-            let is_plain_directory: bool = match version_entry.file_type() {
-                Ok(kind) => kind.is_dir(),
-                Err(_) => false,
-            };
+            let is_plain_directory: bool = version_entry
+                .file_type()
+                .map_err(|error| return cannot_walk(&version_entry.path(), &error))?
+                .is_dir();
             if is_plain_directory && !version.starts_with('.') && version != CURRENT_LINK_NAME {
                 let finished: bool = recorded_version(&version_entry.path(), &crate_name).is_some();
                 found.push(PresentVersion { version, finished });
@@ -261,7 +322,25 @@ fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersio
         }
         present.insert(crate_name, found);
     }
-    return present;
+    return Ok(present);
+}
+
+/// The refusal a scan raises for one directory whose contents it could not read.
+fn cannot_walk(directory: &Path, error: &std::io::Error) -> ToolchainError {
+    return ToolchainError::failure(format!("cannot read {}: {error}", directory.display()));
+}
+
+/// What:
+/// `error`, restated with what this run has already removed from the tree.
+/// Why:
+/// The report is the only place a person learns what a failed run deleted,
+/// so a failure after a removal must name what is gone and never say that nothing was deleted.
+pub(super) fn after_removing(error: ToolchainError, removed: &[PathBuf]) -> ToolchainError {
+    if removed.is_empty() {
+        return ToolchainError { kind: error.kind, message: format!("{}; nothing was deleted", error.message) };
+    }
+    let names: String = removed.iter().map(|path| return path.display().to_string()).collect::<Vec<String>>().join(", ");
+    return ToolchainError { kind: error.kind, message: format!("{}; already removed: {names}", error.message) };
 }
 
 /// What:
@@ -283,37 +362,57 @@ pub fn prune_toolchain(
     extra_locks: &[PathBuf],
     dry_run: bool,
 ) -> Result<Vec<PathBuf>, ToolchainError> {
+    // What: the versions installed now are listed before any lock is read.
+    // Why: a version that finishes installing after this point is not in this list, so this run cannot delete it.
+    // Read after the locks, such a version would look like one no lock names, which is exactly what gets deleted.
+    let present = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &[]))?;
     let mut lock_files: Vec<PathBuf> = vec![scope.lock_file.clone()];
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
-    // An explicit `--lock` is the caller's statement about what to keep, so a path that names no file refuses
-    // instead of quietly protecting nothing; only a lock found by discovery may be absent.
-    for extra_lock in extra_locks {
-        if !extra_lock.exists() {
-            return Err(ToolchainError::failure(format!(
-                "the --lock file {} does not exist; nothing was deleted",
-                extra_lock.display()
-            )));
-        }
-    }
-    lock_files.extend(extra_locks.iter().cloned());
-    let (named, named_archive_tools) = named_by_all(&lock_files)?;
-    let present = present_versions(&scope.toolchain_root);
-    let mut removed: Vec<PathBuf> = Vec::new();
+    let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
+    // What: the deletions this run will make, with the versions the other toolchain root forwards to left out.
+    // Why: the link decision below has to know which versions really stay, and that forward is one way one stays.
+    let mut planned: Vec<(String, String, PathBuf)> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
         // A version the other toolchain root's `current` forwards to is the one that root runs: never pruned from here.
         if other_root_forwards_to(&current_link(&scope.other_toolchain_root, &crate_name), &directory) {
             continue;
         }
+        planned.push((crate_name, version, directory));
+    }
+    if !dry_run {
+        // What: every repository-published crate's `current` is settled before anything is deleted.
+        // Why: a crate that keeps a version has the newest finished one, which is never one of the deletions
+        // below, so the link is moved to it; a crate that keeps none loses the link,
+        // because every version the link could name is about to go.
+        // Either way a run killed at any later point leaves a link that resolves or none at all.
+        for crate_name in present.keys() {
+            if !crate_name.starts_with(OWN_CRATE_PREFIX) || present[crate_name].is_empty() {
+                // A crate with no version here holds only a link forwarding to the other toolchain root's newer
+                // copy (see `managed_losers.rs`): nothing is pruned from it, so its link is not this run's to move.
+                continue;
+            }
+            if keeps_a_version(crate_name, &present[crate_name], &planned) {
+                point_current_at_newest(&scope.toolchain_root, crate_name)?;
+            } else {
+                remove_current_link(&scope.toolchain_root, crate_name)?;
+            }
+        }
+    }
+    let mut removed: Vec<PathBuf> = Vec::new();
+    for (_crate_name, _version, directory) in planned {
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
+            return Err(after_removing(
+                ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())),
+                &removed,
+            ));
         }
         removed.push(directory);
     }
     if !dry_run {
-        let after = present_versions(&scope.toolchain_root);
+        let after = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &removed))?;
         for crate_name in present.keys() {
             let crate_dir: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(crate_name);
             let remaining: bool = match after.get(crate_name) {
@@ -324,21 +423,63 @@ pub fn prune_toolchain(
                 Some(versions) => !versions.is_empty(),
                 None => false,
             };
-            if remaining {
-                // Only a crate this repository publishes has a `current` link; a third-party crate is never given one.
-                if crate_name.starts_with(OWN_CRATE_PREFIX) {
-                    point_current_at_newest(&scope.toolchain_root, crate_name)?;
-                }
-            } else if !had_versions {
-                // A directory that held no version before holds only a `current` link that forwards to the other toolchain
-                // root's newer copy (see `managed_losers.rs`); nothing was pruned from it, so it stays.
-            } else if let Err(error) = fs::remove_dir_all(&crate_dir) {
-                return Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display())));
+            // Only a crate that held versions and has none left is removed with its directory:
+            // a crate that keeps one already has its `current` link repointed above,
+            // and a directory that held no version before holds only a `current` link forwarding to the other
+            // toolchain root's newer copy (see `managed_losers.rs`), which this run never pruned.
+            // `remove_dir` is what keeps a version installed after the scan above: an empty directory goes,
+            // and a directory that is no longer empty stays with whatever another run put there.
+            if !remaining && had_versions {
+                remove_crate_directory(&crate_dir).map_err(|error| return after_removing(error, &removed))?;
             }
         }
     }
-    removed.extend(prune_archives(scope, &named_archive_tools, dry_run)?);
+    prune_archives(scope, &named_archive_tools, dry_run, &mut removed)?;
     return Ok(removed);
+}
+
+/// What:
+/// Whether at least one version of `crate_name` is not one of `removals`.
+/// Why:
+/// A crate that keeps a version has `current` to point at its newest finished one;
+/// a crate that keeps none must lose the link before the versions it names are deleted.
+fn keeps_a_version(crate_name: &str, versions: &[PresentVersion], removals: &[(String, String, PathBuf)]) -> bool {
+    return versions.iter().any(|candidate| {
+        return !removals.iter().any(|(crate_of_removal, version, _directory)| {
+            return crate_of_removal == crate_name && version == &candidate.version;
+        });
+    });
+}
+
+/// What:
+/// Removes a crate's `current` link.
+/// Why:
+/// When no version of the crate remains, the link would name a directory this run deletes;
+/// removing it first leaves a run killed at any later point with no link rather than a dangling one.
+fn remove_current_link(toolchain_root: &Path, crate_name: &str) -> Result<(), ToolchainError> {
+    let link: PathBuf = current_link(toolchain_root, crate_name);
+    return match fs::remove_file(&link) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ToolchainError::failure(format!("cannot remove {}: {error}; nothing was deleted", link.display()))),
+    };
+}
+
+/// What:
+/// Removes a crate directory when it is empty.
+/// Why:
+/// `remove_dir_all` would carry away a version another run installed after the scan that decided this crate
+/// holds none, and that version may be one a lock names.
+/// A directory that is no longer empty is another run's work, so it stays and this is not a failure.
+fn remove_crate_directory(crate_dir: &Path) -> Result<(), ToolchainError> {
+    return match fs::remove_dir(crate_dir) {
+        Ok(()) => Ok(()),
+        // `ENOTEMPTY`: something arrived after the scan, and the directory is not this run's to remove.
+        Err(error) if error.kind() == ErrorKind::DirectoryNotEmpty => Ok(()),
+        // Already gone, so there is nothing left to remove.
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display()))),
+    };
 }
 
 /// What:

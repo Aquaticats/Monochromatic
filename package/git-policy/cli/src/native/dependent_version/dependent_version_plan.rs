@@ -31,7 +31,9 @@
 /// ```
 use crate::dependent_version_bundled::bundled_development_edges;
 /// The content seam and its failures.
-use crate::dependent_version_content::{PlanError, TrackedMode, TrackedPath, WorkspaceContent};
+use crate::dependent_version_content::{
+    PlanError, PolicyIncomplete, TrackedMode, TrackedPath, WorkspaceContent,
+};
 /// The dependency walk and the bump plan.
 use crate::dependent_version_graph::{PlannedBump, WorkspaceNode, plan_dependent_bumps};
 /// Strict decoding of the registry configuration.
@@ -130,21 +132,22 @@ pub enum PlanOutcome {
 }
 
 /// What:
-/// The publishable names from the registry configuration,
-/// or nothing when it is not
-///       tracked.
+/// The publishable names from the registry configuration.
 /// Why:
-///  Without the configuration nothing is publishable,
-/// so nothing is bumped.
+///  Without the configuration,
+/// or with one that lists no publishable name,
+/// which dependents a raise reaches is unknown,
+/// so the plan fails naming the file
+///       rather than reporting an empty ripple.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [configText] = await reader.pnprConfigText();
+/// const publishable = readPublishableNames(await reader.pnprConfigText());
 /// ```
 fn publishable_names(
     content: &mut dyn WorkspaceContent,
     tracked: &[TrackedPath],
-) -> Result<Option<Vec<String>>, PlanError> {
+) -> Result<Vec<String>, PlanError> {
     let mut found: Option<&TrackedPath> = None;
     for entry in tracked {
         if entry.path == PNPR_CONFIG_PATH {
@@ -153,13 +156,24 @@ fn publishable_names(
         }
     }
     let Some(config) = found else {
-        return Ok(None);
+        return Err(PlanError::PolicyIncomplete(
+            PolicyIncomplete::PublishSetUnknown {
+                path: PNPR_CONFIG_PATH.to_vec(),
+                problem: String::from("it is not tracked in this repository"),
+            },
+        ));
     };
     let bytes: Vec<u8> = content.candidate_bytes(&config.path)?;
-    return Ok(Some(read_publishable_names(strict_text(
-        &config.path,
-        &bytes,
-    )?)));
+    let text: &str = strict_text(&config.path, &bytes)?;
+    return match read_publishable_names(text) {
+        Ok(names) => Ok(names),
+        Err(problem) => Err(PlanError::PolicyIncomplete(
+            PolicyIncomplete::PublishSetUnknown {
+                path: PNPR_CONFIG_PATH.to_vec(),
+                problem,
+            },
+        )),
+    };
 }
 
 /// What:
@@ -194,7 +208,7 @@ fn manifest_bump(planned: PlannedBump, state: &ManifestState) -> Result<Manifest
 /// The outcome of a plan that bumps nothing,
 /// for the named raised packages.
 /// Why:
-///  Two early exits of `plan_workspace_bumps` end with the same empty plan,
+///  One early exit of `plan_workspace_bumps` ends with the empty plan,
 /// and a named function takes the
 ///       place of the closure that built it.
 ///
@@ -229,9 +243,7 @@ pub fn plan_workspace_bumps(content: &mut dyn WorkspaceContent) -> Result<PlanOu
     if bumped.is_empty() {
         return Ok(planned_without_bumps(bumped));
     }
-    let Some(publishable) = publishable_names(content, &tracked)? else {
-        return Ok(planned_without_bumps(bumped));
-    };
+    let publishable: Vec<String> = publishable_names(content, &tracked)?;
     // `if let Some(...)` returns the first duplicate as the failure.
     if let Some(duplicate) = duplicate_name(&states) {
         return Err(PlanError::PolicyIncomplete(duplicate));

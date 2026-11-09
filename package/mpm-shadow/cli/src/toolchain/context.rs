@@ -126,6 +126,22 @@ impl Context<'_> {
         return RunRequest::new(command, args).with_env(self.path_env());
     }
 
+    /// What:
+    /// A request for a `rustup` question,
+    /// run with the toolchain environment plus `RUSTUP_AUTO_INSTALL=0`.
+    /// Why:
+    /// A question must not install a toolchain.
+    /// `rustup` reads this variable before its `auto-install` setting,
+    /// and without it `rustup 1.29.2` answers a query about a channel that is not installed by
+    /// downloading and installing it (see `src/config.rs`, `should_auto_install`);
+    /// with it the same query fails,
+    /// which is what a reader of the answer can act on.
+    pub fn rustup_query(&self, args: &[&str]) -> RunRequest {
+        let mut env: BTreeMap<String, String> = self.path_env();
+        env.insert("RUSTUP_AUTO_INSTALL".to_string(), "0".to_string());
+        return RunRequest::new("rustup", args).with_env(env);
+    }
+
     /// Runs a request.
     pub fn run(&self, request: &RunRequest) -> RunOutcome {
         return self.runner.run(request);

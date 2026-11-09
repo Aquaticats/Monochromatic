@@ -42,6 +42,9 @@ pub fn failed(error: &PlanError) -> String {
         PlanError::PolicyIncomplete(PolicyIncomplete::DuplicateName { .. }) => {
             ("graph", String::new())
         }
+        PlanError::PolicyIncomplete(PolicyIncomplete::PublishSetUnknown { .. }) => {
+            ("publish-set", String::new())
+        }
     };
     return object(&[
         ("kind", quote("failed")),
