@@ -1,5 +1,8 @@
 # DSH Advisor 2026-10-29: configured reviewer not tried, first-ranked route 400s, review truncated
 
+Note 2026-11-09T16:56:27-05:00:
+`package/agent-harness-shared/advisor/src/output-eligibility.ts` left the tree on 2026-10-29 in `91edd0b719`.
+
 ## Symptom
 
 One `advisor` tool call with no `model` argument reported

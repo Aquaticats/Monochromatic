@@ -1,5 +1,8 @@
 # Oxlint 1.74.0 default no-constant-condition leaves while(true) and for(;;) unreported
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/src/io/staleness-manifest-lock.ts` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 The repository enables Oxlint's `correctness` category at error severity in

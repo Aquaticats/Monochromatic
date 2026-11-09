@@ -1193,7 +1193,8 @@ each step of the preparation by name,
 with how often it ran,
 the whole of its time and its longest run.
 The names are the index's stat check,
-the index read,
+the one read of the index,
+the walk of those bytes for the seed decision,
 the index copies,
 the answer of whether the index already holds the base,
 the writes of corrected entries,
@@ -1383,6 +1384,88 @@ One run under a lighter disk put the same binary at 452 ms,
 which is why every figure here is repeated beside the
 unchanged binary and none is reported alone.
 
+What the trace of a later commit shows the reverted copy was:
+`copy_file_range`,
+not a byte copy.
+`std::io::copy` of two `File`s asks the kernel to copy the range,
+and on btrfs that shares the source's extents,
+so the copies of every traced commit were reflinks at 4 ms to 172 ms,
+and the two copies this record blames were never byte copies after `a30eceb87f`.
+That is why the stall stayed in the records measured after the revert.
+
+### Both private copies are written from one read of the live index
+
+`79050a88b2`.
+The third entry of "What would take the tail under five seconds",
+measured.
+
+A preparation read an index's bytes four times over:
+the stat check read the real one,
+the captured copy was made from it,
+the seed decision read that copy,
+and the commit's own copy was a copy of it.
+An index commit made three of those reads:
+the stat check,
+the captured copy,
+and the commit's own copy read from the captured one.
+`IndexBytes` (`commit_index_bytes.rs`) reads the file once and writes every copy from those bytes,
+so both private copies hold one state by construction:
+a staging that lands in the real index after the read reaches neither,
+and none of another command's staged work can be recorded under a commit that did not capture it.
+An index commit decides no seed,
+so only an explicit-path preparation walks those bytes (`index seed`),
+and both kinds state the one read as `index read`.
+
+The measurement,
+one session,
+the same shaped clone and the same 20-round harness,
+two runs of the unchanged binary and two of this change:
+
+- The unchanged binary:
+  paired delta median 7,483 ms and 3,075 ms,
+  p95 15,666 ms and 17,169 ms,
+  14 and 6 of the 20 rounds over the owner's five seconds,
+  `index copy` a median 180 ms and 2 ms per round,
+  its largest 3,381 ms and 5,716 ms,
+  8 and 6 rounds with a copy over 900 ms,
+  and 20,410 ms and 16,083 ms in all.
+- This change:
+  paired delta median 4,442 ms and 547 ms,
+  p95 13,015 ms and 5,416 ms,
+  10 and 2 of the 20 rounds over five seconds,
+  `index copy` a median of 0 ms per round,
+  its largest 328 ms and 1,216 ms,
+  no round over 900 ms in one run and one round in the other,
+  and 407 ms and 1,369 ms in all.
+- The copies' own spread between the two runs of the unchanged binary is 20,410 ms against 16,083 ms,
+  so their fall to 407 ms and 1,369 ms is twelve times below the lower of those.
+- The one read of the index costs what a read of a warm file costs:
+  `index read` and `index seed` are each under a millisecond in every round of both runs,
+  against 19 ms and 47 ms for the seed's own read of a private copy before.
+- What the copies are now,
+  in the trace of six wrapped commits:
+  no `copy_file_range` call at all,
+  the index read in blocks of 0.39 ms to 0.53 ms,
+  and each copy written by `write` in 0.03 ms to 1.42 ms,
+  against two `copy_file_range` calls per commit before.
+- The paired delta did not move outside the host's own spread:
+  the unchanged binary's two runs differ by 2.4 times in their medians,
+  and the direct arm's median halved between the two pairs (281 ms and 337 ms against 152 ms and 150 ms),
+  so this change's runs met a lighter host,
+  and what it removed was worth seconds in the rounds where a copy stalled,
+  not seconds of every round's delta.
+- What the tail is left to:
+  `submitMs` holds the rounds over five seconds in both runs of this change
+  (a median 181 ms and 1,398 ms,
+  with single rounds at 12,967 ms),
+  which is the landing's queue and lock,
+  the second entry of "What remains".
+- Both arms signed every commit:
+  the shaped clone carries SSH commit signing in its own configuration.
+  The unchanged binary's runs signed with a key another session's scratch root held,
+  and this change's runs sign with one made for them;
+  a signature is the same work for either arm of a round either way.
+
 ## What remains over the five seconds
 
 With the copy gone,
@@ -1406,6 +1489,9 @@ and the phases of those rounds name three causes:
   so its first commit pays that;
   a machine pays it once per cache invalidation,
   not per commit.
+  The commit no longer waits on that write:
+  "The scanner's compiled rules are published off the commit's path"
+  holds the change and its measurement.
 - What is left of the preparation:
   three rounds hold 5,938 ms,
   4,538 ms and 3,531 ms there,
@@ -1415,6 +1501,11 @@ and the phases of those rounds name three causes:
   while `candidates prepared` is 6 to 8 ms and every policy is under 30 ms.
   A cold three-megabyte read of `.git/index` costs seconds on this disk,
   and the wrapper reads that index once more than native Git does.
+  Measured again in one session on 2026-11-09:
+  both copies are now written from one read of that index,
+  `index copy` holds 407 ms and 1,369 ms in all over 20 rounds against 20,410 ms and 16,083 ms
+  ("Both private copies are written from one read of the live index"),
+  and the reading that places a read of `.git/index` in this list is corrected there.
 
 ## What would take the tail under five seconds
 
@@ -1432,10 +1523,230 @@ in the order the numbers rank it:
 - Move the scanner's rule-cache write off the commit's path,
   by building it in the service or before the commit starts,
   which is worth up to 24 seconds on the first commit of a cold cache.
+  Done:
+  "The scanner's compiled rules are published off the commit's path"
+  takes the write and its device waits off the command that needs the rules,
+  and leaves only the compile there.
 - Read the live index once per commit where the wrapper reads it twice:
   the captured copy and the commit's own copy hold the same bytes at that moment,
   and `git add` reads the live index again in the same command,
   which is the 4,227 ms to 5,793 ms of `index copy` that the rounds over the bar hold.
+  Done (`79050a88b2`,
+  under "Both private copies are written from one read of the live index");
+  what it removed was the copies' second and third pass over the bytes and not the reads,
+  which the same records put at 4 ms to 182 ms.
+
+## The scanner's compiled rules are published off the commit's path (2026-11-09T16:45:00-05:00)
+
+What this answers:
+the wait one commit of the window above held for 24 669 ms in
+`policy security/forbidden-strings at pre-forward`,
+whose trace was `fsync` calls of 6.7 s and 3.0 s and a `rename` of 1.5 s on
+`$HOME/.cache/forbidden-strings/<release>/<hash>/`.
+
+Two things put that wait on the commit:
+
+- The command's own process wrote the compiled artifact,
+  because the scanner publishes what it compiles on a miss.
+  The warm this record already had made the miss rare and never took the write off the command that hit it:
+  a repository's first landing,
+  a rules text a checkout brought,
+  and a release whose cache partition is new all leave the write where it was.
+- The publisher synced the artifact and then its directory before it answered,
+  so the writer waited for this host's device.
+
+What changed,
+in three commits on `perf/git-policy-cli-scanner-rules-cache-off-the-commit-path`:
+
+- `perf(forbidden-strings-cli)` `444f215485`:
+  the publisher fills a private temporary and renames it over the artifact,
+  and syncs neither the file nor its directory.
+  Every read validates the whole artifact (magic,
+  schema,
+  scanner version,
+  platform,
+  source digest,
+  payload digest,
+  engine digest and trailing bytes),
+  so a copy a crash tore is rejected and recompiled,
+  and the artifact is derived data the scanner's own README already said may be deleted.
+- `feat(forbidden-strings-cli)` `1086dca458`:
+  a load says whether a miss may write the cache (`CacheAccess::ReadOnly`),
+  and `compiled_rules_artifact_exists` answers beforehand whether the cache holds a file for the rules text at all,
+  with one `stat` rather than a second read of the artifact.
+- The wrapper's change:
+  a command whose cache holds no artifact for its rules text asks the service of that worktree to compile and publish
+  (the one-way `warm` message a worktree-moving command already sends),
+  and then loads the rules without writing,
+  so the rules it compiled are only ever a scan's input.
+  It publishes the artifact itself in the two cases where nothing else can:
+  a worktree with no service running,
+  and a rules list taken from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no rules files,
+  which the service's environment does not carry and would compile into another text's partition.
+  A configuration that names rules files wins over the variable,
+  so a repository with both leaves the list to the service,
+  and a cache that already holds an artifact is read here and writes nothing either way.
+
+Controls,
+the red one run against the branch's change undone
+(a read-only load made a plain write):
+
+- `candidate::scanner_adapter::tests::a_load_writes_the_cache_only_when_it_may` failed with
+  `a load that may not write wrote: [".../forbidden-strings/v0.6.2/linux-x86_64/<digest>/rules.bin"]`,
+  and passes with the change.
+- `policy::policy_forbidden_strings::tests::a_command_with_no_service_publishes_the_rules_itself`
+  holds the other side:
+  a worktree with no running service publishes,
+  and the load after it reads that artifact.
+
+Two controls hold what must never change,
+and both pass with the change:
+
+- `candidate::scanner_adapter::tests::a_partial_artifact_is_never_used`:
+  an artifact torn in the middle is refused as `invalid` rather than read as `missing`,
+  and the rules file speaks instead.
+- `candidate::scanner_adapter::tests::a_cache_of_other_rules_is_never_used`:
+  the cache holds the artifact of one rules text,
+  the rules files change,
+  the load reports a miss for the new text,
+  the old text's token passes and the new text's token is reported.
+
+The measurement:
+
+- The harness is `mise run //package/git-policy/cli:native:perf` with
+  `--only commit-service --samples 6 --change-rules`,
+  `--binary` naming each arm's release binary,
+  and a shaped fixture of this tree's shape:
+  a clone of this checkout with 22 462 tracked files and a 3.0 MB index,
+  this repository's configuration,
+  and its `post-checkout`,
+  `post-commit`,
+  `post-merge` and `pre-push` hooks with `git-lfs` on the arm's `PATH`.
+  `--change-rules` appends one comment line to the optional local appendix before every sample,
+  so every sample is the first commit after a rules change and meets a cache with no compiled form of that text.
+- What is read is the commit's own record:
+  the `longestMs` of the `policy security/forbidden-strings at pre-forward` span
+  (`prepareSpans` in `.git/monochromatic-git-policy-cli-commit-timing.jsonl`,
+  copied aside by the harness into its report).
+- The host was under the pressure other sessions keep up:
+  load average 57 to 119 on 8 CPUs,
+  `/proc/pressure/io` reporting `full` at 19 to 38 percent over ten seconds,
+  while these runs went end to end from 15:48 to 16:37.
+  No load was generated,
+  and every probe ran in a `systemd-run --user --scope` with
+  `CPUQuota=600%`,
+  `MemoryMax=24G`,
+  `TasksMax=900` and `IOWeight=10`.
+- Each arm ran twice, so the spread of one binary on unchanged input stands beside each figure.
+
+The policy's own step,
+per sample,
+in whole milliseconds:
+
+- Before the change:
+  1683,
+  1712,
+  2644,
+  3558,
+  8850 and 9130 (median 3558) in the first run,
+  and 1807,
+  1834,
+  3996,
+  4848,
+  4855 and 6789 (median 4848) in the second.
+- After it:
+  1331,
+  1350,
+  1358,
+  1389,
+  1435 and 1460 (median 1389) in the first run,
+  and 1475,
+  1708,
+  1720,
+  1746,
+  1783 and 1895 (median 1746) in the second.
+- The two runs of the unchanged binary differ by 1.36 times at the median,
+  and the two runs of the changed binary by 1.26 times.
+  The change is 2.6 and 2.8 times below the unchanged binary's two medians,
+  more than either spread,
+  and the slowest sample after the change (1895 ms) is below the unchanged binary's medians.
+  The unchanged binary's two fastest samples (1683 ms and 1712 ms) are the whole of its overlap with the changed one.
+- What is left in the step is the compile the commit still does,
+  measured at 1.2 s to 1.3 s on 2026-11-07 and 1.7 s in the handover's own sample.
+  The write is no longer part of it.
+- The whole commit is not told apart by this:
+  the six commits of the first changed run took 8312,
+  4482,
+  7271,
+  4648,
+  4043 and 5489 ms,
+  and one of them held 8312 ms while its policy step held 1331 ms.
+  The other phases' spread on this host is larger than this change.
+
+What the traces say,
+with `--trace-directory` and `strace --trace=fsync,fdatasync,rename,renameat,renameat2,openat,unlink,unlinkat`,
+five samples per arm (tracing inflates the spans, so these figures size the calls and not the step):
+
+- Before the change,
+  the commit's own trace held, per sample,
+  an `fsync` of the temporary artifact at 14.3,
+  2164.4,
+  17.7,
+  2392.1 and 4072.9 ms,
+  the `rename` that publishes it at 0.2,
+  5.4,
+  3.7,
+  0.2 and 150.1 ms,
+  and an `fsync` of the digest directory at 14.6,
+  13.6,
+  8.4,
+  14.3 and 899.1 ms.
+  That is 29 ms to 4972 ms of the same five commits' policy steps,
+  which held 2422,
+  4878,
+  2845,
+  5586 and 8207 ms under the trace.
+  The rest of each step is the compile.
+- After the change,
+  the same traces hold no `fsync`,
+  no `fdatasync`,
+  and no `rename` on any path under `.cache/forbidden-strings`,
+  and the artifact is opened read-only.
+  The same run's trace of the service holds five renames of
+  `.rules.bin.<pid>.<n>.tmp` over `rules.bin` (0.0 to 0.6 ms each) from the service's blocking-pool threads,
+  and no `fsync` on any cache path:
+  the publication happened, in the service, and nothing waited for the device.
+
+Where the write went,
+by the same harness with `--samples 5` and no `--change-rules`:
+
+- The changed binary's five commits held 1405 ms in the policy step for the first,
+  which met an empty cache,
+  and 24,
+  34,
+  30 and 29 ms for the four after it,
+  which read the compiled artifact.
+  The artifact those four read was published by the service,
+  because the four traces of that arm hold no cache write:
+  the compile-and-publish ask fills the cache for the next command.
+- The cold sample still pays the compile.
+  Taking that off the commit's path needs the rules text in a cache before the command asks,
+  which the warm does after a landing,
+  a restart and a worktree-moving command,
+  and not for a text nobody has committed yet.
+
+What this leaves open:
+
+- A machine whose service declines the warm (its address space leaves less than `WARM_ADDRESS_SPACE`)
+  keeps no artifact from a commit's compile,
+  so those commits compile once each:
+  correct and slower.
+  `package/git-policy/cli/SPEC.md` states it beside the warm.
+- The service's publication is still a job of the blocking pool that nothing bounds,
+  so a device that stalls it delays the warm and never the commit.
+- Whether the same syncs cost what they cost here on the person's own disk:
+  the 24,669 ms round this record began with held 6.7 s and 3.0 s of `fsync` where these five held 29 ms to 4972 ms,
+  and both are this host at different moments.
 
 ## What the record now says about a landing, and what eight overlapping commits measured
 

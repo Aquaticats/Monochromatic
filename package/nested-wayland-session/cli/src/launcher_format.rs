@@ -5,6 +5,8 @@
 
 /// Imports the update record that every formatter here reads.
 use crate::launcher_history::LauncherUpdate;
+/// The percent escape every answer format shares.
+use crate::percent_escape::percent_escape;
 
 /// Characters that pass through an encoded URI unchanged.
 ///
@@ -46,19 +48,7 @@ fn is_uri_safe(byte: u8) -> bool {
 /// encodeUri("application://a b.desktop"); // => "application://a%20b.desktop"
 /// ```
 pub fn encode_uri(text: &str) -> String {
-    // What:     `let mut encoded = String::with_capacity(text.len());` then a byte loop.
-    //           Each byte is either copied or written as `%` plus its two hex digits.
-    // Why:      Bytes, not characters, are the unit percent-encoding defines,
-    //           so multi-byte UTF-8 is escaped byte by byte.
-    let mut encoded = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        if is_uri_safe(byte) {
-            encoded.push(char::from(byte));
-        } else {
-            encoded.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    return encoded
+    return percent_escape(text.as_bytes(), is_uri_safe)
 }
 
 /// Formats the `launcher` answer payload for the newest update.

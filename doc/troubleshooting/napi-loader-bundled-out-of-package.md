@@ -32,6 +32,20 @@ The engine's crates do appear in `rust-catalog.toml` (`satteri-arena`,
 `satteri-pulldown-cmark`),
 and `package/linter/monochromatic-lint` depends on them.
 
+Note 2026-11-09T16:53:20-05:00:
+these citations in this record name paths that no longer exist.
+`package/cli/markdown-lint` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `5db89c1b61`.
+the `package/cli/` category folder was eliminated on 2026-10-29 in `592d78b143`;
+every command-line package sits under `package/<product>/cli` now.
+`package/cli/markdown-lint/package.json` left the tree on 2026-10-13 in `5db89c1b61`.
+`package/cli/markdown-lint/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `5db89c1b61`.
+`package/git-policy/markdown-lint` is not in the tree;
+its files were deleted on 2026-10-13 in `a2b56c548c`.
+
 ## Symptom
 
 Importing a workspace package that imports `@monochromatic-dev/cli-markdown-lint`

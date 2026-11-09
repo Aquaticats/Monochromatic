@@ -3,13 +3,17 @@
 //! Readers load complete bytes and close the handle before validation,
 //!  so Windows
 //! replacement is not blocked by a lingering reader.
-//!  Writers flush a private
-//! same-directory temporary file before `rename`,
-//!  and remove it on failure.
+//!  Writers fill a private
+//! same-directory temporary file,
+//!  rename it over the artifact,
+//!  and remove the temporary on failure;
+//!  nothing is synced to the device,
+//!  because every read validates the whole artifact and a torn or lost one
+//! costs a recompile and never a wrong scan.
 
 /// Imports filesystem primitives for complete reads and atomic publication.
-use std::fs::{self, File, OpenOptions};
-/// Imports byte writer used before durable file flush.
+use std::fs::{self, OpenOptions};
+/// Imports byte writer used to fill the temporary artifact.
 use std::io::Write;
 /// Imports artifact paths.
 use std::path::{Path, PathBuf};
@@ -140,22 +144,18 @@ fn publish_from_temporary(
         .map_err(publish_failed)?;
     make_file_private(temporary)?;
     file.write_all(bytes).map_err(publish_failed)?;
-    file.sync_all().map_err(publish_failed)?;
     drop(file);
-    fs::rename(temporary, artifact_path).map_err(publish_failed)?;
-    sync_parent_best_effort(artifact_path);
-    return Ok(())
-}
-
-/// Flushes renamed directory entry where platform permits directory handles.
-fn sync_parent_best_effort(artifact_path: &Path) {
-    let Some(parent) = artifact_path.parent() else {
-        return;
-    };
-    let Ok(directory) = File::open(parent) else {
-        return;
-    };
-    let _ = directory.sync_all();
+    // What: the rename is what makes a reader see the whole artifact or nothing, and it is the last step.
+    // Why:  The bytes reach the device whenever the kernel writes them back. Forcing them out here would make the
+    //       caller wait on this device for a file that every reader validates byte for byte (magic, scanner version,
+    //       platform, source digest, payload digest, engine digest and trailing bytes), so an artifact a crash tore is
+    //       rejected and recompiled; the cache is derived data and deleting it is always safe.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // writeFileSync(temporary, bytes); renameSync(temporary, artifact);
+    // ```
+    return fs::rename(temporary, artifact_path).map_err(publish_failed);
 }
 
 /// Registers complete-read,

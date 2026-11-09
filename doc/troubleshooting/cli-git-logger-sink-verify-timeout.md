@@ -15,6 +15,11 @@ so the quoted line now reports a wait,
 See "A deadline no longer costs a sink its records" below.
 Sections written before that date describe the behavior as it was.
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 The original 2026-09-26 report recorded this line on every `git` command in that session.
