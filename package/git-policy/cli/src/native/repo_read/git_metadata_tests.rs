@@ -183,6 +183,8 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
     let text: String = ended.to_string();
     assert!(text.contains("ls-files"), "{text}");
     assert!(text.contains("was ended"), "{text}");
+    // The read is announced and reported under the Git program and its subcommand.
+    assert!(text.contains("showed no sign of work"), "{text}");
     // The read is ended at the ceiling, not left until the script's own minute is over.
     assert!(took < std::time::Duration::from_secs(30), "{took:?}");
     // How the person is told about it: the sentence each caller reports.
@@ -191,9 +193,16 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
     assert!(
         sentence.starts_with(
             "monochromatic-git-policy-cli stopped waiting for the Git read of the staging area: "
-        ) && sentence.ends_with(
-            "The read changed nothing, so the index and the worktree are as they were; run the command again"
         ),
+        "{sentence}"
+    );
+    // The words of a watched step belong to a commit's steps, and a check's read says what stayed as it was instead.
+    assert!(
+        sentence.contains("The read changed nothing, so the index and the worktree are as they were; run the command again"),
+        "{sentence}"
+    );
+    assert!(
+        !sentence.contains("finishes or undoes that commit"),
         "{sentence}"
     );
     // Any other failure keeps the wording its caller already had.

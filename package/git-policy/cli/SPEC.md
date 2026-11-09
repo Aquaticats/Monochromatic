@@ -2961,7 +2961,8 @@ on the commit path:
   and the check that needed it fails with `content-unavailable`,
   naming the read (the Git program and its subcommand,
   never a pathname),
-  the ceiling it reached and that the index,
+  the bound it reached (the quiet window before the ceiling,
+  or the ceiling itself) and that the index,
   the worktree and the staged changes are as they were:
   the bound's "Return with an error",
   not a rejected commit,

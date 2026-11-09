@@ -159,7 +159,7 @@ pub fn read_stopped_text(fact: &str, error: &std::io::Error) -> Option<String> {
         return None;
     }
     return Some(format!(
-        "monochromatic-git-policy-cli stopped waiting for the Git read of {fact}: {error}. The read changed nothing, so the index and the worktree are as they were; run the command again"
+        "monochromatic-git-policy-cli stopped waiting for the Git read of {fact}: {error}"
     ));
 }
 
@@ -220,14 +220,38 @@ pub fn run_metadata_git_within(
     // ```
     let mut command: std::process::Command = git_command(real_git, arguments, overlay);
     command.stdin(Stdio::null());
-    let output: std::process::Output = output_watched_within(
+    let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
+    let quiet: Duration = terms.limit;
+    let watched: std::io::Result<std::process::Output> = output_watched_within(
         &mut command,
         subject.as_str(),
         subject.as_str(),
-        WatchTerms::for_class(ChildClass::Plumbing),
+        terms,
         true,
         StepBound::EndAt(ceiling),
-    )?;
+    );
+    // What: A read the watch ended is reported as a read of a check, not as a step of a commit: nothing this command
+    //       did can be finished or undone by the next Git command, and the words of a watched step say that it can.
+    // Why:  The person must be told what stayed as it was and what to run again.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (error.code === 'ETIMEDOUT') throw new Error(`${subject} showed no sign of work for ${quiet}s, or ran ${ceiling}s, and was ended; nothing changed; run the command again`);
+    // ```
+    let output: std::process::Output = match watched {
+        Ok(captured) => captured,
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!(
+                    "{subject} showed no sign of work for {} seconds, or ran for the {} seconds a check allows one read, and was ended. The read changed nothing, so the index and the worktree are as they were; run the command again",
+                    quiet.as_secs(),
+                    ceiling.as_secs()
+                ),
+            ));
+        }
+        Err(error) => return Err(error),
+    };
     // `Ok(...)` is the success variant carrying the captured result.
     return Ok(MetadataOutput {
         success: output.status.success(),
