@@ -20,7 +20,7 @@
 #![cfg(unix)]
 
 use crate::work_item::WorkKind;
-use crate::push_retry::PushRetries;
+use crate::push_retry::{Due, PushRetries, RetryChange};
 use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
@@ -72,12 +72,18 @@ struct Stage {
     landed: String,
 }
 
+/// Build the stage with a `pre-receive` hook that stalls the first push,
+/// the way a remote that checks the pack before writing anything behaves.
+fn stage(name: &str) -> Stage {
+    return stage_with(name, "pre-receive");
+}
+
 /// Build the stage:
 /// an initial commit pushed with no hook,
-/// the hook installed,
+/// the hook called `hook_name` installed,
 /// a new commit landed,
 /// its work item written.
-fn stage(name: &str) -> Stage {
+fn stage_with(name: &str, hook_name: &str) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
@@ -89,7 +95,7 @@ fn stage(name: &str) -> Stage {
     let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
     let marker: PathBuf = root.join("stalled-once");
-    let hook: PathBuf = remote.join("hooks").join("pre-receive");
+    let hook: PathBuf = remote.join("hooks").join(hook_name);
     std::fs::write(hook.as_path(), format!("#!/bin/sh\nif [ ! -e '{}' ]; then : > '{}'; exec sleep 600; fi\nexit 0\n", marker.display(), marker.display())).expect("hook");
     std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
     std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
@@ -1275,5 +1281,141 @@ fn a_wake_for_a_directory_that_is_away_leaves_its_work_for_the_next_command() {
     away(aside.as_path(), git_dir.as_path());
     let _wait: Drained = drain_planned(git_dir.as_path(), &handlers, &ClaimTime::read(), &Retrying::none());
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the work ran once the directory was back");
+    remove(root.as_path());
+}
+
+/// What:
+///  A push the service stopped after the remote had already written the reference is settled by its own retry,
+///  and the notice it left claims nothing about the remote.
+/// Why:
+///   The wrapper cannot know which object Git really sent,
+/// which of a remote's push URLs went first or which
+///  configuration shaped the attempt,
+/// so a stopped push says only what is known:
+/// that it was stopped,
+/// that the remote may
+///  or may not hold the commit,
+/// and whether a retry is planned.
+/// The retry settles the question,
+/// because a push of something the
+///  remote already has succeeds and clears the record.
+#[test]
+fn a_stopped_push_whose_reference_landed_is_settled_by_its_retry_and_claims_nothing() {
+    let stage: Stage = stage_with("push-retry-post-receive-once", "post-receive");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]);
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the remote wrote the reference before its hook stalled");
+    assert_eq!(notices(&stage), 1, "the person is told the push was stopped");
+    let mut stored: String = String::new();
+    for entry in std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notice directory").flatten() {
+        stored.push_str(std::fs::read_to_string(entry.path()).expect("the record").as_str());
+    }
+    assert!(
+        stored.contains("may or may not have taken"),
+        "the notice says what is known about the remote: {stored}"
+    );
+    for absent in ["delivered every reference", "nothing is left to deliver", "does not restart that work"] {
+        assert!(!stored.contains(absent), "{absent} in {stored}");
+    }
+    let wait: Duration = first.expect("the service says when to look at the repository again");
+    assert!(wait <= PAUSE + Duration::from_secs(5), "the wake is for the retry: {wait:?}");
+    std::thread::sleep(wait);
+    let second: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the retry finds the reference already there and succeeds");
+    assert_eq!(notices(&stage), 0, "the retry cleared the record of the stopped push");
+    assert_eq!(second, None, "nothing is left to try again");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push that was due again and did not finish where nothing keeps a retry plan is worded as one nothing will try
+///  again,
+/// and the branch's plan is dropped as it is.
+/// Why:
+///   `run_due_push_retries` forgets the branch's plan when the round keeps no plan (`replanning.first` is nothing),
+/// so a
+///  notice promising that the service keeps trying would send the person to wait for a try that never comes:
+/// the
+///  wording has to follow whether a plan still exists.
+#[test]
+fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
+    let root: PathBuf = fixture("push-retry-no-plan");
+    let git_dir: PathBuf = root.join("common");
+    std::fs::create_dir_all(git_dir.as_path()).expect("common directory");
+    std::fs::create_dir_all(root.join("worktree").as_path()).expect("worktree directory");
+    let handlers: Scripted = Scripted { verdicts: Mutex::new(vec![Verdict::Retry(String::from("Could not resolve host"))]), pushes: AtomicUsize::new(0) };
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: root.join("worktree"),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: 0,
+    };
+    let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
+    // A round that keeps no plan: no first pause, and this push due again.
+    let round: Retrying = Retrying { first: None, due: vec![due], plans: None };
+    let drained: Drained = drain_planned_with(git_dir.as_path(), &handlers, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the due push ran");
+    assert!(
+        drained.changes.iter().any(|change| { return matches!(change, RetryChange::Forget { .. }); }),
+        "the branch's plan was dropped"
+    );
+    // The wording is applied when the notice is shown, so that is what the person reads.
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the push: {shown:?}");
+    let notice: &str = shown[0].as_str();
+    assert!(notice.contains("Could not resolve host"), "the person is told what happened: {notice}");
+    assert!(
+        !notice.contains("keeps the push in its retry plan"),
+        "the notice promises no retry the service does not plan: {notice}"
+    );
+    assert!(
+        notice.contains("not trying this push again"),
+        "the notice says the push is not tried again: {notice}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A push the round planned again is worded as one the service keeps trying.
+/// Why:
+///   This is the other side of the plan:
+/// the person is told an automatic retry is coming only when one is planned,
+/// so a wording that never promises one would be as wrong as one that always does.
+#[test]
+fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
+    let root: PathBuf = fixture("push-retry-plan-kept");
+    let git_dir: PathBuf = root.join("common");
+    std::fs::create_dir_all(git_dir.as_path()).expect("common directory");
+    std::fs::create_dir_all(root.join("worktree").as_path()).expect("worktree directory");
+    let handlers: Scripted = Scripted { verdicts: Mutex::new(vec![Verdict::Retry(String::from("Could not resolve host"))]), pushes: AtomicUsize::new(0) };
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: root.join("worktree"),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: 0,
+    };
+    let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
+    // A round that keeps a plan: this push due again, and the first pause to plan the next try with.
+    let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due], plans: None };
+    let drained: Drained = drain_planned_with(git_dir.as_path(), &handlers, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
+    assert!(
+        drained.changes.iter().any(|change| { return matches!(change, RetryChange::Plan { .. }); }),
+        "a new try was planned"
+    );
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the push: {shown:?}");
+    let notice: &str = shown[0].as_str();
+    assert!(notice.contains("keeps the push in its retry plan"), "the notice promises the planned retry: {notice}");
+    assert!(!notice.contains("not trying this push again"), "the notice does not deny the plan it kept: {notice}");
     remove(root.as_path());
 }

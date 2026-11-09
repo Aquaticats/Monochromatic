@@ -7,12 +7,13 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { PROVIDER_HOSTS, } from '../dist/final/node/provider-hosts.data.mjs';
 import { UPDATE_HOSTS, } from '../dist/final/node/update-hosts.data.mjs';
 import {
   POLICY_NOT_IN_FORCE_MARKER,
   POLICY_PROCESS_WATCH,
   POLICY_SOCKET_MARKING,
-  POLICY_UPDATE_HOSTS,
+  POLICY_CLEARNET_HOSTS,
   policiesNotInForceWithoutMark,
   policyNotInForce,
   startNotices,
@@ -65,6 +66,7 @@ function facts(
     tableOff,
     dnsServers,
     hosts: UPDATE_HOSTS,
+    providerHosts: PROVIDER_HOSTS,
     recommendedMark: 100,
   };
 }
@@ -97,7 +99,7 @@ await describe({
         /**
          Notice printed on every start.
          */
-        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
         for (
           const phrase of [
             'POLICY NOTICE',
@@ -121,7 +123,7 @@ await describe({
         /**
          Notice printed on every start.
          */
-        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
         for (
           const phrase of [
             'Everything the toolchain installed, not only its updates',
@@ -135,12 +137,52 @@ await describe({
       },
     },),
     it({
+      name: 'names Pi, the unit it runs in, and the socket mark that covers a unit instead of a move',
+      fn: async () => {
+        /**
+         Notice printed on every start.
+         */
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
+        for (
+          const phrase of [
+            'Pi: every process of a pi-<name>.service agent unit',
+            'every node process whose first command-line word is pi',
+            'cannot move a service\'s',
+            'the socket mark the watcher attaches to that cgroup covers it and every process below it',
+            'which is the same rule the terminals have',
+          ]
+        )
+          expect(notice,).toContain(phrase,);
+      },
+    },),
+    it({
+      name: 'names every model provider host as its own list, apart from the update hosts, with the reason it leaves',
+      fn: async () => {
+        /**
+         Notice printed on every start.
+         */
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
+        for (
+          const phrase of [
+            'Model provider hosts, for every program including browsers, as whole addresses',
+            'the API hosts of Pi\'s deepseek, neuralwatt, opencode-go, qwen token plan and synthetic providers',
+            'apart from the update hosts because they leave the tunnel for another reason',
+            'installed with the update-host rules, from the same tunnel DNS answers',
+          ]
+        )
+          expect(notice,).toContain(phrase,);
+        for (const host of PROVIDER_HOSTS)
+          expect(notice,).toContain(host,);
+        expect(PROVIDER_HOSTS.filter((host,) => UPDATE_HOSTS.includes(host,)),).toEqual([],);
+      },
+    },),
+    it({
       name: 'says that a rule carries a whole shared address, with measured examples',
       fn: async () => {
         /**
          Notice printed on every start.
          */
-        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
         for (
           const phrase of [
             'whole addresses',
@@ -158,7 +200,7 @@ await describe({
         /**
          Notice printed on every start.
          */
-        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
         for (
           const phrase of [
             'what can imitate it',
@@ -183,7 +225,7 @@ await describe({
         /**
          Notice printed by `up`.
          */
-        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },);
         for (
           const phrase of [
             'the executable\'s file name (mise, mpm-shadow, mpm, node)',
@@ -191,6 +233,8 @@ await describe({
             'another pid namespace',
             'shared CDN address',
             'without any switch',
+            'a pi-<name>.service agent unit',
+            'the socket mark the watcher attaches to that cgroup covers it and every process below it',
           ]
         ) {
           expect(notice,).toContain(phrase,);
@@ -211,7 +255,7 @@ await describe({
          Lines the start prints.
          */
         const notices = startNotices(NORMAL_START,);
-        expect(notices,).toEqual([updatePolicyNotice({ hosts: UPDATE_HOSTS, },),],);
+        expect(notices,).toEqual([updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },),],);
       },
     },),
     it({
@@ -222,12 +266,12 @@ await describe({
          */
         const notices = startNotices(facts({ exemptMark: 100, tableOff: false, dnsServers: [], },),);
         expect(notices,).toHaveLength(2,);
-        expect(notices[0],).toBe(updatePolicyNotice({ hosts: UPDATE_HOSTS, },),);
+        expect(notices[0],).toBe(updatePolicyNotice({ hosts: UPDATE_HOSTS, providerHosts: PROVIDER_HOSTS, },),);
         expect(notices[1],).toContain(POLICY_NOT_IN_FORCE_MARKER,);
-        expect(notices[1],).toContain(POLICY_UPDATE_HOSTS,);
+        expect(notices[1],).toContain(POLICY_CLEARNET_HOSTS,);
         expect(notices[1],).toContain('sets no DNS = server',);
-        expect(notices[1],).toContain('no update-host rule will be installed',);
-        expect(notices[1],).toContain('The process watch and the toolchain paths still run',);
+        expect(notices[1],).toContain('no host rule will be installed',);
+        expect(notices[1],).toContain('The process watch, the toolchain paths and the Pi coverage still run',);
       },
     },),
     it({
@@ -238,7 +282,7 @@ await describe({
          */
         const notices = startNotices(facts({ tableOff: false, dnsServers: ['1.1.1.1',], },),);
         expect(notices,).toHaveLength(1,);
-        expect(notices[0],).toContain('will use the tunnel.',);
+        expect(notices[0],).toContain('OdyTTY and Pi will use the tunnel.',);
         expect(notices[0],).toContain(policiesNotInForceWithoutMark(),);
         expect(notices[0],).toContain('ExemptMark = 100',);
         expect(notices[0],).not.toContain('leaves OUTSIDE',);
@@ -254,7 +298,7 @@ await describe({
         expect(notices,).toHaveLength(1,);
         expect(notices[0],).toContain(POLICY_NOT_IN_FORCE_MARKER,);
         expect(notices[0],).toContain(POLICY_PROCESS_WATCH,);
-        expect(notices[0],).toContain(POLICY_UPDATE_HOSTS,);
+        expect(notices[0],).toContain(POLICY_CLEARNET_HOSTS,);
         expect(notices[0],).toContain('Table = off',);
         expect(notices[0],).toContain('installs no routing rule and no bypass table',);
         expect(notices[0],).not.toContain('leaves OUTSIDE',);
@@ -291,10 +335,10 @@ await describe({
         const report = policiesNotInForceWithoutMark();
         expect(report,).toContain('POLICY NOT IN FORCE',);
         expect(report,).toContain(POLICY_PROCESS_WATCH,);
-        expect(report,).toContain(POLICY_UPDATE_HOSTS,);
+        expect(report,).toContain(POLICY_CLEARNET_HOSTS,);
         expect(report,).toContain('No ExemptMark is configured',);
-        expect(policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: 'DNS refresh failed', },),).toBe(
-          `POLICY NOT IN FORCE: ${POLICY_UPDATE_HOSTS}: DNS refresh failed`,
+        expect(policyNotInForce({ policy: POLICY_CLEARNET_HOSTS, detail: 'DNS refresh failed', },),).toBe(
+          `POLICY NOT IN FORCE: ${POLICY_CLEARNET_HOSTS}: DNS refresh failed`,
         );
       },
     },),
@@ -362,12 +406,12 @@ await describe({
          Report whose detail carries a line break, an escape sequence and a direction mark.
          */
         const report = policyNotInForce({
-          policy: POLICY_UPDATE_HOSTS,
+          policy: POLICY_CLEARNET_HOSTS,
           detail: 'host\nPOLICY NOT IN FORCE: fake \u001B[2J\u202E',
         },);
         expect(report.split('\n',),).toHaveLength(1,);
         expect(report,).toContain(String.raw`\u{000a}POLICY NOT IN FORCE: fake \u{001b}[2J\u{202e}`,);
-        expect(report.startsWith(`${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_UPDATE_HOSTS}: `,),).toBe(true,);
+        expect(report.startsWith(`${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_CLEARNET_HOSTS}: `,),).toBe(true,);
       },
     },),
     it({

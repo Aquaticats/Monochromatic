@@ -91,6 +91,10 @@ pub mod the_place_of_one_blocking_job;
 /// for the places that guard a function and its state.
 pub mod call_catching_panics;
 
+/// A future awaited with the panic of any one of its polls as an error value,
+/// for the places that guard work that awaits.
+pub mod call_catching_panics_awaiting;
+
 /// A scoped thread,
 /// or the work done in turn where the system cannot start one.
 pub mod scoped_start;

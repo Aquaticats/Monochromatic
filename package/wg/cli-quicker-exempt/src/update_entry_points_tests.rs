@@ -190,3 +190,43 @@ fn install_roots_list_each_spelling_once() {
     assert_eq!(install_roots(Path::new("/home/a"), Some(Path::new("/home/a"))).roots.len(), 2);
     assert_eq!(install_roots(Path::new("/home/a"), Some(Path::new("/var/home/a"))).roots.len(), 4);
 }
+
+/// Pi's CLI entry,
+/// as the installed shim execs it:
+/// a versioned store path whose tail names the package and the bundle.
+const PI_CLI_TAIL: &str = "/pi-coding-agent/dist/bundle/cli.js";
+
+/// Path of Pi's CLI entry in a fixture store.
+fn pi_cli_path() -> String {
+    return format!("/home/tester/.local/share/pnpm/store/v11/links/@earendil-works{PI_CLI_TAIL}");
+}
+
+/// Pi's own agent is recognized by the word it sets for itself and by the entry it runs,
+/// while the same word on another executable and a lookalike entry stay unmatched.
+#[test]
+fn pi_is_recognized_by_its_own_word_and_by_the_entry_it_runs() {
+    // Pi rewrites its process title, so the running process keeps one word: its own name.
+    assert_eq!(classify_line("/usr/bin/node", &["pi"]), Some(MatchReason::PiAgent));
+    // Before that rewrite the exec event carries node and the entry Pi runs.
+    let cli = pi_cli_path();
+    assert_eq!(classify_line("/usr/bin/node", &["node", &cli]), Some(MatchReason::PiAgent), "{cli}");
+    // A first command-line word is free to set, so only node may carry it.
+    assert_eq!(classify_line("/usr/bin/curl", &["pi"]), None);
+    assert_eq!(classify_line("/usr/bin/node", &["node", "pi"]), None);
+    assert_eq!(classify_line("/usr/bin/node", &["node", "client.js", "pi"]), None);
+    for lookalike in [
+        "/tmp/pi",
+        "/tmp/bundle/cli.js",
+        "/home/tester/pi-coding-agent/dist/bundle/cli.js.bak",
+        "/home/tester/pi-coding-agent/dist/cli.js",
+    ] {
+        assert_eq!(classify_line("/usr/bin/node", &["node", lookalike]), None, "{lookalike}");
+    }
+    // A checkout of the same package runs the same entry, so the tail decides and the store version does not.
+    assert_eq!(
+        classify_line("/usr/bin/node", &["node", "/repo/checkout/pi-coding-agent/dist/bundle/cli.js"]),
+        Some(MatchReason::PiAgent)
+    );
+    // Another executable that runs the same entry is not Pi's node.
+    assert_eq!(classify_line("/usr/bin/other", &["other", &cli]), None);
+}

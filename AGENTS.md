@@ -216,6 +216,28 @@ A same-vendor subagent is a second pass:
  label it so,
  never as independent.
 
+XVW:
+ Cross-vendor review,
+ `timeout` in seconds:
+ `timeout 3600 pi --model openai/gpt-6.1-sol --print --no-tools --no-skills --no-themes --thinking xhigh "<question>"`
+ alongside advisor,
+ never instead.
+
+PFW:
+ A `gpt-6.1-sol` review reads only what you paste:
+ whole files,
+ never prose;
+ a diff goes in as `@path`.
+Background it;
+ never poll or kill it;
+ it may never return.
+
+WGH:
+ A reviewer told to find issues returns issues whether or not any are worth fixing:
+ weigh each finding with your own judgement,
+ fix those that earn it,
+ and dismiss the rest.
+
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
 Component removal,

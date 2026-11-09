@@ -7,6 +7,7 @@
 
 import { stdout, } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
+import { compactionPlays, } from './stand-in-pi-compaction-plays-fixture.ts';
 import { scenario, } from './stand-in-pi-log-fixture.ts';
 import { modelErrorPlays, } from './stand-in-pi-model-error-plays-fixture.ts';
 import {
@@ -100,6 +101,15 @@ const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> =
  ```
  */
 export async function playPrompt(id: unknown,): Promise<void> {
+  /**
+   The scenario's play if it compacts the session first.
+   */
+  const compactionPlay = compactionPlays.get(scenario,);
+  if (compactionPlay !== undefined) {
+    // Not awaited: Pi answers other commands while its compaction runs, so the stand-in must go on reading them.
+    compactionPlay(id,);
+    return;
+  }
   /**
    The scenario's play if it takes time.
    */

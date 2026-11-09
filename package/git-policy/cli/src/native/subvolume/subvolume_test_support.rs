@@ -364,6 +364,7 @@ pub(crate) fn migrate_arguments() -> MigrateArguments {
         nested_worktrees: true,
         refresh_indexes: true,
         discard_unreadable: false,
+        discard_left_out: false,
         help: false,
     };
 }

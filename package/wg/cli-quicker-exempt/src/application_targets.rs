@@ -2,7 +2,12 @@
 //!  Steam,
 //!  Helium,
 //!  Firefox release,
-//!  and Firefox Nightly cgroups plus executable-owned application cgroups.
+//!  Firefox Nightly,
+//!  ChatGPT,
+//!  Interpreter,
+//!  Qure,
+//!  OdyTTY,
+//!  and Pi agent cgroups plus executable-owned application cgroups.
 
 /// Filesystem and process-race failures.
 use std::io;
@@ -48,6 +53,14 @@ const QURE_SERVICE_PREFIX: &str = "app-qure@";
 const ODYTTY_EXECUTABLE_PREFIX: &str = "odytty";
 /// OdyTTY desktop service prefix observed from its desktop-entry identifier.
 const ODYTTY_SERVICE_PREFIX: &str = "app-odytty@";
+
+/// Prefix of the transient user units the repository's Pi agents run in,
+/// one unit per agent run,
+/// named `pi-<name>.service` after the run.
+const PI_AGENT_SERVICE_PREFIX: &str = "pi-";
+
+/// Suffix of every systemd service unit.
+const SERVICE_SUFFIX: &str = ".service";
 
 /// Slice that carries the toolchain's sync and update runs.
 /// The `app-` prefix makes systemd nest it directly under `app.slice`,
@@ -152,6 +165,57 @@ pub fn is_odytty_service_name(name: &str) -> bool {
 ///  with no attach per run.
 pub fn is_toolchain_updates_slice_name(name: &str) -> bool {
     return name == TOOLCHAIN_UPDATES_SLICE;
+}
+
+/// Reports a `pi-<name>.service` agent unit,
+/// the unit a Pi agent run of this repository lives in.
+/// The name must carry something after the prefix:
+/// `pi-.service` names no run.
+pub fn is_pi_service_name(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix(PI_AGENT_SERVICE_PREFIX) else {
+        return false;
+    };
+    let Some(agent) = rest.strip_suffix(SERVICE_SUFFIX) else {
+        return false;
+    };
+    return !agent.is_empty();
+}
+
+/// Reports whether the watcher attaches the socket mark to a cgroup of this name itself,
+/// which is the cgroup a named service or scope keeps,
+/// or the updates slice.
+fn is_named_application_cgroup_name(name: &str) -> bool {
+    return is_ghostty_cgroup_name(name)
+        || is_steam_service_name(name)
+        || is_helium_service_name(name)
+        || is_firefox_nightly_service_name(name)
+        || is_firefox_release_service_name(name)
+        || is_chatgpt_service_name(name)
+        || is_interpreter_service_name(name)
+        || is_qure_service_name(name)
+        || is_odytty_service_name(name)
+        || is_pi_service_name(name)
+        || is_toolchain_updates_slice_name(name);
+}
+
+/// Reports whether the watcher attaches the socket mark to this very cgroup of the watched user,
+/// because it is a direct `app.slice` entry whose name one of the watcher's rules selects.
+/// Such a cgroup needs no moved process:
+/// the mark applies to every process in it and to every descendant cgroup the user's manager
+/// creates below it,
+/// which covers a service's main process,
+/// the one thing the manager cannot move,
+/// and every process Pi or a terminal starts,
+/// the same rule either way.
+pub fn is_socket_marked_cgroup(cgroup: &str, uid: u32) -> bool {
+    let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/");
+    let Some(leaf) = cgroup.strip_prefix(&prefix) else {
+        return false;
+    };
+    if leaf.is_empty() || leaf.contains('/') {
+        return false;
+    }
+    return is_named_application_cgroup_name(leaf);
 }
 
 /// Reports numeric procfs directory name without regular expression parsing.
@@ -301,8 +365,11 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 /// ChatGPT,
 ///  Interpreter,
 ///  Qure,
-///  or OdyTTY services,
+///  OdyTTY
+///  or Pi services,
 ///  and the toolchain updates slice.
+/// The same names answer `is_socket_marked_cgroup`,
+///  so the attaching and the process watch never disagree about which cgroup carries the mark.
 fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry_result in std::fs::read_dir(roots.app_slice)? {
         let entry = entry_result?;
@@ -313,17 +380,7 @@ fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::
         let Some(name_text) = name.to_str() else {
             continue;
         };
-        if is_ghostty_cgroup_name(name_text)
-            || is_steam_service_name(name_text)
-            || is_helium_service_name(name_text)
-            || is_firefox_nightly_service_name(name_text)
-            || is_firefox_release_service_name(name_text)
-            || is_chatgpt_service_name(name_text)
-            || is_interpreter_service_name(name_text)
-            || is_qure_service_name(name_text)
-            || is_odytty_service_name(name_text)
-            || is_toolchain_updates_slice_name(name_text)
-        {
+        if is_named_application_cgroup_name(name_text) {
             push_unique(targets, entry.path());
         }
     }
