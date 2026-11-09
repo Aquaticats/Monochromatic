@@ -60,6 +60,11 @@ pub mod worktree_clean;
 #[cfg(target_os = "linux")]
 pub mod worktree_clean_stat_verdicts;
 
+/// The one question the index of a worktree cannot answer:
+/// whether an untracked file is one Git ignores.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_untracked_scan;
+
 /// The walks of tracked files against the index's recorded stat data,
 /// by metadata or by content.
 #[cfg(target_os = "linux")]
@@ -249,6 +254,10 @@ pub mod worktree_trash;
 /// the foreground fallback and the service's handler.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
+
+/// Whether Git ignores the place a snapshot's trash would be made at in one worktree.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_ignore_rule;
 
 /// The removal of the entries a snapshot's leave-out moved into its trash,
 /// side by side.

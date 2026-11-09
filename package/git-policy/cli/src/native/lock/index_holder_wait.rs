@@ -56,8 +56,8 @@ const MERGE_DEAD_ENDING: &str = "the merge clears that lock when nothing else ho
 
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
-/// The start time of a process.
-use crate::process_start::resolve_process_start;
+/// The process a PID file names, as this host's process table reports it.
+use crate::index_lock_evidence::host_pid_process;
 /// The place of the lock and the watch on its directory.
 use crate::service_index_lock::{Watch, lock_path_of};
 /// The longest a wait lasts.
@@ -125,7 +125,7 @@ fn look_at(real_index: &Path, gather: &dyn Fn(&Path) -> std::io::Result<Option<E
 /// The evidence of the host:
 /// the Git lock PID file and the bounded scan of open descriptors.
 fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
-    return gather_with(real_index, resolve_process_start, scan_platform_holders_bounded);
+    return gather_with(real_index, host_pid_process, scan_platform_holders_bounded);
 }
 
 /// The notice:

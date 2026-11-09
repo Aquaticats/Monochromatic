@@ -856,6 +856,12 @@ Repository Rust incumbents (Verified by `rg` over tracked `Cargo.toml` and `Carg
    which also locks `quick-xml`,
    `roxmltree`,
    and `xml-rs` transitively.
+  Both `rust-module/rust-linter-core` and `linter/rust` left the tree on 2026-10-06,
+   in `5bc05682ec`:
+   the only direct `toml` dependency today is `package/ide/app/Cargo.toml:70`
+   (`toml = ">=1.2.1"` from `rust-catalog.toml:112`),
+   and `rowan` 0.15.18 now arrives through `ra_ap_syntax` in
+   `package/linter/monochromatic-lint/Cargo.lock`.
 
 ## TOML options
 

@@ -306,6 +306,14 @@ minimumReleaseAgeExclude:
 
 This admits only the inspected releases and leaves future versions behind the age gate.
 
+Both entries above are retired from `pnpm-workspace.yaml` as of 2026-11-09:
+the catalog moved to `cidr-tools >=13.0.4`,
+ which resolves 13.0.4,
+and `ip-bigint` resolves 10.0.4,
+so the excluded releases can no longer be installed.
+The shape is what to reuse,
+ not those two lines.
+
 ### Wait for package maturity
 
 Rerun the normal install after the package versions pass the configured release-age cutoff.

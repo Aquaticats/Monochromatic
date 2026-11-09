@@ -11,6 +11,11 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+Every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 ## Status
 
 Update 2026-10-31:

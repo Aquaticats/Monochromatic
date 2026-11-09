@@ -869,7 +869,8 @@ which this record proposes and does not build:
   and not to be touched from this branch:
   what the landing does with the index,
   which another branch is changing.
-  The measurement above is of the preparation only.
+  The measurement under "What the preparation spends,
+  named" is of the preparation only.
 
 What this could not determine:
 
@@ -881,6 +882,195 @@ What this could not determine:
   the installed release writes no `prepareParts`,
   so the 866 commits of this record cannot be split retroactively,
   and the next reading of the live log can.
+## The shadow's creation, measured and made cheaper
+
+The creation that the flush's change left unsized is the stretch between the end
+of the preparation and the shadow's first reference step:
+the skeleton's directories and `HEAD`,
+its config and alternates,
+the links to the real common directory's shared entries,
+the conclusion copy,
+and then the ref store.
+The records name that stretch exactly,
+because every phase and every Git step carries its offset from the command's start,
+and it is where 93 to 99 percent of each measured hour's `buildMs` sits,
+except the last hour of the window, 19:00, where it is 56 percent and the
+  machine stopped stalling,
+so measuring `buildMs` and measuring the creation were the same measurement in
+every hour that stalled.
+
+### What it costs in the records
+
+Over the day ending 2026-11-09T19:01Z,
+733 records of the log and its one generation,
+696 of them landed on their first attempt:
+
+- the creation's median is 3742 ms,
+  p90 20 047 ms,
+  p99 71 966 ms,
+  max 167 656 ms.
+- the whole commit's median over the same records is 13 356 ms.
+- it moved with the machine and not with the tree:
+  by hour, medians of 5846 ms at 11:00,
+  1970 ms at 12:00,
+  5435 ms at 13:00,
+  3925 ms at 14:00,
+  3668 ms at 15:00,
+  3814 ms at 16:00,
+  6989 ms at 17:00,
+  2669 ms at 18:00 and 183 ms at 19:00.
+- the same records count the shadow ref store's Git starts:
+  one `git for-each-ref`,
+  two `git symbolic-ref` and one `git update-ref` per commit,
+  with medians of 5 ms, 3 ms and 4 ms and maxima of 250 ms, 8815 ms and 1924 ms.
+
+A read-only probe of the calls themselves says the Git directory was not charging
+more per lookup than a fixture:
+2000 `stat` calls on the repository's own `.git` (79 entries) took 5.8 us each,
+2.7 us for a name that does not exist and 26.0 us for a directory listing,
+against 3.5 to 4.5 us, 2.8 us and 22 to 24 us in the shaped fixtures.
+What the creation waits for is the machine's device, hour by hour;
+what the wrapper controls is how many calls it stands in that queue.
+
+### The calls it makes, and what two of them were for
+
+One wrapped commit in a shaped fixture of this tree,
+traced with `strace -f -T -e trace=%file,%desc`,
+whose common directory carries the 39 private index copies the person's own holds,
+made 392 filesystem calls in that stretch:
+`symlink` 47,
+`statx` 89,
+`read` 96,
+`openat` 45,
+`close` 31,
+`readlink` 24,
+`getdents64` 14,
+`pread64` 12,
+`mkdir` 8,
+and the rest under 10 each.
+
+Two of those groups were the wrapper's own doing and nothing else's:
+
+- Every entry of the real common directory that the transaction does not keep
+  privately was linked into the shadow,
+  and the wrapper's private copy of an index sat on neither list.
+  The copy is made beside the real index once per command that predicts what
+  `git add` would stage,
+  and the person's common directory held 39 of them,
+  left by commands that died before they removed their own.
+  Every commit created two filesystem entries for each.
+- Each link was preceded by a lookup of the name it would be made at,
+  to remove a template entry that only the reftable path's `git init` creates.
+  On the files path a fresh shadow holds nothing at those names,
+  so the lookup was one call per entry per commit for an answer that is always
+  "nothing there".
+
+### The change, in four commits
+
+- `is_private_shadow_entry` now names the private index copies by their prefix,
+  read from `PRIVATE_INDEX_PREFIX` (`shadow_links.rs`),
+  so the writer and the reader of the name are one constant.
+- A link is made first and a refused one removes what sits at the name and links
+  again,
+  so the common case is one call per entry (`shadow_links.rs`).
+  Windows, where a shared file is a copy and not a link, keeps the removal first.
+- On the files backend the wrapper writes the shadow's private target ref,
+  its symbolic refs and its `HEAD` itself (`shadow_refs.rs`),
+  as it already wrote `packed-refs`:
+  a loose ref is the object name and a line feed,
+  a symbolic one is `ref: <target>` and a line feed.
+  The reftable backend keeps Git,
+  because its refs live in tables only Git writes.
+- A branch that is itself a symbolic ref to another branch keeps its chain,
+  and the private target is written where that chain ends,
+  at most `SYMBOLIC_REF_CHAIN_LIMIT` steps, which is Git's own limit
+  (`shadow_refs.rs`).
+  `git update-ref`, which the third step replaces, follows such a chain;
+  a direct write at the first name would turn the chain into a direct ref that a
+  hook can tell apart.
+
+Red controls first, for the two steps that changed what the wrapper does:
+
+- `shadow::shadow_links::tests::the_wrappers_private_index_copies_stay_out_of_the_shadow`
+  failed with
+  `assertion failed: std::fs::symlink_metadata(shadow.join(dead.file_name().expect("name"))).is_err()`.
+- `shadow::shadow_refs::tests::a_files_snapshot_writes_every_ref_without_a_git_start`
+  failed with the three starts that wrote a few bytes each
+  (`symbolic-ref refs/heads/alias refs/heads/main`,
+  `update-ref refs/heads/main 9ff701ae...`,
+  `symbolic-ref HEAD refs/heads/main`).
+- `shadow::shadow_refs::tests::a_files_detached_head_is_written_where_git_reads_it`
+  failed the same way on `update-ref --no-deref HEAD`.
+- `shadow::shadow_refs::tests::a_files_target_that_is_a_symbolic_ref_is_written_at_the_end_of_its_chain`
+  failed with `left: "refs/heads/main", right: "refs/heads/alias"` on
+  `git symbolic-ref HEAD` of a shadow whose `HEAD` names `refs/heads/alias`,
+  and that was the cross-vendor review's finding against the third step.
+
+Both ref controls then read the store back through real Git:
+`git symbolic-ref HEAD`,
+`git rev-parse` of the private target and of the snapshot's tag and second branch,
+and `git symbolic-ref` of a symbolic ref.
+The reftable and byte-named-ref controls are unchanged and pass.
+The link step is a shape with no behaviour of its own;
+the existing controls for a replaced template entry, a linked worktree's private
+`info` and the shared `rr-cache` cover it.
+
+### After
+
+The same method, the same fixture shape, the same 39 private index copies, one
+commit traced with that call filter (each trace is its own fixture, so the
+figures are per call and not per run of the same tree):
+
+- 306 calls against 392;
+  `symlink` 8 against 47,
+  `statx` 42 against 89.
+  The first commit of a fixture, which does more,
+  fell from 1695 calls to 1612,
+  with `symlink` 44 to 5 and `statx` 470 to 426.
+- the commit started one Git for the shadow's refs where it started three:
+  `git for-each-ref` stays,
+  and the `git symbolic-ref` and `git update-ref` are gone from the trace
+  entirely,
+  and from the records: 3 starts in each of 8 commits before, 1 in each of 8
+  after.
+  The person's own records count four before the change,
+  one `git for-each-ref`, one `git update-ref` and two `git symbolic-ref` per
+  commit,
+  and the shaped fixtures have one symbolic ref fewer than that repository.
+
+Three arms of 8 commits each, alternating which arm went first,
+in fixtures of this tree's shape that carry the common directory's 39 private
+index copies,
+where the first two arms are the same binary on unchanged code:
+
+- whole commit, by the record's own total:
+  median 719 ms (241 ms to 30 370 ms) and, on the identical arm,
+  842 ms (254 ms to 22 862 ms), against 285 ms (246 ms to 8070 ms).
+  The identical arms differ by 1.17 times at the median,
+  and each of them caught one stall of 23 to 30 s that the changed arm did not,
+  so this record claims no whole-commit improvement from the medians alone.
+- the creation's own stretch:
+  median 5 ms and 4 ms before (3 ms to 38 ms and 3 ms to 50 ms),
+  median 2 ms after (2 ms to 8 ms).
+- the shadow's Git starts: 3 in every before record, 1 in every after record.
+
+What stays, and why:
+
+- `git for-each-ref`,
+  one start per commit:
+  the snapshot must be the real repository's refs as they stood at invocation,
+  and above `REF_LISTING_LIMIT` refs the wrapper's own reader declines,
+  after reading `packed-refs` and checking each ref against the object database.
+  That attempt is most of the creation's 96 `read` calls,
+  55 of the 96 in the traced commit read the real `packed-refs`,
+  and its 12 `pread64` calls are the object-database checks,
+  so this is the largest group the creation still holds.
+- the skeleton's 8 `mkdir` calls and its `HEAD`,
+  the shadow's config and alternates,
+  and the conclusion copy's directory:
+  they are the repository Git is handed, and each is one call.
+- the `readlink` calls in path resolution and the `getdents64` of the one
+  directory listing, which the links need to know what to link.
 
 ## What remains
 
@@ -971,23 +1161,23 @@ owner-held machinery it would move.
 
 ### The rest of the shadow's creation
 
-- What:
-  the metadata of `create_shadow_repository_carrying`,
-  which created directories and symlinks and wrote the shadow's config and alternates
-  without syncing any of them.
-- Cost:
-  unknown on its own.
-  It shared the measured uncovered `buildMs` stretch with the flush,
-  and the fixture runs that named the flush could not separate them,
-  so this entry is the part of 53.7 percent that the change did not take.
-- Pros:
-  it is the largest bucket still open.
-- Cons:
-  nothing measured sizes it,
-  so any change there would be a guess about a bucket that is small when the device is not stalling.
-- Ranking:
-  4 of 4,
-  because it cannot be sized until it is measured.
+- Taken:
+  measured and made cheaper by the section
+  "The shadow's creation, measured and made cheaper".
+  It was 93 to 99 percent of each hour's `buildMs`,
+  and its calls fell from 392 to 306 in a fixture of this tree's shape,
+  with the shadow's Git starts down from three to one per commit.
+- Still open, and now named:
+  the wrapper's other scratch directories in a common directory
+  (`cli-git-scratch`,
+  `cli-git-captures`,
+  `monochromatic-git-policy-cli-scratch`,
+  `monochromatic-git-policy-cli-merges`,
+  and its own `*.jsonl` logs) are still linked into every shadow.
+  They are six or seven entries, not thirty-nine,
+  and no measurement says a hook needs them,
+  so this record does not take them; the private index copies were taken because
+  a common directory had collected one per command that died.
 
 ## The preparation's split, measured on a shaped fixture
 
@@ -1263,8 +1453,10 @@ Three fields were added to the commit timing record because a slow landing could
   the conclusion copy,
   the records a batch owes,
   and the head question under the lock.
-  `reads_ms` stays the whole, and the named parts never add up to more than it.
-- `landing.lockHoldMs` is how long the landing held the index lock, which is what the commits behind it queued on,
+  `reads_ms` stays the whole,
+  and the named parts never add up to more than it.
+- `landing.lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
   and `landing.queuedBehind` is how many requests were still waiting for their answer when the landing finished.
 - `landing.syncs` is every file or directory sync the landing asked for,
   in the order it asked,
@@ -1275,19 +1467,23 @@ The service measures all three,
 so the answer to a commit carries them and the record states them;
 a service of a release that sends none leaves the field `null`,
 never zeros.
-The `answered` line of the journal states the same figures, so the two files agree.
+The `answered` line of the journal states the same figures,
+so the two files agree.
 
 ### The measurement
 
-One binary, two runs of four rounds of eight overlapping commits in a disposable clone of this repository
+One binary,
+two runs of four rounds of eight overlapping commits in a disposable clone of this repository
 (452 990 objects and 22 462 tracked files),
 started together on one branch so they land as one batch:
 
-- run A: 32 commits,
+- run A:
+  32 commits,
   median 4 280 ms,
   p95 8 623 ms,
   14 of 32 over 5 000 ms.
-- run B, the same binary:
+- run B,
+  the same binary:
   32 commits,
   median 22 002 ms,
   p95 40 868 ms,
@@ -1310,17 +1506,27 @@ clone the repository somewhere disposable,
 point its `origin` at a bare repository of that scratch tree so no push reaches the checkout it came from,
 and start the wrapper's service for the clone with `bench`-style arguments under an `XDG_RUNTIME_DIR` of its own.
 
-The commit's phases, as the record counts them:
+The commit's phases,
+as the record counts them:
 
-- prepare: median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
-- submit: median 755 ms and 10 843 ms (p95 3 025 and 24 813).
-- gate: median 151 ms and 1 519 ms (p95 2 701 and 10 569).
-- build: median 3 ms in both; after-landing, handoff and uncovered time under 80 ms.
+- prepare:
+  median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
+- submit:
+  median 755 ms and 10 843 ms (p95 3 025 and 24 813).
+- gate:
+  median 151 ms and 1 519 ms (p95 2 701 and 10 569).
+- build:
+  median 3 ms in both;
+  after-landing,
+  handoff and uncovered time under 80 ms.
 
-The landing, as the service splits it:
+The landing,
+as the service splits it:
 
-- landing: median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
-- the wait for another program's hold on the index: median 10 539 ms in run B (p95 14 249),
+- landing:
+  median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
+- the wait for another program's hold on the index:
+  median 10 539 ms in run B (p95 14 249),
   which is 98 percent of that run's median landing.
 - everything the landing itself does:
   reads median 29 ms in A and 15 ms in B,
@@ -1328,25 +1534,40 @@ The landing, as the service splits it:
   the intent journal 0 ms,
   the branch move 14 ms,
   the index update 89 ms.
-- the hold on the index: median 165 ms in A and 190 ms in B (p95 207 and 2 771).
-- queued behind a landing: seven commits for the first request of each batch and none for the rest,
+- the hold on the index:
+  median 165 ms in A and 190 ms in B (p95 207 and 2 771).
+- queued behind a landing:
+  seven commits for the first request of each batch and none for the rest,
   because the eight commits of a round land as one batch.
 - six syncs per landing,
   always handed to the background and never waited for:
   193 over 32 landings in each run,
-  named `intent-file`, `intent-dir`, `index-dir`, `indexed-file`, `indexed-dir` and `journal-dir`,
+  named `intent-file`,
+  `intent-dir`,
+  `index-dir`,
+  `indexed-file`,
+  `indexed-dir` and `journal-dir`,
   with `lock-marker` only for the first landing of a run (the marker is made ahead after that).
 
 ### The same clone, one commit at a time
 
-A third run, of six commits one after another in the same clone,
+A third run,
+of six commits one after another in the same clone,
 so nothing ever queued:
 
-- the wait for another program's hold on the index: median 1 ms, largest 3 040 ms.
-- the hold on the index: median 305 ms, largest 724 ms.
-- the index update: median 192 ms.
-- reads: median 4 ms.
-- queued behind a landing: none, in every one of the six.
+- the wait for another program's hold on the index:
+  median 1 ms,
+  largest 3 040 ms.
+- the hold on the index:
+  median 305 ms,
+  largest 724 ms.
+- the index update:
+  median 192 ms.
+- reads:
+  median 4 ms.
+- queued behind a landing:
+  none,
+  in every one of the six.
 
 Seven siblings in one batch turn that 1 ms into 10 539 ms,
 and no sibling at all leaves it at 1 ms.
@@ -1361,7 +1582,8 @@ locking only around the write,
 one sync per batch and one index update per batch is already how the landing works.
 The landing's one large cost is a wait it does not cause:
 each commit of a batch refreshes the real index in its own preparation
-(`git update-index --refresh`, which takes `index.lock`),
+(`git update-index --refresh`,
+which takes `index.lock`),
 so the batch's landing waits for its own members to stop refreshing,
 and those members wait for the landing in turn.
 
@@ -1376,13 +1598,160 @@ The tail is elsewhere:
   p95 34 511 ms,
   and the slowest commit of that run spent 34 511 ms of its 37 227 ms there;
 - the post-commit gate,
-  p95 2 701 ms in run A and 4 380 ms in the run one commit at a time;
+  p95 2 701 ms in run A and 4 380 ms in the run one commit at a time,
+  which "Where the gate's seconds were,
+  and what a gate spends now" settles as the gate's own copy
+  of the real index,
+  gone from this worktree since `195f167602`;
 - the per-commit refresh of the real index by the preparation,
   which the landing of a batch waits for and which a batch needs once.
 
 The first and the third are the preparation's,
 which another branch is changing,
 and the second is the gate's.
+
+## Where the gate's seconds were, and what a gate spends now (2026-11-09T16:10:00-05:00)
+
+The gate's p95 of 2 701 ms in run A and 4 380 ms in the run one commit at a time
+was not a policy's work and not a Git child of the gate.
+Every candidate request used to copy the real index into a private one,
+and the gate prepares the landed commit's candidates after the branch moves,
+so one of those copies was the gate's own:
+three megabytes read and written inside the command's process,
+which starts no Git child and therefore stood in no `steps` entry of the record.
+The trace behind "A request that only lists the index reads it in place"
+put the copy a candidate request makes at 2 288 ms and 4 813 ms in two commits
+under the host's input and output pressure.
+`195f167602` removed the copy from every request that only lists the index,
+the landed one included,
+so a gate in this release copies nothing.
+
+### The measurement
+
+The method is the one the figures above came from,
+run again on 2026-11-09 between 15:12 and 16:20,
+under the load the host had then:
+other sessions were running their own builds and a performance run of their own,
+and the load average read 61 and 74 at one minute in the two samples taken while the runs were going,
+on eight CPUs.
+Each run makes eight overlapping commits in each of three rounds,
+where run A above made four,
+started together on one branch of a disposable clone of this worktree
+(458 808 objects in packs and 22 556 tracked files),
+with the wrapper's own service,
+and its own `HOME`,
+journal and runtime directory.
+The spread of one unchanged binary comes first,
+because it is the floor any difference is read against:
+
+- `77d79100fd`,
+  the binary the figures above were measured with:
+  gate median 3 571 ms and 2 047 ms,
+  p95 6 136 ms and 5 818 ms.
+- `b9000c1929`,
+  this worktree's `HEAD`,
+  which carries `195f167602`:
+  gate median 72 ms and 115 ms,
+  p95 96 ms and 248 ms.
+
+Two runs of one binary differ by 1.7 times at the gate's median for `77d79100fd` and 1.6 times for `b9000c1929`,
+and by 1.1 and 2.6 times at its p95.
+The two binaries differ by 18 to 50 times at the median and 24 to 64 times at the p95,
+in every pairing of their runs,
+which is not the host's spread.
+One more binary settles which change did it:
+`77d79100fd` with `195f167602` applied to it and nothing else,
+built the same day,
+holds the gate at 45 ms at the median and 55 ms at its p95 in one run of the same method,
+with every one of its 24 commits between 33 ms and 57 ms.
+That change touches the candidates a gate prepares and nothing else about the gate;
+it also removes the two copies the preparation itself made,
+so the control's commits are shorter than the record's overall and only its gate is compared here.
+
+The arms were not interleaved:
+the two runs of `77d79100fd` ran first,
+then the two of `b9000c1929`,
+then the control.
+The control therefore ran last and fastest,
+so the effect is not a quieter host.
+
+The documents the runs wrote are `perf/gate-account-2026-11-09-*.json`:
+`baseline-a` and `baseline-b` are the runs of `77d79100fd`,
+`before-a` and `before-b` the runs of `b9000c1929`,
+and `control` the run of the one-change build,
+and `probe` the one-round run cited below.
+Each holds every phase of its commits,
+the gate's spans,
+the four slowest gates with their spans and Git children,
+and the service's `answered` lines.
+
+### What a gate spends now, by name
+
+The record's spans name every stretch of a gate in this release:
+
+- `policy final-newline at post-commit`,
+  14 ms and 28 ms at the median in the two runs of `HEAD`.
+  It is the gate's first content policy,
+  so it pays for the landed commit's candidate set:
+  the `git diff-tree` of the landed commit (11 ms and 18 ms at the median)
+  and the reading of the bytes that listing names.
+  The record's shared `candidates prepared` span covers the same preparation at both lifecycle points,
+  so the gate's own share of that work is read from this span and from `git diff-tree` beside it.
+- `policy security/forbidden-strings at post-commit`,
+  52 ms and 84 ms at the median.
+  It holds the loading of the rules,
+  the listing of the landed commit's parents (3 ms and 9 ms in `git rev-list`),
+  the listing of a parent's whole tree for the content a move already put in history
+  (25 ms and 35 ms in `git ls-tree`),
+  and the scan itself.
+- `policy markdown/autofix at post-commit` and `policy mono/catalog-specifiers at post-commit`,
+  0 ms each:
+  a commit of one text file has no candidate of either kind.
+- what those four spans leave of `gateMs`,
+  which is the facts provider and the pass itself,
+  3 ms at the median and 16 ms at the largest.
+
+A gate's tail under pressure is not a policy's either.
+A first run of the same method with one round,
+written before the two above and never discarded,
+put `gateMs` at 163 ms at the median and 6 342 ms at its p95:
+the slowest of its eight commits spent 6 298 ms of a 6 342 ms gate in `policy final-newline at post-commit`,
+where its `git diff-tree` of the landed commit ran 6 275 ms,
+while the other seven commits of its batch compiled the scanner's rule cache
+(16 034 ms in that record's `policy security/forbidden-strings at pre-forward`,
+against 14 ms for the same gate's `git ls-tree` later in the same command).
+That is this record's second-ranked entry at work on the gate:
+the rule-cache compile saturates the host inside the preparation,
+and the gate's own Git children queue behind it.
+It costs nothing on a machine whose cache is warm,
+which is why the two three-round runs of the same binary never crossed 251 ms at their p95.
+
+For a commit of one text file,
+no step of a gate is worth removing.
+Two more candidates are named and left:
+
+- the scanner's rules are loaded again at the gate,
+  in a state of its own,
+  which the scanner's own command does in under 10 ms from a warm cache on this host
+  (32.04 s cold,
+  then 0.00 s twice);
+- `markdown/autofix` runs at the gate only to warn in this repository's configuration,
+  and an `error` in another configuration can block there,
+  so skipping it would change a verdict for the 0 ms it costs a commit of one text file.
+
+The one duplication left is the parent tree's listing,
+which the same command's preparation already made for the same commit:
+the preparation lists the base's whole tree to answer the same question,
+and the landed commit's parent is that base unless a replay rebuilt the commit.
+That is 25 to 35 ms of a 72 to 115 ms gate,
+about 0.2 percent of a commit,
+and sharing it between the two checks would need process-wide state between two readers,
+which `candidate_store_commit_listings.rs` keeps out of the store on purpose.
+
+What these runs leave unmeasured is a commit that changes Markdown:
+the embedded linter runs at both lifecycle points for such a commit,
+and every commit in these runs is one text file.
+A measurement of a Markdown commit's gate would need a run whose agents commit Markdown.
 
 ## What this could not determine
 
@@ -1395,13 +1764,20 @@ and the second is the gate's.
   and the copy of the index that set made for itself was the larger part until `195f167602` removed it.
 - Whether the 351 s and 493 s stalls of 2026-11-08T23:26 were the conclusion copy's flush.
   Both sit in the same uncovered `buildMs` stretch,
+  The records name Git steps and phases,
+  not policy rules,
+  and this host has no profiler.
+- How much of the 351 s and 493 s stalls of 2026-11-08T23:26 was the conclusion copy's flush.
+  Both sit in the stretch the section "The shadow's creation, measured and made
+  cheaper" now sizes,
   between the shadow's `git config` read and its first reference write,
-  which is where that flush is,
+  so they are the creation's stall and not a phase boundary one;
+  the flush was one call inside it,
   and the same stretch reproduced at 1279 ms,
   2530 ms and 5569 ms
   with a 24.9 s flush measured inside it.
-  The record holds no figure for that stretch,
-  so the live commits cannot be proven to be it.
+  No record separates that flush from the 95 other calls of the file work around it,
+  so which call a given stall held cannot be told from the log.
 - How much of the 7.1 percent of `otherMs` is the scratch removal
   and how much is the wrapper writing what the person reads on standard error,
   which blocks when the reader is slow.
@@ -1409,12 +1785,24 @@ and the second is the gate's.
   Native Git flushes the index only when `core.fsync` asks,
   which is unset here,
   so this record compares step by step and not device stall by device stall.
+- Whether a torn ref file of a shadow changes any recovery outcome.
+  The ref store is written unsynced and not through a lock file, on the argument
+  that nothing reads a shadow's refs after a crash and recovery removes the tree
+  whole.
+  The `packed-refs` half of that argument already rested on it,
+  and both comments that state it cite
+  `binary_recovery_tearing_shadow_tests.rs`,
+  which this branch does not hold:
+  `git log --all` finds no such path and no `binary/` control mentions tearing.
+  The argument stands on the code's own shape,
+  and no control on this branch exercises it.
 
 ## Decisions this record takes, open to the owner's veto
 
 - The ranking of the four entries above changes:
   the landing's own share is smaller than the records suggested
-  (382 ms of a 4 280 ms median commit, with no named read over 51 ms),
+  (382 ms of a 4 280 ms median commit,
+  with no named read over 51 ms),
   and what its number was made of is a wait on the preparation of the batch's own members.
   Removing waste inside the landing would therefore not move the tail,
   and the entry that would is the preparation's per-commit refresh of the real index,
@@ -1430,5 +1818,27 @@ and the second is the gate's.
   which costs every commit a flush of the disk,
   and to take the wait off the
   command's path another way.
+- The gate's two figures are settled,
+  and no step of a gate is worth removing for a commit of one text file.
+  Its p95 was the gate's own copy of the real index,
+  which `195f167602` removed before the gate was measured again:
+  a build of the record's binary with that one change applied holds the gate at 45 ms at the median,
+  against 2 047 to 3 571 ms without it,
+  and this worktree's `HEAD` holds it at 72 to 115 ms at the median
+  with the landed commit's candidate set and the forbidden-strings scan inside it.
+  Three candidates are named and left:
+  the parent tree's listing,
+  which repeats what the same command's preparation listed for the same commit
+  and is worth 25 to 35 ms of that gate,
+  the scanner's second load of its rules,
+  worth under 10 ms from a warm cache,
+  and `markdown/autofix` at the gate,
+  which can block under a configuration that sets it to `error` and costs nothing to a text-file commit.
+  What a gate still waits on under pressure is the preparation's cold rule-cache compile,
+  which is the second entry above,
+  and the gate's own Git children queue behind it:
+  one run of the same method put a `git diff-tree` of the landed commit at 6 275 ms inside a 6 342 ms gate.
+  A commit that changes Markdown is unmeasured:
+  the embedded linter runs at both lifecycle points for it.
 - The four ranked entries of this record are proposals,
   not work in progress.

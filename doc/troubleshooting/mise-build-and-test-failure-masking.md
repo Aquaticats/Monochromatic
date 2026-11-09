@@ -6,6 +6,13 @@ Repository commit `74740bbc1` fixes the orchestration;
 `5419f39d9` regenerates `mise.toml` through file-enforcer.
 The historical diagnosis and pre-fix observations remain in this document.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+The regeneration step described in the resolution is historical:
+`mise.toml` is hand-written today,
+and every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 The root task now builds without invoking `try`,
 retains errors from each phase,
 runs tests even after build failure,

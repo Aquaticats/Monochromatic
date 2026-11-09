@@ -42,6 +42,7 @@ use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, norma
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
 use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
+use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use crate::commit_facts::PrivateIndexFacts;
@@ -70,38 +71,10 @@ use crate::external_hooks::warn_external_hooks;
 use crate::preparation_notice::deliver_notice;
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, run_git_checked};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-
-/// What:
-///  The staging start that puts the working copy of every unmerged file into the commit's own index,
-/// each named with `:(top,literal)` magic.
-/// Why:
-///   Every name is a pathspec the wrapper wrote,
-/// and this start skips the caller's prefix,
-/// so every mode the caller set is removed from the child's environment:
-/// under literal mode the names would match nothing,
-/// and two glob modes at once make Git refuse the start and fail the commit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unmergedStagingRequest = (cwd, index, objects, paths) => ownPathspecs(indexedRequest(cwd, ['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects));
-/// ```
-fn unmerged_staging_request(cwd: &Path, index: &Path, object_directory: &Path, paths: &[Vec<u8>]) -> GitRequest {
-    let mut staging: Vec<OsString> = vec![
-        OsString::from("add"),
-        OsString::from("--all"),
-        OsString::from("--"),
-    ];
-    for path in paths {
-        let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-        spec.extend_from_slice(path.as_slice());
-        staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
-    }
-    return indexed_request(cwd, staging.as_slice(), Some(index), Some(object_directory)).own_pathspecs();
-}
 
 /// What the preparation reads that does not change between two preparations of one command.
 pub struct PrepareInputs<'a> {
