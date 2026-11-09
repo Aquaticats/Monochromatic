@@ -196,30 +196,68 @@ fn signal_name(signal: libc::c_int) -> &'static str {
 }
 
 /// What:
-///  The pin of the step's root,
-/// taken from the record the stop read before any wait,
-/// or nothing that could hold it.
+///  The pin of a step's root,
+/// taken when the child started,
+/// while it was this process's own unreaped child.
 /// Why:
-///  A signal must reach the process the stop found and never one that took its number afterwards.
-/// Reading the
-///  record again at the signal would prove only which process holds the number *then*:
-/// the root can have ended and
-///  been reaped while the grace ran,
-/// and an unrelated process that received its number would be the one
-///  signalled.
-/// The pin names its process for good,
-/// so both signals of the stop reach that process or nothing at all.
+///  A number is a safe address only while the process it names is this process's own unreaped child,
+/// and the thread
+///  that waits for the child reaps it as soon as it ends.
+/// A pin taken at stopping time therefore pins whatever process
+///  holds the number *then*:
+/// the step can have ended and been reaped while its grace ran,
+/// the number can
+///  have passed to another command,
+/// and that command would receive the stop
+/// (the third review's finding 1).
+///  Taken at the start,
+/// the number certainly names the child,
+/// and the pin names that child for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pin = pinOfTheRoot(memberRead(pid)); // held, gone or unproven
+/// const pin = pinAtStart(child.pid); // held only if the record read then named the child
 /// ```
-#[cfg(unix)]
-pub(crate) fn pin_of_the_root(record: &MemberRead) -> Pinned {
-    let MemberRead::Found { member, .. } = record else {
-        return Pinned::Gone;
+#[cfg(all(unix, target_os = "linux"))]
+pub(crate) type RootPin = Pinned;
+
+/// Without a descriptor to take a pin with,
+/// nothing is ever signalled to a step's root.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+#[derive(Debug)]
+pub(crate) struct RootPin;
+
+/// What:
+///  The pin of the child that has just started,
+/// taken while its number is certainly its own.
+/// Why:
+///   The child is this process's own unreaped child right after the start,
+/// so the record read here describes it and
+///  no other process;
+/// the descriptor that record is proven against then names that child for good.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pin = pinAtStart(child.pid);
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+pub(crate) fn pin_at_start(pid: u32) -> RootPin {
+    let Ok(raw) = i32::try_from(pid) else {
+        return Pinned::Unproven;
     };
-    return PinnedMember::open(member);
+    let MemberRead::Found { member, .. } = member_read(raw) else {
+        return Pinned::Unproven;
+    };
+    return PinnedMember::open(&member);
+}
+
+/// Without `/proc` nothing is known about the child's number,
+/// so no pin is made and nothing is signalled.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+pub(crate) fn pin_at_start(_pid: u32) -> RootPin {
+    return RootPin;
 }
 
 /// What:
@@ -238,8 +276,8 @@ pub(crate) fn pin_of_the_root(record: &MemberRead) -> Pinned {
 /// ```ts
 /// function sendToTheRoot(pinned: Pinned, pid: number, signal: number): Delivered;
 /// ```
-#[cfg(unix)]
-pub(crate) fn send_to_the_root(pinned: &Pinned, raw: i32, signal: libc::c_int) -> Delivered {
+#[cfg(all(unix, target_os = "linux"))]
+pub(crate) fn send_to_the_root(pinned: &RootPin, raw: i32, signal: libc::c_int) -> Delivered {
     let delivered: Delivered = match pinned {
         Pinned::Held(member) => member.signal(signal),
         Pinned::Gone => Delivered::Gone,
@@ -257,6 +295,23 @@ pub(crate) fn send_to_the_root(pinned: &Pinned, raw: i32, signal: libc::c_int) -
         );
     }
     return delivered;
+}
+
+/// A platform without a descriptor cannot signal the step's root;
+/// the wait it announces is all it has.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+pub(crate) fn send_to_the_root(_pinned: &RootPin, raw: i32, signal: libc::c_int) -> Delivered {
+    crate::diagnostic_log::warn(
+        "childWatch",
+        format!(
+            "the step {raw} was not sent {}: this platform gives no descriptor to name a process with, so no number is signalled. \
+             Check with `ps` whether it runs and what it waits for.",
+            signal_name(signal)
+        )
+        .as_str(),
+    );
+    return Delivered::Unproven;
 }
 
 /// What:
@@ -296,10 +351,10 @@ pub(crate) fn the_wait_after_the_kill(elapsed: Duration, tree: &[TreeMember]) ->
 /// and the waiting thread reports the
 ///  bound.
 /// The processes the child started end with it.
-///  Its root is pinned once,
-/// from the record read before any wait,
-/// so a signal reaches that process and never one that took its
-///  number afterwards,
+///  Its root is pinned when the child starts,
+/// while it is this process's own unreaped child,
+/// so a signal reaches that
+///  process and never one that took its number afterwards,
 /// and every wait of the stop is bounded.
 ///
 /// In TS you'd write (pseudocode):
@@ -307,7 +362,7 @@ pub(crate) fn the_wait_after_the_kill(elapsed: Duration, tree: &[TreeMember]) ->
 /// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep(tree.as_slice());
 /// ```
 #[cfg(unix)]
-pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>) {
+pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>, root_pin: &RootPin) {
     let Ok(raw) = i32::try_from(pid) else {
         return;
     };
@@ -323,11 +378,12 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
         MemberRead::Gone | MemberRead::Unreadable => Vec::new(),
     };
     tree.extend(below.iter().cloned());
-    // The pin is taken here, while nothing has had the chance to reap the root, and it names that process for good.
-    let root_pin: Pinned = pin_of_the_root(&root);
+    // The signals go through the pin the watch took when this child started, not one taken from a number now: by this moment
+    //  the child can have ended and been reaped, and the number can name another command (the third review's finding 1).
     // A process number can be reused once the waiting thread has reaped the child, and the child is reaped as soon as it
     // ends, which may be well before the grace is over (a helper below it can outlive it). Both signals therefore go through
-    // the one pin taken above, and never to a number read again: where that record proved nothing, nothing is signalled.
+    // the one pin taken when the child started, and never to a number read now: where that start proved nothing, nothing is
+    // signalled, and one line says so.
     // The locks the tree holds are claimed while their pid files still name the holders: the signals below can cut Git's cleanup
     //  between the removal of a pid file and the removal of its lock.
     let seen: Vec<TreeMember> = tree.clone();
@@ -339,13 +395,13 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
             locks.clone()
         }
     };
-    let _asked_delivered: Delivered = send_to_the_root(&root_pin, raw, libc::SIGTERM);
+    let _asked_delivered: Delivered = send_to_the_root(root_pin, raw, libc::SIGTERM);
     let _below_delivered: Vec<Delivered> = terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
     while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && tree.iter().any(still_running) {
         tokio::time::sleep(STOP_POLL).await;
     }
-    let _killed_delivered: Delivered = send_to_the_root(&root_pin, raw, libc::SIGKILL);
+    let _killed_delivered: Delivered = send_to_the_root(root_pin, raw, libc::SIGKILL);
     let _killed_below: Vec<Delivered> = kill_members(below.as_slice());
     // The waiting thread reaps the child, so the watcher only looks. A member in an uninterruptible call ends when the kernel
     // lets it go, which can be after the grace; that wait is bounded as the grace before the kill was, so a member whose record
@@ -372,7 +428,7 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
 /// the wait is only announced.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub(crate) async fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &mut UnboundedReceiver<Mark>) {}
+pub(crate) async fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &mut UnboundedReceiver<Mark>, _root_pin: &RootPin) {}
 
 /// What:
 ///  The flags the waiting thread and the watcher task share.

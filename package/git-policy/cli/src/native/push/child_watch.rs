@@ -235,13 +235,16 @@ impl ChildWatch {
         };
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
+        // The child is this process's own unreaped child at this moment, so its number is certainly its own: the pin taken here
+        //  names that child for good, and every signal of the stop goes through it (the third review's finding 1).
+        let root_pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
         let (ended, finished): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
         // The task holds `ended` and drops it however it ends (a panic or an abort included), which `finished` reads as a
         // disconnection.
         let spawned: Option<JoinHandle<()>> = if a_task_may_run {
             spawn_on_runtime(async move {
                 let _ends_with_the_task: std::sync::mpsc::Sender<()> = ended;
-                watch_loop(incoming, flags, subject, pid, terms, locks, stop).await;
+                watch_loop(incoming, flags, subject, pid, terms, locks, stop, root_pin).await;
             })
         } else {
             None
@@ -609,11 +612,16 @@ pub fn output_watched_within_for_a_stop(
     if !stoppable {
         watch.never_stop();
     }
-    // Nothing watches this step, so this wait is what ends it at its ceiling; a step with no ceiling is waited for as before.
-    let carried: Option<Duration> = match watch.unwatched() {
-        Some(_no_watcher) => ceiling,
-        None => None,
-    };
+    // Whatever the watch could not do, the wait for the output carries the step's own ceiling: a watch that cannot run, and one
+    // that may announce a wait but must not end it, both leave this wait as the only thing that ends the step at its ceiling
+    // (the third review's finding 2). A step with no ceiling is waited for as before.
+    let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> = ceiling.map(|limit| {
+        let why: crate::step_output_read_whole_through_pipes::CeilingWhy = match watch.unwatched() {
+            Some(_no_watcher) => crate::step_output_read_whole_through_pipes::CeilingWhy::NoWatcher,
+            None => crate::step_output_read_whole_through_pipes::CeilingWhy::TheWatchCouldNotEndIt,
+        };
+        return crate::step_output_read_whole_through_pipes::carried_by(limit, why);
+    });
     watch.begin();
     let output: std::io::Result<Output> = match bound {
         StepBound::LeaveRunning { after, extra } => {

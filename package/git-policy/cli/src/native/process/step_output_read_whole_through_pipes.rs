@@ -247,7 +247,7 @@ impl StepPipes {
     /// ```ts
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
-    pub fn read_until_the_child_ends(self, child: Child, waiting_for: &str, ceiling: Option<Duration>) -> std::io::Result<Output> {
+    pub fn read_until_the_child_ends(self, child: Child, waiting_for: &str, ceiling: Option<CarriedCeiling>) -> std::io::Result<Output> {
         // Both wait in an `Option`: whichever of the two paths runs takes them, and a refused runtime leaves them here.
         let mut waiting: Option<Child> = Some(child);
         let mut unread: Option<StepPipes> = Some(self);
@@ -282,7 +282,7 @@ impl StepPipes {
     /// ```ts
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
-    pub async fn read_until_the_child_ends_awaiting(self, child: Child, waiting_for: &str, ceiling: Option<Duration>) -> std::io::Result<Output> {
+    pub async fn read_until_the_child_ends_awaiting(self, child: Child, waiting_for: &str, ceiling: Option<CarriedCeiling>) -> std::io::Result<Output> {
         return read_until_the_child_ends_awaiting(self, child, waiting_for, ceiling).await;
     }
 }
@@ -312,7 +312,7 @@ impl StepPipes {
 /// ```ts
 /// const [stdout, stderr, status] = await withCeiling(Promise.all([readAll(out), readAll(err), child.exited]), ceiling);
 /// ```
-async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, waiting_for: &str, ceiling: Option<Duration>) -> std::io::Result<Output> {
+async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, waiting_for: &str, ceiling: Option<CarriedCeiling>) -> std::io::Result<Output> {
     let StepPipes { standard_output, standard_error } = pipes;
     // `mut` lets the wait take the standard input away before the join.
     let mut input_closed: Child = child;
@@ -335,12 +335,13 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
         return status;
     };
     let (read, waited): ((std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>), std::io::Result<ExitStatus>) = match ceiling {
-        Some(limit) => match tokio::time::timeout(limit, async { return tokio::join!(reading, waiting); }).await {
+        Some(carried) => match tokio::time::timeout(carried.limit, async { return tokio::join!(reading, waiting); }).await {
             Ok(both) => both,
             Err(_elapsed) => {
-                // The watch that would have ended the step never ran, so this wait carries the step's own ceiling.
+                // Nothing ended this step before its ceiling, so this wait carries it: whatever the watch could not do, a step
+                //  never outlives the ceiling the wrapper gives it.
                 owned.end_and_reap();
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, limit)));
+                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, carried)));
             }
         },
         None => tokio::join!(reading, waiting),
@@ -464,6 +465,47 @@ fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
 }
 
 /// What:
+///  The step's own ceiling, carried by the wait for its output,
+/// and why no watch ended the step before it.
+/// Why:
+///   A watch announces a wait and ends the child at its ceiling,
+/// but the thread it needs can be refused,
+///  and a
+/// watch that runs is not allowed to end every step it waits for.
+/// Whatever it could not do, the wait for the output keeps the
+///  ceiling,
+/// so no step outlives it
+/// (the third review's finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CarriedCeiling = { limit: Duration; why: 'no-watcher' | 'the-watch-could-not-end-it' };
+/// ```
+pub struct CarriedCeiling {
+    /// The longest the step may run.
+    pub limit: Duration,
+    /// Why the wait, and not a watch, ends the step at that ceiling.
+    pub why: CeilingWhy,
+}
+
+/// Why the wait for a step's output carries the step's own ceiling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CeilingWhy {
+    /// No watch could run at all:
+    /// the system refused the thread it needs.
+    NoWatcher,
+    /// A watch runs, and it could not end the step: nothing proved which process to stop,
+    /// so this wait is what ends it at the ceiling.
+    TheWatchCouldNotEndIt,
+}
+
+/// The ceiling a wait carries and the reason it carries it,
+/// for a step whose own ceiling is `limit`.
+pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
+    return CarriedCeiling { limit, why };
+}
+
+/// What:
 ///  The sentence for a wait that carried the step's own ceiling because no watch could.
 /// Why:
 ///   The watch is what ends a step,
@@ -478,11 +520,19 @@ fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
 /// ```ts
 /// `${waitingFor} ran for ${limit} seconds and was ended; no watch could announce it: ${why}`
 /// ```
-fn waiting_carried_the_ceiling(waiting_for: &str, limit: Duration) -> String {
+fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling) -> String {
+    let why: &str = match carried.why {
+        CeilingWhy::NoWatcher => {
+            "though nothing could watch it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit \
+             -u`) and the control group's `pids.max`, free some, and run the command again"
+        }
+        CeilingWhy::TheWatchCouldNotEndIt => {
+            "though its watch could not end it: nothing proved which process to stop. Hint: check with `ps` what the step waits \
+             for, and run the command again"
+        }
+    };
     return format!(
-        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended, though nothing could watch \
-         it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit -u`) and the control group's \
-         `pids.max`, free some, and run the command again.",
-        limit.as_secs()
+        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended, {why}.",
+        carried.limit.as_secs()
     );
 }

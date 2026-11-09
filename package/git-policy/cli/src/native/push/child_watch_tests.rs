@@ -430,35 +430,62 @@ fn a_root_that_could_not_be_pinned_is_not_signalled() {
 }
 
 /// What:
-///  The root's pin is taken from the record the stop read,
-/// so the three answers of that read stay three,
-/// and only the process it found is pinned.
+///  The root's pin is taken where the child starts,
+/// and no stop pins a record it reads at stopping time.
 /// Why:
-///  The pin,
-/// and not a number read again at the signal,
-/// is what keeps finding 1 of the third review closed;
-/// a record that could not be read leaves nothing to pin,
-/// and one that says the process is gone leaves nothing to signal.
+///  A pin taken at stopping time pins whoever holds the number then,
+/// and the thread that waits for the child reaps it as soon as it
+///  ends,
+/// so the child's number can name another command by the moment the stop begins
+/// (the third review's finding 1).
+/// The watch takes the pin at the start, while the child is this process's own unreaped
+///  child, and every signal of the stop goes through that pin.
+#[test]
+fn the_root_is_pinned_when_its_child_starts() {
+    let watch: &str = include_str!("child_watch.rs");
+    let stop: &str = include_str!("child_watch_clock_marks_and_stopping.rs");
+    let watch_code: String = watch.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    let stop_code: String = stop.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    assert!(watch_code.contains("pin_at_start("), "the watch does not pin its child where the child starts");
+    // The needle is built at run time, so this control's own text does not contain it.
+    let at_stop: String = format!("pin_of_the{}", "_root");
+    assert!(!stop_code.contains(at_stop.as_str()), "a stop still pins a record it reads at stopping time");
+}
+
+/// What:
+///  A step's root is pinned when the child starts,
+/// and that pin never follows the number.
+/// Why:
+///  The third review's finding 1 was a pin taken at stopping time:
+/// by then the child can have ended and been reaped,
+/// and the number can name another command,
+///  which the stop would then signal.
+/// A pin taken while the child is this process's own unreaped child names that
+///  child for good,
+/// so once the child has ended the pin sends nothing,
+/// whatever holds the number afterwards.
 #[cfg(target_os = "linux")]
 #[test]
-fn the_root_is_pinned_from_the_identity_the_stop_read() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
-    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
-    let found: crate::process_tree::MemberRead = crate::process_tree::member_read(pid);
-    let unreadable: crate::member_signalled_through_its_pidfd::Pinned =
-        crate::child_watch_clock_marks_and_stopping::pin_of_the_root(&crate::process_tree::MemberRead::Unreadable);
-    let gone: crate::member_signalled_through_its_pidfd::Pinned = crate::child_watch_clock_marks_and_stopping::pin_of_the_root(&crate::process_tree::MemberRead::Gone);
-    let live: crate::member_signalled_through_its_pidfd::Pinned = crate::child_watch_clock_marks_and_stopping::pin_of_the_root(&found);
-    let lived: bool = helper_is_running(pid);
-    sleeper.kill().expect("the control ends its sleeper");
-    sleeper.wait().expect("the sleeper is collected");
+fn a_root_pinned_at_its_start_never_follows_the_number() {
+    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a child of this control");
+    let pid: u32 = child.id();
+    let started: i32 = i32::try_from(pid).expect("a process number");
+    // The pin is taken while this process's child is running and has not been reaped: the state of a watch at its start.
+    let pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
     assert!(
-        matches!(unreadable, crate::member_signalled_through_its_pidfd::Pinned::Gone),
-        "a record that could not be read pinned something"
+        matches!(pin, crate::member_signalled_through_its_pidfd::Pinned::Held(_)),
+        "the child that was just started was not pinned"
     );
-    assert!(matches!(gone, crate::member_signalled_through_its_pidfd::Pinned::Gone), "a root the read found gone was pinned");
-    assert!(matches!(live, crate::member_signalled_through_its_pidfd::Pinned::Held(_)), "the process the stop read was not pinned");
-    assert!(lived, "the control's own process was left alone");
+    // The child ends and is reaped, so its number is free for another process; the pin still names the child that ended.
+    child.kill().expect("the control ends its child");
+    child.wait().expect("the child is collected");
+    let delivered: crate::member_signalled_through_its_pidfd::Delivered =
+        crate::child_watch_clock_marks_and_stopping::send_to_the_root(&pin, started, libc::SIGKILL);
+    assert_eq!(
+        delivered,
+        crate::member_signalled_through_its_pidfd::Delivered::Gone,
+        "the pin of a child that has ended signalled something"
+    );
 }
 
 /// What:
@@ -918,4 +945,57 @@ fn the_wait_after_the_kill_is_bounded() {
     assert!(!past_the_grace, "a stop waited past its grace with nothing left to wait for");
     assert!(!past_the_ceiling, "a stop waited past its own ceiling");
     assert!(!nothing, "a stop with nothing left in its tree waited");
+}
+
+/// What:
+///  A step whose watch cannot prove which process to stop is still ended at its ceiling,
+/// and says so.
+/// Why:
+///  A watch exists, so the wait for the output used to carry no ceiling of its own:
+/// when the watch's own signals
+///  proved nothing, the step ran for as long as it lived,
+/// which is the third review's finding 2.
+/// Whatever the
+///  watch could not do, the wait for the output keeps the step's ceiling.
+///  The watch's descriptor is refused here, which is the state its signals cannot leave:
+/// `refuse_the_next_descriptors` is
+///  armed on this thread,
+/// where the pin of the child is taken.
+/// The step runs on a thread of its own and is taken with a
+///  deadline, so a wait that never ends is reported here rather than hanging the run.
+#[test]
+fn a_step_the_watch_cannot_end_is_ended_at_its_ceiling() {
+    let sink: SharedSink = SharedSink::default();
+    let ceiling: Duration = Duration::from_millis(300);
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("sleep 30").stdin(Stdio::null());
+    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
+    let running = std::thread::Builder::new()
+        .name(String::from("child-watch-ceiling-control"))
+        .spawn(move || {
+            // The descriptor of the pin the watch takes at the child's start is refused: nothing can prove which process to
+            //  stop, so the watch cannot end this step.
+            crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(1);
+            let _abandoned = sender.send(output_watched_within(
+                &mut command,
+                "a step the watch cannot end",
+                "a step the watch cannot end",
+                terms(ceiling, &sink),
+                true,
+                StepBound::EndAt(ceiling),
+            ));
+        })
+        .expect("the control's thread");
+    let began: Instant = Instant::now();
+    let answer: Result<std::io::Result<std::process::Output>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(20));
+    let waited: Duration = began.elapsed();
+    let _joined = running.join();
+    let failure: std::io::Error = answer
+        .expect("the step ended; a step the watch cannot end ran until this control's deadline")
+        .expect_err("a step past its ceiling is not an answer");
+    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
+    // The step reached its ceiling and was ended there; whether the sentence names the watch or the wait that carried the
+    //  ceiling, it must say which limit the step met.
+    assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "{failure}");
+    assert!(waited < Duration::from_secs(10), "the step outlasted its ceiling by {waited:?}");
 }

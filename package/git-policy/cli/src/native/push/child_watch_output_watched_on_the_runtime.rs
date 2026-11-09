@@ -212,10 +212,13 @@ pub async fn output_watched_within_for_a_stop_awaiting(
         watch.never_stop();
     }
     // Nothing watches this step, so this wait is what ends it at its ceiling; a step with no ceiling is waited for as before.
-    let carried: Option<Duration> = match watch.unwatched() {
-        Some(_no_watcher) => ceiling,
-        None => None,
-    };
+    let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> = ceiling.map(|limit| {
+        let why: crate::step_output_read_whole_through_pipes::CeilingWhy = match watch.unwatched() {
+            Some(_no_watcher) => crate::step_output_read_whole_through_pipes::CeilingWhy::NoWatcher,
+            None => crate::step_output_read_whole_through_pipes::CeilingWhy::TheWatchCouldNotEndIt,
+        };
+        return crate::step_output_read_whole_through_pipes::carried_by(limit, why);
+    });
     watch.begin();
     // Whether the step was left running, so what it writes from here on is read by nobody.
     let mut left_running: bool = false;
