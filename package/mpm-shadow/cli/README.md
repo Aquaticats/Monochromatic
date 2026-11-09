@@ -1398,6 +1398,10 @@ It runs only when asked;
   A version that arrives after the installed versions are listed,
   which is any concurrent install,
   is never in the plan at all.
+- A concurrent install's `current` link is read just before the prune would remove it,
+  and a link naming a version that still exists and is not one of this run's deletions is left alone.
+  The instant between that read and the unlink is the remaining window:
+  a `current` another command moves inside it can still be removed.
 
 ### Migration from the shared `$CARGO_HOME/bin`
 

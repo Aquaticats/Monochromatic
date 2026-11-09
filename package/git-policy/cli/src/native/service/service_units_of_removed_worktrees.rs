@@ -30,6 +30,8 @@
 //! ```
 
 use crate::diagnostic_log::warn;
+use crate::path_bytes_in_records as path_bytes;
+use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
 use crate::private_storage::create_private_directory_all;
 use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
@@ -142,7 +144,8 @@ pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 /// if ((await readText(notePath)) !== gitDir) await writeAtomically(notePath, gitDir);
 /// ```
 pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> std::io::Result<()> {
-    let text: String = git_dir.to_string_lossy().into_owned();
+    // The note holds the bytes of the directory: its text would name another place, or none, for a path that is not text.
+    let text: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
     let path: PathBuf = note_path(runtime_dir, instance);
     if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
         return Ok(());
@@ -201,14 +204,22 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
     };
 }
 
-/// The Git directory a text names for an instance,
-/// when the text hashes to that instance.
+/// What:
+///  The Git directory a note or a record line names for an instance,
+/// when the path it names hashes to that instance.
+/// Why:
+///   A note of this release holds the bytes of the directory and one line break after them;
+/// a note of an earlier release holds its text and nothing after it,
+/// so the last byte of that text is the path's even when it is a line break.
+/// A note whose bytes do not decode names nothing,
+/// and its units stay where they are rather than being stopped on a guess.
 fn named_for(instance: &str, text: &str) -> Option<PathBuf> {
-    let trimmed: &str = text.trim_end_matches('\n');
-    if trimmed.is_empty() {
-        return None;
-    }
-    let path: PathBuf = PathBuf::from(trimmed);
+    let (bytes, plain): (Option<&str>, Option<&str>) = match text.strip_prefix(GITDIR_HEX_PREFIX) {
+        Some(hexadecimal) => (Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)), None),
+        None if text.is_empty() => (None, None),
+        None => (None, Some(text)),
+    };
+    let path: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten()?;
     return (instance_of(path.as_path()) == instance).then_some(path);
 }
 
@@ -233,12 +244,26 @@ fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
     let journal: PathBuf = state_dir.join(SERVICE_UNIT.current).join("service").join(instance);
     for record in journal_records(journal.as_path()) {
         let Ok(text) = std::fs::read_to_string(&record) else { continue };
+        // A line of this release names the bytes of the directory, which is the only spelling that keeps a path that is not
+        //  text; a line of an earlier release names its plain text.
+        let mut plain: Option<PathBuf> = None;
         for line in text.lines() {
-            if let Some(named) = line.strip_prefix("gitdir=")
-                && let Some(found) = named_for(instance, named)
-            {
-                return Some(found);
+            if let Some(hexadecimal) = line.strip_prefix(GITDIR_HEX_PREFIX) {
+                if let Some(found) = path_of_hex(hexadecimal)
+                    && instance_of(found.as_path()) == instance
+                {
+                    return Some(found);
+                }
+                continue;
             }
+            if plain.is_none()
+                && let Some(named) = line.strip_prefix("gitdir=")
+            {
+                plain = named_for(instance, named);
+            }
+        }
+        if plain.is_some() {
+            return plain;
         }
     }
     return None;

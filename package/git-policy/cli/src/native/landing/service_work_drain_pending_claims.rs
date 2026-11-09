@@ -73,7 +73,7 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
                 _ => upkeep.push(item),
             }
         }
-        let mut groups: Vec<((String, String), Vec<Claimed>)> = Vec::new();
+        let mut groups: Vec<((PathBuf, String), Vec<Claimed>)> = Vec::new();
         for item in pushes {
             let key = (item.item.repository.clone(), item.item.branch_ref.clone());
             let mut joined_at: Option<usize> = None;
@@ -174,7 +174,7 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
                 }
             }
         }
-        let mut upkept: Vec<String> = Vec::new();
+        let mut upkept: Vec<PathBuf> = Vec::new();
         for item in still_held(&held, work_dir.as_path(), upkeep) {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
