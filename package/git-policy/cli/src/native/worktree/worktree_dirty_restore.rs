@@ -229,6 +229,26 @@ fn holds_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
 }
 
 /// What:
+///  Whether a name lies below one of the directories Git reported as one collapsed name.
+/// Why:
+///   Only the paths inside such a directory are judged when the collapse is opened;
+/// every other name was
+///  carried already.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// directories.some((directory) => name.startsWith(directory))
+/// ```
+fn lies_below(name: &[u8], directories: &[Vec<u8>]) -> bool {
+    for directory in directories {
+        if name.starts_with(directory.as_slice()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Prove that the stage equals what Git's checkout of the target commit makes,
 /// plus the ignored paths the
 ///  restore carried:
@@ -283,8 +303,7 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, c
         }
         // Inside a reported directory only its own paths are judged; every other name was carried already.
         for name in expanded.split(is_nul_byte).filter(is_nonempty_name) {
-            let inside: bool = collapsed.iter().any(|directory: &Vec<u8>| { return name.starts_with(directory.as_slice()); });
-            if inside && !is_carried(name, carried) {
+            if lies_below(name, collapsed.as_slice()) && !is_carried(name, carried) {
                 first_untracked = Some(name.to_vec());
                 break;
             }
