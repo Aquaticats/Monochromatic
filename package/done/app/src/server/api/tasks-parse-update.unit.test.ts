@@ -17,8 +17,8 @@ import {
 
 import {
   INVALID,
-} from './tasks-parse.ts';
-import { parseTaskUpdateInput, } from './tasks-parse-update.ts';
+  parseTaskUpdateInput,
+} from '../../../dist/final/node/index.mjs';
 
 await describe({
   name: '',
