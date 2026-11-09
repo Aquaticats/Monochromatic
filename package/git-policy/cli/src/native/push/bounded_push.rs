@@ -8,6 +8,21 @@
 //!  Such a push is stopped when its stall window passes,
 //!  the commit stays saved locally,
 //!  and the failure is reported like any other failed push.
+//!  A stopped push is reported as what is known and no more:
+//! that it was stopped,
+//! that the remote may or may not have
+//!  taken it,
+//! and whether a retry is planned.
+//! Nothing here asks the remote what it holds:
+//! the wrapper cannot know
+//!  which object Git really sent,
+//! which of a remote's push URLs went first or what configuration shaped the attempt,
+//! and a claim of delivery a person acts on has to hold for all of them.
+//! The retry settles the question instead,
+//! because
+//!  a push of something the remote already has succeeds and clears the record (`SPEC.md`,
+//! "A local remote's hooks run in the
+//!  push's tree").
 //!  A push whose connection to the remote is open is never stopped for time (owner,
 //! 2026-11-03:
 //! "Wait while connected
@@ -66,6 +81,7 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
+
 /// What a person is told when a push is ended for showing no progress:
 /// the owner's answer of 2026-11-03,
 /// "Bound it,
@@ -74,6 +90,18 @@ const TAG: &str = "monochromatic-git-policy-cli";
 /// is that the service's retry plan keeps the push and tries it again,
 /// and the line says so.
 pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
+
+/// What a person is told about the remote when a push was stopped:
+/// that the wrapper does not know,
+/// and that the retry is what settles it.
+///  A stopped push proves nothing about the remote:
+/// the wrapper cannot know which object Git really sent,
+/// which of a
+///  remote's push URLs went first or which configuration shaped the attempt,
+/// so the report says what is known and the retry
+///  answers the question,
+/// because a push of something the remote already has succeeds.
+pub const STOPPED_DELIVERY_IS_NOT_KNOWN: &str = "the remote may or may not have taken the push, and only the next push settles which";
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 ///  Citation:
@@ -114,10 +142,10 @@ pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// size > MAX_PUSH_OUTPUT
+/// size > cap
 /// ```
-fn is_flood(size: u64) -> bool {
-    return size > MAX_PUSH_OUTPUT;
+fn is_flood(size: u64, cap: u64) -> bool {
+    return size > cap;
 }
 
 /// What:
@@ -133,13 +161,13 @@ fn is_flood(size: u64) -> bool {
 /// ```ts
 /// outputs.some((output) => isFlood(statSize(output)))
 /// ```
-pub(crate) fn flooded(outputs: &[&File]) -> bool {
+pub(crate) fn flooded(outputs: &[&File], cap: u64) -> bool {
     for output in outputs {
         let size: u64 = match output.metadata() {
             Ok(metadata) => metadata.len(),
             Err(_) => u64::MAX,
         };
-        if is_flood(size) {
+        if is_flood(size, cap) {
             return true;
         }
     }
@@ -236,8 +264,35 @@ pub async fn wait_until_done(
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    return wait_until_done_up_to(child, outputs, clock, MAX_PUSH_OUTPUT, quiet, stop).await;
+}
+
+/// What:
+///  The same wait as `wait_until_done`,
+/// with the output ceiling it stops past given by the caller.
+/// Why:
+///   A query's answer is a report,
+/// and the push report's cap bounds it;
+/// the second pass of a merge reads the three stages of the files it may merge,
+/// up to the
+///  pass's own blob limit for each name it asks for,
+/// so its ceiling is that sum and not the report's.
+/// Nothing else may pass a ceiling above `MAX_PUSH_OUTPUT`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([exited, stalled, flood]); // flood: any watched file past `cap`
+/// ```
+pub async fn wait_until_done_up_to(
+    child: &mut OwnedChild,
+    outputs: &[&File],
+    clock: Clock,
+    cap: u64,
+    quiet: &mut Option<Duration>,
+    stop: Option<&StopArm>,
+) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet, stop).await;
+    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop).await;
 }
 
 /// What:
@@ -264,7 +319,7 @@ pub async fn wait_until_done_noting(
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let clock: Clock = Clock::start(child.id(), patience);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, label, waits, &mut unused, stop).await;
+    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
 
 /// The loop of both waits,
@@ -273,6 +328,7 @@ async fn wait_with_clock(
     child: &mut OwnedChild,
     outputs: &[&File],
     mut clock: Clock,
+    cap: u64,
     label: &str,
     waits: &mut Vec<WaitReport>,
     quiet: &mut Option<Duration>,
@@ -291,7 +347,7 @@ async fn wait_with_clock(
             *quiet = quiet_gap_kept(&clock);
             return Ok(Err(StopCause::ServiceStopped));
         }
-        if flooded(outputs) {
+        if flooded(outputs, cap) {
             *quiet = quiet_gap_kept(&clock);
             return Ok(Err(StopCause::Flood));
         }
@@ -414,8 +470,11 @@ pub fn run_bounded_push(
 /// Why:
 ///   Both streams share one anonymous file so lines keep the order Git wrote them,
 ///  and a file needs no reader thread that a stuck helper could keep alive.
-///  A stopped push becomes a failed attempt that says so,
-///  so the commit stays saved and the failure is recorded for later invocations.
+///  A stopped push becomes an attempt that says so,
+///  so the commit stays saved and the report is recorded for later invocations;
+/// an attempt whose references the remote
+///  already holds says that instead,
+/// so a published branch is never reported as a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -483,7 +542,7 @@ pub async fn run_bounded_push_awaiting(
     // A push that ends in the pause between two looks can still have printed past the cap. Its output is the log a person
     //  reads, not Git's answer, so the attempt keeps the push's own status; but the text kept is the head of it, and passing
     //  that for all of it would be the same silence a shortened answer is.
-    let shortened: bool = ended.is_ok() && flooded(&[&output]);
+    let shortened: bool = ended.is_ok() && flooded(&[&output], MAX_PUSH_OUTPUT);
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
     if shortened {
@@ -520,7 +579,7 @@ pub async fn run_bounded_push_awaiting(
                 ),
                 StopCause::Stalled(report) => format!(
                     "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
-                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
+                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     report.limit.as_secs(),
                     report.moved,

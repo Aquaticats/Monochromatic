@@ -147,3 +147,27 @@ fn a_deletion_names_the_namespace_it_deletes_from() {
     assert_eq!(branch_deletion(os_arguments(&["--list"]).as_slice()), None);
     assert_eq!(branch_deletion(os_arguments(&["-r"]).as_slice()), None);
 }
+
+/// Remote-tracking references are read in every spelling Git's parser accepts,
+/// because the namespace decides which
+///  reference the record names.
+#[test]
+fn the_namespace_is_read_the_way_gits_parser_reads_it() {
+    for spelled in [
+        vec!["--remotes", "-D", "origin/gone"],
+        vec!["--remote", "-D", "origin/gone"],
+        vec!["--remot", "-D", "origin/gone"],
+        vec!["-r", "--delete", "origin/gone"],
+        vec!["-rD", "origin/gone"],
+        vec!["--all", "-D", "origin/gone"],
+    ] {
+        let deletion = branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
+        // `--all` lists every branch, and a deletion under it still deletes the local one.
+        let expected: bool = spelled[0] != "--all";
+        assert_eq!(deletion.remotes, expected, "{spelled:?}");
+        assert_eq!(deletion.names, vec![OsString::from("origin/gone")], "{spelled:?}");
+    }
+    // A name that follows a value-taking option is that option's value, never a branch to record.
+    let upstream = branch_deletion(os_arguments(&["-u", "origin/main", "-D", "gone"]).as_slice()).expect("a deletion");
+    assert_eq!(upstream.names, vec![OsString::from("gone")]);
+}

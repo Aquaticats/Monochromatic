@@ -10,7 +10,7 @@
 
 use super::{GuardedForwarded, decide_guarded_forwarded};
 use crate::rule_linked_worktree::{GuardedCommand, LinkedWorktreeDecision};
-use crate::test_support::isolated_overlay;
+use crate::test_support::{executable, fixture, git, isolated_overlay, remove};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -113,6 +113,40 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
     assert_eq!(chained.arguments, args(&["reset", "--hard"]));
 }
 
+/// What:
+///  The caller's own words follow the alias value into the shell,
+///  so both a `!git` alias and a `!git reset` alias are decided on the command that runs.
+/// Why:
+///  Git appends the caller's words to the value before it starts the shell
+///  (`git.c:401` to `git.c:402`),
+///  so
+///  `git -c 'alias.wipe=!git' wipe reset --hard` and
+///  `git -c 'alias.wipe=!git reset' wipe --hard`
+///  both run a hard reset;
+///  a reading that stopped at the value would decide about a command nobody runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['fixup', '!git']], words: ['fixup', 'reset', '--hard'] })
+/// //   => decision 'needs-effective-target: reset-hard', arguments ['fixup', 'reset', '--hard']
+/// ```
+#[test]
+fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
+    for (value, words, command) in [
+        ("!git", vec!["fixup", "reset", "--hard"], GuardedCommand::ResetHard),
+        ("!git reset", vec!["fixup", "--hard"], GuardedCommand::ResetHard),
+        ("!git clean", vec!["fixup", "-fdx"], GuardedCommand::CleanIgnored),
+    ] {
+        let walked: GuardedForwarded = decided(&[("fixup", value)], words.as_slice());
+        assert_eq!(
+            walked.decision,
+            LinkedWorktreeDecision::NeedsEffectiveTarget(command),
+            "{value} {words:?}"
+        );
+        assert_eq!(walked.arguments, args(words.as_slice()), "{value}: Git receives the caller's own words");
+    }
+}
+
 /// What the guard cannot read is left to Git and to the shell,
 ///  and no subcommand at all is still a pass.
 #[test]
@@ -168,4 +202,58 @@ fn a_shell_alias_is_decided_on_the_git_command_it_names() {
         );
         assert_eq!(walked.arguments, args(&["fixup"]), "{value}: Git receives the alias word");
     }
+}
+
+/// What:
+///  A shell alias the caller moved into with `-C` is decided on the command the shell runs,
+///  so an installed `git-<word>` below the directory the caller moved into hides nothing.
+/// Why:
+///  The owner's rule is that no invocation discards the person's data;
+///  with `sub/bin/git-fixturewipe` present and `PATH` naming `bin` relative,
+///  `git -C sub fixtureouter` runs `fixturewipe` from the top of the working tree,
+///  where `bin` holds no program,
+///  and the alias expands to `reset --hard`;
+///  a guard that searched `sub/bin` found that program,
+///  read the alias as an installed command,
+///  and passed the invocation straight to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['fixtureouter', '!git fixturewipe'], ['fixturewipe', 'reset --hard']],
+///   words: ['-C', 'sub', 'fixtureouter'], env: { PATH: 'bin:/usr/bin:/bin' } })
+/// //   => decision 'needs-effective-target: reset-hard', arguments ['-C', 'sub', 'fixtureouter']
+/// ```
+#[test]
+fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
+    let root: PathBuf = fixture("guard-shell-run-directory");
+    git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
+    let directory: PathBuf = root.join("sub/bin");
+    std::fs::create_dir_all(directory.as_path()).expect("program directory");
+    executable(directory.join("git-fixturewipe").as_path(), b"#!/bin/sh\necho external\n");
+    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
+    std::env::set_current_dir(root.as_path()).expect("the fixture is where the wrapper starts");
+    let environment: Vec<(OsString, OsString)> = vec![(
+        OsString::from("PATH"),
+        OsString::from("bin:/usr/bin:/bin"),
+    )];
+    let walked: GuardedForwarded = decide_guarded_forwarded(
+        &context_with_aliases(&[
+            ("fixtureouter", "!git fixturewipe"),
+            ("fixturewipe", "reset --hard"),
+        ]),
+        environment.as_slice(),
+        &args(&["-C", "sub", "fixtureouter"]),
+    );
+    assert_eq!(
+        walked.decision,
+        LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::ResetHard),
+        "the guard read the command the shell runs"
+    );
+    assert_eq!(
+        walked.arguments,
+        args(&["-C", "sub", "fixtureouter"]),
+        "Git receives the caller's own words"
+    );
+    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
+    remove(root.as_path());
 }

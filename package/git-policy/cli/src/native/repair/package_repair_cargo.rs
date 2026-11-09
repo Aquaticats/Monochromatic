@@ -31,17 +31,25 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
+use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_request::RepairRequest;
-use crate::package_repair_cargo_concurrent::{ConcurrentWork, ItemLabel, map_concurrent};
+use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting};
 use crate::package_repair_cargo_lock::{read_lock, restore_lock};
-use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories, read_workspace};
-use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool};
+use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
+use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
+/// The jobs of one workspace and what their runs take,
+/// kept in a file of their own to stay under the file-size limit.
+#[path = "package_repair_cargo_jobs.rs"]
+mod jobs;
+use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
 use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
-use crate::package_repair_tree_clone::clone_tree;
+use crate::package_repair_tree_clone::clone_tree_awaiting;
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Tag used for diagnostics from this module.
@@ -199,24 +207,27 @@ enum Done {
 ///  Repair one workspace:
 /// plan,
 /// clone,
-/// clean.
+/// clean,
+/// with every wait awaited on the runtime.
 /// Why:
 ///   Each workspace's state is in a directory of its own,
-/// so workspaces never touch each other's.
+/// so workspaces never touch each other's,
+/// and the clone and the two tool runs are waits a
+///  task cannot block on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function repairWorkspace(cargo: string, workspace: Workspace, request: RepairRequest, cloneWorkers: number): Promise<Done>;
+/// async function repairWorkspace(tool: CargoTool, workspace: Workspace, destinationRoot: string, source: string, cloneWorkers: number): Promise<Done>;
 /// ```
-fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path, request: &RepairRequest<'_>, clone_workers: usize) -> Done {
+async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path, clone_workers: usize) -> Done {
     let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
     let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
         debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
         return Done::Skipped;
     };
-    let source_workspace: PathBuf = request.source.join(relative);
+    let source_workspace: PathBuf = source.join(relative);
     let source_build: Option<PathBuf> = if source_workspace.join(MANIFEST).is_file() {
-        match timed_read_workspace("cargoMetadataSource", cargo, source_workspace.as_path(), request.environment.limits()) {
+        match timed_read_workspace_awaiting("cargoMetadataSource", tool, source_workspace.as_path()).await {
             Ok(found) => Some(found.build_directory),
             Err(reason) => {
                 debug(TAG, format!("the source workspace {} cannot be read: {reason}", source_workspace.display()).as_str());
@@ -241,7 +252,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
         BuildStatePlan::Nothing(_) => return Done::Skipped,
         BuildStatePlan::CleanOnly => (false, 0),
         BuildStatePlan::CloneThenClean { from, to } => {
-            match timed_clone_tree(from.as_path(), to.as_path(), clone_workers) {
+            match timed_clone_tree_awaiting(from.as_path(), to.as_path(), clone_workers).await {
                 Ok(made) => {
                     debug(TAG, format!("cloned {} entries from {} to {}", made.made, from.display(), to.display()).as_str());
                     for path in &made.left_out {
@@ -255,7 +266,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     };
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
-    let run: ToolRun = timed_clean(cargo, &command, request.environment.limits());
+    let run: ToolRun = timed_clean_awaiting(tool, &command).await;
     restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned { cloned, left_out },
@@ -308,18 +319,18 @@ fn workspace_failed(manual: &str, reason: String) -> Done {
 ///  Read one workspace with `cargo metadata`,
 /// timed as the step `name`.
 /// Why:
-///   The add timing record sums the work of worker threads by name;
+///   The add timing record sums the work of the tasks by name;
 /// the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const began = beginWork();
-/// const workspace = await readWorkspace(cargo, directory, limits);
+/// const workspace = await readWorkspaceAwaiting(cargo, directory, limits);
 /// endWork(name, began);
 /// ```
-fn timed_read_workspace(name: &str, cargo: &Path, directory: &Path, limits: ToolLimits) -> Result<Workspace, String> {
+async fn timed_read_workspace_awaiting(name: &str, tool: &CargoTool, directory: &Path) -> Result<Workspace, String> {
     let began: Instant = begin_work();
-    let read: Result<Workspace, String> = read_workspace(cargo, directory, limits);
+    let read: Result<Workspace, String> = read_workspace_awaiting(tool.program.as_path(), directory, tool.limits).await;
     end_work(name, began);
     return read;
 }
@@ -327,18 +338,18 @@ fn timed_read_workspace(name: &str, cargo: &Path, directory: &Path, limits: Tool
 /// What:
 ///  Clone a build directory with the timing record's step `cargoCloneTree`.
 /// Why:
-///   Same as `timed_read_workspace`:
+///   Same as `timed_read_workspace_awaiting`:
 /// the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const began = beginWork();
-/// const made = await cloneTree(from, to, workers);
+/// const made = await cloneTreeAwaiting(from, to, workers);
 /// endWork('cargoCloneTree', began);
 /// ```
-fn timed_clone_tree(from: &Path, to: &Path, clone_workers: usize) -> Result<crate::package_repair_tree_clone::Cloned, String> {
+async fn timed_clone_tree_awaiting(from: &Path, to: &Path, clone_workers: usize) -> Result<crate::package_repair_tree_clone::Cloned, String> {
     let began: Instant = begin_work();
-    let made: Result<crate::package_repair_tree_clone::Cloned, String> = clone_tree(from, to, clone_workers);
+    let made: Result<crate::package_repair_tree_clone::Cloned, String> = clone_tree_awaiting(from, to, clone_workers).await;
     end_work("cargoCloneTree", began);
     return made;
 }
@@ -346,23 +357,23 @@ fn timed_clone_tree(from: &Path, to: &Path, clone_workers: usize) -> Result<crat
 /// What:
 ///  Run `cargo clean` with the timing record's step `cargoClean`.
 /// Why:
-///   Same as `timed_read_workspace`:
+///   Same as `timed_read_workspace_awaiting`:
 /// the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const began = beginWork();
-/// const run = await runTool(cargo, command, limits);
+/// const run = await runToolAwaiting(cargo, command, limits);
 /// endWork('cargoClean', began);
 /// ```
-fn timed_clean(cargo: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
+async fn timed_clean_awaiting(tool: &CargoTool, command: &ToolCommand) -> ToolRun {
     let began: Instant = begin_work();
-    let run: ToolRun = run_tool(cargo, command, limits);
+    let run: ToolRun = run_tool_awaiting(tool.program.as_path(), command, tool.limits).await;
     end_work("cargoClean", began);
     return run;
 }
 
-/// The label of a metadata read whose worker panicked:
+/// The label of a metadata read whose item panicked:
 /// the directory it was reading.
 struct ReadingLabel;
 
@@ -372,7 +383,7 @@ impl ItemLabel<PathBuf> for ReadingLabel {
     }
 }
 
-/// The label of a workspace repair whose worker panicked:
+/// The label of a workspace repair whose item panicked:
 /// the workspace it was repairing.
 struct RepairLabel;
 
@@ -383,82 +394,24 @@ impl ItemLabel<Workspace> for RepairLabel {
 }
 
 /// What:
-///  The job of reading the Cargo workspace of one directory,
-/// timed as the step `cargoMetadataWorktree`.
-/// Why:
-///   The concurrent runner takes its job as a value with a `run` method,
-/// and the state the job needs (the Cargo program and
-///  the request) is two borrowed fields,
-/// so a struct stands where a closure that captured them stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class ReadWorkspaceJob implements ConcurrentWork<string, Workspace> { constructor(readonly cargo: string, readonly request: RepairRequest) {} }
-/// ```
-struct ReadWorkspaceJob<'a> {
-    /// The Cargo program found on the person's search path.
-    cargo: &'a Path,
-    /// The request whose environment bounds the tool.
-    request: &'a RepairRequest<'a>,
-}
-
-impl ConcurrentWork<PathBuf, Result<Workspace, String>> for ReadWorkspaceJob<'_> {
-    fn run(&self, directory: &PathBuf) -> Result<Workspace, String> {
-        return timed_read_workspace("cargoMetadataWorktree", self.cargo, directory.as_path(), self.request.environment.limits());
-    }
-}
-
-/// What:
-///  The job of repairing one Cargo workspace,
-/// timed as the step `cargoRepairWorkspace`.
-/// Why:
-///   Same as `ReadWorkspaceJob`:
-/// four borrowed fields and a count stand where a closure that captured them stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class RepairWorkspaceJob implements ConcurrentWork<Workspace, Done> {}
-/// ```
-struct RepairWorkspaceJob<'a> {
-    /// The Cargo program found on the person's search path.
-    cargo: &'a Path,
-    /// The real path of the new worktree.
-    destination_root: &'a Path,
-    /// The request whose source,
-    /// Git and environment the repair reads.
-    request: &'a RepairRequest<'a>,
-    /// How many threads one build-state clone may use.
-    clone_workers: usize,
-}
-
-impl ConcurrentWork<Workspace, Done> for RepairWorkspaceJob<'_> {
-    fn run(&self, workspace: &Workspace) -> Done {
-        return timed_repair_workspace(self, workspace);
-    }
-}
-
-/// Repair one workspace with the timing record's step `cargoRepairWorkspace`;
-/// the call runs in place between `begin_work` and `end_work`.
-fn timed_repair_workspace(job: &RepairWorkspaceJob<'_>, workspace: &Workspace) -> Done {
-    let began: Instant = begin_work();
-    let done: Done = repair_workspace(job.cargo, workspace, job.destination_root, job.request, job.clone_workers);
-    end_work("cargoRepairWorkspace", began);
-    return done;
-}
-
-/// What:
-///  Repair every Cargo workspace of the new worktree.
+///  Repair every Cargo workspace of the new worktree on the runtime.
 /// Why:
 ///   Workspaces are independent (each has its own build directory),
-/// so they are repaired side by side.
+/// so each is a lane of one awaited ordered run,
+/// and the
+///  tracked manifests are listed by a Git child awaited on the same runtime.
+/// The program lookup and the worktree's real path
+///  are one job of the blocking pool,
+/// because they read the search path and resolve a link,
+/// which are storage waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function repairCargo(request: RepairRequest): Promise<Finding[]>;
+/// async function repairCargoAwaiting(request: RepairRequest): Promise<Finding[]>;
 /// ```
-pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
+pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> {
     let started: Instant = Instant::now();
-    let directories: Vec<PathBuf> = match manifest_directories(request) {
+    let directories: Vec<PathBuf> = match manifest_directories_awaiting(request.git, request.destination).await {
         Ok(found) => found,
         Err(reason) => {
             debug(TAG, format!("{}: {reason}", request.destination.display()).as_str());
@@ -468,13 +421,23 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     if directories.is_empty() {
         return Vec::new();
     }
-    let Some(cargo) = find_program(PROGRAM, request.environment.path()) else {
+    let search_path: Option<OsString> = request.environment.search_path.clone();
+    let looked = run_a_job_or_in_turn((search_path, request.destination.to_path_buf()), look_for_the_program).await;
+    let (found_program, real_destination): (Option<PathBuf>, Result<PathBuf, std::io::Error>) = match looked {
+        Ok(found) => found,
+        // Which workspaces need what was not learnt, so the repair says what it could not do and names the command.
+        Err(refused) => {
+            return vec![Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason: format!("the Cargo repair could not be prepared ({refused})"), run_instead: manual_command(request.destination, &[String::from("<member>")]) } }];
+        }
+    };
+    let Some(cargo) = found_program else {
         return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
     let workers: usize = request.environment.workers;
-    let reader: ReadWorkspaceJob<'_> = ReadWorkspaceJob { cargo: cargo.as_path(), request };
+    let tool: CargoTool = CargoTool { program: cargo, limits: request.environment.limits() };
+    let listed: Arc<[PathBuf]> = Arc::from(directories);
     let mut read: Vec<Result<Workspace, String>> = Vec::new();
-    for outcome in map_concurrent(directories.as_slice(), workers, &ReadingLabel, &reader) {
+    for outcome in map_concurrent_awaiting(Arc::clone(&listed), workers, Arc::new(ReadingLabel), Arc::new(ReadWorkspaceJob { tool: tool.clone() })).await {
         // A panic in the read and a failed read are both a failed read.
         read.push(match outcome {
             Ok(inner) => inner,
@@ -483,22 +446,27 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     }
     let mut findings: Vec<Finding> = Vec::new();
     let mut found: Vec<Workspace> = Vec::new();
-    for (directory, outcome) in directories.iter().zip(read) {
+    for (directory, outcome) in listed.iter().zip(read) {
+        // A panic in the read and a failed read are both a failed read.
         match outcome {
             Ok(workspace) => found.push(workspace),
             Err(reason) => findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(directory.as_path(), &[String::from("<member>")]) } }),
         }
     }
-    let workspaces: Vec<Workspace> = distinct_workspaces(found);
+    let workspaces: Arc<[Workspace]> = Arc::from(distinct_workspaces(found));
     // Real paths: Cargo names the workspace by its real path, and the worktree may be reached through a link.
-    let destination_root: PathBuf = match std::fs::canonicalize(request.destination) {
-        Ok(real) => real,
-        Err(_error) => request.destination.to_path_buf(),
+    let destination_root: PathBuf = match &real_destination {
+        Ok(real) => real.clone(),
+        // A worktree whose real path cannot be read is used as the caller named it.
+        Err(_cannot_be_resolved) => request.destination.to_path_buf(),
     };
     let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
-    let repairer: RepairWorkspaceJob<'_> = RepairWorkspaceJob { cargo: cargo.as_path(), destination_root: destination_root.as_path(), request, clone_workers };
+    let repairer: RepairWorkspaceJob =
+        RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), clone_workers };
+    let repaired: Vec<Result<Done, String>> =
+        map_concurrent_awaiting(Arc::clone(&workspaces), workers, Arc::new(RepairLabel), Arc::new(repairer)).await;
     let mut done: Vec<Done> = Vec::new();
-    for (outcome, workspace) in map_concurrent(workspaces.as_slice(), workers, &RepairLabel, &repairer).into_iter().zip(workspaces.iter()) {
+    for (outcome, workspace) in repaired.into_iter().zip(workspaces.iter()) {
         done.push(match outcome {
             Ok(finished) => finished,
             Err(reason) => Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(workspace.root.as_path(), &[String::from("<member>")]) } }),
@@ -524,6 +492,31 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} {directory_noun} cloned{})", left_out_words(left_out)), millis: started.elapsed().as_millis() } });
     }
     return findings;
+}
+
+/// What:
+///  Repair every Cargo workspace of the new worktree.
+/// Why:
+///   Workspaces are independent (each has its own build directory),
+/// so they are repaired side by side.
+/// The callers of this face are synchronous (the repair the add runs),
+/// so it enters the process's runtime once and waits there;
+/// from inside the runtime it refuses,
+/// and the lanes of the worktree repair await `repair_cargo_awaiting`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function repairCargo(request: RepairRequest): Finding[];
+/// ```
+pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
+    return match run_on_runtime(repair_cargo_awaiting(request)) {
+        Ok(findings) => findings,
+        // The tracked manifests cannot be listed without the runtime, and the repair says so in the log alone, as it did.
+        Err(refusal) => {
+            debug(TAG, format!("{}: git could not list the tracked manifests ({refusal})", request.destination.display()).as_str());
+            Vec::new()
+        }
+    };
 }
 
 /// Cargo repair controls stay out of the release executable.

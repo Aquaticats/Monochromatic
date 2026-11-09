@@ -182,6 +182,30 @@ pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_threa
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
 {
+    return build_with_deadline_and(plan, deadline, multi_thread_builder, current_thread);
+}
+
+/// What:
+///  `build_with_deadline` with the stand-in given as `fallback`.
+/// Why:
+///   The window in which a late build can be lost is the caller's own stand-in:
+/// a runtime sent after the deadline but before
+///  the channel is closed is neither received nor kept.
+/// A control can only order a build into that window if the caller can be held inside
+///  the stand-in,
+/// which is what this parameter is for;
+/// the process builds its own runtime through `build_with_deadline`,
+///  whose stand-in is the current-thread runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = buildWithDeadlineAnd(plan, deadline, multiThread, fallback);
+/// ```
+fn build_with_deadline_and<B, F>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B, fallback: F) -> std::io::Result<BuiltRuntime>
+where
+    B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
+    F: FnOnce() -> std::io::Result<Runtime>,
+{
     let RuntimePlan::MultiThread { workers, blocking_threads } = plan else {
         return Ok(BuiltRuntime { runtime: current_thread()?, flavor: BuiltFlavor::CurrentThread });
     };
@@ -197,8 +221,12 @@ where
         if let Err(unsent) = sender.send(result)
             && let Ok(late) = unsent.0
         {
-            // The caller moved on; a runtime is never dropped (dropping waits for its tasks without end).
-            std::mem::forget(late);
+            // The caller moved on: a working runtime that arrived after the deadline is kept for the work it was built for
+            //  (`spawn_on_runtime`), and one that cannot be kept is never dropped here (dropping waits for its tasks
+            //  without end).
+            if let Err(unkept) = LATE_RUNTIME.set(late) {
+                std::mem::forget(unkept);
+            }
         }
     });
     let flavor_when_replaced: BuiltFlavor = match started {
@@ -206,12 +234,63 @@ where
         Ok(_helper) => match receiver.recv_timeout(deadline) {
             Ok(Ok(runtime)) => return Ok(BuiltRuntime { runtime, flavor: BuiltFlavor::MultiThread { workers } }),
             Ok(Err(_refused)) => BuiltFlavor::CurrentThreadAfterFailure,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => BuiltFlavor::CurrentThreadAfterDeadline,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // A build that finished between the deadline and here is already in the channel, and one that finishes
+                //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
+                let _kept: bool = keep_a_late_build(receiver.try_recv());
+                drop(receiver);
+                BuiltFlavor::CurrentThreadAfterDeadline
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
         },
     };
-    return Ok(BuiltRuntime { runtime: current_thread()?, flavor: flavor_when_replaced });
+    return Ok(BuiltRuntime { runtime: fallback()?, flavor: flavor_when_replaced });
 }
+
+/// What:
+///  Keeps a runtime that finished after its build deadline for the work it was built for,
+///  and gives whether it was one.
+/// Why:
+///   A runtime that arrived while the caller was still in its stand-in is in the channel when the caller times out,
+/// and the
+///  channel is closed a moment later:
+/// reading it at the deadline is what keeps that runtime,
+/// and a receiver already closed
+///  makes the build that arrives after it the helper's to keep.
+/// A build that failed keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = keepALateBuild(receiver.tryRecv()); // true when a runtime was kept
+/// ```
+fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::TryRecvError>) -> bool {
+    let Ok(Ok(late)) = outcome else { return false };
+    if let Err(unkept) = LATE_RUNTIME.set(late) {
+        std::mem::forget(unkept);
+    }
+    return true;
+}
+
+/// What:
+///  The multi-thread runtime of a build that finished after `BUILD_DEADLINE`,
+/// once it arrived.
+/// Why:
+///   A build that misses the deadline is a working runtime that arrived after the caller stopped waiting.
+/// Discarding it left the
+///  process on the current-thread stand-in for ever,
+/// and every watcher of a wait with it (`spawn_on_runtime` answers nothing there,
+///  so a stuck child was never ended),
+/// where the late runtime can still take that work.
+/// The slot is filled by the helper thread of the build that was late,
+/// and read by `spawn_on_runtime`,
+/// which is why a
+///  process whose build was late keeps answering with nothing until it arrives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lateRuntime: Runtime | undefined = undefined; // set by the build that missed its deadline
+/// ```
+static LATE_RUNTIME: std::sync::OnceLock<Runtime> = std::sync::OnceLock::new();
 
 /// The process's runtime,
 /// built by the first call that needs it;
@@ -279,8 +358,38 @@ where
 {
     return match RUNTIME.get_or_init(build_for_this_process) {
         Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
-        Ok(_) | Err(_) => None,
+        // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
+        //  built for runs there.
+        Ok(_) | Err(_) => LATE_RUNTIME.get().map(|late: &Runtime| { return late.spawn(future); }),
     };
+}
+
+/// What:
+///  Whether this process can run a task beside a blocked thread now:
+/// its own runtime came up multi-threaded,
+/// or the build that missed
+///  its deadline has arrived since.
+/// Why:
+///   A caller that needs a worker asks once and gets one,
+/// and a control of what needs a worker can tell a runtime the system refused
+///  from one that was merely late.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ready = builtFlavor()?.kind === 'multi' || lateRuntime !== undefined;
+/// ```
+pub fn has_workers() -> bool {
+    return match RUNTIME.get_or_init(build_for_this_process) {
+        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
+        Err(_) => LATE_RUNTIME.get().is_some(),
+    };
+}
+
+/// Whether the build that missed its deadline has arrived;
+/// a control of the late build reads it.
+#[cfg(test)]
+pub(crate) fn late_build_arrived() -> bool {
+    return LATE_RUNTIME.get().is_some();
 }
 
 /// What:

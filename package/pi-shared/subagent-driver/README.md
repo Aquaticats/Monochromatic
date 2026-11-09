@@ -85,6 +85,7 @@ so a run ends even when Pi answers nothing at the end.
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   `modelError` carries what the model said when the run ended on it,
+  `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
   and `retries` and `rateLimitErrors` count what the run retried and what it met of the failures the
   coordinator measures apart.
 - `stderr.log`:
@@ -183,6 +184,7 @@ or in the provider's own store.
 `endReason` in the summary says how.
 `idle` and `stop-file` exit 0.
 `prompt-rejected`,
+`compaction-failed`,
 `pi-exited`,
 `turn-cap`,
 `wall-clock`,
@@ -200,6 +202,37 @@ and the driver's own message names that count too.
 An error an automatic retry recovers from is not one:
 the run still ends `idle`,
 because the reply after it succeeded.
+
+`compaction-failed` means Pi reported a compaction that failed and then answered nothing,
+so the run ended on the session Pi could not put in order rather than on a prompt Pi refused.
+`compactionProblem` holds what Pi said of such a compaction,
+or names the compaction that was still running when the run ended,
+and it is there however the run ended:
+a run that ended at its wall clock or on a model error after a compaction Pi could not finish carries it too.
+
+## When Pi compacts before it takes the prompt
+
+A resumed session larger than its model's window makes Pi compact before the turn the prompt asked for exists,
+and the prompt's answer waits for that compaction:
+`_prepareRun` runs `_checkCompaction` before Pi writes the answer
+(`src/core/agent-session.ts` in Pi 1.5.0).
+A resumed run of 905 483 tokens on a model with a 524 288-token window reported `compaction_start` four seconds in,
+and a driver that gave every prompt thirty seconds recorded `prompt-rejected` with `no answer in 30000 ms`
+while Pi was still compacting.
+
+So the thirty seconds measure Pi's silence,
+not the clock.
+`compaction_start` stops the count and `compaction_end` starts it again,
+which means a compaction Pi is running never spends the silence a prompt is allowed.
+The run's own deadline is the outer bound of every wait,
+so a compaction that never ends ends the run as `wall-clock`
+with `compactionProblem` naming it,
+and a wait can never be held past the run.
+A compaction Pi reports failing is kept in the answer of the wait that spanned it,
+so silence after one ends the run as `compaction-failed`.
+
+A Pi that reports no compaction and answers nothing is unchanged:
+the wait ends after its silence bound and the run ends as `prompt-rejected`.
 
 ## What the driver retries, and what it leaves alone
 
@@ -269,7 +302,8 @@ a prompt Pi consumes without starting a run and without replying recovers nothin
 so the run ends on the failure it began with rather than as a run that came back.
 
 A wait is kept only while the failure it was scheduled for is the one standing:
-a reply that recovers it, or a different failure in its place,
+a reply that recovers it,
+or a different failure in its place,
 drops the wait and whatever stands then is read afresh.
 One case is left as it is:
 a failure that is recovered and comes back word for word inside the same wait
@@ -291,7 +325,8 @@ which is zero for a run that never needed one.
 The `retry` line is written when the attempt goes,
 immediately before its `retry_prompt` line,
 so an attempt is counted only once it was sent.
-A wait the stop file, the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
+A wait the stop file,
+the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
 the run ends for that reason,
 and `modelError` still names what the model said.
 That standing failure is why a run the stop file ends reports `model-error` and exits non-zero rather than `stop-file`:
@@ -400,7 +435,8 @@ because the work decides them rather than the day they were measured:
   in the finished runs,
   leaving out the runs whose length is no evidence of how long work takes:
   `model-error`,
-  `prompt-rejected`
+  `prompt-rejected`,
+  `compaction-failed`
   and `driver-failed`.
 - a tool call is stuck once it has been open longer than the 99.9th percentile of
   every ended call in those runs,
@@ -498,7 +534,9 @@ the watch,
 and putting the run away.
 Each command keeps its own limit as well,
 so one silent answer cannot spend the whole run,
-and the run's wall limit shortens it rather than extending it.
+and the run's wall clock is the outer bound of every wait:
+a command's silence stops counting while Pi reports a compaction,
+and nothing holds a wait past the run's deadline.
 
 What no in-process bound reaches:
 a file system call on a folder that stops answering,

@@ -85,10 +85,17 @@ fn is_plain_key_part(text: &str) -> bool {
     return true;
 }
 
-/// The canonical spelling of a key given in the environment:
+/// The canonical spelling of a configuration key,
+/// in any letter case:
 /// lower-case section and variable name,
 /// subsection kept.
-fn canonical_key(key: &str) -> Option<String> {
+/// Why:
+///   Git's configuration keys are case-insensitive in their letters,
+/// so every reader that compares a key Git supplied must compare this spelling,
+/// or `Attr.Tree` is not the `attr.tree` Git answers for
+/// (cross-vendor review round 2,
+/// finding 2).
+pub fn canonical_key(key: &str) -> Option<String> {
     let (section, rest) = key.split_once('.')?;
     let (middle, name) = match rest.rsplit_once('.') {
         Some((subsection, name)) => (Some(subsection), name),

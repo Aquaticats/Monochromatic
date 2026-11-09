@@ -60,6 +60,9 @@ pub struct PreparationRequest<'request> {
     pub shadow: &'request Path,
     /// Private commit index.
     pub commit_index: &'request Path,
+    /// The commit's own scratch directory,
+    /// which holds the file the native-commit configuration travels in and is removed with the commit.
+    pub scratch: &'request Path,
     /// Kept global options of the invocation.
     pub global_args: &'request [String],
     /// Commit arguments without pathspecs or `--only`.
@@ -124,6 +127,7 @@ pub struct PreparedCommit {
 /// Why:
 ///   The kept global options come first,
 /// then the shadow,
+/// then the file the native-commit configuration travels in,
 /// then a hooks directory that cannot exist,
 /// which also beats a
 ///  `-c core.hooksPath` of the caller.
@@ -131,19 +135,44 @@ pub struct PreparedCommit {
 /// so no external program runs for a hook.
 ///  No `--work-tree` is passed:
 /// the shadow's own config names the work tree.
+///  Every configuration key native `git commit` reads travels in that file,
+/// because an `includeIf` condition that named the real Git directory no longer matches in the shadow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...globalArgs, `--git-dir=${shadowPath}`, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
+/// [...globalArgs, `--git-dir=${shadowPath}`, ...nativeConfiguration, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
 /// ```
-fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
-    let mut arguments: Vec<String> = request.global_args.to_vec();
-    arguments.push(format!("--git-dir={}", request.shadow.display()));
-    arguments.push(String::from("-c"));
-    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
-    arguments.push(String::from("commit"));
-    arguments.extend(request.commit_args.iter().cloned());
-    return arguments;
+///
+/// # Errors
+///
+/// The error of writing the file the configuration travels in.
+fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>, PreparationError> {
+    let mut arguments: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
+    arguments.push(OsString::from(format!("--git-dir={}", request.shadow.display())));
+    let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
+        request.capture.layout.config_snapshot.as_ref(),
+        request.scratch,
+    )
+    .map_err(configuration_write_failure)?;
+    arguments.extend(configuration);
+    arguments.push(OsString::from("-c"));
+    arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    arguments.push(OsString::from("commit"));
+    arguments.extend(request.commit_args.iter().map(OsString::from));
+    return Ok(arguments);
+}
+
+/// What:
+///  The preparation failure of a configuration file the native commit reads that could not be written.
+/// Why:
+///   A command that cannot be given the person's configuration must not run with it missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failure = (error: Error) => new GitFailedError(`writing the configuration the native commit reads failed: ${error}`);
+/// ```
+fn configuration_write_failure(error: std::io::Error) -> PreparationError {
+    return PreparationError::Git(GitFailure(format!("writing the configuration the native commit reads failed: {error}")));
 }
 
 /// What:
@@ -189,7 +218,7 @@ pub fn run_native_commit_within(
     request: &PreparationRequest,
     ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
-    let arguments: Vec<OsString> = native_commit_arguments(request).iter().map(OsString::from).collect();
+    let arguments: Vec<OsString> = native_commit_arguments(request)?;
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
     command
         .current_dir(cwd)
@@ -215,51 +244,74 @@ pub fn run_native_commit_within(
         },
     );
     let began: std::time::Instant = std::time::Instant::now();
-    let finished = run_guarded_child(&mut command, &notice);
+    // Two enforcers of one ceiling: the notice's thread, which prints the lines and ends the step through the descriptor
+    //  taken at its start, and the wait that owns the child, which needs no thread and no number a reuse can reach.
+    let duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
+        told: notice.step_number(),
+        bound: notice.ceiling_that_applies(),
+    };
+    let finished = run_guarded_child(&mut command, duty);
     // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
     // the signing program ran below the step is there too, so a long step names no work the person's terminal did and no
     // line the notice could not hand to a reader that stopped reading.
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
-    let facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
+    let mut facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
+    // One record of a stop, whoever ended the step first: the notice's own thread, or the wait that owns the child.
+    if let Ok((_outcome, Some(stop))) = &finished
+        && facts.stopped_after.is_none()
+    {
+        facts.armed = true;
+        facts.stopped_after = Some(stop.waited);
+        facts.below_unlisted = !stop.below_listed;
+        facts.below_unended = stop.below_unended;
+    }
     let stopped_after: Option<std::time::Duration> = facts.stopped_after;
     let below_unlisted: bool = facts.below_unlisted;
+    let below_unended: u32 = facts.below_unended;
     crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
-        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(waited, ceiling, signs, below_unlisted))));
+        let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended };
+        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
-    return finished;
+    let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = finished?;
+    return Ok(crate::forwarding::exit_code(outcome));
 }
 
 /// What:
 ///  Run the native commit under the signal guard,
 ///  tell the notice which process is the step as soon as it starts,
-///  and return its exit code.
+///  and answer how it ended,
+///  with the ceiling's stop when the wait had to end it.
 /// Why:
 ///   A signal sent to the wrapper while Git runs reaches Git when a process sent it;
 /// Git's ending decides the status.
 ///  The number is what lets the notice's ceiling reach this step and no other child of this process,
-/// which the landing service runs beside it.
+/// which the landing service runs beside it,
+/// and `duty` is what keeps a ceiling when nothing the notice holds names the step for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// using guard = installSignalGuard(); return exitCode(await guard.runChildNaming(command, notice.stepNumber()));
+/// using guard = installSignalGuard(); return await guard.runChildNaming(command, { told: notice.stepNumber(), bound, anotherEndsIt });
 /// ```
-fn run_guarded_child(command: &mut std::process::Command, notice: &crate::native_commit_waiting_notice::NativeCommitNotice) -> Result<i32, PreparationError> {
+fn run_guarded_child(
+    command: &mut std::process::Command,
+    duty: crate::signal_relay::CeilingDuty<'_>,
+) -> Result<(crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>), PreparationError> {
     let guard: SignalGuard = match SignalGuard::install() {
         Ok(installed) => installed,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));
         }
     };
-    let outcome = match guard.run_child_telling_its_number(command, notice.step_number()) {
+    let outcome = match guard.run_child_telling_its_number(command, duty) {
         Ok(finished) => finished,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("git commit could not start: {error}"))));
         }
     };
-    return Ok(crate::forwarding::exit_code(outcome));
+    return Ok(outcome);
 }
 
 /// What:

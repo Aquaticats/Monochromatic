@@ -1,10 +1,12 @@
 /**
- Which run endings count as a run's own terms, and how a late failure changes the reason a run reports.
+ Which run endings count as a run's own terms, how a late failure changes the reason a run reports, and why a prompt that never
+ started a run ended it.
 
  @module
  */
 
 import type {
+  CommandAnswer,
   EndReason,
   PiExit,
   RunFailure,
@@ -79,4 +81,43 @@ export function finalEndReason(
   const { code, } = piExit;
   // A run that ended on its own terms was not supposed to see Pi fail afterwards, such as while it was asked for statistics.
   return ((code === undefined) || (code === 0)) ? endReason : 'pi-exited';
+}
+
+/**
+ Why a run is over, when its first prompt never started a run.
+
+ A wait that ran out of silence after a compaction Pi reported failing names the compaction: Pi refused nothing, it could not put
+ its own session in order. Any other silence is a prompt Pi would not take. A wait the run's deadline ended is `wall-clock`,
+ because the deadline is what ended it, and a wait Pi left is `pi-exited`.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @param passedDeadline - whether the run's wall clock had passed when Pi refused the prompt itself
+
+ @returns why the run ended
+
+ @example
+ ```ts
+ const reason = endReasonOfPromptWait({ answer: { ending: 'silence', }, passedDeadline: false, },);
+ ```
+ */
+export function endReasonOfPromptWait(
+  {
+    answer,
+    passedDeadline,
+  }: {
+    readonly answer: CommandAnswer;
+    readonly passedDeadline: boolean
+  },
+): EndReason {
+  if (answer.ending === 'deadline') {
+    return 'wall-clock';
+  }
+  if (answer.ending === 'pi-exited') {
+    return 'pi-exited';
+  }
+  if ((answer.ending === 'silence') && (answer.compactionProblem !== undefined)) {
+    return 'compaction-failed';
+  }
+  return passedDeadline ? 'wall-clock' : 'prompt-rejected';
 }

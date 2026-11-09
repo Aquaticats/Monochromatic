@@ -45,8 +45,8 @@ fn follow_up_falls_back(scene: &Scene, label: &str) {
     let held = crate::service_index_lock::try_acquire(index.as_path(), 7).expect("the lock is free");
     let built = crate::service_land_follow::build_index(&context, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&paths), &held, 7).expect("built");
     let starts: Vec<String> = recorded_starts(log.as_path());
-    assert!(starts.iter().any(|start| { return start.starts_with("--no-literal-pathspecs reset --no-refresh "); }), "{label}: no fallback reset in {starts:?}");
-    assert!(!starts.iter().any(|start| { return start.contains("--no-literal-pathspecs reset -q"); }), "{label}: the fallback still asks for -q or a refresh: {starts:?}");
+    assert!(starts.iter().any(|start| { return start.starts_with("reset --no-refresh "); }), "{label}: no fallback reset in {starts:?}");
+    assert!(!starts.iter().any(|start| { return start.starts_with("reset -q"); }), "{label}: the fallback still asks for -q or a refresh: {starts:?}");
     held.release_with(built.path()).expect("installed");
     assert!(git_output(scene.repo.as_path(), &["diff", "--cached", "--quiet", scene.new.as_str(), "--", "a"]).status.success(), "{label}: the path is not at the commit");
 }

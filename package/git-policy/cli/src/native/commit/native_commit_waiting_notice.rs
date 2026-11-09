@@ -171,6 +171,86 @@ const NOTICE_BOUND: Duration = Duration::from_millis(500);
 /// and a step that ends sooner than that is ended by its own channel before a second look.
 const LOOK_INTERVAL: Duration = Duration::from_millis(250);
 
+// What:
+//  A control that refuses the thread the ceiling is enforced on,
+//  as a process at its thread limit does with `EAGAIN` from `pthread_create`.
+// Why:
+//   The refusal cannot be produced on demand here:
+//   a thread limit low enough to refuse this thread refuses the test's own threads too,
+//   so the system's answer is injected
+//   (`member_signalled_through_its_pidfd.rs` injects a refused descriptor the same way).
+//  The planter runs on the thread that starts the notice,
+//  and the notice thread is spawned from it.
+#[cfg(test)]
+thread_local! {
+    /// How many notice threads the next starts are refused.
+    static THREAD_REFUSALS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Refuse the next `count` notice threads.
+#[cfg(test)]
+pub(crate) fn refuse_the_next_notice_thread(count: usize) {
+    THREAD_REFUSALS.with(|left| { left.set(count); });
+}
+
+/// What:
+///  The refusal a control armed,
+///  if any,
+///  which stands for a system that cannot make another thread.
+/// Why:
+///   The start of the notice answers a refused thread the way it answers any other,
+/// and only a control tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusedNow = () => armedRefusal-- > 0 ? new Error('refused') : undefined;
+/// ```
+fn a_thread_is_refused_now() -> Option<std::io::Error> {
+    #[cfg(test)]
+    if THREAD_REFUSALS.with(|left| {
+        let armed: usize = left.get();
+        left.set(armed.saturating_sub(1));
+        return armed > 0;
+    }) {
+        return Some(std::io::Error::other("a control refused the notice thread"));
+    }
+    return None;
+}
+
+/// What:
+///  A control's window on the notice:
+///  the ceiling it plants and the look it waits for.
+/// Why:
+///  A control of the ceiling must make the ceiling come,
+///  and must not race a clock to do it.
+///  Test-only,
+/// so a release build reads no atomic here.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "native_commit_waiting_notice_control_window.rs"]
+pub(crate) mod the_controls_window;
+
+/// What:
+///  The ceiling this look counts from,
+///  which a control may have planted,
+///  or `ceiling`.
+/// Why:
+///   The ceiling is read at the top of every look,
+///  so a control that plants one makes it come at the look it chose,
+///  and no sleep decides the order.
+///  A release build reads no such state and uses the ceiling it was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ceilingOfThisLook = (ceiling) => theControlsWindow.planted() ?? ceiling;
+/// ```
+fn ceiling_of_this_look(ceiling: Duration) -> Duration {
+    #[cfg(all(test, target_os = "linux"))]
+    if let Some(planted) = the_controls_window::the_ceiling_the_control_planted() {
+        return planted;
+    }
+    return ceiling;
+}
+
 /// What a started notice is given.
 pub struct NoticeStart<'a> {
     /// The configuration the commit is built under.
@@ -363,11 +443,31 @@ impl NativeCommitNotice {
     }
 
     /// What:
+    ///  The ceiling this step is under,
+    ///  counted from the moment it starts,
+    ///  or nothing when a message may be typed into an editor in it.
+    /// Why:
+    ///   The wait that owns the step enforces this same bound,
+    /// so it needs the number even when no notice thread runs,
+    /// and an editor-opening commit has none at all,
+    /// because the person is the wait.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// notice.ceilingThatApplies(); // number | undefined
+    /// ```
+    pub fn ceiling_that_applies(&self) -> Option<Duration> {
+        return self.unarmed.ceiling;
+    }
+
+    /// What:
     ///  Starts the notice for a `git commit` that is about to run.
     /// Why:
     ///   A commit that opens the editor gets none;
-    /// a failure to start the thread leaves the commit as it was,
-    /// without a notice.
+    /// a failure to start the thread leaves the step to the wait that owns it,
+    /// which ends the child at this ceiling itself,
+    /// and prints no line,
+    /// because there is no thread to print one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -386,6 +486,15 @@ impl NativeCommitNotice {
             return Self::silent(None);
         }
         let signs: bool = signs_commit(snapshot, commit_arguments);
+        // What: A control refuses the thread here, as a process at its thread limit answers `pthread_create` with `EAGAIN`.
+        // Why:  The refusal cannot be produced on demand,
+        //       and a notice with no thread answers exactly what it answers when the system refuses one:
+        //       it enforces nothing,
+        //       so the wait that owns the step ends it at the ceiling
+        //       (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+        if a_thread_is_refused_now().is_some() {
+            return Self::silent(Some(ceiling));
+        }
         let (stop, ended) = channel::<()>();
         let (lines, waiting) = std::sync::mpsc::sync_channel::<String>(LINE_QUEUE);
         let (told_written, written) = channel::<()>();
@@ -428,6 +537,14 @@ impl NativeCommitNotice {
             // One label for every way the loop ends, so the facts leave through the channel and not through the join.
             'notice: loop {
                 let waited: Duration = began.elapsed();
+                // What: The ceiling this look counts from.
+                // Why:  A control may plant one, so the ceiling comes at the look it chose instead of a slept window.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const bound = ceilingOfThisLook(ceiling);
+                // ```
+                let bound: Duration = ceiling_of_this_look(ceiling);
                 // One look: the step, the programs below it, and what they are using.
                 // A step that has not started yet is nothing to look at, which is not a look that failed.
                 let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
@@ -441,6 +558,8 @@ impl NativeCommitNotice {
                 }
                 if seen_at.is_none() && !below.is_empty() {
                     seen_at = Some(waited);
+                    #[cfg(all(test, target_os = "linux"))]
+                    the_controls_window::noted_a_look_that_found_the_step();
                 }
                 credit_between_looks(&mut facts, before.as_slice(), below, waited.saturating_sub(last_look));
                 before = seen_below(below);
@@ -457,11 +576,13 @@ impl NativeCommitNotice {
                 // The ceiling can only have been counted from a look that found the step, so its number is known here.
                 if watched.number().is_some()
                     && seen_at.is_some()
-                    && since_seen >= ceiling
+                    && since_seen >= bound
                 {
                     let the_ceiling: TheCeiling = ceiling_came(&watched);
                     // A step signalled while the walk below it failed leaves whatever it started unnamed.
                     facts.below_unlisted = !the_ceiling.below_listed;
+                    // A program this ceiling could not end may still be running, and the record says so.
+                    facts.below_unended = the_ceiling.below_unended;
                     match the_ceiling.came {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
@@ -475,7 +596,7 @@ impl NativeCommitNotice {
                     }
                 }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling);
+                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), bound);
                     first = false;
                     // A closed terminal is not a reason to stop the commit, and a reader that stopped reading is not one either:
                     // the line is handed to the writer, and dropped and counted while the writer still holds the one before it.
@@ -486,12 +607,12 @@ impl NativeCommitNotice {
                 // Wake for the sooner of the next line, the look, and the ceiling.
                 let to_next: Duration = ticker.next_in(waited);
                 let pause: Duration = match seen_at {
-                    Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(LOOK_INTERVAL),
+                    Some(_seen) => to_next.min(bound.saturating_sub(since_seen)).min(LOOK_INTERVAL),
                     None => to_next.min(LOOK_INTERVAL),
                 };
                 // A ceiling that came and decided nothing is looked at no sooner than the look's own interval,
                 // so a step whose processes cannot be read costs one look per interval rather than one per pause.
-                let floor: Duration = if since_seen >= ceiling { LOOK_INTERVAL } else { LOOK_PAUSE };
+                let floor: Duration = if since_seen >= bound { LOOK_INTERVAL } else { LOOK_PAUSE };
                 match ended.recv_timeout(pause.max(floor)) {
                     Err(RecvTimeoutError::Timeout) => {}
                     Ok(()) | Err(RecvTimeoutError::Disconnected) => break 'notice,
@@ -511,7 +632,9 @@ impl NativeCommitNotice {
                 unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
                 step,
             },
-            // The system refused the thread: the step runs with no ceiling, and the record says so.
+            // The system refused the thread: this notice enforces nothing,
+            // so the wait that owns the step ends it at the ceiling
+            // (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
             Err(_) => Self::silent(Some(ceiling)),
         };
     }

@@ -178,14 +178,6 @@ pub fn settle_worktree_directory_names(git_dir: &Path) {
     fold_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS);
 }
 
-/// Settle the names kept in the common Git directory:
-///  for a command that learned only that directory,
-///  such as the health report.
-pub fn settle_common_directory_names(common_dir: &Path) {
-    rename_common_directory_names(common_dir);
-    fold_and_tell(common_dir, &COMMON_DIRECTORY_FOLDS);
-}
-
 /// What:
 ///  A path below a Git directory that is spelled with the current data folder in front
 ///  (`monochromatic-git-policy-cli/work`),
@@ -224,6 +216,37 @@ pub fn path_for_reading(directory: &Path, relative: &str) -> PathBuf {
 /// ```
 pub fn data_folder_for_reading(directory: &Path) -> PathBuf {
     return existing_kept_name(directory, DATA_FOLDER);
+}
+
+/// What:
+///  A path below a Git directory,
+///  spelled relatively and with the data folder in front,
+///  for a reader that opens it by
+///  walking below the Git directory without following a link on the way:
+///  under the current folder,
+///  or under the
+///  earlier one when only that exists.
+///  `String` is owned text.
+/// Why:
+///   `path_for_reading` gives the same answer as an absolute path;
+///  a reader that walks the components from the Git directory's own descriptor needs
+///  the relative spelling,
+///  and must never move the folder it is reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function relativePathForReading(directory: string, relative: string): string;
+/// ```
+pub fn relative_path_for_reading(directory: &Path, relative: &str) -> String {
+    let prefix: String = format!("{}/", DATA_FOLDER.current);
+    let Some(rest) = relative.strip_prefix(prefix.as_str()) else {
+        return relative.to_string();
+    };
+    let folder: PathBuf = data_folder_for_reading(directory);
+    let Some(name) = folder.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return relative.to_string();
+    };
+    return format!("{name}/{rest}");
 }
 
 #[cfg(test)]

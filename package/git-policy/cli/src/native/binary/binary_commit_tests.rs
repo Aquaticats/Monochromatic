@@ -701,6 +701,130 @@ fn explicit_paths_commit_staged_additions_that_an_ignore_rule_matches() {
     remove_settled(&fixture);
 }
 
+/// A repository where a force-added ignored file is held as intent-to-add and another tracked file is edited:
+/// the shape a partial commit must record with both changes.
+fn ignored_intent_repository(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join(".gitignore"), b"ignored.txt\n").expect("ignore rule");
+    std::fs::write(repo.join("a.txt"), b"a one\n").expect("a");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "a.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(repo.join("ignored.txt"), b"content\n").expect("the ignored file");
+    git(fixture, repo.as_path(), &["add", "--force", "--intent-to-add", "--", "ignored.txt"]);
+    std::fs::write(repo.join("a.txt"), b"a two\n").expect("edit a");
+    keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    return repo;
+}
+
+/// A force-added ignored file the real index holds as intent-to-add is an addition the selection names,
+/// so an explicit-path commit records it with the worktree content,
+/// as native Git commits it.
+#[test]
+fn an_explicit_path_commit_records_an_ignored_file_held_as_intent_to_add() {
+    let fixture: Fixture = fixture("commit-ignored-intent");
+    let wrapper: PathBuf = ignored_intent_repository(&fixture, "wrapped");
+    let real: PathBuf = ignored_intent_repository(&fixture, "plain");
+    let observed: Observed = run_commit(&fixture, wrapper.as_path(), &["commit", "--message=all", "--", "."]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    git(&fixture, real.as_path(), &["commit", "--quiet", "--message=all", "--", "."]);
+    assert_eq!(
+        git_text(&fixture, wrapper.as_path(), &["ls-tree", "-r", "HEAD"]),
+        git_text(&fixture, real.as_path(), &["ls-tree", "-r", "HEAD"]),
+        "the commit must hold native Git's tree for the same fixture"
+    );
+    assert_eq!(git_text(&fixture, wrapper.as_path(), &["show", "HEAD:ignored.txt"]), "content\n");
+    assert_nothing_left(&fixture, wrapper.as_path());
+    remove_settled(&fixture);
+}
+
+/// A repository where a tracked empty file is held as intent-to-add at the root and a file below `dir` is edited.
+fn intent_empty_with_subdirectory(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), b"{ \"policies\": { \"require-root\": \"off\" } }\n").expect("settings");
+    std::fs::create_dir(repo.join("dir")).expect("dir");
+    std::fs::write(repo.join("empty"), b"").expect("the tracked empty file");
+    std::fs::write(repo.join("dir").join("a.txt"), b"a one\n").expect("a");
+    git(fixture, repo.as_path(), &["add", "--", "empty", "dir/a.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["rm", "--quiet", "--cached", "--", "empty"]);
+    git(fixture, repo.as_path(), &["add", "--intent-to-add", "--", "empty"]);
+    std::fs::write(repo.join("dir").join("a.txt"), b"a two\n").expect("edit a");
+    keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    return repo;
+}
+
+/// A commit run from a subdirectory keeps a tracked empty file the real index holds as intent-to-add with the entry's
+/// mode and object name equal to the base's,
+/// where native Git leaves that path out of its tree.
+/// Why the wrapper keeps it:
+/// the file's removal is not the person's work,
+/// and the scratch `git commit` builds its tree from the base for every
+/// path the command does not name (`SPEC.md`,
+/// "Explicit-path commit").
+/// The repository turns `require-root` off,
+/// because the shipped default refuses every command run below the root.
+#[test]
+fn an_intent_to_add_entry_equal_to_the_base_stays_in_the_commit_where_native_git_drops_it() {
+    let fixture: Fixture = fixture("commit-intent-subdirectory");
+    let wrapper: PathBuf = intent_empty_with_subdirectory(&fixture, "wrapped");
+    let real: PathBuf = intent_empty_with_subdirectory(&fixture, "plain");
+    let observed: Observed = run_commit(&fixture, wrapper.join("dir").as_path(), &["commit", "--message=sub", "--", "a.txt"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    git(&fixture, real.join("dir").as_path(), &["commit", "--quiet", "--message=sub", "--", "a.txt"]);
+    assert_eq!(
+        git_text(&fixture, wrapper.as_path(), &["ls-tree", "-r", "HEAD", "empty"]),
+        "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tempty\n",
+        "the tracked file stays in the commit"
+    );
+    assert_eq!(
+        git_text(&fixture, real.as_path(), &["ls-tree", "-r", "HEAD", "empty"]),
+        "",
+        "and native Git leaves it out of the same case, which is the difference this control records"
+    );
+    assert_eq!(git_text(&fixture, wrapper.as_path(), &["show", "HEAD:dir/a.txt"]), "a two\n");
+    assert_nothing_left(&fixture, wrapper.as_path());
+    remove_settled(&fixture);
+}
+
+/// A tracked empty file the real index holds as intent-to-add,
+/// with the entry's mode and object name equal to the base's.
+fn intent_empty_repository(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("a.txt"), b"a one\n").expect("a");
+    std::fs::write(repo.join("empty"), b"").expect("the tracked empty file");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt", "empty"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["rm", "--quiet", "--cached", "--", "empty"]);
+    git(fixture, repo.as_path(), &["add", "--intent-to-add", "--", "empty"]);
+    std::fs::write(repo.join("a.txt"), b"a two\n").expect("edit a");
+    keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    return repo;
+}
+
+/// A commit whose tree native Git builds from the private index keeps that tracked file too.
+/// Why this matters:
+///  a detached `HEAD` makes the service defer to native `git commit`
+///  (`config_needs_native` and `forced` in `service_prepare.rs`),
+///  which writes its tree from the private index,
+///  where an intent-to-add mark equal to the base's entry leaves that path out:
+///  a deletion the person did not make.
+#[test]
+fn an_intent_to_add_entry_equal_to_the_base_stays_in_a_commit_native_git_builds() {
+    let fixture: Fixture = fixture("commit-intent-detached");
+    let repo: PathBuf = intent_empty_repository(&fixture, "wrapped");
+    git(&fixture, repo.as_path(), &["switch", "--detach", "--quiet"]);
+    let observed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=detached", "--", "a.txt"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["ls-tree", "-r", "HEAD", "empty"]),
+        "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tempty\n",
+        "the tracked file stays in the commit Git built from the private index"
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "a two\n", "the named path carries the edit");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
 /// An ignored path nothing stages is refused with the way forward,
 /// not with Git's force-add hint alone.
 #[test]

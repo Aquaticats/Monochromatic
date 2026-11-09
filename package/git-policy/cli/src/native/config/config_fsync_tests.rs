@@ -1,5 +1,5 @@
 //! Controls for reading `core.fsync`:
-//! every reading is checked against the flushes real Git makes with the same value,
+//! every value is checked against the flushes real Git makes with that value,
 //! counted
 //!  from Git's own trace2 `fsync` counters,
 //! so a reading that drifts from Git's fails here.
@@ -21,6 +21,53 @@ const VALUES: [&str; 22] = [
     "derived-metadata", "loose-object,none", "none,loose-object", "p", "reference,-reference", "bogus", "  pack ,\tnone", "-",
     "pack,-pack-metadata", "commit-graph,pack-metadata,none",
 ];
+
+/// What:
+///  The values of `VALUES` spelled by `spell`,
+///  each with the value it was spelled from and the reading that value has,
+/// and each resulting spelling asked once.
+/// Why:
+///   Every value is returned, so the round-trip assertion of the controls below runs for every one of them:
+/// a
+///  serializer that loses a component gives two values the same spelling,
+/// and a value left out here would never reach the
+///  assertion that sees it.
+/// Asking Git once per spelling stays the caller's business (`ask_once`),
+/// because the string is the question
+///  and a second start of Git only repeats the answer (one took 0.9 to 2.8 s while the suite ran on 2026-11-09).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const spellingsOf = (spell) => VALUES.reduce((kept, value) => {
+///     const spelled = spell(parse(value)).value();
+///     return kept.some(([, seen]) => seen === spelled) ? kept : [...kept, [value, spelled, parse(value)]];
+/// }, []);
+/// ```
+fn spellings_of(spell: fn(FsyncComponents) -> FsyncComponents) -> Vec<(&'static str, String, FsyncComponents)> {
+    let mut kept: Vec<(&'static str, String, FsyncComponents)> = Vec::new();
+    for value in VALUES {
+        let set: FsyncComponents = FsyncComponents::parse(value);
+        let spelled: String = spell(set).value();
+        kept.push((value, spelled, set));
+    }
+    return kept;
+}
+
+/// What:
+///  Whether this spelling is the first of its string,
+///  so the control asks Git about it once and asserts the round trip for every value.
+/// Why:
+///   The round trip is a question about the serializer and has to be asked of every value;
+/// the flush counts are a question about
+///  Git and are the same for one string.
+/// Returns false for a spelling already asked.
+fn ask_once(asked: &mut Vec<String>, spelled: &str) -> bool {
+    if asked.iter().any(|seen: &String| { return seen == spelled; }) {
+        return false;
+    }
+    asked.push(String::from(spelled));
+    return true;
+}
 
 /// How many flushes Git reports (trace2 `fsync` counters) for one start of `arguments` with `core.fsync` set to `value`,
 /// or
@@ -85,8 +132,12 @@ fn reference_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str)
     return flushes(repo, trace, value, &["update-ref", format!("refs/probe/{name}").as_str(), "HEAD"], None);
 }
 
-/// Each reading of a value agrees with Git:
+/// Each value agrees with Git:
 /// a component is named exactly when Git flushes its writes.
+/// The loop goes over the values of `VALUES` themselves:
+/// a value whose reading drifted to another
+///  reading's is exactly the value Git has to be asked about,
+/// so no value may be left out for reading like one already asked.
 #[test]
 fn a_value_names_the_components_git_flushes() {
     let root: PathBuf = fixture("config-fsync-reading");
@@ -134,11 +185,13 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    for (position, value) in VALUES.iter().enumerate() {
-        let set: FsyncComponents = FsyncComponents::parse(value);
-        let spelled: String = set.without_packs().value();
-        let name: String = format!("w{position}");
+    let mut asked: Vec<String> = Vec::new();
+    for (value, spelled, set) in spellings_of(FsyncComponents::without_packs) {
         assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.without_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?} reads back the same, but for the mapping between hash algorithms that no word names alone");
+        if !ask_once(&mut asked, spelled.as_str()) {
+            continue;
+        }
+        let name: String = format!("w{}", asked.len());
         assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()), 0, "no pack flush under {spelled:?} (from {value:?})");
         if !set.names_reference() {
             assert_eq!(import_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()), 0, "the import flushes nothing under {spelled:?} (from {value:?})");
@@ -155,6 +208,36 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
         );
     }
     remove(root.as_path());
+}
+
+/// What:
+///  Every value of `VALUES` reaches the round trip of the two transformed-value controls,
+///  whatever its spelling shares with another.
+/// Why:
+///   A serializer that loses a component gives two different readings the same spelling.
+/// A grouping by spelling kept the
+///  first of them and dropped the second before its round trip ran,
+/// so the serializer's error was never
+///  asserted;
+/// the dedupe now covers only the questions asked of Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(spellingsOf(withoutPacks)).toHaveLength(VALUES.length);
+/// ```
+#[test]
+fn every_values_spelling_reaches_its_round_trip() {
+    for spell in [FsyncComponents::without_packs, FsyncComponents::with_packs] {
+        let spellings: Vec<(&'static str, String, FsyncComponents)> = spellings_of(spell);
+        assert_eq!(spellings.len(), VALUES.len(), "every value is spelled, so every value's round trip runs");
+        for (value, spelled, set) in spellings {
+            assert_eq!(
+                FsyncComponents::parse(spelled.as_str()).bits,
+                spell(set).bits & !OBJECT_MAP,
+                "{value:?} spelled as {spelled:?} reads back the same"
+            );
+        }
+    }
 }
 
 /// The index is named by `index`,
@@ -183,16 +266,19 @@ fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_compo
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    for (position, value) in VALUES.iter().enumerate() {
-        let set: FsyncComponents = FsyncComponents::parse(value);
-        let spelled: String = set.with_packs().value();
-        let name: String = format!("p{position}");
+    let packed_by_name: u64 = pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice());
+    let mut asked: Vec<String> = Vec::new();
+    for (value, spelled, set) in spellings_of(FsyncComponents::with_packs) {
         assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.with_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?}");
+        if !ask_once(&mut asked, spelled.as_str()) {
+            continue;
+        }
+        let name: String = format!("p{}", asked.len());
         assert!(set.with_packs().names_pack_and_metadata());
         // The same flushes as a value that names the packs alone make (the pack, its index and what Git writes beside it).
         assert_eq!(
             pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()),
-            pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice()),
+            packed_by_name,
             "the pack and its index under {spelled:?} (from {value:?})"
         );
         assert_eq!(

@@ -89,6 +89,21 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// The three reports a removal can end with.
+pub mod worktree_remove_reports;
+
+/// The record,
+/// beside a worktree,
+/// of the objects one conversion may leave at its converting name.
+pub mod worktree_convert_leftover_stage_record;
+
+/// What a removal snapshot kept,
+/// promoted to the notices every worktree shows.
+pub mod worktree_removal_snapshot_promotion;
+
+/// The finish of a removal whose destroy happened and whose registration did not go.
+pub mod worktree_removal_interrupted_destroy;
+
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;
@@ -149,6 +164,11 @@ pub mod worktree_clone;
 /// and the one step that applies the tree difference.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_target;
+
+/// Which of the ladder's own Git steps has a ceiling,
+/// and which number that ceiling is.
+#[cfg(target_os = "linux")]
+pub mod ladder_step_ceilings;
 
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]

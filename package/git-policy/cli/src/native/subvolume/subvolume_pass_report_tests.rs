@@ -19,7 +19,7 @@ fn each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label() {
         special_skipped: vec![PathBuf::from("agent.sock"), PathBuf::from("dev/null")],
         losses: AttributeLosses { owner: 2, extended_attributes: 1, mode: 0, times: 3 },
         conflicts: vec![PathBuf::from("src/newer.rs")],
-        left_out: 4,
+        left_out: vec![PathBuf::from("gone.txt"), PathBuf::from("gone2.txt"), PathBuf::from("gone3.txt"), PathBuf::from("gone4.txt")],
         recopied: 5,
         ..SyncStats::default()
     };

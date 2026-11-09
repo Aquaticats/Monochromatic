@@ -21,6 +21,8 @@
 
 use crate::discard_audit_facts::AuditFact;
 use crate::git_metadata::{MetadataOutput, run_metadata_git};
+/// The bytes of a name as the record keeps them beside their text.
+use crate::path_bytes_in_records::hex_of_bytes;
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes,
 ///  `&OsStr` its borrowed form and `Path` a borrowed path.
@@ -91,14 +93,65 @@ pub fn reference_of(name: &OsStr, remotes: bool) -> OsString {
 /// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
 /// ```
 pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<String> {
-    let reference: OsString = reference_of(name, remotes);
-    let mut arguments: Vec<OsString> = prefix_for(context, root);
-    for token in ["rev-parse", "--verify", "--quiet"] {
-        arguments.push(OsString::from(token));
+    let (reference, _short): (OsString, String) = deleted_reference(context, root, name, remotes)?;
+    return commit_of(context, root, reference.as_os_str());
+}
+
+/// What:
+///  One query of the repository through a Git subcommand that reads only,
+///  or nothing when Git cannot be asked at all.
+/// Why:
+///   Every question here is one such run,
+/// and a query that cannot start answers nothing rather than
+///  failing the removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rev_parse({ context, root, arguments }): MetadataOutput | undefined;
+/// ```
+fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[OsString]) -> Option<MetadataOutput> {
+    let mut spelled: Vec<OsString> = prefix_for(context, root);
+    spelled.extend(arguments.iter().cloned());
+    return run_metadata_git(context.real_git.as_path(), spelled.as_slice(), context.overlay.as_slice()).ok();
+}
+
+/// What:
+///  One Git word and a reference as the arguments of a query.
+///  `&[&str]` are the words;
+///  `&OsStr` is the reference,
+///  passed byte for byte.
+/// Why:
+///   A reference name is bytes and not text (Git accepts a branch name that is not UTF-8),
+///  so it reaches
+///  Git unchanged where a text conversion would empty it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const arguments = [...words.map(w => Buffer.from(w)), Buffer.from(reference)];
+/// ```
+fn query_arguments(words: &[&str], reference: &OsStr) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = Vec::<OsString>::with_capacity(words.len() + 1);
+    for word in words {
+        arguments.push(OsString::from(word));
     }
-    arguments.push(reference);
-    let output: MetadataOutput =
-        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    arguments.push(reference.to_os_string());
+    return arguments;
+}
+
+/// What:
+///  The commit a reference points at,
+/// or nothing when there is no such reference.
+/// Why:
+///   A deletion of a reference that does not exist deletes nothing,
+/// and Git answers that itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
+/// ```
+fn commit_of(context: &GitContext, root: Option<&Path>, reference: &OsStr) -> Option<String> {
+    let query: Vec<OsString> = query_arguments(&["rev-parse", "--verify", "--quiet"], reference);
+    let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
         return None;
     }
@@ -107,6 +160,172 @@ pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, re
         return None;
     }
     return Some(commit);
+}
+
+/// What:
+///  The reference a deletion name means and the short name a reader restores from.
+///  `Option<(OsString, String)>` is "the reference and its name,
+/// or nothing".
+/// Why:
+///   A name is not always the branch it names:
+///  Git expands `@{-1}` to the branch the worktree visited before the
+///       current one,
+///  so a record built from the typed name would look for `refs/heads/@{-1}`,
+///  find
+///       nothing and write no line at all,
+///  which is the line the owner asked for.
+///  The typed reference is asked about
+///  first,
+///  so a plain name costs the one query it always did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deletedReference({ context, root, name, remotes }): [string, string] | undefined;
+/// ```
+fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<(OsString, String)> {
+    let intended: OsString = reference_of(name, remotes);
+    // The typed name is the branch itself for every spelling but an expression of Git's own.
+    if commit_of(context, root, intended.as_os_str()).is_some() {
+        return Some((intended, name.to_string_lossy().into_owned()));
+    }
+    let expanded: OsString = expanded_branch_name(context, root, name, remotes)?;
+    let reference: OsString = reference_of(expanded.as_os_str(), remotes);
+    return Some((reference, expanded.to_string_lossy().into_owned()));
+}
+
+/// What:
+///  The branch name a deletion operand expands to in its own namespace,
+///  or nothing when Git expands it to no branch name there.
+///  `Option<OsString>` is "the expanded name or nothing".
+/// Why:
+///   `git branch` expands its operand with Git's `copy_branchname` under the kind of the
+///  namespace it deletes from,
+///  and the two kinds differ:
+///  `INTERPRET_BRANCH_LOCAL` reads `@{-1}` as the branch the worktree visited before and
+///  refuses a mark that names a remote-tracking reference,
+///  where `INTERPRET_BRANCH_REMOTE` reads the upstream and push marks and reads no
+///       previous branch at all.
+///  Each kind is asked through the one plumbing that performs it,
+///  so a revision that is no branch name (`HEAD`,
+///  `@`,
+///  `main@{1}`) expands to nothing and the line is not written,
+///  where general revision resolution answers `refs/heads/main` for `HEAD` and would name
+///  a branch the deletion never took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = remotes
+///   ? await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name])
+///   : await runGit([...global, 'check-ref-format', '--branch', name]);
+/// ```
+fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<OsString> {
+    if remotes {
+        return expanded_remote_tracking_name(context, root, name);
+    }
+    let query: Vec<OsString> = query_arguments(&["check-ref-format", "--branch"], name);
+    let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
+    if !output.success {
+        return None;
+    }
+    // A reference name holds no whitespace, so what Git ended with its line break is the name itself.
+    let first: &[u8] = output.stdout.split(is_line_break).next().unwrap_or_default();
+    let reference: &[u8] = first.trim_ascii();
+    if reference.is_empty() {
+        return None;
+    }
+    return Some(os_string_of(reference));
+}
+
+/// What:
+///  The name a remote-tracking deletion operand expands to,
+///  or nothing when Git's remote-tracking expansion reads none.
+/// Why:
+///   `git check-ref-format --branch` performs the local kind,
+///  which refuses every mark that a remote-tracking deletion reads,
+///  so this namespace asks `rev-parse --symbolic-full-name`,
+///  which reads the marks of both kinds.
+///  Only a reference in the remote-tracking namespace is an answer there,
+///  which is exactly what `branch_interpret_allowed` leaves of a mark for
+///       `INTERPRET_BRANCH_REMOTE`:
+///  `@{-1}` and `HEAD` resolve to a local branch and are no remote-tracking name.
+///  A branch mark always spells `@{`,
+///  so an operand without it is no mark,
+///  and answering it here would name a reference Git prefixes again and never deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!name.includes('@{')) return undefined;
+/// const output = await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name]);
+/// ```
+fn expanded_remote_tracking_name(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
+    let bytes: &[u8] = name.as_encoded_bytes();
+    let mark: bool = bytes.windows(2).any(is_branch_mark_start);
+    if !mark {
+        return None;
+    }
+    let query: Vec<OsString> = query_arguments(&["rev-parse", "--symbolic-full-name", "--verify", "--quiet"], name);
+    let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
+    if !output.success {
+        return None;
+    }
+    let first: &[u8] = output.stdout.split(is_line_break).next().unwrap_or_default();
+    let reference: &[u8] = first.trim_ascii();
+    let short: &[u8] = reference.strip_prefix(REMOTES.as_bytes())?;
+    if short.is_empty() {
+        return None;
+    }
+    return Some(os_string_of(short));
+}
+
+/// What:
+///  Whether two bytes of an operand open a branch mark,
+///  which Git's own mark reading always spells `@{`.
+/// Why:
+///   A named function keeps the reading of one operand free of a closure that captures
+///  nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (pair: Buffer) => pair.equals(Buffer.from('@{'))
+/// ```
+fn is_branch_mark_start(pair: &[u8]) -> bool {
+    return pair == b"@{".as_slice();
+}
+
+/// What:
+///  Whether one byte ends the line a query's answer prints.
+/// Why:
+///   A named function keeps the split of one answer free of a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0x0a || byte === 0x0d
+/// ```
+fn is_line_break(byte: &u8) -> bool {
+    return *byte == b'\n' || *byte == b'\r';
+}
+
+/// What:
+///  A reference's exact bytes as operating-system text.
+/// Why:
+///   A branch name is bytes,
+/// so a name that is not UTF-8 reaches the record as the name Git holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = Buffer.from(bytes);
+/// ```
+fn os_string_of(bytes: &[u8]) -> OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        return OsString::from_vec(bytes.to_vec());
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return OsString::from(String::from_utf8_lossy(bytes).into_owned());
+    }
 }
 
 /// What:
@@ -156,10 +375,15 @@ pub fn merged_into_head(context: &GitContext, root: Option<&Path>, commit: &str)
 /// function deletionFacts({ context, name }): [string, AuditFact[]] | undefined;
 /// ```
 pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<Vec<AuditFact>> {
-    let commit: String = branch_commit(context, root, name, remotes)?;
+    let (reference, branch): (OsString, String) = deleted_reference(context, root, name, remotes)?;
+    let commit: String = commit_of(context, root, reference.as_os_str())?;
     let mut facts: Vec<AuditFact> = vec![
-        AuditFact::Text("branch", name.to_string_lossy().into_owned()),
-        AuditFact::Text("reference", reference_of(name, remotes).to_string_lossy().into_owned()),
+        AuditFact::Text("branch", branch),
+        // The text field is the display name, and `referenceHex` is the identity, byte for byte, the way the
+        //  record's own `gitDirHex`, `cwdHex` and `argumentsHex` keep theirs: a name that is not UTF-8 would
+        //  otherwise restore a branch spelled with replacement characters.
+        AuditFact::Text("reference", reference.to_string_lossy().into_owned()),
+        AuditFact::Text("referenceHex", hex_of_bytes(reference.as_encoded_bytes())),
         AuditFact::Text("commit", commit.clone()),
     ];
     if let Some(merged) = merged_into_head(context, root, commit.as_str()) {

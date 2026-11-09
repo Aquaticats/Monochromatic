@@ -26,6 +26,7 @@ use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsStr;
 use std::path::PathBuf;
+use std::process::Output;
 
 /// A repository with one tracked file edited,
 /// and a second branch `topic`.
@@ -1086,7 +1087,11 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
             .to_owned();
     assert_ne!(local, remote, "the control needs two different commits");
     git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
-    for spelling in [vec!["branch", "--remotes", "-D", "origin/gone"], vec!["branch", "-rD", "origin/gone"]] {
+    for spelling in [
+        vec!["branch", "--remotes", "-D", "origin/gone"],
+        vec!["branch", "--remote", "-D", "origin/gone"],
+        vec!["branch", "-rD", "origin/gone"],
+    ] {
         // The remote-tracking ref is there again before each spelling, and the local branch never moves.
         git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
         let deletion: Observed = run_wrapped(&fixture, repo.as_path(), spelling.as_slice());
@@ -1122,5 +1127,470 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
     let other_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
     assert!(other_line.contains("\"reference\":\"refs/remotes/origin/other\""), "{other_line}");
     assert!(other_line.contains(remote.as_str()), "{other_line}");
+    remove(&fixture);
+}
+
+/// A remote-tracking deletion of the upstream mark records the reference Git expanded it to,
+/// and a fully
+///  qualified operand,
+///  which Git refuses,
+///  leaves no line.
+#[test]
+fn a_remote_tracking_deletion_of_the_upstream_mark_records_what_git_deleted() {
+    let fixture: Fixture = fixture("audit-branch-delete-upstream");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "main"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    // An upstream stored as a remote-tracking reference, which is what a remote-tracking deletion expands `@{u}` to.
+    let place: String = repo.display().to_string();
+    git(&fixture, repo.as_path(), &["config", "remote.origin.url", place.as_str()]);
+    git(&fixture, repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/main", commit.as_str()]);
+    // The control: Git itself expands the mark to the reference the line must name.
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{u}"]).stdout.as_slice()
+        )
+        .trim(),
+        "refs/remotes/origin/main",
+        "the control needs @{{u}} to name the remote-tracking ref"
+    );
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "@{u}"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"branch\":\"origin/main\"",
+        "\"reference\":\"refs/remotes/origin/main\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice()
+        )
+        .trim(),
+        "",
+        "Git deleted the remote-tracking ref"
+    );
+    // A fully qualified operand is no mark: Git prefixes it again, deletes nothing, and no line is written.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/other", commit.as_str()]);
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "refs/remotes/origin/other"]);
+    assert_ne!(refused.code, Some(0), "Git refuses a fully qualified remote-tracking operand");
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice()
+        )
+        .trim(),
+        "refs/remotes/origin/other",
+        "the control needs the reference to survive"
+    );
+    assert_eq!(
+        audit_lines_of(repo.as_path()).len(),
+        before,
+        "a deletion that deleted nothing wrote {:?}",
+        audit_lines_of(repo.as_path())
+    );
+    remove(&fixture);
+}
+
+/// A repository whose `tracks` branch holds a file under a directory the ignore rules hide,
+/// and a linked
+///  worktree that holds the person's file where that directory must go.
+fn repository_whose_target_needs_a_directory(fixture: &Fixture) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"private\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::create_dir(repo.join("private")).expect("directory");
+    std::fs::write(repo.join("private/config.txt"), b"the tracked version\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--force", "--", "private/config.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("private"), b"the person file\n").expect("ignored file");
+    return (repo, linked);
+}
+
+/// A forced form whose target needs a directory where the worktree has an ignored file removes that file,
+/// so the guard refuses and names it.
+#[test]
+fn a_forced_form_keeps_an_ignored_file_where_the_target_needs_a_directory() {
+    let fixture: Fixture = fixture("discard-ignored-ancestor");
+    let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&fixture);
+    for arguments in [
+        vec!["reset", "--hard", "tracks"],
+        vec!["checkout", "--force", "tracks"],
+        vec!["switch", "--force", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} removed the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join("private")).expect("ignored file"),
+            b"the person file\n",
+            "{arguments:?} removed the ignored file"
+        );
+        assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // The line names the path the refusal saw.
+    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl"))
+        .expect("the audit file of the repository");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"ignoredAndTracked\":\"private\""), "{last}");
+    // Real Git removes the file to make the directory, so the loss the guard prevents is measured.
+    let removed: Observed = run_direct(&fixture, linked.as_path(), &["reset", "--hard", "tracks"]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
+    assert!(
+        !linked.join("private").is_file(),
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    assert_eq!(
+        std::fs::read(linked.join("private/config.txt")).expect("tracked file"),
+        b"the tracked version\n"
+    );
+    remove(&fixture);
+}
+
+/// A forced switch to the previous branch keeps an ignored file that branch tracks,
+/// in both shorthands Git
+///  reads for it.
+#[test]
+fn a_forced_switch_to_the_previous_branch_keeps_an_ignored_file() {
+    let fixture: Fixture = fixture("discard-previous-branch");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    // The worktree visited `tracks` last, so both `-` and `@{-1}` name it.
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "tracks"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    // The named expression is the previous branch, and `-` is Git's own shorthand for it in a switch.
+    let resolved: Output = git(&fixture, linked.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]);
+    assert_eq!(
+        String::from_utf8_lossy(resolved.stdout.as_slice()).trim(),
+        "refs/heads/tracks",
+        "the control needs the previous-branch expression to name the branch"
+    );
+    let replaced: Observed = run_direct(&fixture, linked.as_path(), &["switch", "--force", "-"]);
+    assert_eq!(replaced.code, Some(0), "{}", stderr_of(&replaced));
+    assert_eq!(branch_of(&fixture, linked.as_path()), "tracks", "Git reads - as the previous branch");
+    assert_eq!(
+        std::fs::read(linked.join(".env")).expect("ignored file"),
+        b"the tracked version\n",
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    // Back to where the person was, with the person's content again.
+    git(&fixture, linked.as_path(), &["switch", "--force", "side"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    for expression in ["-", "@{-1}"] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", expression]);
+        assert!(
+            rejected_by_policy(&observed),
+            "switch --force {expression} replaced the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            b"SECRET=the person value\n",
+            "switch --force {expression} replaced the ignored file"
+        );
+        assert!(stderr_of(&observed).contains(".env"), "{expression}: {}", stderr_of(&observed));
+        assert_eq!(branch_of(&fixture, linked.as_path()), "side", "switch --force {expression} moved HEAD");
+    }
+    // A branch that tracks nothing the worktree ignores still switches, in the same shorthand.
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "tracks"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    git(&fixture, repo.as_path(), &["branch", "free"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "free"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
+    let free: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", "-"]);
+    assert_eq!(free.code, Some(0), "{}", stderr_of(&free));
+    assert_eq!(branch_of(&fixture, linked.as_path()), "free");
+    remove(&fixture);
+}
+
+/// A deletion that names the previous branch resolves the name Git resolves,
+/// so the line names the branch and
+///  the commit it took.
+#[test]
+fn a_deletion_of_the_previous_branch_records_the_branch_it_named() {
+    let fixture: Fixture = fixture("audit-previous-branch");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "lost"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=lost", "--", "tracked.txt"]);
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "lost"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    // Git reads `@{-1}` as the branch the worktree visited before `main`, which is `lost`.
+    let resolved: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert_eq!(resolved, "refs/heads/lost", "the control needs the previous-branch expression to name lost");
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "@{-1}"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "lost"]).stdout.as_slice()),
+        "",
+        "Git deleted the branch"
+    );
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line for the deletion");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"branch\":\"lost\"",
+        "\"reference\":\"refs/heads/lost\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    remove(&fixture);
+}
+
+/// A removal that names a worktree by its unique suffix counts that worktree,
+/// not a directory of the same
+///  name beside the command.
+#[test]
+fn a_removal_by_suffix_counts_the_worktree_git_resolves() {
+    let fixture: Fixture = fixture("audit-worktree-suffix");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let worktrees: PathBuf = fixture.root.join("worktrees");
+    std::fs::create_dir(&worktrees).expect("worktrees directory");
+    let linked: PathBuf = worktrees.join("topic");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../worktrees/topic"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // A directory of the same name beside the command, which is not a worktree at all.
+    std::fs::create_dir(repo.join("topic")).expect("a directory of the same name");
+    let removal: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "--force", "topic"]);
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree the suffix names");
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"worktree\":\"topic\"",
+        "\"head\":\"refs/heads/side\"",
+        "\"changed\":\"1\"",
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    remove(&fixture);
+}
+
+/// A repository whose `tracks` branch holds a regular file where the ignore rules hide a directory,
+/// and a linked
+///  worktree that keeps the person's files inside that directory.
+fn repository_whose_target_replaces_a_directory(fixture: &Fixture) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"private\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join("private"), b"the tracked version\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--force", "--", "private"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::create_dir(linked.join("private")).expect("ignored directory");
+    std::fs::write(linked.join("private/secret.txt"), b"the person secret\n").expect("ignored file");
+    return (repo, linked);
+}
+
+/// A forced form whose target holds a regular file where the worktree keeps an ignored directory deletes the
+/// files inside it,
+/// so the guard refuses and names the file.
+#[test]
+fn a_forced_form_keeps_an_ignored_directory_the_target_replaces_with_a_file() {
+    let fixture: Fixture = fixture("discard-ignored-inside-replaced");
+    let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_replaces_a_directory(&fixture);
+    for arguments in [
+        vec!["reset", "--hard", "tracks"],
+        vec!["checkout", "--force", "tracks"],
+        vec!["switch", "--force", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} deleted the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join("private/secret.txt")).expect("ignored file"),
+            b"the person secret\n",
+            "{arguments:?} deleted the ignored file"
+        );
+        assert!(
+            stderr_of(&observed).contains("private/secret.txt"),
+            "{arguments:?}: {}",
+            stderr_of(&observed)
+        );
+    }
+    // The line names the file the refusal saw.
+    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl"))
+        .expect("the audit file of the repository");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"ignoredAndTracked\":\"private/secret.txt\""), "{last}");
+    // Real Git replaces the directory with the tracked file, so the loss the guard prevents is measured.
+    let removed: Observed = run_direct(&fixture, linked.as_path(), &["reset", "--hard", "tracks"]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
+    assert!(
+        !linked.join("private/secret.txt").exists(),
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    assert_eq!(
+        std::fs::read(linked.join("private")).expect("tracked file"),
+        b"the tracked version\n"
+    );
+    remove(&fixture);
+}
+
+/// A branch whose name holds bytes that are not UTF-8 keeps its deletion line,
+/// with the reference and the
+///  commit a reader restores from.
+#[cfg(unix)]
+#[test]
+fn a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit() {
+    use std::os::unix::ffi::OsStringExt;
+    let fixture: Fixture = fixture("audit-non-utf8-branch");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch name Git accepts and no text decoding can hold: `lost-` and the byte 0xff.
+    let name: std::ffi::OsString = std::ffi::OsString::from_vec(b"lost-\xff".to_vec());
+    git(&fixture, repo.as_path(), &[OsStr::new("checkout"), OsStr::new("--quiet"), OsStr::new("-b"), name.as_os_str()]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &[OsStr::new("commit"), OsStr::new("--quiet"), OsStr::new("--message=lost"), OsStr::new("--"), OsStr::new("tracked.txt")]);
+    let commit: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &[OsStr::new("rev-parse"), name.as_os_str()]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    git(&fixture, repo.as_path(), &[OsStr::new("checkout"), OsStr::new("--quiet"), OsStr::new("main")]);
+    // The wrapper deletes it under its own spelling.
+    let observed: Observed = observe(
+        wrapped(&fixture).current_dir(repo.as_path()).args([
+            std::ffi::OsString::from("branch"),
+            std::ffi::OsString::from("-D"),
+            std::ffi::OsString::from("--"),
+            name.clone(),
+        ]),
+        b"",
+    );
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    let listed: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &[OsStr::new("for-each-ref"), OsStr::new("--format=%(refname)"), OsStr::new("refs/heads")])
+            .stdout
+            .as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert!(!listed.contains("lost-"), "Git deleted the branch: {listed}");
+    let line: String = audit_lines_of(repo.as_path())
+        .last()
+        .cloned()
+        .expect("one audit line for the deletion");
+    assert!(line.contains("\"form\":\"BranchDelete\""), "{line}");
+    assert!(line.contains(format!("\"commit\":\"{commit}\"").as_str()), "{line}");
+    // The line names the whole reference it deleted, byte for byte, so `git update-ref` restores that branch
+    //  and not a second one spelled with replacement characters.
+    let mut reference_bytes: Vec<u8> = b"refs/heads/".to_vec();
+    reference_bytes.extend_from_slice(name.as_encoded_bytes());
+    let exact: String = format!(
+        "\"referenceHex\":\"{}\"",
+        git_policy_cli::path_bytes_in_records::hex_of_bytes(reference_bytes.as_slice())
+    );
+    assert!(line.contains(exact.as_str()), "{exact} missing from {line}");
+    // The text field beside it is the display name, which holds replacement characters and restores nothing.
+    assert!(line.contains("\"reference\":\"refs/heads/lost-\u{fffd}\""), "{line}");
+    remove(&fixture);
+}
+
+/// A worktree path holding a line break is read whole,
+/// so a removal by its unique suffix counts that worktree and
+///  not a directory beside the command.
+#[test]
+fn a_removal_counts_the_worktree_whose_path_holds_a_line_break() {
+    let fixture: Fixture = fixture("audit-worktree-line-break");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let worktrees: PathBuf = fixture.root.join("worktrees");
+    std::fs::create_dir(&worktrees).expect("worktrees directory");
+    let linked: PathBuf = worktrees.join("line\nbreak/topic");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../worktrees/line\nbreak/topic"]);
+    assert!(linked.is_dir(), "the fixture needs a worktree whose path holds a line break");
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // A directory of the same name beside the command, which is not a worktree at all.
+    std::fs::create_dir(repo.join("topic")).expect("a directory of the same name");
+    let removal: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "--force", "topic"]);
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree the suffix names");
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"worktree\":\"topic\"",
+        "\"head\":\"refs/heads/side\"",
+        "\"changed\":\"1\"",
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    remove(&fixture);
+}
+
+/// A deletion whose name is no branch writes no line:
+/// `HEAD` is not a branch name to Git,
+///  so the record must not
+///  name the branch it resolves to.
+#[test]
+fn a_deletion_of_a_revision_that_is_no_branch_leaves_no_line() {
+    let fixture: Fixture = fixture("audit-branch-delete-head");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    // Git refuses this deletion: `HEAD` names no branch, so nothing is deleted.
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
+    assert_ne!(refused.code, Some(0), "Git refuses branch -D HEAD");
+    assert!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "main"]).stdout.as_slice())
+            .contains("main"),
+        "the control needs main to survive"
+    );
+    assert_eq!(
+        audit_lines_of(repo.as_path()).len(),
+        before,
+        "a deletion that deleted nothing wrote {:?}",
+        audit_lines_of(repo.as_path())
+    );
+    // A reference literally named `refs/heads/HEAD` is a branch of its own, and Git deletes that one.
+    // `git branch` cannot create the name, so the reference is written by `update-ref`.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/heads/HEAD", "main"]);
+    let deleted: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "HEAD"]).stdout.as_slice()),
+        "",
+        "Git deleted the branch named HEAD"
+    );
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    // `refs/heads/HEAD` in bytes: the identity of the branch Git deleted.
+    assert!(line.contains("\"reference\":\"refs/heads/HEAD\""), "{line}");
+    assert!(line.contains("\"referenceHex\":\"726566732f68656164732f48454144\""), "{line}");
     remove(&fixture);
 }

@@ -1,5 +1,6 @@
 import type { WireguardConfig, } from './config-types.ts';
 import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
+import { PROVIDER_HOSTS, } from './provider-hosts.data.ts';
 import { UPDATE_HOSTS, } from './update-hosts.data.ts';
 import { startNotices, } from './update-policy-notice.ts';
 
@@ -70,6 +71,7 @@ export async function runSubcommand(
     tableOff: config.table === 'off',
     dnsServers: config.dns,
     hosts: UPDATE_HOSTS,
+    providerHosts: PROVIDER_HOSTS,
     recommendedMark: RECOMMENDED_EXEMPT_MARK,
   },))
     steps.warn(notice,);

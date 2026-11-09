@@ -7,6 +7,7 @@
 //! Outside that mode `helper_entry` returns at once.
 
 use super::*;
+
 use crate::test_support::{executable, fixture, isolated_overlay, remove};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
@@ -279,7 +280,8 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     PENDING[1].store(libc::SIGTERM, std::sync::atomic::Ordering::SeqCst);
     let mut command: Command = Command::new("sleep");
     command.arg("30");
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, &crate::child_number_told_at_start::ChildNumber::not_started())).expect("the runtime runs the child").expect("child runs");
+    let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, CeilingDuty { told: &told, bound: None })).expect("the runtime runs the child").expect("child runs").0;
     assert_eq!(
         outcome,
         ChildOutcome::Signaled(libc::SIGTERM),
@@ -602,7 +604,9 @@ fn waiting_ends_at_the_childs_exit_and_reports_it() {
     command.arg("1");
     // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, &crate::child_number_told_at_start::ChildNumber::not_started())).expect("the runtime runs the child").expect("the child runs");
+    let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
+    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None };
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("the child runs").0;
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     assert_eq!(outcome, ChildOutcome::Exited(0));
 }
@@ -636,7 +640,9 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
             unsafe { libc::pthread_kill(waiting_thread, libc::SIGUSR1) };
         }
     });
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, &crate::child_number_told_at_start::ChildNumber::not_started())).expect("the runtime runs the child").expect("interrupts do not end the wait");
+    let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
+    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None };
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("interrupts do not end the wait").0;
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     interrupter.join().expect("interrupter finishes");
     assert_eq!(outcome, ChildOutcome::Exited(0));

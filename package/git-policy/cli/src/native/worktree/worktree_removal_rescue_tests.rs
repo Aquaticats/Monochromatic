@@ -7,7 +7,9 @@
 //!  worktree which stays loses nothing and shows nothing.
 
 use super::*;
-use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
+use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, orphaned_push_failures, record_push_failure};
+use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of};
+use crate::work_item::WorkItem;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, remove};
 use crate::work_item::enqueue;
@@ -79,7 +81,7 @@ fn end_attempts(repo: &Repo) {
 /// The record of a failed push and a pending push,
 /// both under the fixture's worktree.
 fn records(repo: &Repo) {
-    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
+    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, crate::push_failure_notice::PushOutcome::Refused, "refused by test policy").expect("notice");
     enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, OTHER_COMMIT)).expect("pending push");
 }
 
@@ -126,7 +128,10 @@ fn a_snapshot_of_a_directory_that_is_not_text_is_judged_by_that_directory() {
     std::fs::create_dir_all(&linked).expect("linked git directory");
     std::fs::create_dir_all(&checkout).expect("checkout");
     // Git writes this registration as bytes; the checkout is there, so the removal did not happen.
-    std::fs::write(linked.join("gitdir"), format!("{}\n", checkout.join(".git").display()).as_bytes()).expect("registration");
+    // Git writes the path's bytes, and a lossy spelling would name a directory that does not exist.
+    let mut registration: Vec<u8> = checkout.join(".git").as_os_str().as_bytes().to_vec();
+    registration.push(b'\n');
+    std::fs::write(linked.join("gitdir"), registration.as_slice()).expect("registration");
     std::fs::write(checkout.join(".git"), format!("gitdir: {}\n", linked.display())).expect("checkout pointer");
     let repo: Repo = Repo { root: root.clone(), common: common.clone(), linked: linked.clone(), checkout: PathBuf::from("/nonexistent-checkout") };
     records(&repo);
@@ -201,8 +206,11 @@ fn a_checkout_path_that_holds_a_line_break_is_read_whole() {
     std::fs::remove_dir_all(checkout.as_path()).expect("Git deleted the checkout");
     assert_eq!(removal_state::checkout_present(linked.as_path()), Some(false), "the checkout is gone, and so is no directory its prefix names");
     assert!(settle_removals(repo.common.as_path()).is_empty());
-    assert!(snapshot_of(&repo).exists(), "a removal that may still be under way keeps the snapshot");
-    assert!(shown(&repo).is_empty(), "nothing is shown while the removal may go on");
+    // The checkout the registration names is gone and the command that took the snapshot has ended, so the removal is
+    // decided by that directory and not by the one its prefix spells: the records reach the person and the snapshot goes.
+    // A prefix read as the checkout would discard the snapshot and show nothing.
+    assert!(!snapshot_of(&repo).exists(), "the snapshot is settled on the checkout the registration names");
+    assert_eq!(shown(&repo).len(), 2, "what the snapshot kept reaches the person");
     remove(root.as_path());
 }
 
@@ -281,31 +289,64 @@ fn a_command_that_settles_while_the_removal_is_under_way_keeps_the_snapshot() {
     remove(repo.root.as_path());
 }
 
-/// A removal cut short after Git deleted the checkout leaves a registration with no checkout:
-/// that is not a refusal,
-/// so the
-///  snapshot is kept until the registration goes too.
+/// A removal cut short after Git deleted the checkout is settled by the next command,
+/// which shows what the snapshot kept,
+///  and the registration is left to the person.
 #[test]
-fn a_removal_cut_short_after_the_checkout_was_deleted_keeps_the_snapshot() {
+fn a_removal_cut_short_after_the_checkout_was_deleted_settles_the_snapshot() {
     let repo: Repo = repo("rescue-cut-short");
     records(&repo);
     snapshot_linked_worktrees(repo.common.as_path());
     end_attempts(&repo);
     std::fs::remove_dir_all(&repo.checkout).expect("Git deleted the checkout");
     assert!(settle_removals(repo.common.as_path()).is_empty());
-    assert!(snapshot_of(&repo).exists(), "the snapshot is kept");
-    assert!(shown(&repo).is_empty());
+    assert!(!snapshot_of(&repo).exists(), "the checkout cannot come back, so the snapshot is settled");
+    assert_eq!(shown(&repo).len(), 2, "the records are shown, not kept for ever");
+    // The registration is the person's to remove: the wrapper changes no registration it was not asked to.
+    assert!(repo.linked.is_dir());
     std::fs::remove_dir_all(&repo.linked).expect("a later prune removes the registration");
     assert!(settle_removals(repo.common.as_path()).is_empty());
-    assert_eq!(shown(&repo).len(), 2);
     remove(repo.root.as_path());
+}
+
+/// What:
+///  A registered worktree whose checkout went while its registration stayed is a removal that will never finish,
+/// so the
+///  snapshot taken for it is settled by the next command instead of sitting there for ever.
+/// Why:
+///   A worktree whose directory is gone cannot run a command,
+/// so nothing would ever show the records its Git directory still holds:
+///  they reach the person only through the settle.
+/// The live-taker arm is the seam:
+/// a command that took the snapshot and may still be removing keeps it,
+///  because the originals go with the removal.
+#[test]
+fn a_snapshot_whose_checkout_is_gone_is_settled_and_shown() {
+    for (label, ended) in [("ended", true), ("live", false)] {
+        let repo: Repo = repo(format!("rescue-checkout-gone-{label}").as_str());
+        records(&repo);
+        snapshot_linked_worktrees(repo.common.as_path());
+        if ended {
+            end_attempts(&repo);
+        }
+        std::fs::remove_dir_all(&repo.checkout).expect("the checkout is gone");
+        assert!(settle_removals(repo.common.as_path()).is_empty());
+        if ended {
+            assert!(!snapshot_of(&repo).exists(), "the taker ended and the checkout is gone, so the removal is decided");
+            assert_eq!(shown(&repo).len(), 2, "both records reached the person");
+        } else {
+            assert!(snapshot_of(&repo).exists(), "the taker may still be removing, so the snapshot is kept");
+            assert!(shown(&repo).is_empty());
+        }
+        remove(repo.root.as_path());
+    }
 }
 
 /// A pending push of a commit whose failure was already recorded does not replace Git's words with the vaguer ones.
 #[test]
 fn a_recorded_failure_keeps_its_words_over_the_pending_push_of_the_same_commit() {
     let repo: Repo = repo("rescue-same-commit");
-    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
+    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, crate::push_failure_notice::PushOutcome::Refused, "refused by test policy").expect("notice");
     enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, COMMIT)).expect("pending push");
     snapshot_linked_worktrees(repo.common.as_path());
     std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");

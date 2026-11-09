@@ -46,14 +46,18 @@ struct Fixture {
     /// Private commit index,
     /// staged for `a.txt` only.
     commit_index: PathBuf,
+    /// The commit's own scratch directory,
+    /// which holds the file the native-commit configuration travels in.
+    scratch: PathBuf,
     /// Intended tree of the private index.
     intended_tree: String,
 }
 
-/// A repository with `a.txt` committed,
-/// the change to `a.txt` staged privately,
-/// and a shadow ready to prepare.
-fn prepared_fixture(root: &Path) -> Fixture {
+/// The repository one preparation fixture commits in:
+/// `a.txt` committed on `main`,
+/// an upstream and an `onbranch` include,
+/// and a change to `a.txt` in the worktree.
+fn prepared_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
@@ -73,12 +77,34 @@ fn prepared_fixture(root: &Path) -> Fixture {
         })
         .expect("include config");
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
-    let context = git_context();
-    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    return repo;
+}
+
+/// A repository with `a.txt` committed,
+/// the change to `a.txt` staged privately,
+/// and a shadow ready to prepare.
+fn prepared_fixture(root: &Path) -> Fixture {
+    return preparation_fixture(root, prepared_repository(root));
+}
+
+/// The private index,
+/// the capture and the shadow of a repository,
+/// taken after everything the invocation would have read is in place.
+fn preparation_fixture(root: &Path, repo: PathBuf) -> Fixture {
+    let context: GitContext = git_context();
+    return preparation_fixture_with(&context, root, repo);
+}
+
+/// `preparation_fixture` in the configuration layers `context` names,
+/// so a control captures and prepares under the same global configuration real Git read.
+fn preparation_fixture_with(context: &GitContext, root: &Path, repo: PathBuf) -> Fixture {
+    // The base is whatever the repository's branch holds now, which is the state the invocation saw.
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let layout = capture_invocation_layout(context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(context, repo.as_path(), layout).expect("capture");
     let transaction: PathBuf = root.join(format!("transaction-{TRANSACTION}"));
     std::fs::create_dir_all(&transaction).expect("transaction");
-    let shadow: PathBuf = create_shadow_repository(&context, repo.as_path(), &capture, TRANSACTION, transaction.as_path())
+    let shadow: PathBuf = create_shadow_repository(context, repo.as_path(), &capture, TRANSACTION, transaction.as_path())
         .expect("shadow");
     let indexes: CaptureIndexes = CaptureIndexes {
         captured_index: transaction.join("captured.index"),
@@ -95,10 +121,10 @@ fn prepared_fixture(root: &Path) -> Fixture {
         stage_tracked_changes: false,
         base_revision: base.as_str(),
     };
-    initialize_commit_index(&context, repo.as_path(), capture.layout.real_index_path.as_path(), &indexes, &selection)
+    initialize_commit_index(context, repo.as_path(), capture.layout.real_index_path.as_path(), &indexes, &selection)
         .expect("private index");
     let intended_tree: String = write_private_tree(
-        &context,
+        context,
         repo.as_path(),
         indexes.commit_index.as_path(),
         indexes.object_directory.as_path(),
@@ -109,26 +135,71 @@ fn prepared_fixture(root: &Path) -> Fixture {
         shadow,
         capture,
         commit_index: indexes.commit_index,
+        scratch: transaction.clone(),
         intended_tree,
     };
 }
 
 /// Runs the preparation of a fixture.
 fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
+    let context: GitContext = git_context();
+    return prepare_with(&context, fixture, commit_args);
+}
+
+/// `prepare` with the configuration layers `context` names.
+fn prepare_with(context: &GitContext, fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
     let commit_arguments: Vec<String> = commit_args.iter().map(|arg| { return String::from(*arg); }).collect();
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
         commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
         global_args: &[],
         commit_args: commit_arguments.as_slice(),
         object_directory: None,
     };
-    let code: i32 = run_native_commit(&git_context(), fixture.repo.as_path(), &request)?;
+    let code: i32 = run_native_commit(context, fixture.repo.as_path(), &request)?;
     if code != 0 {
         return Err(PreparationError::Git(GitFailure(format!("git commit exited {code}"))));
     }
-    return read_prepared_commit(&git_context(), fixture.shadow.as_path()).map_err(PreparationError::Git);
+    return read_prepared_commit(context, fixture.shadow.as_path()).map_err(PreparationError::Git);
+}
+
+/// The context of `git_context` with `GIT_CONFIG_GLOBAL` naming a file holding `text`,
+/// so the capture and the native commit read the same global layer real Git reads.
+fn context_with_global(root: &Path, text: &str) -> GitContext {
+    let global: PathBuf = root.join("global.config");
+    std::fs::write(global.as_path(), text).expect("global configuration");
+    let mut context: GitContext = git_context();
+    context.overlay.retain(|(name, _)| { return name != "GIT_CONFIG_GLOBAL"; });
+    context.overlay.push((std::ffi::OsString::from("GIT_CONFIG_GLOBAL"), global.into_os_string()));
+    return context;
+}
+
+/// Run real Git with the layers a context names,
+/// so a control sees the configuration the person's Git saw.
+fn git_in_layers(context: &GitContext, directory: &Path, arguments: &[&str]) -> std::process::Output {
+    let mut command = std::process::Command::new(REAL_GIT);
+    command.current_dir(directory).env_clear().env("PATH", "/usr/bin:/bin");
+    for (name, value) in context.overlay.iter() {
+        command.env(name, value);
+    }
+    return command.args(arguments).output().expect("native Git control");
+}
+
+/// How many times the stand-in signer of a fixture ran.
+fn signer_calls(calls: &Path) -> usize {
+    return std::fs::read_to_string(calls).map_or(0, |text| { return text.lines().count(); });
+}
+
+/// Append `bytes` to a file a fixture already wrote.
+fn append_to(path: &Path, bytes: &[u8]) {
+    use std::io::Write;
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut file| { return file.write_all(bytes); })
+        .expect("append to the file");
 }
 
 /// Preparation leaves the real refs,
@@ -170,12 +241,13 @@ fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
         capture: &capture,
         shadow: Path::new("/s"),
         commit_index: Path::new("/i"),
+        scratch: Path::new("/c"),
         global_args: global.as_slice(),
         commit_args: commit_arguments.as_slice(),
         object_directory: None,
     };
     assert_eq!(
-        native_commit_arguments(&request),
+        native_commit_arguments(&request).expect("the configuration travels"),
         vec![
             "-c",
             "a.b=1",
@@ -368,6 +440,28 @@ fn the_shadow_shows_head_upstream_include_and_git_dir() {
     remove(root.as_path());
 }
 
+/// What:
+///  A commit whose signing program never answers,
+///  prepared in `root`,
+///  with the signer the commit command names.
+/// Why:
+///   The two ceiling controls differ only in whether the notice thread may start,
+/// so they share the step that outlasts its ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, globalArgs, commitArgs } = aCommitWhoseSignerNeverAnswers(root);
+/// ```
+#[cfg(unix)]
+fn a_commit_whose_signer_never_answers(root: &Path) -> (Fixture, Vec<String>, Vec<String>) {
+    let fixture: Fixture = prepared_fixture(root);
+    let signer: PathBuf = root.join("slow-signer");
+    crate::test_support::executable(signer.as_path(), b"#!/bin/sh\nexec sleep 60\n");
+    let global_args: Vec<String> = vec![String::from("-c"), format!("gpg.program={}", signer.display())];
+    let commit_args: Vec<String> = vec![String::from("-S"), String::from("--message=x")];
+    return (fixture, global_args, commit_args);
+}
+
 /// A configured hook for every hook event,
 /// whatever its name,
 /// does not run in the native commit,
@@ -400,17 +494,14 @@ fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
 #[test]
 fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     let root: PathBuf = fixture("commit-preparation-ceiling");
-    let fixture: Fixture = prepared_fixture(root.as_path());
-    let signer: PathBuf = root.join("slow-signer");
-    crate::test_support::executable(signer.as_path(), b"#!/bin/sh\nexec sleep 120\n");
+    let (fixture, global_args, commit_args): (Fixture, Vec<String>, Vec<String>) = a_commit_whose_signer_never_answers(root.as_path());
     let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
     let index_before: Vec<u8> = std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
-    let global_args: Vec<String> = vec![String::from("-c"), format!("gpg.program={}", signer.display())];
-    let commit_args: Vec<String> = vec![String::from("-S"), String::from("--message=x")];
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
         commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
         global_args: global_args.as_slice(),
         commit_args: commit_args.as_slice(),
         object_directory: None,
@@ -421,11 +512,251 @@ fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     let Err(PreparationError::Git(GitFailure(said))) = outcome else {
         panic!("a step that outlasted its ceiling was not turned into a stop: {outcome:?}");
     };
-    assert!(lasted < std::time::Duration::from_secs(60), "the stop did not end the step: {lasted:?}");
+    assert!(lasted < std::time::Duration::from_secs(20), "the stop did not end the step: {lasted:?}");
     assert!(said.contains("was stopped after") && said.contains("nothing was committed"), "{said}");
     assert!(said.contains("signs the commit"), "a signed commit's stop names the signer: {said}");
     assert!(crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid")).is_empty(), "a process was left below the command");
     assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
     assert_eq!(std::fs::read(fixture.repo.join(".git").join("index")).expect("index"), index_before);
+    remove(root.as_path());
+}
+
+/// The repository's own `gpg.openpgp.program` beats a global legacy `gpg.program`,
+/// because both name the OpenPGP program and the repository's entry comes later,
+/// so the shadow's native commit must sign with the repository's program and never start the global one.
+#[test]
+fn the_repository_openpgp_program_beats_the_legacy_global_program() {
+    let root: PathBuf = fixture("commit-preparation-legacy-gpg-program");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let calls: PathBuf = root.join("signer-calls");
+    let signer: PathBuf = root.join("stand-in-gpg");
+    let script: String = format!(
+        "#!/bin/sh\ncat > /dev/null\necho call >> '{}'\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nstand-in\\n-----END PGP SIGNATURE-----\\n'\n",
+        calls.display()
+    );
+    crate::test_support::executable(signer.as_path(), script.as_bytes());
+    let context: GitContext = context_with_global(root.as_path(), "[gpg]\n\tprogram = /does-not-exist/cli-git-fixture\n");
+    for (setting, value) in [
+        ("gpg.openpgp.program", signer.to_str().expect("UTF-8")),
+        ("commit.gpgsign", "true"),
+        ("user.signingkey", "fixture"),
+    ] {
+        git(repo.as_path(), &["config", setting, value]);
+    }
+    // The positive control: real Git signs this repository's commit with its own program, and starts the global one never.
+    let control: std::process::Output = git_in_layers(&context, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
+    assert!(
+        git_text(repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "),
+        "the repository's program must sign the control, or this control proves nothing"
+    );
+    let after_control: usize = signer_calls(calls.as_path());
+    assert_eq!(after_control, 1, "real Git ran the repository's program once");
+    let fixture: Fixture = preparation_fixture_with(&context, root.as_path(), repo);
+    let prepared: PreparedCommit = prepare_with(&context, &fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
+    assert!(prepared.signed, "the repository's program must sign in the shadow too");
+    assert_eq!(signer_calls(calls.as_path()), after_control + 1, "the shadow ran the repository's program, not the global one");
+    remove(root.as_path());
+}
+
+/// A trailer subsection holding an equals sign,
+/// such as `[trailer "review=bot"]`,
+/// names a key that a `key=value` setting cannot carry:
+/// Git splits such a setting at its first equals sign,
+/// so the configured trailer has to reach the shadow another way.
+#[test]
+fn a_trailer_subsection_holding_an_equals_sign_keeps_its_configuration() {
+    let root: PathBuf = fixture("commit-preparation-trailer-equals");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let included: PathBuf = root.join("trailer.config");
+    std::fs::write(included.as_path(), "[trailer \"review=bot\"]\n\tkey = Reviewed-by\n\tcmd = printf reviewer\n").expect("trailer configuration");
+    // Only this exact Git directory selects the file, which is what no longer matches in the shadow.
+    let condition: String = format!("includeIf.gitdir:{}/.git.path", repo.display());
+    git(repo.as_path(), &["config", condition.as_str(), included.to_str().expect("UTF-8")]);
+    let trailer: &str = "review=bot: given";
+    // The positive control: real Git adds the configured trailer for this token.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control", "--trailer", trailer]);
+    let control: String = git_text(repo.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(control.contains("Reviewed-by: reviewer"), "the configured trailer must be added, or this control proves nothing: {control}");
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    prepare(&fixture, &["--allow-empty", "--message=shadow control", "--trailer", trailer]).expect("prepared");
+    let shadow: String = git_text(fixture.shadow.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(shadow.contains("Reviewed-by: reviewer"), "the shadow must add the configured trailer too: {shadow}");
+    remove(root.as_path());
+}
+
+/// A configured value that no single argument can carry stays in the configuration files,
+/// so the shadow's native commit starts and commits as real Git does.
+#[test]
+fn a_configuration_value_longer_than_one_argument_does_not_stop_the_native_commit() {
+    let root: PathBuf = fixture("commit-preparation-long-value");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let value: String = "x".repeat(crate::argument_limit::one_argument_limit() * 2);
+    append_to(
+        repo.join(".git").join("config").as_path(),
+        format!("[trailer \"unused\"]\n\tkey = {value}\n").as_bytes(),
+    );
+    // The positive control: real Git reads the value from its file, never uses it, and commits.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    let prepared: PreparedCommit = prepare(&fixture, &["--message=shadow control"]).expect("prepared");
+    assert_eq!(prepared.tree_oid, fixture.intended_tree);
+    remove(root.as_path());
+}
+
+/// A throwaway SSH signing key and the configuration that signs with it,
+/// in a file an exact `gitdir` condition includes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const key = sshKeygen(root); const included = writeSigningConfig(root, key);
+/// git(repo, ['config', `includeIf.gitdir:${repo}/.git.path`, included]);
+/// ```
+fn signing_included_by_exact_gitdir(root: &Path, repo: &Path) -> PathBuf {
+    let key: PathBuf = root.join("signing-key");
+    let made = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "fixture", "-f"])
+        .arg(&key)
+        .output()
+        .expect("ssh-keygen starts");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    let included: PathBuf = root.join("signing.config");
+    std::fs::write(
+        included.as_path(),
+        format!("[commit]\n\tgpgSign = true\n[gpg]\n\tformat = ssh\n[user]\n\tsigningKey = {}\n", key.display()),
+    )
+    .expect("signing configuration");
+    // Only this exact Git directory selects the file, which is what no longer matches in the shadow.
+    let condition: String = format!("includeIf.gitdir:{}/.git.path", repo.display());
+    git(repo, &["config", condition.as_str(), included.to_str().expect("UTF-8")]);
+    return included;
+}
+
+/// A commit whose signing comes from an exact `gitdir` conditional include is signed by the shadow's native commit too:
+/// the person asked for a signature,
+/// and a clean unsigned commit would answer a different request.
+#[test]
+fn signing_from_an_exact_gitdir_include_reaches_the_shadow() {
+    let root: PathBuf = fixture("commit-preparation-gitdir-signing");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    signing_included_by_exact_gitdir(root.as_path(), repo.as_path());
+    // The positive control: real Git, in the real Git directory, signs this repository's commits.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=native control"]);
+    let native: String = git_text(repo.as_path(), &["cat-file", "commit", "HEAD"]);
+    assert!(native.contains("\ngpgsig "), "the exact gitdir include must sign, or this control proves nothing");
+    // The capture reads the configuration after the include is in place, as the invocation's does.
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    // The shadow's own native commit must sign for the same reason.
+    let prepared: PreparedCommit = prepare(&fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
+    assert!(prepared.signed, "the shadow must not turn the person's signing request into an unsigned commit");
+    remove(root.as_path());
+}
+
+/// A configured `[trailer ""]` is valid configuration real Git accepts,
+/// so a commit carrying it through the shadow must not fail:
+/// the key `trailer..key` is a trailer whose subsection is empty,
+/// and it is written as the quoted empty subsection it is.
+#[test]
+fn an_empty_trailer_subsection_does_not_stop_the_native_commit() {
+    let root: PathBuf = fixture("commit-preparation-empty-subsection");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    // Git writes the empty subsection itself, as `[trailer ""]`.
+    git(repo.as_path(), &["config", "trailer..key", "X-Empty"]);
+    // The positive control: real Git commits with this configuration in place.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    let prepared: PreparedCommit = prepare(&fixture, &["--message=shadow control"]).expect("prepared");
+    assert_eq!(prepared.tree_oid, fixture.intended_tree);
+    remove(root.as_path());
+}
+
+/// An `x509` signing program named in the exact `gitdir` include is the one the shadow's native commit runs:
+/// a person who configured a signer does not get the default program,
+/// which on this host does not exist at all.
+#[test]
+fn an_x509_program_from_an_exact_gitdir_include_reaches_the_shadow() {
+    let root: PathBuf = fixture("commit-preparation-x509-signing");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let calls: PathBuf = root.join("signer-calls");
+    let signer: PathBuf = root.join("stand-in-gpgsm");
+    let script: String = format!(
+        "#!/bin/sh\ncat > /dev/null\necho call >> '{}'\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN SIGNED MESSAGE-----\\n\\nstand-in\\n-----END SIGNED MESSAGE-----\\n'\n",
+        calls.display()
+    );
+    crate::test_support::executable(signer.as_path(), script.as_bytes());
+    let included: PathBuf = root.join("signing.config");
+    std::fs::write(
+        included.as_path(),
+        format!(
+            "[commit]\n\tgpgSign = true\n[gpg]\n\tformat = x509\n[gpg \"x509\"]\n\tprogram = {}\n[user]\n\tsigningKey = fixture\n",
+            signer.display()
+        ),
+    )
+    .expect("signing configuration");
+    // Only this exact Git directory selects the file, which is what no longer matches in the shadow.
+    let condition: String = format!("includeIf.gitdir:{}/.git.path", repo.display());
+    git(repo.as_path(), &["config", condition.as_str(), included.to_str().expect("UTF-8")]);
+    // The positive control: real Git signs this repository's commit with the configured program.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    assert!(
+        git_text(repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "),
+        "the configured x509 program must sign the control, or this control proves nothing"
+    );
+    let after_control: usize = signer_calls(calls.as_path());
+    assert_eq!(after_control, 1, "real Git ran the configured x509 program once");
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    let prepared: PreparedCommit = prepare(&fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
+    assert!(prepared.signed, "the shadow must sign with the configured x509 program too");
+    assert_eq!(signer_calls(calls.as_path()), after_control + 1, "the shadow ran the configured x509 program, not the default one");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit whose notice thread the system refused still has a ceiling,
+///  because the wait that owns the step ends it.
+/// Why:
+///   The notice thread is what ends a step at its ceiling,
+/// and a process at its thread limit starts none.
+///  The ceiling then had no enforcer at all:
+/// a step that outlived it waited with no bound over it,
+/// which is finding 1 of the fifth review of this step.
+///  The bound must not depend on a thread that the same resource pressure refuses,
+/// so the wait that owns the child ends it,
+/// and it can,
+/// because a number cannot be reused while its child is unreaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // refuseTheNextNoticeThread(); await expect(runNativeCommitWithin({ ceiling: 1500 })).rejects.toThrow('was stopped after')
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() {
+    let root: PathBuf = fixture("commit-preparation-ceiling-no-notice");
+    let (fixture, global_args, commit_args): (Fixture, Vec<String>, Vec<String>) = a_commit_whose_signer_never_answers(root.as_path());
+    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    crate::native_commit_waiting_notice::refuse_the_next_notice_thread(1);
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, std::time::Duration::from_millis(1500));
+    let lasted: std::time::Duration = began.elapsed();
+    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+        panic!("a step that outlasted its ceiling waited with nothing to stop it: {outcome:?} after {lasted:?}");
+    };
+    assert!(
+        lasted < std::time::Duration::from_secs(20),
+        "the step ran on past its ceiling although no notice thread enforced it: {lasted:?}"
+    );
+    assert!(said.contains("was stopped after") && said.contains("nothing was committed"), "{said}");
+    assert!(crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid")).is_empty(), "a process was left below the command");
+    assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
     remove(root.as_path());
 }

@@ -110,6 +110,81 @@ impl Drop for FixtureService {
     }
 }
 
+/// How long the fixture's service may show no sign of work before the fixture fails the control,
+/// so a service that never listens still ends the control instead of holding it.
+/// Why not a bound on the whole wait:
+///   A service that starts on a loaded host is working,
+/// and how long that takes is the host's;
+/// what says it is over is the
+///  service showing nothing,
+/// which is the evidence every other wait in this crate uses (`run_progress`).
+const SERVICE_QUIET_WINDOW: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// What:
+///  The counters that show a starting service is at work:
+///  its processor ticks and the bytes it has read and written.
+/// Why:
+///   A service reads its configuration, writes its log and binds its socket before it listens,
+/// so the fixture tells a service
+///  that is starting from one that has stopped,
+/// and ends the wait on the second alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const signs = SignsOfWork.of(pid); signs.changed(pid); // true when the service moved since the last call
+/// ```
+struct SignsOfWork {
+    /// The processor ticks read last.
+    ticks: u64,
+    /// The bytes read and written read last.
+    bytes: u64,
+}
+
+impl SignsOfWork {
+    /// The signs of the service `pid` now.
+    fn of(pid: u32) -> SignsOfWork {
+        let (ticks, bytes): (u64, u64) = SignsOfWork::read(pid);
+        return SignsOfWork { ticks, bytes };
+    }
+
+    /// The counters of the service `pid`,
+    /// zero where they cannot be read.
+    fn read(pid: u32) -> (u64, u64) {
+        let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
+        // The fields after the process name: state, then the user and system times, which only grow.
+        let ticks: u64 = stat
+            .rfind(')')
+            .and_then(|close| { return stat.get(close + 2..); })
+            .and_then(|after_name| {
+                let fields: Vec<&str> = after_name.split(' ').collect();
+                let user: u64 = fields.get(11)?.parse().ok()?;
+                let system: u64 = fields.get(12)?.parse().ok()?;
+                return Some(user.saturating_add(system));
+            })
+            .unwrap_or(0);
+        let io: String = std::fs::read_to_string(format!("/proc/{pid}/io")).unwrap_or_default();
+        let mut bytes: u64 = 0;
+        for line in io.lines() {
+            let value: &str = match line.strip_prefix("rchar: ").or_else(|| { return line.strip_prefix("wchar: "); }) {
+                Some(count) => count,
+                None => continue,
+            };
+            bytes = bytes.saturating_add(value.trim().parse::<u64>().unwrap_or(0));
+        }
+        return (ticks, bytes);
+    }
+
+    /// Whether the service moved since the last call,
+    /// and takes the signs read now.
+    fn changed(&mut self, pid: u32) -> bool {
+        let (ticks, bytes): (u64, u64) = SignsOfWork::read(pid);
+        let moved: bool = ticks != self.ticks || bytes != self.bytes;
+        self.ticks = ticks;
+        self.bytes = bytes;
+        return moved;
+    }
+}
+
 /// Ends a service and the processes of its group:
 /// the tracer in front of it,
 /// if any,
@@ -389,8 +464,11 @@ impl FixtureService {
             }
         }
         let child: Child = spawn_for_the_process_lifetime(command).expect("the fixture's commit service starts");
+        let service_pid: u32 = child.id();
         children.insert(key.clone(), child);
+        let mut signs: SignsOfWork = SignsOfWork::of(service_pid);
         let began: std::time::Instant = std::time::Instant::now();
+        let mut last_change: std::time::Instant = std::time::Instant::now();
         while !service_is_serving(&socket) {
             // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
             //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
@@ -404,7 +482,19 @@ impl FixtureService {
                 children.remove(&key);
                 panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", socket.display());
             }
-            assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
+            // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds
+            //  its socket. The fixture ends the wait on the service's own silence, never on the clock, because six
+            //  concurrent cases once reached a stated minute while every service was still starting (report
+            //  kill-sweeps-reach-the-calls-they-name-1, 2026-11-09).
+            if signs.changed(service_pid) {
+                last_change = std::time::Instant::now();
+            }
+            assert!(
+                last_change.elapsed() < SERVICE_QUIET_WINDOW,
+                "the fixture's commit service at {} showed no sign of work for {:?} while it was starting",
+                socket.display(),
+                SERVICE_QUIET_WINDOW
+            );
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }

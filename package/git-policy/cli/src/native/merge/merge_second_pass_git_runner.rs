@@ -77,8 +77,11 @@ impl GitRunner for ContextRunner<'_> {
 }
 
 /// What:
-///  The configuration options (`-c <name>=<value>`) among an invocation's global options,
-/// and nothing else.
+///  The configuration options among an invocation's global options,
+/// and nothing else:
+/// `-c <name>=<value>`,
+/// `--config-env=<name>=<variable>` or `--config-env <name>=<variable>`,
+/// and `--attr-source=<tree>` or `--attr-source <tree>`.
 /// Why:
 ///   The second pass runs from the top of the worktree,
 /// because `git check-attr` and `git checkout-index` read the paths
@@ -86,21 +89,31 @@ impl GitRunner for ContextRunner<'_> {
 /// `-C` and `--git-dir` would move them again.
 /// The settings that change
 ///  what a checkout writes (`core.autocrlf`,
-/// filters) still apply.
+/// filters) still apply,
+/// and so does every way the invocation names an attribute tree:
+/// leaving one
+///  out made the pass read attributes from another source than the person chose,
+/// and merge a file their rules
+///  exclude.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function configOptions(prefix: string[]): string[]; // ['-c', 'a=b', '-c', 'c=d']
+/// function configOptions(prefix: string[]): string[]; // ['-c', 'a=b', '--config-env', 'attr.tree=RULES']
 /// ```
 pub fn config_options(prefix: &[OsString]) -> Vec<OsString> {
     let mut kept: Vec<OsString> = Vec::new();
     let mut tokens = prefix.iter();
     while let Some(token) = tokens.next() {
-        if token == "-c"
-            && let Some(setting) = tokens.next()
-        {
+        // Two of these options carry their value in the next token, and the other two after `=` in the same one.
+        if token == "-c" || token == "--config-env" || token == "--attr-source" {
+            let Some(setting) = tokens.next() else { continue };
             kept.push(token.clone());
             kept.push(setting.clone());
+            continue;
+        }
+        let Some(text) = token.to_str() else { continue };
+        if text.starts_with("--config-env=") || text.starts_with("--attr-source=") {
+            kept.push(token.clone());
         }
     }
     return kept;

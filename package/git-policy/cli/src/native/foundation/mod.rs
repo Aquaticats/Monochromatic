@@ -91,6 +91,10 @@ pub mod the_place_of_one_blocking_job;
 /// for the places that guard a function and its state.
 pub mod call_catching_panics;
 
+/// A future awaited with the panic of any one of its polls as an error value,
+/// for the places that guard work that awaits.
+pub mod call_catching_panics_awaiting;
+
 /// A scoped thread,
 /// or the work done in turn where the system cannot start one.
 pub mod scoped_start;
@@ -171,3 +175,8 @@ pub mod worst_delay_seen_on_this_host;
 /// The collected elements a pass over unbounded input has looked at,
 /// counted for the controls of the passes that must stay linear.
 pub mod collected_elements_looked_at;
+
+/// A blocking job on a thread of its own,
+/// awaited no longer than a ceiling,
+/// because a file system call can wait in the kernel with no end.
+pub mod work_awaited_within_a_ceiling;

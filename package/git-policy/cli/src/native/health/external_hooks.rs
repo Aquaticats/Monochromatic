@@ -28,6 +28,11 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::render_configuration_warning;
 /// The configuration the command read once.
 use crate::config_snapshot::{ConfigSnapshot, Lookup};
+/// The longest this optional line may take to reach the stream it is written to.
+use crate::wait_ceilings::WARNING_WRITE_CEILING;
+/// The job run on a thread of its own,
+/// awaited no longer than that ceiling.
+use crate::work_awaited_within_a_ceiling::work_within;
 /// A stream the warning is written to.
 use std::io::Write;
 
@@ -84,7 +89,55 @@ fn lossy(value: Option<&Vec<u8>>) -> String {
 }
 
 /// What:
-///  Every configured hook that is not switched off by its own `hook.<name>.enabled`,
+///  Whether the configuration the person wrote switches every hook of `event` off.
+/// Why:
+///   `hook.<event>.enabled=false` is Git's own switch for the whole event
+/// (`git hook list` reports such a hook
+///  as `event-disabled`),
+/// so a hook whose events are all off asks for nothing.
+///   Only the configuration files are read:
+/// every real-Git start of the wrapper carries the same switch for every
+///  event,
+/// and a child of one inherits those values in the `command` scope,
+/// so reading them here would let the
+///  wrapper's own suppression hide a hook the person configured.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// snapshot.boolValueFromFiles(`hook.${event}.enabled`) === false
+/// ```
+fn event_is_off(snapshot: &ConfigSnapshot, event: &str) -> bool {
+    return matches!(snapshot.bool_value_from_files(format!("hook.{event}.enabled").as_str()), Lookup::Found(false));
+}
+
+/// What:
+///  Whether the configuration switches this hook off at the event level,
+/// when it asks for at least one event.
+/// Why:
+///   A hook with no event is not this switch's business:
+/// it asks for nothing whatever the events are set to,
+/// and the
+///  report already says so by naming it without an event.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hook.events.length > 0 && hook.events.every((event) => eventIsOff(snapshot, event))
+/// ```
+fn every_event_is_off(snapshot: &ConfigSnapshot, hook: &ConfiguredHook) -> bool {
+    if hook.events.is_empty() {
+        return false;
+    }
+    for event in &hook.events {
+        if !event_is_off(snapshot, event) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Every configured hook that is not switched off,
+/// by its own `hook.<name>.enabled` or by every event it asks for being off,
 /// in the order the snapshot lists
 ///  them.
 /// Why:
@@ -137,12 +190,20 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
             hooks[position].has_command = true;
         }
     }
-    // A hook the author switched off by its own `hook.<name>.enabled` is dropped; the others keep their order.
+    // A hook the author switched off by its own `hook.<name>.enabled`, and one whose every event is switched off, are
+    //  dropped; the others keep their order. The two switches are read differently on purpose: the wrapper supplies
+    //  `hook.<event>.enabled=false` for every event on every Git it starts, so the event switch is read from the
+    //  files, while it writes no `hook.<name>.enabled` at all: that switch is read the way Git reads it, where the
+    //  command scope comes last and wins and a caller's `-c` is their own choice.
     let mut enabled: Vec<ConfiguredHook> = Vec::new();
     for hook in hooks {
-        if !matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
-            enabled.push(hook);
+        if matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
+            continue;
         }
+        if every_event_is_off(snapshot, &hook) {
+            continue;
+        }
+        enabled.push(hook);
     }
     return enabled;
 }
@@ -225,22 +286,34 @@ pub fn external_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<Strin
 ///   The command's exit status already carries its result,
 /// so a stream that refuses the line is logged and the
 ///  command goes on.
+///  A stream whose reader has stopped draining waits in the kernel with no end,
+/// and this line sits on
+///  the commit's preparation path,
+/// so the write runs on a thread of its own and the command waits for it no longer
+///  than `WARNING_WRITE_CEILING`.
+/// A line still waiting then is left behind and logged;
+/// the commit goes on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const line = externalHooksWarning(snapshot); if (line !== undefined) stream.write(line);
+/// const line = externalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: &mut impl Write) {
+pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) {
     let Some(line) = external_hooks_warning(snapshot) else {
         return;
     };
-    // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
-    let written: std::io::Result<()> = match stream.write_all(line.as_bytes()) {
-        Ok(()) => stream.flush(),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = written {
-        debug(TAG, format!("the warning could not be written: {error}").as_str());
+    let delivered: Option<std::io::Result<()>> = work_within(WARNING_WRITE_CEILING, move || {
+        let mut target = stream;
+        // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
+        return match target.write_all(line.as_bytes()) {
+            Ok(()) => target.flush(),
+            Err(error) => Err(error),
+        };
+    });
+    match delivered {
+        Some(Err(error)) => debug(TAG, format!("the warning could not be written: {error}").as_str()),
+        Some(Ok(())) => {}
+        None => debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str()),
     }
 }
 

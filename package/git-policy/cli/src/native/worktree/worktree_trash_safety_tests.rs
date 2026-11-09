@@ -98,29 +98,47 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
     remove(root.as_path());
 }
 
-/// Finding 11:
-/// a directory in the trash parent that the leave-out did not make (the main checkout's own,
-/// carried by the
-///  snapshot) is not the snapshot's trash and is never emptied,
-/// whatever its name looks like.
+/// What:
+///  A directory under the trash parent that the current leave-out did not make is an earlier add's trash,
+/// so it
+///  is emptied with this add's,
+/// while a directory of the same name outside the trash parent is never touched.
+/// Why:
+///   The trash parent is this wrapper's own namespace,
+/// and a kill before the emptying leaves its content there;
+///  a snapshot that carried it forward would keep another command's stage container with its credentials,
+/// and
+///  nothing would ever dispose of it,
+/// because the record names only the add that runs.
+/// The identity the manifest
+///  recorded is what the emptying checks,
+/// so a name alone still never removes a directory the leave-out did not move here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/${earlier}/d0/payload`, 'token'); put(repo, `.claude/${earlier}/keep`, 'mine');
+/// const { manifest } = await snapshotOf(repo); await disposePendingTrash(...);
+/// expect(existsSync(join(stage, TRASH_PARENT, earlier))).toBe(false); expect(existsSync(join(stage, '.claude', earlier, 'keep'))).toBe(true);
+/// ```
 #[test]
-fn btrfs_a_hex_named_directory_the_snapshot_carried_is_never_emptied() {
+fn btrfs_an_earlier_adds_trash_is_emptied_with_this_adds() {
     let Some(root) = btrfs_fixture("trash-carried") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
-    let carried: String = "a".repeat(40);
-    put(repo.as_path(), format!("{TRASH_PARENT}/{carried}/d0/precious").as_str(), b"main's own ignored file\n");
+    let earlier: String = "a".repeat(40);
+    put(repo.as_path(), format!("{TRASH_PARENT}/{earlier}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    put(repo.as_path(), format!(".claude/{earlier}/keep").as_str(), b"a directory the leave-out never made\n");
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
     let parent: PathBuf = stage.join(TRASH_PARENT);
-    assert_ne!(manifest.name, carried, "the trash is not the carried directory");
-    assert!(parent.join(&manifest.name).exists() && parent.join(&carried).exists(), "both are in the trash parent");
+    assert_ne!(manifest.name, earlier, "the trash is not the directory the earlier add left");
+    assert!(!parent.join(&earlier).exists(), "the earlier trash is not carried as itself");
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::write(stage.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect("pointer");
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), stage.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("emptied here");
-    assert!(parent.join(&carried).join("d0/precious").exists(), "the directory the main checkout carried is untouched");
-    assert!(!parent.join(&manifest.name).exists(), "the trash the leave-out made is emptied");
+    dispose_pending_trash(&git_context(), stage.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
+    assert!(!parent.exists(), "both trashes are emptied");
+    assert!(stage.join(".claude").join(&earlier).join("keep").exists(), "a directory with that name outside the trash parent is untouched");
     remove(root.as_path());
 }
 
@@ -220,6 +238,136 @@ fn something_in_the_trash_that_was_not_moved_there_stays() {
     remove(root.as_path());
 }
 
+/// What:
+///  A trash that a command could not empty is named to the person by the next command in its worktree,
+///  with its path,
+///  and nothing deletes it.
+/// Why:
+///   A command empties the trash of its own snapshot before it returns (`empty_before_returning`),
+/// so a disposal that failed leaves the directory in the worktree with no record naming it,
+/// and nothing else would ever mention it again.
+/// The trash is a full copy of the directories the leave-out moved,
+/// so a person who is not told cannot find it,
+/// and a scan that deleted what it cannot prove is a trash would discard another command's state.
+#[test]
+fn a_trash_that_could_not_be_emptied_is_named_and_left_alone() {
+    let name: String = "9".repeat(40);
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-named", name.as_str(), 2);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the person is told which trash stays: {said}");
+    assert!(trash.join("d0").is_dir() && trash.join("d1").is_dir(), "nothing in it is deleted");
+    // Said once for the command it is said in, and again by the next one, so a long-lived worktree does not lose it.
+    let mut second: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut second);
+    assert!(String::from_utf8_lossy(second.as_slice()).contains(trash.to_str().expect("UTF-8")), "the next command says it again: {}", String::from_utf8_lossy(second.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash that a record of this worktree names is not named as unaccounted for,
+///  and the record and the trash are left as they are.
+/// Why:
+///   The record is work of the service,
+/// whose own handler empties the trash it names (`empty_trash`),
+/// and a command that emptied a trash the service is working on would be a second writer,
+/// while naming it would send the person to look at work that is not theirs.
+#[test]
+fn a_trash_a_record_accounts_for_is_not_named() {
+    let name: String = "a".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-recorded", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("record");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(!said.contains(trash.to_str().expect("UTF-8")), "a trash its record accounts for is not named: {said}");
+    assert!(trash.join("d0/file").is_file(), "the trash the record names is not touched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose record the commit service gave up on is named to the person and left alone.
+/// Why:
+///   The service settles a trash item it cannot empty as failed and never claims it again,
+/// so that record accounts for nothing,
+/// and without this scan the trash,
+/// a full copy of what a snapshot left out,
+/// would sit in the worktree unmentioned for ever.
+#[test]
+fn a_trash_the_service_gave_up_on_is_named_and_left_alone() {
+    let name: String = "b".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-given-up", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
+    std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash of a given-up record is named: {said}");
+    assert!(failed.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe among the trash records does not hold the command that reads them,
+///  and the trash they account for is left alone.
+/// Why:
+///   This scan runs on every command in a worktree that has a trash,
+/// so an entry that is not a plain file would make every
+///  command wait for a writer that never comes.
+#[test]
+fn a_named_pipe_among_the_trash_records_does_not_hold_the_command() {
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-pipe", "8".repeat(40).as_str(), 1);
+    let failed: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::FAILED);
+    std::fs::create_dir_all(failed.as_path()).expect("the failed records' directory");
+    let pipe: PathBuf = failed.join("pipe-not-a-record");
+    let name = std::ffi::CString::new(pipe.as_os_str().as_encoded_bytes()).expect("path text");
+    // SAFETY: `name` is NUL-terminated and outlives the call; mode 0600 is this test's own.
+    assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0, "the named pipe");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let (git_dir_for_scan, worktree_for_scan) = (git_dir.clone(), worktree.clone());
+    let runner = std::thread::spawn(move || {
+        let mut said: Vec<u8> = Vec::new();
+        name_unaccounted_trash(git_dir_for_scan.as_path(), worktree_for_scan.as_path(), &mut said);
+        let _sent = sender.send(said);
+    });
+    let said: Vec<u8> = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
+        Ok(said) => said,
+        Err(_still_waiting) => panic!("the trash retry waited on a named pipe instead of skipping it"),
+    };
+    runner.join().expect("the scan ends");
+    assert!(pipe.exists(), "the named pipe itself is left alone");
+    assert!(String::from_utf8_lossy(said.as_slice()).contains("holds directories a snapshot left out"), "the trash is still named: {}", String::from_utf8_lossy(said.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory in the trash parent that no record names is named to the person and never deleted.
+/// Why:
+///   Removing trash deletes a person's folders,
+/// and a directory nobody recorded cannot be proven to be one the leave-out moved,
+///  so the sweep only says it is there.
+#[test]
+fn a_trash_no_record_names_is_named_and_left_alone() {
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-unrecorded", "7".repeat(40).as_str(), 1);
+    let unrecorded: PathBuf = worktree.join(TRASH_PARENT).join("6".repeat(40));
+    put(unrecorded.as_path(), "d0/precious", b"copied by hand\n");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(unrecorded.to_str().expect("UTF-8")), "the person is told what sits there: {said}");
+    assert!(unrecorded.join("d0/precious").exists(), "nothing is deleted");
+    remove(root.as_path());
+}
+
 /// Finding 12:
 /// the service's handler does not follow a link at `.claude`,
 /// so a trash that is only reached through a link is
@@ -245,7 +393,7 @@ fn the_foreground_fallback_does_not_follow_a_link_at_the_trash_parent() {
     let (root, worktree, git_dir, outside, manifest) = worktree_with_trash_moved_out("trash-link-parent", name.as_str());
     std::os::unix::fs::symlink(outside.join("cli-git-trash"), worktree.join(TRASH_PARENT)).expect("link");
     let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT });
+    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
     let reason: String = outcome.expect_err("a trash reached through a link is not emptied");
     assert!(reason.contains("cli-git-trash"), "the reason names the path: {reason}");
     assert!(outside.join("cli-git-trash").join(&name).join("d0/file").exists(), "what the link points at is untouched");
@@ -332,13 +480,13 @@ fn btrfs_non_utf8_names_are_judged_by_their_bytes() {
 }
 
 /// Finding 14:
-/// a worktree whose path is not UTF-8 is never named by a work item that spells another path;
-/// its trash is
-///  emptied here,
-/// by the bytes of the path.
+/// a worktree whose path is not UTF-8 has its trash emptied here,
+/// by the bytes of the path,
+/// and nothing
+///  names another path.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_non_utf8_worktree_is_emptied_here_and_no_work_item_names_another_path() {
+fn a_non_utf8_worktree_is_emptied_by_its_path_bytes() {
     let name: String = "9".repeat(40);
     let root: PathBuf = fixture("trash-hand-over-bytes");
     let worktree: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"topic-\xff"));
@@ -347,17 +495,8 @@ fn a_non_utf8_worktree_is_emptied_here_and_no_work_item_names_another_path() {
     std::fs::create_dir_all(&worktree).expect("worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
-    let address: String = format!("trash-bytes-{}", std::process::id());
-    let service: FixtureService = serve_earlier_release(address.as_str(), true);
     let mut notices: Vec<u8> = Vec::new();
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    let outcome: Result<(), String> = dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT });
-    service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
-    let heard: Vec<String> = service.thread.join().expect("service thread");
-    outcome.expect("emptied here");
-    assert!(heard.is_empty(), "the service was never asked about a path it cannot be told: {heard:?}");
-    let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!record.exists(), "no work item names a lossy spelling of the path");
+    dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
     assert!(!worktree.join(TRASH_PARENT).exists(), "the trash was emptied by the path's bytes");
     remove(root.as_path());
 }
@@ -376,9 +515,7 @@ impl Drop for RestoreMode {
 }
 
 /// Finding 15:
-/// a trash that cannot be emptied here is reported with its path and the reason,
-/// and the record that names it
-///  stays for a later service.
+/// a trash that cannot be emptied here is reported with its path and the reason.
 #[test]
 fn a_trash_that_cannot_be_emptied_here_is_reported_and_keeps_its_work_item() {
     let name: String = "7".repeat(40);
@@ -388,13 +525,13 @@ fn a_trash_that_cannot_be_emptied_here_is_reported_and_keeps_its_work_item() {
     std::fs::set_permissions(&parent, std::os::unix::fs::PermissionsExt::from_mode(0o555)).expect("read-only parent");
     let restore: RestoreMode = RestoreMode { path: parent.clone() };
     let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT });
+    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
     let reason: String = outcome.expect_err("the failure is returned, not swallowed");
     assert!(reason.contains(name.as_str()), "the reason names the trash: {reason}");
     assert!(reason.contains("stays"), "the reason says what happens to it: {reason}");
     assert!(parent.join(&name).exists(), "the trash directory could not be removed from a read-only parent");
     let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(record.exists(), "the work item stays while the trash is still there");
+    assert!(!record.exists(), "no work item is written, so a later command does not report a trash it never made");
     drop(restore);
     remove(root.as_path());
 }
@@ -412,112 +549,5 @@ fn the_handler_reports_a_trash_it_cannot_remove() {
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
     assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)), "{verdict:?}");
     drop(restore);
-    remove(root.as_path());
-}
-
-/// A provisioning host that no control reaches:
-/// the provisioner of a control is a closure.
-fn unreachable_host() -> crate::service_provision::ProvisionHost {
-    return crate::service_provision::ProvisionHost {
-        runtime_dir: PathBuf::from("/nonexistent-runtime"),
-        user_unit_dir: None,
-        bus: PathBuf::from("/nonexistent-bus"),
-        service_binary: PathBuf::from("/nonexistent-service"),
-        git: PathBuf::from("/nonexistent-git"),
-        instance: String::from("fixture-instance"),
-        git_dir: std::path::PathBuf::new(),
-        retirement_wait: std::time::Duration::from_millis(10),
-    };
-}
-
-/// A new worktree has a commit service instance of its own and no socket until something sets it up:
-/// the hand-over sets it
-///  up first,
-/// as a commit does,
-/// and the service then takes the work item.
-/// (Without that step the wake waited out the whole
-///  start for a socket that nothing would create,
-/// and the trash was then emptied in the foreground for minutes.)
-#[cfg(target_os = "linux")]
-#[test]
-fn the_sockets_of_a_new_worktree_are_set_up_before_the_service_is_woken() {
-    let name: String = "5".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-provision", name.as_str(), 1);
-    let address: String = format!("trash-provision-{}", std::process::id());
-    let started: std::cell::RefCell<Option<FixtureService>> = std::cell::RefCell::new(None);
-    let provisioned: std::cell::Cell<usize> = std::cell::Cell::new(0);
-    let route: Route = Route { address: Bind::Abstract(address.clone()), provision: Some(unreachable_host()) };
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash_with(
-        Path::new("/usr/bin/git"),
-        worktree.as_path(),
-        git_dir.as_path(),
-        &manifest,
-        &mut notices,
-        &Reach {
-            router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); },
-            // The socket exists only once the worktree is provisioned.
-            provisioner: &|host: &ProvisionHost| {
-                provisioned.set(provisioned.get() + 1);
-                assert_eq!(host.instance, "fixture-instance");
-                *started.borrow_mut() = Some(serve_earlier_release(address.as_str(), true));
-                return Ok(());
-            },
-            start_wait: std::time::Duration::from_millis(400),
-        },
-    );
-    outcome.expect("handed over");
-    let service: FixtureService = started.borrow_mut().take().expect("the provisioner ran");
-    service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
-    let heard: Vec<String> = service.thread.join().expect("service thread");
-    assert_eq!(provisioned.get(), 1, "provisioned once");
-    let work: String = crate::service_protocol::encode_client(&crate::service_protocol::ClientMessage::Work { git_dir: git_dir.clone(), review_key: None });
-    assert!(heard.contains(&work), "the service was woken for the worktree: {heard:?}");
-    assert!(worktree.join(TRASH_PARENT).join(&name).exists(), "the service empties it, not the wrapper");
-    assert!(!String::from_utf8_lossy(notices.as_slice()).contains("emptying the directories"), "no foreground line: {}", String::from_utf8_lossy(notices.as_slice()));
-    remove(root.as_path());
-}
-
-/// When the worktree cannot be provisioned,
-/// the trash is emptied here after one plain line that says what is done and why,
-///  and the reason is the manager's own,
-/// not an internal term.
-#[test]
-fn a_provisioning_failure_is_said_once_before_the_foreground_removal() {
-    let name: String = "8".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-provision-fails", name.as_str(), 1);
-    let route: Route = Route { address: Bind::Abstract(String::from("trash-provision-fails-never-bound")), provision: Some(unreachable_host()) };
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash_with(
-        Path::new("/usr/bin/git"),
-        worktree.as_path(),
-        git_dir.as_path(),
-        &manifest,
-        &mut notices,
-        &Reach {
-            router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); },
-            provisioner: &|_host: &ProvisionHost| { return Err(crate::service_messages::ClientFailure::CouldNotStart(String::from("the session bus refused the call"))); },
-            start_wait: START_WAIT,
-        },
-    );
-    outcome.expect("emptied here");
-    let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
-    assert_eq!(said.lines().count(), 1, "one line: {said}");
-    assert!(said.contains(worktree.display().to_string().as_str()) && said.contains("the session bus refused the call"), "the line names the worktree and the reason: {said}");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "emptied in the foreground");
-    remove(root.as_path());
-}
-
-/// When no service can be started from the session,
-/// the trash is emptied here after one plain line.
-#[test]
-fn no_route_is_said_once_before_the_foreground_removal() {
-    let name: String = "4".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-no-route", name.as_str(), 1);
-    let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("emptied here");
-    let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
-    assert_eq!(said.lines().count(), 1, "one line: {said}");
-    assert!(said.contains("no commit service can be started"), "{said}");
     remove(root.as_path());
 }
