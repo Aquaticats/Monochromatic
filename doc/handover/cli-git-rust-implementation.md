@@ -59,23 +59,20 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-### Where the work stands (2026-11-08T23:47:13-05:00)
+### Where the work stands (2026-11-09T00:11:22-05:00)
 
-This subsection is the current picture.
-`### Release in flight`,
-`### Unmerged branches and worktrees of this effort` and `### Agents and gates running` date from 2026-11-03 and 2026-11-04.
-They no longer describe now,
-and the Pi agent `wrapper-handover-stale-sections-moved-out` is moving their durable facts to canonical docs and deleting them.
-
-Main is at `3e48c84c17`.
 Merged since the last record here:
 `71795ab77a`,
 the audit of the wrapper's entry and service lifecycle route
 (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`);
 `a8295d5de8`,
 the second pass over open wrapper issues (`doc/planning/git-wrapper-open-issues-round-2.md`);
-and `3e48c84c17`,
-landing and lock controls that read what happened rather than a clock.
+`3e48c84c17`,
+landing and lock controls that read what happened rather than a clock;
+`235972a29e`,
+browser suites that fit their container limits;
+and `6e97ea7777`,
+this handover's stale sections moved to their canonical docs.
 
 Issues closed against main in this stretch:
 634,
@@ -96,41 +93,42 @@ Issue 6005 stays open for its surviving instance,
 #### The 860 move
 
 `package/repository-move/cli/src/run-repository-move.ts status` is the live record;
-stages through `c25-pnpm-links` are done.
-`c26-kopia-snapshot` has failed three times,
-each for a different reason:
-kopia could not re-create `/mnt/pcloud/rclone` while the pCloud client restarted;
-the coordinator removed a worktree during a snapshot;
-and a Pi agent finished while kopia read its per-worktree wrapper service folder
-(`.git/worktrees/pi-index-reset-keeps-stat-data/monochromatic-git-policy-cli-service-*/shadow/objects`),
-which kopia counted as one fatal error.
-That third run still created snapshot `99b6c01bdec1c8a50a491236552601e3`,
-but `kopia snapshot create` exits non-zero on a fatal error,
-so the stage stops before its own check,
-`kopia snapshot list`.
+stages through `c26-kopia-snapshot` are done.
+Kopia no longer backs this repository up,
+by the owner's word recorded in `questions-for-the-owner.md`,
+so a folder vanishing during a read can no longer fail that stage.
+
+`c27-container-bind` stopped because the repository's top folder carries the private label
+`container_file_t:s0:c311,c738`,
+which SELinux enforces against any container that did not get that label.
+Every container this repository runs passes `--security-opt label=disable`,
+and the stage did not.
+It now does.
+What gave the folder that label is not known.
 
 Next:
-rerun the cut-over once no worktree is being removed.
-If it fails again only on a folder that vanished during the read,
-change that stage in `package/repository-move/cli/src/guided-cutover-stages.data.ts` rather than rerunning,
-because with Pi agents running another vanished service folder is likely.
-After it come `c27-container-bind`,
-the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
+rerun the cut-over from that stage.
+After it come the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
 and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
 The old tree kept for the rollback stays until the owner deletes it.
 
 #### Reviews and landings in progress
 
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
-  its round-four commits pass 201 tests on top of main.
-  The cross-vendor review of them found two defects,
-  and the agent is on round five.
-  A `.gitattributes` rewritten on the same inode between two reads can mix two versions and still match the current size,
-  so an obsolete rule can record a falsely clean entry.
-  An interrupted read of that file drops stat data for the rest of the landing.
-- `fix/test-browser-runs-fit-their-container-limits`:
+  round five answers the review of round four and passes 206 tests.
+  Its own cross-vendor review is running.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
+  the review of the destination reservation found defects on the ordinary route,
+  among them that a normal add into an already-made empty subvolume copies no ignored files.
+  Not ready to merge;
+  the agent has the review.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
+  the review found a message that promises indexes were left alone when a job may have rewritten one,
+  and bound tests that can pass without contention.
+  The agent is on those.
+- `fix/git-policy-cli-binary-suite-holds-under-contention`:
   finished,
-  waiting for the coordinator's check and merge.
+  being checked on top of main.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
@@ -4628,8 +4626,8 @@ their files and mutation evidence kept deliberately;
   `integrate-073`,
   `integrate-075`).
   Still present:
-  worktrees a Markdown file cites by path,
-  which go in the next pass once `wrapper-handover-stale-sections-moved-out` has landed and removed those citations;
+  worktrees a Markdown file still cites by path,
+  which stay until that citation is reworded;
   worktrees whose branch holds commits main lacks (`agent-a5dcd5dad237603e3`,
   `agent-ab3dd6294f9d91284`,
   `agent-aba63f1400b66332c`,

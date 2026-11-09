@@ -203,6 +203,21 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in a plain message, recorded 2026-11-09T00:07:24-05:00
+
+- Kopia and this repository:
+  "Make kopia exclude the entire Monochromatic dir."
+  Applied as `kopia policy set user@bazzite:/home/user/Monochromatic --manual '--add-ignore=*'`.
+  The hourly `kopia snapshot create --all` skips a source set to manual,
+  and an explicit snapshot of it stores nothing,
+  dot-folders included;
+  both were tried on a throwaway repository with an unchanged source as the control.
+  Existing snapshots stay.
+  The last full one is `kf33ae88159bbdf201f5735e37d21d1c8`,
+  taken 2026-11-08T23:57:49-05:00.
+  To undo:
+  `kopia policy set user@bazzite:/home/user/Monochromatic --no-manual '--remove-ignore=*'`.
+
 ## Answered in plain messages, recorded 2026-11-08T23:47:13-05:00
 
 - Stale folders and the handover:
