@@ -175,3 +175,12 @@ fn a_postinstall_holding_both_a_link_and_a_run_is_refused_with_both_fields_named
     assert!(error.message.contains("link"), "{error}");
     assert!(error.message.contains("run"), "{error}");
 }
+
+/// A `cargo-git` entry names a git source, not a crate, so the crate comes from `packageId`;
+/// without it the plan key was passed to `cargo install --git` as the crate name and failed there.
+#[test]
+fn a_cargo_git_plan_entry_without_a_package_id_is_refused_at_decode_time() {
+    let source = "{\"schemaVersion\": 1, \"tools\": {\"tools-ok\": {\"request\": \"git:https://github.com/o/r@main\", \"route\": \"cargo-git\", \"bins\": [\"x\"]}}}";
+    let error = parse_plan(source, "toolchain.plan.jsonc").expect_err("the crate name is unknown");
+    assert!(error.message.contains("packageId"), "the field is named: {error}");
+}

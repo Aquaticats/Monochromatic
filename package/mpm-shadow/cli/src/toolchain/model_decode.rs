@@ -267,6 +267,11 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
         env,
         options,
     };
+    // A `cargo-git` request names a repository and a revision, never a crate, so `packageId` is the only place the
+    // crate name can come from: without it `cargo install --git` was handed the plan key and failed there.
+    if declaration.route == Route::CargoGit && declaration.package_id.is_none() {
+        return Err(format!("{path}.packageId is required for the cargo-git route: the request names a repository, so it cannot name the crate"));
+    }
     // The `cargo-binstall` route installs under `<toolchain root>/cargo/<package name>`.
     if declaration.route == Route::CargoBinstall
         && let Err(message) = check_directory_name("the package name", &declared_package_name(&declaration))
