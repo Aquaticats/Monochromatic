@@ -51,7 +51,8 @@ pub fn live_watches_on_this_thread() -> usize {
 /// for the controls;
 /// nothing in the release executable.
 /// Why:
-///   A control of "the lock's removal woke the wait, and not the reminder's timer" otherwise reads the host's
+///   A control of "the lock's removal woke the wait,
+/// and not the reminder's timer" otherwise reads the host's
 /// speed,
 /// while the wait itself knows which of the two ended it.
 #[cfg(test)]

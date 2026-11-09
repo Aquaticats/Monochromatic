@@ -14,14 +14,16 @@ use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue
 use std::path::Path;
 
 /// The bound that ends a control which waits for a renewal thread to run:
-/// a backstop for a thread that never runs, never a host that runs it slowly,
+/// a backstop for a thread that never runs,
+/// never a host that runs it slowly,
 /// because every interval of a control is milliseconds.
 const PASS_PATIENCE: Duration = Duration::from_secs(20);
 
 /// How many passes a control watches a renewal thread make.
 ///
 /// The interval of every such control is milliseconds and a pass renames each held claim once,
-/// so one pass would be a single look; two show a loop that went round the claims twice.
+/// so one pass would be a single look;
+/// two show a loop that went round the claims twice.
 const PASSES_WATCHED: usize = 2;
 
 /// Waits until the renewal thread has made `count` more passes than `before`,
