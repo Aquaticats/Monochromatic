@@ -50,7 +50,9 @@ fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
 
 /// A linked worktree of the repository is registered;
 /// a removed or re-pointed one is not,
-/// and a pointer that names a directory which is not there proves nothing either way.
+/// and a pointer that names a directory which is not there,
+/// or that is no whole pointer at all,
+/// proves nothing either way.
 #[cfg(unix)]
 #[test]
 fn registration_follows_the_linked_pointer() {
@@ -78,7 +80,7 @@ fn registration_follows_the_linked_pointer() {
     std::fs::write(plain.join(".git"), b"not a pointer\n").expect("plain pointer");
     assert_eq!(
         destination_registration(common.as_path(), plain.as_path()).expect("plain"),
-        Registration::Unregistered
+        Registration::PointerUnfollowable
     );
     remove(root.as_path());
 }
@@ -172,7 +174,8 @@ fn make_pipe(path: &Path) {
 
 /// A command killed while it rewrote the pointer of a registered worktree leaves the file empty,
 /// and the worktree and its registration under the common directory are still there:
-/// recovery is told nothing it can act on, so it keeps the pending copy and reports the unknown state.
+/// recovery is told nothing it can act on,
+/// so it keeps the pending copy and reports the unknown state.
 #[test]
 fn a_pointer_left_empty_by_an_interrupted_rewrite_keeps_the_pending_copy() {
     let root: PathBuf = fixture("recovery-pointer-empty");
@@ -600,7 +603,8 @@ fn incumbent_written_journal_is_recovered_natively() {
 }
 
 /// A destination under something that is not a directory is unregistered,
-///  while a destination whose pointer cannot be read for any other reason is a fault to report.
+///  while a pointer that cannot be read as a plain file proves nothing either way:
+///  it neither discards a copy nor stops the command that found it.
 #[cfg(unix)]
 #[test]
 fn registration_tells_a_missing_destination_from_an_unreadable_one() {
@@ -615,9 +619,10 @@ fn registration_tells_a_missing_destination_from_an_unreadable_one() {
     );
     let unreadable: PathBuf = root.join("unreadable");
     std::fs::create_dir_all(unreadable.join(".git")).expect("a directory where the pointer file belongs");
-    let failure: WorktreeCopyError =
-        destination_registration(common.as_path(), unreadable.as_path()).expect_err("a directory is not a pointer");
-    assert!(failure.0.contains("could not read worktree registration"), "{}", failure.0);
+    assert_eq!(
+        destination_registration(common.as_path(), unreadable.as_path()).expect("a directory is not a pointer"),
+        Registration::PointerUnfollowable
+    );
     remove(root.as_path());
 }
 

@@ -2095,12 +2095,26 @@ Every pending transaction then reaches an end:
   never touches the destination path,
   and writes one notice line.
   The `.git` pointer is read as bytes,
+  as a plain file without blocking and without following a link,
+  and never past `GIT_FILE_LIMIT`,
   with every trailing line feed and carriage return stripped as Git's `read_gitfile_raw` strips them,
   so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds.
+  A named pipe at that name would stop its reader until a writer comes,
+  and the pending check runs before every forwarded command,
+  so one worktree's pipe could stick a command in an unrelated worktree.
 - A destination whose pointer cannot be followed,
-  because the file names no directory or the directory it names is not there,
+  because the file names no directory,
+  the directory it names is not there,
+  or the file is empty,
+  half written,
+  a link,
+  a named pipe,
+  a device,
+  a directory or past the bound,
   is not evidence either way:
-  recovery keeps the stage and the journal,
+  a command killed while it rewrote the pointer leaves the file cut off in just that way,
+  and the worktree and its registration under the common directory are still there.
+  Recovery keeps the stage and the journal,
   writes one notice line saying that whether the worktree is still registered is unknown,
   and names the commands that show and settle it.
 - A transaction whose private stage is gone is discarded the same way,
