@@ -548,3 +548,72 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
     assert!(facts.lines_dropped >= 1, "the record says a line was dropped because the reader was not taking it: {facts:?}");
     assert_eq!(facts.looks_found, 0, "no step ran, so no look found one: {facts:?}");
 }
+
+/// A sink that takes the first line at once and waits to be let go before every later one.
+struct LateSink {
+    /// What it took.
+    written: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// Set once a later line is waiting to be let go.
+    blocking: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Set by the control to let the waiting line through.
+    released: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Write for LateSink {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let after_the_first: bool = !self.written.lock().expect("written").is_empty();
+        if after_the_first {
+            self.blocking.store(true, std::sync::atomic::Ordering::SeqCst);
+            while !self.released.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        self.written.lock().expect("written").push(String::from_utf8_lossy(bytes).into_owned());
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A command that ended prints nothing more.
+/// Why:
+///   Finding 5 of the second review:
+/// the writer thread is detached and can be inside a write when the command ends,
+/// so the line it holds and the line queued behind it were printed after the command had returned,
+/// and a reader that resumes late reads "still waiting" for a step that is over.
+///  The lines here are due every 60 ms,
+/// the first is taken at once,
+/// the second waits, and the control ends the notice while it waits.
+#[test]
+fn a_finished_command_prints_nothing_more() {
+    let written: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::default();
+    let blocking: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+    let released: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+    let sink: LateSink = LateSink { written: written.clone(), blocking: blocking.clone(), released: released.clone() };
+    let cadence: Cadence = Cadence { grace: Duration::from_millis(60), interval: Duration::from_millis(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: Duration::from_secs(60),
+        sink: Box::new(sink),
+    });
+    // Bounded: the first line is due 60 ms after the start, and the second 60 ms after that.
+    let deadline: Instant = Instant::now() + Duration::from_secs(10);
+    while !blocking.load(std::sync::atomic::Ordering::SeqCst) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(blocking.load(std::sync::atomic::Ordering::SeqCst), "the sink never had a second line to wait on");
+    // Two more cadences: the writer still waits, so one line is queued behind it and the later ones are dropped.
+    std::thread::sleep(Duration::from_millis(150));
+    let _facts: ScratchStepFacts = notice.finish();
+    let when_over: usize = written.lock().expect("written").len();
+    assert_eq!(when_over, 1, "one line was taken before the command ended");
+    released.store(true, std::sync::atomic::Ordering::SeqCst);
+    std::thread::sleep(Duration::from_millis(300));
+    let after: usize = written.lock().expect("written").len();
+    assert!(after <= when_over + 1, "a line was printed after the command was over: {} lines, {when_over} of them before it ended", after);
+}
