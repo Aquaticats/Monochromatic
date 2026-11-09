@@ -359,8 +359,15 @@ pub fn member_of(_pid: i32) -> Option<TreeMember> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MemberRead {
     /// The process,
-    /// still there and not a zombie.
-    Found(TreeMember),
+    /// still there and not a zombie,
+    /// and the parent the kernel records for it.
+    Found {
+        /// The number and start time.
+        member: TreeMember,
+        /// The parent the kernel records,
+        /// which is this process for a child that has not been reaped.
+        parent: i32,
+    },
     /// No process has that number,
     /// or the one that has it is a zombie.
     Gone,
@@ -383,13 +390,13 @@ pub fn member_read(pid: i32) -> MemberRead {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return MemberRead::Gone,
         Err(_) => return MemberRead::Unreadable,
     };
-    let Some((_parent, started, zombie)) = parse_stat(text.as_str()) else {
+    let Some((parent, started, zombie)) = parse_stat(text.as_str()) else {
         return MemberRead::Unreadable;
     };
     if zombie {
         return MemberRead::Gone;
     }
-    return MemberRead::Found(TreeMember { pid, started });
+    return MemberRead::Found { member: TreeMember { pid, started }, parent };
 }
 
 /// Only Linux reads a process's record;

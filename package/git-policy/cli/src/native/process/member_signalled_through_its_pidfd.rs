@@ -197,8 +197,8 @@ enum Proven {
 #[cfg(target_os = "linux")]
 fn prove(member: &TreeMember) -> Proven {
     return match member_read(member.pid) {
-        MemberRead::Found(found) if found.started == member.started => Proven::Still,
-        MemberRead::Found(_another) => Proven::Gone,
+        MemberRead::Found { member: found, .. } if found.started == member.started => Proven::Still,
+        MemberRead::Found { .. } => Proven::Gone,
         MemberRead::Gone => Proven::Gone,
         MemberRead::Unreadable => Proven::Unreadable,
     };
