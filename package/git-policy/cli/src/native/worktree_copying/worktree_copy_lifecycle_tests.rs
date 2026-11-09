@@ -611,6 +611,69 @@ fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_fil
     remove(root.as_path());
 }
 
+/// A refused add leaves the registration to the command whose own Git is still running:
+/// that command's record names the destination from before its Git, and its proof is not written yet.
+#[cfg(unix)]
+#[test]
+fn a_refused_add_leaves_a_registration_to_the_command_still_running_its_git() {
+    let root: PathBuf = fixture("lifecycle-refused-leaves-running");
+    let (main, common) = source(root.as_path());
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("taken");
+    let source_root: PathBuf = canonical_root.join("own-source");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "own", source_root.to_str().expect("utf8")]);
+    std::fs::create_dir_all(source_root.join("cache")).expect("cache");
+    std::fs::write(source_root.join("cache/from-this-command"), b"mine").expect("own entry");
+    // The running command's own record, written before its real Git, as its pre-Git step leaves it.
+    let mut running: Option<crate::worktree_copy_stage_claim::StageClaim> = None;
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity: WorktreeIdentity::LinkedWorktree {
+                common_dir: common.clone(),
+                git_dir: common.join("worktrees").join("own"),
+                worktree_root: source_root.clone(),
+            },
+            effective_cwd: source_root.clone(),
+            creates: true,
+            destination: Some(destination.clone()),
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
+        },
+        &mut |_: &GitStep<'_>| {
+            // The other command is between its record and its Git returning: its registration exists, its proof does not.
+            let claim: crate::worktree_copy_stage_claim::StageClaim =
+                crate::worktree_copy_stage_claim::claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+            running = Some(claim);
+            let _registered: GitStatus = run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice());
+            // This command's own Git then refuses, because the destination exists.
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert_eq!(
+        std::fs::read(destination.join("cache/from-this-command")).ok(),
+        None,
+        "this command wrote nothing into the worktree the other command is still making: {said}"
+    );
+    assert!(said.contains("was registered by another `git worktree add`"), "{said}");
+    // The running command's record is left alone: it is that command's to settle.
+    let claim: crate::worktree_copy_stage_claim::StageClaim = running.expect("the other claim");
+    assert!(
+        crate::worktree_copy_stage_claim::stage_claims_exist(common.as_path()).expect("claims"),
+        "the other command's record is untouched"
+    );
+    claim.release().expect("released");
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();

@@ -203,7 +203,7 @@ fn abandoning_a_staged_copy_leaves_no_stage_and_no_claim() {
 #[test]
 fn a_copy_with_no_record_before_real_git_still_records_its_destination() {
     let root: PathBuf = fixture("synchronize-claim-records");
-    let (source, destination) = ignored_source(root.as_path());
+    let (source, _destination) = ignored_source(root.as_path());
     let common: PathBuf = common_of(source.as_path());
     let destination_canonical: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
     let claim: StageClaim = claim_for_the_copy(None, common.as_path(), destination_canonical.as_path()).expect("claim");

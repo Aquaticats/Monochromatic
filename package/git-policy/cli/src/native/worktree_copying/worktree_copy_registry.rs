@@ -27,6 +27,7 @@ use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_add_binding::{Binding, Bound, RegistrationOwner, bind_registration, claim_registration};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_source_still_being_filled::another_command_is_filling;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
 
@@ -332,8 +333,12 @@ pub fn find_created_worktree(
     let Ok(bound) = bind_registration(observation.common_dir.as_path(), destination) else {
         return Ok(nothing_created(None));
     };
-    // A worktree another command registered while this command's Git ran stands where this command's own would; the
-    // registration says which command made it, and only that command copies into it.
+    // A worktree another command registered while this command's Git ran stands where this command's own would. That
+    // command's own record names the destination from before its Git, so an add whose Git is still running is seen here
+    // and its registration is left to it: the proof below would only say who claimed first, not who made the worktree.
+    if let Some(owner) = another_command_is_filling(observation.common_dir.as_path(), destination, mine)? {
+        return Ok(nothing_created(Some(owner)));
+    }
     let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
     let Bound { binding, .. } = bound;
     if let RegistrationOwner::Another(other) = owner {
