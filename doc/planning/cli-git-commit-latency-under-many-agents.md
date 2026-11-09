@@ -765,12 +765,149 @@ on the same 20 rounds:
   max 35,956 ms,
   so 12 of the 20 rounds were over the owner's five seconds and eight were not.
 
+## What the split changed
+
+Three commits came out of the split,
+and the third was measured against the unchanged binary rather than against a
+single run.
+
+### The record lists the reads the in-process readers decline
+
+`56a9f07fe5`.
+A commit that waited on a Git child the in-process readers fall back to showed that wait in its phase and in no step:
+one preparation of 50,596 ms explained 7,094 ms of itself.
+`run_metadata_git_within` now notes the child it starts in the same ledger every other step uses,
+so the record names it and how long it ran,
+and the control closes that gap by switching the readers off and asking the ledger for the child.
+This changes what the record says and no work a commit does;
+it is what let the next measurement see the copies at all.
+
+### A request that only lists the index reads it in place
+
+`195f167602`.
+The candidate set copied the index into a private directory for every request.
+A commit makes that copy after it already holds its own private index,
+so the copy is three megabytes read and written for nothing:
+the harness's `strace` put that third copy at 2,288 ms and 4,813 ms in two commits,
+against 0.130 ms and 0.125 ms for the two copies the commit itself makes.
+Only a request that stages into the index can change it,
+so `git add` prediction and the direct scope keep the copy,
+and the requests that only list it read the index the caller named,
+which that command has already isolated from the live one.
+The control closes the Git directory for writing and asks a staged request for its candidates:
+a preparation that copies fails there with `Permission denied`,
+and this one answers with the same candidate,
+leaving the index byte for byte as it was.
+
+The same 20-round harness and the same shaped fixture,
+the unchanged binary run with it:
+
+- The unchanged binary,
+  four runs:
+  paired delta median 6,629 ms,
+  7,685 ms,
+  8,276 ms and 6,955 ms,
+  13,
+  12,
+  12 and 10 of 20 rounds over the owner's five seconds,
+  `prepareMs` median 4,301 ms,
+  1,919 ms,
+  3,925 ms and 2,795 ms,
+  `candidates prepared` median 3,404 ms,
+  3,458 ms and 2,899 ms in the three runs that could name it,
+  and the direct arm's own median 92.6 ms,
+  92.1 ms,
+  82.3 ms and 105.6 ms.
+- This change,
+  one run:
+  paired delta median 1,988 ms,
+  8 of 20 rounds over five seconds,
+  `prepareMs` median 214 ms,
+  `candidates prepared` median 7 ms,
+  and the direct arm's median 71.1 ms.
+- The spread of the unchanged binary is 12 percent around its median while the direct arm moved 28 percent across the
+  same runs,
+  and this change is 3.5 times below the lowest of the four,
+  so it is not the host that moved.
+
+### The clone that the measurement rejected
+
+`42b2c1d4c6`,
+reverted by `a30eceb87f`.
+Sharing the index's extents instead of copying its bytes was the first attempt at the same waste.
+With the disk busy it is slower than the copy:
+`index copy` median 6,120 ms across a commit's four copies against 0 ms for the two the older record could name,
+`candidates prepared` median 6,172 ms against 3,458 ms,
+and a paired delta median 16,458 ms against 8,276 ms,
+17 of 20 rounds over five seconds against 12,
+while the direct arm moved only from 82.3 ms to 85.0 ms.
+A clone of a freshly written index waits for that index's own writeback inside the copy the commit is waiting on,
+and a byte copy leaves that writeback to happen after the commit.
+One run under a lighter disk put the same binary at 452 ms,
+which is why every figure here is repeated beside the
+unchanged binary and none is reported alone.
+
+## What remains over the five seconds
+
+With the copy gone,
+eight of the 20 rounds still take more than five seconds beyond native Git,
+and the phases of those rounds name three causes:
+
+- The service's landing:
+  `submitMs` holds 6,136 ms,
+  7,518 ms,
+  10,324 ms,
+  19,271 ms and 25,114 ms in five of the eight.
+  That is where a landing waits for the queue and the index lock,
+  which this record's ranking already put second and which this task left alone.
+- The scanner's first use of a rule cache:
+  one round holds 24,669 ms in `policy security/forbidden-strings at pre-forward`,
+  and the trace of a commit in a fresh `HOME` shows what it is:
+  `fsync` calls of 6.7 s and 3.0 s and a `rename` of 1.5 s on
+  `$HOME/.cache/forbidden-strings/<release>/<hash>/`,
+  the compiled rules written and flushed inside the commit that first needs them.
+  Every run of this fixture starts from an empty `HOME`,
+  so its first commit pays that;
+  a machine pays it once per cache invalidation,
+  not per commit.
+- What is left of the preparation:
+  three rounds hold 5,938 ms,
+  4,538 ms and 3,531 ms there,
+  with `candidates prepared` at 6 to 8 ms,
+  so it is the listings and the two `git ls-files` and `git diff-index` children behind them,
+  each reading the index and the base tree,
+  plus the index's stat check when the worktree moved.
+
+## What would take the tail under five seconds
+
+Not this change,
+and not the ones this record could make inside the client alone:
+the tail is the landing's queue and lock,
+the scanner's first cache write,
+and the host's own stalls inside reads
+native Git also makes.
+What would,
+in the order the numbers rank it:
+
+- Shorten what a landing holds and how long a commit queues for it,
+  which is the second entry of "What remains" and the only one that also shortens other agents' commits.
+- Move the scanner's rule-cache write off the commit's path,
+  by building it in the service or before the commit starts,
+  which is worth up to 24 seconds on the first commit of a cold cache.
+- Make the index listings read the index once:
+  `git ls-files --stage` and `git diff-index --cached` both walk the whole index and the base tree for a scope that
+  names one path,
+  and the in-process readers already know how to answer both.
+
 ## What this could not determine
 
 - Which in-process step inside a preparation spends the median 332 ms.
-  The records name Git steps and phases,
-  not policy rules,
-  and this host has no profiler.
+  The records of this window name Git steps and phases,
+  not policy rules.
+  "The preparation's split,
+  measured on a shaped fixture" settles it for the wrapper as it stands:
+  the candidate set the content policies share spends it,
+  and the copy of the index that set made for itself was the larger part until `195f167602` removed it.
 - Whether the 351 s and 493 s stalls of 2026-11-08T23:26 were the conclusion copy's flush.
   Both sit in the same uncovered `buildMs` stretch,
   between the shadow's `git config` read and its first reference write,
