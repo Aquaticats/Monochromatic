@@ -29,7 +29,7 @@ fn index_in(name: &str) -> (PathBuf, PathBuf) {
 
 /// A scan that looked at every process and found no holder.
 fn complete_and_empty(_lock: &Path, _device: u64, _inode: u64) -> HolderEvidence {
-    return HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: Vec::new() };
+    return HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: Vec::new(), unresolvable: Vec::new() };
 }
 
 /// A child of this process that has the file at `lock` open as its standard input,
@@ -363,5 +363,28 @@ fn a_landing_never_removes_a_lock_whose_pid_file_names_a_live_process() {
     let refused: Result<_, LockFailure> = acquire_within(&SYSTEM, &index, 5, Duration::from_millis(1500), &|_| {});
     assert_eq!(refused.expect_err("refused").code, FailureCode::IndexInUse);
     assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), "");
+    remove(root.as_path());
+}
+
+/// A descriptor whose record names the lock and which the scan could not identify
+/// (a file system whose attributes are not in memory,
+/// or a process the scan may not look into)
+/// is not a scan that proved anything:
+/// the lock stays.
+#[test]
+fn a_descriptor_the_scan_could_not_identify_keeps_the_lock() {
+    let (root, index) = index_in("unheld-unresolvable");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, "").expect("empty foreign lock");
+    let refused = |_lock: &Path, _device: u64, _inode: u64| {
+        return HolderEvidence {
+            method: "proc-fd",
+            holders: Vec::new(),
+            partial: Vec::new(),
+            unresolvable: vec![String::from("PID 4242 fd 3: its mount is a `fuse` file system, whose attributes are not in the memory of this kernel, so the file is not read")],
+        };
+    };
+    assert_eq!(remove_if_unheld(&SYSTEM, &index, &refused), Unheld::Kept);
+    assert!(lock.exists());
     remove(root.as_path());
 }

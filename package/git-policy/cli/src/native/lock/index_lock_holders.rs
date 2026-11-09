@@ -79,6 +79,10 @@ pub struct HolderEvidence {
     pub holders: Vec<Holder>,
     /// Reasons the scan could not see everything.
     pub partial: Vec<String>,
+    /// Reasons a descriptor whose record names the lock could not be identified,
+    /// because the kernel refused to copy it into this process:
+    /// a removal that acts on a scan with one of these is acting on a scan that proved nothing.
+    pub unresolvable: Vec<String>,
 }
 
 /// What:
@@ -152,15 +156,16 @@ fn exited(error: &std::io::Error) -> bool {
 /// async function scanProcess({ procRoot, pid, device, inode }): Promise<{ holds: boolean; partial?: string }>;
 /// ```
 #[cfg(unix)]
-fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: OpenedFileReader) -> (bool, Option<String>) {
+fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: OpenedFileReader) -> (bool, Option<String>, Option<String>) {
     let process: PathBuf = proc_root.join(pid);
     let listing: std::fs::ReadDir = match std::fs::read_dir(process.join("fd")) {
         Ok(found) => found,
-        Err(error) if exited(&error) => return (false, None),
-        Err(error) => return (false, Some(format!("PID {pid}: {error}"))),
+        Err(error) if exited(&error) => return (false, None, None),
+        Err(error) => return (false, Some(format!("PID {pid}: {error}")), None),
     };
     let mut holds: bool = false;
     let mut partial: Option<String> = None;
+    let mut unresolvable: Option<String> = None;
     for item in listing {
         let Ok(entry) = item else {
             continue;
@@ -168,18 +173,22 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: Op
         match crate::process_use::descriptor_is_file_with(process.as_path(), entry.file_name().as_os_str(), device, inode, opened) {
             Ok(true) => holds = true,
             Ok(false) => {}
-            Err(error) if exited(&error) => {}
-            Err(error) => {
+            // The record of this descriptor could not be read: the process's descriptors are what the scan could not look
+            // at, which the service tolerates as it always has (the owner, 2026-11-07, "Service removes it").
+            Err(crate::process_use::Unread::Process(reason)) => {
                 if partial.is_none() {
-                    partial = Some(format!(
-                        "PID {pid} fd {}: {error}",
-                        entry.file_name().to_string_lossy()
-                    ));
+                    partial = Some(format!("PID {pid} fd {}: {reason}", entry.file_name().to_string_lossy()));
+                }
+            }
+            // The record named the file, and the file could not be identified: the process may hold it.
+            Err(crate::process_use::Unread::File(reason)) => {
+                if unresolvable.is_none() {
+                    unresolvable = Some(format!("PID {pid} fd {}: {reason}", entry.file_name().to_string_lossy()));
                 }
             }
         }
     }
-    return (holds, partial);
+    return (holds, partial, unresolvable);
 }
 
 /// What:
@@ -310,6 +319,7 @@ pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: 
         method: "proc-fd",
         holders: Vec::new(),
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,
@@ -341,7 +351,7 @@ pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: 
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }
-        let (holds, partial) = scan_process(proc_root, pid.as_str(), device, inode, opened);
+        let (holds, partial, unresolvable) = scan_process(proc_root, pid.as_str(), device, inode, opened);
         if holds && let Ok(number) = pid.parse::<i64>() {
             let command: Option<String> = std::fs::read_to_string(proc_root.join(pid).join("comm"))
                 .ok()
@@ -350,6 +360,9 @@ pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: 
         }
         if let Some(reason) = partial {
             evidence.partial.push(reason);
+        }
+        if let Some(reason) = unresolvable {
+            evidence.unresolvable.push(reason);
         }
     }
     crate::diagnostic_log::debug(
@@ -449,6 +462,7 @@ pub fn scan_platform_holders(lock_path: &Path, device: u64, inode: u64) -> Holde
             method: "unsupported",
             holders: Vec::new(),
             partial: vec![String::from("no open-holder scan on this platform")],
+            unresolvable: Vec::new(),
         };
     }
 }
@@ -481,6 +495,7 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
                 method: "lsof",
                 holders: Vec::new(),
                 partial: vec![format!("lsof failed: exit {:?}", finished.status.code())],
+                unresolvable: Vec::new(),
             };
         }
         Err(error) => {
@@ -488,6 +503,7 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
                 method: "lsof",
                 holders: Vec::new(),
                 partial: vec![format!("lsof failed: {error}")],
+                unresolvable: Vec::new(),
             };
         }
     };
@@ -497,6 +513,7 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
         method: "lsof",
         holders: matching_holders(parse_lsof_fields(stdout.as_str()).as_slice(), device, inode),
         partial: if root { Vec::new() } else { vec![String::from(SILENT_DENIAL_NOTE)] },
+        unresolvable: Vec::new(),
     };
 }
 
@@ -524,6 +541,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
                 method: "restart-manager",
                 holders: parse_restart_manager_output(String::from_utf8_lossy(finished.stdout.as_slice()).as_ref()),
                 partial: Vec::new(),
+                unresolvable: Vec::new(),
             };
         }
         Ok(finished) => {
@@ -531,6 +549,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
                 method: "restart-manager",
                 holders: Vec::new(),
                 partial: vec![format!("Restart Manager query failed: exit {:?}", finished.status.code())],
+                unresolvable: Vec::new(),
             };
         }
         Err(error) => {
@@ -538,6 +557,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
                 method: "restart-manager",
                 holders: Vec::new(),
                 partial: vec![format!("Restart Manager query failed: {error}")],
+                unresolvable: Vec::new(),
             };
         }
     }

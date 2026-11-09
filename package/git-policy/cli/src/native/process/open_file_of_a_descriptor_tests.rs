@@ -1,14 +1,14 @@
 //! Controls for reading a descriptor's file:
-//! the file it has open is found,
-//! a process number that no process has is an error rather than a guess,
-//! and a table that cannot be asked is never resolved from the text of a link.
+//! the file it has open is found on a mount whose attributes are in memory,
+//! and a mount that this kernel cannot answer for is refused rather than waited on.
 #![cfg(target_os = "linux")]
 
 use super::*;
 use crate::test_support::{fixture, remove, spawn_owned};
+/// `MetadataExt` gives the device and inode a file has.
+use std::os::unix::fs::MetadataExt as _;
 /// `PathBuf` is an owned filesystem path.
 use std::path::PathBuf;
-use std::os::unix::fs::MetadataExt as _;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -61,6 +61,24 @@ fn identity_of_file(file: &Path) -> OpenedFile {
     return OpenedFile { device: metadata.dev(), inode: metadata.ino() };
 }
 
+/// A table of a process that the kernel does not know:
+/// its record names a mount,
+/// and its mount table says what that mount is.
+fn table_with_mount(root: &Path, mount: Option<u64>, kind: Option<&str>) -> PathBuf {
+    let process: PathBuf = root.join("proc").join("4242");
+    std::fs::create_dir_all(process.join("fdinfo")).expect("the record directory");
+    std::fs::create_dir_all(process.join("fd")).expect("the descriptor directory");
+    match mount {
+        Some(number) => std::fs::write(process.join("fdinfo").join("3"), format!("pos:\t0\nflags:\t0100000\nmnt_id:\t{number}\nino:\t1\n")).expect("a record naming a mount"),
+        None => std::fs::write(process.join("fdinfo").join("3"), "pos:\t0\nflags:\t0100000\nino:\t1\n").expect("a record naming no mount"),
+    }
+    match kind {
+        Some(name) => std::fs::write(process.join("mountinfo"), format!("7 1 0:43 / / rw - {name} none rw\n")).expect("a mount table"),
+        None => std::fs::write(process.join("mountinfo"), "8 1 0:44 / /other rw - btrfs none rw\n").expect("a mount table that names another mount"),
+    }
+    return process;
+}
+
 /// A descriptor of another process is read as the file it has open,
 /// and another file is another identity.
 #[test]
@@ -77,36 +95,49 @@ fn a_descriptor_of_another_process_is_the_file_it_has_open() {
     remove(root.as_path());
 }
 
-/// A process number that no process has is the kernel's own refusal,
+/// A descriptor on a file system served by another process or machine is refused:
+/// its attributes are not in the memory of this kernel,
+/// and walking its path would wait on a server that has stopped.
+#[test]
+fn a_descriptor_on_a_mount_that_is_not_local_is_refused() {
+    let root: PathBuf = fixture("open-file-not-local");
+    let process: PathBuf = table_with_mount(root.as_path(), Some(7), Some("fuse"));
+    let error: std::io::Error = opened_file_of(process.as_path(), std::ffi::OsStr::new("3")).expect_err("a fuse mount is not read");
+    assert_eq!(error.kind(), std::io::ErrorKind::Unsupported, "{error}");
+    assert!(error.to_string().contains("`fuse`"), "the reason names the file system: {error}");
+    remove(root.as_path());
+}
+
+/// A descriptor whose mount the process's own table does not name is refused:
+/// an unknown mount is not known to be local.
+#[test]
+fn a_descriptor_on_a_mount_the_table_does_not_name_is_refused() {
+    let root: PathBuf = fixture("open-file-unknown-mount");
+    let process: PathBuf = table_with_mount(root.as_path(), Some(7), None);
+    let error: std::io::Error = opened_file_of(process.as_path(), std::ffi::OsStr::new("3")).expect_err("an unknown mount is not read");
+    assert_eq!(error.kind(), std::io::ErrorKind::Unsupported, "{error}");
+    assert!(error.to_string().contains("not in the process's mount table"), "{error}");
+    remove(root.as_path());
+}
+
+/// A record that names no mount is refused:
+/// there is nothing to ask about its file system.
+#[test]
+fn a_descriptor_whose_record_names_no_mount_is_refused() {
+    let root: PathBuf = fixture("open-file-no-mount");
+    let process: PathBuf = table_with_mount(root.as_path(), None, Some("btrfs"));
+    let error: std::io::Error = opened_file_of(process.as_path(), std::ffi::OsStr::new("3")).expect_err("no mount is not read");
+    assert_eq!(error.kind(), std::io::ErrorKind::Unsupported, "{error}");
+    remove(root.as_path());
+}
+
+/// A descriptor of a process that has ended is the kernel's own refusal,
 /// which a caller reads as a process that ended during the scan.
 #[test]
-fn a_process_number_that_no_process_has_is_an_error() {
+fn a_process_that_has_ended_is_an_error() {
     let mut child: Child = Command::new("true").spawn().expect("start true");
     let pid: u32 = child.id();
     child.wait().expect("reap true");
-    let error: std::io::Error = opened_file_of(PathBuf::from("/proc").join(pid.to_string()).as_path(), std::ffi::OsStr::new("0")).expect_err("a gone process has no descriptor to copy");
-    assert_eq!(error.raw_os_error(), Some(libc::ESRCH), "{error}");
-}
-
-/// A directory of a process table that is not a process number is refused rather than given to the kernel.
-#[test]
-fn a_table_directory_that_is_not_a_process_number_is_refused() {
-    let named: std::io::Error = opened_file_of(Path::new("/proc/self"), std::ffi::OsStr::new("0")).expect_err("`self` is not a number");
-    assert_eq!(named.kind(), std::io::ErrorKind::InvalidInput, "{named}");
-    let unnamed: std::io::Error = opened_file_of(Path::new("/proc"), std::ffi::OsStr::new("0")).expect_err("`/proc` names no process");
-    assert_eq!(unnamed.kind(), std::io::ErrorKind::InvalidInput, "{unnamed}");
-}
-
-/// A descriptor name that is not a number is refused rather than given to the kernel.
-#[test]
-fn a_descriptor_name_that_is_not_a_number_is_refused() {
-    let error: std::io::Error = opened_file_of(PathBuf::from("/proc").join(std::process::id().to_string()).as_path(), std::ffi::OsStr::new("fd")).expect_err("`fd` is not a number");
-    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
-}
-
-/// A descriptor the process does not hold is the kernel's own refusal.
-#[test]
-fn a_descriptor_the_process_does_not_hold_is_an_error() {
-    let error: std::io::Error = opened_file_of(PathBuf::from("/proc").join(std::process::id().to_string()).as_path(), std::ffi::OsStr::new("4321")).expect_err("no such descriptor");
-    assert_eq!(error.raw_os_error(), Some(libc::EBADF), "{error}");
+    let error: std::io::Error = opened_file_of(PathBuf::from("/proc").join(pid.to_string()).as_path(), std::ffi::OsStr::new("0")).expect_err("a gone process has no record");
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{error}");
 }

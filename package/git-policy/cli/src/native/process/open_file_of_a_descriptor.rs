@@ -4,28 +4,25 @@
 //!  A lock is matched to the descriptor that holds it by the device number and the inode the file has,
 //!  and the descriptor's own record is only the cheap test that comes first.
 //!  Reading those attributes through the path `/proc/<pid>/fd/<n>` walks that path,
-//!  and the last step of the walk asks the file system to revalidate its own directory entry before any attribute is read.
-//!  A file system served from user space or over the network that stops answering leaves that walk in uninterruptible
-//!  sleep for as long as it takes:
-//!  measured on this host on 2026-11-09,
-//!  a `statx` of a `/proc/<pid>/fd` link stayed asleep for the whole of a 25-minute window with the FUSE server stopped,
-//!  and `SIGTERM` from `timeout(1)` did not end it.
-//!  A descriptor names the file without any of that:
-//!  `pidfd_getfd(2)` copies the open file's descriptor into this process without walking a path,
-//!  and `statx(2)` on the copy with `AT_EMPTY_PATH` and `AT_STATX_DONT_SYNC` asks for the attributes the kernel already
-//!  holds.
-//!  FUSE answers that request from its cached inode without sending anything to the server
-//!  (`fs/fuse/dir.c`,
-//!  `fuse_update_get_attr`:
-//!  `AT_STATX_DONT_SYNC` sets `sync = false` and the attributes come from `generic_fillattr`),
-//!  and NFS answers without a round trip
-//!  (`fs/nfs/inode.c`,
-//!  `nfs_getattr`:
-//!  `(query_flags & AT_STATX_DONT_SYNC) && !force_sync` jumps to `out_no_revalidate`).
-//!  The measurements and the sources are written up in `doc/troubleshooting/fuse-descriptor-attributes.md`.
-//!  A descriptor that cannot be copied says so and is never guessed at from the link's text:
-//!  `readlink` of a `/proc/<pid>/fd` entry names a path that a bind mount,
-//!  another mount namespace or a rename makes ambiguous.
+//!  and the last step of the walk asks the file system to revalidate its own directory entry before any attribute is read:
+//!  a FUSE or NFS server that stops answering holds the walk in uninterruptible sleep for as long as it takes,
+//!  and `SIGTERM` does not end it
+//!  (`doc/troubleshooting/fuse-descriptor-attributes.md`).
+//!  So the walk is taken only where it cannot reach a server:
+//!  the descriptor's own mount,
+//! named by the `mnt_id` line of its record,
+//! is looked up in that process's own mount table,
+//!  and the file is read only when the mount is on a fixed list of local file systems,
+//!  whose attributes are in the memory of the kernel.
+//!  Every other descriptor is refused,
+//!  and the caller treats the file as one that may be held rather than one that is not.
+//!  A copy of the descriptor (`pidfd_getfd(2)`) would answer a stalled server from its cached inode,
+//!  but closing the copy runs the file system's own flush operation,
+//!  which a stopped server holds just as its lookup is held
+//!  (cross-vendor review of 2026-11-09,
+//!  finding 4),
+//!  and the copy itself is refused for a process this one may not attach to,
+//!  which would read as no holder at all (finding 2).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,11 +31,8 @@
 
 /// `OsStr` is a borrowed file name.
 use std::ffi::OsStr;
-/// The descriptor types a copied descriptor is returned and closed as.
-#[cfg(target_os = "linux")]
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+use std::path::{Path, PathBuf};
 
 /// The device number and the inode number of a file a descriptor holds open.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,153 +43,93 @@ pub struct OpenedFile {
     pub inode: u64,
 }
 
+/// The file systems whose attributes a `statx` answers from the memory of the kernel:
+/// disks and memory of this machine,
+/// and no file system served by another process or another machine.
+/// An overlay file system is not one of them:
+/// its attributes are those of the file below it,
+/// which such a server may be serving.
+const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "zfs", "bcachefs"];
+
 /// What:
-///  The process number a process directory of a process table names.
+///  The mount a descriptor was opened through,
+/// as the kernel writes it in the descriptor's record.
 /// Why:
-///   `pidfd_open(2)` takes the number,
-///  not the directory,
-///  and a table that holds other files (`uptime`) or a number that is not one is refused rather than guessed at.
+///   `/proc/<pid>/fdinfo/<n>` holds a `mnt_id:` line,
+///  and the mount table of the same process says what that mount is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// Number(basename(process)); // NaN when it is not a number
+/// parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8')).mnt_id ?? undefined
 /// ```
 #[cfg(target_os = "linux")]
-fn pid_of(process: &Path) -> std::io::Result<libc::pid_t> {
-    let name: &str = match process.file_name().and_then(OsStr::to_str) {
-        Some(found) => found,
-        None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the process directory has no name")),
-    };
-    let number: i64 = match name.parse::<i64>() {
-        Ok(found) => found,
-        Err(_) => {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("the process directory {name:?} is not a process number")));
+fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
+    let record: PathBuf = process.join("fdinfo").join(fd);
+    let text: String = std::fs::read_to_string(record)?;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix("mnt_id:") {
+            return Ok(value.trim().parse::<u64>().ok());
         }
-    };
-    return match libc::pid_t::try_from(number) {
-        Ok(fits) => Ok(fits),
-        Err(_) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("process {number} is not one this kernel numbers"))),
-    };
-}
-
-/// What:
-///  The descriptor number a name inside a descriptor directory gives.
-/// Why:
-///   `pidfd_getfd(2)` takes the number,
-///  and a name that is not one is refused.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Number(fd); // NaN when it is not a number
-/// ```
-#[cfg(target_os = "linux")]
-fn descriptor_number(fd: &OsStr) -> std::io::Result<libc::c_int> {
-    let name: &str = match fd.to_str() {
-        Some(found) => found,
-        None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor name is not text")),
-    };
-    return match name.parse::<i32>() {
-        Ok(number) => Ok(number),
-        Err(_) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("the descriptor name {name:?} is not a number"))),
-    };
-}
-
-/// What:
-///  A descriptor a call returned,
-///  or the failure it set.
-/// Why:
-///   Every call here returns a descriptor or `-1`,
-///  which is the same shape as the helper the subvolume code uses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (opened < 0) throw new Error(os.strerror(errno));
-/// ```
-#[cfg(target_os = "linux")]
-fn checked_descriptor(opened: libc::c_long) -> std::io::Result<RawFd> {
-    let number: libc::c_int = match libc::c_int::try_from(opened) {
-        Ok(found) => found,
-        Err(_) => return Err(std::io::Error::from_raw_os_error(libc::EMFILE)),
-    };
-    if number < 0 {
-        return Err(std::io::Error::last_os_error());
     }
-    return Ok(number);
+    return Ok(None);
 }
 
 /// What:
-///  A process descriptor of `pid`,
-///  owned by this process.
+///  The type of the mount with this number in the process's own mount table,
+///  when the table names it.
 /// Why:
-///   `pidfd_getfd(2)` needs one,
-///  and the call itself reads no file system.
+///   `mountinfo` lines end `- <type> <source> <options>`,
+///  and a mount that is not in the table is one this process cannot be told the type of.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pidfdOpen({ pid });
+/// (await readFile(`${process}/mountinfo`, 'utf8')).split('\n').find(line => Number(line) === mntId)?.split(' - ')[1].split(' ')[0]
 /// ```
 #[cfg(target_os = "linux")]
-fn pidfd_of(pid: libc::pid_t) -> std::io::Result<OwnedFd> {
-    // SAFETY: `pidfd_open` reads its arguments only and, on success, returns a descriptor this process owns.
-    let opened: std::io::Result<RawFd> = checked_descriptor(unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0 as libc::c_uint) });
-    // SAFETY: a descriptor the call just created is owned by this process and by nothing else.
-    return Ok(unsafe { OwnedFd::from_raw_fd(opened?) });
-}
-
-/// What:
-///  A copy of the descriptor `number` that the process whose descriptor is `pidfd` holds,
-///  owned by this process.
-/// Why:
-///   The copy names the same open file without walking any path,
-///  so no file system is asked to revalidate anything.
-///  The kernel allows it for a process this one may trace:
-///  the same account,
-///  and not a process that hid itself with `PR_SET_DUMPABLE`,
-///  which is the same permission the scan of `/proc/<pid>/fd` needs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pidfdGetfd({ pidfd, fd: number });
-/// ```
-#[cfg(target_os = "linux")]
-fn copied_descriptor_of(pidfd: RawFd, number: libc::c_int) -> std::io::Result<OwnedFd> {
-    // SAFETY: `pidfd_getfd` reads its arguments only and, on success, returns a descriptor this process owns.
-    let copied: std::io::Result<RawFd> = checked_descriptor(unsafe { libc::syscall(libc::SYS_pidfd_getfd, pidfd, number, 0 as libc::c_uint) });
-    // SAFETY: a descriptor the call just created is owned by this process and by nothing else.
-    return Ok(unsafe { OwnedFd::from_raw_fd(copied?) });
-}
-
-/// What:
-///  The device and inode of the file the descriptor names,
-///  from what the kernel already holds.
-/// Why:
-///   `AT_EMPTY_PATH` names the descriptor itself and `AT_STATX_DONT_SYNC` forbids a round trip,
-///  which is what keeps a stopped FUSE server or an unreachable NFS server out of the way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// statx({ fd, flags: [AT_EMPTY_PATH, AT_STATX_DONT_SYNC] });
-/// ```
-#[cfg(target_os = "linux")]
-fn attributes_in_memory(descriptor: RawFd) -> std::io::Result<OpenedFile> {
-    // SAFETY: an all-zero `statx` is a valid value for the call to fill.
-    let mut found: libc::statx = unsafe { std::mem::zeroed() };
-    let empty: [u8; 1] = [0];
-    // SAFETY: the empty name outlives the call, `found` is a live `statx`, and `descriptor` is open for the length of
-    // the call.
-    let answer: libc::c_int = unsafe {
-        libc::statx(
-            descriptor,
-            empty.as_ptr().cast(),
-            libc::AT_EMPTY_PATH | libc::AT_STATX_DONT_SYNC,
-            libc::STATX_BASIC_STATS,
-            &mut found,
-        )
-    };
-    if answer < 0 {
-        return Err(std::io::Error::last_os_error());
+fn file_system_of_mount(process: &Path, mount: u64) -> std::io::Result<Option<String>> {
+    let table: String = std::fs::read_to_string(process.join("mountinfo"))?;
+    for line in table.lines() {
+        let fields: Vec<&str> = line.split(' ').collect();
+        let first: Option<u64> = match fields.first() {
+            Some(text) => text.parse::<u64>().ok(),
+            None => None,
+        };
+        if first != Some(mount) {
+            continue;
+        }
+        // The line is `<id> <parent> <major:minor> <root> <point> <options>... - <type> <source> <options>`, so the type is
+        // the field after the separator.
+        let mut kind: Option<String> = None;
+        let mut after_separator: bool = false;
+        for field in fields {
+            if after_separator {
+                kind = Some(String::from(field));
+                break;
+            }
+            after_separator = field == "-";
+        }
+        return Ok(kind);
     }
-    return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
+    return Ok(None);
+}
+
+/// What:
+///  Whether attributes of a file on this mount come from the memory of the kernel.
+/// Why:
+///   The list is the gate that keeps a stopped server out of the read:
+///  a mount that the table does not name is not known to be local,
+///  so it is not read either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// READ_IN_MEMORY_FILE_SYSTEMS.includes(kind ?? '')
+/// ```
+#[cfg(target_os = "linux")]
+fn read_in_memory(kind: Option<&str>) -> bool {
+    let Some(name) = kind else {
+        return false;
+    };
+    return READ_IN_MEMORY_FILE_SYSTEMS.contains(&name);
 }
 
 /// What:
@@ -210,22 +144,72 @@ fn attributes_in_memory(descriptor: RawFd) -> std::io::Result<OpenedFile> {
 /// ```
 #[cfg(target_os = "linux")]
 pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile> {
-    let pid: libc::pid_t = pid_of(process)?;
-    let number: libc::c_int = descriptor_number(fd)?;
-    let pidfd: OwnedFd = pidfd_of(pid)?;
-    let copied: OwnedFd = copied_descriptor_of(pidfd.as_raw_fd(), number)?;
-    return attributes_in_memory(copied.as_raw_fd());
+    let mount: Option<u64> = mount_id_of(process, fd)?;
+    let kind: Option<String> = match mount {
+        Some(number) => file_system_of_mount(process, number)?,
+        None => None,
+    };
+    if !read_in_memory(kind.as_deref()) {
+        let named: String = match kind {
+            Some(name) => format!("a `{name}` file system"),
+            None => String::from("not in the process's mount table"),
+        };
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("its mount is {named}, whose attributes are not in the memory of this kernel, so the file is not read"),
+        ));
+    }
+    let link: PathBuf = process.join("fd").join(fd);
+    let mut found: libc::statx = unsafe { std::mem::zeroed() };
+    let name: std::ffi::CString = path_name(link.as_path())?;
+    // SAFETY: the name outlives the call, `found` is a live `statx`, and the flags only forbid a round trip to a server.
+    let answer: libc::c_int = unsafe {
+        libc::statx(
+            libc::AT_FDCWD,
+            name.as_ptr(),
+            libc::AT_STATX_DONT_SYNC,
+            libc::STATX_BASIC_STATS,
+            &mut found,
+        )
+    };
+    if answer < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
 }
 
 /// What:
-///  The same on a platform that has no `pidfd_getfd(2)`.
+///  A path as a terminated string for a system call.
 /// Why:
-///   Nothing is guessed at where the kernel cannot copy a descriptor,
+///   `statx` takes a C string,
+///  and a path with a zero byte in it is refused rather than truncated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(path + '\0')
+/// ```
+#[cfg(target_os = "linux")]
+fn path_name(path: &Path) -> std::io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let bytes: &[u8] = path.as_os_str().as_bytes();
+    if bytes.contains(&0) {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte"));
+    }
+    return match std::ffi::CString::new(bytes) {
+        Ok(name) => Ok(name),
+        Err(_) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte")),
+    };
+}
+
+/// What:
+///  The same on a platform that has no `/proc` to read a descriptor's record and mount table from.
+/// Why:
+///   Nothing is guessed at where the kernel's own tables are not there,
 ///  and a caller that needs the answer treats this as a process it could not look into.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// throw new Error('no descriptor copy on this platform');
+/// throw new Error('no /proc on this platform');
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
@@ -233,7 +217,7 @@ pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile>
     let _ = (process, fd);
     return Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
-        "this platform has no `pidfd_getfd`, so a descriptor's file is not read without walking its path",
+        "this platform has no `/proc`, so a descriptor's file is not read",
     ));
 }
 

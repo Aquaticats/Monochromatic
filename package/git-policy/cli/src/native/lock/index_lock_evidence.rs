@@ -563,6 +563,10 @@ pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Optio
 /// in words that fit after "found".
 fn evidence_words(evidence: &Evidence) -> String {
     let descriptors: String = match &evidence.holders {
+        Some(scan) if !scan.unresolvable.is_empty() => format!(
+            "a descriptor that names the lock could not be read ({})",
+            partial_summary(scan.unresolvable.as_slice())
+        ),
         Some(scan) if scan.partial.is_empty() => String::from("no process has the lock open"),
         Some(scan) => format!("no process the scan could see has the lock open (the scan could not see everything: {})", partial_summary(scan.partial.as_slice())),
         None => String::from("the open descriptors were not scanned"),

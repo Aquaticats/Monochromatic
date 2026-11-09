@@ -134,6 +134,35 @@ const FAKE_MOUNT: u64 = 40;
 /// as the kernel writes it,
 /// and the descriptor's own link to the file it holds.
 /// `recorded_inode` is the inode number the record names,
+/// A reader that refuses,
+/// as the production read does for a file on a mount whose attributes are not in memory
+/// (or for a process it may not look into):
+/// the scan could not identify the descriptor,
+/// so it found no holder and did not finish either.
+fn read_refused(_process: &Path, _fd: &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile> {
+    return Err(std::io::Error::from_raw_os_error(libc::EPERM));
+}
+
+/// A descriptor whose record names the lock and which the scan could not identify is not "no holder":
+/// it is a scan that proved nothing about it,
+/// and it is kept apart from the reasons a whole process could not be read.
+#[test]
+fn an_unidentified_descriptor_is_no_holder_and_a_scan_that_did_not_finish() {
+    let root: PathBuf = fixture("holders-copy-refused");
+    let lock: PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("lock file");
+    let proc_root: PathBuf = root.join("proc");
+    let (device, inode): (u64, u64) = identity_of(lock.as_path());
+    describe_descriptor(proc_root.join("300").as_path(), 3, FAKE_MOUNT, inode, lock.as_path());
+    std::fs::write(proc_root.join("300/comm"), b"git\n").expect("holder comm");
+    let evidence: HolderEvidence = scan_proc_fd_holders_with(proc_root.as_path(), device, inode, 7, read_refused);
+    assert!(evidence.holders.is_empty(), "{evidence:?}");
+    assert_eq!(evidence.unresolvable.len(), 1, "{evidence:?}");
+    assert!(evidence.unresolvable[0].starts_with("PID 300 fd 3: "), "{evidence:?}");
+    assert!(evidence.partial.is_empty(), "a descriptor the scan could not identify is not a process that could not be read: {evidence:?}");
+    remove(root.as_path());
+}
+
 /// The reader a control uses for its own `/proc`:
 /// the file the descriptor's link names,
 /// which is what a directory of links can say and what a judgement never reads.

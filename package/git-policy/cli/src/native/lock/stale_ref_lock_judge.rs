@@ -217,6 +217,16 @@ impl Judge {
             }
         }
         scan.unreadable = unreadable;
+        let mut unresolved: Vec<String> = Vec::new();
+        for reason in scan.unresolved {
+            let Some(pid) = pid_of_reason(reason.as_str()) else {
+                continue;
+            };
+            if scope.contains(&pid) {
+                unresolved.push(reason);
+            }
+        }
+        scan.unresolved = unresolved;
         return scan;
     }
 
@@ -324,6 +334,16 @@ impl Judge {
         if let Some(user) = scan.users.first() {
             return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), PidFile::Absent, identity, born);
         }
+        if let Some(reason) = scan.unresolved.first() {
+            return verdict_with(
+                Verdict::Unproven(format!(
+                    "a descriptor whose record names this file could not be copied out of the process that holds it ({reason}), so it may hold the file"
+                )),
+                PidFile::Absent,
+                identity,
+                born,
+            );
+        }
         return verdict_with(Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, identity, born);
     }
 
@@ -354,6 +374,16 @@ impl Judge {
         }
         if let Some(reason) = self.unreadable_git(&scan) {
             return verdict_with(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")), pid_file.clone(), identity, born);
+        }
+        if let Some(reason) = scan.unresolved.first() {
+            return verdict_with(
+                Verdict::Unproven(format!(
+                    "a descriptor whose record names this file could not be copied out of the process that holds it ({reason}), so that process may hold the lock"
+                )),
+                pid_file.clone(),
+                identity,
+                born,
+            );
         }
         // A pid file is read for these words and decides nothing: its number names a process of the writer's own PID
         // namespace, Git records no namespace, and only the birth order of the two files could tie the number to this lock,

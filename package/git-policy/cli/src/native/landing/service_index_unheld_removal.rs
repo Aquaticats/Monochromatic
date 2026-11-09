@@ -168,6 +168,11 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
     if !scanned.holders.is_empty() {
         return Unheld::Kept;
     }
+    // A descriptor whose record named the lock and that the kernel refused to copy is a process that may hold it:
+    // the scan did not finish, so it proves nothing (cross-vendor review of 2026-11-09, finding 2).
+    if !scanned.unresolvable.is_empty() {
+        return Unheld::Kept;
+    }
     let mut unreadable: usize = 0;
     for reason in &scanned.partial {
         if !reason.starts_with(UNREADABLE_PROCESS_REASON) {

@@ -4602,8 +4602,8 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
   system must be on the fixed local list.
   A lock on a local disk is still matched to a descriptor that holds a file on a stalled file system,
   and nothing there is waited for:
-  a descriptor is read through the kernel's own copy of it,
-  never through the path of its link (item 3).
+  a descriptor on a mount that is not on the local list is refused,
+  and the lock is unproven (item 3).
 - A clock that steps:
   the margin and the start time of a process read file times against the current clock,
   and the boot

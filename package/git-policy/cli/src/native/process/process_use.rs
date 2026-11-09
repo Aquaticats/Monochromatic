@@ -69,8 +69,13 @@ pub struct ProcessUser {
 pub struct UseScan {
     /// Processes using the target.
     pub users: Vec<ProcessUser>,
-    /// Reasons some process of the scanning account could not be read.
+    /// Reasons some process of the scanning account could not be read at all.
     pub unreadable: Vec<String>,
+    /// Reasons a descriptor whose record names the target could not be identified,
+    /// because the kernel refused to copy it into this process:
+    /// the process may hold the file,
+    /// which is what a scan that did not finish proves nothing means.
+    pub unresolved: Vec<String>,
     /// Why the process table itself could not be listed,
     /// so that no process was scanned.
     pub unavailable: Option<String>,
@@ -170,18 +175,30 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 /// opened?.device === device && opened?.inode === inode;
 /// ```
 #[cfg(unix)]
-pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> std::io::Result<bool> {
-    let text: String = std::fs::read_to_string(process.join("fdinfo").join(fd))?;
-    let mut held: Option<u64> = None;
-    for line in text.lines() {
-        if let Some(value) = line.strip_prefix("ino:") {
-            held = value.trim().parse::<u64>().ok();
-        }
-    }
-    if held != Some(inode) {
-        return Ok(false);
-    }
+pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> Result<bool, Unread> {
     return descriptor_is_file_with(process, fd, device, inode, crate::open_file_of_a_descriptor::opened_file_of);
+}
+
+/// What:
+///  Why a descriptor could not be identified.
+/// Why:
+///   Something of the process could not be read at all (its descriptor's record,
+/// or its working directory),
+///  which a caller may tolerate as it always did;
+///  a record that named the file whose file cannot then be identified is a file that may be held,
+///  which a caller must not read as "not the file".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Unread = { kind: 'process'; reason: string } | { kind: 'file'; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Unread {
+    /// Something of the process could not be read.
+    Process(String),
+    /// The record was read and named the file,
+    /// and the file itself could not be identified.
+    File(String),
 }
 
 /// What:
@@ -205,8 +222,11 @@ pub fn descriptor_is_file_with(
     device: u64,
     inode: u64,
     opened: fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
-) -> std::io::Result<bool> {
-    let text: String = std::fs::read_to_string(process.join("fdinfo").join(fd))?;
+) -> Result<bool, Unread> {
+    let text: String = match std::fs::read_to_string(process.join("fdinfo").join(fd)) {
+        Ok(text) => text,
+        Err(error) => return Err(Unread::Process(format!("{error}"))),
+    };
     let mut held: Option<u64> = None;
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("ino:") {
@@ -216,7 +236,10 @@ pub fn descriptor_is_file_with(
     if held != Some(inode) {
         return Ok(false);
     }
-    let file: crate::open_file_of_a_descriptor::OpenedFile = opened(process, fd)?;
+    let file: crate::open_file_of_a_descriptor::OpenedFile = match opened(process, fd) {
+        Ok(found) => found,
+        Err(error) => return Err(Unread::File(format!("{error}"))),
+    };
     return Ok(file.device == device && file.inode == inode);
 }
 
@@ -232,7 +255,7 @@ pub fn descriptor_is_file_with(
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> std::io::Result<bool> {
+pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> Result<bool, Unread> {
     let _ = (process, fd, device, inode);
     return Ok(false);
 }
@@ -278,18 +301,23 @@ fn working_directory_is_inside(link: &Path, directory: &Path) -> std::io::Result
 
 /// What:
 ///  Whether one process uses the target,
-///  and why its links were unreadable.
+///  why its descriptor directory could not be read,
+///  and which of its descriptors were named by a record and could not be identified.
 /// Why:
-///   The first unreadable link is kept as the reason.
+///   The first reason of each kind is kept:
+///  a refused directory is a process the scan could not look at,
+///  and a refused descriptor is a file the kernel would not hand over,
+///  which a caller treats as one that may be held.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function scanProcess({ procRoot, pid, target }): Promise<{ uses: boolean; unreadable?: string }>;
+/// async function scanProcess({ procRoot, pid, target }): Promise<{ uses: boolean; unreadable?: string; unresolved?: string }>;
 /// ```
-fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, Option<String>) {
+fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, Option<String>, Option<String>) {
     let process: PathBuf = proc_root.join(pid);
     let mut uses: bool = false;
     let mut unreadable: Option<String> = None;
+    let mut unresolved: Option<String> = None;
     let mut described: PathBuf = process.join("fdinfo");
     if let Prepared::Inside(directory) = prepared {
         match working_directory_is_inside(process.join("cwd").as_path(), directory) {
@@ -301,29 +329,58 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, 
     }
     let listing: std::fs::ReadDir = match std::fs::read_dir(described.as_path()) {
         Ok(found) => found,
-        Err(error) if exited(&error) => return (uses, unreadable),
-        Err(error) => return (uses, unreadable.or(Some(format!("PID {pid} fd: {error}")))),
+        Err(error) if exited(&error) => return (uses, unreadable, unresolved),
+        Err(error) => return (uses, unreadable.or(Some(format!("PID {pid} fd: {error}"))), unresolved),
     };
     for item in listing.flatten() {
-        let answer: std::io::Result<bool> = match prepared {
-            Prepared::Inside(directory) => working_directory_is_inside(item.path().as_path(), directory),
+        let answer: Result<bool, Unread> = match prepared {
+            // A working directory that cannot be resolved is a path this scan could not look at, which a caller reads as an
+            // unreadable process rather than as a file it could not identify.
+            Prepared::Inside(directory) => match working_directory_is_inside(item.path().as_path(), directory) {
+                Ok(found) => Ok(found),
+                Err(error) if exited(&error) => Ok(false),
+                Err(error) => Err(Unread::Process(format!("{error}"))),
+            },
             Prepared::File { device, inode } => {
                 let name: std::ffi::OsString = item.file_name();
-                descriptor_is_file(process.as_path(), name.as_os_str(), *device, *inode)
+                named_unread(pid, name.as_os_str(), descriptor_is_file(process.as_path(), name.as_os_str(), *device, *inode))
             }
         };
         match answer {
             Ok(true) => uses = true,
             Ok(false) => {}
-            Err(error) if exited(&error) => {}
-            Err(error) => {
+            Err(Unread::Process(reason)) => {
                 if unreadable.is_none() {
-                    unreadable = Some(format!("PID {pid} fd {}: {error}", item.file_name().to_string_lossy()));
+                    unreadable = Some(reason);
+                }
+            }
+            Err(Unread::File(reason)) => {
+                if unresolved.is_none() {
+                    unresolved = Some(reason);
                 }
             }
         }
     }
-    return (uses, unreadable);
+    return (uses, unreadable, unresolved);
+}
+
+/// What:
+///  An unread reason with the process and descriptor it is about.
+/// Why:
+///   The reasons are matched by their `PID <number>` prefix,
+///  and a descriptor's own failure names which descriptor it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namedUnread(pid, fd, outcome);
+/// ```
+fn named_unread(pid: &str, fd: &std::ffi::OsStr, outcome: Result<bool, Unread>) -> Result<bool, Unread> {
+    let where_: String = format!("PID {pid} fd {}", fd.to_string_lossy());
+    return match outcome {
+        Ok(found) => Ok(found),
+        Err(Unread::Process(reason)) => Err(Unread::Process(format!("{where_}: {reason}"))),
+        Err(Unread::File(reason)) => Err(Unread::File(format!("{where_}: {reason}"))),
+    };
 }
 
 /// What:
@@ -361,7 +418,7 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
         if name == own {
             continue;
         }
-        let (uses, unreadable) = scan_process(proc_root, name.as_str(), &prepared);
+        let (uses, unreadable, unresolved) = scan_process(proc_root, name.as_str(), &prepared);
         if uses {
             // A `comm` file that cannot be read leaves the command unknown, as the `.ok()` before did.
             let command: Option<String> = match std::fs::read_to_string(item.path().join("comm")) {
@@ -369,6 +426,11 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
                 Err(_) => None,
             };
             scan.users.push(ProcessUser { pid: number, command });
+        }
+        if let Some(reason) = unresolved
+            && belongs_to_this_account(item.path().as_path())
+        {
+            scan.unresolved.push(reason);
         }
         if let Some(reason) = unreadable
             && belongs_to_this_account(item.path().as_path())

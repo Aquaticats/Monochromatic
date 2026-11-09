@@ -71,6 +71,7 @@ fn no_holders(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
 }
 
@@ -84,6 +85,7 @@ fn scan_one(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
             command: Some(String::from("git")),
         }],
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
 }
 
@@ -238,6 +240,7 @@ fn classification_prefers_a_descriptor_then_the_pid_file() {
             command: Some(String::from("git")),
         }],
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(holder))),
@@ -251,6 +254,7 @@ fn classification_prefers_a_descriptor_then_the_pid_file() {
         method: "proc-fd",
         holders: Vec::new(),
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_before(42)), Some(empty.clone()))),
@@ -437,7 +441,7 @@ fn the_change_time_rounds_nanoseconds_down_to_milliseconds() {
 #[test]
 fn many_unreadable_processes_are_summarized_in_the_wait_line() {
     let reasons: Vec<String> = (0..200).map(|number| { return format!("PID {number}: Permission denied (os error 13)"); }).collect();
-    let scan: HolderEvidence = HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: reasons.clone() };
+    let scan: HolderEvidence = HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: reasons.clone(), unresolvable: Vec::new() };
     let evidence: Evidence = evidence_with(PidFile::Absent, Some(scan));
     let end: WaitEnd<'_> = WaitEnd { within: crate::wait_ceilings::LANDING_LOCK_CEILING, ending: crate::service_index_attempts::COMMIT_WITHDRAWN };
     let line: String = unproven_wait_line(Path::new("/repo/index.lock"), Some(&evidence), end);
