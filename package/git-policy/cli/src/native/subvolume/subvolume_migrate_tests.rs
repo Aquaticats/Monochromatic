@@ -19,8 +19,10 @@ use crate::subvolume_arguments::{MigrateArguments, MigrateMode, MIGRATE_RISK_NOT
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::layout_of;
-use crate::subvolume_test_support::{Hooked, PlainPlatform, checkout_with_worktree, index_inode, migrate_arguments, run_command};
-use crate::test_support::{git_text, remove};
+use crate::subvolume_run::Run;
+use crate::subvolume_sync_attrs::make_fifo;
+use crate::subvolume_test_support::{Hooked, PlainPlatform, checkout_with_worktree, index_inode, make_checkout, migrate_arguments, run_command};
+use crate::test_support::{fixture, git_text, remove};
 use std::os::unix::fs::MetadataExt;
 
 /// The exit status the command gives a finished,
@@ -440,5 +442,35 @@ fn the_deleting_modes_say_the_risk_once() {
     assert_eq!(remove_code, DONE, "{remove_lines:#?}");
     assert_eq!(said(remove_lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once by a removal of the old tree: {remove_lines:#?}");
     assert_eq!(said(remove_lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "{remove_lines:#?}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A named pipe where the unreadable-file list belongs ends the run at once,
+///  naming the file,
+/// instead of
+///  waiting for a writer that never comes.
+/// Why:
+///   The list is what keeps files this user may not read from being deleted with the old tree,
+/// so it may
+///  never be counted as empty by a read that waits;
+/// and the command that waits owns the checkout.
+#[test]
+fn a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once() {
+    let parent: PathBuf = fixture("migrate-unreadable-fifo");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let layout: Layout = layout_of(root.as_path()).expect("layout");
+    make_fifo(layout.unreadable_path.as_path(), 0o600).expect("named pipe");
+    let read = crate::test_support::finished_within(move || {
+        let inside: Layout = layout_of(root.as_path()).expect("layout");
+        let platform: PlainPlatform = PlainPlatform::new();
+        let mut say = |_text: &str| {};
+        return match Run::open(&platform, &inside, &Interrupt::never(), &mut say) {
+            Ok(_) => String::from("opened"),
+            Err(error) => error.to_string(),
+        };
+    });
+    let Some(message) = read else { panic!("reading the list did not finish within five seconds") };
+    assert!(message.contains("not a plain file") && message.contains("unreadable"), "{message}");
     remove(parent.as_path());
 }

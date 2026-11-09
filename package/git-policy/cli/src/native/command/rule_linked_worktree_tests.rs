@@ -24,30 +24,47 @@ use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
 use std::ffi::OsString;
 
-/// Every guarded form.
-const ALL_COMMANDS: [GuardedCommand; 21] = [
-    GuardedCommand::Stash,
-    GuardedCommand::StashDrop,
-    GuardedCommand::Clean,
-    GuardedCommand::CleanIgnored,
-    GuardedCommand::CleanIgnoredOnly,
-    GuardedCommand::ResetHard,
-    GuardedCommand::ResetMixed,
-    GuardedCommand::RestoreStaged,
-    GuardedCommand::RestoreWorktree,
-    GuardedCommand::CheckoutPaths,
-    GuardedCommand::CheckoutMove,
-    GuardedCommand::SwitchForce,
-    GuardedCommand::SwitchMove,
-    GuardedCommand::Remove,
-    GuardedCommand::Move,
-    GuardedCommand::CheckoutIndex,
-    GuardedCommand::ReadTree,
-    GuardedCommand::AbortMerge,
-    GuardedCommand::AbortRebase,
-    GuardedCommand::AbortPick,
-    GuardedCommand::AbortAm,
-];
+/// The index of a form,
+/// so the coverage control can tell a full list from one with a hole.
+/// A `match` must name every variant,
+/// so a new form stops compilation here until it has an index.
+fn index_of(command: GuardedCommand) -> usize {
+    return match command {
+        GuardedCommand::Stash => 0,
+        GuardedCommand::StashDrop => 1,
+        GuardedCommand::Clean => 2,
+        GuardedCommand::CleanIgnored => 3,
+        GuardedCommand::CleanIgnoredOnly => 4,
+        GuardedCommand::ResetHard => 5,
+        GuardedCommand::ResetMixed => 6,
+        GuardedCommand::RestoreStaged => 7,
+        GuardedCommand::RestoreWorktree => 8,
+        GuardedCommand::CheckoutPaths => 9,
+        GuardedCommand::CheckoutMove => 10,
+        GuardedCommand::SwitchForce => 11,
+        GuardedCommand::SwitchMove => 12,
+        GuardedCommand::Remove => 13,
+        GuardedCommand::Move => 14,
+        GuardedCommand::CheckoutIndex => 15,
+        GuardedCommand::ReadTree => 16,
+        GuardedCommand::AbortMerge => 17,
+        GuardedCommand::AbortRebase => 18,
+        GuardedCommand::AbortPick => 19,
+        GuardedCommand::AbortAm => 20,
+    };
+}
+
+/// `GuardedCommand::ALL` holds every form once,
+/// so a control that walks it reaches every rejection text.
+#[test]
+fn every_guarded_form_is_listed_once() {
+    let mut seen: Vec<usize> = GuardedCommand::ALL.iter().map(|command| { return index_of(*command); }).collect();
+    seen.sort_unstable();
+    seen.dedup();
+    let forms: usize = index_of(GuardedCommand::AbortAm) + 1;
+    let expected: Vec<usize> = (0..forms).collect();
+    assert_eq!(seen, expected, "GuardedCommand::ALL must hold each of the {forms} forms once");
+}
 
 /// Decide one invocation written as text.
 fn decide(values: &[&str]) -> LinkedWorktreeDecision {
@@ -136,7 +153,7 @@ fn head_moves_need_the_dirtiness() {
 /// and every other form loses tracked changes only.
 #[test]
 fn each_form_asks_about_the_state_it_can_destroy() {
-    for command in ALL_COMMANDS {
+    for command in GuardedCommand::ALL {
         let expected: DirtyQuestion = match command {
             GuardedCommand::Clean => DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked),
             GuardedCommand::CleanIgnored => DirtyQuestion::Worktree(DirtyScope::Everything),
@@ -217,7 +234,7 @@ fn harmless_forms_pass() {
 ///  each with its own text.
 #[test]
 fn only_main_and_absent_worktrees_are_rejected() {
-    for command in ALL_COMMANDS {
+    for command in GuardedCommand::ALL {
         assert_eq!(
             resolve_linked_worktree(command, EffectiveTarget::MainWorktree),
             Some(main_worktree_message(command))
@@ -247,7 +264,7 @@ fn only_main_and_absent_worktrees_are_rejected() {
 /// and the deliberate way to discard.
 #[test]
 fn every_text_names_the_loss_an_alternative_and_the_hatch() {
-    for command in ALL_COMMANDS {
+    for command in GuardedCommand::ALL {
         let main = main_worktree_message(command);
         let dirty = dirty_worktree_message(command);
         let outside = outside_worktree_message(command);
