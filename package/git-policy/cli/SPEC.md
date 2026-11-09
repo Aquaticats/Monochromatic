@@ -2669,6 +2669,21 @@ that names the reason
 and the command to run,
 for example `pnpm --dir <worktree> install --offline --frozen-lockfile`.
 
+The three repairs are waits of one task of the runtime,
+and neither the type check of each tracked manifest nor the read of the launcher records runs there:
+both are jobs of the process's blocking pool,
+so a filesystem that stops answering them holds no tool's quiet window or ceiling.
+That has one limit:
+where the system refuses to start a pool thread (`ulimit -u`,
+the control group's `pids.max`),
+`run_a_job_or_in_turn` runs the job's work on the shared task itself,
+because a thread is only a way to do the work sooner.
+The person then sees the add wait,
+with no tool line printed and no ceiling firing,
+until the filesystem behind that job answers;
+raising the limit and running the command again is the remedy,
+and nothing of the worktree is discarded either way.
+
 Limits:
 another process changing files while a worktree is copied or repaired is the person's risk and is not defended against.
 Bun,
