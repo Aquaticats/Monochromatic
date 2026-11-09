@@ -16,7 +16,8 @@
 //! The wait blocks on an inotify watch set before the first look,
 //!  so a release between the look and the wait is not missed.
 //! A service the mark proves to run is waited for until the lock goes or `SERVICE_HOLD_CEILING` passes
-//!  (ten minutes, `wait_ceilings.rs`);
+//!  (ten minutes,
+//! `wait_ceilings.rs`);
 //! at the ceiling the command runs and reports what Git says.
 //!
 //! In TS you'd write (pseudocode):

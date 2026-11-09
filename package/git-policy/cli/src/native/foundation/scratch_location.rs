@@ -60,7 +60,8 @@ pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 /// a day is about a hundred times the longest.
 /// The patience for an owner of another namespace
 ///  (3,600 s) is far under a day.
-/// A wait for a live program's lock ends at a ceiling: one minute (`LANDING_LOCK_CEILING`,
+/// A wait for a live program's lock ends at a ceiling:
+/// one minute (`LANDING_LOCK_CEILING`,
 /// `MERGE_LOCK_CEILING`)
 ///  or ten for the service's own hold (`SERVICE_HOLD_CEILING`,
 /// `wait_ceilings.rs`),

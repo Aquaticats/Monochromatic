@@ -1,7 +1,9 @@
 //! Binary-level controls for the notices of a commit that waits for Git's own `index.lock` (issue 1811):
 //!  the wait names what it waits for and who holds it,
 //!  repeats at a steady interval,
-//! and waits for a holder proven alive, and for an owner nothing proves alive, until the ceiling,
+//! and waits for a holder proven alive,
+//! and for an owner nothing proves alive,
+//! until the ceiling,
 //!  saying what is known about the second.
 //! The holder is this test process,
 //! holding the lock file open.
