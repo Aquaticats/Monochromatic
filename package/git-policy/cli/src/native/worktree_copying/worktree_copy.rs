@@ -389,7 +389,9 @@ fn settle_creation(
     // was never filled, so the record stays and the next command reports it as an interrupted add.
     // A destination that still exists after a Git that failed is a worktree this command asked for and did not fill: the
     // record stays, so a later command reports it instead of finding a worktree that looks whole.
-    /// Whether the path may hold something: absent is the only answer that says it does not, so a path this command
+    /// Whether the path may hold something:
+    /// absent is the only answer that says it does not,
+    /// so a path this command
     /// may not look at keeps the record rather than losing it.
     fn may_hold_something(path: &Path) -> bool {
         return !matches!(
