@@ -28,6 +28,20 @@ Neither command says anything.
 
 The same variable alone also makes any `:(top,literal)` listing name both `a.txt` and `A.txt`.
 
+## Symptom: names come back relative to the directory Git runs in
+
+A program that writes `:(top,literal)<path>` pathspecs and then looks its results up by that path
+misses entries when the caller's own `-C` moved Git below the top.
+`git ls-files` reports every name relative to the directory Git runs in unless it is given
+`--full-name`,
+while `ls-tree`,
+`diff-tree` and `diff-index` report repository-relative names from anywhere.
+The mismatch is silent:
+a lookup for `sub/f` finds nothing where the listing said `f`,
+which the repair in `package/git-policy/cli` read as "the index holds no entry there" and answered
+by resetting the commit's own entry to `HEAD`,
+so the person's deliberately staged contents were left out of the commit.
+
 ## Root cause
 
 Git adds four *global* pathspec magics from the environment and from global options,
@@ -121,6 +135,9 @@ The fixture is a repository holding committed `a.txt` and `A.txt`,
 with a later commit changing `a.txt`
 only;
 every command below runs in it.
+A second fixture holds `sub/f`,
+and the name-base runs below happen inside `sub` with the spec `:(top,literal)sub/f`,
+as a caller's `-C sub` makes them.
 
 Patterns that work cleanly:
 
@@ -132,6 +149,15 @@ Patterns that work cleanly:
   exits 128 with `fatal: global 'glob' and 'noglob' pathspec settings are incompatible`,
   and adding `--noglob-pathspecs` leaves it fatal,
   because the flag sets the same variable.
+
+Names as each command reports them,
+run inside `sub` with the spec `:(top,literal)sub/f`:
+
+- `git ls-files -s -z` names `f`.
+- `git ls-files -s -z --full-name` names `sub/f`.
+- `git ls-tree -z --full-tree <commit>` names `sub/f`.
+- `git diff-tree -r --name-only -z <old> <new>` names `sub/f`.
+- `git diff-index --cached --name-only -z <commit>` names `sub/f`.
 
 Patterns that fail:
 
@@ -169,6 +195,14 @@ so `-C --icase-pathspecs` still changes into that directory.
 Every start of a request goes through `full_arguments`:
 the started command and the in-process reader both take their argument list from it,
 so no route chooses between the two halves itself.
+
+A listing whose names are looked up as repository-relative paths asks for them:
+`ls-files --full-name`.
+A listing that runs through `git_metadata`'s runner instead,
+which has no `GitRequest`,
+takes `run_metadata_git_without`,
+so the named variables are removed before the start and the in-process readers stay out of the way,
+because a reader would judge the caller's mode.
 
 Tradeoffs:
 a `:(top,literal)` spec in a mode-free environment is the path itself and nothing else,

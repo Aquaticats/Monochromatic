@@ -30,6 +30,10 @@ pub mod maintenance_run;
 /// maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The digest a push's id carries for its branch,
+/// and what may follow the kind in an id.
+pub mod work_item_ids_and_names;
+
 /// The kinds of work a landed object can ask for,
 /// and the names that pick a consumer's handler.
 pub mod work_item_kinds_and_their_names;

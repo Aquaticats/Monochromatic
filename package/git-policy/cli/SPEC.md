@@ -2706,7 +2706,10 @@ the stage is a private owned directory beside the destination,
 and every intended entry exists in the private manifest.
 Every pending transaction then reaches an end:
 
-- A destination that no longer resolves to a linked registration under the same common directory,
+- The repository's own registrations decide whether a destination is still a linked worktree of it:
+  one registration under `<common>/worktrees` names the destination by its `gitdir` file,
+  and it names it whatever a command is doing to the destination's `.git` file at the time.
+  A destination no registration names,
   because it was removed,
   moved,
   pruned,
@@ -2715,29 +2718,44 @@ Every pending transaction then reaches an end:
   recovery removes the private stage and journal,
   never touches the destination path,
   and writes one notice line.
-  The `.git` pointer is read as bytes,
+- A `gitdir` file that was not read whole proves nothing,
+  and neither does a recorded path that cannot be resolved,
+  because a command that unlinks,
+  truncates or rewrites that file leaves it empty,
+  cut short,
+  gone or unreadable for as long as it runs,
+  and a directory the recorded path crosses can lose its search permission while the registration stays.
+  The recorded path is compared as bytes,
+  with only the one line feed that ends the file removed,
+  because the first byte of a worktree's path can be a space that belongs to it.
+  Recovery keeps the stage and the journal and writes one notice line saying where they stay.
+- A destination a registration names whose `.git` file does not name that registration is the answer that proves
+  nothing,
+  because a command that unlinks,
+  truncates or rewrites the pointer leaves it missing,
+  empty,
+  cut short,
+  in a symbolic link loop,
+  naming another directory,
+  a named pipe,
+  a device,
+  a directory or a file past `GIT_FILE_LIMIT`,
+  while the worktree stays registered.
+  Recovery keeps the stage and the journal,
+  writes one notice line saying that the repository still registers that worktree but the file does not name that
+  registration,
+  and leaves the copy to the next command that finds the file naming it again.
+  The pointer itself is read as bytes,
   as a plain file without blocking and without following a link,
   and never past `GIT_FILE_LIMIT`,
   with every trailing line feed and carriage return stripped as Git's `read_gitfile_raw` strips them,
-  so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds.
-  A named pipe at that name would stop its reader until a writer comes,
+  so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds;
+  a named pipe at that name would stop its reader until a writer comes,
   and the pending check runs before every forwarded command,
   so one worktree's pipe could stick a command in an unrelated worktree.
-- A destination whose pointer cannot be followed,
-  because the file names no directory,
-  the directory it names is not there,
-  or the file is empty,
-  half written,
-  a link,
-  a named pipe,
-  a device,
-  a directory or past the bound,
-  is not evidence either way:
-  a command killed while it rewrote the pointer leaves the file cut off in just that way,
-  and the worktree and its registration under the common directory are still there.
-  Recovery keeps the stage and the journal,
-  writes one notice line saying that whether the worktree is still registered is unknown,
-  and names the commands that show and settle it.
+  No state of that file and no directory that cannot be listed makes the check fail:
+  it answers,
+  and the copy stays.
 - A transaction whose private stage is gone is discarded the same way,
   with a notice that ignored files in the destination may be incomplete.
 - Otherwise installation resumes.
@@ -3898,6 +3916,326 @@ A stop is written once,
 by whichever enforcer ended the step first,
 and the wait's own record sets `armed` for a step whose notice thread never ran.
 There is no state in which a commit under a ceiling waits with nothing to end its step.
+
+##### What a stop reads about a step, and what it sends
+
+A look at a process's record (`/proc/<pid>/stat`,
+`src/native/process/process_tree.rs`)
+answers one of three things,
+never two:
+the process is there and is the one that was found,
+it is gone,
+or its record could not be read.
+A refusal (a descriptor limit,
+a permission,
+an I/O error,
+a record that cannot be parsed)
+is not an exit:
+nothing is concluded from it,
+and nothing is signalled through it,
+while the grace and the ceiling end the step as they would have.
+Reading a refusal as "the process is gone" signalled nothing,
+so a ceiling ended nothing,
+the wait outlasted it,
+and the lock sweep ran against a live tree
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 4).
+A refusal is not a proof of which process the number names either,
+so nothing is signalled through it,
+and one line says that the step it names was not sent that signal:
+the member was found a moment ago and may have ended and been reaped since,
+and its number may belong to an unrelated process.
+The root of a step whose record could not be read is therefore never signalled:
+`member_read` answers that it is no member of the tree
+(`src/native/process/process_tree.rs`,
+`src/native/push/child_watch_clock_marks_and_stopping.rs`),
+so no number is sent a signal,
+one line says which signal the step was not sent,
+and the stop's waits are bounded whether the root is in the tree or not.
+A member whose record reads as gone is never signalled:
+its number may be another process's by now.
+Every wait of the stop is bounded:
+the wait after the kill ends with a grace of its own,
+extended only while a member is in uninterruptible sleep and up to the
+stop's ceiling,
+so a root whose record cannot be read is waited for no longer than that rather than for
+as long as the process lives
+(`the_wait_after_the_kill`).
+The watch pins its root once,
+when the child starts and is still this process's own unreaped child,
+and both signals of the stop go through that pin (`pin_at_start`,
+`send_to_the_root`).
+Reading the record again at the signal would establish only which process holds the number *then*:
+the root can have ended and been reaped during the grace,
+and an unrelated process that received its number would be the one signalled
+(the third review's finding 1).
+That pin also answers whether the root is still there (`has_ended`),
+and the stop reads no tree and arms no ceiling for a root that has ended:
+the children of a number that was reused are not this step's,
+and a status the wait already collected is the answer rather than a ceiling the stop reached
+(the fourth review's findings 1 and 2).
+
+One window is left open there, and this file records it rather than closing it.
+The pin answers whether the root has ended (`the_root_is_still_there`),
+and the tree is walked after that answer (`descendants_of_a_root_that_still_runs`,
+`src/native/push/child_watch_clock_marks_and_stopping.rs`).
+For a process that is not the step's to receive a signal there,
+the root would have to end, be reaped, and have its number handed to another process that starts children,
+all within the few instructions between that answer and the walk
+(the fifth review's finding 1).
+Everything after the walk closes its own interval:
+a member is signalled through a descriptor opened while its number was proven to still name it,
+so the proof covers the moment of the signal, and the walk itself is what the proof cannot cover.
+That window is open in the same way where nothing proved which process the root's number names:
+the walk goes on there (`Pinned::Unproven`),
+so that a bound is never lost to a record that could not be read,
+and a member that cannot be proven at its signal is not signalled at all.
+
+A signal is sent through a descriptor that names the process,
+never to a number read a moment earlier.
+Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the two in which the
+number can be reused by another process of this account,
+and the cargo-shadow review called that shape a P1.
+Every member and the root of a step are therefore held by a pidfd where the kernel gives one
+(`src/native/process/pinned_member_signalled_through_a_pidfd.rs`),
+the start time is read before and after the descriptor is opened to show the number named one process
+throughout,
+and the signal goes through the descriptor with `pidfd_send_signal`.
+This is the pattern `binary/binary_supervisor_pin.rs` already uses for the hang guard of the binary
+tests,
+in production form.
+A pin always is its descriptor,
+and a host that gives none has no pin at all:
+nothing is signalled there,
+and the sentence says what was not done.
+The fallback that read the start time again right before the number was signalled is gone,
+because the window between that read and the call is exactly the one a descriptor closes
+(the third review's finding 3).
+One signal stays by number on purpose:
+the whole process group of the repair tool,
+whose leader is unreaped at that moment,
+so the kernel cannot have given its number to anything else,
+and a group is not a thing a descriptor can name.
+The rule is one decision everywhere:
+a number is a safe address only while its process is this process's own unreaped child,
+and anything else goes through a descriptor taken while that identity was proven.
+A second look at a record that fails after the descriptor was opened holds nothing and signals
+nothing:
+between the two looks the process the first one found can have ended and been reaped,
+and the number can name an unrelated process,
+which the descriptor then names
+(the third review's finding 2).
+
+A one-shot query's ceiling is a deadline kept by the thread that owns the child.
+`output_of_within_bound` (`src/native/process/captured_child_run_to_its_end.rs`) waits for its child
+with `wait_within` (`src/native/process/child_waited_for_within_a_ceiling.rs`),
+and its output goes to anonymous files,
+so it needs no reader at all.
+While that thread waits it has not reaped the child,
+so the kill at the ceiling reaches the child and nothing else:
+the pin a caller used to signal at its ceiling,
+and the fallbacks that went with it,
+are deleted rather than patched again
+(the second and third reviews' findings about signalling by a reused number).
+The caller no longer signals anything.
+
+A child the kernel will not release is not waited for past the stop's grace.
+Past the grace `wait_within` hands it to
+`src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs`,
+which gives it to a thread that collects it when the kernel lets go,
+and keeps it in a list the next reaper drains when the system refuses that thread,
+so the child is never lost and never a zombie for this process's life.
+The command stops waiting and says the query was left running,
+not that it was ended
+(the fourth review's findings 4,
+5 and 9).
+`OwnedChild::end_and_reap` takes the same grace before it hands a leader on,
+so the step route has the bound this file states for a leader that does not end in `STOP_GRACE`,
+and it answers whether that leader was left running,
+which is what the sentence of a ceiling the wait carried says (`AtTheCeiling`).
+
+A step left running is owned by a thread that waits for it,
+and that thread is given the child through a channel rather than through its closure:
+a refused start drops its closure,
+so a child moved into it would be neither ended nor reaped,
+and would stay a zombie of this process once it ended.
+The child the refused start hands back goes to the reaper above
+(the fifth review's finding 3).
+Where no task of the runtime can run at all,
+the child a step left running is handed to that reaper too
+(the fifth review's finding 4).
+Which of the two ways awaits that child is decided by whether a task can run now
+(`tasks_can_run`),
+not by how the runtime was first built:
+a build that missed its deadline can have arrived since,
+and its workers take the child.
+
+A batch query of the manual push is read by the runtime,
+not by threads of its own.
+The two pipes are made and registered before the start
+(`src/native/process/step_output_read_whole_through_pipes.rs`),
+both streams are read in one select that also holds the end of the wait,
+and the request list goes in from one thread whose write carries the query's own ceiling:
+there is no queue between the query and its answer,
+no reader thread that a dropped receiver cannot end,
+and one drain deadline after the query's end rather than one per chunk
+(the fourth review's findings 3,
+6 and 8).
+Its answer is bounded by the request list this command wrote,
+and a list that was cut short is not an
+answer:
+the query fails and says the list was cut short
+(finding 7).
+The thread that writes a batch query's request list writes with the query's own ceiling as its
+deadline (`write_within`),
+one pipe buffer at a time,
+and gives up when the pipe takes nothing within it,
+so a program the query started that holds the read end of that list without reading it no longer
+leaves the thread blocked in the kernel for that program's life
+(the third review's finding 6).
+It is not joined either:
+what it writes is the query's request,
+and the answer is taken from the query.
+
+A signal the wrapper catches is relayed to the child or it ends the wrapper;
+it is never swallowed.
+`SignalGuard` (`src/native/process/signal_relay.rs`) installs the handlers of `SIGINT`,
+`SIGTERM`,
+`SIGHUP` and `SIGQUIT` and points one never-closed descriptor number at a pidfd for its child,
+so a signal reaches that child and never a reused number.
+When the child cannot be published to that descriptor (a `pidfd_open` a descriptor limit refuses,
+a `/dev/null` that cannot be opened,
+a `dup3` that failed),
+no handler is left installed:
+the dispositions the guard replaced go back for the rest of its life,
+so the next of those signals ends the command as it would without a guard,
+and the warning says so and names the limit to check.
+Keeping the handlers with nothing published meant the signal reached neither the child nor the wrapper,
+and only `SIGKILL` ended the command
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 6).
+
+A step whose watcher cannot exist says so,
+and still ends at its ceiling.
+The watcher is a task of the runtime,
+and a task needs a worker thread of its own
+(`src/native/foundation/lazy_runtime.rs`).
+When the runtime has none (the current-thread stand-in,
+or a build the system refused),
+nothing announces the wait,
+nothing ends the step for being quiet,
+and nothing ends it at its ceiling.
+The refusal is now said once in the command's diagnostics,
+the watch records it,
+and the wait carries the step's own ceiling:
+a step that has one is ended at it, with the whole process tree `StepBound::EndAt` names,
+and fails with a sentence naming the refused thread and the limit to check.
+A step with no ceiling is still waited for as long as it lives,
+which the owner decided for a write that cannot be run twice,
+and the sentence that says nothing watches it is what tells the person
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 8).
+The line goes straight to the diagnostics rather than through the blocking pool,
+because the refusal means no task may be reachable;
+it is one line per step.
+
+The read of a step that is ended at its ceiling ends with the step,
+not with the last program that holds its pipes open.
+A step's output is read whole through two pipes
+(`src/native/process/step_output_read_whole_through_pipes.rs`),
+and a pipe ends at end of file,
+which needs every write end closed.
+Hooks are off below a watched step,
+so the programs that can hold one are the ones Git runs from configuration:
+a smudge or clean filter,
+a merge driver,
+or a signing program.
+A program that outlives the step keeps the read open for as long as it lives,
+so the command waited past the step's ceiling with its locks and its transaction held
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 2).
+Each read therefore ends `OUTPUT_DRAIN_AFTER_EXIT` (1 second,
+labelled unmeasured) after the step has ended,
+and the step fails with a sentence that names the program still holding the output,
+which the mount and inode of the pipe find (`src/native/process/process_use.rs`),
+and says to check that program with `ps` and to run the command again.
+An end of file wins over that drain:
+the read is asked first at every poll,
+and where the reactor has not yet heard that the last writer closed, the descriptor itself is asked,
+whose non-blocking read answers end of file at once.
+So a step that wrote its whole answer and ended is answered, not reported as one whose output is held open
+(the fifth review's finding 5).
+What the read got before that moment is not returned as the step's answer:
+a step whose output may be incomplete is reported,
+never guessed at.
+
+The step's answer is its exit status and its standard output.
+A program that still holds the step's standard error open one second after the step ended therefore
+does not fail the step:
+the exit status and the whole of standard output come back,
+the bytes of standard error read before the drain ended come back with them,
+and one line names the program and says where that stream stops
+(`src/native/process/step_output_read_whole_through_pipes.rs`).
+A standard output a program still holds open stays a failure,
+because the answer itself may be incomplete.
+
+A read-only query the wrapper asks of Git ends at a ceiling of its own.
+The metadata questions (`src/native/repo_read/git_metadata.rs`) and the two one-shot questions of the
+invocation (`src/native/repo_read/git_system_config.rs`,
+`src/native/invocation/management_service_repository_selection.rs`) run with their output in anonymous files,
+so no pipe can fill and no reader is needed,
+and their end is awaited on a thread with a deadline of `PLUMBING_STEP_CEILING`.
+A query past the deadline is ended with `SIGKILL` and reported with a sentence that names the program,
+the ceiling and what to look at;
+a query that answers is unchanged,
+and such a query changes nothing of the repository,
+so ending it costs nothing
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 5).
+A metadata answer has to be whole,
+though,
+and it is:
+a read bounded at its ceiling is drained through pipes,
+every byte of it
+(`an_answer_larger_than_the_capture_keeps_comes_back_whole`),
+so an answer larger than the `STEP_OUTPUT_LIMIT` bytes the captured run keeps comes back whole and no
+refusal of a cut one is needed on that route.
+A forwarded command (`src/native/invocation/forwarding.rs`,
+`status_retrying`) keeps no ceiling on purpose:
+there the person's Git owns the terminal,
+the wrapper only carries its exit code,
+and ending it would take the terminal away from the person mid-command.
+
+A batch query of the manual push writes its request list while it reads the answers.
+`cat-file --batch-check` and `rev-list --stdin` read one request and write one reply in a loop
+(`src/native/push/manual_push_range.rs`),
+and the wrapper wrote the whole list before it read anything,
+so a reply pipe that filled stopped Git reading the list and the write waited for the reply for good
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 9).
+The list goes in from a thread of its own,
+the answers are read by the runtime,
+and the wait carries `PLUMBING_STEP_CEILING`,
+so a query that never answers is ended and reported with the command line and the ceiling,
+and a query the kernel would not let end is reported as one left running rather than as one ended
+(the fifth review's finding 6).
+A list that was cut short at that ceiling is reported rather than answered,
+because what Git answered
+covers only the part of the list that went in.
+
+LFS is paused by the owner,
+so the two LFS waits are recorded and not changed:
+the interactive `git-lfs push` (`src/native/lfs/lfs_upload.rs`,
+under `SignalGuard` alone)
+and the upload plan's Git questions (`src/native/lfs/lfs_interactive.rs`,
+`Command::output`).
+Each needs the end its own twin already has:
+the upload through the bounded push (`src/native/push/bounded_push.rs`,
+whose bounded twin of the same program `lfs_upload.rs` already calls),
+and the plan's questions through the bounded query (`src/native/push/bounded_query.rs`),
+which is the meter with no wall clock that the push's own queries use.
+Until then a server that accepts the connection and never answers holds an interactive push,
+and nothing says which program the command waits for.
 
 ##### The quiet windows are labelled unmeasured
 
