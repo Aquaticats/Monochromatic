@@ -3236,6 +3236,20 @@ so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
 
+A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
+ common Git directory.
+Every command that runs the recovery before it prints one line on standard error about that worktree,
+with `git -C <path> reset --hard` to finish the checkout and `git worktree remove --force <path>` to remove it,
+and names the worktree's `index.lock` first when a Git killed inside the index install left one,
+because that command cannot start while the lock stands.
+Every path in those commands is quoted the way a shell reads a word back
+(`src/native/worktree/shell_quote.rs`),
+so a `$`,
+a backquote,
+a quote or a newline in a path expands nothing and splits nothing when the line is pasted into a shell.
+The record stays until the worktree is whole or gone,
+so the same line comes again from every command that runs the recovery.
+
 A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
 Left out by directory name,
 wherever the name sits below the main checkout:

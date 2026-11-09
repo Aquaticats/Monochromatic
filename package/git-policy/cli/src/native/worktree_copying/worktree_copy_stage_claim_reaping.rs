@@ -35,6 +35,7 @@ use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
 use std::collections::BTreeSet;
+use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
 /// What recovery decided about one add's record.
@@ -50,7 +51,7 @@ pub struct Settlement {
 
 /// The name of the lock Git takes to write an index,
 /// in the administrative directory of a worktree.
-const INDEX_LOCK: &str = "index.lock";
+pub(crate) const INDEX_LOCK: &str = "index.lock";
 
 /// The name of the index itself,
 /// in the administrative directory of a worktree.
@@ -207,13 +208,16 @@ fn registration_directory(destination: &Path) -> Option<PathBuf> {
 /// const lock = join(admin, 'index.lock')
 /// return exists(lock) ? lockedSentence(lock, finish) : finish
 /// ```
-fn finish_instructions(shown: &str, admin: &Path) -> String {
+pub(crate) fn finish_instructions(destination: &Path, admin: &Path) -> String {
+    // Both paths are read by the person's shell, so they are quoted the way a shell reads a word back, not the way JSON
+    //  spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs `rm`.
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     let finish: String = format!("`git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.");
     let lock: PathBuf = admin.join(INDEX_LOCK);
     if !lock.exists() {
         return finish;
     }
-    let lock_shown: String = quote(lock.to_string_lossy().as_ref());
+    let lock_shown: String = crate::shell_quote::shell_quote(lock.as_os_str().as_bytes());
     return format!("Its Git directory holds the lock {lock_shown} that a Git killed inside the index install left, and every Git write to the worktree fails while it stands: once no Git command is running there, `rm {lock_shown}` removes it, and then {finish}");
 }
 
@@ -308,7 +312,9 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             keep: false,
         },
         Some(Recorded::Planned(destination)) => {
-            let shown: String = quote(destination.to_string_lossy().as_ref());
+            // The path is printed inside commands the person runs, so it is quoted for the shell.
+            // The path is printed inside commands the person runs, so it is quoted for the shell.
+            let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
             // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish.
             if !destination.join(POINTER).exists() {
                 return Settlement { notice: None, keep: false };
@@ -324,7 +330,7 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             let notice: String = match registered.as_ref() {
                 Some(admin) => format!(
                     "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. {}",
-                    finish_instructions(shown.as_str(), admin)
+                    finish_instructions(destination.as_path(), admin)
                 ),
                 None => format!("monochromatic-git-policy-cli: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."),
             };
@@ -333,7 +339,7 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             Settlement { notice: Some(notice), keep: true }
         }
         Some(Recorded::Registered(binding)) => {
-            let shown: String = quote(binding.destination.to_string_lossy().as_ref());
+            let shown: String = crate::shell_quote::shell_quote(binding.destination.as_os_str().as_bytes());
             // A worktree that is whole or gone settles silently; everything else keeps its record so the next command says
             //  the same again, because nothing else names the worktree, the stage or what finishes them.
             if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
@@ -342,7 +348,7 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             Settlement {
                 notice: Some(format!(
                     "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. {}",
-                    finish_instructions(shown.as_str(), binding.admin.as_path())
+                    finish_instructions(binding.destination.as_path(), binding.admin.as_path())
                 )),
                 keep: true,
             }

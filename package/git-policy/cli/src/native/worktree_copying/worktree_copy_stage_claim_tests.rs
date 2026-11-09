@@ -10,6 +10,8 @@ use crate::worktree_copy_journal::{create_journal, ensure_journal_root, journal_
 use crate::worktree_copy_journal_encoding_and_validation::JOURNAL_PARENT_NAME;
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_selection::CopySelection;
+use std::ffi::OsString;
+use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
 
@@ -396,7 +398,7 @@ fn an_unbound_add_deletes_nothing_and_is_reported() {
     assert!(container.exists(), "the stage stays");
     assert_eq!(notices.len(), 2, "{notices:?}");
     std::fs::set_permissions(container.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("writable");
-    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     assert!(notices[1].contains("nothing proves it is the add's") && notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
     assert!(destination.join(".git").exists(), "nothing was deleted");
     let again: Vec<String> = reap_abandoned_stages(common.as_path()).expect("again");
@@ -459,7 +461,7 @@ fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() 
     let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && admin.exists(), "nothing of the worktree was changed");
     assert_eq!(first.len(), 1, "{first:?}");
-    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     assert!(first[0].contains(format!("git -C {shown} reset --hard").as_str()) && first[0].contains(format!("git worktree remove --force {shown}").as_str()), "the report names what finishes or removes it: {}", first[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays while the worktree is not whole");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), first, "the next command says the same");
@@ -484,7 +486,7 @@ fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
     assert_eq!(notices.len(), 1, "{notices:?}");
-    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     assert!(notices[0].contains(format!("git -C {shown} reset --hard").as_str()) && notices[0].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records stay while the worktree is not whole");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), notices, "the next command says the same");
@@ -849,5 +851,140 @@ fn an_add_interrupted_in_a_worktree_of_an_empty_tree_settles_once_its_checkout_i
     assert_eq!(std::fs::read_dir(destination.as_path()).expect("listing").count(), 1, "the worktree holds only Git's pointer");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy ends the report");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
+    remove(root.as_path());
+}
+
+/// What:
+///  The awkward path shapes a command printed for a person has to survive:
+/// a shell expansion,
+/// a substitution,
+/// both quotes,
+/// a newline,
+/// a control character,
+/// a leading dash and bytes that are not UTF-8.
+/// Why:
+///   The instruction is copied into a shell,
+/// so a name is read by the shell and not only by the wrapper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = ['$bucket', '`id`', "it's", 'say "hi"', 'a\nb', '\x1b[31mred', '-leading', <0xff>];
+/// ```
+fn awkward_components() -> Vec<OsString> {
+    return vec![
+        OsString::from("$bucket"),
+        OsString::from("`id`"),
+        OsString::from("it's"),
+        OsString::from("say \"hi\""),
+        OsString::from("a\nb"),
+        OsString::from("escape\u{1b}[31mred"),
+        OsString::from("-leading-dash"),
+        OsString::from_vec(vec![b'n', b'o', b't', 0xff, b'.', b'd']),
+    ];
+}
+
+/// What:
+///  The commands a report of an interrupted add prints,
+/// as the shell would read them,
+/// naming exactly the
+///  destination and the lock file.
+/// Why:
+///   `git -C <path> reset --hard` and `rm <lock>` act on whatever path the shell read,
+/// so the text has
+///  to name one place under a shell,
+/// whatever the directory is called.
+/// A report that prints the path the way JSON does leaves
+///  `$` and a backquote to the shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const path of awkward) { const text = finishInstructions(path); for (const word of words(text)) expect(shellReads(word)).toEqual(word) }
+/// ```
+#[test]
+fn a_report_names_its_path_as_the_shell_reads_it_back() {
+    let root: PathBuf = fixture("claim-report-shell-quoting");
+    for component in awkward_components() {
+        let repository: PathBuf = root.join(&component).join("repo");
+        let admin: PathBuf = repository.join(".git/worktrees/topic");
+        std::fs::create_dir_all(admin.as_path()).expect("administrative directory");
+        std::fs::write(admin.join(INDEX_LOCK), b"").expect("the lock a killed Git leaves");
+        let destination: PathBuf = repository.join("topic");
+        let text: String = finish_instructions(destination.as_path(), admin.as_path());
+        let expected: Vec<(&str, &str, PathBuf)> = vec![
+            ("git -C ", " reset --hard", destination.clone()),
+            ("git worktree remove --force ", "` removes it.", destination.clone()),
+            ("rm ", "` removes it,", admin.join(INDEX_LOCK)),
+        ];
+        for (marker, end, path) in expected {
+            let word: &str = word_between(text.as_str(), marker, end);
+            assert_eq!(shell_reads(word), path.as_os_str().as_bytes(), "{marker}{word}{end} in {text}");
+        }
+        remove(repository.parent().expect("the component's directory"));
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The one word a report writes between `marker` and `end`,
+/// which is the word the person would copy.
+/// Why:
+///   The check reads what was printed,
+/// not what the code meant to print.
+fn word_between<'a>(text: &'a str, marker: &str, end: &str) -> &'a str {
+    let at: usize = match text.find(marker) {
+        Some(found) => found,
+        None => panic!("the report prints {marker}: {text}"),
+    };
+    let after: &str = &text[at + marker.len()..];
+    return &after[..match after.find(end) {
+        Some(found) => found,
+        None => panic!("the report ends the word with {end}: {text}"),
+    }];
+}
+
+/// What:
+///  What `bash` reads a word as,
+/// byte for byte.
+/// Why:
+///   A quoted word is right when a real shell hands the shell's own reader the same bytes;
+/// nothing
+///  else proves it.
+fn shell_reads(word: &str) -> Vec<u8> {
+    let printed: std::process::Output = std::process::Command::new("bash").arg("-c").arg(format!("printf %s {word}")).output().expect("start bash");
+    return printed.stdout;
+}
+
+/// What:
+///  The lock-removal instruction removes the lock it names and no other repository's lock at the path a
+///  shell would expand the name to.
+/// Why:
+///   The lock path is printed for the person to run,
+/// and a repository may live at a path holding `$bucket`:
+///  with the name quoted the way JSON quotes it,
+/// the shell expands it and `rm` clears another repository's lock while the
+///  named one stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = finishInstructions('/work/$bucket/repo/topic'); execSync(text.match(/`(rm [^`]*)`/)[1], { env: { bucket: 'other' } })
+/// ```
+#[test]
+fn the_lock_removal_instruction_clears_only_the_lock_it_names() {
+    let root: PathBuf = fixture("claim-lock-shell-quoting");
+    let literal: PathBuf = root.join("$bucket").join("repo");
+    let decoy: PathBuf = root.join("other").join("repo");
+    for repository in [&literal, &decoy] {
+        let admin: PathBuf = repository.join(".git/worktrees/topic");
+        std::fs::create_dir_all(admin.as_path()).expect("administrative directory");
+        std::fs::write(admin.join(INDEX_LOCK), b"").expect("a lock");
+    }
+    let admin: PathBuf = literal.join(".git/worktrees/topic");
+    let destination: PathBuf = literal.join("topic");
+    let text: String = finish_instructions(destination.as_path(), admin.as_path());
+    let command: &str = word_between(text.as_str(), "`rm ", "` removes it,");
+    let ran: std::process::Output = std::process::Command::new("bash").arg("-c").arg(format!("bucket=other; rm {command}")).output().expect("start bash");
+    assert!(ran.status.success(), "{text}: {}", String::from_utf8_lossy(&ran.stderr));
+    assert!(!admin.join(INDEX_LOCK).exists(), "the lock the report names is gone: {text}");
+    assert!(decoy.join(".git/worktrees/topic/index.lock").exists(), "another repository's lock at the path the shell expands the name to is untouched: {text}");
     remove(root.as_path());
 }

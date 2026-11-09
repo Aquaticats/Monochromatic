@@ -26,6 +26,7 @@ use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
+use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -59,6 +60,31 @@ pub struct CopyFacts {
     /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
     ///  absent for every other command.
     pub remove_plan: Option<RemovePlan>,
+}
+
+/// What:
+///  The words of a step as one line for a message,
+/// each quoted the way a shell reads it.
+/// Why:
+///   A stopped step is named by the command it ran,
+/// so a person can run it again,
+/// and a word holding
+///  a space,
+/// a `$` or a quote has to reach their shell as one word and no expansion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// arguments.map((word) => shellQuote(word)).join(' ')
+/// ```
+fn words_of(arguments: &[OsString]) -> String {
+    let mut text: String = String::new();
+    for (index, word) in arguments.iter().enumerate() {
+        if index > 0 {
+            text.push(' ');
+        }
+        text.push_str(crate::shell_quote::shell_quote(word.as_bytes()).as_str());
+    }
+    return text;
 }
 
 /// What:
@@ -365,27 +391,6 @@ fn run_settled(
     use crate::transaction_git::GitContext;
     use crate::worktree_copy::{GitRunner, GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
     use crate::worktree_copy_error::WorktreeCopyError;
-
-    /// What:
-    ///  The words of a step as one line for a message.
-    /// Why:
-    ///   A stopped step is named by the command it ran,
-    /// so a person can run it again.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// arguments.map(String).join(' ')
-    /// ```
-    fn words_of(arguments: &[OsString]) -> String {
-        let mut text: String = String::new();
-        for (index, word) in arguments.iter().enumerate() {
-            if index > 0 {
-                text.push(' ');
-            }
-            text.push_str(word.to_string_lossy().as_ref());
-        }
-        return text;
-    }
 
     /// What:
     ///  Decide once whether the checkout gets parallel workers,

@@ -1718,6 +1718,21 @@ because `git -C <path> reset --hard` cannot start while it stands
 (`fatal: Unable to create '.../index.lock': File exists`)
 and `git status` in the worktree still works,
 so nothing else would say why every write to it fails.
+Every path this report prints stands inside a command the person copies,
+so it is quoted the way a shell reads a word back
+(`crate::shell_quote`,
+the one owner of that spelling,
+`src/native/worktree/shell_quote.rs`):
+bare when every byte is one a shell leaves alone,
+single quotes around the rest,
+and the `$'...'` form for a control byte or a byte that is not UTF-8.
+A path holding `$`,
+a backquote,
+a quote,
+a newline or a leading dash therefore reaches the person's shell as one word and expands nothing,
+which JSON quoting did not do:
+`rm "/work/$bucket/repo/.git/worktrees/topic/index.lock"` removed the lock of another repository
+beneath `/work/other` when `bucket=other` stood in the person's shell.
 A record or a completion marker that cannot be
 looked up keeps the record and says that the state is unknown.
 The cost:

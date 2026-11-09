@@ -368,3 +368,24 @@ fn a_persons_own_read_tree_is_not_ended_at_the_ladder_ceiling() {
     assert!(linked.join("kept.txt").is_file(), "its checkout wrote the file");
     remove(root.as_path());
 }
+
+/// What:
+///  The step a stopped run names reaches a shell as the words it ran,
+/// whatever the person's path holds.
+/// Why:
+///   The line says the step did not finish and names it so a person can run it again;
+/// a path holding a
+///  space,
+/// a `$` or a backquote has to arrive as one word and with nothing expanded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(wordsOf(['-C', '/work/$bucket/a b', 'read-tree'])).toBe("-C '/work/$bucket/a b' read-tree")
+/// ```
+#[test]
+fn a_stopped_step_is_named_as_the_shell_reads_it() {
+    let words: Vec<OsString> = vec![OsString::from("-C"), OsString::from("/work/$bucket/a b"), OsString::from("read-tree")];
+    let printed: String = words_of(words.as_slice());
+    let read: std::process::Output = std::process::Command::new("bash").arg("-c").arg(format!("printf '%s|' {printed}")).output().expect("start bash");
+    assert_eq!(String::from_utf8_lossy(&read.stdout), "-C|/work/$bucket/a b|read-tree|", "the shell reads the three words, unexpanded: {printed}");
+}
