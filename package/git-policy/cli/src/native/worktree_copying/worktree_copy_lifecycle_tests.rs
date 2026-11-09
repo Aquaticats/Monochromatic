@@ -1653,12 +1653,12 @@ fn a_worktree_add_between_paths_that_are_not_text_copies_the_ignored_state() {
             repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step: &GitStep<'_>| {
-            let arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
+            let add_arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
                 .iter()
                 .map(OsString::from)
                 .chain([topic.clone().into_os_string()])
                 .collect();
-            let output: Output = git_output(source_canonical.as_path(), arguments.as_slice());
+            let output: Output = git_output(source_canonical.as_path(), add_arguments.as_slice());
             return Ok(GitStatus { code: output.status.code() });
         },
         &mut stderr,

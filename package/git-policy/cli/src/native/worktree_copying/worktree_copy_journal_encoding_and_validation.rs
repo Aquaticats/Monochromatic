@@ -319,9 +319,9 @@ pub fn is_canonical_absolute(path: &Path) -> bool {
     if rest.is_empty() {
         return true;
     }
-    return rest.split(|byte| *byte == b'/').all(|component| {
-        !component.is_empty() && component != b"." && component != b".."
-    });
+    return rest
+        .split(|byte| *byte == b'/')
+        .all(|component| return !component.is_empty() && component != b"." && component != b"..");
 }
 
 /// What:

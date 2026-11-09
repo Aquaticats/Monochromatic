@@ -799,14 +799,14 @@ fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes(
     );
     text_claim.release().expect("release");
     remove(root.as_path());
-    let (root, common, destination) = scene_with_bytes("claim-earlier-bytes", b"par\xffnt");
-    let bytes_claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
-    let text: String = std::fs::read_to_string(bytes_claim.path.as_path()).expect("claim file");
+    let (bytes_root, bytes_common, bytes_destination) = scene_with_bytes("claim-earlier-bytes", b"par\xffnt");
+    let bytes_claim: StageClaim = claim_stage_for(bytes_common.as_path(), bytes_destination.as_path(), &dead_copy_owner()).expect("claim");
+    let bytes_text: String = std::fs::read_to_string(bytes_claim.path.as_path()).expect("claim file");
     assert_eq!(
-        earlier_release_claim_container(text.as_str()),
+        earlier_release_claim_container(bytes_text.as_str()),
         None,
         "the installed release refuses rather than naming the replacement character"
     );
     bytes_claim.release().expect("release");
-    remove(root.as_path());
+    remove(bytes_root.as_path());
 }

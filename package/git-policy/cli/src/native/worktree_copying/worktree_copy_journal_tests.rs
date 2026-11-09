@@ -845,9 +845,9 @@ fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_byte
     remove(text_root.as_path());
     let (bytes_root, bytes_common, bytes_destination, bytes_snapshot) = staged_for_destination("journal-earlier-bytes", b"par\xffnt");
     let bytes_journal: PendingJournal = create_journal_for(bytes_common.as_path(), bytes_destination.as_path(), &bytes_snapshot, &dead_copy_owner()).expect("journal");
-    let text: String = std::fs::read_to_string(bytes_journal.path.as_path()).expect("journal file");
+    let bytes_text: String = std::fs::read_to_string(bytes_journal.path.as_path()).expect("journal file");
     assert_eq!(
-        earlier_release_roots(text.as_str()),
+        earlier_release_roots(bytes_text.as_str()),
         None,
         "the installed release refuses rather than naming the replacement character"
     );
