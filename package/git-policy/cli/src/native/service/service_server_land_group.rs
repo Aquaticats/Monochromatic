@@ -27,7 +27,8 @@ use crate::service_timing::{Answered, Arrival, LandTiming, answered_line, log_en
 use crate::service_protocol::{
     CommitRequest, FailureCode, LandingFigures, LandingSync, ServiceMessage,
 };
-/// What a batch of landings owes, named here so every caller of the group keeps one path.
+/// What a batch of landings owes,
+/// named here so every caller of the group keeps one path.
 pub(crate) use crate::service_server_land_group_owed_pushes::*;
 
 use std::collections::HashMap;
