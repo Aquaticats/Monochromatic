@@ -5,8 +5,7 @@
  */
 
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -345,9 +344,10 @@ export async function mergeOnto({
   other: Buffer;
 }>,): Promise<Buffer | 'conflict'> {
   /**
-   Scratch directory for the three inputs.
+   Scratch directory for the three inputs, which removes itself when this read returns or throws, so a failing run
+   leaves no directory behind.
    */
-  const directory = await mkdtemp(join(
+  await using directory = await mkdtempDisposable(join(
     repository.root,
     'merge-',
   ),);
@@ -356,15 +356,15 @@ export async function mergeOnto({
    */
   const files = {
     current: join(
-      directory,
+      directory.path,
       'current',
     ),
     base: join(
-      directory,
+      directory.path,
       'base',
     ),
     other: join(
-      directory,
+      directory.path,
       'other',
     ),
   };
@@ -395,20 +395,13 @@ export async function mergeOnto({
       files.base,
       files.other,
     ],
-    cwd: directory,
+    cwd: directory.path,
     env: repository.realEnv,
   },);
   /**
    Exact merged bytes; text capture is safe because merge-file refuses binary input.
    */
   const bytes = Buffer.from(merged.stdout,);
-  await rm(
-    directory,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
   return merged.exitCode === 0 ? bytes : 'conflict';
 }
 
