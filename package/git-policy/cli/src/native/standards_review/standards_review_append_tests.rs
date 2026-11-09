@@ -195,3 +195,26 @@ fn a_fragment_before_the_receipt_is_not_a_finished_review() {
     assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{fragment}{whole}"), "the fragment is kept and the whole entry follows it");
     remove(root.as_path());
 }
+
+/// The first byte of the two a subject's `é` is written as,
+/// left behind by a write the operating system cut short.
+const TORN_UTF8_FRAGMENT: [u8; 1] = [0xc3];
+
+/// A torn UTF-8 tail is one cut-short write,
+/// never a reason to stop logging:
+/// a later review still appends its entry,
+/// the torn bytes are kept,
+/// and an intact receipt before them still counts.
+#[test]
+fn a_torn_utf8_tail_does_not_stop_later_deliveries() {
+    let root: PathBuf = fixture("append-torn-utf8");
+    let log: PathBuf = root.join("log.md");
+    let mut seeded: Vec<u8> = entry("aaa").into_bytes();
+    seeded.extend_from_slice(&TORN_UTF8_FRAGMENT);
+    std::fs::write(log.as_path(), seeded.as_slice()).expect("seed the log");
+    assert_eq!(deliver(log.as_path(), sha("bbb").as_str(), entry("bbb").as_str()), Ok(Delivery::Appended), "a later review is still logged");
+    assert!(names_commit(log.as_path(), sha("aaa").as_str()), "the complete entry before the torn bytes still counts");
+    let written: Vec<u8> = std::fs::read(log.as_path()).expect("log");
+    assert!(written.starts_with(seeded.as_slice()), "the torn bytes are kept as they were");
+    remove(root.as_path());
+}
