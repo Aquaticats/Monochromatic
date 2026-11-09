@@ -54,11 +54,19 @@ fn the_restore_records_remove_the_resolved_entry_and_list_the_stages() {
 }
 
 /// The closing words differ by whether a conflicted file remains,
-/// and name the operation.
+/// and name the operation;
+/// the line after a finish that did not end the operation names the command that ends it,
+/// and never the failing step's own sentence about itself.
 #[test]
 fn the_closing_words_say_whether_a_conflict_remains() {
     assert!(closing_words("rebase", 0).contains("no conflicted file is left") && closing_words("rebase", 0).contains("finish the rebase"));
     assert!(closing_words("merge", 2).contains("still lists as conflicted") && closing_words("merge", 2).contains("git diff --cached"));
+    for (operation, ending) in [("merge", "`git commit`"), ("pull", "`git commit`"), ("rebase", "`git rebase --continue`"), ("cherry-pick", "`git cherry-pick --continue`"), ("revert", "`git revert --continue`")] {
+        let line: String = unfinished_words(operation, "notes.md");
+        assert!(line.contains(format!("the {operation} did not finish").as_str()) && line.contains("notes.md stays staged as resolved"), "{line}");
+        assert!(line.contains(ending), "{line}");
+        assert!(!line.contains("Nothing in the repository changed"), "the last word is not the failing step's sentence about itself: {line}");
+    }
 }
 
 /// A runner that records every start and fails the command it is told to.

@@ -7308,6 +7308,37 @@ with the fields
 `CLI_GIT_WORD_MERGE_BLOBS`
 (`base=<oid>,ours=<oid>,theirs=<oid>`, with `none` for a stage the merge had not).
 
+The list ends with one line that names what the pass staged
+(`monochromatic-git-policy-cli: word-level merge: staged as resolved by the second merge pass: <paths>. ...`),
+whether or not a finish follows it:
+the pass has already changed the index and the worktree,
+so no later step can be the only account of that change.
+When a finish is planned the line says the wrapper finishes the operation below;
+otherwise it says what is left to do.
+A finish that does not end the operation (a commit the commit service cannot be reached for,
+a commit a policy refuses,
+any other failure of the ending step)
+is followed by one line naming the state the person will find:
+the operation did not finish,
+the resolved files stay staged,
+the conflict they replaced is gone,
+and the command that ends that operation is named for it
+(`git commit` for a merge or a pull, `git rebase --continue`,
+`git cherry-pick --continue`,
+`git revert --continue`).
+The failing step's own words describe that step alone,
+and a commit's plain failure ends with "Nothing in the repository changed.",
+which is true of the commit and false of the merge that staged the files before it;
+the wrapper's line after it is the last word,
+and it is the true one.
+
+The merge stays in progress in that case (`MERGE_HEAD`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD` or the rebase state files as Git left them),
+the resolved files stay staged,
+and the exit status is the failing step's,
+so a script that tests it still stops.
+
 When every conflicted file of the command resolved,
 the operation is finished the way Git finishes it after a clean run
 (owner decision of 2026-11-03,

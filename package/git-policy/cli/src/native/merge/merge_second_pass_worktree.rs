@@ -35,7 +35,7 @@ use crate::child_environment::environment_value;
 use crate::conflict_side_state::conflicted_paths;
 use crate::diagnostic_log::{debug, warn};
 use crate::index_writer_forward::CoordinatedForward;
-use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
@@ -224,6 +224,50 @@ fn closing_words(operation: &str, remaining: usize) -> String {
 }
 
 /// What:
+///  The command that ends an operation the wrapper did not finish.
+/// Why:
+///   The line after a failed finish must name a way on that works for the operation at hand;
+/// Git ends a merge with `git commit`,
+/// and a
+///  rebase,
+/// a cherry-pick and a revert with their own `--continue`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endingCommand = (operation: string) => ({rebase: 'git rebase --continue', 'cherry-pick': 'git cherry-pick --continue', revert: 'git revert --continue'}[operation] ?? 'git commit');
+/// ```
+fn ending_command(operation: &str) -> &'static str {
+    return match operation {
+        "rebase" => "`git rebase --continue`",
+        "cherry-pick" => "`git cherry-pick --continue`",
+        "revert" => "`git revert --continue`",
+        _ => "`git commit`",
+    };
+}
+
+/// What:
+///  The line that says what is left after a finish that did not end the operation.
+/// Why:
+///   The ending step's own text is about that step alone:
+/// a commit that could not be made ends with
+///  "Nothing in the repository changed.",
+/// which is true of the commit and false of the merge,
+/// whose conflicts the pass
+///  replaced with staged files before the commit started.
+/// The last word a person reads must name the state they will find.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${LINE_PREFIX}${REPORT_MARK}: the ${operation} did not finish: ${listed} stays staged as resolved and the conflict is gone; run ${endingCommand(operation)} to end the ${operation}.`
+/// ```
+fn unfinished_words(operation: &str, listed: &str) -> String {
+    return format!(
+        "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {listed} stays staged as resolved and the conflict is gone; run {} to end the {operation}.",
+        ending_command(operation)
+    );
+}
+
+/// What:
 ///  After a forwarded operation that exited with a non-zero status,
 /// re-merge the conflicts it created.
 /// Why:
@@ -309,26 +353,31 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     } else {
         None
     };
+    let mut names: Vec<String> = Vec::new();
+    for file in &merged {
+        names.push(path_message_text(file.path.as_slice()));
+    }
+    let listed: String = names.join(", ");
+    // What the pass staged is said whether or not a finish follows: a finish that fails must not be the only account of it.
+    text.push_str(format!("{LINE_PREFIX}{REPORT_MARK}: staged as resolved by the second merge pass: {listed}. ").as_str());
     if planned.is_none() {
-        let mut names: Vec<String> = Vec::new();
-        for file in &merged {
-            names.push(path_message_text(file.path.as_slice()));
-        }
-        text.push_str(
-            format!(
-                "{LINE_PREFIX}{}: staged as resolved by the second merge pass: {}. {}\n",
-                crate::merge_second_pass::REPORT_MARK,
-                names.join(", "),
-                closing_words(operation.as_str(), remaining)
-            )
-            .as_str(),
-        );
+        text.push_str(format!("{}\n", closing_words(operation.as_str(), remaining)).as_str());
+    } else {
+        text.push_str(format!("The wrapper finishes the {operation} below, the way Git finishes a clean run.\n").as_str());
     }
     if let Err(error) = stderr.write_all(text.as_bytes()) {
         debug(TAG, format!("standard error did not take the list of merged files: {error}").as_str());
     }
     let plan = planned?;
-    return Some(finish(&plan, &forward.command, forward.environment.as_slice(), stderr));
+    let ended: i32 = finish(&plan, &forward.command, forward.environment.as_slice(), stderr);
+    if ended != 0 {
+        // The ending step's words are its own; the merge changed before it ran, and the person must be told.
+        let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str()));
+        if let Err(error) = stderr.write_all(after.as_bytes()) {
+            debug(TAG, format!("standard error did not take the line about the unfinished operation: {error}").as_str());
+        }
+    }
+    return Some(ended);
 }
 
 /// What:

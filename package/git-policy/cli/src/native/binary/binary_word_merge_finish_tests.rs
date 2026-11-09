@@ -103,6 +103,42 @@ fn each_operation_is_finished_like_a_clean_run() {
     }
 }
 
+/// What:
+///  A finish whose commit cannot reach the commit service says what the second pass did:
+/// the conflict is gone,
+/// the files are staged as resolved,
+/// and only the step that ends the operation was not made.
+/// Why:
+///   The commit's own failure text is true of the commit alone
+/// (it ends with `Nothing in the repository changed.`),
+/// while the second pass changed the index
+///  and the worktree before that commit started,
+/// so the last word must name the state the person will find.
+#[test]
+fn a_finish_that_cannot_reach_the_commit_service_names_what_changed() {
+    let fixture: Fixture = fixture("finish-no-service");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    let head: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    // No runtime directory and no session bus: this account has no way to start the commit service.
+    let observed: Observed = observe(
+        wrapped(&fixture).current_dir(repo.as_path()).env_remove("XDG_RUNTIME_DIR").env_remove("DBUS_SESSION_BUS_ADDRESS").args(arguments_of(Stop::Merge).as_slice()),
+        b"",
+    );
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(1), "{said}");
+    assert!(said.contains("this commit was not made"), "{said}");
+    assert!(said.contains("staged as resolved by the second merge pass"), "the pass says what it staged: {said}");
+    assert_eq!(status(&fixture, repo.as_path()), format!("M  {}", tracked(ADJACENT)), "the resolved file is staged: {said}");
+    assert_eq!(std::fs::read(repo.join(tracked(ADJACENT))).expect("the file"), corpus(ADJACENT, "word.out"), "the merged text is in the worktree: {said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "the conflict is gone: {said}");
+    assert_eq!(state_left(repo.as_path()), vec!["MERGE_HEAD"], "the merge is still in progress: {said}");
+    assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head, "no commit was made: {said}");
+    let last: &str = said.lines().last().expect("a last line");
+    assert!(last.contains("did not finish"), "the last word names the operation: {last}");
+    assert!(last.contains("staged as resolved") && last.contains("git commit"), "the last word names the state and the way on: {last}");
+    remove(&fixture);
+}
+
 /// A file that does not resolve keeps today's stop:
 /// nothing is committed and Git's status stays.
 /// (A revert has no such input in the
