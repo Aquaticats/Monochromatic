@@ -334,6 +334,42 @@ fn interrupted_installation_is_resumed() {
     remove(root.as_path());
 }
 
+/// A resumption that cannot finish ends the transaction with a notice that names the failure,
+/// keeps the destination's own differing entry,
+/// and is not counted as recovered.
+#[cfg(unix)]
+#[test]
+fn a_resumed_installation_that_fails_ends_with_a_notice() {
+    let root: PathBuf = fixture("recovery-failed-resumption");
+    let (source, topic) = linked_source(root.as_path());
+    // The destination holds its own entry at a staged path, so finishing the copy would overwrite it.
+    std::fs::create_dir_all(topic.join("cache")).expect("destination cache");
+    std::fs::write(topic.join("cache/data"), b"differs").expect("differing entry");
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    write_journal(pending.path.as_path(), &Journal { phase: Phase::Installing, ..pending.journal.clone() }).expect("installing phase");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let destination: String = quote(topic.to_string_lossy().as_ref());
+    assert_eq!(
+        report.notices,
+        vec![format!(
+            "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. monochromatic-git-policy-cli: ignored-state installation failed for {destination}. Cause: monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry \"cache/data\" in {destination}."
+        )]
+    );
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("kept"),
+        b"differs"
+    );
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
+    remove(root.as_path());
+}
+
 /// A copy from a main checkout that was killed after staging is resumed from its stage:
 /// the dependencies,
 /// the pnpm-style
