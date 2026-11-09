@@ -228,6 +228,12 @@ fn a_tree_that_moves_nothing_stalls_at_its_window() {
     let StopCause::Stalled(report) = cause else { panic!("a stall, not another limit") };
     assert_eq!(report.limit, stall);
     assert!(report.elapsed >= stall, "{:?}", report.elapsed);
+    // Progress, and not a clock: the report carries the bytes the meter counted, which is what says the stop was measured from
+    //  the tree and not from a constant.
+    assert_eq!(Some(report.moved), clock.meter.as_ref().map(Meter::moved), "the report carries the bytes the meter counted");
+    // The ceiling below is the one place this control still reads the clock, because the detector reads it too: nothing about
+    //  the tree's progress bounds how late this host wakes the poll loop. Measured on this host at a load average of 47: the
+    //  control reported at 1.7 s for a window of 1.2 s, so the 4.2 s ceiling carries 2.4 times the figure it was measured at.
     assert!(report.elapsed < stall + SAMPLE_INTERVAL * 6, "{:?}", report.elapsed);
     end(child);
 }
