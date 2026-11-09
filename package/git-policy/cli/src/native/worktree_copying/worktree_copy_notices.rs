@@ -43,7 +43,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DestinationOwnership = 'mine' | 'anothers' | 'made again';
+/// type DestinationOwnership = 'mine' | 'anothers' | 'made again' | 'git failed';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DestinationOwnership {
@@ -55,6 +55,9 @@ pub(crate) enum DestinationOwnership {
     Anothers,
     /// The destination this command made is gone and something else stands at its path.
     MadeAgain,
+    /// This command's own Git did not succeed,
+    /// so the registration it found is not the one its Git made.
+    GitFailed,
 }
 
 /// What:
@@ -70,18 +73,24 @@ pub(crate) enum DestinationOwnership {
 /// ```ts
 /// function ownershipOf(reserved: Reservation, destination: string): DestinationOwnership;
 /// ```
-pub(crate) fn ownership_of(reserved: &Reservation) -> DestinationOwnership {
+pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool) -> DestinationOwnership {
+    // Only a Git that returned success registered the worktree this command asked for: a refusal means another command's
+    // registration stands at the path, and a failure after registering means the checkout may be half done, so neither is
+    // one this command fills.
+    if !git_succeeded {
+        return DestinationOwnership::GitFailed;
+    }
     return match reserved {
-        Reservation::Anothers => DestinationOwnership::Anothers,
-        Reservation::NotAttempted => DestinationOwnership::Anothers,
-        // `match` on the identity the reservation recorded and the identity the path holds now: a destination that could
-        // not be identified at reservation time cannot be proven either, so it is not this command's to fill.
+        // A destination this command reserved is still its own while the object at the path is the one it made; a
+        // destination it did not reserve is this command's only because its own Git filled it, which the success above
+        // establishes.
         Reservation::Mine(made) => match made.identity {
             Some(identity) if crate::worktree_add_binding::path_identity(made.path.as_path()) == Some(identity) => {
                 DestinationOwnership::Mine
             }
             _ => DestinationOwnership::MadeAgain,
         },
+        Reservation::Anothers | Reservation::NotAttempted => DestinationOwnership::Mine,
     };
 }
 
@@ -103,8 +112,10 @@ pub(crate) fn ownership_of(reserved: &Reservation) -> DestinationOwnership {
 pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let why: &str = match ownership {
-        DestinationOwnership::Anothers => "another `git worktree add` made it, so its own command copies its ignored state, or a directory that was there before this command made it, so no copy was made",
-        DestinationOwnership::MadeAgain | DestinationOwnership::Mine => "it is no longer the directory this command made, so the worktree that stands there is another command's",
+        DestinationOwnership::Anothers => "another `git worktree add` made it, so its own command copies its ignored state",
+        DestinationOwnership::MadeAgain => "it is no longer the directory this command made, so the worktree that stands there is another command's",
+        DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
+        DestinationOwnership::Mine => "it is not this command's to fill",
     };
     return format!(
         "monochromatic-git-policy-cli: {shown} received no ignored-state copy: {why}. A directory that was there before this command may be removed and the same line run again to have the copy made. `git worktree list` shows the worktrees of this repository.\n"

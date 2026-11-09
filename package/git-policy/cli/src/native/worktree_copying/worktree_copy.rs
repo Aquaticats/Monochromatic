@@ -52,7 +52,7 @@ use crate::worktree_copy_synchronize::synchronize_after;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
-use crate::worktree_subvolume::{Reservation, reserve_destination, settle_subvolume_destination};
+use crate::worktree_subvolume::{CreatedSubvolume, Reservation, reserve_destination, settle_subvolume_destination};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
 #[cfg(target_os = "linux")]
@@ -318,9 +318,21 @@ fn settle_creation(
     // there copies nothing. A rung that already made its destination settles it itself, so its identity is not reserved
     // again here.
     let reserve_destination_entered: bool = begin_step("reserveDestination");
+    // A rung may have made the destination already, as an empty subvolume Git fills: that object is this command's too,
+    // and its rung settles it, so it is carried forward rather than reserved again. Otherwise one exclusive creation
+    // decides the owner, and no other command's Git can be the one whose worktree this command fills.
+    let mut made_here: bool = false;
     let reserved: Reservation = match (copies, ladder.destination_identity()) {
+        (true, Some(identity)) => match invocation.destination.as_deref() {
+            Some(destination) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(identity) }),
+            None => Reservation::NotAttempted,
+        },
         (true, None) => match invocation.destination.as_deref() {
-            Some(destination) => reserve_destination(destination),
+            Some(destination) => {
+                let reservation: Reservation = reserve_destination(destination);
+                made_here = matches!(reservation, Reservation::Mine(_));
+                reservation
+            }
             None => Reservation::NotAttempted,
         },
         _ => Reservation::NotAttempted,
@@ -364,13 +376,24 @@ fn settle_creation(
         };
     // A destination this command reserved and no copy filled is removed again while it is still empty and still this
     // command's, so a refused add leaves no empty directory that the next attempt finds already there.
-    if let Reservation::Mine(made) = &reserved {
+    if made_here
+        && let Reservation::Mine(made) = &reserved
+    {
         settle_subvolume_destination(made);
     }
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
     // settled here: the add is whole, so the record says so before it goes. A copy that failed is not that: the worktree
     // was never filled, so the record stays and the next command reports it as an interrupted add.
+    // A destination that still exists after a Git that failed is a worktree this command asked for and did not fill: the
+    // record stays, so a later command reports it instead of finding a worktree that looks whole.
+    let unfilled: bool = copies
+        && !git.succeeded()
+        && invocation
+            .destination
+            .as_deref()
+            .is_some_and(|destination| std::fs::symlink_metadata(destination).is_ok());
     if copy_failure.is_none()
+        && !unfilled
         && let Some(unused) = held.take()
     {
         let release_unused_entered: bool = begin_step("releaseClaim");

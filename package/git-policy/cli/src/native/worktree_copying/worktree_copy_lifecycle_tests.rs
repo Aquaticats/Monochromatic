@@ -532,16 +532,16 @@ fn two_adds_at_one_destination_copy_once_into_the_reserved_directory() {
     let said: String = String::from_utf8(stderr).expect("utf8");
     assert_eq!(
         std::fs::read(destination.join("cache/from-this-command")).ok(),
-        Some(b"mine".to_vec()),
-        "the command that reserved the destination filled it: {said}"
+        None,
+        "this command wrote nothing into a worktree its own Git did not register: {said}"
     );
     let other_said: String = String::from_utf8(other_stderr).expect("utf8");
-    assert_ne!(
+    assert_eq!(
         std::fs::read(destination.join("cache/data")).ok(),
         Some(b"payload".to_vec()),
-        "the other command wrote nothing into a destination it did not reserve: {other_said}"
+        "the command whose Git succeeded filled it: {other_said}"
     );
-    assert!(other_said.contains("received no ignored-state copy"), "{other_said}");
+    assert!(said.contains("did not succeed"), "the person is told why nothing was copied: {said}");
     remove(root.as_path());
 }
 
@@ -614,11 +614,8 @@ fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_fil
 }
 
 
-/// One destination,
-/// one copy:
-/// the command that reserved the directory fills it,
-/// whatever its own Git then returns,
-/// and the other command writes nothing and says so.
+/// One destination, one copy: the command whose own Git succeeded fills it,
+/// and the command Git refused writes nothing and says so.
 #[cfg(unix)]
 #[test]
 fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
@@ -650,7 +647,7 @@ fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
             repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_: &GitStep<'_>| {
-            // Another command at the same destination, whose own Git fills this command's reserved directory.
+            // Another command at the same destination, whose own Git registers and fills the worktree.
             let other: Invocation = creation_from(main.as_path(), common.as_path(), Some(destination.as_path()));
             let _settled = run_with_worktree_copy(
                 &other,
@@ -665,22 +662,19 @@ fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
     )
     .expect("settled");
     assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+    let said: String = String::from_utf8(stderr).expect("utf8");
     assert_eq!(
         std::fs::read(destination.join("cache/from-this-command")).ok(),
-        Some(b"mine".to_vec()),
-        "the command that reserved the destination filled it: {}",
-        String::from_utf8_lossy(stderr.as_slice())
+        None,
+        "this command wrote nothing into a worktree its own Git did not register: {said}"
     );
-    let other_said: String = String::from_utf8(other_stderr).expect("utf8");
-    assert_ne!(
+    assert_eq!(
         std::fs::read(destination.join("cache/data")).ok(),
         Some(b"payload".to_vec()),
-        "the other command wrote nothing into a destination it did not reserve: {other_said}"
+        "the command whose Git succeeded filled it: {}",
+        String::from_utf8_lossy(other_stderr.as_slice())
     );
-    assert!(
-        other_said.contains("received no ignored-state copy"),
-        "the other command says it wrote nothing: {other_said}"
-    );
+    assert!(said.contains("did not succeed"), "the person is told why nothing was copied: {said}");
     remove(root.as_path());
 }
 
@@ -723,8 +717,9 @@ fn two_adds_at_one_absent_destination_fill_it_once() {
         "exactly one command filled the worktree: {}",
         String::from_utf8_lossy(stderr.as_slice())
     );
+    // The refused command cannot know the worktree is whole: its record stays until a later command settles it.
     let records: Vec<String> = recorded_names(common.as_path());
-    assert!(records.is_empty(), "a worktree that was filled leaves no unfilled record: {records:?}");
+    assert_eq!(records.iter().filter(|name| return name.ends_with(".add")).count(), 1, "the refused command's record stays: {records:?}");
     remove(root.as_path());
 }
 
@@ -1070,17 +1065,20 @@ fn a_destination_registered_before_is_not_copied_into_again() {
     remove(root.as_path());
 }
 
-/// Git failing after it registered the worktree keeps Git's status and still copies the ignored state.
+/// A Git that failed after registering the worktree leaves it unfilled and keeps the record that says so:
+/// only a Git that returned success registered the worktree this command asked for,
+/// and a later command reports the
+///  unfilled one instead of treating it as whole.
 #[cfg(unix)]
 #[test]
-fn a_creation_that_failed_after_registering_still_copies() {
+fn a_creation_that_failed_after_registering_keeps_the_record_and_copies_nothing() {
     let root: PathBuf = fixture("lifecycle-failed-after-registering");
     let (main, common) = source(root.as_path());
     let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step: &GitStep<'_>| {
+        &mut |_: &GitStep<'_>| {
             run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice());
             return Ok(GitStatus { code: Some(1) });
         },
@@ -1088,7 +1086,11 @@ fn a_creation_that_failed_after_registering_still_copies() {
     )
     .expect("settled");
     assert_eq!(exit_code(&settlement), 1);
-    assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied anyway"), b"payload");
+    assert_eq!(std::fs::read(topic.join("cache/data")).ok(), None, "nothing was copied into a worktree Git did not complete");
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert!(said.contains("did not succeed"), "the person is told why: {said}");
+    let records: Vec<String> = recorded_names(common.as_path());
+    assert_eq!(records.iter().filter(|name| return name.ends_with(".add")).count(), 1, "the record of the unfilled worktree stays: {records:?}");
     remove(root.as_path());
 }
 

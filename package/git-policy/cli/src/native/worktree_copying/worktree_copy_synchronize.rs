@@ -41,6 +41,26 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// What:
+///  Whether the destination is absent,
+/// or an empty directory holding nothing Git made.
+/// Why:
+///   A `git worktree add` that Git refused for a reason of its own leaves the empty directory this command reserved;
+/// there is
+///  then no worktree to explain a missing copy for and nothing to report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nothingButAReservation(destination: string): boolean; // absent, or an empty directory
+/// ```
+fn nothing_but_a_reservation(destination: &Path) -> bool {
+    // `match` on the listing: an absent path and an empty directory both mean Git made nothing here.
+    return match std::fs::read_dir(destination) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(_absent) => true,
+    };
+}
+
+/// What:
 ///  Ends a copy that failed after its stage was made and before any journal named it:
 /// the staged bytes are removed,
 /// and the
@@ -420,8 +440,13 @@ pub(crate) fn synchronize_after(
     if !copies {
         return Ok(Vec::new());
     }
-    let ownership: DestinationOwnership = ownership_of(reserved);
+    let ownership: DestinationOwnership = ownership_of(reserved, git_succeeded);
     if ownership != DestinationOwnership::Mine {
+        // A Git that never made the destination leaves nothing to explain: its own error is the whole report, and the
+        // empty directory this command reserved is removed again below.
+        if ownership == DestinationOwnership::GitFailed && nothing_but_a_reservation(destination) {
+            return Ok(Vec::new());
+        }
         let line: String = not_this_commands_destination_notice(destination, ownership);
         stderr
             .write_all(line.as_bytes())
@@ -439,6 +464,21 @@ pub(crate) fn synchronize_after(
             registered_before,
             mine.as_str(),
         )?;
+    // The registration is bound once Git has returned; a reservation it does not describe is another command's
+    // registration at this command's path, made after the ownership answer was read.
+    if let Reservation::Mine(made) = reserved
+        && let Some(identity) = made.identity
+    {
+        for worktree in &found.created {
+            if worktree.binding.destination_id != identity {
+                let line: String = not_this_commands_destination_notice(destination, DestinationOwnership::MadeAgain);
+                stderr
+                    .write_all(line.as_bytes())
+                    .map_err(raw_failure_of)?;
+                return Ok(Vec::new());
+            }
+        }
+    }
     // The registration at the destination proves it was made by another command, so this command's own worktree is not
     // there and nothing is written into that one: its ignored state is that command's to copy.
     if let Some(other) = found.other_commands.as_deref() {
