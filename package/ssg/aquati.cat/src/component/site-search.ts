@@ -31,6 +31,7 @@ import { icon, } from '../lib/icon/icon.ts';
 import {
   BORDER_WIDTH_REM,
   FONT_SIZE_SMALL,
+  FONT_WEIGHT_EMPHASIS,
   GAP,
   GAP_SMALL,
   TOUCH_TARGET,
@@ -213,10 +214,10 @@ export function css(): string {
             display: 'block',
           },
         },),
-        $({
+        $({ 
           rule: '.search-title',
           decls: {
-            'font-weight': 600,
+            'font-weight': FONT_WEIGHT_EMPHASIS,
           },
         },),
         $({
@@ -232,7 +233,7 @@ export function css(): string {
           decls: {
             'background-color': 'transparent',
             color: cssVar('color-link',),
-            'font-weight': 600,
+            'font-weight': FONT_WEIGHT_EMPHASIS,
           },
         },),
       ],

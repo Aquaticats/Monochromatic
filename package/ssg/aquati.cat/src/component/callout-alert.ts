@@ -130,11 +130,6 @@ export function CalloutAlert(props: {
 const ALERT_BORDER_REM = 0.25;
 
 /**
- Emphasis font-weight for the indicator label.
- */
-const INDICATOR_WEIGHT = 600;
-
-/**
  Per-type accent color expression.
  
  Derives from existing link tokens via `color-mix()` so alerts flip with

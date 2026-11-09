@@ -37,6 +37,7 @@ import {
   type SafeHtml,
 } from '../lib/jsx-to-html.ts';
 import {
+  FONT_WEIGHT_EMPHASIS,
   GAP,
   GAP_SMALL,
 } from '../style/constants.ts';
@@ -321,14 +322,6 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
 const COLOR_MIX_RATIO = '65%';
 
 /**
- Emphasis font-weight for the chosen and revealed labels.
- 
- Literal kept out of {@link css} itself so a single point of change propagates
- to any future variant rule.
- */
-const EMPHASIS_WEIGHT = 600;
-
-/**
  Slight font-size reduction for the per-option explanation text, in em.
  */
 const EXPLANATION_FONT_SIZE_EM = 0.95;
@@ -368,7 +361,7 @@ export function css(): string {
         rule: '.scenario',
         decls: {
           'margin-block-end': cssRem(GAP_SMALL,),
-          'font-weight': EMPHASIS_WEIGHT,
+          'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
       $({
@@ -409,14 +402,14 @@ export function css(): string {
         rule: 'input:checked[data-correct] + label',
         decls: {
           color: cssVar('quiz-ok',),
-          'font-weight': EMPHASIS_WEIGHT,
+          'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
       $({
         rule: 'input:checked:not([data-correct]) + label',
         decls: {
           color: cssVar('quiz-err',),
-          'font-weight': EMPHASIS_WEIGHT,
+          'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
     ],
