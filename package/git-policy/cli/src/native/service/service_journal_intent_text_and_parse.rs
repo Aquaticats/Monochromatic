@@ -21,6 +21,8 @@
 //! const text = intentText(intent); const intent2 = parseIntent(text); // undefined when damaged
 //! ```
 
+use crate::path_bytes_in_records::{HEX_SUFFIX, path_of_hex};
+use crate::path_bytes_in_records as path_bytes;
 use crate::repo_read_layout::dot_git_target;
 use crate::service_protocol::Cleanup;
 use std::path::{Path, PathBuf};
@@ -78,30 +80,75 @@ pub struct Intent {
     pub git_dir: PathBuf,
 }
 
+/// What:
+///  The lines a path takes in an intent:
+/// the plain text under `key` when one line can hold it,
+/// and its bytes in hexadecimal under `key` followed by `HEX_SUFFIX` always.
+/// Why:
+///   A reader prefers the bytes,
+/// so a path that is not text survives;
+/// the plain line stays for the records of an earlier release and for a person reading the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathLines = (key, path) => [textInOneLine(path) && `${key}=${textInOneLine(path)}`, `${key}Hex=${pathBytesHex(path)}`].filter(Boolean)
+/// ```
+fn path_lines(key: &str, path: &Path) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(text) = path_bytes::text_in_one_line(path) {
+        lines.push(format!("{key}={text}"));
+    }
+    lines.push(format!("{key}{HEX_SUFFIX}={}", path_bytes::hex_of_path(path)));
+    return lines;
+}
+
+/// What:
+///  The lines of an intent's cleanup:
+/// the Git directory,
+/// the scratch directory and the reftable flag,
+/// as tab-separated items,
+/// in both forms a path takes.
+/// Why:
+///   The cleanup is one field of the intent,
+/// so its two paths are one line,
+/// and a reader prefers the line that holds their bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cleanupLines = (cleanup) => cleanup ? [`cleanup=${gitDir}\t${scratch}\t${flag}`, `cleanupHex=${hex(gitDir)}\t${hex(scratch)}\t${flag}`] : []
+/// ```
+fn cleanup_lines(cleanup: Option<&Cleanup>) -> Vec<String> {
+    let Some(found) = cleanup else {
+        return Vec::new();
+    };
+    let mut lines: Vec<String> = Vec::new();
+    if let (Some(git_dir), Some(scratch)) = (path_bytes::text_in_one_line(found.git_dir.as_path()), path_bytes::text_in_one_line(found.scratch.as_path())) {
+        lines.push(format!("cleanup={git_dir}\t{scratch}\t{}", u8::from(found.reftable)));
+    }
+    lines.push(format!("cleanup{HEX_SUFFIX}={}\t{}\t{}", path_bytes::hex_of_path(found.git_dir.as_path()), path_bytes::hex_of_path(found.scratch.as_path()), u8::from(found.reftable)));
+    return lines;
+}
+
 /// The text of an intent:
 /// `key=value` lines,
 /// tabs between list items.
 pub fn intent_text(intent: &Intent) -> String {
-    let cleanup: String = match intent.cleanup.as_ref() {
-        Some(found) => format!("{}\t{}\t{}", found.git_dir.display(), found.scratch.display(), u8::from(found.reftable)),
-        None => String::new(),
-    };
-    return format!(
-        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\nderived={}\ncleanup={}\nindex={}\ngitdir={}\n",
-        intent.seq,
-        intent.repository.display(),
-        intent.common_dir.display(),
-        intent.reference,
-        intent.old,
-        intent.new,
-        intent.ids.join("\t"),
-        intent.commits.join("\t"),
-        intent.paths.join("\t"),
-        u8::from(intent.derived),
-        cleanup,
-        intent.index.display(),
-        intent.git_dir.display(),
-    );
+    let mut lines: Vec<String> = vec![format!("seq={}", intent.seq)];
+    lines.extend(path_lines("repository", intent.repository.as_path()));
+    lines.extend(path_lines("common", intent.common_dir.as_path()));
+    lines.extend([
+        format!("ref={}", intent.reference),
+        format!("old={}", intent.old),
+        format!("new={}", intent.new),
+        format!("ids={}", intent.ids.join("\t")),
+        format!("commits={}", intent.commits.join("\t")),
+        format!("paths={}", intent.paths.join("\t")),
+        format!("derived={}", u8::from(intent.derived)),
+    ]);
+    lines.extend(cleanup_lines(intent.cleanup.as_ref()));
+    lines.extend(path_lines("index", intent.index.as_path()));
+    lines.extend(path_lines("gitdir", intent.git_dir.as_path()));
+    return format!("{}\n", lines.join("\n"));
 }
 
 /// What:
@@ -150,6 +197,25 @@ pub(crate) fn intent_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 }
 
 /// What:
+///  The path an intent holds under `key`:
+/// the bytes of the line that follows it with `HEX_SUFFIX` when the intent has one,
+/// the plain text otherwise.
+/// Why:
+///   A path that is not text survives only in the bytes,
+/// and an intent an earlier release wrote holds only the plain line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const intentPath = (text, key) => { const hex = value(text, key + 'Hex'); return hex === undefined ? value(text, key) : pathOfHex(hex); };
+/// ```
+pub(crate) fn intent_path(text: &str, key: &str) -> Option<PathBuf> {
+    if let Some(hexadecimal) = intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()) {
+        return path_of_hex(hexadecimal);
+    }
+    return intent_value(text, key).map(PathBuf::from);
+}
+
+/// What:
 ///  The tab-separated items of an intent field,
 /// empty items left out.
 /// Why:
@@ -184,9 +250,12 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
 /// ```ts
 /// const [gitDir, scratch, reftable] = entry.split('\t'); return reftable === undefined ? undefined : { gitDir, scratch, reftable: reftable === '1' };
 /// ```
-pub(crate) fn parse_cleanup(entry: &str) -> Option<Cleanup> {
+pub(crate) fn parse_cleanup(entry: &str, hexadecimal: bool) -> Option<Cleanup> {
     let mut parts = entry.split('\t');
     let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
+    if hexadecimal {
+        return Some(Cleanup { git_dir: path_bytes::path_of_hex(git_dir)?, scratch: path_bytes::path_of_hex(scratch)?, reftable: reftable == "1" });
+    }
     return Some(Cleanup { git_dir: PathBuf::from(git_dir), scratch: PathBuf::from(scratch), reftable: reftable == "1" });
 }
 
@@ -201,22 +270,22 @@ pub(crate) fn parse_cleanup(entry: &str) -> Option<Cleanup> {
 /// parseIntent(text) // undefined when damaged
 /// ```
 pub fn parse_intent(text: &str) -> Option<Intent> {
+    let repository: PathBuf = intent_path(text, "repository")?;
     // An intent written before the index was recorded names it as the repository's own.
-    let index: PathBuf = match intent_value(text, "index") {
-        Some(named) => PathBuf::from(named),
-        None => PathBuf::from(intent_value(text, "repository").unwrap_or("")).join(".git").join("index"),
+    let index: PathBuf = match intent_path(text, "index") {
+        Some(named) => named,
+        None => repository.join(".git").join("index"),
     };
-    let repository: PathBuf = PathBuf::from(intent_value(text, "repository")?);
     // An intent written before the Git directory was recorded names its worktree by the repository it was made for, never
     //  by the directory its index sits in, which `GIT_INDEX_FILE` can put anywhere.
-    let worktree_git_dir: PathBuf = match intent_value(text, "gitdir") {
-        Some(named) => PathBuf::from(named),
+    let worktree_git_dir: PathBuf = match intent_path(text, "gitdir") {
+        Some(named) => named,
         None => git_dir_of_worktree(repository.as_path()),
     };
     return Some(Intent {
         seq: intent_value(text, "seq")?.parse().ok()?,
         repository,
-        common_dir: PathBuf::from(intent_value(text, "common")?),
+        common_dir: intent_path(text, "common")?,
         reference: intent_value(text, "ref")?.to_string(),
         old: intent_value(text, "old")?.to_string(),
         new: intent_value(text, "new")?.to_string(),
@@ -227,6 +296,10 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         derived: intent_value(text, "derived") == Some("1"),
         index,
         git_dir: worktree_git_dir,
-        cleanup: intent_value(text, "cleanup").and_then(parse_cleanup),
+        // The line that holds the paths' bytes is the one a reader takes; the plain line is an earlier release's.
+        cleanup: match intent_value(text, &format!("cleanup{HEX_SUFFIX}")) {
+            Some(hexadecimal) => parse_cleanup(hexadecimal, true),
+            None => intent_value(text, "cleanup").and_then(|plain| { return parse_cleanup(plain, false); }),
+        },
     });
 }

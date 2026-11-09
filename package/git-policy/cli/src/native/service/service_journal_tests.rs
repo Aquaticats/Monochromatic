@@ -42,9 +42,66 @@ fn a_derived_index_rule_and_a_cleanup_round_trip_and_older_intents_name_neither(
     sent.derived = true;
     sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"), reftable: true });
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent.clone()));
-    let older: String = intent_text(&intent(9)).lines().filter(|line| { return !line.starts_with("derived=") && !line.starts_with("cleanup="); }).collect::<Vec<&str>>().join("\n");
+    let older: String = intent_text(&intent(9)).lines().filter(|line| { return !line.starts_with("derived=") && !line.starts_with("cleanup"); }).collect::<Vec<&str>>().join("\n");
     let read: Intent = parse_intent(older.as_str()).expect("an older intent still reads");
     assert!(!read.derived && read.cleanup.is_none());
+}
+
+/// What:
+///  An intent of a repository whose paths are not text round-trips,
+/// every byte of every path kept.
+/// Why:
+///   A restart finishes the batch the intent describes by its repository,
+/// its index and its Git directory,
+/// so a path that lost its bytes would name another place,
+/// or none.
+#[test]
+fn an_intent_of_a_repository_that_is_not_text_round_trips() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let mut sent: Intent = intent(11);
+    sent.repository = PathBuf::from(OsStr::from_bytes(b"/work/r\xffpo"));
+    sent.common_dir = sent.repository.join(OsStr::from_bytes(b".g\xffit"));
+    sent.index = sent.common_dir.join("index");
+    sent.git_dir = sent.repository.join(".git");
+    sent.cleanup = Some(Cleanup { git_dir: sent.common_dir.clone(), scratch: sent.common_dir.join(OsStr::from_bytes(b"monochromatic-git-policy-cli-service-\xffx")), reftable: false });
+    assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent));
+}
+
+/// What:
+///  An intent written by a release that spelled its paths as plain text is still read,
+/// and those spellings are the paths.
+/// Why:
+///   A service that starts across a batch of an upgrade must finish that batch,
+/// not drop it.
+#[test]
+fn an_intent_of_an_earlier_release_is_still_read() {
+    let older: &str = "seq=3\nrepository=/srv/repo\ncommon=/srv/repo/.git\nref=refs/heads/main\nold=aaaa\nnew=bbbb\nids=id-1\ncommits=cccc\npaths=src/a.txt\nderived=0\ncleanup=\nindex=/srv/repo/.git/index\ngitdir=/srv/repo/.git\n";
+    let read: Intent = parse_intent(older).expect("an earlier intent still reads");
+    assert_eq!(read.repository, PathBuf::from("/srv/repo"));
+    assert_eq!(read.common_dir, PathBuf::from("/srv/repo/.git"));
+    assert_eq!(read.index, PathBuf::from("/srv/repo/.git/index"));
+    assert_eq!(read.git_dir, PathBuf::from("/srv/repo/.git"));
+    assert!(read.cleanup.is_none(), "an empty cleanup field names none");
+    assert_eq!(read.reference, "refs/heads/main");
+}
+
+/// What:
+///  A path that holds a line break is one field of the intent and cannot add a line of its own.
+/// Why:
+///   The lines are the record,
+/// so a path whose text holds a line break would otherwise end its line early and the text after the break
+/// would be read as another field,
+/// naming a branch or a directory nobody chose.
+#[test]
+fn a_path_that_holds_a_line_break_cannot_add_a_line() {
+    let mut sent: Intent = intent(12);
+    sent.repository = PathBuf::from("/work/re\nref=refs/heads/evil\npo");
+    let text: String = intent_text(&sent);
+    assert_eq!(text.lines().filter(|line| { return line.starts_with("ref="); }).count(), 1, "the intent has one branch line: {text}");
+    let read: Intent = parse_intent(text.as_str()).expect("reads");
+    assert_eq!(read.reference, "refs/heads/main");
+    assert_eq!(read.repository, sent.repository);
 }
 
 /// The text of an intent without its Git directory,
@@ -54,7 +111,7 @@ fn older_text(repository: &Path, index: &Path) -> String {
     let mut sent: Intent = intent(10);
     sent.repository = repository.to_path_buf();
     sent.index = index.to_path_buf();
-    return intent_text(&sent).lines().filter(|line| { return !line.starts_with("gitdir="); }).collect::<Vec<&str>>().join("\n") + "\n";
+    return intent_text(&sent).lines().filter(|line| { return !line.starts_with("gitdir"); }).collect::<Vec<&str>>().join("\n") + "\n";
 }
 
 /// An intent written before it recorded its Git directory names the Git directory of its repository,

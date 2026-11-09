@@ -79,6 +79,26 @@ pub fn path_of_hex(hex: &str) -> Option<PathBuf> {
 }
 
 /// What:
+///  The path as text when one `key=value` line of a line-oriented record can hold it,
+/// nothing when it cannot.
+/// Why:
+///   A record of lines separates them by line breaks and fields by tabs,
+/// so a path that holds one of those would end its line or its field early and name elsewhere;
+/// `hex_of_path` is the form such a record always takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const textInOneLine = (path: string) => /[\n\r\t]/.test(path) ? undefined : path;
+/// ```
+pub fn text_in_one_line(path: &Path) -> Option<&str> {
+    let text: &str = path.to_str()?;
+    if text.contains(['\n', '\r', '\t']) {
+        return None;
+    }
+    return Some(text);
+}
+
+/// What:
 ///  Put `path` into the record `fields` under `key` as plain text and under `key` followed by
 /// `HEX_SUFFIX` as its bytes.
 /// Why:
