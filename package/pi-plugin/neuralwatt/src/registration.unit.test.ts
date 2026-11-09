@@ -8,10 +8,9 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   readdir,
-  rm,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -370,9 +369,10 @@ await describe({
       name: 'leaves models-store.json, models.json, and enabledModels byte-identical across a refresh',
       fn: async () => {
         /**
-         Disposable home the guard owns outright.
+         Disposable home the guard owns outright, removed when the test scope ends.
          */
-        const home = await mkdtemp(join(await scratchRoot(), 'neuralwatt-guard-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(await scratchRoot(), 'neuralwatt-guard-',),);
+        const home = scratchDirectory.path;
         /**
          Store files the guard pins byte-for-byte.
          */
@@ -427,10 +427,6 @@ await describe({
           expect(await readFile(join(home, name,), 'utf8',)).toBe(watched[name] ?? '');
         },));
         expect((await readdir(home,)).toSorted()).toEqual(beforeListing);
-        await rm(home, {
-          recursive: true,
-          force: true,
-        },);
       },
     }),
   ],

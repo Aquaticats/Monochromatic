@@ -116,7 +116,8 @@ await describe({
             /**
              Disposable host.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             /**
              Sensors discovered in the fixture.
              */

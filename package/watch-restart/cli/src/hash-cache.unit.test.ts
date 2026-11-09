@@ -5,8 +5,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
+  type DisposableTempDir,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -36,16 +36,16 @@ const SHA256_HEX_OF_HELLO =
  
  @example
  ```ts
- const dir = await makeTmpDir();
+ await using directory = await makeTmpDir();
+ const dir = directory.path;
  const file = join(dir, 'a.txt',);
  await writeFile(file, 'hello',);
- await rm(dir, { recursive: true, },);
  ```
  
  @returns absolute path of a freshly-created temp directory
  */
-async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(scratchRoot(), 'watch-restart-hash-cache-',),);
+async function makeTmpDir(): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(scratchRoot(), 'watch-restart-hash-cache-',),);
 }
 
 await describe({
@@ -57,42 +57,43 @@ await describe({
         it({
           name: 'returns sha256 hex of file bytes (round-trip)',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'a.txt',);
             await writeFile(file, 'hello',);
             const cache = new HashCache();
             expect(await cache.hashFile(file,),).toBe(SHA256_HEX_OF_HELLO,);
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'returns OVERSIZED when file size exceeds maxHashSize',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'big.txt',);
             await writeFile(file, 'too-big',);
             // 'too-big' is 7 bytes; cap at 6 forces the OVERSIZED branch.
             const cache = new HashCache({ maxHashSize: 6, },);
             expect(await cache.hashFile(file,),).toBe(OVERSIZED,);
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'hashes up to and including maxHashSize boundary',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'exact.txt',);
             await writeFile(file, 'hello',);
             // 'hello' is 5 bytes; cap at 5 must still hash (size > cap, not >=).
             const cache = new HashCache({ maxHashSize: 5, },);
             expect(await cache.hashFile(file,),).toBe(SHA256_HEX_OF_HELLO,);
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'distinguishes different byte sequences by digest',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const fileA = join(dir, 'a.txt',);
             const fileB = join(dir, 'b.txt',);
             await writeFile(fileA, 'one',);
@@ -101,32 +102,31 @@ await describe({
             const hashA = await cache.hashFile(fileA,);
             const hashB = await cache.hashFile(fileB,);
             expect(hashA,).not.toBe(hashB,);
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'is deterministic for the same bytes across separate cache instances',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'c.txt',);
             await writeFile(file, 'hello',);
             const cacheA = new HashCache();
             const cacheB = new HashCache();
             expect(await cacheA.hashFile(file,),).toBe(await cacheB.hashFile(file,),);
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'does not mutate the cache map (read and store are separate)',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'd.txt',);
             await writeFile(file, 'hello',);
             const cache = new HashCache();
             await cache.hashFile(file,);
             expect(cache.size,).toBe(0,);
             expect(cache.has(file,),).toBe(false,);
-            await rm(dir, { recursive: true, },);
           },
         },),
       ],
