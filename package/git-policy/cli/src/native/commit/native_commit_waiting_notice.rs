@@ -452,6 +452,15 @@ impl NativeCommitNotice {
             return Self::silent(None);
         }
         let signs: bool = signs_commit(snapshot, commit_arguments);
+        // What: A control refuses the thread here, as a process at its thread limit answers `pthread_create` with `EAGAIN`.
+        // Why:  The refusal cannot be produced on demand,
+        //       and a notice with no thread answers exactly what it answers when the system refuses one:
+        //       it enforces nothing,
+        //       so the wait that owns the step ends it at the ceiling
+        //       (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+        if a_thread_is_refused_now().is_some() {
+            return Self::silent(Some(ceiling));
+        }
         let (stop, ended) = channel::<()>();
         let (lines, waiting) = std::sync::mpsc::sync_channel::<String>(LINE_QUEUE);
         let (told_written, written) = channel::<()>();
@@ -481,9 +490,7 @@ impl NativeCommitNotice {
             }
             let _told = told_written.send(());
         });
-        let spawned: std::io::Result<std::thread::JoinHandle<()>> = match a_thread_is_refused_now() {
-            Some(_refused) => Err(std::io::Error::other("the notice thread was refused")),
-            None => std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
+        let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
             let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(ceiling));
@@ -568,8 +575,7 @@ impl NativeCommitNotice {
             // The facts leave through the channel `finish` waits on, so a thread that cannot answer never holds the commit:
             // returning them through the join would make the join the wait.
             let _answered = told_answers.send(facts);
-            }),
-        };
+        });
         return match spawned {
             Ok(_thread) => Self {
                 stop: Some(stop),
@@ -581,7 +587,8 @@ impl NativeCommitNotice {
                 step,
             },
             // The system refused the thread: this notice enforces nothing,
-            // so the wait that owns the step ends it at the ceiling (`child_ended_at_the_ceiling.rs`).
+            // so the wait that owns the step ends it at the ceiling
+            // (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
             Err(_) => Self::silent(Some(ceiling)),
         };
     }
