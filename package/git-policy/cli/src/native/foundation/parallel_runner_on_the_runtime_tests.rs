@@ -1,13 +1,14 @@
 //! The ordered run on the runtime:
 //! every item runs,
 //! the report keeps input order however the jobs finish,
-//! the jobs really overlap,
+//! the jobs really overlap up to what the runner promises (its workers,
+//! its lanes and the process's bound on blocking jobs),
 //! the process's bound on blocking jobs holds them,
 //! a system that refuses every thread is a plain error,
 //! and a lane set that leaves an item out is refused.
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to;
+use crate::blocking_jobs_within_the_budget::{budgeted_blocking_jobs, hold_blocking_jobs_to};
 use crate::no_threads_child_test_support::ran_in_child;
 use crate::parallel_runner::Event;
 use crate::parallel_test_support::{PATIENCE, Rendezvous};
@@ -23,6 +24,11 @@ const ITEMS: usize = 4;
 /// How many jobs the controls let run at once when the bound is what they measure.
 const ONE_PLACE: usize = 1;
 
+/// How many workers the overlap control asks one run for:
+/// more than the two a two-CPU allowance leaves,
+/// so the run is asked for more jobs at once than the process's bound grants.
+const WORKERS_ASKED: usize = 4;
+
 /// One lane per item,
 /// so items may finish in any order.
 fn single_lanes(count: usize) -> Arc<[Vec<usize>]> {
@@ -34,6 +40,19 @@ fn single_lanes(count: usize) -> Arc<[Vec<usize>]> {
 /// itself alone.
 fn lane_of_one_item(index: usize) -> Vec<usize> {
     return vec![index];
+}
+
+/// What:
+///  How many jobs of one run are inside their work at once,
+/// from what the runner promises its callers.
+/// Why:
+///  The runner runs its items under the process's bound on blocking jobs
+/// (`parallel_runner_on_the_runtime.rs`),
+/// so the jobs really in flight are the fewest of the workers it is asked for,
+/// its lanes and `budgeted_blocking_jobs()`;
+/// a control that expects a typed four fails wherever the bound is two.
+fn jobs_that_may_overlap(workers: usize, lanes: usize) -> usize {
+    return workers.min(lanes).min(budgeted_blocking_jobs());
 }
 
 /// A run whose items all end with their index times ten.
@@ -123,27 +142,44 @@ impl OrderedEvents<bool> for CountArrived {
     }
 }
 
-/// The items run at the same time:
-/// a serial run can never pass a point all of them must reach.
+/// What:
+///  The items run at the same time,
+/// as many at once as the runner promises,
+///  and a run that keeps them apart cannot bring them together.
+/// Why:
+///  The count is derived from the runner's promise and not typed in,
+///  because a fixed count fails wherever the process may run fewer blocking jobs:
+///  a CPU quota lowers `available_parallelism`,
+///  which lowers the runtime's workers and the process's bound with them,
+///  and the gate container is allowed two CPUs.
 #[test]
 fn items_run_at_the_same_time() {
-    let mut arrived: CountArrived = CountArrived::default();
-    let work: Arc<Arrive> = Arc::new(Arrive { point: Arc::new(Rendezvous::impatient(ITEMS, PATIENCE)) });
+    let at_once: usize = jobs_that_may_overlap(WORKERS_ASKED, WORKERS_ASKED);
+    // One job at a time can never meet another, so a two-CPU floor is what this control needs.
+    if at_once < 2 {
+        eprintln!(
+            "nothing to measure here: the process may run {at_once} blocking job at once, so no two items of this run can be at \
+             one point; the bound comes from the CPU allowance this process was given"
+        );
+        return;
+    }
     let mut seen: CountArrived = CountArrived::default();
-    let _ignored: CountArrived = {
-        let _ = &mut arrived;
-        CountArrived::default()
-    };
-    let items: Vec<u64> = vec![0_u64; ITEMS];
+    let work: Arc<Arrive> = Arc::new(Arrive { point: Arc::new(Rendezvous::impatient(at_once, PATIENCE)) });
+    let items: Vec<u64> = vec![0_u64; at_once];
     let run: OrderedRunOfOwned<'_, u64, bool> = OrderedRunOfOwned {
         items: Arc::from(items),
-        lanes: single_lanes(ITEMS),
-        workers: ITEMS,
+        lanes: single_lanes(at_once),
+        workers: WORKERS_ASKED,
         work,
         on_event: &mut seen,
     };
     run_ordered_and_wait_here(run).expect("the run finished");
-    assert_eq!(seen.arrived, ITEMS, "the items were run one after another, so they could not meet");
+    assert_eq!(
+        seen.arrived,
+        at_once,
+        "the fewest of the workers asked for, the lanes and the process's bound on blocking jobs is how many items must meet, \
+         and these reached the point"
+    );
 }
 
 /// How many items are inside their job right now,

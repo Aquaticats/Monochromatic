@@ -4318,7 +4318,8 @@ no thread started for the second wait).
 
 `foundation/parallel_runner_on_the_runtime_tests.rs` (5):
 `every_item_runs_and_the_report_keeps_input_order` (the first item ends last and the report keeps input order),
-`items_run_at_the_same_time` (a rendezvous of four that a serial run can never pass),
+`items_run_at_the_same_time` (a rendezvous of the jobs the runner promises at once;
+a serial run can never pass it),
 `the_process_bound_holds_the_items_to_one_at_a_time`,
 `where_no_thread_can_start_the_run_is_a_plain_error`,
 `a_lane_set_that_leaves_an_item_out_is_refused`.

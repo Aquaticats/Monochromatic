@@ -21,6 +21,17 @@
 //! the live
 //!  lines of the head item) is the one of `parallel_runner.rs`,
 //! so the two runners cannot report differently.
+//! The jobs inside their work at once are never more than the workers,
+//! the lanes and
+//!  the process's bound on blocking jobs allow,
+//! whichever
+//!  is the fewest,
+//! so a caller that needs more concurrency raises that bound and not the worker count.
+//! That bound comes from the CPUs this
+//!  process may use
+//! (`available_parallelism`,
+//! so a container's quota counts),
+//! and a two-CPU allowance runs two blocking jobs at once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -59,9 +70,13 @@ pub struct OrderedRunOfOwned<'run, T, R> {
     /// lanes run side by side.
     ///  Every index appears in exactly one lane.
     pub lanes: Arc<[Vec<usize>]>,
-    /// How many jobs run at once,
+    /// How many jobs the run is asked to keep in flight at once,
     /// at least one,
     /// and never more than there are lanes.
+    /// The jobs really inside their work at once are the fewest of this,
+    /// the lanes and the process's bound on blocking jobs
+    /// (`blocking_jobs_within_the_budget.rs`),
+    /// because every job takes a place of that bound before it starts.
     pub workers: usize,
     /// What one item does,
     /// given its index,
