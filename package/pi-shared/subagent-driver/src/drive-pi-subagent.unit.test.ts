@@ -904,6 +904,20 @@ await describe({
       },
     },),
     it({
+      name: 'a failure that asks for a wait longer than a retry takes ends the run rather than retrying inside its window',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'long-wait-error',
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(run.summary.retries,).toBe(0,);
+        expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect(String(run.feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('asked for a wait',);
+      },
+    },),
+    it({
       name: 'a rate limit is retried like a transient failure and counted apart',
       fn: async () => {
         const run = await runDriver({

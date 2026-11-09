@@ -85,6 +85,25 @@ await describe({
       },
     },),
     it({
+      name: 'reads a failure that names a terminal cause before the transient words it also holds',
+      fn: async () => {
+        expect(kindOfModelError('Invalid API key for upstream provider',),).toBe('permanent',);
+        expect(kindOfModelError('Context length exceeds the limit of 500 tokens',),).toBe('permanent',);
+        expect(kindOfModelError('Unknown model: timeout-model',),).toBe('permanent',);
+        expect(kindOfModelError('This operation was aborted after timed out',),).toBe('permanent',);
+      },
+    },),
+    it({
+      name: 'reads a quota named without a status code apart, and a throttle named without a space too',
+      fn: async () => {
+        expect(kindOfModelError('You exceeded your current quota',),).toBe('quota-reached',);
+        expect(kindOfModelError('{"error":"quota_exceeded"}',),).toBe('quota-reached',);
+        expect(kindOfModelError('RateLimitExceeded',),).toBe('throttled',);
+        expect(kindOfModelError('server_busy',),).toBe('transient',);
+        expect(kindOfModelError('the connection was closed',),).toBe('transient',);
+      },
+    },),
+    it({
       name: 'reads a status code hung on a number that is no status as no failure of its own',
       fn: async () => {
         expect(kindOfModelError('the request held 15203 tokens',),).toBe('permanent',);

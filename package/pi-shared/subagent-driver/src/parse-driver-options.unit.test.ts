@@ -109,15 +109,23 @@ await describe({
       },
     },),
     it({
-      name: 'reads the bound on retries and the first delay, and refuses either when it is no number above zero',
+      name: 'reads the bound on retries and the first delay',
       fn: async () => {
         const options = parseDriverOptions([...COMPLETE, '--retry-cap=1', '--retry-base-seconds=0.25',],);
         expect(options.retryCap,).toBe(1,);
         expect(options.retryBaseSeconds,).toBe(0.25,);
-        for (const name of ['retry-cap', 'retry-base-seconds',]) {
-          for (const value of ['0', '-1', 'soon', 'Infinity',]) {
-            expect(errorOf([...COMPLETE, `--${name}=${value}`,],),).toContain('must be a number above zero',);
-          }
+        // Zero retries is the run this driver made before it retried anything, so a coordinator may ask for it.
+        expect(parseDriverOptions([...COMPLETE, '--retry-cap=0',],).retryCap,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'refuses a retry bound that is no whole number of attempts and a delay that is no number above zero',
+      fn: async () => {
+        for (const value of ['-1', '1.5', 'soon', 'Infinity',]) {
+          expect(errorOf([...COMPLETE, `--retry-cap=${value}`,],),).toContain('must be a whole number of attempts',);
+        }
+        for (const value of ['0', '-1', 'soon', 'Infinity',]) {
+          expect(errorOf([...COMPLETE, `--retry-base-seconds=${value}`,],),).toContain('must be a number above zero',);
         }
       },
     },),

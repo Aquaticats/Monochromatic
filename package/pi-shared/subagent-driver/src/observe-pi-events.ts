@@ -69,21 +69,25 @@ export type ObservedPiRun = {
 
  @param countModelError - told once for each assistant message that ended in an error, before anything recovers it
 
+ @param noteAnswer - told for each assistant message that did not end in an error, which ends the error a run stood on
+
  @returns what the run has seen, and where its events go
 
  @example
  ```ts
- const observed = startObservingPiRun({ note, millisecondsSoFar: () => 0, countModelError: () => {}, },);
+ const observed = startObservingPiRun({ note, millisecondsSoFar: () => 0, countModelError: () => {}, noteAnswer: () => {}, },);
  ```
  */
 export function startObservingPiRun({
   note,
   millisecondsSoFar,
   countModelError,
+  noteAnswer,
 }: {
   readonly note: (entry: PiRecord,) => void;
   readonly millisecondsSoFar: () => number;
-  readonly countModelError: (problem: string,) => void
+  readonly countModelError: (problem: string,) => void;
+  readonly noteAnswer: () => void
 },): ObservedPiRun {
   /**
    What the run counts about its tools and dialogs.
@@ -142,6 +146,7 @@ export function startObservingPiRun({
       countModelError(state.pendingModelError,);
     }
     else {
+      noteAnswer();
       delete state.pendingModelError;
       delete state.unrecoveredModelError;
     }

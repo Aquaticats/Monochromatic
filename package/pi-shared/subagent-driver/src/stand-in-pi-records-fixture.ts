@@ -36,6 +36,11 @@ export const TRANSIENT_ERROR_TEXT = 'Request timed out.';
 export const PERMANENT_ERROR_TEXT = 'Provider is not configured: neuralwatt';
 
 /**
+ A server error that asks for a wait longer than a retry takes, so no attempt is made inside its window.
+ */
+export const LONG_WAIT_ERROR_TEXT = '503 {"error":{"message":"Service Unavailable"},"retry_after":3600}';
+
+/**
  A rate limit, which the coordinator measures apart from other failures.
  */
 export const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';

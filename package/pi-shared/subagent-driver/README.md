@@ -49,7 +49,9 @@ each written as `--name=value`:
   how many attempts follow a model error another attempt may fix,
   three by default,
   which is the `retry.maxRetries` default Pi's own automatic retry uses.
-  A value of zero ends such a run on its first error,
+  It is a whole number,
+  and zero is allowed:
+  a run with no attempts ends on its first error,
   as the driver did before it retried anything.
 - `--retry-base-seconds`:
   the wait before the first attempt after a model error,
@@ -242,9 +244,13 @@ raised to the wait a failure names when it names one
 (the `520` body above says `"retry_after":60`),
 and never longer than a minute,
 which is the `retry.maxAgentDelayMs` default Pi's own automatic retry uses.
+A failure that asks for a longer wait than that ends the run instead:
+an attempt made early in the window it named reaches the same answer,
+so the feed notes the wait it asked for and the run ends on the error.
 The wait is cut to what the run's wall clock has left,
 so no attempt is waited for past the run's own bound,
-and a run that ends on its error names how many attempts it made.
+and a run that ends on its error names how many attempts it made at that error,
+counted from the last reply that succeeded.
 
 A person reading the run afterwards sees each attempt twice:
 a `retry` line on `feed.jsonl` carrying its number,
@@ -253,6 +259,11 @@ its wait,
 what kind of failure it answers and that failure's text;
 and `retries` in `summary.json`,
 which is zero for a run that never needed one.
+The `retry` line is written when the attempt is decided on,
+so an attempt followed by no `retry_prompt` line was decided on and never sent:
+that happens when the stop file,
+the wall clock or Pi's own exit ends the run during the wait,
+and the run then ends for that reason rather than on the model error.
 `rateLimitErrors` counts the model errors that named a rate limit or a quota,
 whether or not another attempt could fix them,
 because those are measured apart from other failures.

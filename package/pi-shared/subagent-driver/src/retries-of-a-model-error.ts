@@ -63,14 +63,47 @@ export type WaitAskedByProvider =
     };
 
 /**
+ The failures another attempt cannot fix, whatever else their text says: a credential Pi does not have, a provider or a model
+ that does not exist, a context too large for the model, and an abort someone asked for.
+
+ These read before every other shape below, because the words of a transient failure turn up inside them: `Invalid API key for
+ upstream provider` holds `upstream`, and `Context length exceeds the limit of 500 tokens` holds a server status as a count.
+ */
+const TERMINAL_CAUSE_PHRASES: readonly string[] = [
+  'api key',
+  'api_key',
+  'unauthorized',
+  'unauthenticated',
+  'authentication failed',
+  'not configured',
+  'no key for',
+  'unknown provider',
+  'unknown model',
+  'model not found',
+  'provider not found',
+  'context length',
+  'context window',
+  'context overflow',
+  'maximum context',
+  'prompt is too long',
+  'too many tokens',
+  'reduce the length',
+  'was aborted',
+  'aborted by',
+  'request was aborted',
+  'interrupted by user',
+  'cancelled by user',
+  'canceled by user',
+];
+
+/**
  A limit another attempt cannot refill: the account, the plan or the billing has nothing left, and waiting out a backoff does not
  change that.
 
  These read before the rate-limit shapes below, because several of them are sent as HTTP 429.
  */
 const QUOTA_REACHED_PHRASES: readonly string[] = [
-  'quota exceeded',
-  'insufficient_quota',
+  'quota',
   'out of budget',
   'billing',
   'usage limit reached',
@@ -84,6 +117,7 @@ const QUOTA_REACHED_PHRASES: readonly string[] = [
  A rate limit that passes: the provider asks the caller to slow down, and a later attempt may go through.
  */
 const THROTTLE_PHRASES: readonly string[] = [
+  'ratelimit',
   'rate limit',
   'rate_limit',
   'rate-limit',
@@ -102,6 +136,10 @@ const THROTTLE_CODE = '429';
  */
 const TRANSIENT_PHRASES: readonly string[] = [
   'overloaded',
+  'server_busy',
+  'servers are currently busy',
+  'currently experiencing high demand',
+  'model is at capacity',
   'server error',
   'server_error',
   'internal error',
@@ -111,12 +149,13 @@ const TRANSIENT_PHRASES: readonly string[] = [
   'bad gateway',
   'gateway timeout',
   'timed out',
-  'timeout',
+  'request timeout',
   'etimedout',
   'econnreset',
   'econnrefused',
   'connection reset',
   'connection lost',
+  'connection was closed',
   'connection closed',
   'connection refused',
   'socket hang up',
@@ -126,12 +165,15 @@ const TRANSIENT_PHRASES: readonly string[] = [
   'getaddrinfo',
   'enotfound',
   'eai_again',
-  'upstream',
+  'stream was interrupted',
   'stream interrupted',
+  'stream was disconnected',
   'stream ended',
   'stream disconnected',
   'ended without',
-  'terminated',
+  'upstream request failed',
+  'upstream_connect',
+  'unable to forward upstream',
 ];
 
 /**
@@ -275,6 +317,12 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
    The failure, folded once so every shape below is a plain substring.
    */
   const text = problem.toLowerCase();
+  if (holdsOneOf({
+    text,
+    phrases: TERMINAL_CAUSE_PHRASES,
+  },)) {
+    return 'permanent';
+  }
   if (holdsOneOf({
     text,
     phrases: QUOTA_REACHED_PHRASES,

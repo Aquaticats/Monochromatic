@@ -5,6 +5,7 @@
  @module
  */
 
+import { MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS, } from './driver-constants.ts';
 import type { RunProgress, } from './driver-types.ts';
 import {
   answerMillisecondsBefore,
@@ -16,6 +17,7 @@ import {
   continuationPromptOf,
   kindOfModelError,
   retryDelayMilliseconds,
+  waitAskedByProvider,
 } from './retries-of-a-model-error.ts';
 import type { WatchRequest, } from './watch-request.ts';
 
@@ -76,6 +78,9 @@ async function answerWithAnotherAttempt(
       error: answer.error ?? null,
     },);
   if (answer.success === false) {
+    if (millisecondsLeftUntil(watch.deadline,) === 0) {
+      return 'wall-clock';
+    }
     return watch.connection
       .hasExited() ? 'pi-exited' : 'prompt-rejected';
   }
@@ -154,6 +159,20 @@ export async function answerModelError(
   if ((!anotherAttemptMayFix(kind,)) || (taken
     >= watch.options
       .retryCap)) {
+    return 'model-error';
+  }
+  /**
+   The wait the provider asked for, when it named one.
+   */
+  const asked = waitAskedByProvider(failure.problem,);
+  if (asked.asked && (asked.milliseconds > MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS)) {
+    // A provider that asks for longer than the largest delay is not retried inside its window: an attempt early in it reaches
+    // the same answer, so the run ends on the error and a later run takes it up once the window has passed.
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: `the provider asked for a wait of ${String(asked.milliseconds,)} ms, longer than the ${String(MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,)} ms a retry waits, so no further attempt was made`,
+      },);
     return 'model-error';
   }
   /**

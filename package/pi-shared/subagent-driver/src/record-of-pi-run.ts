@@ -128,11 +128,17 @@ export function startRecordOfPiRun({
     retries: number;
 
     /**
+     How many attempts the run made at the error it now stands on, which a reply that succeeded ends.
+     */
+    retriesSinceAnswer: number;
+
+    /**
      How many model errors named a rate limit or a quota.
      */
     rateLimitErrors: number;
   } = {
     retries: 0,
+    retriesSinceAnswer: 0,
     rateLimitErrors: 0,
   };
 
@@ -171,6 +177,9 @@ export function startRecordOfPiRun({
         state.rateLimitErrors += 1;
       }
     },
+    noteAnswer: function noteAnswer() {
+      state.retriesSinceAnswer = 0;
+    },
   },);
 
   return {
@@ -189,6 +198,7 @@ export function startRecordOfPiRun({
     },
     countRetry: function countRetry(retry: RetryTaken,) {
       state.retries += 1;
+      state.retriesSinceAnswer += 1;
       note({
         kind: 'retry',
         attempt: retry.attempt,
@@ -235,7 +245,7 @@ export function startRecordOfPiRun({
         rateLimitErrors: state.rateLimitErrors,
         ...modelErrorOf({
           run: observed,
-          retries: state.retries,
+          retries: state.retriesSinceAnswer,
         },),
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),

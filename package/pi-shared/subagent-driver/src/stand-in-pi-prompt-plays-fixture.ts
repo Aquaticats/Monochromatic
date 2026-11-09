@@ -14,6 +14,7 @@ import {
 } from './stand-in-pi-log-fixture.ts';
 import {
   answer,
+  LONG_WAIT_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
@@ -294,6 +295,13 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
     'permanent-error',
     modelErrorPlay({
       error: PERMANENT_ERROR_TEXT,
+      recovers: false,
+    }),
+  ],
+  [
+    'long-wait-error',
+    modelErrorPlay({
+      error: LONG_WAIT_ERROR_TEXT,
       recovers: false,
     }),
   ],
