@@ -524,9 +524,19 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   The exit status never depends on it,
   and doctor never writes configuration.
   A listing that cannot be read or parsed is said plainly in place of the line.
-- It does not load configuration,
-  recover transactions or take a lock,
-  and it changes nothing.
+- It loads `monochromatic-git-policy-cli.config.jsonc` only to name the retired `hooks`,
+  `indexLock` and `landing` keys and the limits of the folder of saved copies;
+  a file that cannot be loaded is not its to report,
+  and every other command names the problem.
+  It recovers no transaction,
+  takes no lock,
+  and it changes nothing:
+  a name an earlier release kept in the common Git directory stays where it is,
+  and the report reads a kept folder under whichever spelling stands there
+  (`kept_names_in_the_git_directories.rs`,
+  `path_for_reading`).
+  The program that owns those names settles them,
+  and that is not this command.
 
 ## Lifecycle
 

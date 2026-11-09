@@ -97,7 +97,7 @@ pub fn list_stamped(common_dir: &Path) -> Listing {
 }
 
 /// The problem that says why the folder cannot be used.
-fn unusable(saved_root: &Path, failure: &OpenFailure) -> Problem {
+pub(crate) fn unusable(saved_root: &Path, failure: &OpenFailure) -> Problem {
     let detail: String = match failure {
         OpenFailure::Link => String::from("a symbolic link, or something that is not a directory, stands at it or at its parent `monochromatic-git-policy-cli`, and a removal never follows one"),
         OpenFailure::Refused(error) => format!("it cannot be opened: {error}"),
@@ -182,7 +182,7 @@ impl BeforeRemoval for NothingBeforeRemoval {
 
 /// The listing of an opened folder;
 /// `saved_root` is the path the problems and the removal records show.
-fn list_in(store: &Store, saved_root: &Path) -> Listing {
+pub(crate) fn list_in(store: &Store, saved_root: &Path) -> Listing {
     let mut listing: Listing = Listing::default();
     let names = match store.names() {
         Ok(found) => found,
@@ -449,7 +449,7 @@ pub struct Report {
 /// or nothing when it holds no copy and nothing
 /// went wrong.
 pub fn report(common_dir: &Path) -> Option<Report> {
-    let listing: Listing = list_stamped(common_dir);
+    let listing: Listing = crate::discarded_prune_reading::list_stamped_for_reading(common_dir);
     if listing.entries.is_empty() && listing.problems.is_empty() {
         return None;
     }
@@ -485,7 +485,7 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
             "git monochromatic-git-policy-cli doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
              are removed, and the oldest are removed past {} bytes, never one younger than a day (`discardedCopies.maxAgeDays` and \
              `discardedCopies.maxSize` in monochromatic-git-policy-cli.config.jsonc change the limits).\n",
-            common_dir.join(SAVED_DIRECTORY).display(),
+            common_dir.join(crate::discarded_prune_reading::saved_relative_for_reading(common_dir)).display(),
             found.bytes,
             found.copies,
             found.saves,
