@@ -46,7 +46,7 @@ STATUS:
  plus 11 harmless `dist/final` build-artifact files and `pnpm-lock.yaml`;
  left for the user to revert or handle (not reverted,
  to avoid clobbering paused/split-session work).
- The sections below are the historical resume record.
+ The rest of this handover is the historical resume record.
 Readonly-specific allowlist and diagnostic-filter guidance is superseded by the project-owned semantic rule and must not
 be reused.
 
@@ -141,7 +141,7 @@ Green and committed.
 
 Three reusable findings came out of the two stubborn `prefer-readonly-parameter-types` warnings (the earlier "2
 remaining" count was an undercount;
- see lesson below):
+ see "Lessons for future sweeps"):
 
 1. **h3 `app: H3` exposed a native-rule symbol-name mismatch.**
    h3's dist declared `class H3$1` and re-exported `type H3 = H3$1`,

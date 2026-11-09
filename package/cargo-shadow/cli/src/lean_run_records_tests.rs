@@ -10,7 +10,7 @@ use std::{fs, path::{Path, PathBuf}, process::{Child, Command}, time::Duration};
 use crate::cli::LeanAction;
 use crate::lean_command::{absent_notes, directories_from, run_lean_action};
 use crate::lean_identity::{Deadline, now_seconds};
-use crate::lean_run_records::{RecordsOutcome, RetentionPolicy, sweep_run_records};
+use crate::lean_run_records::{RecordsOutcome, RetentionPolicy, is_record_name, sweep_run_records};
 use crate::lean_test_support::{DAY, HOUR, NOW, age_everything, real_environment};
 use crate::test_scratch::scratch;
 
@@ -46,6 +46,59 @@ fn sweep(directory: &Path, policy: &RetentionPolicy) -> RecordsOutcome {
     return sweep_run_records(directory, policy, &real_environment(), NOW, false, &Deadline::after(Duration::from_secs(60)), &mut log);
 }
 
+/// Every name a program in this repository writes under a verification directory is a run record,
+/// each beside the program that writes it,
+/// so the retention reaches what the tools leave behind.
+#[test]
+fn every_name_a_producer_in_this_repository_writes_is_a_run_record() {
+    const PRODUCED: [(&str, &str); 22] = [
+        ("campaign-abc123", "package/git-policy/cli.fuzz/bin/container.ts"),
+        ("native-abc123", "package/git-policy/cli/bin/test-native-container.ts"),
+        ("native-mutation-abc123", "package/git-policy/cli/bin/native-gate-proof.ts"),
+        ("git-image-abc123", "package/git-policy/cli/bin/build-git-test-image.ts"),
+        ("mutation-abc123", "package/linter/monochromatic-lint/bin/mutate-container.ts"),
+        ("coverage-abc123", "package/mutation-test/cli-cargo-mutants/src/scope-tools.ts"),
+        ("processors-mutation-abc123", "package/linter/monochromatic-lint/bin/mutate-processors.ts"),
+        ("planted-abc123", "package/linter/monochromatic-lint.fuzz/bin/planted-controls.ts"),
+        ("container-abc123", "package/forbidden-strings/cli/bin/container-snapshot.ts"),
+        ("clippy-abc123", "package/forbidden-strings/cli/bin/test-container.ts"),
+        ("release-test-abc123", "package/forbidden-strings/cli/bin/test-container.ts"),
+        ("test-abc123", "package/forbidden-strings/cli/bin/test-container.ts"),
+        ("guard-protected-abc123", "package/forbidden-strings/cli/bin/guard-container.ts"),
+        ("guard-without-name-catch-abc123", "package/forbidden-strings/cli/bin/guard-container.ts"),
+        ("guard-observer-protected-abc123", "package/forbidden-strings/cli/bin/observe-guards-container.ts"),
+        ("pathname-mutation-abc123", "package/forbidden-strings/cli/bin/mutate-container.ts"),
+        ("pathname-mutation-list-abc123", "package/forbidden-strings/cli/bin/mutate-container.ts"),
+        ("startup-mutation-abc123", "package/forbidden-strings/cli/bin/mutate-container.ts"),
+        ("embedding-fuzz-abc123", "package/forbidden-strings/cli.fuzz/bin/smoke-container.ts"),
+        ("fuzz-clippy-abc123", "package/forbidden-strings/cli.fuzz/bin/smoke-container.ts"),
+        ("windows-native-abc123", "a records directory kept from 2026-10-05, which no current program writes"),
+        ("windows-baseline-abc123", "a records directory kept from 2026-10-05, which no current program writes"),
+    ];
+    for (name, producer) in PRODUCED {
+        assert!(is_record_name(name), "{producer} writes {name}, which the retention does not sweep");
+    }
+}
+
+/// What no program writes under a verification directory is not a run record and stays,
+/// each beside what it is.
+#[test]
+fn what_is_not_a_run_record_stays_out_of_the_retention() {
+    const NOT_RECORDS: [(&str, &str); 8] = [
+        ("docs", "the rendered documentation of package/forbidden-strings/cli/bin/render-docs.ts"),
+        ("reconciliation.json", "the planted-controls reconciliation of one task run"),
+        ("nextest-cache", "a Cargo nextest cache directory"),
+        ("strace-cache", "a strace cache directory"),
+        ("processors-handover.html", "the handover rendered for a person by package/linter/monochromatic-lint"),
+        ("processors-manifest.json", "the manifest that handover is read with"),
+        ("guard-input-comparisons.json", "the fixed name package/forbidden-strings/cli/bin/verify-evidence.ts rewrites"),
+        ("guard-source-comparison", "the fixed name package/forbidden-strings/cli/bin/verify-evidence.ts rewrites"),
+    ];
+    for (name, what) in NOT_RECORDS {
+        assert!(!is_record_name(name), "{name} ({what}) would be swept as a run record");
+    }
+}
+
 #[test]
 fn a_record_older_than_the_retention_goes_and_a_younger_one_stays() {
     let root = scratch();
@@ -55,6 +108,19 @@ fn a_record_older_than_the_retention_goes_and_a_younger_one_stays() {
     assert_eq!(outcome.removed, 1, "{outcome:?}");
     assert!(outcome.bytes > 0);
     assert!(!old.exists() && young.exists());
+}
+
+/// A record of a producer an earlier list did not name goes by the same retention,
+/// so the sweep reaches what the linter and the scanner actually leave behind.
+#[test]
+fn a_record_of_any_producer_goes_by_the_age_rule() {
+    let root = scratch();
+    let coverage: PathBuf = record(root.path(), "coverage-7G78qe", 8192, 20 * DAY);
+    let clippy: PathBuf = record(root.path(), "clippy-37qD2W", 8192, 20 * DAY);
+    let processors: PathBuf = record(root.path(), "processors-mutation-bklcVi", 8192, 20 * DAY);
+    let outcome: RecordsOutcome = sweep(root.path(), &POLICY);
+    assert_eq!(outcome.removed, 3, "{outcome:?}");
+    assert!(!coverage.exists() && !clippy.exists() && !processors.exists());
 }
 
 #[test]

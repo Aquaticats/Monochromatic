@@ -72,7 +72,7 @@ fn a_global_launcher_warns_with_the_global_upgrade_command() {
         launch.warning,
         Some(warning_naming_program(&older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4", &record.lock_file), &record.real))
     );
-    assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm update -g {TOOL}`")));
+    assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm-shadow update -g {TOOL}`")));
 }
 
 #[test]

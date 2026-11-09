@@ -130,7 +130,8 @@ run 007's zeros are the benign reading.
 Those repairs are clean,
 and a round reporting `majorityIntroduced=0` can be
 reported as evidence rather than as an instrument with no reading.
-The warning recorded in the previous section is DISCHARGED,
+The warning recorded in
+`Early signal from run 007: the probe has claimed nothing at all` is DISCHARGED,
 and the discharge
 is measured rather than argued.
 
@@ -397,7 +398,8 @@ round three's resolution counts look low against its repair grades.
 
 #### CORRECTION: the under-crediting did not replicate
 
-The previous section reported that checkers under-credited a genuinely fixed
+The section `The checker check had the same fidelity gap, and closing it inverted the worry`
+reported that checkers under-credited a genuinely fixed
 issue on a mixed sheet,
 two of three calling the repaired tense gloss unfixed,
 and recorded it as a direction to watch that could bias `resolvedIssueIds`

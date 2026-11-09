@@ -83,7 +83,7 @@ Counts under the same conditions (tool,
 1 thread each,
 2 CPUs):
 before 317 of 400 failed,
-after the first version of the fix 1 of 400 failed (the cumulative check above),
+after the first version of the fix 1 of 400 failed (the cumulative assertion on applied pictures),
 after the final version 0 of 400.
 
 ### Open item 1: the annotation stability tests
@@ -275,7 +275,7 @@ a loop over `/proc` with the fdinfo and sysfs reads named here,
 read the video memory (`drm-memory-vram`) and the system memory mapped for the card (`drm-memory-gtt`) of every
 test process from `/proc/<pid>/fdinfo`,
 and the card's counters from sysfs,
-while the runs above went on.
+while the runs recorded in this handover went on.
 Results:
 
 - One test process holds 0.28 GiB typically and 0.52 GiB at most.
@@ -675,7 +675,7 @@ under a shared host,
 History sources:
 `doc/planning/ide-gpu-snapshot-harness.md` ("Flakes after the merge"),
 `doc/handover/slint-ide-0x.md`,
-and the entries above.
+and the session records in this document.
 
 - `query_input_tests::find_box_context_menu_runs_each_entry`.
   Cause:

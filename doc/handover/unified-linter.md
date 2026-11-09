@@ -616,7 +616,10 @@ Round 9 answers (user,
    `lint:markdown`,
    `format:markdown`,
    and the 17 package `lint:rust` tasks;
-   `AGENTS.md` MXR and RDC updated at cutover;
+   `AGENTS.md` MXR and RDC updated at cutover (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now);
    the incumbent packages and their registrations deleted at cutover;
    unpatched `hcl-edit` 0.9.7,
    because meow's two patches fix write-back defects and the linter only reads;

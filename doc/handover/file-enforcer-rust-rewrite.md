@@ -922,8 +922,8 @@ each finished branch is reviewed and merged into `main`):
   (`watch-stop` and `watch-start` for the Rust watcher,
   and a by-hand `systemd-run` for the TypeScript sentinel,
   per the agent's report).
-  Earlier note:
-  sent to the wg agent to confirm,
+  Instruction to the wg agent:
+  confirm,
   write a troubleshooting doc,
   and find a placement that runs on this host,
   ideally applied without another tunnel gap).

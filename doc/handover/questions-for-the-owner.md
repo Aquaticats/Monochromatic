@@ -49,6 +49,57 @@ Each record is cited so the context is one read away.
   since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
   Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
   Nothing has proved it necessary.
+- `doc/decision/cli-git-concurrent-commits.md` (line 158 and lines 190 to 205) still says an `index.lock` owner proven alive gets an unbounded wait.
+  The shipped code bounds that wait at one minute for a merge and at the service hold ceiling for the service,
+  following the owner's later "nothing should ever wait forever or indefinitely".
+  May the decision record be amended to say so?
+- `LOCK_CEILING` (600 s) no longer bounds any wait;
+  it only feeds `FOREIGN_OWNER_PATIENCE` (1,200 s).
+  The longest lock wait in 4,386 landings that ended by release was 11.49 s.
+  Both values are kept as they were;
+  lowering the patience changes when another namespace's record counts as abandoned,
+  so that stays open.
+- Should `AGENTS.md` gain this rule?
+  "A control's verdict comes from the order of events:
+  release its fixture from the wait's own line,
+  never from a sleep whose passing only the host's speed decides."
+  The same defect was fixed twice in the wrapper's index-lock tests (`2b33c7bd32` and `35cd5ae7e5`).
+  The code the proposing agent suggested,
+  `TSX`,
+  reads as the file extension,
+  so the rule needs a different one.
+- May `cargo-shadow lean` remove a run record that a process of another user could be holding,
+  when that process cannot be inspected?
+  Refusing stops the sweep on this host.
+  Do the `container-`,
+  `windows-` and `test-` record prefixes belong in its list?
+  And what should happen to the eighteen logs redirected by hand,
+  and the one renamed 17.9 MB record,
+  in the linter's verification folder?
+- Fuzzing the wrapper:
+  is a cheap native control over the checked-in seeds wanted,
+  and may the artifact reference stand without a landed evidence file?
+- The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
+  Should a systemd timer run it,
+  and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
+- `mpm-shadow` launcher records named a folder carrying the version,
+  so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
+  The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
+  The records already dangling heal on the launcher's next run,
+  which is the coordinator's pick with the veto open;
+  the alternative is an `mpm install` sweep over every worktree after the release.
+  The newest-installed launcher pick has no `doc/decision/` record yet.
+- The rule codes `MXR`,
+  `RDC`,
+  `GCW` and `WXG` are retired but not reserved.
+  Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
+  which is gitignored and is the owner's file;
+  that reservation is the last unmet line of issue 1720.
+- The umbrella list (`225a3b6318`) left open points:
+  how to split its Windows and release-gate entries,
+  whether its release-artifact gate meant a packaged-tarball gate,
+  which of its disagreeing maintenance mutation records is right,
+  and whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees.
 - The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
   which ask what each shipped limit should cite.
 - Does "never discard user data" cover the audit history?
@@ -66,6 +117,15 @@ Each record is cited so the context is one read away.
 - May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
 - Should there be an operator override that forces the native Git route when the commit service misbehaves?
 - Rotate `MISE_GITHUB_TOKEN`?
+  A second exposure on 2026-11-08:
+  the agent `tokio-step-t12` read `/proc/<pid>/environ` of a cargo process to find its build directory,
+  and that printed the same variable into its session,
+  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/tokio-step-t12-1/summary.json`.
+  That run started at 2026-11-08T15:03:15-05:00,
+  before the driver began removing credential-named variables (`9ae27d221e`,
+  2026-11-08T18:09:11-05:00).
+  A process that another session started still carries them,
+  so the rule against reading another process's environment stays in force.
   A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
   The value is in that agent's session file,
   named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,

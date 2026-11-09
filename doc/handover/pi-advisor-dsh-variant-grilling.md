@@ -592,7 +592,7 @@ undetermined):
    its e2e invariants `index-no-revert` and `worktree-preserved`
    name this failure mode.
 2. `git checkout` and `git restore` are not guarded
-   (see `GuardedCommand` above),
+   (see the `GuardedCommand` union),
    so any session or stray agent can discard uncommitted state
    without a wrapper rejection
    (another session's handover at 18:05:52 warns of stray agent loops).

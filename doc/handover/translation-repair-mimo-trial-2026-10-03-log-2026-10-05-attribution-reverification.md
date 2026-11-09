@@ -478,8 +478,7 @@ distinguishes that branch from other paths returning the same value,
   reach runs select narrow test file sets,
   so lines other drivers exercise are cold there on purpose
   (the `cold since then (ran there)` rows);
-  earlier paragraphs mixed those rows into the same claim
-  as the stuck lines,
+  the cold rows were first read as one claim with the stuck lines,
   and the re-verification separates them.
 
 - Environment:
@@ -488,7 +487,7 @@ distinguishes that branch from other paths returning the same value,
   and the tool-behavior reproductions will use one
   so the trial tree stays clean.
   No execution limit of any kind was reported by the runtime;
-  earlier notes claiming one are retracted.
+  claims that one existed are retracted.
 
   Next:
   the decisive experiment for `resolution-wire.ts:328`

@@ -50,9 +50,18 @@ pub mod parallel_budget;
 /// as a trait a struct can implement.
 pub mod line_sink;
 
+/// One stream of a command's notices,
+/// written whole line by whole line by two threads through one small lock.
+pub mod shared_notice_stream;
+
 /// Independent items on a bounded number of threads,
 /// reported in input order with no lock.
 pub mod parallel_runner;
+
+/// Independent items as blocking jobs of the process's runtime,
+/// under the process's bound on blocking jobs,
+/// reported in the same input order.
+pub mod parallel_runner_on_the_runtime;
 
 /// A call turned into a value when it panics,
 /// for the places that guard a function and its state.
@@ -118,6 +127,11 @@ pub mod lazy_runtime;
 /// A blocking call on tokio's blocking pool,
 /// with "no thread to start" as an error value instead of a panic.
 pub mod blocking_job;
+
+/// The most blocking jobs this process runs at once,
+/// one bound for the whole process,
+/// taken by each job and given back when it ends.
+pub mod blocking_jobs_within_the_budget;
 
 /// The test-only entry that builds the runtime and runs a blocking job,
 /// for the controls that start the executable under limits.
