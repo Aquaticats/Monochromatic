@@ -226,6 +226,34 @@ fn an_alias_shadowed_by_an_external_command_is_left_to_git() {
 }
 
 /// What:
+///  The Git a shell alias starts reads the configuration of the `-c` options the caller gave,
+///  because Git exports them to what it starts.
+/// Why:
+///  `git_config_push_parameter` puts each `-c` entry in the environment
+///  (`config.c:469` to `config.c:504`),
+///  so
+///  `git -c 'alias.outer=!git inner' -c 'alias.inner=reset --hard' outer`
+///  runs the inner reset;
+///  a nested reading that forgot the caller's options finds no `inner`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// resolveForwardedCommand({ args: ['-c', 'alias.outer=!git inner', '-c', 'alias.inner=reset --hard', 'outer'] })
+/// //   => { route: 'shell-alias', shellCommand: ['reset', '--hard'] }
+/// ```
+#[test]
+fn a_shell_alias_reads_the_configuration_the_caller_passed() {
+    let context: GitContext = context_with_aliases(&[("fixtureouter", "!git fixtureinner")]);
+    let followed: ResolvedCommand = resolve_forwarded_command(
+        &context,
+        no_environment().as_slice(),
+        &args(&["-c", "alias.fixtureinner=reset --hard", "fixtureouter"]),
+    );
+    assert_eq!(followed.route, Route::ShellAlias);
+    assert_eq!(followed.shell_command, Some(args(&["reset", "--hard"])));
+}
+
+/// What:
 ///  The one plain `git` command a `!` alias runs is read,
 ///  and the caller's arguments are not replaced with it.
 /// Why:

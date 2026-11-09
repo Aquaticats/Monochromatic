@@ -27,15 +27,9 @@
 
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
-use crate::iso_time::now_iso;
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_messages::{ClientFailure, render};
-use crate::service_provision::{ProvisionHost, provision};
-use crate::service_route::{Route, route_from_environment};
 use crate::service_work::{Verdict, work_directory};
 use crate::transaction_git::GitContext;
-use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use crate::plain_file::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
@@ -62,50 +56,6 @@ pub const TRASH_REFERENCE: &str = "refs/cli-git/trash";
 
 /// The most bytes of a worktree's `.git` file that are read.
 const POINTER_LIMIT: u64 = 64 * 1024;
-
-/// How the service's address is found for a Git directory;
-/// injected so a control never reaches the real service.
-pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
-
-/// Sets up what the service needs before it can be reached,
-/// as a commit does for its first message;
-/// injected so a control
-///  never reaches the session bus.
-pub type Provisioner<'a> = &'a dyn Fn(&ProvisionHost) -> Result<(), ClientFailure>;
-
-/// How the service is reached:
-/// where its address is found,
-/// how it is set up,
-/// and how long its start is waited for.
-pub struct Reach<'a> {
-    /// Finds the service's address for a Git directory.
-    pub router: Router<'a>,
-    /// Sets up the worktree's socket activation,
-    /// which a new worktree does not have yet.
-    pub provisioner: Provisioner<'a>,
-    /// The longest wait for the service to start.
-    pub start_wait: std::time::Duration,
-}
-
-/// Where the trash went.
-enum Handed {
-    /// The service was reached with a record that names the trash,
-    /// and owns the emptying now.
-    Service,
-    /// The service was not reached;
-    /// the trash is emptied here.
-    /// `record` is the work item that was written for it,
-    /// if any,
-    /// and
-    ///  `why` says in words why the service was not reached.
-    Here {
-        /// The pending work item,
-        /// which stays until the trash is gone.
-        record: Option<PathBuf>,
-        /// Why the service was not reached.
-        why: String,
-    },
-}
 
 /// What:
 ///  A snapshot's trash waiting for the disposal:
@@ -137,57 +87,38 @@ pub struct PendingTrash {
 }
 
 /// What:
-///  Dispose of the trash a snapshot made in the new worktree `destination`,
-/// when it made one.
+///  Empty the trash a snapshot made in the new worktree `destination`,
+/// when it made one,
+///  before the command that made it returns.
 /// Why:
-///   The wrapper never starts the service itself;
-/// writing the record and connecting to its socket does.
-/// A trash that no one
-///  empties is only disk,
-/// but the foreground fallback means the worktree never keeps one past the command that made it,
-/// and a
-///  trash that cannot be emptied is reported with its path and the reason.
+///   The trash holds the directories the leave-out set aside,
+/// another command's stage container with its
+///  credentials among them,
+/// and it sits inside the new worktree.
+/// While it stands there,
+/// a target commit that no longer
+///  ignores its path makes it untracked,
+/// so `git add --all` in the new worktree stages another command's state.
+///  Handing it to the commit service kept it alive until that service ran,
+/// which is exactly that window,
+/// so the
+///  emptying happens here:
+/// the add waits for it,
+/// beside the package repair (`worktree_copy_after_lock.rs`),
+/// and a trash
+///  that cannot be emptied is reported with its path and the reason and never outlives the command
+/// silently.
+/// A work item of an earlier release that still names a trash is emptied by the same handler
+/// (`empty_trash`),
+/// so a repository that ran one keeps its promise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await disposePendingTrash({ context, destination, gitDir, trash, notices }); // throws the reason the trash stays
+/// await disposePendingTrash({ destination, gitDir, trash, notices }); // throws the reason the trash stays
 /// ```
-pub fn dispose_pending_trash(context: &GitContext, destination: &Path, git_dir: &Path, trash: Option<&TrashManifest>, notices: &mut dyn Write) -> Result<(), String> {
+pub fn dispose_pending_trash(_context: &GitContext, destination: &Path, git_dir: &Path, trash: Option<&TrashManifest>, notices: &mut dyn Write) -> Result<(), String> {
     let Some(manifest) = trash else { return Ok(()) };
-    return dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, manifest, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
-}
-
-/// `dispose_pending_trash` for a known trash,
-/// with the route finder and the wait for a current service injected,
-/// so a control
-///  can use a fixture service and a short wait.
-pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Result<(), String> {
-    let (record, why): (Option<PathBuf>, String) = match hand_over(real_git, destination, git_dir, manifest, notices, reach) {
-        Handed::Service => return Ok(()),
-        Handed::Here { record, why } => (record, why),
-    };
-    debug(TAG, format!("the trash {} could not be handed to the service ({why}); emptying it here", manifest.name).as_str());
-    // The person waits for this, so they are told what is being done and why, once.
-    let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, because the commit service could not take them over ({why}); this can take a while.", destination.display());
-    if let Err(reason) = delete_trash(destination, git_dir, manifest) {
-        let stays: String = match record {
-            Some(path) => format!(
-                "the work item {} stays, so the commit service tries again when it next runs for this worktree, and the next `git worktree add` there tries too",
-                path.display()
-            ),
-            None => String::from("no work item could be written for it, so it stays until it is removed by hand"),
-        };
-        // "Not emptied now": a removal the pool queued may still run later (`no_threads_child_test_support`).
-        return Err(format!("the directories left out of the new worktree {} were not emptied now ({reason}); {stays}", destination.display()));
-    }
-    // The trash is gone, so the record must not outlive it as work for a service to find.
-    if let Some(path) = record
-        && let Err(error) = std::fs::remove_file(&path)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        debug(TAG, format!("the work item {} could not be withdrawn ({error}); the service finds the trash gone", path.display()).as_str());
-    }
-    return Ok(());
+    return empty_before_returning(destination, git_dir, manifest, notices);
 }
 
 /// What:
@@ -291,59 +222,25 @@ fn name_unrecorded_trash(worktree: &Path, recorded: &[String], notices: &mut dyn
     }
 }
 
-/// Write the work item,
-/// set up the worktree's socket activation,
-/// and connect to the service.
-///
+/// What:
+///  Empty one trash here and now,
+/// telling the person what is being done once.
 /// Why:
-/// a new worktree has a commit service instance of its own whose socket does not exist until something sets it up;
-/// a
-/// commit does that before its first message,
-/// so the hand-over does it too,
-/// instead of waiting out the start for a socket
-/// that nothing will ever create.
-fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Handed {
-    // A path that is not text is left to the emptying here: the wake message to the service still spells a Git directory
-    //  as text, so a record alone cannot reach it.
-    let (Some(repository), Some(git_dir_text)) = (destination.to_str(), git_dir.to_str()) else {
-        debug(TAG, format!("{} or its administrative directory is not valid UTF-8, so no work item can name it", destination.display()).as_str());
-        return Handed::Here { record: None, why: String::from("the path of the worktree is not valid UTF-8, so a work item cannot name it") };
-    };
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Trash,
-        repository: PathBuf::from(repository),
-        git_dir: PathBuf::from(git_dir_text),
-        branch_ref: String::from(TRASH_REFERENCE),
-        oid: manifest.name.clone(),
-        parent: manifest.encode(),
-        created: now_iso(),
-        tries: 0,
-    };
-    if let Err(reason) = enqueue(work_directory(git_dir).as_path(), &item) {
-        debug(TAG, format!("the work item could not be written: {reason}").as_str());
-        return Handed::Here { record: None, why: format!("the work item could not be written: {reason}") };
-    }
-    let record: PathBuf = state_directory(work_directory(git_dir).as_path(), PENDING).join(item.id());
-    let Some(Route { address, provision: host }) = (reach.router)(real_git, git_dir) else {
-        return Handed::Here { record: Some(record), why: String::from("no commit service can be started from this session") };
-    };
-    if let Some(setup) = host.as_ref()
-        && let Err(failure) = (reach.provisioner)(setup)
-    {
-        return Handed::Here { record: Some(record), why: render(&failure) };
-    }
-    let config: ClientConfig = ClientConfig {
-        address,
-        activation: Activation::Managed,
-        start_wait: reach.start_wait,
-        heartbeat_silence: HEARTBEAT_SILENCE,
-        start_watch: host.as_ref().map(manager_watch_for),
-        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
-        units_record_dir: host.as_ref().map(crate::service_provision_host_and_manager::units_record_dir_of),
-    };
-    return match wake(&config, git_dir, None, notices) {
-        Ok(()) => Handed::Service,
-        Err(failure) => Handed::Here { record: Some(record), why: render(&failure) },
+///   The person waits for this,
+/// so they are told why the command takes longer,
+/// and a failure says what
+///  stays without failing the add,
+/// because the worktree is whole either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeln(notices, `emptying the directories left out of ${destination} now`); return deleteTrash({ destination, gitDir, manifest });
+/// ```
+fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write) -> Result<(), String> {
+    let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, so nothing another command was filling stays in it; this can take a while.", destination.display());
+    return match delete_trash(destination, git_dir, manifest) {
+        Ok(()) => Ok(()),
+        Err(reason) => Err(format!("the directories left out of the new worktree {} were not emptied ({reason}); the trash {} stays there and is named by the commit service when it next runs for this worktree", destination.display(), manifest.name)),
     };
 }
 

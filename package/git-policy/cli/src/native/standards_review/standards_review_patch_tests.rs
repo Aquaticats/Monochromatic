@@ -53,7 +53,7 @@ fn changed_repository(test: &str, name: &str, before: &str, after: &str) -> (Pat
 /// Both sides of the differential for one file of the last commit.
 fn both_sides(root: &Path, name: &str) -> (Vec<NewSpan>, Vec<NewSpan>) {
     let patch: String = git_text(root, &["show", "--format=", "--patch", "HEAD"]);
-    let patch_lines: Vec<&str> = patch.split('\n').collect();
+    let patch_lines: Vec<&[u8]> = patch.as_bytes().split(is_line_feed_byte).collect();
     let zero: String = git_text(root, &["diff", "-U0", "HEAD^", "HEAD", "--", name]);
     return (new_spans(patch_lines.as_slice(), name.as_bytes()), headers_spans(zero.as_str()));
 }
@@ -140,7 +140,7 @@ fn a_rename_is_read_under_its_new_name() {
     git(root.as_path(), &["commit", "--quiet", "--message=rename"]);
     let patch: String = git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]);
     assert!(patch.contains("rename to renamed.ts"), "{patch}");
-    let patch_lines: Vec<&str> = patch.split('\n').collect();
+    let patch_lines: Vec<&[u8]> = patch.as_bytes().split(is_line_feed_byte).collect();
     let zero: String = git_text(root.as_path(), &["diff", "-U0", "-M", "HEAD^", "HEAD"]);
     let derived: Vec<NewSpan> = new_spans(patch_lines.as_slice(), b"renamed.ts");
     assert!(!derived.is_empty());
@@ -176,10 +176,10 @@ fn absent_paths_and_hunkless_sections_have_no_spans() {
     let before: String = numbered(FILE_LINES);
     let (parent, root) = changed_repository("patch-absent", "a.ts", before.as_str(), format!("{before}x\n").as_str());
     let patch: String = git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]);
-    let patch_lines: Vec<&str> = patch.split('\n').collect();
+    let patch_lines: Vec<&[u8]> = patch.as_bytes().split(is_line_feed_byte).collect();
     assert!(new_spans(patch_lines.as_slice(), b"other.ts").is_empty());
     assert!(new_spans(&[], b"a.ts").is_empty());
-    let hunkless: Vec<&str> = vec!["diff --git a/m.ts b/m.ts", "old mode 100644", "new mode 100755"];
+    let hunkless: Vec<&[u8]> = vec![b"diff --git a/m.ts b/m.ts".as_slice(), b"old mode 100644".as_slice(), b"new mode 100755".as_slice()];
     assert!(new_spans(hunkless.as_slice(), b"m.ts").is_empty());
     remove(parent.as_path());
 }

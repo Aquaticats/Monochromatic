@@ -17,8 +17,10 @@
 
 /// What marks the captured index carries.
 use crate::index_flags::{IndexFlags, read_index_flags};
+/// The request built against a private index.
+use crate::private_index_request::indexed_request;
 /// The failure a step of the commit reports.
-use crate::transaction_git::GitFailure;
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `FileTimes` carries the copied timestamps.
 use std::fs::FileTimes;
 /// `Path` is a borrowed filesystem path.
@@ -77,8 +79,10 @@ pub enum PrivateIndexSeed {
     /// Copy the real index as it is,
     /// marks included:
     /// its intent-to-add entries are selections a later step stages,
-    /// so no early return may skip them.
-    CopyWithIntentToAdd,
+    /// so no early return may skip them,
+    /// and these are the paths they name,
+    /// which a retry writes as the requested tree's own entries.
+    CopyWithIntentToAdd(Vec<Vec<u8>>),
     /// Build the private index from the base alone.
     Base,
 }
@@ -120,9 +124,53 @@ pub fn private_index_seed(captured_index: &Path) -> PrivateIndexSeed {
     };
     return match read_index_flags(bytes.as_slice()) {
         IndexFlags::Plain => PrivateIndexSeed::Copy,
-        IndexFlags::IntentToAdd(_paths) => PrivateIndexSeed::CopyWithIntentToAdd,
+        IndexFlags::IntentToAdd(paths) => PrivateIndexSeed::CopyWithIntentToAdd(paths),
         IndexFlags::Marked | IndexFlags::Unreadable => PrivateIndexSeed::Base,
     };
+}
+
+/// What:
+///  Writes the requested tree's own entry over each given intent-to-add entry,
+///  so the index holds that tree and not a mark that leaves the path out.
+/// Why:
+///   A reset leaves an intent-to-add mark whose mode and object name match the tree's entry,
+/// and a tree built from an index holding such a mark leaves that path out:
+///  a scratch-commit hook that restages an unrelated file invalidates the cached tree,
+///  and a tracked file nobody named would then become a deletion in the tree the index writes.
+///  `update-index --index-info` reads these names as index paths,
+///  so a name relative to the repository root keeps that meaning under an invocation started in a subdirectory,
+///  and the record names the object with the repository's own hash length.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git update-index -z --index-info <<< paths.map((path) => `0 ${'0'.repeat(oidLength)} 0\t${path}\0`).join('')
+/// ```
+pub fn drop_intent_to_add(
+    context: &GitContext,
+    cwd: &Path,
+    private_index: &Path,
+    object_directory: &Path,
+    paths: &[Vec<u8>],
+    oid_length: usize,
+) -> Result<(), GitFailure> {
+    let zero: Vec<u8> = vec![b'0'; oid_length];
+    let mut input: Vec<u8> = Vec::new();
+    for path in paths {
+        input.extend_from_slice(b"0 ");
+        input.extend_from_slice(zero.as_slice());
+        input.extend_from_slice(b" 0\t");
+        input.extend_from_slice(path.as_slice());
+        input.push(0);
+    }
+    let mut request: GitRequest = indexed_request(
+        cwd,
+        &["update-index", "-z", "--index-info"],
+        Some(private_index),
+        Some(object_directory),
+    );
+    request.input = Some(input);
+    run_git_checked(context, &request)?;
+    return Ok(());
 }
 
 /// What:
