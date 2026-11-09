@@ -212,7 +212,25 @@ The old tree kept for the rollback stays until the owner deletes it.
   An unauthenticated `GET` of the provider's model list answered 200 in the same minutes,
   and other agents kept producing events,
   so the cause is unknown.
-  Retry after a few minutes.
+  The owner wrote at 2026-11-09T11:32-05:00:
+  "I'm in touch with the provider right now.
+  Meanwhile use opencode-go/deepseek-v4.1-flash ."
+  So new runs pass `--provider=opencode-go --model=deepseek-v4.1-flash` to `start-pi-run-if-a-slot-is-free.ts`
+  until the owner says the provider is back,
+  and a run the provider ends restarts on that model.
+  Audits and reviews stay on `openai/gpt-6.1-sol`.
+  The same error then ended 3 of 110 responses on `opencode-go`,
+  at 2026-11-09T16:40:52Z,
+  16:40:56Z and 16:43:09Z,
+  so it is not specific to the first provider.
+  The owner then wrote:
+  "Try synthetic's hf:deepseek-ai/DeepSeek-V4.1-Flash-1017 too.
+  If it also shows the same failure pattern then this has become a mystery."
+  `discarding-commands-findings-fixed` run 10 is that trial.
+  Evidence for the provider,
+  redacted and verified,
+  is `~/temp/agent/neuralwatt-investigation-2026-11-09.zip`,
+  which the owner asked for and sends.
   A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
