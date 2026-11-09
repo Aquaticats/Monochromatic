@@ -289,15 +289,17 @@ fn deciding_the_unordered_paths_reads_the_text_list_once_per_path() {
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let base: String = rev(repo.as_path(), "HEAD");
     git(repo.as_path(), &["checkout", "--quiet", "-b", "prepared"]);
+    // The landed edit and one own line after it: a one-sided extension, so every path is subsumed.
     for number in 0..width {
-        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("prepared {number}\n")).expect("prepared file");
+        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("base {number}\nlanded {number}\nown {number}\n"))
+            .expect("prepared file");
     }
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=prepared"]);
     let prepared: String = rev(repo.as_path(), "HEAD");
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     for number in 0..width {
-        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("landed {number}\n")).expect("landed file");
+        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("base {number}\nlanded {number}\n")).expect("landed file");
     }
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=landed"]);
@@ -306,6 +308,26 @@ fn deciding_the_unordered_paths_reads_the_text_list_once_per_path() {
     assert_eq!(shared.len(), width, "every path changed on both sides");
     let scratch: PathBuf = root.join("scratch");
     std::fs::create_dir_all(scratch.as_path()).expect("scratch");
+    // What the text check itself reads is measured first, with the same candidates, because
+    //  the claim below is about the deciding question alone; the count of this call is the
+    //  same one the deciding function makes.
+    let candidates: Vec<SharedPath> = shared
+        .iter()
+        .filter(|entry| return is_text_candidate(entry) && !is_identical(entry))
+        .cloned()
+        .collect();
+    assert_eq!(candidates.len(), width, "every path is a text candidate");
+    let checked: u64 = crate::collected_elements_looked_at::looked_at();
+    let text_paths: Vec<String> = subsumed_text_paths(
+        &git_context(),
+        repo.join(".git").as_path(),
+        repo.as_path(),
+        repo.join(".git").join("objects").as_path(),
+        candidates.as_slice(),
+    )
+    .expect("the text check");
+    assert!(!text_paths.is_empty(), "the text check subsumed the far-apart edits");
+    let reading_the_text: u64 = crate::collected_elements_looked_at::looked_at() - checked;
     let before: u64 = crate::collected_elements_looked_at::looked_at();
     let outcome: SubsumptionBase = subsume_landed_changes(
         &git_context(),
@@ -319,19 +341,16 @@ fn deciding_the_unordered_paths_reads_the_text_list_once_per_path() {
         &BTreeMap::new(),
     )
     .expect("subsumption");
-    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    // The text check the deciding function runs again is measured above; what it adds to this
+    //  call is the same, so the difference is the deciding questions alone.
+    let decided: u64 = crate::collected_elements_looked_at::looked_at() - before - reading_the_text;
     assert!(
         outcome.subsumed_paths.len() + outcome.kept_landed_paths.len() <= width,
         "every decided path is one of the shared ones"
     );
-    // The text check reads the base, landed and prepared bytes of every candidate, and each
-    //  read is one object name of the batch it prepares; the claim below is about the
-    //  deciding question, so the count it states is those names plus one question per path.
-    const OBJECTS_ONE_TEXT_CHECK_READS: u64 = 3;
-    let expected: u64 = OBJECTS_ONE_TEXT_CHECK_READS * width as u64 + width as u64;
     assert_eq!(
-        looked, expected,
-        "{looked} collected names looked at for {width} unordered shared paths; one question per path over a set is linear, \
+        decided, width as u64,
+        "{decided} collected text paths looked at for {width} unordered shared paths; one question per path over a set is linear, \
 a walk over the text list would add every text path to each question"
     );
     remove(root.as_path());
