@@ -192,11 +192,11 @@ impl Drop for ClockPin {
 /// ```ts
 /// now - ctime >= RECENT_CHANGE_NANOS
 /// ```
-fn stamp_is_settled(stamp: &FileStamp) -> bool {
+pub(crate) fn stamp_is_settled(changed: (i64, i64)) -> bool {
     let Some(now_nanos) = clock_nanos() else {
         return false;
     };
-    return now_nanos - stamp_nanos(stamp.changed) >= RECENT_CHANGE_NANOS;
+    return now_nanos - stamp_nanos(changed) >= RECENT_CHANGE_NANOS;
 }
 
 /// What:
@@ -236,7 +236,7 @@ pub fn copy_file_exclusive_with(
     }
     let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     return Ok(match (before, after) {
-        (Some(first), Some(second)) if first == second && stamp_is_settled(&second) => Some(second),
+        (Some(first), Some(second)) if first == second && stamp_is_settled(second.changed) => Some(second),
         _ => None,
     });
 }

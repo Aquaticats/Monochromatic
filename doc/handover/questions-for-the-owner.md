@@ -18,6 +18,70 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
+
+The owner:
+"I'm going to be away for 5 to 8h.
+Keep working and ask questions async."
+Nothing in this section is holding up running work.
+Write an answer under a question and save.
+
+### Should the Pi limit go above 20?
+
+The owner found that `GET https://api.neuralwatt.com/v1/rate_limits` reports the account's limits.
+At 2026-11-09T06:19:41Z,
+`deepseek-ai/DeepSeek-V4.1-Flash` read `effective_concurrency` 20,
+`floor` 15,
+`flex_floor` 22,
+`burst_ceiling` 20 and `burst_active` true,
+on tier `max`.
+No published description of those fields was found,
+so what they mean is read from their names.
+
+That limit is on requests in flight,
+and an agent spends much of its time running tools.
+Over the first 28 minutes of the trial,
+with up to twenty agents running,
+the open model calls were a median of 7,
+a 99th percentile of 13 and a highest of 15.
+They reached 15 for 0.12% of that time and never reached 20
+(`${HOME}/temp/agent/pi-runs/measure-model-calls-in-flight.ts`).
+Scaling those figures,
+which is an estimate,
+about 26 to 30 agents would reach 20 open calls.
+Anything else using this key counts against the same limit,
+and the host may run short before the provider does.
+
+The trial at twenty is still running and decides the raise to 20 by itself.
+Say if you want a further trial above 20 after it.
+
+### Are the three findings left on the stat-data landing worth another round?
+
+The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
+The sixth review (`${HOME}/temp/agent/reviews/landing-stat-data-round-6-sol.txt`) named three more cases,
+and the coordinator landed it with them open because each needs something unusual:
+
+- Another process swaps two directories by rename in the instant between opening one and reading its `.gitattributes`.
+- Another process holds `.gitattributes` in a shared memory mapping and changes it during the read,
+  which moves no timestamp.
+- A FUSE filesystem leaves a read of a regular file unanswered.
+  That one is the open question about a stalled regular-file read in this file,
+  which also covers every other read of a regular file.
+
+In the first two,
+a file can be recorded as clean when its contents differ.
+Each is reachable only by another process acting in a window of microseconds.
+Say if any of them should get another round.
+
+### Conversion: is a late change of mode or owner a defect or accepted risk?
+
+An audit (`doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`) found that a `chmod` made in a conversion's last window is lost,
+because the comparison that decides the old tree can be deleted does not look at mode,
+owner or extended attributes.
+The coordinator read this as a defect and queued a fix,
+since that comparison exists to catch a late change.
+Say if you would rather accept the risk than pay for the wider comparison.
+
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
 None of these has been asked yet,
@@ -202,6 +266,51 @@ because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
+
+## Answered in the question tool, recorded 2026-11-09T01:14:41-05:00
+
+An audit (`doc/planning/cli-git-discarding-commands-route-findings-on-main.md`) reproduced two discarding commands outside the wrapper's recorded rule.
+
+- `git worktree remove`:
+  "Log only",
+  with the note
+  "This one is pretty intentional because agents are just as likely to run a rm rf,
+  so preventing git worktree remove buys us nothing."
+  Git runs as it does today,
+  and the wrapper adds an audit line naming the worktree and what the removal took.
+- `git branch -D` from the main worktree:
+  "Allow,
+  add audit line (Recommended)".
+  Git runs as it does today,
+  and the wrapper records the branch and its commit so the branch can be restored.
+
+## Answered in a plain message, recorded 2026-11-09T00:52:14-05:00
+
+- How many Pi agents run at once:
+  "I said 16 is practical,
+  based on a rough estimation.
+  Try 20,
+  and if it doesn't blow up (in terms of api rate limits),
+  we're permanently raising the practical limit to 20."
+  The trial is running.
+  A provider error reaches a run's `feed.jsonl` as an `assistant` record with `"stop":"error"`,
+  and Pi's own retry as an `auto_retry_start` record.
+  Before the trial,
+  at up to sixteen agents,
+  158 feeds held 25,631 model turns,
+  no retry and no error shaped like a rate limit.
+  The eight errors they did hold (five aborted operations,
+  three unconfigured providers) show the count can see an error.
+  Coordinator's pick,
+  veto open:
+  the trial passes after sixty minutes with twenty running and no error shaped like a rate limit.
+  The first such error ends it.
+  A provider that throttles by answering slowly reports no error,
+  so the watcher also prints the median model turn before and during the trial.
+  The count is `${HOME}/temp/agent/pi-runs/watch-trial-of-twenty-pi-agents.ts`.
+  On a pass,
+  `.agents/skills/pi-as-subagent/SKILL.md` gets these words in place of "In practice it's 16."
+  and `file-enforcer write` regenerates its copies.
 
 ## Answered in a plain message, recorded 2026-11-09T00:07:24-05:00
 
