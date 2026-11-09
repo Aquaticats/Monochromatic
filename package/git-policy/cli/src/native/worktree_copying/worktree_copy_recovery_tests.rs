@@ -669,3 +669,30 @@ fn a_recorded_registration_that_still_holds_is_resumed() {
     assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
     remove(root.as_path());
 }
+
+/// A registration whose destination path holds bytes that are not text is read as registered:
+/// the pointer Git wrote names the administrative directory with those bytes.
+#[test]
+fn a_registration_under_a_path_that_is_not_text_is_read() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("recovery-registration-bytes");
+    let source: PathBuf = repository(root.as_path(), "source");
+    let parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"dst\xff"));
+    std::fs::create_dir_all(parent.as_path()).expect("destination parent");
+    let destination: PathBuf = parent.join("topic");
+    let arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
+        .iter()
+        .map(OsString::from)
+        .chain([destination.clone().into_os_string()])
+        .collect();
+    git(source.as_path(), arguments.as_slice());
+    let canonical: PathBuf = std::fs::canonicalize(destination).expect("canonical destination");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    assert_eq!(
+        destination_registration(common.as_path(), canonical.as_path()).expect("read"),
+        Registration::Registered,
+        "the registration is read from the pointer Git wrote"
+    );
+    remove(root.as_path());
+}
