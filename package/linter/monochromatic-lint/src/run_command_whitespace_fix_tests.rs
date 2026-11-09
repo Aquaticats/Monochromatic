@@ -63,12 +63,6 @@ struct Case {
     source: String,
 }
 
-/// Split into the tokens a reader sees,
-///  ignoring where lines break and how much space separates them.
-fn tokens(text: &str) -> Vec<&str> {
-    return text.split_whitespace().collect::<Vec<&str>>();
-}
-
 /// The comment marker that opens a line of Rust comment text,
 ///  which a broken doc comment line gains on its continuation line.
 ///  Only that one leading marker is set aside:
@@ -83,23 +77,34 @@ fn without_leading_comment_marker(line: &str) -> &str {
     return trimmed;
 }
 
-/// Tokens of Rust source with the one leading comment marker of each line removed.
-fn tokens_without_comment_markers(text: &str) -> Vec<&str> {
-    let mut found: Vec<&str> = Vec::<&str>::new();
-    for line in text.lines() {
-        found.extend(without_leading_comment_marker(line).split_whitespace());
+/// Drop the quote markers that open a line,
+///  which a broken line inside a quotation gains at the depth it continues.
+///  A marker is container structure, like a list marker or a Rust comment marker,
+///  and not a token a reader sees;
+///  the tests that require a particular depth compare exact bytes and parsed containers instead.
+fn without_leading_quote_markers(line: &str) -> &str {
+    let mut rest: &str = line.trim_start();
+    while let Some(after_marker) = rest.strip_prefix('>') {
+        rest = after_marker.trim_start();
     }
-    return found;
+    return rest;
 }
 
 /// The tokens a language compares:
-///  Markdown compares every token,
-///  Rust compares all but its doc comment markers.
+///  Rust source without the doc comment marker each line starts with,
+///  and every language without the quote markers that place a line in a quotation.
 fn comparable_tokens<'text>(filename: &str, text: &'text str) -> Vec<&'text str> {
-    if filename.ends_with(".rs") {
-        return tokens_without_comment_markers(text);
+    let rust: bool = filename.ends_with(".rs");
+    let mut found: Vec<&'text str> = Vec::<&'text str>::new();
+    for line in text.lines() {
+        let without_comment: &'text str = if rust {
+            without_leading_comment_marker(line)
+        } else {
+            line
+        };
+        found.extend(without_leading_quote_markers(without_comment).split_whitespace());
     }
-    return tokens(text);
+    return found;
 }
 
 /// Fix one source on standard input under a configuration and return the fixed source.
@@ -175,21 +180,23 @@ fn a_doc_example_in_a_rust_file_is_left_as_written_beside_its_broken_doc_comment
     );
 }
 
-/// A line break inside a blockquote adds no marker token and the text stays in the quotation:
-///  CommonMark 0.31.2,
-/// section 5.1 "Block quotes",
-/// rule 2 "Laziness" and example 251,
-///  keeps a line without `>` in the paragraph of the quotation it continues.
+/// A line break inside a blockquote re-emits the marker at the depth the paragraph sits at,
+///  so the raw text keeps the quotation and a later edit cannot move the broken line out of it.
 #[test]
-fn a_blockquote_break_adds_no_marker_and_stays_in_the_quote() {
+fn a_blockquote_break_keeps_the_marker_at_the_same_depth() {
     let source: &str = "> I think we can make it much better. Because we control the code.\n> Second line, here.\n";
     let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, EVERY_FIXABLE_RULE);
     assert_eq!(
         fixed,
-        "> I think we can make it much better.\nBecause we control the code.\n> Second line,\nhere.\n"
+        "> I think we can make it much better.\n> Because we control the code.\n> Second line,\n> here.\n"
     );
     assert_eq!(remaining, Vec::<String>::new());
-    assert_eq!(tokens(fixed.as_str()), tokens(source));
+    assert_eq!(
+        comparable_tokens("a.md", fixed.as_str()),
+        comparable_tokens("a.md", source)
+    );
+    // Every written line carries its marker, so the quotation holds in the raw text too.
+    assert!(fixed.lines().all(|line| line.starts_with("> ")), "{fixed}");
     let context: MarkdownSource = parse(fixed.as_str());
     let mut root_children: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
     for id in context.all_nodes() {
