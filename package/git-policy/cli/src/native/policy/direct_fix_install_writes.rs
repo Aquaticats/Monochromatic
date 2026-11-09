@@ -93,9 +93,10 @@ pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
 ///       change how the file runs.
 ///  The owner is restored only where the system lets this process set it
 ///       (a file created by the running user is already theirs),
-///  and a failure to restore it is not a
-///       failure of the write:
-///  the bytes are what the fix was asked to change.
+///  and a failure to restore it fails the
+///       write:
+///  a replacement that belongs to another account is a file handed over, not a
+///       correction.
 ///  What a replacement does not
 ///       carry is named beside `InstallChange`.
 ///
@@ -103,7 +104,7 @@ pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
 /// ```ts
 /// await writeFile(path, bytes, { mode: kept.mode, flag: 'wx' }); await fchmod(fd, kept.mode); await fchown(fd, kept.uid, kept.gid);
 /// ```
-pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> std::io::Result<()> {
+pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> Result<(), WriteFailure> {
     /// `Write` adds `write_all` to the open file.
     use std::io::Write;
     let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
@@ -111,7 +112,9 @@ pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> std::io::Resu
     #[cfg(unix)]
     {
         /// `OpenOptionsExt` adds `mode`,
-        ///  the permissions a new file is created with.
+        ///  the permissions a new file is created with;
+        ///  the mode is given again on the descriptor below,
+        ///  because the umask takes bits away from it here.
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(kept.mode);
     }
@@ -119,7 +122,13 @@ pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> std::io::Resu
     file.write_all(bytes)?;
     #[cfg(unix)]
     {
-        keep_what_the_old_file_had(&file, kept);
+        keep_what_the_old_file_had(&file, kept)?;
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        // Only Unix records an owner or a special permission bit; nothing else has to be given back.
+        let _ = kept;
     }
     return Ok(());
 }
@@ -141,11 +150,11 @@ pub(crate) struct Kept {
     /// The destination's permission bits,
     ///  the set-user-id,
     ///  set-group-id and sticky bits included.
-    mode: u32,
+    pub(crate) mode: u32,
     /// The destination's owner.
-    uid: u32,
+    pub(crate) uid: u32,
     /// The destination's group.
-    gid: u32,
+    pub(crate) gid: u32,
 }
 
 impl Kept {
@@ -192,24 +201,104 @@ impl Kept {
 /// Why:
 ///  `fchmod` and `fchown` act on the descriptor,
 ///  so no other process can swap the name between the
-///       write and the change;
-///  an owner this process may not give is left as the running user's,
-///  because
-///       only privilege can set another one and the bytes were still written.
+///       write and the change.
+///  The order is the owner first and the permission bits second:
+///  changing a
+///       file's owner clears its set-user-id and set-group-id bits on Linux,
+///  even when the owner and the
+///  group stay the same (`chmod 4755 f; chown $(id -u):$(id -g) f`
+///  leaves `755`,
+///  measured on this host on
+///  2026-11-09),
+///  so restoring the bits first would lose them.
+///  An owner this process may not give is a
+///       failure: the replacement would belong to the user running the fix,
+///  which silently hands the
+///       person's file to another account.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// fchmodSync(fd, kept.mode); try { fchownSync(fd, kept.uid, kept.gid) } catch { /* not ours to give */ }
+/// if (kept.uid !== geteuid() || kept.gid !== getegid()) fchownSync(fd, kept.uid, kept.gid); fchmodSync(fd, kept.mode);
 /// ```
 #[cfg(unix)]
-fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) {
+fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), WriteFailure> {
     /// `AsRawFd` lends the descriptor the system calls take.
     use std::os::unix::io::AsRawFd;
     let descriptor: libc::c_int = file.as_raw_fd();
-    // SAFETY: both calls take a descriptor this file owns and plain numbers;
-    // neither reads or writes memory of this process.
-    let _mode_set: libc::c_int = unsafe { libc::fchmod(descriptor, kept.mode as libc::mode_t) };
-    // An owner this process may not set is not an error: the file already belongs to the running user.
-    let _owner_set: libc::c_int =
-        unsafe { libc::fchown(descriptor, kept.uid as libc::uid_t, kept.gid as libc::gid_t) };
+    // SAFETY: `geteuid` and `getegid` read this process's own credentials and touch no memory.
+    let (own_uid, own_gid): (u32, u32) = unsafe { (libc::geteuid(), libc::getegid()) };
+    if kept.uid != own_uid || kept.gid != own_gid {
+        // SAFETY: `fchown` takes a descriptor this file owns and two plain numbers; it reads no memory of this
+        // process.
+        let given: libc::c_int =
+            unsafe { libc::fchown(descriptor, kept.uid as libc::uid_t, kept.gid as libc::gid_t) };
+        if given != 0 {
+            return Err(WriteFailure::OwnerKept {
+                uid: kept.uid,
+                gid: kept.gid,
+                reason: std::io::Error::last_os_error(),
+            });
+        }
+    }
+    // SAFETY: `fchmod` takes a descriptor this file owns and plain numbers; it reads no memory of this process.
+    let bits_set: libc::c_int = unsafe { libc::fchmod(descriptor, kept.mode as libc::mode_t) };
+    if bits_set != 0 {
+        return Err(WriteFailure::Io(std::io::Error::last_os_error()));
+    }
+    return Ok(());
+}
+
+/// What:
+///  Why writing a replacement failed.
+/// Why:
+///   An owner this process may not give is its own answer:
+///  the person must be told that the file
+///       would change hands,
+///  which is not the same as a full disk or a read-only directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WriteFailure = { kind: 'io'; error: Error } | { kind: 'owner-kept'; uid: number; gid: number; reason: Error };
+/// ```
+#[derive(Debug)]
+pub(crate) enum WriteFailure {
+    /// The file or one of its attributes could not be written.
+    Io(std::io::Error),
+    /// The replacement cannot keep the owner the destination had.
+    OwnerKept {
+        /// The owner the destination had.
+        uid: u32,
+        /// The group the destination had.
+        gid: u32,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+}
+
+/// What:
+///  The sentence each write failure is reported with.
+/// Why:
+///   The installer wraps a failure in its own message,
+///  and both kinds must read as what they are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = failure.kind === 'owner-kept' ? `its owner (uid ${uid}, gid ${gid}) cannot be preserved, so installing it would give the file to the user running fix` : failure.error.message;
+/// ```
+impl std::fmt::Display for WriteFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return match self {
+            Self::Io(error) => write!(formatter, "{error}"),
+            Self::OwnerKept { uid, gid, reason } => write!(
+                formatter,
+                "the file belongs to uid {uid} and gid {gid}, and this process may not give the replacement that owner ({reason}), so installing it would hand the file to the user running the fix"
+            ),
+        };
+    }
+}
+
+impl From<std::io::Error> for WriteFailure {
+    fn from(error: std::io::Error) -> WriteFailure {
+        return WriteFailure::Io(error);
+    }
 }

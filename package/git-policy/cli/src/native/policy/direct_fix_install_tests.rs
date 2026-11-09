@@ -24,6 +24,7 @@ use super::{
     install_corrections, install_prepared, keep_prepared_files_out_of_git, prepare_replacements,
     read_index, rollback,
 };
+use crate::direct_fix_install_writes::{Kept, write_new};
 use crate::candidate_object::CandidateMode;
 use crate::test_support::{fixture, git, remove, repository};
 use std::os::unix::fs::PermissionsExt;
@@ -571,5 +572,86 @@ fn the_prepared_files_of_a_fix_are_never_staged() {
         String::from_utf8_lossy(staged.stdout.as_slice()).into_owned(),
         String::from("keep.txt\n")
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  The set-user-id and set-group-id bits survive a fix.
+/// Why:
+///  Restoring the owner clears those bits on Linux even when the owner and group are unchanged
+///  (`chmod 4755 f; chown $(id -u):$(id -g) f` leaves `755`),
+///  so a fix that
+///       restored the mode first and the owner second silently removed the privilege a file was
+///       given on purpose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await chmod(file, 0o4755); await installCorrections(...); expect((await stat(file)).mode & 0o7777).toBe(0o4755)
+/// ```
+#[test]
+fn the_special_permission_bits_survive_a_fix() {
+    let fixture_tree: Tree = tree("install-special-bits");
+    let private: PathBuf = fixture_tree.top.join("a.txt");
+    let script: PathBuf = fixture_tree.top.join("sub/run.sh");
+    std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o4755)).expect("set-user-id");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o2755)).expect("set-group-id");
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice()),
+        Ok(())
+    );
+    let kept_private: u32 = std::fs::metadata(&private).expect("a").permissions().mode() & 0o7777;
+    assert_eq!(kept_private, 0o4755, "{kept_private:o}");
+    let kept_script: u32 = std::fs::metadata(&script).expect("script").permissions().mode() & 0o7777;
+    assert_eq!(kept_script, 0o2755, "{kept_script:o}");
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A replacement never changes who owns the file it stands in for:
+///  the owner is kept where this
+///       process may set it,
+///  and the write is refused where it may not.
+/// Why:
+///  The replacement is created as the user running the fix;
+///  a failed ownership restore was
+///       discarded before,
+///  so the file quietly changed owner and the original inode was removed.
+///  Only privilege can give
+///       a file to another account,
+///  so this control accepts either answer and refuses each wrong one:
+///  kept, or refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const kept = { mode: 0o644, uid: 0, gid: 0 }; const r = writeNew(path, bytes, kept); if (r.ok) expect(stat(path).uid).toBe(0); else expect(stat(path).uid).toBe(geteuid());
+/// ```
+#[test]
+fn a_replacement_never_changes_the_owner() {
+    let root: PathBuf = fixture("install-owner");
+    let path: PathBuf = root.join("kept.txt");
+    /// `MetadataExt` adds the numeric owner;
+    ///  `libc::geteuid` is this process's.
+    use std::os::unix::fs::MetadataExt;
+    let asked: Kept = Kept {
+        mode: 0o644,
+        uid: 0,
+        gid: 0,
+    };
+    match write_new(path.as_path(), b"x\n", &asked) {
+        // A process that may give the file away gives it, and the bits survive the change.
+        Ok(()) => {
+            let owner: u32 = std::fs::metadata(&path).expect("written").uid();
+            assert_eq!(owner, 0, "an accepted write keeps the owner it was asked for");
+        }
+        Err(refusal) => {
+            let text: String = refusal.to_string();
+            assert!(text.contains("owner"), "{text}");
+            // Nothing was handed to another account: the file, if it exists, is still ours.
+            if let Ok(described) = std::fs::metadata(&path) {
+                assert_eq!(described.uid(), unsafe { libc::geteuid() });
+            }
+        }
+    }
+    let _ = std::fs::remove_file(path.as_path());
     remove(root.as_path());
 }

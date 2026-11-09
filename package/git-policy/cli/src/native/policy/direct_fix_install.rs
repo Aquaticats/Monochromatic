@@ -67,7 +67,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /// The file-system primitives an install swaps and writes with.
-use crate::direct_fix_install_writes::{Kept, exchange, write_new};
+use crate::direct_fix_install_writes::{Kept, WriteFailure, exchange, write_new};
 
 /// The name prefix of the files a fix writes beside each corrected file.
 pub const INSTALL_SIBLING_PREFIX: &str = ".cli-git-direct-fix-";
@@ -395,7 +395,7 @@ pub fn prepare_replacements(
             original: Rc::clone(&change.original),
             destination,
         };
-        let written: std::io::Result<()> = write_new(
+        let written: Result<(), WriteFailure> = write_new(
             replacement.prepared.as_path(),
             &change.replacement,
             &kept,
