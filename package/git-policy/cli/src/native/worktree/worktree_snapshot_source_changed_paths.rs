@@ -166,8 +166,8 @@ fn ask_git_own_pathspecs(context: &GitContext, root: &Path, arguments: &[&str]) 
 /// ```ts
 /// await gitRequest(request) // throws a sentence
 /// ```
-fn ask_git_request(context: &GitContext, request: GitRequest) -> Result<Vec<u8>, String> {
-    let request: GitRequest = GitRequest { without_prefix: true, ..request };
+fn ask_git_request(context: &GitContext, mut request: GitRequest) -> Result<Vec<u8>, String> {
+    request.without_prefix = true;
     let words: String = subcommand_word(request.arguments.as_slice());
     return match run_git(context, &request) {
         Ok(found) if found.code == Some(0) => Ok(found.stdout),
