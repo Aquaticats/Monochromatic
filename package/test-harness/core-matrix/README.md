@@ -362,16 +362,19 @@ and their callers read the values from the lock through three commands that run 
 
 ## Mounting the shared pnpm store
 
-This repository installs with `storeDir` and `virtualStoreType: global` in `pnpm-workspace.yaml`, so every entry in a
+This repository installs with `storeDir` and `virtualStoreType: global` in `pnpm-workspace.yaml`,
+so every entry in a
 `node_modules` folder is a symbolic link into `${HOME}/.local/share/pnpm/store`.
 A container that mounts this checkout and nothing else cannot follow those links and fails every import of an installed
-package with `ERR_MODULE_NOT_FOUND`, which is why every container run of a JavaScript tool against the checkout takes
+package with `ERR_MODULE_NOT_FOUND`,
+which is why every container run of a JavaScript tool against the checkout takes
 `pnpmStoreMountArguments()` and `--security-opt label=disable`.
 
 - `pnpmStoreMountArguments({ home? })` returns `['--volume', '<store>:<store>:ro']`.
   Source and destination spell the same absolute path because a relative link resolves against its own directory.
 - `pnpmStoreDirectory({ home? })` returns that path.
-- `STORE_DIRECTORY_FROM_HOME` mirrors the `storeDir` setting, which this module cannot read without a synchronous
+- `STORE_DIRECTORY_FROM_HOME` mirrors the `storeDir` setting,
+  which this module cannot read without a synchronous
   filesystem call;
   `src/pnpm-store-mount.unit.test.ts` reads `pnpm-workspace.yaml` and fails when the two disagree.
 - Locally imported task bodies take it by path,

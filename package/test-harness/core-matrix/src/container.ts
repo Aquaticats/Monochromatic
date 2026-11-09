@@ -338,9 +338,9 @@ export function resolveImage({
  No bounded run of this workload has been measured.
  The one matrix cell reachable from a task today, `env-local-json`'s `test:container`, could not start its workload on
  2026-11-08T19:18:31-05:00: the container's node could not resolve a dependency because this checkout's `node_modules`
- links into `${HOME}/.local/share/pnpm/store`, which the cell's checkout mount does not contain. The cell now mounts that
- store read-only at the path the links name, so the workload runs
- (`doc/handover/container-limits-everywhere.md`, section Measured runs on this host).
+ links into `${HOME}/.local/share/pnpm/store`, which the cell's checkout mount did not contain. The cell now mounts that
+ store read-only at the path the links name, and the workload ran on 2026-11-09T01:32:39Z in both combinations
+ (`doc/handover/container-limits-everywhere.md`, section The shared pnpm store inside a container).
  */
 export const CELL_LIMITS: ContainerLimits = {
   memory: '2g',
