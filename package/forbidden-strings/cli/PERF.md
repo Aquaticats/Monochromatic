@@ -1763,7 +1763,7 @@ and is now a small fraction of overall runtime.
 ## Comparison with betterleaks v1.1.2
 
 Betterleaks is the upstream source for the ported rule corpus (see
-`src/mise.port-betterleaks.ts`).
+`bin/port-betterleaks.ts`).
  Measuring against it is informative
 because both tools scan for secrets,
  but the comparison is not a

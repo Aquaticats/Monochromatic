@@ -80,7 +80,7 @@ import { join, } from 'node:path';
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
-import { RELAXATIONS, } from './port-betterleaks-relaxations.ts';
+import { RELAXATIONS, } from '../src/port-betterleaks-relaxations.ts';
 
 /**
  One rule extracted from the upstream TOML, before conversion.
@@ -596,7 +596,7 @@ const HEADER = `# forbidden-strings built-in baseline deny-list.
 #
 # THIS FILE IS GENERATED. Do not edit by hand. It is the output of the
 # two-stage generation chain:
-#   1. package/forbidden-strings/cli/src/mise.port-betterleaks.ts reads the
+#   1. package/forbidden-strings/cli/bin/port-betterleaks.ts reads the
 #      upstream TOML at
 #      package/forbidden-strings/cli/data/betterleaks-default-config.toml
 #      and emits a tail-format intermediate whose bodies are still PCRE.
