@@ -450,11 +450,14 @@ fn spawn_other_claimer(claim: PathBuf, placed: std::sync::mpsc::Sender<()>, let_
 /// Why:
 ///   The count of refusals this control used to require (more than one) was a clock in disguise:
 /// how many attempts fit in the ceiling depends on how long each attempt takes,
-/// and on 2026-11-09 this host stalled one attempt for ten seconds (the same two controls, alone, took 0.3 to 19.6 s over
+/// and on 2026-11-09 this host stalled one attempt for ten seconds (the same two controls,
+/// alone,
+/// took 0.3 to 19.6 s over
 /// six runs),
 /// so the count fell to one and the control failed while the landing behaved as designed.
 /// That the wait looks again at the poll pace is what `a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped`
-/// controls, through `WaitNotes::polled`,
+/// controls,
+/// through `WaitNotes::polled`,
 /// which no clock decides.
 #[test]
 fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
@@ -489,7 +492,8 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
 /// Why:
 ///   The poll pace was asserted through a one-second ceiling,
 /// which a stalled attempt eats:
-/// on 2026-11-09 two of these controls failed at 11.268 s and 11.271 s in a run of 1,269 tests while the same two, alone,
+/// on 2026-11-09 two of these controls failed at 11.268 s and 11.271 s in a run of 1,269 tests while the same two,
+/// alone,
 /// took 0.3 to 19.6 s over six runs on this host.
 /// The wait now says in `WaitNotes::polled` that it looked again at the poll pace while a claim stood,
 /// and the ceiling is the product's own (`LANDING_LOCK_CEILING`),

@@ -6,6 +6,8 @@
 
 use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
+/// The trait that gives a child's input and this process's standard error their `write_all`.
+use std::io::Write as _;
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::test_support::{git, git_text, remove};
 use std::path::Path;
@@ -200,7 +202,7 @@ fn a_path_with_conflict_stages_is_left_alone() {
         .spawn()
         .expect("git starts");
     {
-        use std::io::Write as _;
+        
         child.stdin.as_mut().expect("stdin").write_all(listing.as_bytes()).expect("the stages are fed");
     }
     assert!(child.wait().expect("git ends").success(), "the unmerged stages are made");
@@ -745,7 +747,7 @@ fn a_check_that_cannot_be_made_still_leaves_the_moved_paths_out() {
         .spawn()
         .expect("git starts");
     {
-        use std::io::Write as _;
+        
         child.stdin.as_mut().expect("stdin").write_all(listing.as_bytes()).expect("the stages are fed");
     }
     assert!(child.wait().expect("git ends").success(), "the conflict stages are made");
@@ -1094,7 +1096,7 @@ fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
     let _ = &landed;
     // Land the link's target text as a blob of its own: the change is the link, not its referent.
     let blob: String = {
-        use std::io::Write as _;
+        
         let mut child = std::process::Command::new(crate::test_support::REAL_GIT)
             .current_dir(world.repo.as_path())
             .args(["hash-object", "-w", "--stdin"])
@@ -1423,4 +1425,30 @@ fn an_unreadable_obligation_keeps_a_landed_deletion_out() {
     let landed_blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD:one.txt"]);
     assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "one.txt"]), format!("100644 {landed_blob} 0\tone.txt"), "the landed file stays in the commit");
     remove(world.root.as_path());
+}
+
+/// What:
+///  The notice a preparation prints reaches standard error while another thread holds its shared lock.
+/// Why:
+///  This write is on the commit's own path,
+/// after the warnings,
+/// so a lock a warning worker kept would hold the commit
+///  here forever;
+/// the notice is given to the descriptor with a ceiling instead,
+/// and the commit goes on whatever happens.
+#[cfg(unix)]
+#[test]
+fn a_notice_reaches_standard_error_while_its_shared_lock_is_held() {
+    // The lock is reentrant for the thread that holds it, so the delivery runs on a thread of its own, as the production
+    //  write does.
+    let (done, finished) = std::sync::mpsc::channel::<bool>();
+    let held = std::io::stderr().lock();
+    let worker = std::thread::spawn(move || {
+        let delivered: bool = crate::preparation_notice::deliver_notice_for_test("a notice holds no lock another writer needs\n");
+        let _sent = done.send(delivered);
+    });
+    let delivered: bool = finished.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(false);
+    drop(held);
+    let _joined = worker.join();
+    assert!(delivered, "the notice needed the lock a synchronous writer holds");
 }

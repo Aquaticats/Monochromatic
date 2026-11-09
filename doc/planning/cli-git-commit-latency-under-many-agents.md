@@ -989,12 +989,410 @@ owner-held machinery it would move.
   4 of 4,
   because it cannot be sized until it is measured.
 
+## The preparation's split, measured on a shaped fixture
+
+What this answers:
+which step inside `prepareMs` spends the milliseconds,
+weighed on real commits through a built wrapper in a disposable repository of this tree's shape,
+and what the record states so that the next slow commit explains itself.
+
+The record every commit writes now carries `prepareSpans`
+(`package/git-policy/cli/SPEC.md`,
+"The longest quiet gap of every Git step and tool a command ran"):
+each step of the preparation by name,
+with how often it ran,
+the whole of its time and its longest run.
+The names are the index's stat check,
+the index read,
+the index copies,
+the answer of whether the index already holds the base,
+the writes of corrected entries,
+the candidate set the content policies of a pass share,
+and every policy with the lifecycle point whose pass ran it.
+The owner's rule for an unexplained slow commit was to log more,
+and the field is that logging:
+it costs one clock reading at each seam and one `write` in the record the commit already writes.
+
+How the split was measured:
+
+- The fixture is a clone of this checkout's `HEAD` with its remote removed:
+  22,457 tracked files and a 3,016,055-byte index,
+  reflinked for each arm,
+  its index refreshed and `core.untrackedcache` set,
+  with this repository's `post-checkout`,
+  `post-commit`,
+  `post-merge` and `pre-push` hooks and `git-lfs` on the arm's `PATH`.
+- The harness is `mise run //package/git-policy/cli:native:perf -- --only commit-service --samples 20 --shape <clone>`,
+  whose two arms alternate every round:
+  the same 20 rounds ran through the release wrapper and through `/usr/bin/git`,
+  so the paired delta of a round holds what the wrapper added while both arms met the same host.
+- The host was under the pressure other sessions keep up:
+  load average 61 to 109 on eight CPUs,
+  and no synthetic load was generated.
+  Every probe ran in a `systemd-run --user --scope` with
+  `CPUQuota=700%`,
+  `MemoryMax=12G`,
+  `TasksMax=900` and `IOWeight=10`.
+- No run waited for a quiet host and none called this one quiet:
+  the spread of one binary on unchanged input is reported beside each figure,
+  and the two runs of the unchanged wrapper on the same fixture
+  (paired delta median 6,629 ms and 7,685 ms,
+  p95 19,725 ms and 25,659 ms,
+  and 13 then 12 of the 20 rounds over the owner's five seconds)
+  show how much of any single figure is the host.
+
+The split over 20 wrapped commits:
+
+- `prepareMs`:
+  median 1,919 ms,
+  p95 19,815 ms,
+  max 50,596 ms.
+- `submitMs`:
+  median 783 ms,
+  max 21,835 ms.
+- `gateMs`:
+  median 1,337 ms,
+  p95 6,408 ms.
+- `buildMs`:
+  median 3 ms:
+  every commit of this shape took the route where the service builds the commit from the request,
+  so no scratch `git commit` ran.
+- The named steps,
+  each a median over the 20 commits:
+  - `candidates prepared` 3,404 ms,
+    p95 15,077 ms,
+    max 17,491 ms.
+    It sums the pre-forward pass and the post-commit gate of each commit,
+    so it can exceed `prepareMs`.
+  - `policy final-newline at pre-forward` 1,468 ms.
+  - `policy final-newline at post-commit` 1,173 ms.
+  - `policy security/forbidden-strings at pre-forward` 31 ms,
+    with one run of 41,481 ms.
+  - `index stat check` 22 ms (max 816 ms),
+    `index read` 19 ms (max 490 ms),
+    `index copy` 0 ms (max 940 ms),
+    `index equals base` 2 ms.
+  - Every other policy:
+    0 to 2 ms.
+
+The answer to the question this record could not settle is that no policy spends the preparation's time:
+the candidate set does.
+The first content policy that asks for it,
+`final-newline`,
+pays for the private index its listings read,
+the listings themselves,
+and the content behind each path,
+and every later policy of the pass reads what it paid for.
+`final-newline` was named as the cost in the first reading of the new field
+(`prepareSpans` with the policy names only),
+which is why the set has a name of its own now.
+
+What this split still does not name:
+the child Git processes the in-process readers fall back to.
+Those start outside the step ledger,
+so a commit whose preparation waits on one shows the wait in the phase and in no step.
+That gap is a defect of the record,
+not of the fixture,
+and it is what the next change fixes.
+
+The bar,
+on the same 20 rounds:
+
+- `/usr/bin/git` median 92.1 ms and p95 1,598 ms.
+- The wrapper median 8,043 ms,
+  p95 25,741 ms,
+  largest 52,225 ms.
+- The paired delta:
+  median 7,685 ms,
+  p95 25,659 ms,
+  max 35,956 ms,
+  so 12 of the 20 rounds were over the owner's five seconds and eight were not.
+
+## What the split changed
+
+Three commits came out of the split,
+and the third was measured against the unchanged binary rather than against a
+single run.
+
+### The record lists the reads the in-process readers decline
+
+`56a9f07fe5`.
+A commit that waited on a Git child the in-process readers fall back to showed that wait in its phase and in no step:
+one preparation of 50,596 ms explained 7,094 ms of itself.
+`run_metadata_git_within` now notes the child it starts in the same ledger every other step uses,
+so the record names it and how long it ran,
+and the control closes that gap by switching the readers off and asking the ledger for the child.
+This changes what the record says and no work a commit does;
+it is what let the next measurement see the copies at all.
+
+### A request that only lists the index reads it in place
+
+`195f167602`.
+The candidate set copied the index into a private directory for every request.
+A commit makes that copy after it already holds its own private index,
+so the copy is three megabytes read and written for nothing:
+the harness's `strace` put that third copy at 2,288 ms and 4,813 ms in two commits,
+against 0.130 ms and 0.125 ms for the two copies the commit itself makes.
+Only a request that stages into the index can change it,
+so `git add` prediction and the direct scope keep the copy,
+and the requests that only list it read the index the caller named,
+which that command has already isolated from the live one.
+The control closes the Git directory for writing and asks a staged request for its candidates:
+a preparation that copies fails there with `Permission denied`,
+and this one answers with the same candidate,
+leaving the index byte for byte as it was.
+
+The same 20-round harness and the same shaped fixture,
+the unchanged binary run with it:
+
+- The unchanged binary,
+  four runs:
+  paired delta median 6,629 ms,
+  7,685 ms,
+  8,276 ms and 6,955 ms,
+  13,
+  12,
+  12 and 10 of 20 rounds over the owner's five seconds,
+  `prepareMs` median 4,301 ms,
+  1,919 ms,
+  3,925 ms and 2,795 ms,
+  `candidates prepared` median 3,404 ms,
+  3,458 ms and 2,899 ms in the three runs that could name it,
+  and the direct arm's own median 92.6 ms,
+  92.1 ms,
+  82.3 ms and 105.6 ms.
+- This change,
+  one run:
+  paired delta median 1,988 ms,
+  8 of 20 rounds over five seconds,
+  `prepareMs` median 214 ms,
+  `candidates prepared` median 7 ms,
+  and the direct arm's median 71.1 ms.
+- The spread of the unchanged binary's four medians is 6,629 ms to 8,276 ms,
+  a quarter of the lowest of them,
+  while the direct arm's own medians moved 71.1 ms to 105.6 ms,
+  half of the lowest,
+  across the same runs.
+  This change is 3.3 times below the lowest of the four,
+  so the host alone does not explain it.
+
+### The clone that the measurement rejected
+
+`42b2c1d4c6`,
+reverted by `a30eceb87f`.
+Sharing the index's extents instead of copying its bytes was the first attempt at the same waste.
+With the disk busy it is slower than the copy:
+`index copy` median 6,120 ms across a commit's four copies against 0 ms for the two the older record could name,
+`candidates prepared` median 6,172 ms against 3,458 ms,
+and a paired delta median 16,458 ms against 8,276 ms,
+17 of 20 rounds over five seconds against 12,
+while the direct arm moved only from 82.3 ms to 85.0 ms.
+A clone of a freshly written index waits for that index's own writeback inside the copy the commit is waiting on,
+and a byte copy leaves that writeback to happen after the commit.
+One run under a lighter disk put the same binary at 452 ms,
+which is why every figure here is repeated beside the
+unchanged binary and none is reported alone.
+
+## What remains over the five seconds
+
+With the copy gone,
+eight of the 20 rounds still take more than five seconds beyond native Git,
+and the phases of those rounds name three causes:
+
+- The service's landing:
+  `submitMs` holds 6,136 ms,
+  7,518 ms,
+  10,324 ms,
+  19,271 ms and 25,114 ms in five of the eight.
+  That is where a landing waits for the queue and the index lock,
+  which this record's ranking already put second and which this task left alone.
+- The scanner's first use of a rule cache:
+  one round holds 24,669 ms in `policy security/forbidden-strings at pre-forward`,
+  and the trace of a commit in a fresh `HOME` shows what it is:
+  `fsync` calls of 6.7 s and 3.0 s and a `rename` of 1.5 s on
+  `$HOME/.cache/forbidden-strings/<release>/<hash>/`,
+  the compiled rules written and flushed inside the commit that first needs them.
+  Every run of this fixture starts from an empty `HOME`,
+  so its first commit pays that;
+  a machine pays it once per cache invalidation,
+  not per commit.
+- What is left of the preparation:
+  three rounds hold 5,938 ms,
+  4,538 ms and 3,531 ms there,
+  and the named steps say it is the commit's own copies of the live index:
+  `index copy` takes 5,793 ms in one of them and 4,227 ms in another,
+  once each,
+  while `candidates prepared` is 6 to 8 ms and every policy is under 30 ms.
+  A cold three-megabyte read of `.git/index` costs seconds on this disk,
+  and the wrapper reads that index once more than native Git does.
+
+## What would take the tail under five seconds
+
+Not this change,
+and not the ones this record could make inside the client alone:
+the tail is the landing's queue and lock,
+the scanner's first cache write,
+and the host's own stalls inside reads
+native Git also makes.
+What would,
+in the order the numbers rank it:
+
+- Shorten what a landing holds and how long a commit queues for it,
+  which is the second entry of "What remains" and the only one that also shortens other agents' commits.
+- Move the scanner's rule-cache write off the commit's path,
+  by building it in the service or before the commit starts,
+  which is worth up to 24 seconds on the first commit of a cold cache.
+- Read the live index once per commit where the wrapper reads it twice:
+  the captured copy and the commit's own copy hold the same bytes at that moment,
+  and `git add` reads the live index again in the same command,
+  which is the 4,227 ms to 5,793 ms of `index copy` that the rounds over the bar hold.
+
+## What the record now says about a landing, and what eight overlapping commits measured
+
+### The record
+
+Three fields were added to the commit timing record because a slow landing could not explain itself:
+
+- `landing.reads` names each of the residual reads of a landing one by one:
+  the configuration snapshot,
+  the branch and checked-out reads,
+  the parents of an amend,
+  the comparisons with the branch,
+  the content check,
+  the index witness,
+  the conclusion copy,
+  the records a batch owes,
+  and the head question under the lock.
+  `reads_ms` stays the whole, and the named parts never add up to more than it.
+- `landing.lockHoldMs` is how long the landing held the index lock, which is what the commits behind it queued on,
+  and `landing.queuedBehind` is how many requests were still waiting for their answer when the landing finished.
+- `landing.syncs` is every file or directory sync the landing asked for,
+  in the order it asked,
+  each with whether the landing waited for it and how long it took.
+  A background batch of a landing's records says in the journal how many it made and what they cost.
+
+The service measures all three,
+so the answer to a commit carries them and the record states them;
+a service of a release that sends none leaves the field `null`,
+never zeros.
+The `answered` line of the journal states the same figures, so the two files agree.
+
+### The measurement
+
+One binary, two runs of four rounds of eight overlapping commits in a disposable clone of this repository
+(452 990 objects and 22 462 tracked files),
+started together on one branch so they land as one batch:
+
+- run A: 32 commits,
+  median 4 280 ms,
+  p95 8 623 ms,
+  14 of 32 over 5 000 ms.
+- run B, the same binary:
+  32 commits,
+  median 22 002 ms,
+  p95 40 868 ms,
+  32 of 32 over 5 000 ms.
+
+Two runs of one binary differ by 5.1 times at the median,
+which is the host's own spread and not a change:
+every figure below is stated with both runs beside it.
+
+The three documents the runs wrote are `perf/commit-landing-2026-11-09-overlapping-a.json`,
+`perf/commit-landing-2026-11-09-overlapping-b.json` and
+`perf/commit-landing-2026-11-09-solo.json`;
+each holds the phases of every commit,
+every landing line as the service wrote it,
+and the landing figures the records carry.
+The harness that wrote them was scaffolding in `${HOME}/temp/agent` and is not in the tree:
+`mise run //package/git-policy/cli:native:perf` measures one commit at a time,
+and measuring overlapping commits again means the same three steps by hand:
+clone the repository somewhere disposable,
+point its `origin` at a bare repository of that scratch tree so no push reaches the checkout it came from,
+and start the wrapper's service for the clone with `bench`-style arguments under an `XDG_RUNTIME_DIR` of its own.
+
+The commit's phases, as the record counts them:
+
+- prepare: median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
+- submit: median 755 ms and 10 843 ms (p95 3 025 and 24 813).
+- gate: median 151 ms and 1 519 ms (p95 2 701 and 10 569).
+- build: median 3 ms in both; after-landing, handoff and uncovered time under 80 ms.
+
+The landing, as the service splits it:
+
+- landing: median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
+- the wait for another program's hold on the index: median 10 539 ms in run B (p95 14 249),
+  which is 98 percent of that run's median landing.
+- everything the landing itself does:
+  reads median 29 ms in A and 15 ms in B,
+  objects 17 ms,
+  the intent journal 0 ms,
+  the branch move 14 ms,
+  the index update 89 ms.
+- the hold on the index: median 165 ms in A and 190 ms in B (p95 207 and 2 771).
+- queued behind a landing: seven commits for the first request of each batch and none for the rest,
+  because the eight commits of a round land as one batch.
+- six syncs per landing,
+  always handed to the background and never waited for:
+  193 over 32 landings in each run,
+  named `intent-file`, `intent-dir`, `index-dir`, `indexed-file`, `indexed-dir` and `journal-dir`,
+  with `lock-marker` only for the first landing of a run (the marker is made ahead after that).
+
+### The same clone, one commit at a time
+
+A third run, of six commits one after another in the same clone,
+so nothing ever queued:
+
+- the wait for another program's hold on the index: median 1 ms, largest 3 040 ms.
+- the hold on the index: median 305 ms, largest 724 ms.
+- the index update: median 192 ms.
+- reads: median 4 ms.
+- queued behind a landing: none, in every one of the six.
+
+Seven siblings in one batch turn that 1 ms into 10 539 ms,
+and no sibling at all leaves it at 1 ms.
+The wait is therefore the batch's own members holding the index,
+not the landing.
+
+### What it means
+
+The landing's own work is small and no named read is waste:
+every suggestion of reading once per batch,
+locking only around the write,
+one sync per batch and one index update per batch is already how the landing works.
+The landing's one large cost is a wait it does not cause:
+each commit of a batch refreshes the real index in its own preparation
+(`git update-index --refresh`, which takes `index.lock`),
+so the batch's landing waits for its own members to stop refreshing,
+and those members wait for the landing in turn.
+
+So no change to the landing would take the tail under 5 s:
+the landing is 382 ms of a 4 280 ms median commit in the quieter run,
+and its largest piece is a wait on another step.
+The tail is elsewhere:
+
+- the preparation itself,
+  median 3 487 ms in run A,
+  6 675 ms in the run one commit at a time,
+  p95 34 511 ms,
+  and the slowest commit of that run spent 34 511 ms of its 37 227 ms there;
+- the post-commit gate,
+  p95 2 701 ms in run A and 4 380 ms in the run one commit at a time;
+- the per-commit refresh of the real index by the preparation,
+  which the landing of a batch waits for and which a batch needs once.
+
+The first and the third are the preparation's,
+which another branch is changing,
+and the second is the gate's.
+
 ## What this could not determine
 
 - Which in-process step inside a preparation spends the median 332 ms.
-  The records name Git steps and phases,
-  not policy rules,
-  and this host has no profiler.
+  The records of this window name Git steps and phases,
+  not policy rules.
+  "The preparation's split,
+  measured on a shaped fixture" settles it for the wrapper as it stands:
+  the candidate set the content policies share spends it,
+  and the copy of the index that set made for itself was the larger part until `195f167602` removed it.
 - Whether the 351 s and 493 s stalls of 2026-11-08T23:26 were the conclusion copy's flush.
   Both sit in the same uncovered `buildMs` stretch,
   between the shadow's `git config` read and its first reference write,
@@ -1013,6 +1411,14 @@ owner-held machinery it would move.
   so this record compares step by step and not device stall by device stall.
 
 ## Decisions this record takes, open to the owner's veto
+
+- The ranking of the four entries above changes:
+  the landing's own share is smaller than the records suggested
+  (382 ms of a 4 280 ms median commit, with no named read over 51 ms),
+  and what its number was made of is a wait on the preparation of the batch's own members.
+  Removing waste inside the landing would therefore not move the tail,
+  and the entry that would is the preparation's per-commit refresh of the real index,
+  which is not one of the four.
 
 - The conclusion record's fail-closed row narrows to the backend that carries values.
   `doc/planning/cli-git-spawn-and-sync-reduction.md` keeps `store-held.json` in the

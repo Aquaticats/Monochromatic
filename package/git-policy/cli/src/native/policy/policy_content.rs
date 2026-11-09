@@ -362,8 +362,14 @@ impl ContentState {
             return Ok(None);
         };
         if self.prepared.is_none() {
+            // The first content policy of a pass pays for the candidate set: the index the listings read, every listing, and
+            // the content behind each path. Naming it here keeps that shared cost out of the policy that happened to ask
+            // first, which the timing record would otherwise blame by name (`prepare_work_spans.rs`).
+            let began: std::time::Instant = std::time::Instant::now();
+            let prepared: Result<PreparedCandidates, CandidateError> = facts.candidates(request);
+            crate::prepare_work_spans::note_span(crate::prepare_work_spans::CANDIDATES_PREPARED, began.elapsed());
             // `Some(...)` stores the one attempt's result, success or failure.
-            self.prepared = Some(facts.candidates(request));
+            self.prepared = Some(prepared);
         }
         // `match` on the remembered attempt; `&self.prepared` borrows it read-only.
         match &self.prepared {

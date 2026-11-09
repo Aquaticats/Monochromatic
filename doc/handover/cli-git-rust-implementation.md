@@ -682,10 +682,20 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
 - The owner at about 2026-11-09T05:40-05:00:
   "Please use gpt-6.1-sol with the openai provider for audits and reviews.
   Those don't count within the 20 limit."
-  Reviews already ran on it.
-  The launcher `start-pi-run-in-worktree.ts` now takes `--provider` and `--model`,
-  and audits start with `--provider=openai --model=gpt-6.1-sol` under a name beginning `sol-`.
-  The count against the limit of 20 leaves those units out:
+  The owner later moved them off Pi:
+  "Use `codex` to run openAI reviews and audits instead.
+  `--dangerously-bypass-approvals-and-sandbox` has to be passed to codex because codex's auto mode has tons of issues which I'm not listing here."
+  and
+  "Still pass in xhigh explicitly for codex."
+  The command is rule `XVW` in `AGENTS.md`,
+  a probe on `gpt-6.1-sol` with codex-cli 0.167.0 answered,
+  and Pi's own OpenAI login had begun to fail with `invalid_grant`.
+  `review-branch-with-sol.ts` runs `codex`.
+  No audit has run through `codex` yet,
+  so its launcher is untested.
+  The audit OpenAI flagged stays stopped until the owner answers the question about it.
+  Pi audits ran under a name beginning `sol-`,
+  and the count against the limit of 20 leaves those units out:
   `systemctl --user list-units --state=active --no-legend --plain 'pi-*.service' | rg --invert-match '^pi-sol-' | wc --lines`.
   The two audits started on the other model were stopped within minutes,
   and they restarted on this one as `sol-shadow-and-replay-route-findings-on-main` and `sol-invocation-and-argument-route-findings-on-main`.
@@ -8675,6 +8685,102 @@ neither built:
 
 Not done here because both are the client's reach and message path (`service/client` and `landing/`),
 not the ceiling and notice this branch changes.
+
+What happened to the two,
+measured (2026-11-09T10:21:14-05:00):
+
+- The service sent no place,
+  and this is why.
+  `service_server_land_group.rs` told a request where it stood only when it was not the first of its batch
+  (`fresh.iter().enumerate().skip(1)`),
+  and every request of both runs was alone in its batch.
+  The journal since 2026-11-08 holds 2,241 `answered` lines:
+  2,223 with `size=1 position=1`,
+  18 with `size=0` (a repeat answered from memory),
+  and none with `size` of two or more.
+  So `Position` was never sent to anybody in this window,
+  and it could not have been:
+  the send whose line the journal holds at `read_ms=78085` had not been read at all,
+  so no batch held it.
+- The answer is that it was never sent,
+  not sent and unread:
+  a place that is not in a reply reaches no client,
+  and every one of the 919 records of both timing-log generations holds `positions: []`.
+
+What a waiting commit now says (branch `feat/git-policy-cli-commit-queue-position-reaches-the-person`):
+
+- Once a commit has waited `WAITING_NOTICE_AFTER`,
+  which is ten seconds,
+  twice the owner's bound on what a commit may add to native Git,
+  and so the wait of fewer than three commits in a hundred,
+  the client prints one line:
+  `Waiting for N earlier commits.`,
+  `This commit is next.` when the service named the first place,
+  or `The commit service has not said where this commit stands yet; it has waited N seconds.`
+  when the service named no place at all.
+  The words claim nothing about the landing,
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`;
+  the first wording said the service had not started and was still reading the request,
+  and the review of this branch showed both halves false.
+- The service now tells the first request of a batch its place once that request has waited as long,
+  which is the place `positions` never held.
+  A batch that begins at once still says nothing,
+  so a quick commit gains no line,
+  and a client of an earlier release,
+  which prints every place it is told,
+  sees one only for a commit that waited.
+- The telling waits for nothing,
+  takes no lock and writes no file:
+  it is one clock read of the loop the client already runs at each beat or silence,
+  and one line handed to a thread that writes the terminal.
+  A reader that stopped draining neither holds that line nor the answer
+  (`foundation/notice_stream_that_does_not_hold_its_writer.rs`,
+  which drops a line the writer still holds and waits `WARNING_WRITE_CEILING` at the end),
+  and the first draft of this notice did hold the commit:
+  its synchronous write left the only thread that reads `Landed` inside `write`.
+- A place belongs to the connection that named it.
+  A request sent again after its service went away starts with no place,
+  so the batch of a service that is gone is never printed as this wait's.
+- A service that names no place and a client that was never told are both ordinary cases,
+  so the two releases work together either way round.
+
+What it cannot say:
+
+- A service that is itself stalled reads no request line and lands no batch,
+  so it can name no place;
+  the client's words are then the ones about the service not having said where the commit stands,
+  with the seconds waited,
+  which is the only true thing anyone knows.
+  In the incident this is what both runs would have seen.
+- A landing that has begun behind another program's `index.lock` cannot be told from a request still
+  in the queue,
+  because the service names no place before a batch begins and has no message of its own for
+  "the landing started".
+  The words therefore claim neither,
+  and the landing's own waiting line (which names the lock's holder) is what tells a person what the
+  commit waits for.
+- The timing record holds the places the service named,
+  printed or not,
+  and no count of the telling itself;
+  `answered` lines of the service count the places a batch sent.
+
+Found while fixing the three review findings,
+and not fixed here:
+several notes of the commit path still write to standard error on the commit's own thread,
+so a terminal that stopped draining can still hold a commit.
+A line there is not bounded by anything.
+The executable-level control of the notice found one of them:
+with standard error a pipe nobody drains,
+the wrapper stayed in `commit/commit_command.rs`'s `write_stderr`
+(the post-landing policy report) above `Stderr::write_all`,
+which waits on the record lock the notice's writer thread held inside `write`.
+`service_prepare.rs` and `service_commit_requests_and_landing_report.rs` write the same way.
+`WARNING_WRITE_CEILING` and `foundation/notice_stream_that_does_not_hold_its_writer.rs` are the two
+shapes that bound such a line;
+which notes take one is open work,
+and it belongs with whoever owns the commit's own reporting,
+since every one of them is a line a person may live without.
 
 ### The scratch commit's ceiling, reviewed: what the review found and what is still open (2026-11-09T06:20:00-05:00)
 

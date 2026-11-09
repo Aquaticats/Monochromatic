@@ -16,12 +16,20 @@ fn names(paths: &[PathBuf]) -> Vec<String> {
 }
 
 /// Unpack the exit status,
-/// standard output and standard error of an exit action.
-fn exit_parts(action: Action) -> (i32, String, String) {
-    let Action::Exit { code, stdout, stderr } = action else {
-        panic!("doctor must end in an exit action");
+/// standard output as bytes and standard error of an exit action.
+fn exit_bytes_parts(action: Action) -> (i32, Vec<u8>, String) {
+    return match action {
+        Action::Exit { code, stdout, stderr } => (code, stdout.into_bytes(), stderr),
+        Action::ExitBytes { code, stdout, stderr } => (code, stdout, stderr),
+        other => panic!("doctor must end in an exit action, not {other:?}"),
     };
-    return (code, stdout, stderr);
+}
+
+/// Unpack the exit status,
+/// standard output and standard error of an exit action that reports text.
+fn exit_parts(action: Action) -> (i32, String, String) {
+    let (code, stdout, stderr) = exit_bytes_parts(action);
+    return (code, String::from_utf8(stdout).expect("a report of text paths"), stderr);
 }
 
 /// The hooks location of `cwd`,
@@ -133,13 +141,14 @@ fn directories_are_the_default_then_the_configured_one_once() {
     remove(root.as_path());
 }
 
-/// The report is one path per line and nothing else.
+/// The report is one pathname per line and nothing else,
+/// as bytes.
 #[test]
 fn the_report_is_one_path_per_line() {
-    assert_eq!(render_hooks(&[]), "");
+    assert_eq!(render_hooks(&[]), Vec::<u8>::new());
     assert_eq!(
         render_hooks(&[PathBuf::from("/a/hooks/pre-commit"), PathBuf::from("/b/update")]),
-        "/a/hooks/pre-commit\n/b/update\n"
+        b"/a/hooks/pre-commit\n/b/update\n".to_vec()
     );
 }
 
@@ -677,9 +686,11 @@ fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
     git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), hooks.as_os_str()]);
     let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
     assert_eq!(location.configured, Some(hooks.clone()));
-    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
-    assert_eq!(code, 1, "the hook is found: {stdout}");
-    assert!(stdout.ends_with("pre-commit\n"), "{stdout}");
+    let (code, stdout, _stderr) = exit_bytes_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hook is found: {:?}", String::from_utf8_lossy(stdout.as_slice()));
+    // The report names the inspected pathname by its own bytes, which is the whole of this control: the lossy spelling
+    //  names a directory that does not exist here.
+    assert_eq!(stdout, [hooks.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat());
     remove(root.as_path());
 }
 
@@ -891,5 +902,125 @@ fn a_bare_repository_has_no_checkout_and_a_separate_git_directory_keeps_its_work
     };
     assert_eq!(reported(bare.join(".git").as_path()), (None, CheckoutLayout::Main));
     assert_eq!(reported(worktree.as_path()), (Some(worktree.clone()), CheckoutLayout::Main));
+    remove(root.as_path());
+}
+
+/// A pathname resolution that never answers,
+/// as one on a hard-mounted network file system whose server stopped answering does not.
+///
+/// The thread parks,
+/// so it spends no processor time while it waits:
+/// this is a stall,
+/// not a load.
+fn stalled_identity(_path: &Path) -> Option<PathBuf> {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// What:
+///  A configured `core.hooksPath` is kept when deciding whether it is the default directory never answers.
+/// Why:
+///  Deciding that resolved both spellings before any ceiling started,
+/// and pathname resolution waits in the kernel on a
+///  mount whose server has stopped,
+/// so the doctor waited with no end before it ever scanned.
+/// The configured directory
+///  is scanned when the answer does not come:
+/// a directory looked at twice costs a duplicate line,
+/// and a directory Git
+///  runs hooks in that was never looked at costs the finding.
+#[test]
+fn a_directory_identity_that_never_answers_keeps_the_configured_directory() {
+    let location: HooksLocation = HooksLocation {
+        common_directory: PathBuf::from("/repo/.git"),
+        git_directory: PathBuf::from("/repo/.git"),
+        configured: Some(PathBuf::from("/mnt/gone/custom-hooks")),
+    };
+    let (done, finished) = std::sync::mpsc::channel::<Vec<PathBuf>>();
+    let worker = std::thread::spawn(move || {
+        let directories: Vec<PathBuf> = hook_directories_with(stalled_identity, std::time::Duration::from_millis(50), &location);
+        let _sent = done.send(directories);
+    });
+    // The worker is left behind on purpose: a resolution that never answers has no end, and the test process ends it.
+    let answered: Result<Vec<PathBuf>, _> = finished.recv_timeout(std::time::Duration::from_secs(10));
+    let _abandoned = worker;
+    let directories: Vec<PathBuf> = answered.unwrap_or_else(|_| {
+        panic!("the identity check never returned, so pathname resolution on a stopped mount holds the doctor before its scan")
+    });
+    assert_eq!(
+        directories,
+        vec![PathBuf::from("/repo/.git/hooks"), PathBuf::from("/mnt/gone/custom-hooks")],
+        "the configured directory is scanned when its identity is unknown"
+    );
+}
+
+/// What:
+///  The doctor's report carries the saved copies of both data folders,
+/// including when the current folder holds none.
+/// Why:
+///  The report reads without moving anything,
+/// so a repository that holds both folder names keeps the earlier one's
+///  copies where they are;
+/// a report that named only the current folder hid a person's recoverable data from
+///  the person who asked what is there.
+#[test]
+fn the_doctor_reports_the_saved_copies_of_both_folders() {
+    let root: PathBuf = fixture("doctor-discarded-both");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let save: PathBuf = repo.join(".git/cli-git/discarded/2026-11-02T19-33-20");
+    std::fs::create_dir_all(save.as_path()).expect("the earlier save");
+    std::fs::write(save.join("copy.txt"), b"saved-content\n").expect("the kept copy");
+    // The current folder exists and holds no saved copy, which is the state that hid the older one.
+    std::fs::create_dir_all(repo.join(".git/monochromatic-git-policy-cli").as_path()).expect("the current folder");
+    let (code, _stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stderr.contains("discarded copies:"), "the saved copies are reported: {stderr}");
+    // The block names the folder it read and the oldest save inside it by its name.
+    assert!(stderr.contains(save.parent().expect("folder").display().to_string().as_str()), "the earlier folder is named: {stderr}");
+    assert!(
+        stderr.contains(save.file_name().expect("save name").to_string_lossy().as_ref()),
+        "the kept save is named: {stderr}"
+    );
+    assert!(save.join("copy.txt").exists(), "the copy stays where it is");
+    remove(root.as_path());
+}
+
+/// What:
+///  A hook whose pathname is not UTF-8 is named by its own bytes,
+/// never by the pathname its lossy spelling names.
+/// Why:
+///  `Path::display()` replaces each byte that is not UTF-8 with U+FFFD,
+/// and a directory whose name is exactly that
+///  replacement is a different directory:
+/// the report named a hook in an unrelated folder,
+/// and a person who
+///  deleted what it named would delete somebody else's script.
+#[cfg(unix)]
+#[test]
+fn a_hook_whose_path_is_not_utf8_is_named_by_its_bytes() {
+    use std::ffi::{OsStr, OsString};
+    use std::os::unix::ffi::OsStrExt as _;
+    let root: PathBuf = fixture("doctor-non-utf8-exact");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let inspected: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xff")));
+    let replacement: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xef\xbf\xbd")));
+    for directory in [inspected.as_path(), replacement.as_path()] {
+        std::fs::create_dir_all(directory).expect("hooks directory");
+        executable(directory.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    }
+    git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), inspected.as_os_str()]);
+    let (code, stdout, _stderr) = exit_bytes_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1);
+    assert_eq!(
+        stdout,
+        [inspected.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat(),
+        "the inspected hook is named by its own bytes"
+    );
+    assert_ne!(
+        stdout,
+        [replacement.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat(),
+        "the lossy spelling names another directory"
+    );
     remove(root.as_path());
 }

@@ -408,6 +408,24 @@ fn add_selected_paths(
 /// readerAnswer(['diff-index', '--cached', '--name-only', '-z', '--no-renames', base], privateIndex)?.stdout.length === 0
 /// ```
 fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
+    // The question is answered in process from the whole captured index and the base tree, which no Git child covers, so the
+    // record names it: an explicit-path preparation whose milliseconds went here would otherwise look unexplained.
+    let began: std::time::Instant = std::time::Instant::now();
+    let equals: bool = reads_itself_as_the_base(context, cwd, indexes, base_revision);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_EQUALS_BASE, began.elapsed());
+    return equals;
+}
+
+/// What:
+///  `index_equals_base` without the note of how long the question took.
+/// Why:
+///   The note covers the question a reader declined as well as the one it answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readerAnswer(...)?.stdout.length === 0
+/// ```
+fn reads_itself_as_the_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
     let request = indexed_request(
         cwd,
         &["diff-index", "--cached", "--name-only", "-z", "--no-renames", base_revision],
