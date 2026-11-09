@@ -42,6 +42,8 @@ use crate::policy_engine::{StageEnd, StageRequest, Unavailable};
 use crate::policy_events::{FindingEvent, PolicyEvent};
 use crate::policy_pass::PassResult;
 use crate::policy_registry::{PolicyId, Severity};
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::policy_test_support::{ScriptedFacts, scripted_facts, with_severity};
 use crate::policy_trigger::Trigger;
 use crate::test_support::{executable, fixture, git, remove, repository};
@@ -70,7 +72,7 @@ fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
         facts,
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Direct(vec![OsString::from(":/")])),
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
 }
 
@@ -308,7 +310,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         scripted_facts(),
         os_arguments(&["kept"]),
         LifecycleContent::None,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let mut arguments_kept: PassResult = warned.clone();
     arguments_kept.arguments = os_arguments(&["kept"]);
@@ -353,7 +355,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         scripted_facts(),
         os_arguments(&[]),
         LifecycleContent::None,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     corrected.content.apply(vec![Correction {
         path: b"a.txt".to_vec(),

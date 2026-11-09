@@ -81,6 +81,7 @@ fn saved_conflict_line(root: &Path, copies: &[String]) -> String {
         arguments: arguments.as_slice(),
         dirty: None,
         copies,
+        facts: &[],
     });
     return line.trim_end().to_string();
 }

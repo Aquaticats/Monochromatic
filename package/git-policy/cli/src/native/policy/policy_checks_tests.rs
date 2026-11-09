@@ -23,6 +23,8 @@ use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
 use crate::policy_registry::PolicyId;
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::policy_test_support::{
     ScriptedFacts, linked_worktree, main_worktree, outside_worktree, scripted_facts,
 };
@@ -42,7 +44,7 @@ fn checks(values: &[&str], facts: ScriptedFacts) -> ShippedChecks<ScriptedFacts>
         facts,
         os_arguments(values),
         LifecycleContent::None,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
 }
 
@@ -298,7 +300,10 @@ fn linked_worktree_exempts_an_allowed_tool_cache() {
         prefix: Vec::<u8>::new(),
     });
     let mut exempt: ShippedChecks<ScriptedFacts> = checks(&["reset", "--hard"], facts.clone());
-    exempt.allowed_worktree_dirs = vec![cache];
+    exempt.allowed_worktree_dirs = vec![ToolCacheDirectory {
+        path: cache,
+        named_by: "MISE_DATA_DIR",
+    }];
     assert_eq!(
         exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
         clean()

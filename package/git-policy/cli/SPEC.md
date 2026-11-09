@@ -8165,6 +8165,20 @@ so ignored files under those forms stay covered by the worktree measurement alon
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
+The list is chosen by the invocation's own environment:
+uv's cache (`UV_CACHE_DIR`,
+else `XDG_CACHE_HOME/uv`,
+else `HOME/.cache/uv`) and mise's data directory (`MISE_DATA_DIR`,
+else `XDG_DATA_HOME/mise`,
+else `HOME/.local/share/mise`).
+A repository whose Git directory lies inside one of them is exempt,
+and the wrapper says so on standard error before Git runs,
+naming the variable and the directory it points at,
+so a variable that happens to name a repository is visible to the person:
+"this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
+which contains its Git directory".
+The record carries the same name in `facts.exemptedBy`
+and the outcome `exempt`.
 The rejection names the form,
 what it destroys,
 an alternative that fits the likely intent,

@@ -51,6 +51,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
         arguments: arguments.as_slice(),
         dirty: Some(true),
         copies: &[],
+        facts: &[],
     });
     assert!(line.ends_with('\n'));
     assert_eq!(line.matches('\n').count(), 1);
@@ -81,6 +82,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
         arguments: &[],
         dirty: None,
         copies: &[],
+        facts: &[],
     });
     let unasked_value: serde_json::Value = serde_json::from_str(unasked.trim_end()).expect("JSON");
     assert_eq!(unasked_value["dirty"], serde_json::Value::Null);
@@ -111,6 +113,7 @@ fn each_outcome_has_its_own_word() {
             arguments: &[],
             dirty: None,
             copies: &[],
+            facts: &[],
         });
         let value: serde_json::Value = serde_json::from_str(line.trim_end()).expect("JSON");
         words.push(value["outcome"].as_str().expect("word").to_owned());

@@ -18,6 +18,8 @@
 ///  the engine types it returns and the scripted facts.
 use super::{PassResult, policies_of_kind, run_policy_pass};
 use crate::candidate_prediction::CandidateRequest;
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::command_test_support::os_arguments;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
@@ -30,7 +32,6 @@ use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts, w
 use crate::policy_trigger::Trigger;
 use crate::rule_commit_only_message::ALL_FLAG_MESSAGE;
 use crate::wrapper_controls::{Controls, no_controls};
-use std::path::PathBuf;
 
 /// A request for `trigger` with default severities and the given controls.
 fn request(trigger: Trigger, controls: Controls) -> StageRequest {
@@ -66,7 +67,7 @@ fn pass(
         facts,
         os_arguments(values),
         candidates,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let result: PassResult = run_policy_pass(stage, &mut checks);
     // The pass never changes the arguments the checks read.

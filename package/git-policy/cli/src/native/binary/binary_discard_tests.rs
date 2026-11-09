@@ -19,8 +19,8 @@
 
 use super::commit::run_commit;
 use super::support::{
-    Fixture, Observed, fixture, git, observe_raw, porcelain, remove, repository, run_wrapped, stderr_of,
-    stub_manual_viewer, wrapped,
+    Fixture, Observed, fixture, git, observe, observe_raw, porcelain, remove, repository, run_wrapped,
+    stderr_of, stub_manual_viewer, wrapped,
 };
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -637,5 +637,47 @@ fn an_alias_reaches_the_guard_of_the_command_it_expands_to() {
     let found: String = String::from_utf8_lossy(shell.stdout.as_slice()).trim().to_owned();
     assert!(found.ends_with("/git-core/git"), "the shell found {found}, not Git's own directory");
     assert!(found != fixture.root.join("bin/git").display().to_string(), "the shell found this wrapper");
+    remove(&fixture);
+}
+
+/// The tool-cache exemption is chosen by the invocation's own environment,
+/// so a person sees the sentence that says which variable exempted the repository.
+#[test]
+fn an_exempted_repository_says_which_variable_exempted_it() {
+    let fixture: Fixture = fixture("discard-exemption-notice");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // The same command without the variable is rejected and changes nothing.
+    let guarded: Observed = run_wrapped(&fixture, repo.as_path(), &["reset", "--hard"]);
+    assert!(rejected_by_policy(&guarded), "{}", stderr_of(&guarded));
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"the person wrote this\n"
+    );
+    // A variable that names the repository exempts it, and the wrapper says so before Git runs.
+    let exempt: Observed = observe(
+        wrapped(&fixture)
+            .current_dir(repo.as_path())
+            .env("MISE_DATA_DIR", repo.as_os_str())
+            .args(["reset", "--hard"]),
+        b"",
+    );
+    assert_eq!(exempt.code, Some(0), "{}", stderr_of(&exempt));
+    let notice: String = stderr_of(&exempt);
+    assert!(notice.contains("exempt from the worktree guard"), "{notice}");
+    assert!(notice.contains("MISE_DATA_DIR"), "{notice}");
+    assert!(notice.contains(repo.to_str().expect("utf-8 fixture path")), "{notice}");
+    assert!(notice.contains("Hint: "), "{notice}");
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"one\n",
+        "the exemption still lets the command run"
+    );
+    // The audit line names why as well.
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let text: String = std::fs::read_to_string(&audit).expect("audit file");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"outcome\":\"exempt\""), "{last}");
+    assert!(last.contains("\"exemptedBy\":\"MISE_DATA_DIR\""), "{last}");
     remove(&fixture);
 }

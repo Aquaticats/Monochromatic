@@ -65,6 +65,9 @@ pub mod policy_root_context;
 ///  every dependency in a tracked `package.json` is a catalog or workspace reference.
 pub mod policy_catalog_specifiers;
 
+/// The branch-worktree-only check.
+pub mod policy_branch_worktree;
+
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.
 pub mod policy_forbidden_strings;

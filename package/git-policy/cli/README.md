@@ -1590,6 +1590,9 @@ The rule is:
   else `XDG_DATA_HOME/mise`,
    else `~/.local/share/mise`),
   where mise keeps its plugin clones and updates them with a forced checkout.
+  The exemption is chosen by the environment of the command itself,
+  so the wrapper says on standard error which variable exempted the repository and which directory it named,
+  because a variable that happens to name a repository turns the guard off for it.
 
 The guard reads the command Git will run,
 not the word on the command line:

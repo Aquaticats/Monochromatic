@@ -22,6 +22,7 @@
 //! ```
 
 use crate::rule_linked_worktree::GuardedCommand;
+use std::path::Path;
 
 /// The sentence every text ends with:
 /// the one deliberate way to discard work anyway.
@@ -185,6 +186,29 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
     return format!(
         "monochromatic-git-policy-cli: {name} is rejected in the main git worktree: {risk}, and nothing records which command did it. \
          {instead} {HATCH_ADVICE}"
+    );
+}
+
+/// What:
+///  The sentence that says which variable exempted a repository from the worktree guard.
+///  `&str` borrows the two facts and `&Path` the directory the variable named.
+/// Why:
+///   The exemption is chosen by the invocation's own environment,
+///  so a variable that happens to name the
+///       repository exempts it and nothing measured or saved anything;
+///  a person who is told that before Git runs can
+///       stop the command or unset the variable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exemption_notice(variable, directory: string): string;
+/// ```
+pub fn exemption_notice(variable: &str, directory: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains its Git directory. \
+         Nothing was measured and nothing was saved, so the command runs without that guard. \
+         Hint: if {variable} does not describe a tool cache on this machine, unset it for this command (env --unset={variable} git ...) or run the command from a shell where it does not name this directory.\n",
+        directory.display()
     );
 }
 

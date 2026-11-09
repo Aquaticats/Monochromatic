@@ -29,6 +29,8 @@ use crate::policy_checks::{ShippedChecks, shipped_checks};
 use crate::policy_content::LifecycleContent;
 use crate::policy_events::{FindingEvent, PolicyEvent, render_policy_events};
 use crate::policy_registry::{PolicyId, Severity};
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::policy_test_support::{
     ScriptedFacts, linked_worktree, main_worktree, outside_worktree, scripted_facts,
 };
@@ -68,7 +70,7 @@ fn run(
         facts,
         stripped.arguments.clone(),
         LifecycleContent::None,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let outcome: WrappedOutcome =
         run_wrapped_command(&stripped, environment.as_slice(), &mut checks);

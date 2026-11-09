@@ -36,10 +36,12 @@
 use crate::diagnostics::EngineFailureCode;
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
 use crate::discarded_prune::Limits;
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
+use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies, record_audit_with_facts};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
-use crate::effective_target::{EffectiveTarget, classify_effective_target};
+use crate::effective_target::{
+    EffectiveTarget, ToolCacheDirectory, classify_effective_target, matching_allowed_worktree_dir,
+};
 /// The Markdown autofix check,
 ///  its state and the linter the executable gives it.
 use crate::markdown_linter::embedded_linter;
@@ -75,18 +77,23 @@ use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::{RepositoryLocation, effective_directory};
 /// The add-explicit rule core.
 use crate::rule_add_explicit::{BULK_ADD_CODE, decide_add_explicit};
-/// The branch-worktree rule core.
-use crate::rule_branch_worktree::{
-    BRANCH_CREATION_CODE, BranchWorktreeDecision, branch_creation_message, decide_branch_worktree,
-};
+/// The branch-worktree-only check,
+/// one policy of its own file.
+use crate::policy_branch_worktree::check_branch_worktree;
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    dirty_question, dirty_worktree_message, repository_stash_message, resolve_linked_worktree,
+    dirty_question, dirty_worktree_message, exemption_notice, repository_stash_message,
+    resolve_linked_worktree,
 };
 /// The guarded decision about the command Git will really run,
 /// alias expansion included.
 use crate::guarded_forwarded_command::{GuardedForwarded, decide_guarded_forwarded};
+/// The named facts a record of an exemption carries.
+use crate::discard_audit_facts::AuditFact;
+/// The Git directory of an identity,
+/// for naming the exempted directory.
+use crate::worktree_identity::git_directory;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The require-root rule core.
@@ -111,7 +118,7 @@ use crate::worktree_identity::worktree_root;
 /// ```
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw bytes.
-use std::path::PathBuf;
+use std::path::Path;
 
 /// What:
 ///  The shipped policies over one invocation.
@@ -144,7 +151,7 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// What the lifecycle offers content policies.
     pub candidates: LifecycleContent,
     /// Tool-cache directories exempt from linked-worktree enforcement.
-    pub allowed_worktree_dirs: Vec<PathBuf>,
+    pub allowed_worktree_dirs: Vec<ToolCacheDirectory>,
     /// The limits of the folder of saved copies of conflicted files,
     /// from `discardedCopies` in `monochromatic-git-policy-cli.config.jsonc`.
     pub discarded_limits: Limits,
@@ -182,7 +189,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
     facts: F,
     arguments: Vec<OsString>,
     candidates: LifecycleContent,
-    allowed_worktree_dirs: Vec<PathBuf>,
+    allowed_worktree_dirs: Vec<ToolCacheDirectory>,
 ) -> ShippedChecks<F> {
     return ShippedChecks {
         can_apply_patches: false,
@@ -213,7 +220,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
 /// ```ts
 /// const factUnavailable = (message: string): PolicyOutcome => ({ kind: 'failed', code: 'content-unavailable', message });
 /// ```
-fn fact_unavailable(message: String) -> PolicyOutcome {
+pub(crate) fn fact_unavailable(message: String) -> PolicyOutcome {
     return PolicyOutcome::Failed {
         code: EngineFailureCode::ContentUnavailable,
         message,
@@ -233,7 +240,7 @@ fn fact_unavailable(message: String) -> PolicyOutcome {
 /// ```ts
 /// const clean = (): PolicyOutcome => ({ kind: 'findings', findings: [] });
 /// ```
-fn clean() -> PolicyOutcome {
+pub(crate) fn clean() -> PolicyOutcome {
     return PolicyOutcome::Findings(Vec::<PolicyFinding>::new());
 }
 
@@ -250,7 +257,7 @@ fn clean() -> PolicyOutcome {
 /// ```ts
 /// const rejected = (code: string, message: string): PolicyOutcome => ({ kind: 'findings', findings: [{ code, message }] });
 /// ```
-fn rejected(code: &'static str, message: String) -> PolicyOutcome {
+pub(crate) fn rejected(code: &'static str, message: String) -> PolicyOutcome {
     // `vec![...]` is a macro building an owned list from literal items.
     return PolicyOutcome::Findings(vec![PolicyFinding {
         code,
@@ -340,7 +347,7 @@ fn now_milliseconds() -> i64 {
 fn check_linked_worktree(
     facts: &mut dyn RepositoryFacts,
     arguments: &[OsString],
-    allowed_worktree_dirs: &[PathBuf],
+    allowed_worktree_dirs: &[ToolCacheDirectory],
     discarded_limits: Limits,
     notices: &mut Vec<String>,
 ) -> PolicyOutcome {
@@ -397,7 +404,16 @@ fn check_linked_worktree(
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
     }
     if target == EffectiveTarget::Allowlisted {
-        record_audit(&location.identity, command, AuditOutcome::Exempt, seen, None);
+        // The environment chose this exemption, so the person is told which variable did it and where it points,
+        //  before Git runs and before anything could be lost.
+        let exemption: Option<&ToolCacheDirectory> =
+            matching_allowed_worktree_dir(git_directory(&location.identity).unwrap_or(Path::new("")), allowed_worktree_dirs);
+        let mut why: Vec<AuditFact> = Vec::<AuditFact>::new();
+        if let Some(found) = exemption {
+            why.push(AuditFact::Text("exemptedBy", found.named_by.to_string()));
+            notices.push(exemption_notice(found.named_by, found.path.as_path()));
+        }
+        record_audit_with_facts(&location.identity, command, AuditOutcome::Exempt, seen, None, why.as_slice());
         return clean();
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
@@ -422,39 +438,6 @@ fn check_linked_worktree(
             return clean();
         }
         Err(message) => return fact_unavailable(message),
-    }
-}
-
-/// What:
-///  The branch-worktree-only check.
-/// Why:
-///   Explicit creation is rejected from the arguments;
-///  a bare name is rejected only
-///       when Git would create a branch for it from the one remote that has it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function checkBranchWorktree(facts, args): Promise<PolicyOutcome>;
-/// ```
-fn check_branch_worktree(facts: &mut dyn RepositoryFacts, arguments: &[OsString]) -> PolicyOutcome {
-    match decide_branch_worktree(arguments) {
-        BranchWorktreeDecision::Pass => return clean(),
-        BranchWorktreeDecision::Creates(command) => {
-            return rejected(BRANCH_CREATION_CODE, branch_creation_message(command, None));
-        }
-        BranchWorktreeDecision::NeedsRemoteGuess { command, target } => {
-            // `.as_os_str()` lends the owned name as a borrowed one.
-            match facts.remote_guess_creates_branch(target.as_os_str()) {
-                Err(message) => return fact_unavailable(message),
-                Ok(false) => return clean(),
-                Ok(true) => {
-                    return rejected(
-                        BRANCH_CREATION_CODE,
-                        branch_creation_message(command, Some(target.as_os_str())),
-                    );
-                }
-            }
-        }
     }
 }
 

@@ -15,7 +15,7 @@
 ///  its texts and the argument builder.
 use super::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    decide_linked_worktree, dirty_question, dirty_worktree_message,
+    decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice,
     main_worktree_message, outside_worktree_message, repository_stash_message,
     resolve_linked_worktree,
 };
@@ -318,4 +318,18 @@ fn the_readme_documents_what_the_texts_recommend() {
     }
     assert!(readme.contains("git diff > backup.patch"));
     assert!(readme.contains("--no-enforce-worktree"));
+}
+
+/// The exemption sentence names the variable and the directory it points at,
+/// and how to run the command without it.
+#[test]
+fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
+    let notice: String = exemption_notice("MISE_DATA_DIR", std::path::Path::new("/work/repo"));
+    assert!(notice.contains("exempt from the worktree guard"), "{notice}");
+    assert!(notice.contains("MISE_DATA_DIR"), "{notice}");
+    assert!(notice.contains("/work/repo"), "{notice}");
+    assert!(notice.contains("Nothing was measured and nothing was saved"), "{notice}");
+    assert!(notice.contains("Hint: if MISE_DATA_DIR does not describe a tool cache"), "{notice}");
+    assert!(notice.ends_with('\n'), "{notice}");
+    assert_ne!(notice, exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo")));
 }
