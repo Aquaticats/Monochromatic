@@ -48,6 +48,10 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 /// named by the registration's id.
 pub const RECORD_FOLDER: &str = "monochromatic-git-policy-cli/recorded-destroys";
 
+/// The last line of a record whose kernel call returned,
+/// which is the only proof that the files of the worktree are gone.
+const DESTROYED_MARK: &[u8] = b"destroyed=1\n";
+
 /// The path of the record of one registration.
 fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
     return common_dir.join(RECORD_FOLDER).join(id);
@@ -55,18 +59,23 @@ fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
 
 /// What:
 ///  Record that this command is about to destroy the files of the worktree whose registration is `id`,
-///  so that a later command can finish what this one does not.
+///  and later that it did,
+///  so that a later command finishes what this one does not.
 /// Why:
 ///   The record is written before the kernel call,
-/// so a kill at any point after it leaves one of two decidable states:
-/// the worktree
-///  directory is still there (nothing was destroyed,
-/// and the record is dropped),
-/// or it is gone (the destroy happened and only
-///  the registration is left).
-/// A record that cannot be written costs the automatic finish and nothing else,
-/// so the removal goes
-///  on and says so in the diagnostic log.
+/// so a kill before the call leaves the worktree where it was,
+/// and it is
+///  marked once the call returned,
+/// so only that mark proves the files are gone.
+/// Without the distinction an absent
+///  pathname would be read as destruction,
+/// which it is not:
+/// a person can move an intact worktree,
+/// and emptying its
+///  registration leaves its `.git` file pointing at nothing.
+/// A record that cannot be written costs the automatic finish and
+///  nothing else,
+/// so the removal goes on and says so in the diagnostic log.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,6 +98,45 @@ pub fn record_destroy(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(format!("{} cannot be written ({error})", path.display())),
     };
+}
+
+/// What:
+///  Mark the record of `id` as one whose kernel call returned,
+///  which is the proof that its files are gone.
+/// Why:
+///   A record written before the call says only that a destroy was intended.
+/// The mark is written after the call,
+///  over
+/// the same name,
+/// always as a whole file,
+/// so a later command has either the intent or the proof and never a torn
+///  record.
+/// A mark that cannot be written costs the automatic finish and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordDestroyed(commonDir, id);
+/// ```
+pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
+    let path: PathBuf = record_path(common_dir, id);
+    let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
+        Ok(read) => read,
+        Err(error) => {
+            warn(TAG, format!("{} cannot be read, so the finished destroy of {id:?} is not recorded ({error})", path.display()).as_str());
+            return;
+        }
+    };
+    let marked: Vec<u8> = [bytes.as_slice(), DESTROYED_MARK].concat();
+    // The mark replaces the record whole: a sibling of its own name, then one rename, so a kill leaves the intent or the proof.
+    let sibling: PathBuf = path.with_extension(format!("recorded.{}", std::process::id()));
+    if let Err(error) = std::fs::write(sibling.as_path(), marked.as_slice()) {
+        warn(TAG, format!("{} cannot be written ({error}), so a later command cannot finish the removal of {id:?}", sibling.display()).as_str());
+        return;
+    }
+    if let Err(error) = std::fs::rename(sibling.as_path(), path.as_path()) {
+        warn(TAG, format!("{} cannot be put in place ({error}), so a later command cannot finish the removal of {id:?}", path.display()).as_str());
+        let _removed: std::io::Result<()> = std::fs::remove_file(sibling.as_path());
+    }
 }
 
 /// What:
@@ -132,6 +180,9 @@ struct DestroyRecord {
     admin: ObjectId,
     /// The worktree directory the destroy was aimed at.
     target: PathBuf,
+    /// Whether the kernel call returned,
+    /// which is the only proof that the files are gone.
+    destroyed: bool,
 }
 
 /// Whether one byte of a record is the newline that ends its identity line.
@@ -141,6 +192,11 @@ fn is_newline(byte: &u8) -> bool {
 
 /// The fields of a record,
 /// or the reason it cannot be used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DestroyRecord = { admin: ObjectId; target: string; destroyed: boolean };
+/// ```
 fn read_record(path: &Path) -> Result<DestroyRecord, String> {
     let bytes: Vec<u8> = match std::fs::read(path) {
         Ok(read) => read,
@@ -149,15 +205,21 @@ fn read_record(path: &Path) -> Result<DestroyRecord, String> {
     let Some(split_at) = bytes.iter().position(is_newline) else {
         return Err(String::from("it has no identity line"));
     };
-    let (identity_bytes, rest): (&[u8], &[u8]) = bytes.split_at(split_at);
+    let (identity_bytes, after_identity): (&[u8], &[u8]) = bytes.split_at(split_at);
     let Ok(identity_text) = std::str::from_utf8(identity_bytes) else {
         return Err(String::from("its identity line is not text"));
     };
     let Some(admin) = ObjectId::decode(identity_text) else {
         return Err(format!("its identity line {identity_text} cannot be read"));
     };
-    let target: &[u8] = rest.strip_prefix(b"\n").unwrap_or(rest);
-    return Ok(DestroyRecord { admin, target: PathBuf::from(OsStr::from_bytes(target)) });
+    // The rest is the target's own bytes, then, only once the kernel call returned, this mark as a last line.
+    let rest: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
+    let (with_newline, destroyed): (&[u8], bool) = match rest.strip_suffix(DESTROYED_MARK) {
+        Some(left) => (left, true),
+        None => (rest, false),
+    };
+    let target: &[u8] = with_newline.strip_suffix(b"\n").unwrap_or(with_newline);
+    return Ok(DestroyRecord { admin, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
 }
 
 /// What:
@@ -255,6 +317,18 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
     }
     if read.target.exists() {
         debug(TAG, format!("the worktree {} of the recorded destroy is still there, so nothing was destroyed", read.target.display()).as_str());
+        forget_destroy(common_dir, id);
+        return;
+    }
+    if !read.destroyed {
+        // Nothing is at the recorded name, and the record says only that a destroy was intended: the worktree may have been
+        // moved, and its registration is the only thing that can still name its index and logs. The person is told once.
+        problems.push(format!(
+            "The removal of the worktree {} did not finish before its files were destroyed: nothing is at that path, and {} records only that the destroy was intended. Nothing was removed; if the worktree was moved, `git worktree repair <new path>` puts it right, and if it is gone, `git worktree prune` forgets the registration {}. The record of the interrupted removal is dropped.",
+            read.target.display(),
+            record.display(),
+            admin.display()
+        ));
         forget_destroy(common_dir, id);
         return;
     }

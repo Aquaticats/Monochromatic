@@ -12,7 +12,7 @@ use super::*;
 use crate::fs_beneath::handle_path;
 use crate::push_failure_notice::{record_push_failure, take_orphaned_failures};
 use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy};
+use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy, record_destroyed};
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
@@ -308,6 +308,7 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     record_push_failure(admin.as_path(), "refs/heads/topic", "0123456789abcdef0123456789abcdef01234567", "refused by test policy").expect("notice");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
     record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     remove(worktree.as_path());
     let refused = git_output(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);
     assert!(!refused.status.success(), "a stale registration stops the add, which is the state to repair");
@@ -350,6 +351,38 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
     assert_eq!(run(&second, repo.as_path(), &plan_named(other.as_path(), "../wt2")), RemoveOutcome::Removed);
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
     assert!(!record.parent().expect("record folder").exists(), "a finished removal records nothing");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree moved away after the destroy was recorded is not a destroyed one:
+///  its registration is kept,
+///  because the moved worktree's `.git` file still names it and its index and logs live there.
+/// Why:
+///   The record is written before the kernel call,
+/// so an absent pathname proves only that nothing is at that name,
+/// not that
+///  the subvolume was destroyed;
+/// emptying the registration of a worktree that still exists breaks it,
+/// and `git worktree
+///  repair` can only mend a worktree whose registration is still there.
+#[test]
+fn a_worktree_moved_away_after_the_record_keeps_its_registration() {
+    let root: PathBuf = fixture("remove-record-then-moved");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    let moved: PathBuf = root.join("wt.moved");
+    std::fs::rename(worktree.as_path(), moved.as_path()).expect("the worktree is moved, not destroyed");
+    let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+    assert!(!problems.is_empty(), "the person is told the removal did not finish");
+    assert!(admin.join("gitdir").is_file(), "the registration a moved worktree still names is kept");
+    let pointer: String = std::fs::read_to_string(moved.join(".git")).expect("the moved worktree's .git file");
+    assert!(pointer.contains(admin.to_str().expect("UTF-8")), "and it still names a registration that is there: {pointer}");
+    assert!(moved.join("tracked.txt").is_file(), "the worktree's files are untouched");
     remove(root.as_path());
 }
 

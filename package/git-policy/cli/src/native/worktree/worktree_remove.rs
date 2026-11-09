@@ -56,7 +56,7 @@ use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_path_failure_message::path_failure;
-use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy};
+use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
@@ -544,6 +544,9 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         forget_destroy(request.common_dir, registration.id.as_os_str());
         return RemoveOutcome::LeftToGit;
     }
+    // The kernel call returned, so its record now proves the files are gone; only that proof lets a later command remove the
+    // registration.
+    record_destroyed(request.common_dir, registration.id.as_os_str());
     let outcome: RemoveOutcome = finish(&held, &registration, request);
     // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
     // record, which is what the next command finishes.

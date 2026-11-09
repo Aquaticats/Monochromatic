@@ -1736,17 +1736,28 @@ the path of the worktree;
 the record is dropped by a removal that finished and by a destroy that failed,
 so a command killed in the window
 between the destroy and the removal of the registration leaves one decidable state.
-Every wrapped command then finishes it:
-the registration is emptied and removed through descriptors opened below `worktrees`,
-only while it is the identity
-the record names and only when nothing below it is a nested subvolume or a mount point,
-and only after the records it
-holds are copied into the removal snapshot the rescue route settles,
-so an unshown push failure in it is shown rather
-than destroyed with it.
-A record whose worktree directory is still there is dropped with nothing changed,
-because the
-destroy did not happen.
+The record is marked once the kernel call returned,
+and only that mark proves the
+files are gone:
+an absent pathname is not proof,
+because a person can move an intact worktree,
+and emptying its registration would
+leave its `.git` file pointing at nothing.
+Every wrapped command then finishes a marked record:
+the registration is emptied and
+removed through descriptors opened below `worktrees`,
+only while it is the identity the record names and only when
+nothing below it is a nested subvolume or a mount point,
+and only after the records it holds are copied into the removal
+snapshot the rescue route settles,
+so an unshown push failure in it is shown rather than destroyed with it.
+A record whose worktree
+directory is still there is dropped with nothing changed,
+because the destroy did not happen,
+and an unmarked record whose
+pathname is empty is reported once and dropped with the registration untouched,
+naming `git worktree repair <new path>`
+for a worktree that was moved and `git worktree prune` for one that is gone.
 What still fails is reported with its path and with `git worktree prune` as the way forward.
 
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory,
