@@ -130,10 +130,13 @@ The successful menu input was:
 
 Codex opened the `Skills` menu,
 including `List skills` and `Enable/Disable Skills`.
-The menu itself displayed "Tip: press $ to open this list directly".
+The menu itself displayed `Tip: press $ to open this list directly`.
 
 The fixture also accepted `$troubleshooting-doc` as a skill selection in the composer.
-This verifies the invocation surface independently of whether a model follows the selected workflow.
+The captured provider input contained the skill's full body inside a `<skill>` block,
+including `fixture-skill-body-loaded`,
+and the terminal displayed the provider's `fixture completed` response.
+This verifies selection and delivery independently of whether a model follows the selected workflow.
 Other Codex releases,
 the IDE extension,
 and the ChatGPT desktop composer were not exercised.
@@ -211,5 +214,5 @@ no filing readiness is claimed.
 [diagnostic]: https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/codex-rs/tui/src/bottom_pane/chat_composer.rs#L3121-L3143
 [sigil]: https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/codex-rs/skills/src/mentions.rs#L38-L43
 [menu]: https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/codex-rs/tui/src/chatwidget/slash_dispatch.rs#L524-L529
-[skills-doc]: https://developers.openai.com/codex/skills#:~:text=In%20Codex%20CLI%20or%20the%20IDE%20extension
+[skills-doc]: https://learn.chatgpt.com/docs/build-skills#:~:text=In%20Codex%20CLI%20or%20the%20IDE%20extension
 [contributing]: https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/docs/contributing.md#L3-L5

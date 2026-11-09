@@ -125,6 +125,8 @@ A manual reproduction can use a fresh directory and the original operation:
 
 ```sh
 # Run from a disposable fixture, not against an existing ~/temp/agent/dummy.txt.
+mkdir --parents "${HOME}/temp/agent"
+chmod 700 "${HOME}/temp/agent"
 probe_dir=$(mktemp --directory "${HOME}/temp/agent/codex-sandbox.XXXXXXXX")
 codex exec --cd "$probe_dir" --sandbox read-only \
   --dangerously-bypass-approvals-and-sandbox \
