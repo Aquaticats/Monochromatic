@@ -363,8 +363,12 @@ fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
 /// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`,
 ///  which queues before it asks for a thread).
-/// A message that says the step had not started is false in the second case,
-///  and for a conversion the worktree may already have been changed.
+/// The runner underneath promises neither: its refusal says the queued closure
+/// may still run (`BlockingJobError::MayStillRunAfterItsThreadWasRefused`),
+///  and the claim taken here is what turns that into a fact.
+/// A message that says the step had not started is false where the job took
+///  the claim first,
+/// and for a conversion the worktree may already have been changed.
 #[test]
 fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
     // The reporter takes the claim first: the step will do nothing.
@@ -375,7 +379,7 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
         (semaphore, taken)
     };
     let held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(taken);
-    let will_not_run: BlockingJobError = a_refused_thread_start(BlockingJobError::NoThreadToStart, &never, &held);
+    let will_not_run: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &never, &held);
     assert_eq!(will_not_run, BlockingJobError::NoThreadToStart);
     let said: String = will_not_run.to_string();
     assert!(said.contains("will not run"), "the step cannot run, and the message says so: {said}");
@@ -391,7 +395,7 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
         (semaphore, other_taken)
     };
     let other: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(other_taken);
-    let started: BlockingJobError = a_refused_thread_start(BlockingJobError::NoThreadToStart, &would_run, &other);
+    let started: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &would_run, &other);
     assert_eq!(started, BlockingJobError::StartedAfterItsThreadWasRefused);
     let started_text: String = started.to_string();
     assert!(started_text.contains("has started"), "the job started on another thread, and the message says so: {started_text}");
