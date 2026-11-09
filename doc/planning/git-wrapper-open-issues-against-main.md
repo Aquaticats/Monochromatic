@@ -147,6 +147,19 @@ Issues whose named module is gone but whose behaviour is not were marked
  `src/native/lock/` or `src/native/landing/`.
  The lease inheritance code moved with the landing redesign,
  so this needs a fresh audit rather than a close.
+- `#1135`,
+  `#1136`,
+  `#1137`,
+  `#1138`,
+  `#1139`,
+  `#1140`:
+  the cluster was filed against `src/native/real_index_lock_tests.rs` and its `real_index_lock` modules,
+ which the lock redesign removed;
+ `rg` finds the named test nowhere.
+ The lock behaviour these report (a PID file beside a real index lock,
+  a replaced lock released,
+ a long name classified) lives in `src/native/lock/` and `src/native/transaction/recovery_files.rs`,
+ so the six need a fresh read rather than a close.
 
 ## Still true, and left in another agent's folder
 
@@ -214,6 +227,18 @@ Issues whose named module is gone but whose behaviour is not were marked
  `src/native/invocation/effective_target.rs` exempts only the uv cache and the mise data directory,
  and a cargo build directory is not on that list,
  which is where `libghostty-vt-sys` keeps the vendored Ghostty clone the issue reports.
+ Three controls ran against the same debug binary:
+ a clean linked worktree forwarded the same command and exited 0;
+ a dirty linked worktree was refused with "rejected because this worktree has uncommitted changes to tracked
+ files",
+  which is the message the issue quotes;
+ and the documented hatch,
+  `restore --no-enforce-worktree`,
+  exited 0.
+ So the probe distinguishes the three cases,
+  and the refusals are the policy's own.
+ A build script cannot pass the hatch itself,
+  so the build stays broken.
  Recommendation:
   add the cargo build directory (from `CARGO_BUILD_DIR`,
   else `CARGO_TARGET_DIR`) to
@@ -348,6 +373,38 @@ with counts:
 - the remaining service-lifecycle,
   worktree-removal and pre-commit-check findings,
  which three other audits are reading.
+
+## What was run for these changes
+
+- `mise run //package/git-policy/cli:native:test:host -- commit_args::`:
+  26 passed.
+- `mise run //package/git-policy/cli:native:test:binary:host -- an_amend_replaces`:
+  1 passed.
+- `mise run //package/git-policy/cli:native:clippy`:
+  no finding.
+- `mise run //package/git-policy/cli:lint:monochromatic-lint`:
+  no finding.
+- `mise run //:format:monochromatic-lint` and `mise run //:lint:monochromatic-lint` on this file:
+  no finding.
+- The whole host suite once:
+ 868 passed,
+  4 aborted,
+  3945 not run after the fail-fast stop.
+ Every abort is the crate's own 120 second stuck-test watchdog (`RUN_LIMIT` in
+ `src/native/testing/test_support.rs`),
+ and the four tests are in files this branch does not touch:
+ `config::config_fsync` (two),
+  `conflict::discarded_prune` (one) and
+ `foundation::earlier_log_lines_added_to_current_log` (one).
+ They abort alone as well,
+  on a host whose load average was 132.80 with 5228 tasks while three other sessions
+ ran their own nextest jobs,
+  and the wrapper's own log shows `git index-pack` making no sign of work for 50
+ seconds.
+ That is contention,
+  measured rather than assumed,
+  and it is not evidence about this branch;
+ they need one run on an unloaded host or in the package's image.
 
 ## What this branch does not do
 
