@@ -8,16 +8,21 @@
 //!  Such a push is stopped when its stall window passes,
 //!  the commit stays saved locally,
 //!  and the failure is reported like any other failed push.
-//!  A push whose remote already holds every reference it was asked to deliver is the one stop that is not a failure:
-//! the remote's own `receive-pack` runs the hooks after the references are written,
-//! so a stalled `post-receive` hook
-//!  leaves the branch published;
-//! the report then says what the remote holds,
-//! names the remote's work as what was cut
-//!  short,
-//! and says that no push can run that hook again (`delivered_before_the_stop.rs`,
-//! `SPEC.md`,
-//! "A local remote's hooks run in the push's tree").
+//!  A stopped push is reported as what is known and no more:
+//! that it was stopped,
+//! that the remote may or may not have
+//!  taken it,
+//! and whether a retry is planned.
+//! Nothing here asks the remote what it holds:
+//! the wrapper cannot know
+//!  which object Git really sent,
+//! which of a remote's push URLs went first or what configuration shaped the attempt,
+//! and a claim of delivery a person acts on has to hold for all of them.
+//! The retry settles the question instead,
+//! because
+//!  a push of something the remote already has succeeds and clears the record (`SPEC.md`,
+//! "A local remote's hooks run in the
+//!  push's tree").
 //!  A push whose connection to the remote is open is never stopped for time (owner,
 //! 2026-11-03:
 //! "Wait while connected
@@ -56,8 +61,6 @@ use crate::lazy_runtime::run_on_runtime;
 /// The stop of a push and the sweep of the locks it leaves,
 /// and the pause between two looks at a running push.
 use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
-/// The question that proves a stopped push had already delivered its references.
-use crate::delivered_before_the_stop::{AskingGit, DeliveryQuestion, globals_before_the_command, objects_the_push_will_send, refs_already_delivered};
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
@@ -67,9 +70,6 @@ use std::ffi::OsString;
 /// `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-/// The program and the directory the push ran with,
-/// for the question the stop asks.
-use std::path::{Path, PathBuf};
 /// `Child` is a push handed to the sweeper;
 /// `Command` describes it;
 /// `Stdio` connects its streams.
@@ -81,19 +81,6 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
-/// What:
-///  The sentence a report of a stopped push carries when the remote already holds every reference the push was
-///  asked to deliver.
-/// Why:
-///   A push to a local path runs the remote's `receive-pack` in the push's own tree,
-/// and its `post-receive` hook runs
-///  after the references are written,
-/// so a hook that shows no sign of work stops a push that has already landed.
-/// The report says
-///  what the remote holds instead of calling the push a failure,
-/// and the notice the service writes for the person
-///  recognises this sentence to word itself the same way.
-pub const DELIVERED_BEFORE_THE_STOP: &str = "git push delivered every reference it was asked for";
 
 /// What a person is told when a push is ended for showing no progress:
 /// the owner's answer of 2026-11-03,
@@ -103,6 +90,18 @@ pub const DELIVERED_BEFORE_THE_STOP: &str = "git push delivered every reference 
 /// is that the service's retry plan keeps the push and tries it again,
 /// and the line says so.
 pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
+
+/// What a person is told about the remote when a push was stopped:
+/// that the wrapper does not know,
+/// and that the retry is what settles it.
+///  A stopped push proves nothing about the remote:
+/// the wrapper cannot know which object Git really sent,
+/// which of a
+///  remote's push URLs went first or which configuration shaped the attempt,
+/// so the report says what is known and the retry
+///  answers the question,
+/// because a push of something the remote already has succeeds.
+pub const STOPPED_DELIVERY_IS_NOT_KNOWN: &str = "the remote may or may not have taken the push, and only the next push settles which";
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 ///  Citation:
@@ -462,27 +461,6 @@ pub async fn run_bounded_push_awaiting(
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
     let label: String = command_label(&command);
-    // Read while the command still has its arguments: a push stopped after its remote wrote the references must not be
-    //  called a failure, and what the remote holds is the only proof of that.
-    let arguments: Vec<OsString> = command.get_args().map(OsString::from).collect();
-    let asking: AskingGit = AskingGit {
-        program: PathBuf::from(command.get_program()),
-        cwd: command.get_current_dir().map(Path::to_path_buf),
-        environment: environment.to_vec(),
-        globals: globals_before_the_command(arguments.as_slice()).unwrap_or_default().to_vec(),
-    };
-    let question: Option<DeliveryQuestion> = DeliveryQuestion::of(arguments.as_slice());
-    // The objects the push is about to send are recorded before it starts: the reference they come from may name
-    //  another object by the time the push is stopped, and the remote must hold what was sent and not what the
-    //  reference says afterwards. The recording is bounded like every other query, so it cannot hold the push up.
-    let window: Duration = match patience {
-        Patience::Fixed(limit) => limit,
-        Patience::Progress { stall } => stall,
-    };
-    let sending: Option<Vec<String>> = match &question {
-        Some(asked) => objects_the_push_will_send(&asking, asked, window, grace).await,
-        None => None,
-    };
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
@@ -491,15 +469,6 @@ pub async fn run_bounded_push_awaiting(
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
-    // A stop that ended a push whose remote had already written the references is not a push that failed: the proof is
-    //  taken after the stop, when the remote's own program can no longer be writing,
-    // it compares the remote against the objects recorded before the push started,
-    // and it is answered in the time a killed
-    //  child is given, so a remote that does not answer leaves the report as it was.
-    let delivered: Option<Vec<String>> = match (&ended, question, sending) {
-        (Err(StopCause::Stalled(_)), Some(asked), Some(sent)) => refs_already_delivered(&asking, &asked, sent.as_slice(), grace, grace).await,
-        _ => None,
-    };
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
@@ -528,29 +497,15 @@ pub async fn run_bounded_push_awaiting(
                     },
                     extend_clause()
                 ),
-                StopCause::Stalled(report) => match &delivered {
-                    Some(refs) => format!(
-                        "monochromatic-git-policy-cli: {DELIVERED_BEFORE_THE_STOP} and then showed no sign of work for {} seconds while the \
-                         remote ran the work that follows that update, such as a `post-receive` hook, so the push was stopped and that \
-                         work was ended with it (limit=stall, bytes_moved={}, elapsed_seconds={}). The remote holds {}: nothing is left to \
-                         deliver, and pushing again runs no remote hook, so it does not restart that work. If the remote's work matters (a \
-                         deploy, a mirror, a ledger append), it is unfinished and has to be done by hand at the remote; {}.",
-                        report.limit.as_secs(),
-                        report.moved,
-                        report.elapsed.as_secs(),
-                        refs.join(", "),
-                        extend_clause()
-                    ),
-                    None => format!(
-                        "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
-                         elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
-                         offline connection, your commit is already saved; push again when the connection works.",
-                        report.limit.as_secs(),
-                        report.moved,
-                        report.elapsed.as_secs(),
-                        extend_clause()
-                    ),
-                },
+                StopCause::Stalled(report) => format!(
+                    "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
+                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: if you were pushing over a slow or \
+                     offline connection, your commit is already saved; push again when the connection works.",
+                    report.limit.as_secs(),
+                    report.moved,
+                    report.elapsed.as_secs(),
+                    extend_clause()
+                ),
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
                      {PUSH_QUEUED_LINE}"

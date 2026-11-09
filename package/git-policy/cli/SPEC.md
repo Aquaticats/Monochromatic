@@ -2626,51 +2626,26 @@ of the review call and of the whole review).
   `update` and
   `post-receive` hooks in the push's tree,
   and the stop of a stalled push ends them with it (`src/native/push/bounded_push.rs`).
-  Such a stop is not reported as a failure when the remote already wrote the references:
-  the wrapper asks the remote what it
-  holds for every reference the push named,
-  and the report says the delivery is done,
-  names the remote's own work as what was cut short,
-  and says that pushing again runs no remote hook,
-  so that work has to be finished at the remote
-  (`src/native/push/delivered_before_the_stop.rs`).
-  That sentence is a claim a person stops pushing on,
-  so it is said only when the answer holds for the destination the push went to,
-  for the objects the push was
-  sending,
-  and for every reference the push tried;
-  in every other case the report is the ordinary stop of a push that was
-  interrupted and nothing is claimed about the remote:
-  - The destination is the URL the push wrote to,
-    which is the remote's `pushurl` when it has one
-    (`git remote get-url --push`),
-    and never the fetch URL a stop inside a repository has to fall back to;
-    a destination that is not a remote name is the location the push named.
-  - The objects are recorded before the push starts,
-    so a local reference that moves while the push runs
-    cannot make the remote's older reference look delivered.
-  - Every question repeats the global options the push carried,
-    `-C` and `-c` included,
-    so the repository and the configuration asked are the ones the push read.
-  - A push Git widens beyond the references on its command line is no proof:
-    `--follow-tags` or `push.followTags`,
-    `--recurse-submodules` other than `no`,
-    or `push.recurseSubmodules` other than `no`,
-    and `--all`,
-    `--branches`,
-    `--tags`,
-    `--mirror` and a deletion,
-    which name references the question does not.
-    The two configuration keys are asked with Git and anything but a proved
-    `no`
-    leaves the report as it was.
-  - A refspec pattern (`*`,
-    `?` or a bracket expression) names a set of references and is no question the proof can ask,
-    and neither is a `^`
-    revision expression,
-    which names objects and not a reference.
-  - Every question is a bounded Git query of the push,
-    so a remote that does not answer leaves the report as it was.
+  Such a stop is reported as what is known and nothing more:
+  that the push was stopped,
+  that the remote may or may not
+  have taken it,
+  and whether a retry is planned.
+  Nothing asks the remote what it holds,
+  because no question can
+  settle it:
+  the wrapper cannot know which object Git really sent,
+  which of a remote's push URLs went first,
+  or
+  which configuration shaped the attempt,
+  and a claim of delivery is one a person stops pushing on.
+  The retry settles the
+  question instead:
+  a push of something the remote already has succeeds,
+  and that success clears the record of the
+  stopped push for the person (`src/native/push/bounded_push.rs`,
+  `service_push_retry_tests.rs`,
+  "a_stopped_push_whose_reference_landed_is_settled_by_its_retry_and_claims_nothing").
 - The long-lived object reader (`git cat-file --batch`) is judged the same way per request;
   a request that stalls ends
   the
@@ -4061,11 +4036,9 @@ in-process reader can) gives every value of the multi-valued keys.
   A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime`
   reach Git unchanged and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
   A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before;
-  when the remote had already written the references,
-  the report says the delivery is done and names the remote's own work as what the
-  stop ended,
-  instead of reporting a published branch as a failed push
-  (`src/native/push/delivered_before_the_stop.rs`).
+  a stop says that the remote may or may not have taken the push and whether a retry is planned,
+  and the retry
+  is what settles it (`src/native/push/bounded_push.rs`).
   There is no ceiling:
   no total time ends a run that shows progress or holds an open connection (pick 5,
   above).
@@ -4126,17 +4099,12 @@ in-process reader can) gives every value of the multi-valued keys.
   an open question for the owner),
   and reported with exit code 124.
   The report names what was cut short,
-  and when the remote already holds every reference the push named it
-  says the delivery is done and the remote's own work is what the stop ended,
-  instead of a failed push whose commit is only local
-  (`src/native/push/delivered_before_the_stop.rs`).
-  That proof is asked of the destination the push went to
-  (its remote's push URL),
-  against the objects recorded before the push started,
-  with the push's own global options,
-  and only for a push whose command line names every reference Git tried;
-  anything else leaves the ordinary stop report,
-  which claims nothing about the remote (see "Commit hooks").
+  says that the remote may or may not have taken the push,
+  and says whether a retry is planned;
+  it never claims a delivery,
+  because no question of the remote can settle one
+  (see "Commit hooks",
+  `src/native/push/bounded_push.rs`).
   The same stop (a catchable request,
   five seconds,
   then the kill) ends every Git child the wrapper stops:
@@ -4262,12 +4230,10 @@ in-process reader can) gives every value of the multi-valued keys.
   delivery sentence is shown as what Git said and changes no framing
   (`src/native/push/push_failure_notice.rs`).
   The notice claims no delivery at all,
-  even when the stop proved one:
-  that sentence belongs to the stop's own report,
-  which is the process that proved it,
-  and carrying the proof
-  into the notice would add a second claim about the same push
-  (`src/native/push/delivered_before_the_stop.rs`).
+  in either framing:
+  a stopped or unfinished push says only that it did not finish and that the remote may or may
+  not have taken the commit,
+  and the retry is what settles it.
 
 ### Manual push
 

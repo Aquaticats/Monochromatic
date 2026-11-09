@@ -69,12 +69,18 @@ struct Stage {
     landed: String,
 }
 
+/// Build the stage with a `pre-receive` hook that stalls the first push,
+/// the way a remote that checks the pack before writing anything behaves.
+fn stage(name: &str) -> Stage {
+    return stage_with(name, "pre-receive");
+}
+
 /// Build the stage:
 /// an initial commit pushed with no hook,
-/// the hook installed,
+/// the hook called `hook_name` installed,
 /// a new commit landed,
 /// its work item written.
-fn stage(name: &str) -> Stage {
+fn stage_with(name: &str, hook_name: &str) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
@@ -85,7 +91,7 @@ fn stage(name: &str) -> Stage {
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
     let marker: PathBuf = root.join("stalled-once");
-    let hook: PathBuf = remote.join("hooks").join("pre-receive");
+    let hook: PathBuf = remote.join("hooks").join(hook_name);
     std::fs::write(hook.as_path(), format!("#!/bin/sh\nif [ ! -e '{}' ]; then : > '{}'; exec sleep 600; fi\nexit 0\n", marker.display(), marker.display())).expect("hook");
     std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
     std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
@@ -943,4 +949,49 @@ fn a_wake_for_a_directory_that_is_away_leaves_its_work_for_the_next_command() {
     let _wait: Drained = drain_planned(git_dir.as_path(), &handlers, &ClaimTime::read(), &Retrying::none());
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the work ran once the directory was back");
     remove(root.as_path());
+}
+
+/// What:
+///  A push the service stopped after the remote had already written the reference is settled by its own retry,
+///  and the notice it left claims nothing about the remote.
+/// Why:
+///   The wrapper cannot know which object Git really sent,
+/// which of a remote's push URLs went first or which
+///  configuration shaped the attempt,
+/// so a stopped push says only what is known:
+/// that it was stopped,
+/// that the remote may
+///  or may not hold the commit,
+/// and whether a retry is planned.
+/// The retry settles the question,
+/// because a push of something the
+///  remote already has succeeds and clears the record.
+#[test]
+fn a_stopped_push_whose_reference_landed_is_settled_by_its_retry_and_claims_nothing() {
+    let stage: Stage = stage_with("push-retry-post-receive-once", "post-receive");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]);
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the remote wrote the reference before its hook stalled");
+    assert_eq!(notices(&stage), 1, "the person is told the push was stopped");
+    let mut stored: String = String::new();
+    for entry in std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notice directory").flatten() {
+        stored.push_str(std::fs::read_to_string(entry.path()).expect("the record").as_str());
+    }
+    assert!(
+        stored.contains("may or may not have taken"),
+        "the notice says what is known about the remote: {stored}"
+    );
+    for absent in ["delivered every reference", "nothing is left to deliver", "does not restart that work"] {
+        assert!(!stored.contains(absent), "{absent} in {stored}");
+    }
+    let wait: Duration = first.expect("the service says when to look at the repository again");
+    assert!(wait <= PAUSE + Duration::from_secs(5), "the wake is for the retry: {wait:?}");
+    std::thread::sleep(wait);
+    let second: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the retry finds the reference already there and succeeds");
+    assert_eq!(notices(&stage), 0, "the retry cleared the record of the stopped push");
+    assert_eq!(second, None, "nothing is left to try again");
+    remove(stage.root.as_path());
 }

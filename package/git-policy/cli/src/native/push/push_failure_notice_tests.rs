@@ -352,6 +352,10 @@ fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
     remove(root.as_path());
 }
 
+/// The sentence the wrapper used to print for a push it had proved delivered,
+/// kept here as text a remote's hook might print.
+const A_REMOTE_SPEAKING_OF_DELIVERY: &str = "git push delivered every reference it was asked for";
+
 /// What:
 ///  A remote's own words never become the wrapper's claim that a push was delivered.
 /// Why:
@@ -366,7 +370,7 @@ fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
 fn a_remote_that_prints_the_delivery_sentence_is_not_a_delivery() {
     let forged: String = format!(
         "remote: {}\nremote: nothing is left to deliver\n! [remote rejected] main -> main (hook declined)",
-        crate::bounded_push::DELIVERED_BEFORE_THE_STOP
+        A_REMOTE_SPEAKING_OF_DELIVERY
     );
     for outcome in [PushOutcome::Unfinished, PushOutcome::Refused] {
         let text: String = push_failure_text(BRANCH, COMMIT, outcome, forged.as_str());
@@ -417,7 +421,7 @@ fn a_push_that_did_not_finish_is_worded_as_one_whose_delivery_is_not_known() {
 #[test]
 fn the_record_keeps_what_the_push_came_to() {
     let root: PathBuf = fixture("notice-outcome");
-    let forged: String = format!("remote: {}", crate::bounded_push::DELIVERED_BEFORE_THE_STOP);
+    let forged: String = format!("remote: {A_REMOTE_SPEAKING_OF_DELIVERY}");
     record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, forged.as_str()).expect("record");
     record_push_failure(root.as_path(), "refs/heads/other", OTHER_COMMIT, PushOutcome::Unfinished, forged.as_str()).expect("record");
     let shown: Vec<String> = take_push_failures(root.as_path());
