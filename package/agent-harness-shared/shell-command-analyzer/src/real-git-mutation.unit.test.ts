@@ -647,6 +647,36 @@ await describe({
               },
             },),
             it({
+              name: 'denies a commit inside a quoted command string on another host',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `ssh build-host 'cd ${FIXTURE_REPOSITORY_ROOT} && ${FIXTURE_REAL_GIT_PATH} commit -m x'`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe inside a quoted command string on another host',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `ssh build-host '${FIXTURE_REAL_GIT_PATH} status --short'`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper inside a quoted command string on another host',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `ssh build-host 'cd ${FIXTURE_REPOSITORY_ROOT} && git commit -m x'`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
               name: 'allows the wrapper named on another host',
               fn: async ({ expect: e, },) => {
                 e(await fixtureMutates('ssh build-host git commit -m x',),).toBe(false,);
