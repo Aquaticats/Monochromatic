@@ -36,6 +36,12 @@ pub mod git_command_name;
 /// and a summary of unreadable processes.
 pub mod index_lock_holder_words;
 
+/// The sentences a lock's evidence is reported in:
+/// the line naming a holder,
+/// the line at a wait's ceiling,
+/// and the diagnostic for a PID number this process table does not have.
+pub mod index_lock_evidence_words;
+
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
 
