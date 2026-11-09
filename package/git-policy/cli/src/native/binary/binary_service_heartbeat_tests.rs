@@ -156,7 +156,8 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
 
 /// A commit the service has read and not begun on says so once,
 /// in words a person who knows only `git commit` understands,
-/// however many beats the service sends: the service naming no place is the only evidence there is,
+/// however many beats the service sends:
+/// the service naming no place is the only evidence there is,
 /// and it is said once,
 /// not on every beat.
 #[test]
@@ -665,7 +666,8 @@ fn a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answe
     assert!(waited >= ceiling + extra_wait && waited < ceiling + extra_wait + Duration::from_secs(6), "{waited:?}");
 }
 
-/// Runs the client on a thread and returns what it ended with, what it printed and the trace it kept.
+/// Runs the client on a thread and returns what it ended with,
+/// what it printed and the trace it kept.
 fn traced_client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String, SubmitTrace)> {
     return std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();

@@ -2,7 +2,8 @@
 
 use super::*;
 
-/// The threshold of a control: the shipped one is measured in `wait_ceilings.rs`,
+/// The threshold of a control:
+/// the shipped one is measured in `wait_ceilings.rs`,
 /// and its value plays no part in what a batch says.
 const THRESHOLD: Duration = crate::wait_ceilings::WAITING_NOTICE_AFTER;
 

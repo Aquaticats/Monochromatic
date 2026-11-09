@@ -164,6 +164,22 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
 }
 
 /// What:
+///  The number of the place the service named,
+/// which is the part of it the person is told.
+/// Why:
+///   A place says which commit it is (`number`) and how many the batch holds (`of`),
+/// and every wording of it derives from the number alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeNumber([3, 7]) // 3
+/// ```
+fn place_number(place: (usize, usize)) -> usize {
+    let (number, _of) = place;
+    return number;
+}
+
+/// What:
 ///  Says where a waiting commit stands once it has waited long enough to matter:
 /// how many commits the service put before it,
 /// or that the service has not started on it.
@@ -187,7 +203,7 @@ fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: O
         return;
     }
     // What the person was last told: the place the service named, or nothing when it named none.
-    let named: Option<usize> = place.map(|(number, _of)| return number);
+    let named: Option<usize> = place.map(place_number);
     if *told == Some(named) {
         return;
     }
@@ -282,7 +298,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Heard::Message(ServiceMessage::Position { number, of }) => {
                     // Every place the service names is recorded, printed or not; the person is told it once the wait has
                     //  mattered, so a commit that lands at once says nothing new.
-                    if last_place.map(|(named, _of)| return named) != Some(number) {
+                    if last_place.map(place_number) != Some(number) {
                         last_place = Some((number, of));
                         trace.positions.push(number);
                     }

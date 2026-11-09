@@ -282,6 +282,19 @@ fn place_notices(size: usize, waited: Duration, threshold: Duration) -> Vec<(usi
     return places;
 }
 
+/// How long the first request of a batch has waited since its connection was accepted,
+/// which is the wait the telling answers.
+/// Nothing when the batch holds no request,
+/// which lands nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitedSinceAccepted(group[0]) // milliseconds
+/// ```
+fn waited_since_accepted(queued: &Queued) -> Duration {
+    return queued.2.accepted.elapsed();
+}
+
 /// Lands one group of jobs that share a branch,
 /// and answers each client.
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
@@ -349,7 +362,7 @@ pub(crate) fn land_group(
     *seq = claim.seq();
     // The first request of a batch has waited since its connection was accepted; the wait that matters for being told
     //  it is next is the one it has borne when the batch begins to land.
-    let waited: Duration = fresh.first().map_or(Duration::ZERO, |(_, _, arrival)| return arrival.accepted.elapsed());
+    let waited: Duration = fresh.first().map_or(Duration::ZERO, waited_since_accepted);
     for (number, of) in place_notices(fresh.len(), waited, place_after) {
         let Some((_, stream, _)) = fresh.get(number - 1) else {
             continue;
