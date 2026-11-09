@@ -898,6 +898,18 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   with the package,
   the locked version,
   what the listing said and the directory `uv tool dir` names.
+- `go install <module>@v<locked>` with `GOBIN` set to the `bin` directory of the version's install directory,
+  after which `install` reads back the executables that directory holds.
+  A Go install writes no record anywhere and no manager lists a Go tool,
+  so the executables `go` writes are the whole record:
+  a `bin` directory holding none of the declared binaries fails the install,
+  naming the module,
+  the locked version,
+  the binaries it expected and the directory to check.
+  The version directory itself proves nothing,
+  because `install` creates it before `go` runs,
+  and `list` reads the same executables,
+  so a Go tool with no binaries is absent there too.
 - `archive` tools are downloaded,
   checked against the lock's SHA-256,
   and only then unpacked with `tar` or `unzip`.
