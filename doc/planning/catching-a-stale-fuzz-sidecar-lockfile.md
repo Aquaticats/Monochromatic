@@ -1,0 +1,233 @@
+# Catching a stale fuzz sidecar lockfile
+
+Status:
+proposed 2026-11-09;
+not built.
+Where the check runs is the owner's call,
+so this document recommends a trigger and changes nothing else.
+
+## Purpose
+
+`package/git-policy/cli.fuzz` is an independent Cargo workspace
+that links `package/git-policy/cli` by path.
+Its `Cargo.lock` therefore records the wrapper's whole dependency graph
+at the versions the wrapper locked,
+so any dependency the wrapper gains,
+drops or moves makes that lock stale.
+A stale lock makes cargo refuse the sidecar's build,
+and then its fuzz targets,
+its generator controls and its smoke campaign all stop compiling.
+
+The same missing trigger loses a second,
+larger failure:
+the sidecar's sources call the wrapper's API,
+so a wrapper change to a public type breaks the sidecar without touching its lock.
+Both failures were measured on 2026-11-09 at `main` `33562f4ff7`.
+
+## What exists today
+
+- `//package/git-policy/cli:lint:sidecar-locks`
+  (`package/git-policy/cli/bin/native-sidecar-locks.ts`)
+  reads both resolutions through `cargo metadata --locked --offline`
+  and fails on cargo's refusal of a sidecar lock
+  and on any package the wrapper locks that the sidecar locks at another version.
+  It is a `lint:*` child of the wrapper package,
+  so the wrapper's `lint` runs it,
+  and the wrapper's container gate runs it before it builds anything.
+  Measured cost:
+  2.84 s with a warm registry and build cache.
+- `//package/git-policy/cli.fuzz:lint:types` runs
+  `cargo check --all-targets --locked --offline`
+  and Clippy with `-D warnings`,
+  so cargo's own refusal of a stale lock fails the sidecar's build too.
+  It is the sidecar's `lint`,
+  which the root `lint` fanout reaches.
+  Measured cost:
+  5.2 s for the check and 13.1 s for Clippy when warm,
+  152 s from an empty `target/` on four CPUs.
+- `//package/git-policy/cli.fuzz:lock:members` records moved versions again
+  with `cargo update --offline --workspace`;
+  `lock:subject` seeds the sidecar's lock from the wrapper's before that.
+  Neither is a hand edit.
+
+## The gap
+
+Nothing runs either check when the wrapper moves.
+No workflow runs the wrapper's or the sidecar's lint;
+the two workflows that name `package/git-policy/cli`
+(`cargo-publish.yml` and `npm-release.yml`) are release plumbing.
+No Git hook runs lint on push,
+and merges happen locally with auto-push.
+The root `lint` fanout is the only path,
+and it runs only when someone starts it.
+
+Measured on 2026-11-09 at `main` `33562f4ff7`:
+
+- The wrapper's lock check passed and cargo accepted the sidecar's lock,
+  so the lock itself was current.
+- The sidecar did not compile against the wrapper's sources:
+  four errors in `src/batch.rs`,
+  `src/batch_tests.rs` and `src/controls.rs`.
+- The wrapper changes responsible landed after the sidecar's last source change:
+  `6bd37751ab` (2026-11-08T23:26:11-05:00) added `BatchReply::TooLarge`,
+  `de74356200` (2026-11-09T03:03:32-05:00) made `shipped_checks` take `ToolCacheDirectory`,
+  and `61b25ef6d6` (2026-11-09T06:24:39-05:00) added three `RepositoryFacts` methods.
+  The wrapper's own `lint` reads the sidecar's lock,
+  never its sources,
+  so each of those could land with the sidecar's build broken.
+
+## Options
+
+### A. A path-filtered workflow that runs the checks
+
+Pros:
+
+- Runs without anyone remembering,
+  on pull request,
+  merge queue and push to `main`.
+- Precedent exists:
+  `.github/workflows/toml-edit-fuzz.yml` and `.github/workflows/logger-fuzz.yml`
+  already run a subject's and its fuzz sidecar's `lint:types` on a path-filtered change.
+- Calls the two tasks that exist,
+  so no check code is new.
+- The filter can name the wrapper,
+  the sidecar and the six crates the sidecar links by path,
+  so a linked crate's source change fires it as well.
+
+Cons:
+
+- CI minutes:
+  the lock check is seconds,
+  the sidecar's compile is minutes.
+- Needs network for `fetch:rust-dependencies`,
+  because both checks run `--offline`.
+- Reports after the push that landed it,
+  unless the branch is reviewed through a pull request.
+
+### B. A root `lint:sidecar-locks` fanout over every package with a sidecar crate
+
+Pros:
+
+- One command covers every sidecar crate;
+  there are 19 `.fuzz` directories today,
+  not all of them Rust crates.
+- No CI minutes and no network beyond the local registry.
+
+Cons:
+
+- Still on demand,
+  so the reported failure stays possible.
+- Needs a subject-to-sidecar mapping that does not exist yet,
+  since each sidecar names its subject by path in its own manifest.
+- Wider than this task.
+
+### C. A pre-push hook that runs the lock check
+
+Pros:
+
+- Fires at the only automatic local step,
+  in about three seconds.
+- Catches the drift before the merge lands.
+
+Cons:
+
+- No hook mechanism exists:
+  there is no `core.hooksPath`,
+  and the mise `enter` hook is commented out.
+- A failing hook stops a push,
+  which the owner's auto-push flow would feel on every branch.
+- It is installed per clone,
+  so other agents' clones behave differently.
+
+### D. Repair the lock inside the sidecar's lint
+
+Pros:
+
+- One command both fixes and checks,
+  and it reuses `lock:members`.
+
+Cons:
+
+- A check that writes the working tree hides the drift from the diff a reviewer reads.
+- A fanout would mutate the tree while other work runs in it.
+
+### E. One workspace for the wrapper and its sidecar
+
+Pros:
+
+- Removes the second lockfile and the whole failure class with it.
+
+Cons:
+
+- cargo-fuzz expects its own workspace and lock,
+  and every other sidecar keeps its own.
+- Far larger than the check,
+  for one sidecar.
+
+### F. Keep the status quo
+
+Pros:
+
+- Nothing to build.
+
+Cons:
+
+- The observed failure stays:
+  the check exists but runs only when someone remembers.
+
+Ranking:
+A beats C because it needs no per-clone setup and reports instead of stopping a push.
+C beats B because it fires without anyone remembering to start the fanout.
+B beats D because it reports drift and leaves the tree alone,
+so the lock diff stays visible.
+D beats E because it reuses the existing lock and task,
+while E restructures the workspace for one sidecar.
+E beats F because F keeps the failure that was measured.
+
+## Recommendation
+
+A,
+with a narrow scope:
+one workflow,
+`.github/workflows/git-policy-cli-fuzz.yml`,
+triggered on `pull_request`,
+`merge_group` and `push` to `main`,
+path-filtered to:
+
+- `package/git-policy/cli/**`
+- `package/git-policy/cli.fuzz/**`
+- `package/jsonc-edit/core-rust/**`
+- `package/catalog-specifier/core-rust/**`
+- `package/forbidden-strings/cli/**`
+- `package/forbidden-strings/core/**`
+- `package/linter/monochromatic-lint/**`
+- `.github/workflows/git-policy-cli-fuzz.yml`
+
+Those are the wrapper,
+the sidecar and every crate the sidecar links by path;
+`cargo metadata` on the sidecar lists exactly those seven packages.
+
+Steps:
+
+- checkout,
+  then the repository's task CLI setup;
+- `task-run fetch:rust-dependencies -- package/git-policy/cli package/git-policy/cli.fuzz`,
+  because both checks run offline;
+- `task-run //package/git-policy/cli:lint:sidecar-locks`,
+  which is seconds and whose message already names the repair task;
+- `task-run //package/git-policy/cli.fuzz:lint:types`,
+  which is the compile that would have failed on 2026-11-09.
+
+The workflow does not run the smoke campaign,
+the planted controls,
+the mutation campaign,
+or any other package's lint.
+
+## Open questions for the owner
+
+- Whether the workflow should be required on the merge queue,
+  or advisory.
+- Whether option B should follow in the same change or later,
+  so the other sidecars gain the same check.
+- Whether `toml-edit-fuzz.yml` and `logger-fuzz.yml` should gain the lock check for their own sidecars,
+  which have the same second lockfile.
