@@ -201,7 +201,8 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
 
 /// A tracked empty file that the real index holds as intent-to-add stays in the tree the private index produces when the
 ///  commit names another path:
-/// the seeded copy kept the entry and a tree built from it leaves intent-to-add entries out.
+/// the copy leaves the intent-to-add entry out and the reset puts the base's entry back,
+/// so the tree holds the file the base holds and not the empty blob's name the mark carried.
 #[test]
 fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
     let root: PathBuf = fixture("commit-index-intent-empty");
