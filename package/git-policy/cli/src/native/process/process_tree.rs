@@ -452,8 +452,6 @@ pub(crate) fn reused_after_the_next_read(pid: i32, started: u64) {
     REUSED_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((pid, started))); });
 }
 
-/// The control's answer for `pid`,
-/// when one is armed for that number.
 // What:
 //  A control that makes the next identity read of one number fail,
 //  as a record that cannot be read does (`EACCES`, `EIO`, `ENOMEM`).
@@ -479,7 +477,8 @@ pub(crate) fn unreadable_after_the_next_reads(pid: i32, answered_first: usize) {
     UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((pid, answered_first))); });
 }
 
-/// Take the control's refusal for `pid`, when one is armed for it and its normal reads are used up.
+/// Take the control's refusal for `pid`,
+/// when one is armed for it and its normal reads are used up.
 #[cfg(all(test, target_os = "linux"))]
 fn claim_an_unreadable_for(pid: i32) -> bool {
     let armed: Option<(i32, usize)> = UNREADABLE_AFTER_THE_NEXT_READ.with(std::cell::Cell::get);
@@ -497,6 +496,8 @@ fn claim_an_unreadable_for(pid: i32) -> bool {
     return true;
 }
 
+/// The control's answer for `pid`,
+/// when one is armed for that number.
 #[cfg(all(test, target_os = "linux"))]
 fn claim_a_reuse_for(pid: i32) -> Option<u64> {
     let armed: Option<(i32, u64)> = REUSED_AFTER_THE_NEXT_READ.with(std::cell::Cell::get);

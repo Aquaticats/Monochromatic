@@ -54,6 +54,7 @@ use crate::service_client::{ClientConfig, FreshScratch, ScratchWatch, Submitted,
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::may_rebuild;
+use crate::service_branch_shows::{branch_moved, display_text, the_silent_service_after_a_prepare};
 use crate::service_messages::{ClientFailure, render};
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
@@ -64,7 +65,7 @@ use crate::service_pruned::{content_was_removed, prepared_content_missing, reach
 use crate::transaction_phase::Phase;
 use crate::transaction_git::run_git_checked;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 /// What the service path returns:
@@ -76,25 +77,6 @@ pub struct ServiceCommit {
     /// How to leave the after-commit work for the service;
     /// absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
-}
-
-/// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
-fn branch_moved(ready: &Ready) -> TransactionStop {
-    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-    return TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }));
-}
-
-/// What:
-///  A path as text for a message.
-/// Why:
-///  A failure names the file a typed message was saved in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const displayText = (file: string) => file;
-/// ```
-fn display_text(file: &Path) -> String {
-    return file.display().to_string();
 }
 
 /// What:
@@ -404,7 +386,16 @@ pub fn service_commit<F: RepositoryFacts>(
                 //  worktree is not read again to make it.
                 return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
             }
-            Err(failure) => return Err(TransactionStop::Message(render(&failure))),
+            Err(failure) => {
+                // The one silence that could not state a fact now reads the branch once and states what it shows.
+                let worded: ClientFailure = match failure {
+                    ClientFailure::ServiceSilent => {
+                        the_silent_service_after_a_prepare(invocation.context, invocation.cwd, ready.reference.as_str(), sent.commit.as_deref())
+                    }
+                    other => other,
+                };
+                return Err(TransactionStop::Message(render(&worded)));
+            }
         }
     }
     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts })));

@@ -2,7 +2,9 @@
 //!  The child a caller is waiting for,
 //!  published the moment it starts:
 //!  its number,
-//!  and, when the caller asks for one, the descriptor that names it for good.
+//!  and,
+//! when the caller asks for one,
+//! the descriptor that names it for good.
 //! Why:
 //!   A caller that must name the child it waits for cannot read the number before it exists,
 //! and a number read later may belong to another process.
@@ -35,7 +37,8 @@ struct Started {
 /// and read after.
 #[derive(Clone, Debug)]
 pub struct ChildNumber {
-    /// The child, once it has started.
+    /// The child,
+    /// once it has started.
     started: std::sync::Arc<std::sync::OnceLock<Started>>,
     /// Whether the descriptor is asked for when the child starts.
     pinned: bool,
@@ -81,13 +84,15 @@ impl ChildNumber {
     /// The child's number,
     /// once it has started.
     pub fn number(&self) -> Option<i32> {
-        return self.started.get().map(|started| { return started.number; });
+        let started: &Started = self.started.get()?;
+        return Some(started.number);
     }
 
     /// The descriptor that names the child for good,
     /// once it has started and the kernel made one.
     pub fn descriptor(&self) -> Option<&std::os::fd::OwnedFd> {
-        return self.started.get().and_then(|started| { return started.descriptor.as_ref(); });
+        let started: &Started = self.started.get()?;
+        return started.descriptor.as_ref();
     }
 }
 

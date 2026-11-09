@@ -15,7 +15,8 @@ fn a_step() -> Child {
     return crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a long-running child");
 }
 
-/// Whether `child` ended within the bound, and how.
+/// Whether `child` ended within the bound,
+/// and how.
 fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
     use std::os::unix::process::ExitStatusExt;
     let deadline: Instant = Instant::now() + bound;
@@ -34,11 +35,14 @@ fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
 ///  A step whose record could not be read keeps the ceiling armed instead of reading as ended.
 /// Why:
 ///   Finding 3 of the second review:
-/// the identity read the pin makes can fail on its own (`EACCES`, `EIO`, `ENOMEM`) while `/proc` answers,
+/// the identity read the pin makes can fail on its own (`EACCES`,
+/// `EIO`,
+/// `ENOMEM`) while `/proc` answers,
 /// and that failure was read as `Delivered::Gone`,
 /// which `ceiling_came` turns into "the step ended":
 /// a running Git child then loses its ceiling and the command waits with no bound over it.
-///  The step here is alive throughout, so only the reading of it fails.
+///  The step here is alive throughout,
+/// so only the reading of it fails.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_whose_record_could_not_be_read_keeps_the_ceiling_armed() {
@@ -57,7 +61,8 @@ fn a_step_whose_record_could_not_be_read_keeps_the_ceiling_armed() {
     assert_ne!(came, CeilingCame::TheStepEnded, "a record that could not be read was read as the step having ended, so the ceiling was taken away from a step that is still running");
 }
 
-/// The positive control: a step that can be read is signalled and the stop is reported,
+/// The positive control:
+/// a step that can be read is signalled and the stop is reported,
 /// so the control above cannot pass by never signalling at all.
 #[cfg(target_os = "linux")]
 #[test]
@@ -77,10 +82,12 @@ fn a_step_that_can_be_read_is_stopped_at_the_ceiling() {
 }
 
 /// What:
-///  The ceiling takes the step's identity from its start, never from a read of its number.
+///  The ceiling takes the step's identity from its start,
+/// never from a read of its number.
 /// Why:
 ///   Finding 1 of the second review:
-/// the number is published when the step starts, but the identity is read at the ceiling,
+/// the number is published when the step starts,
+/// but the identity is read at the ceiling,
 /// so the read proves the process found then,
 /// and a step that ended and had its number reused is signalled through the successor.
 ///  A descriptor opened the moment the step starts names the step for good,

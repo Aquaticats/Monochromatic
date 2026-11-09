@@ -23,7 +23,8 @@ fn member_of_the_sleeper(child: &Child) -> TreeMember {
     return TreeMember { pid, started };
 }
 
-/// Whether `child` ended within the bound, and how.
+/// Whether `child` ended within the bound,
+/// and how.
 fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
     use std::os::unix::process::ExitStatusExt;
     let deadline: Instant = Instant::now() + bound;
@@ -44,7 +45,8 @@ fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
 ///   A signal by number after a successful check is still a signal to a number:
 /// the process the check proved can end and its number pass to another command before the call,
 /// so a stop must never send one it cannot pin (P1 of the 2026-11-09 second review).
-/// A descriptor limit is normal here (`NHR`), so this is a path a stop really takes.
+/// A descriptor limit is normal here (`NHR`),
+/// so this is a path a stop really takes.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_member_the_kernel_refuses_a_descriptor_for_is_not_signalled() {
@@ -61,7 +63,9 @@ fn a_member_the_kernel_refuses_a_descriptor_for_is_not_signalled() {
     assert!(ended.is_none(), "the member was signalled by its number after the kernel refused a descriptor for it: {ended:?}");
 }
 
-/// The positive control: with a descriptor to be had, the same member is signalled and ends,
+/// The positive control:
+/// with a descriptor to be had,
+/// the same member is signalled and ends,
 /// so the control above cannot pass by signalling nothing at all.
 #[cfg(target_os = "linux")]
 #[test]

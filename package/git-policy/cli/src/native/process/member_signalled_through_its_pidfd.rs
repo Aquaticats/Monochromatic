@@ -48,7 +48,8 @@ pub enum Delivered {
     /// No process has that number any more,
     /// so nothing was sent.
     Gone,
-    /// Nothing was sent, and nothing is known about the member:
+    /// Nothing was sent,
+    /// and nothing is known about the member:
     /// the kernel refused a descriptor,
     /// or the signal cannot be named to it.
     Unproven,
@@ -82,7 +83,8 @@ pub struct PinnedMember {
 /// Why:
 ///   Three answers must stay apart:
 /// the member is held by a descriptor and can be signalled;
-/// the number names no process any more, so the member is gone;
+/// the number names no process any more,
+/// so the member is gone;
 /// and the member could not be proven,
 /// so no signal may be sent and no end may be concluded.
 ///
@@ -92,12 +94,14 @@ pub struct PinnedMember {
 /// ```
 #[cfg(target_os = "linux")]
 pub enum Pinned {
-    /// The member, held by a descriptor that names it for good.
+    /// The member,
+    /// held by a descriptor that names it for good.
     Held(PinnedMember),
     /// No process has that number any more.
     Gone,
     /// The member could not be proven:
-    /// the kernel refused a descriptor, so nothing may be sent.
+    /// the kernel refused a descriptor,
+    /// so nothing may be sent.
     Unproven,
 }
 
@@ -121,14 +125,15 @@ pub(crate) fn refuse_the_next_descriptors(count: usize) {
     DESCRIPTOR_REFUSALS.with(|left| { left.set(count); });
 }
 
-/// Take one refusal, when one is armed.
+/// Take one refusal,
+/// when one is armed.
 #[cfg(all(test, target_os = "linux"))]
 fn a_descriptor_is_refused() -> bool {
     let left: usize = DESCRIPTOR_REFUSALS.with(std::cell::Cell::get);
     if left == 0 {
         return false;
     }
-    DESCRIPTOR_REFUSALS.with(|left| { left.set(left.get().saturating_sub(1)); });
+    DESCRIPTOR_REFUSALS.with(|armed| { armed.set(armed.get().saturating_sub(1)); });
     return true;
 }
 
@@ -295,7 +300,9 @@ pub fn signal_members(members: &[TreeMember], signal: i32) -> Vec<Delivered> {
 /// every member is unproven:
 /// a signal by number after a proof is the race this module exists to remove,
 /// and a platform without descriptors cannot close it.
-/// Owner decision, 2026-11-09: "Ignore Win and mac until I say so."
+/// Owner decision,
+/// 2026-11-09:
+/// "Ignore Win and mac until I say so."
 // UNTESTED: no gate compiles or runs this branch, and the owner keeps macOS and Windows out of scope.
 #[cfg(all(unix, not(target_os = "linux")))]
 pub fn signal_members(members: &[TreeMember], _signal: i32) -> Vec<Delivered> {

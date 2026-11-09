@@ -4,9 +4,12 @@
 //!  and answers whether the step itself was signalled.
 //! Why:
 //!  Three answers have to stay apart:
-//! the step ended by itself, so the commit lands;
-//! a signal was really taken, so the step was stopped;
-//! and nothing could be proven, so nothing is decided and the ceiling stays armed.
+//! the step ended by itself,
+//! so the commit lands;
+//! a signal was really taken,
+//! so the step was stopped;
+//! and nothing could be proven,
+//! so nothing is decided and the ceiling stays armed.
 //!  The step is named by the descriptor the kernel made the moment it started
 //! (`ChildNumber::descriptor`),
 //! never by a read of its number at the ceiling:
@@ -43,9 +46,12 @@ use crate::member_signalled_through_its_pidfd::{Delivered, has_ended, kill_membe
 ///  What the ceiling came to when it came.
 /// Why:
 ///  Three answers the notice must keep apart:
-/// the step ended by itself, so the commit lands;
-/// a signal was really sent, so the step was stopped;
-/// and nothing could be proven or read, so nothing is decided and the ceiling stays armed.
+/// the step ended by itself,
+/// so the commit lands;
+/// a signal was really sent,
+/// so the step was stopped;
+/// and nothing could be proven or read,
+/// so nothing is decided and the ceiling stays armed.
 ///  Treating a failed look as an empty one takes the ceiling away from a step that is still running.
 ///
 /// In TS you'd write (pseudocode):

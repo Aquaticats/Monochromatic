@@ -278,7 +278,8 @@ fn the_same_program_must_be_seen_at_both_looks_to_be_credited() {
 /// a process number and its start time survive an `exec`,
 /// so a shell that becomes the signing program keeps the identity the look before it recorded,
 /// and the interval before the `exec` is credited to a program that was not running then.
-///  One number and one start time hold two names here, which is exactly what an `exec` leaves.
+///  One number and one start time hold two names here,
+/// which is exactly what an `exec` leaves.
 #[test]
 fn a_program_that_takes_another_place_between_looks_is_credited_only_from_its_own() {
     let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
@@ -464,11 +465,11 @@ fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
     ended_step.wait().expect("reaped");
     let mut running_step: std::process::Child = sleeping_step();
     let running_number: i32 = step_number(&running_step);
-    let ended: ChildNumber = ChildNumber::not_started_pinned();
-    ended.publish(ended_number);
+    let already_over: ChildNumber = ChildNumber::not_started_pinned();
+    already_over.publish(ended_number);
     let running: ChildNumber = ChildNumber::not_started_pinned();
     running.publish(running_number);
-    let after_the_end: CeilingCame = ceiling_came(&ended);
+    let after_the_end: CeilingCame = ceiling_came(&already_over);
     let while_running: CeilingCame = ceiling_came(&running);
     let ended: Option<i32> = ended_by_signal(&mut running_step);
     if ended.is_none() {
@@ -604,7 +605,8 @@ impl Write for LateSink {
 /// and a reader that resumes late reads "still waiting" for a step that is over.
 ///  The lines here are due every 60 ms,
 /// the first is taken at once,
-/// the second waits, and the control ends the notice while it waits.
+/// the second waits,
+/// and the control ends the notice while it waits.
 #[test]
 fn a_finished_command_prints_nothing_more() {
     let written: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::default();

@@ -2740,8 +2740,14 @@ in the 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5 read on 2026-11-09
 owner,
 2026-11-08,
 "About 16 seconds"),
-everything below the command ended with `SIGKILL`,
-the command failing with a message that says nothing was committed and to run the same command again;
+that `git commit` and the processes it started ended with `SIGKILL` and no other child of the command touched
+(the notice watches the number and the pidfd the step was given when it started,
+and reads the program below it only while that descriptor says the step is still that process),
+a stop recorded only when a signal was really taken for the step,
+a look that could not be made or a process that could not be proven leaving the ceiling armed rather than standing down,
+and the command failing with a message that says nothing was committed and to run the same command again;
+a member the kernel refuses a pidfd for is never signalled by its number,
+and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
 
 ##### The quiet windows are labelled unmeasured
@@ -3242,6 +3248,22 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  After a commit was prepared,
+  that failure reads the branch once (`git rev-parse --verify <reference>`)
+  and states what it shows:
+  that the branch is at the commit this command prepared,
+  so the commit was made;
+  that it is not,
+  so the commit was not made by this command,
+  though the service may still land it;
+  or that the branch could not be read,
+  which keeps the words "not known whether the commit was made".
+  The read waits for nothing,
+  and a commit the service builds itself from the request leaves the third answer,
+  because the wrapper has no commit to compare the branch with (2026-11-09T07:44:20Z:
+  a message said the commit was
+  not known to have been made,
+  and the service landed it 73 seconds later).
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -7938,12 +7960,18 @@ in the order the builds ended:
 `null` for a commit that may open an editor,
 `armed` whether a notice thread ran to enforce it,
 `stoppedAfterMs` how long the step had lasted when the notice ended it,
-`noticeMs` how long the notice's own join took after the step ended,
-`wroteMs` how long its lines took to write,
+recorded only when a signal was really taken for the step,
+`noticeMs` how long the notice's own end took after the step ended,
+`wroteMs` how long the writer spent on the lines it finished,
+`linesDropped` how many lines it dropped because a reader stopped taking them,
 `looks` and `looksFound` how many looks it made for the step and how many found it,
-`below` one entry per program other than Git that ran below the step with the milliseconds it was seen at the look interval,
+`below` one entry per program that ran below the step with the milliseconds the same process number,
+start time and name were seen at the look interval,
+kept with a zero bound when a look saw it only once,
 `belowCpuMs` the processor time everything below the step had used at the last look,
+`blindLooks` how many looks could not be made at all because `/proc` refused the read,
 and `blockedLooks` how many looks found one of them in uninterruptible sleep;
+an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;
 the record's own `git commit` step figure is the child alone,
 so `noticeMs` and `below` are never inside it),
 and within `submitMs` the reach (`reachMs`,
