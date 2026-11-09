@@ -109,6 +109,49 @@ fn index_entry_count(index: &Path) -> Option<usize> {
 }
 
 /// What:
+///  Whether nothing stands at the destination any more.
+/// Why:
+///   A destination that was removed,
+/// moved or pruned holds no worktree to tell the person about,
+/// and a record whose
+///  worktree is gone settles without a word,
+/// as it did before a whole checkout was told about the copy it never received.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { lstatSync(destination); return false } catch (e) { return e.code === 'ENOENT' }
+/// ```
+fn destination_is_gone(destination: &Path) -> bool {
+    return matches!(std::fs::symlink_metadata(destination), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
+}
+
+/// What:
+///  The report of an add whose Git checkout finished and whose ignored-state copy was never marked complete.
+/// Why:
+///   The record of an add exists because a copy of the source's ignored state was owed,
+/// and the proof that a checkout is whole
+///  reads Git's own work only:
+/// a kill between real Git's checkout and the copy's completion marker leaves a worktree that
+///  looks ordinary and never received the ignored state,
+/// so a scanner there refuses the repository as one with no
+///  rules file.
+/// The record goes once that is said:
+/// nothing about the worktree can make the copy appear later,
+/// and
+///  saying it on every later command would name a worktree that needs no finishing,
+/// only remaking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `an interrupted \`git worktree add\` left ${shown} registered and its ignored-state copy never finished; ...`
+/// ```
+fn unfinished_copy_notice(shown: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered, and the copy of its source's ignored state never finished, so files that source ignores may be missing there; nothing was changed. `git worktree remove {shown}` removes the worktree and leaves one that holds changes alone, so save them first, and running the same `git worktree add` line again copies the ignored state."
+    );
+}
+
+/// What:
 ///  Whether the checkout at the destination is proven whole or gone,
 /// which is when nothing is left for a person
 ///  to finish.
@@ -322,10 +365,13 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
             let registered: Option<PathBuf> = registration_directory(destination.as_path());
+            if destination_is_gone(destination.as_path()) {
+                return Settlement { notice: None, keep: false };
+            }
             if let Some(admin) = registered.as_ref()
                 && add_is_finished(destination.as_path(), admin.as_path())
             {
-                return Settlement { notice: None, keep: false };
+                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str())), keep: false };
             }
             let notice: String = match registered.as_ref() {
                 Some(admin) => format!(
@@ -340,10 +386,14 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         }
         Some(Recorded::Registered(binding)) => {
             let shown: String = crate::shell_quote::shell_quote(binding.destination.as_os_str().as_bytes());
-            // A worktree that is whole or gone settles silently; everything else keeps its record so the next command says
-            //  the same again, because nothing else names the worktree, the stage or what finishes them.
-            if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
+            // A destination that is gone holds nothing to finish, and one whose Git checkout is whole is named for the copy
+            //  that recorded no completion; everything else keeps its record so the next command says the same again,
+            //  because nothing else names the worktree, the stage or what finishes them.
+            if destination_is_gone(binding.destination.as_path()) {
                 return Settlement { notice: None, keep: false };
+            }
+            if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
+                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str())), keep: false };
             }
             Settlement {
                 notice: Some(format!(
