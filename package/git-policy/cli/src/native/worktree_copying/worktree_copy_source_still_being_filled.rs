@@ -184,65 +184,6 @@ pub fn source_is_still_being_filled_around(
 }
 
 /// What:
-///  The proof of another command that is filling `destination` right now,
-/// when one is recorded.
-/// Why:
-///   A `git worktree add` that Git refuses because the destination exists cannot tell
-/// from the path whether the registration there
-///  is its own.
-/// An exclusive claim of that registration decides which command
-///  claimed first,
-/// which is not which command's Git made it:
-/// an add whose Git is still
-///  running registered the worktree and has not written its proof yet,
-/// while the refused add is
-///  already past its own Git.
-/// Both commands record their destination before real Git runs,
-/// so the
-///  refused one can see the running one's record and leave the worktree to it.
-/// Only another
-///  command's item counts:
-/// `mine` is this command's own claim name,
-/// and its own record names the same destination.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function anotherCommandIsFilling({ commonDir, destination, mine }): Promise<string | undefined>;
-/// ```
-pub fn another_command_is_filling(common_dir: &Path, destination: &Path, mine: &str) -> Result<Option<String>, WorktreeCopyError> {
-    let own: &str = mine.split('\n').next().unwrap_or_default();
-    let root: PathBuf = journal_root(common_dir);
-    for name in claim_names(root.as_path())? {
-        let identifier: &str = name.strip_suffix(".stage").unwrap_or(name.as_str());
-        if identifier == own {
-            continue;
-        }
-        let claim: PathBuf = root.join(name.as_str());
-        let Some(recorded) = claim_destination(claim.as_path()) else {
-            continue;
-        };
-        if !names_root(recorded.as_path(), destination) {
-            continue;
-        }
-        let owner: Option<String> = match read_claim(claim.as_path())? {
-            Some((_container, token)) => token,
-            None => None,
-        };
-        debug(
-            "worktreeCopySource",
-            format!(
-                "{} is being filled by the claim {} of another command",
-                destination.display(),
-                claim.display()
-            )
-            .as_str(),
-        );
-        return Ok(Some(owner.unwrap_or_default()));
-    }
-    return Ok(None);
-}
-
-/// What:
 ///  Whether a path an item records is the source worktree,
 /// compared by the one canonical spelling both exist under.
 /// Why:

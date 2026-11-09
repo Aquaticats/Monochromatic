@@ -478,11 +478,12 @@ fn an_add_aimed_at_a_registered_worktree_does_not_mark_it_as_being_filled() {
 }
 
 /// Two adds at one destination:
-/// the one whose own real Git did not create the worktree copies nothing into it,
+/// the command that reserved the directory fills it with its own source,
+/// and the command whose own Git refused writes nothing into it,
 /// even though a registration stands at the path it named.
 #[cfg(unix)]
 #[test]
-fn a_failed_add_does_not_copy_into_the_worktree_another_command_registered() {
+fn two_adds_at_one_destination_copy_once_into_the_reserved_directory() {
     let root: PathBuf = fixture("lifecycle-two-adds-one-destination");
     let (main, common) = source(root.as_path());
     // The repository's own exclusion file, so every worktree of it ignores `cache` whether or not it holds the file.
@@ -530,16 +531,17 @@ fn a_failed_add_does_not_copy_into_the_worktree_another_command_registered() {
     assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
     let said: String = String::from_utf8(stderr).expect("utf8");
     assert_eq!(
+        std::fs::read(destination.join("cache/from-this-command")).ok(),
+        Some(b"mine".to_vec()),
+        "the command that reserved the destination filled it: {said}"
+    );
+    let other_said: String = String::from_utf8(other_stderr).expect("utf8");
+    assert_ne!(
         std::fs::read(destination.join("cache/data")).ok(),
         Some(b"payload".to_vec()),
-        "the other command's copy filled the worktree: {said}"
+        "the other command wrote nothing into a destination it did not reserve: {other_said}"
     );
-    assert_eq!(
-        std::fs::read(destination.join("cache/from-this-command")).ok(),
-        None,
-        "this command wrote nothing into the worktree another command registered: {said}"
-    );
-    assert!(said.contains("was registered by another `git worktree add`"), "{said}");
+    assert!(other_said.contains("received no ignored-state copy"), "{other_said}");
     remove(root.as_path());
 }
 
@@ -611,13 +613,13 @@ fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_fil
     remove(root.as_path());
 }
 
-/// A refused add leaves the registration to the command whose own Git is still running:
-/// that command's record names the destination from before its Git,
-/// and its proof is not written yet.
+
+/// One destination, one copy: the command that reserved the directory fills it,
+/// whatever its own Git then returns, and the other command writes nothing and says so.
 #[cfg(unix)]
 #[test]
-fn a_refused_add_leaves_a_registration_to_the_command_still_running_its_git() {
-    let root: PathBuf = fixture("lifecycle-refused-leaves-running");
+fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
+    let root: PathBuf = fixture("lifecycle-refused-clean");
     let (main, common) = source(root.as_path());
     std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
     let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
@@ -626,8 +628,7 @@ fn a_refused_add_leaves_a_registration_to_the_command_still_running_its_git() {
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "own", source_root.to_str().expect("utf8")]);
     std::fs::create_dir_all(source_root.join("cache")).expect("cache");
     std::fs::write(source_root.join("cache/from-this-command"), b"mine").expect("own entry");
-    // The running command's own record, written before its real Git, as its pre-Git step leaves it.
-    let mut running: Option<crate::worktree_copy_stage_claim::StageClaim> = None;
+    let mut other_stderr: Vec<u8> = Vec::new();
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &Invocation {
@@ -646,11 +647,14 @@ fn a_refused_add_leaves_a_registration_to_the_command_still_running_its_git() {
             repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_: &GitStep<'_>| {
-            // The other command is between its record and its Git returning: its registration exists, its proof does not.
-            let claim: crate::worktree_copy_stage_claim::StageClaim =
-                crate::worktree_copy_stage_claim::claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
-            running = Some(claim);
-            let _registered: GitStatus = run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice());
+            // Another command at the same destination, whose own Git fills this command's reserved directory.
+            let other: Invocation = creation_from(main.as_path(), common.as_path(), Some(destination.as_path()));
+            let _settled = run_with_worktree_copy(
+                &other,
+                &mut |_: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice())),
+                &mut other_stderr,
+            )
+            .expect("settled");
             // This command's own Git then refuses, because the destination exists.
             return Ok(GitStatus { code: Some(1) });
         },
@@ -658,20 +662,101 @@ fn a_refused_add_leaves_a_registration_to_the_command_still_running_its_git() {
     )
     .expect("settled");
     assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
-    let said: String = String::from_utf8(stderr).expect("utf8");
     assert_eq!(
         std::fs::read(destination.join("cache/from-this-command")).ok(),
-        None,
-        "this command wrote nothing into the worktree the other command is still making: {said}"
+        Some(b"mine".to_vec()),
+        "the command that reserved the destination filled it: {}",
+        String::from_utf8_lossy(stderr.as_slice())
     );
-    assert!(said.contains("was registered by another `git worktree add`"), "{said}");
-    // The running command's record is left alone: it is that command's to settle.
-    let claim: crate::worktree_copy_stage_claim::StageClaim = running.expect("the other claim");
+    let other_said: String = String::from_utf8(other_stderr).expect("utf8");
+    assert_ne!(
+        std::fs::read(destination.join("cache/data")).ok(),
+        Some(b"payload".to_vec()),
+        "the other command wrote nothing into a destination it did not reserve: {other_said}"
+    );
     assert!(
-        crate::worktree_copy_stage_claim::stage_claims_exist(common.as_path()).expect("claims"),
-        "the other command's record is untouched"
+        other_said.contains("received no ignored-state copy"),
+        "the other command says it wrote nothing: {other_said}"
     );
-    claim.release().expect("released");
+    remove(root.as_path());
+}
+
+
+/// Two adds that both find the destination unregistered leave one copy and no unfilled, unrecorded worktree:
+/// the command that reserved the destination fills it, and the other one says it wrote nothing.
+#[cfg(unix)]
+#[test]
+fn two_adds_at_one_absent_destination_fill_it_once() {
+    let root: PathBuf = fixture("lifecycle-two-adds-fill-once");
+    let (main, common) = source(root.as_path());
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("taken");
+    let mut other_stderr: Vec<u8> = Vec::new();
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_: &GitStep<'_>| {
+            // A second command at the same destination, whose own Git creates the worktree inside this one's reservation.
+            let other: Invocation = creation_from(main.as_path(), common.as_path(), Some(destination.as_path()));
+            let _settled = run_with_worktree_copy(
+                &other,
+                &mut |_: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice())),
+                &mut other_stderr,
+            )
+            .expect("settled");
+            // This command's own Git then refuses, because the destination exists.
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1);
+    assert_eq!(
+        std::fs::read(destination.join("cache/data")).ok(),
+        Some(b"payload".to_vec()),
+        "exactly one command filled the worktree: {}",
+        String::from_utf8_lossy(stderr.as_slice())
+    );
+    let records: Vec<String> = recorded_names(common.as_path());
+    assert!(records.is_empty(), "a worktree that was filled leaves no unfilled record: {records:?}");
+    remove(root.as_path());
+}
+
+/// A destination that another command moved away and made again is not this command's to fill,
+/// even though this command's own Git succeeded and a registration stands at its path.
+#[cfg(unix)]
+#[test]
+fn a_destination_made_again_before_the_lookup_is_left_alone() {
+    let root: PathBuf = fixture("lifecycle-made-again-before-lookup");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("taken");
+    let moved: PathBuf = canonical_root.join("moved-away");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_: &GitStep<'_>| {
+            let status: GitStatus = run_real(main.as_path(), add_arguments("mine", destination.as_path()).as_slice());
+            // Another command moves this worktree away and registers a different one at the same path.
+            git(main.as_path(), &["worktree", "move", destination.to_str().expect("utf8"), moved.to_str().expect("utf8")]);
+            git(
+                main.as_path(),
+                &["worktree", "add", "--quiet", "--no-checkout", "-b", "replacement", destination.to_str().expect("utf8")],
+            );
+            return Ok(status);
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert_eq!(exit_code(&settlement), 0, "Git's own success is kept: {said}");
+    assert_eq!(
+        std::fs::read(destination.join("cache/data")).ok(),
+        None,
+        "the replacement registration received nothing: {said}"
+    );
+    assert!(said.contains("made again") || said.contains("no longer the"), "the person is told why: {said}");
     remove(root.as_path());
 }
 

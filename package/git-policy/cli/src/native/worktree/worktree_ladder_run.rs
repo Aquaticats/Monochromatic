@@ -350,6 +350,26 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
 
 impl Ladder {
     /// What:
+    ///  The identity of the destination this ladder made before real Git,
+    /// when it made one.
+    /// Why:
+    ///   The rungs that prepare an empty destination settle it themselves,
+    /// and the lifecycle must not reserve a second
+    ///  one on top of it;
+    /// the identity is what it needs to tell the two apart.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ladder.destinationIdentity(); // the subvolume the rung made, if any
+    /// ```
+    pub fn destination_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
+        return match &self.rung {
+            Rung::Git(Some(made)) | Rung::Clone(_, Some(made), _) => made.identity,
+            _ => None,
+        };
+    }
+
+    /// What:
     ///  The first Git run the lifecycle starts:
     /// the person's arguments,
     /// with `--no-checkout` for the snapshot rung.

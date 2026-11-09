@@ -27,7 +27,6 @@ use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_add_binding::{Binding, Bound, RegistrationOwner, bind_registration, claim_registration};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_source_still_being_filled::another_command_is_filling;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
 
@@ -323,7 +322,6 @@ pub fn find_created_worktree(
     observation: &WorktreeCopyObservation,
     destination: &Path,
     registered_before: bool,
-    git_succeeded: bool,
     mine: &str,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
     if registered_before {
@@ -334,16 +332,6 @@ pub fn find_created_worktree(
     let Ok(bound) = bind_registration(observation.common_dir.as_path(), destination) else {
         return Ok(nothing_created(None));
     };
-    // A worktree another command registered while this command's Git ran stands where this command's own would. That
-    // command's own record names the destination from before its Git, so a refused add sees an add whose Git is still
-    // running and leaves the registration to it: the proof below would only say who claimed first, not who made the
-    // worktree. A command whose own Git succeeded is the one that made it, so the record of the command it refused is
-    // not a reason to back off.
-    if !git_succeeded
-        && let Some(owner) = another_command_is_filling(observation.common_dir.as_path(), destination, mine)?
-    {
-        return Ok(nothing_created(Some(owner)));
-    }
     let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
     let Bound { binding, .. } = bound;
     if let RegistrationOwner::Another(other) = owner {

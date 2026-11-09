@@ -113,6 +113,88 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
 }
 
 /// What:
+///  Who owns the destination of a creating command,
+/// decided once,
+/// before real Git runs.
+/// Why:
+///   A `git worktree add` that finds its destination unregistered cannot tell, after its own Git
+///  returned,
+/// whether the registration there is the one its Git made: a second add at the same path
+///  leaves its registration exactly where this one's would be,
+/// and Git accepts an empty directory any
+///  command prepared.
+/// One exclusive creation of the directory decides it before any Git runs: the
+///  command that made the directory owns the destination,
+/// every other command finds it there and
+///  copies nothing,
+/// and Git's own status then says nothing about ownership.
+/// Nothing waits and no lock
+///  exists:
+/// the creation either succeeds or finds the directory,
+/// and a loser never removes what it did not
+///  make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Reservation = { owned: CreatedDestination } | 'another commands' | 'not attempted';
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub enum Reservation {
+    /// The destination was not there and this command made it.
+    Mine(CreatedSubvolume),
+    /// The destination was there already,
+    /// so it is another command's to fill.
+    Anothers,
+    /// Nothing was reserved:
+    /// the command copies nothing,
+    /// or the path could not be made.
+    NotAttempted,
+}
+
+/// What:
+///  Reserve the destination of a creating command as an empty directory,
+/// and record what it is.
+/// Why:
+///   Git accepts an existing empty directory as the destination of `git worktree add` and fills it,
+/// so the
+///  directory this command made is the one its worktree is made in,
+/// and its identity proves it later.
+/// An
+///  existing directory is another command's reservation:
+/// this one copies nothing and says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function reserveDestination(destination: string): Promise<Reservation>;
+/// ```
+pub fn reserve_destination(destination: &Path) -> Reservation {
+    if destination.as_os_str().is_empty() {
+        return Reservation::NotAttempted;
+    }
+    // `match` on the exclusive creation: the command that makes the directory owns the destination.
+    match std::fs::DirBuilder::new().create(destination) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Reservation::Anothers,
+        Err(error) => {
+            debug(TAG, format!("no reservation of {} ({error}); Git makes the directory and this command copies nothing", destination.display()).as_str());
+            return Reservation::NotAttempted;
+        }
+    }
+    let read: Option<ObjectId> = match destination.parent() {
+        Some(parent) => match std::fs::File::open(parent) {
+            Ok(held) => identity_at(&held, destination.file_name().unwrap_or_default()).ok(),
+            Err(error) => {
+                debug(TAG, format!("the identity of the reserved {} cannot be read ({error})", destination.display()).as_str());
+                None
+            }
+        },
+        None => None,
+    };
+    debug(TAG, format!("reserved the empty destination {}", destination.display()).as_str());
+    return Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: read });
+}
+
+/// What:
 ///  After Git ended,
 /// remove the created subvolume if it is still the one this process created and still empty.
 ///  `rmdir` deletes an empty subvolume without the `user_subvol_rm_allowed` mount option.

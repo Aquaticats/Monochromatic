@@ -86,11 +86,11 @@ fn completed_synchronization_leaves_no_journal_or_stage() {
     remove(root.as_path());
 }
 
-/// A copy that fails while staging removes its stage and releases its claim,
-/// so nothing is left to reap.
+/// A copy that fails while staging removes its stage and keeps the record of the destination it did not fill,
+/// so a later command reports the unfilled worktree and no add treats it as a ready source.
 #[cfg(unix)]
 #[test]
-fn failed_staging_releases_its_claim() {
+fn failed_staging_keeps_the_record_of_the_destination_it_did_not_fill() {
     let root: PathBuf = fixture("transaction-staging-failure");
     let (source, _destination) = ignored_source(root.as_path());
     let common: PathBuf = common_of(source.as_path());
@@ -105,8 +105,17 @@ fn failed_staging_releases_its_claim() {
     )
     .expect_err("the stage parent is absent");
     assert!(!failure.0.is_empty());
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the failed copy released its claim");
+    let claims: Vec<String> = crate::worktree_copy_stage_claim::claim_names(crate::worktree_copy_journal::journal_root(common.as_path()).as_path()).expect("claims");
+    assert_eq!(claims.len(), 1, "the record of the destination that was not filled is kept: {claims:?}");
+    let record: PathBuf = crate::worktree_copy_journal::journal_root(common.as_path()).join(claims.first().expect("one").replace(".stage", ".add"));
+    assert!(
+        crate::worktree_copy_source_still_being_filled::claim_destination(record.as_path()).is_some(),
+        "the record names the destination"
+    );
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    // Cleaning up so the fixture can be removed.
+    crate::worktree_copy_journal_removal::remove_file_if_present(record.as_path()).expect("record");
+    crate::worktree_copy_journal_removal::remove_file_if_present(crate::worktree_copy_journal::journal_root(common.as_path()).join(claims.first().expect("one")).as_path()).expect("claim");
     remove(root.as_path());
 }
 
@@ -175,15 +184,18 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
     assert!(failure.0.contains("Nothing in that worktree was changed"), "{}", failure.0);
     assert!(!destination_canonical.join("cache").exists(), "the replacement registration received nothing");
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"));
+    assert!(
+        stage_claims_exist(common.as_path()).expect("claims"),
+        "the record of the destination that was not filled stays"
+    );
     remove(root.as_path());
 }
 
-/// A copy that fails after its stage exists and before any journal names it removes the stage and settles its claim,
-/// so nothing of it is left behind while its owner still runs.
+/// A copy that fails after its stage exists and before any journal names it removes the staged bytes and keeps its
+/// claim, so the destination is known to be unfilled instead of looking ready.
 #[cfg(unix)]
 #[test]
-fn abandoning_a_staged_copy_leaves_no_stage_and_no_claim() {
+fn abandoning_a_staged_copy_keeps_the_record_of_its_destination() {
     let root: PathBuf = fixture("synchronize-abandon-stage");
     let (source, destination) = ignored_source(root.as_path());
     let common: PathBuf = common_of(source.as_path());
@@ -191,11 +203,13 @@ fn abandoning_a_staged_copy_leaves_no_stage_and_no_claim() {
     let container: PathBuf = claim.container().to_path_buf();
     crate::private_storage::create_private_directory(container.as_path()).expect("container");
     std::fs::write(container.join("payload"), b"staged").expect("payload");
-    abandon_staged_copy(claim, container.as_path()).expect("abandoned");
-    assert!(!container.exists(), "the stage is removed");
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the claim, its record and its marker are gone");
+    abandon_the_stage(container.as_path()).expect("abandoned");
+    assert!(!container.exists(), "the staged bytes are removed");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the record of the unfilled destination stays");
+    claim.release().expect("released");
     remove(root.as_path());
 }
+
 
 /// A copy whose creating command could not record its destination before real Git still records it when it claims,
 /// so a command that wants this worktree as a source is held back instead of copying a half-filled set.

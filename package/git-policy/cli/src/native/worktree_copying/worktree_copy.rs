@@ -52,6 +52,7 @@ use crate::worktree_copy_synchronize::synchronize_after;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
+use crate::worktree_subvolume::{Reservation, reserve_destination, settle_subvolume_destination};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
 #[cfg(target_os = "linux")]
@@ -312,6 +313,19 @@ fn settle_creation(
         }
     };
     let ladder = begin_ladder_holding(invocation.add_plan.as_ref(), &mut held, &invocation.context, &invocation.identity);
+    // Who owns the destination is decided here, before real Git runs, in one exclusive creation: the command whose
+    // directory Git fills copies into it, whatever its own Git then returns, and every command that finds the directory
+    // there copies nothing. A rung that already made its destination settles it itself, so its identity is not reserved
+    // again here.
+    let reserve_destination_entered: bool = begin_step("reserveDestination");
+    let reserved: Reservation = match (copies, ladder.destination_identity()) {
+        (true, None) => match invocation.destination.as_deref() {
+            Some(destination) => reserve_destination(destination),
+            None => Reservation::NotAttempted,
+        },
+        _ => Reservation::NotAttempted,
+    };
+    end_step(reserve_destination_entered);
     end_step(choose_rung_entered);
     let git_add_entered: bool = begin_step("gitAdd");
     let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step());
@@ -338,7 +352,7 @@ fn settle_creation(
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
             let copy_ignored_entered: bool = begin_step("copyIgnored");
-            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), &mut held, stderr);
+            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, copies, &reserved, git.succeeded(), carried.as_deref(), &mut held, stderr);
             end_step(copy_ignored_entered);
             match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
@@ -348,6 +362,11 @@ fn settle_creation(
         } else {
             (None, Vec::new())
         };
+    // A destination this command reserved and no copy filled is removed again while it is still empty and still this
+    // command's, so a refused add leaves no empty directory that the next attempt finds already there.
+    if let Reservation::Mine(made) = &reserved {
+        settle_subvolume_destination(made);
+    }
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
     // settled here: the add is whole, so the record says so before it goes. A copy that failed is not that: the worktree
     // was never filled, so the record stays and the next command reports it as an interrupted add.
