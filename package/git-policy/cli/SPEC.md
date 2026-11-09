@@ -3972,8 +3972,10 @@ on the commit path:
   Settling installs only into the checkout of the branch the merge was computed on:
   when `HEAD` names another branch,
   nothing is written,
-  the record and the side ref stay,
+  a record kept on a side ref stays with it,
   and the line names the branch the merge is for;
+  a record with no side ref that has nothing of the merge in the checkout goes instead,
+  because another branch's checkout has nothing for it to finish and nothing of it was saved;
   `HEAD` is read again immediately before the branch moves,
   and a worktree that changed branch by then keeps the record as well.
   The record and the side ref go when the merge lands,
@@ -3993,7 +3995,8 @@ on the commit path:
   would replace the whole install this route is built on.
   So a staged entry that arrives after the check and before the write replaces the merge's entry,
   and the merge lands over it;
-  the window is the length of one `git update-index` call on the index lock.
+  the window runs from the reading that judged the entries to the `git update-index` call that writes them,
+  and the take of every file the merge writes sits inside it.
   Closing it needs another command to stage inside that window,
   and the person would see the merge land and their staged version gone from the index,
   with nothing in the output saying which one it was.
@@ -9643,6 +9646,28 @@ when the merge's index entries or files are already installed and the index stay
 the command is stopped and told the lock,
 the record and what is installed,
 because a command that went on would read the half-installed merge as another session's staged work.
+A staged entry for a path the merge changes is judged before the take and written after it,
+so another command that stages one of those paths inside that window replaces a version this command never read:
+the standings are read once,
+every file the merge writes is taken aside,
+and only then does `git update-index --index-info` write the merge's entries,
+which replace whatever entry is there.
+Closing it needs a write that lands only while the entry it replaces is the one that was read,
+which `--index-info` does not offer;
+the window is the length of the take and one `git update-index` call.
+The person would see the merge land,
+the version they had staged in that window gone from the index with the merge's content in its place,
+and nothing in the output saying which content was overwritten.
+A path is judged against the two sides of its change by the object its bytes hash to and by the mode Git records,
+and the old side wins a tie,
+so a change that alters neither is not evidence that a merge began.
+The mode is read as part of the file because Git records it in the index entry:
+a file whose bytes are the branch's and whose executable bit is the person's is the person's,
+and the merge stops and names the path rather than erase the bit.
+A repository whose `core.fileMode` is false records no such bit,
+so no mode difference is read there,
+as Git reads none;
+a key Git does not answer for is read as true.
 Settling takes every file it must write aside by one rename that never replaces,
 and checks what it took against the device,
 inode,
@@ -9680,6 +9705,8 @@ A clean filter can hide bytes a person saved from the object Git records,
 so the filtered object is not the identity of an aside:
 the raw bytes are,
 and a file that carries bytes the branch's form does not have is kept with its private name and named.
+A symbolic link's object is the text of its target,
+so a taken link is hashed from that text and the file it points at is never read.
 A file whose raw bytes are not the branch's own form is not taken either,
 so the merge stops and names the path rather than replace it.
 A writer that still holds the file is seen by the scan,
@@ -9689,6 +9716,17 @@ a write that arrives after both would have to open the private name,
 which nothing outside this command knows.
 The guarantee rests on that,
 not on a check made just before the unlink.
+That look and the unlink are not one step:
+the raw bytes are read,
+the branch's form for the path is hashed after them,
+and only then is the private name removed,
+so a program that opens that name between the read and the unlink writes bytes the comparison never saw,
+and the unlink removes them.
+Closing it needs a removal that proves nothing can write into the file,
+which no unlink offers;
+the window is the length of those two reads.
+The person would see a program's write into a file that was set aside vanish,
+with the merge's content in the checkout and nothing in the output saying that anything was removed.
 The limit is that removal's:
 a process in another user namespace,
 or one that cannot be read,
@@ -9710,10 +9748,19 @@ The settling of a branch that moved reads the checkout and the index the same wa
 so a directory the branch's own files explain is read the same way there,
 and a staged entry for a path the merge changes that is neither the merge's nor the moved head's stops it,
 naming the paths and keeping the staged content.
+A checkout holding the merge's file for one path and the branch's content for the others is a writing that a kill
+stopped between two files,
+so it is put back to the moved head like every other path of a begun merge,
+and the line naming the moved branch is true of the checkout it leaves.
 A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
 nothing is set aside for it,
 the merge's own deletions empty it before the checkout,
 and the merge's file takes its place.
+That judgement is made through every directory below the path,
+because a tree diff names the files the merge deletes and no directory of its own;
+an emptied directory below the path is the branch's only where the merge deletes a path under it,
+which is where the pruning of those deletions reaches,
+and any other emptied directory stops the finish before anything is written.
 A directory that no such deletion explains is someone else's and stops the finish,
 naming the path,
 and so does a directory that holds any file the merge does not delete,
@@ -9726,6 +9773,9 @@ change nothing of the branch and say nothing.
 A merge saved on a side ref that cannot be finished now never stops a command while nothing of it has been installed:
 the line says where the merge is and what blocked it,
 and the command goes on.
+A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
+another branch's checkout has nothing for it to finish and nothing of it was saved,
+so the record goes and the merge is run again on the branch it is for.
 Once its index has been written or a file of it moved aside it is a begun merge,
 so a refusal stops the command and says the merge is partly installed in that worktree;
 that is decided by what the index and the checkout hold when the refusal is made,
@@ -9743,6 +9793,19 @@ a worktree that cannot be read is reported by what the index holds,
 and a merge whose own commits,
 refs or branch cannot be read counts as holding it too,
 because a refusal then cannot prove the checkout is untouched.
+That reading has a window of its own:
+the index is read before the worktree,
+so another command can stage one of the merge's paths between them,
+and a worktree read that then fails is judged by the entries the index held a moment before.
+The index then holds the merge's entries for some paths and not for every one,
+which is not the answer that stops the command,
+so a saved merge's refusal is let past:
+the person would see this command go on and `git diff --cached` show the merge's entries as ordinary staged work,
+with the line naming what blocked the finish and nothing saying that a merge's entries are among the staged ones.
+Closing it needs one read of the index and the worktree together,
+which no pair of Git commands offers;
+the record is kept,
+so the first command that meets a readable worktree settles the merge.
 A merge counts as installed when one of its paths both holds its side in the index or the files and is a path the branch does not already hold that side for.
 That is the only evidence an install leaves:
 an independent commit of the same content gives the branch that content,
