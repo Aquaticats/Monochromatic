@@ -47,7 +47,7 @@ use crate::version::compare_versions;
 /// Imports what this module uses from `super::cargo_installs`.
 use super::across_roots::other_root_forwards_to;
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at, recorded_version};
+use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at, recorded_version, running_version};
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
     NamedArchive, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
@@ -419,7 +419,7 @@ pub fn prune_toolchain(
             let kept: Vec<&PresentVersion> =
                 present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
             if kept.is_empty() {
-                remove_current_link(&scope.toolchain_root, crate_name)?;
+                remove_current_link(&scope.toolchain_root, crate_name, &planned)?;
             } else if let Some(newest) = newest_finished(&kept) {
                 point_current_at(&scope.toolchain_root, crate_name, &newest)?;
             }
@@ -494,12 +494,30 @@ fn newest_finished(kept: &[&PresentVersion]) -> Option<String> {
 }
 
 /// What:
-/// Removes a crate's `current` link.
+/// Removes a crate's `current` link when it names a version this run deletes or one that is already gone.
 /// Why:
 /// When no version of the crate remains, the link would name a directory this run deletes;
 /// removing it first leaves a run killed at any later point with no link rather than a dangling one.
-fn remove_current_link(toolchain_root: &Path, crate_name: &str) -> Result<(), ToolchainError> {
+/// A link that names a version which still exists and is not one of the deletions belongs to another
+/// command's install, so it is left alone. The check is one `read_link` and one `metadata`: no lock, no wait,
+/// and the instant between the check and the unlink is the one window left.
+fn remove_current_link(
+    toolchain_root: &Path,
+    crate_name: &str,
+    removals: &[(String, String, PathBuf)],
+) -> Result<(), ToolchainError> {
     let link: PathBuf = current_link(toolchain_root, crate_name);
+    let named: String = match running_version(toolchain_root, crate_name) {
+        Some(named) => named,
+        // No link to read, or one whose name this run cannot take: nothing here is this run's to remove.
+        None => return Ok(()),
+    };
+    let going: bool = removals.iter().any(|(crate_of_removal, version, _directory)| {
+        return crate_of_removal == crate_name && version == &named;
+    });
+    if !going && fs::metadata(&link).is_ok() {
+        return Ok(());
+    }
     return match fs::remove_file(&link) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),

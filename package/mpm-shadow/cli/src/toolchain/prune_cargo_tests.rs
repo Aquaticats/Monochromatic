@@ -305,6 +305,45 @@ fn an_installation_that_lands_while_the_prune_runs_is_never_deleted() {
     assert!(!version_directory(&root, "fd-find", "1.0.0").exists(), "a version that was there and unnamed is still pruned");
 }
 
+/// The link removal takes only a version this run deletes or one that is already gone:
+/// a `current` another command moved to a version it just installed is that command's to keep.
+#[test]
+fn the_link_removal_leaves_a_current_that_names_a_version_installed_meanwhile() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(
+        &version_directory(&root, "monochromatic-lint", "1.1.0"),
+        "monochromatic-lint",
+        "1.1.0",
+        &["monochromatic-lint"],
+    );
+    std::os::unix::fs::symlink("1.1.0", current_link(&root, "monochromatic-lint")).expect("current");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("a lock that names nothing");
+    // Another command finishes installing 1.2.0 and points `current` at it while this run lists worktrees.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(
+                &version_directory(&installed_into, "monochromatic-lint", "1.2.0"),
+                "monochromatic-lint",
+                "1.2.0",
+                &["monochromatic-lint"],
+            );
+            let link = current_link(&installed_into, "monochromatic-lint");
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink("1.2.0", link).expect("point at the new install");
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&root, "monochromatic-lint");
+    assert!(version_directory(&root, "monochromatic-lint", "1.2.0").is_dir(), "the concurrent install survives");
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.2.0"), "the concurrent install's link is gone");
+    assert!(fs::metadata(&link).is_ok(), "and it resolves");
+}
+
 /// Sets a directory's mode, so a read of it can be made to fail.
 fn set_mode(path: &std::path::Path, mode: u32) {
     use std::os::unix::fs::PermissionsExt;
