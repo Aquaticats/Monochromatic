@@ -382,3 +382,20 @@ pub(crate) fn land_group(
         }
     }
 }
+
+/// The place each request of a batch is told,
+/// as `(number, of)`,
+/// in the order of the batch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeNotices(3, 12_000, 10_000) // [[1,3],[2,3],[3,3]]
+/// ```
+fn place_notices(size: usize, _waited: Duration, _threshold: Duration) -> Vec<(usize, usize)> {
+    return (1..size).map(|index| (index + 1, size)).collect();
+}
+
+/// What a batch tells its requests is controlled in the test module.
+#[cfg(test)]
+#[path = "service_server_land_group_tests.rs"]
+mod tests;
