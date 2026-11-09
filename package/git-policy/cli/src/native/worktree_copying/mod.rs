@@ -117,6 +117,11 @@ pub mod worktree_copy_synchronize;
 #[cfg(unix)]
 pub mod worktree_copy_owner;
 
+/// Which of a repository's registrations names one destination,
+/// read from the administrative directories rather than from the destination's pointer.
+#[cfg(unix)]
+pub mod worktree_copy_registration_naming;
+
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,
