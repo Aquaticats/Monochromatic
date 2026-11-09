@@ -143,11 +143,14 @@ function finishRun(text: string,): void {
 }
 
 /**
- Writes an assistant message that ended in a model error.
+ Writes an assistant message that ended in a model error, with no settle after it, so a retry that answers it can follow in the
+ same burst. Only a settle takes the error as the run's own; a reply that succeeds after one clears it
+ (`record-of-pi-run.unit.test.ts`, "a later reply that succeeded clears a model error Pi settled on"), and a retry after a
+ settle is a new run rather than this one recovering.
 
  @param error - what the model said
  */
-function finishRunInError(error: string,): void {
+function emitErrorWithoutSettling(error: string,): void {
   emit({ type: 'agent_start', },);
   emit({ type: 'turn_start', },);
   emit({
@@ -165,6 +168,15 @@ function finishRunInError(error: string,): void {
     },
   },);
   emit({ type: 'agent_end', },);
+}
+
+/**
+ Writes a whole run that ended in a model error, which Pi settles on.
+
+ @param error - what the model said
+ */
+function finishRunInError(error: string,): void {
+  emitErrorWithoutSettling(error,);
   emit({ type: 'agent_settled', },);
 }
 
@@ -392,7 +404,9 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
     'recovered-error',
     function retryAfterError(id,) {
       answer({ id, },);
-      finishRunInError(MODEL_ERROR_TEXT,);
+      // The retry answers the error before Pi settles on it, which is what a recovering retry is: a settle in between would
+      // leave the run's failure standing until the retry's reply cleared it, and a watch looking in that gap would end the run.
+      emitErrorWithoutSettling(MODEL_ERROR_TEXT,);
       emit({ type: 'auto_retry_start', },);
       finishRun(RECOVERED_REPLY,);
     },

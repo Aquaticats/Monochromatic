@@ -253,6 +253,11 @@ await describe({
           // oxlint-disable-next-line eslint/no-await-in-loop -- the feed's open fails on its own schedule, so the test looks again after waiting; see doc/lint/sequential-awaits.md
           await wait(LOOK_MILLISECONDS,);
         }
+        if (!record.feedProblem().failed) {
+          throw new Error(
+            `the feed's failure was named nowhere within ${String(FEED_FAILURE_DEADLINE_MILLISECONDS,)} ms`,
+          );
+        }
         expect(
           problemOf(record.feedProblem(),),
         ).toContain('ENOENT',);
