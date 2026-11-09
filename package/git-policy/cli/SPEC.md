@@ -8526,6 +8526,11 @@ and an unjudged ripple therefore never reads as a clean workspace.
 The diagnostic names the file,
 the cause,
 and the escape hatch.
+No commit,
+push or landed commit reads the publish set:
+the policy plans only on `direct-check` and `direct-fix`,
+so no publish configuration can fail a commit,
+and an unreadable one is reported by `check` and `fix` alone.
 
 ### Forbidden root context
 
