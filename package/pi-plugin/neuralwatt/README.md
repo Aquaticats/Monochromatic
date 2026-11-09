@@ -76,6 +76,35 @@ so a
 stored value wins over a stale environment value.
 No secret value is ever logged.
 
+## Credential memory
+
+pi resolves the credential once per request and again for each availability
+check,
+so a per-request store read would decrypt the store several times a turn.
+[`src/credential-memory.ts`](src/credential-memory.ts) remembers the read
+instead:
+
+- A request inside `CREDENTIAL_REVALIDATION_INTERVAL_MS` resolves from memory
+ and decrypts nothing.
+- Once that window passes,
+ the remembered key is still served while the store is re-read behind the
+ request,
+ so no request waits on sops.
+- A store read that fails keeps the last good key and logs that it did.
+- Concurrent resolutions share one read.
+- A first read in a fresh process retries inside `STORE_READ_DEADLINE_MS`,
+ so one stalled sops window delays a request instead of ending a session.
+- A store that is absent,
+ or that names no key,
+ still reports absence and the guidance,
+ and a key stored later in the session is picked up.
+
+A rotated key reaches the process within the revalidation window.
+pi-ai reports a response only after a successful status,
+so a provider cannot observe a rejected key through `onResponse`
+(`@earendil-works/pi-ai` 1.5.0 `dist/api/openai-completions.js` calls it after
+`client.chat.completions.create(...).withResponse()` returns).
+
 ## Parity invariants
 
 - Provider id `neuralwatt`,

@@ -21,9 +21,10 @@
 use crate::config_file::load_repository_config;
 use crate::config_schema::{CliGitConfig, ConcurrencyConfig};
 use crate::discarded_prune::Limits;
-use crate::config_snapshot::read_config_snapshot;
+use crate::config_snapshot::read_config_snapshot_awaiting;
 use crate::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -65,9 +66,9 @@ pub struct ConfigFindings {
 /// ```ts
 /// await git(['rev-parse', '--show-toplevel']).catch(() => undefined)
 /// ```
-fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
+async fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
     let request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--show-toplevel"]);
-    let output = run_git(context, &request).ok()?;
+    let output = run_git_awaiting(context, &request).await.ok()?;
     if !output.succeeded() {
         return None;
     }
@@ -89,15 +90,15 @@ fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// ```ts
 /// configFindings({ context, cwd });
 /// ```
-pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
+pub async fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
     // `match` on the `Option`: a snapshot that could not be read gives no hooks, as `.unwrap_or_default()` did.
-    let hooks: Vec<ConfiguredHook> = match read_config_snapshot(context, cwd) {
+    let hooks: Vec<ConfiguredHook> = match read_config_snapshot_awaiting(context, cwd).await {
         Some(snapshot) => configured_hooks(&snapshot),
         None => Vec::new(),
     };
     // A configuration that cannot be loaded is not doctor's to report: the command works beside a broken file, and
     // every other command names the problem.
-    let loaded: Option<CliGitConfig> = match top_level(context, cwd) {
+    let loaded: Option<CliGitConfig> = match top_level(context, cwd).await {
         Some(root) => match load_repository_config(root.as_path()) {
             Ok(found) => Some(found.config),
             Err(_) => None,
