@@ -17,7 +17,7 @@ import { rolldown, } from 'rolldown';
 import { importAttributesPlugin, } from './index.ts';
 
 /** Absolute path to the fixtures directory. */
-const FIXTURES_DIR = join(import.meta.dirname, 'fixtures',);
+const FIXTURES_DIR = join(import.meta.dirname, 'fixture',);
 
 /**
  Builds a fixture entry file with the import attributes plugin
