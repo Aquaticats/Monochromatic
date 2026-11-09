@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T05:31:07-05:00)
+#### Reviews and landings in progress (2026-11-09T05:48:55-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` landed as `0ac02768cd`,
   with 334 of 334 selected tests passing on top of main before the landing.
@@ -141,12 +141,43 @@ The old tree kept for the rollback stays until the owner deletes it.
   so the session leaves it.
   The next tokio step is `landing/service_round.rs`,
   and it starts after the landing branch lands because both change that code.
-- Two agents started at 2026-11-09T05:25:13-05:00 on free slots.
-  `worktree-copy-records-keep-path-bytes` reproduces and fixes paths the worktree copy stores as lossy text,
+- The owner at about 2026-11-09T05:40-05:00:
+  "Please use gpt-6.1-sol with the openai provider for audits and reviews.
+  Those don't count within the 20 limit."
+  Reviews already ran on it.
+  The launcher `start-pi-run-in-worktree.ts` now takes `--provider` and `--model`,
+  and audits start with `--provider=openai --model=gpt-6.1-sol` under a name beginning `sol-`.
+  The count against the limit of 20 leaves those units out:
+  `systemctl --user list-units --state=active --no-legend --plain 'pi-*.service' | rg --invert-match '^pi-sol-' | wc --lines`.
+  The two audits started on the other model were stopped within minutes,
+  and they restarted on this one as `sol-shadow-and-replay-route-findings-on-main` and `sol-invocation-and-argument-route-findings-on-main`.
+  They write `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md` and `doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md`.
+  Neither folder had an audit before.
+- `worktree-copy-records-keep-path-bytes` reproduces and fixes paths the worktree copy stores as lossy text,
   which `worktree_copy_stage_claim.rs` does for a stage claim.
-  `shadow-and-replay-route-findings-on-main` audits `native/shadow/`,
-  which no route audit covers,
-  and writes `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`.
+  `wrapper-module-docs-cite-what-exists` corrects the wrapper comments that open issues say cite removed TypeScript files.
+  `wrapper-issue-defects-and-linear-scans` works through open wrapper issues that report defects and slow scans.
+- Waiting for a free agent slot,
+  in this order,
+  each resumed from the session file in the previous run's `summary.json`:
+  `merge-route-findings-fixed` run 6 with `merge-route-round-6-prompt.md`,
+  on the fifth review's `began` defect;
+  `scratch-commit-ceiling-and-three-slow-commits` run 5 with `scratch-commit-ceiling-round-5-prompt.md`,
+  on a ceiling that has no bound when the descriptor or `/proc` is missing and a landed commit reported as failed;
+  `mpm-shadow` is already on its round 5.
+  Then `wrapper-issue-test-coverage` with `wrapper-issue-test-coverage-prompt.md`,
+  which was stopped before it began because it would have made 21.
+  A unit still starting does not appear in the count,
+  so count the launchers started in the last few minutes as well.
+- The hook-route review (`${HOME}/temp/agent/reviews/hook-route-round-1-sol.txt`) names five ways the new "delivered" claim can be false,
+  including a remote hook that forges it.
+  Run 2 of its agent is on them,
+  told to narrow the claim rather than build more proof.
+- The landing round 9 review (`${HOME}/temp/agent/reviews/landing-route-round-9-sol.txt`) names two P1s the repair cannot decide:
+  the index state of a person's staged restoration and of an unstaged one is the same,
+  and nothing is lost either way.
+  The branch lands if its tests pass on top of main.
+  A small follow-up then fixes the held-push notice that needs a notice directory to appear and that says a running command stopped.
 - `fix/git-policy-cli-push-route-records-and-ceilings`:
   run 3 of its agent reports the eight findings of the second review fixed,
   and 783 of 783 selected tests pass on top of main.
