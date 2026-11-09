@@ -168,6 +168,14 @@ function splitLinesForCounting(content: string,): readonly string[] {
 /**
  Format byte counts the way tool descriptions quote truncation limits.
 
+ The divisors are binary (1024 and 1048576) while the labels are `KB` and
+ `MB`. That pairing is kept deliberately: Pi's `formatSize` does the same,
+ host adapters must render byte-identical model-visible output whether they
+ run as a pi extension or as an MCP server, and `truncate-parity.unit.test.ts`
+ fails on any divergence. `\@monochromatic-dev/numeric-format-core` labels the
+ same binary divisors `KiB` and `MiB`, which is the form to use where Pi
+ parity is not the contract.
+
  @param bytes - byte count to render
 
  @returns compact size text with one decimal above whole bytes

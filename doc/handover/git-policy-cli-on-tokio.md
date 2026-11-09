@@ -1084,6 +1084,53 @@
   and none of its files runs in a commit.
   The plan's section for this step has every arm.
 
+## Step T12, the awaited push chain's four faces, and the merge's second pass, 2026-11-09T15:46:16-05:00
+
+- Branch:
+  `refactor/git-policy-cli-landing-round-awaits-its-push-chain`,
+  not merged into main.
+- Done:
+  the awaited maintenance (the whole of the second thing the round needs),
+  and the awaited query,
+  the awaited push destination and the awaited Git LFS
+  step (the reconcilable part of the first).
+  Each has a face whose waits are awaited beside the synchronous one,
+  and a control comparing the two.
+  The four commits and their controls are in the plan's section
+  "Step T12,
+  the landing round awaits its push chain,
+  and the merge's second pass is what stops it".
+- The next agent's first decision is not code:
+  the awaited push chain cannot end without the reconcile,
+  and the reconcile resolves a conflicted merge through `merge/`,
+  whose only seam to Git is a synchronous trait method
+  (`GitRunner::run`,
+  `merge/merge_second_pass_git_runner.rs:35`) taken by seven
+  functions across 9,381 lines of source.
+  The plan records the two ways out and what each costs the typed `git merge`
+  path;
+  the owner decides between them.
+- Then,
+  in order:
+  the reconcile's awaited faces (`push/auto_push_reconcile*.rs`),
+  `push_once_awaiting` and the two object-safe handler methods
+  (`landing/service_work.rs`),
+  the push handler's own synchronous reads
+  (`read_config_snapshot`,
+  `branch_exists`,
+  `branch_is_gone_words`),
+  the landing loop's claim renewal whose `Drop` waits for its task
+  (`landing/service_claim_renewal_running.rs:275`),
+  the claims and settles put on the blocking pool
+  (`landing/service_work_drain_pending_claims.rs`),
+  and last the round itself onto
+  `run_ordered_awaiting_on_the_runtime`.
+- Checks:
+  the file selections of the touched folders are green,
+  `native:clippy` is clean,
+  and the package lint is clean on those folders;
+  the whole `native:test:host` run and its failures are in the plan.
+
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
 Nothing of T13 is done and nothing of it can be done first:
