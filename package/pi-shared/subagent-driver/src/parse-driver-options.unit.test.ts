@@ -11,6 +11,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   DriverOptionsError,
+  MODEL_ERROR_RETRY_BASE_SECONDS,
+  MODEL_ERROR_RETRY_CAP,
   parseDriverOptions,
 } from '../dist/final/node/index.mjs';
 
@@ -59,6 +61,8 @@ await describe({
           wallSeconds: 60,
           idleSeconds: 1.5,
           turnCap: 80,
+          retryCap: MODEL_ERROR_RETRY_CAP,
+          retryBaseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
         },);
       },
     },),
@@ -101,6 +105,27 @@ await describe({
               errorOf([...COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)), `--${name}=${value}`,],),
             ).toContain('must be a number of seconds whose milliseconds stay finite',);
           }
+        }
+      },
+    },),
+    it({
+      name: 'reads the bound on retries and the first delay',
+      fn: async () => {
+        const options = parseDriverOptions([...COMPLETE, '--retry-cap=1', '--retry-base-seconds=0.25',],);
+        expect(options.retryCap,).toBe(1,);
+        expect(options.retryBaseSeconds,).toBe(0.25,);
+        // Zero retries is the run this driver made before it retried anything, so a coordinator may ask for it.
+        expect(parseDriverOptions([...COMPLETE, '--retry-cap=0',],).retryCap,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'refuses a retry bound that is no whole number of attempts and a delay that is no number above zero',
+      fn: async () => {
+        for (const value of ['-1', '1.5', 'soon', 'Infinity',]) {
+          expect(errorOf([...COMPLETE, `--retry-cap=${value}`,],),).toContain('must be a whole number of attempts',);
+        }
+        for (const value of ['0', '-1', 'soon', 'Infinity',]) {
+          expect(errorOf([...COMPLETE, `--retry-base-seconds=${value}`,],),).toContain('must be a number above zero',);
         }
       },
     },),

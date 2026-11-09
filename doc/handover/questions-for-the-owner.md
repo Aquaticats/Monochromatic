@@ -26,6 +26,107 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### OpenAI stopped one audit with a cybersecurity flag: how should it continue?, asked 2026-11-09T06:03:57-05:00
+
+The `gpt-6.1-sol` audit of how the wrapper reads command lines ended after about 14 minutes with this error from the provider:
+"This content was flagged for possible cybersecurity risk.
+If this seems wrong,
+try rephrasing your request.
+If you're doing authorized security work that requires more cyber permissive safeguards,
+apply for Daybreak access via <https://platform.openai.com/settings/organization/status-and-access> before retrying."
+The error does not say which content was flagged.
+The audit was reading and running the wrapper on throwaway repositories.
+
+The session did not restart the audit,
+reword it,
+or hand the same audit to another model,
+because that would be getting around the flag,
+and whether to do so is the owner's call.
+What it wrote is kept:
+`doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md` is committed as `dbb8087dfe`
+on the branch `docs/planning-cli-git-invocation-and-argument-audit`,
+and that file's section "Verification still in progress" names what was unfinished.
+Its worktree also holds one uncommitted test file of the audit's,
+`package/git-policy/cli/src/native/invocation/forwarded_command_tests.rs`,
+left as it was.
+
+The other `gpt-6.1-sol` audit and the reviews are still running.
+If one of them is flagged it is treated the same way.
+
+Options,
+best first:
+
+- Keep auditing without that access.
+  The findings already written are defects in the owner's own tool,
+  so they go to a fix agent like every other audit's findings,
+  and the unfinished part stays unfinished.
+  Nothing else is needed from the owner.
+- The owner applies for the access the error names,
+  then says so here,
+  and the session resumes the audit from its saved session.
+  This covers the unfinished part,
+  and it is an application made on the owner's OpenAI account,
+  so only the owner can make it.
+- The owner says the audit may be finished on the DeepSeek model.
+  That covers the unfinished part with no application,
+  and it is the route the session will not take unasked.
+
+Ranking:
+the first over the second because no work waits on it;
+the second over the third because it keeps the auditor the owner chose
+("Please use gpt-6.1-sol with the openai provider for audits and reviews.").
+
+### What should the next push do with a commit its checks blocked?, asked 2026-11-09T05:03:17-05:00
+
+`package/git-policy/cli/README.md:2194` promises this:
+"A landed commit that a post-commit policy then blocks exits `2` and stays local."
+It stays local only until the next push on that branch,
+because a queued push sends the whole branch
+(`git push <remote> <branch>:<target>`,
+`package/git-policy/cli/src/native/push/auto_push.rs:243-245`).
+The landing agent reproduced this with real Git for a commit held with no verdict:
+commit A was held,
+commit B was pushed by that command,
+and A was then on the remote.
+Its report says a commit a policy blocked goes the same way,
+for the same reason.
+
+The example both options use:
+commit A is blocked,
+exits `2`,
+and sits on `main`.
+A minute later another agent lands commit B on `main`,
+and B's checks pass.
+
+Option A stops the automatic push at the commit before the blocked one.
+Commits older than A still go out.
+A and B stay on this machine,
+and every command in that repository says in one line which commit is holding the branch back and why.
+The automatic push resumes once A is no longer on the branch's way out.
+What a person's own `git push` does is unchanged by this option.
+For it:
+it makes the README true,
+and automation can never publish a commit a policy refused.
+Against it:
+with many agents on `main`,
+one blocked commit keeps every later commit off GitHub until someone acts,
+so those commits have no copy off this machine in the meantime.
+
+Option C keeps today's behaviour and corrects the README to say the blocked commit's own push is skipped and the next push on the branch carries it.
+For it:
+nothing ever stalls.
+Against it:
+a refusal lasts one commit,
+and if the policy refused a secret,
+that secret reaches GitHub and cannot be taken back.
+
+Ranking:
+A > C,
+because a stalled push can be released with one word from you,
+and a published commit cannot be withdrawn.
+Nothing changes until you answer:
+write "A" or "C" here.
+
 ### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
 
 The owner,
@@ -109,31 +210,110 @@ and a stuck terminal cannot be acted on at all.
 Nothing changes until you answer:
 write "A" or "B" here.
 
-### Should a commit whose command died before its checks ran still be pushed?
+### A commit whose command died before its checks ran now stays local, changed 2026-11-09T04:26:58-05:00
 
 A landing moves the branch first and runs the post-commit checks after,
 holding the push until those checks approve it.
 If the command is killed in that gap,
 no verdict exists,
 and the commit is on the branch with its push held.
-The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now pushes such a commit the next time the service wakes for that worktree,
-because a cross-vendor review found a push could stay stranded,
-and a held push with no living owner would otherwise wait forever,
-against your "nothing should ever wait forever or indefinitely".
-A check that is still running is never overtaken:
-only a command proven gone has its push released.
 
-The cost is that a commit whose checks never ran can reach the remote.
-The alternative keeps that commit local until someone pushes it,
-which needs the wrapper to hand the service a durable verdict,
-and the protocol has no such message today.
+This entry used to say the session would push such a commit,
+and asked you to overrule that.
+The session has reversed it,
+for three reasons.
+Cross-vendor reviews keep finding defects in the code that decides a command is gone and releases its push,
+each in something added to fix the last
+(`${HOME}/temp/agent/reviews/landing-route-round-6-sol.txt`).
+The worry behind pushing was a commit held for ever,
+and reading the code says that does not happen:
+a queued push is `git push <remote> <branch>:<target>`
+(`package/git-policy/cli/src/native/push/auto_push.rs:230-245`),
+so the next commit's push on that branch carries the held commit.
+The branch's agent reproduced that with real Git.
+And keeping a commit local can be undone,
+while a push of a commit whose secret check never ran cannot.
+
+So the branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` is being changed:
+nothing releases a held push by judging a process,
+and the next command in that worktree says in one line that the commit is held and why.
+Write "push it" here to overrule this.
+
+The same fact raises a question that does need you,
+`What should the next push do with a commit its checks blocked?`.
+
+### Should a commit stop when the repair of a stale index cannot be made?
+
+After a commit lands and its index update fails,
+the next commit from that worktree starts from a stale index,
+and would record the landed file as reverted or deleted.
+A repair takes the stale entries out first.
+The landing branch now stops the commit,
+naming the reason,
+when that repair cannot be carried out.
+You wrote "Commits should never fail."
+and "never discard user data",
+and here they pull against each other.
+
+- A,
+  stop with a named reason,
+  which is what the branch does:
+  the person runs the commit again once the cause is gone.
+  No landed change is lost.
+  The commit fails,
+  which is what your first rule forbids.
+- B,
+  land anyway and warn:
+  the commit succeeds,
+  and the warning names the path.
+  The commit can record a landed file as reverted,
+  which a later commit then publishes unless someone reads the warning.
+
 Ranking:
-push it (current) > keep it local,
-because a commit left unpushed with no message is easy to miss,
-and a pushed commit can still be followed by a fix.
-That is the session's judgment and not something measured.
-Nothing is waiting on this answer;
-write "keep it local" here to change it.
+A > B,
+because a commit that stops can be repeated,
+and a silently reverted file is the failure the repair exists to prevent.
+That is the session's judgment.
+The moved-worktree case the review found is being fixed either way,
+so this is about the causes that remain:
+an index the wrapper cannot read or write.
+
+### Should forced checkouts and resets refuse when they would replace an ignored file?
+
+The discarding-commands branch hands a `switch` over an ignored file to Git,
+which refuses.
+Force overrides that:
+the agent measured that `git checkout -f --no-overwrite-ignore other` still replaced `.env`,
+and `git reset --hard` has no such option.
+In a clean linked worktree those forms can still replace an ignored file the target tree carries.
+
+The session will build option A unless you say otherwise,
+because you wrote "never discard user data":
+read the target tree and the ignored paths,
+refuse naming the paths they share.
+The agent estimates that adds 40 to 120 ms,
+only for these forms and only in a linked worktree.
+Option B is to accept it and document it.
+Option C,
+refusing whenever any ignored file exists,
+would refuse every worktree with `node_modules`.
+Ranking:
+A > B > C,
+because A protects the file at a small cost on a rare form,
+B leaves the loss in place,
+and C blocks routine work.
+
+### `git clean -fdx` is now refused in a linked worktree that has ignored files
+
+This is the same branch,
+and agents will notice it.
+`git clean -fdx` deletes ignored files,
+so the guard now counts them,
+and a worktree with `node_modules` is refused.
+`git clean -nx` shows what would go.
+It follows from "never discard user data",
+and it changes a common way of getting a fresh build.
+Write "allow it in linked worktrees" here if you want the old behaviour back.
 
 ### Should a commit add the manifests of dependents it bumps?
 
@@ -1252,6 +1432,37 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T05:12:19-05:00,
+  `monochromatic-git-policy-cli fix` refuses a worktree whose Git directory is on another file system,
+  before it writes anything,
+  because its crash-safe swap needs both names on one file system (`package/git-policy/cli/SPEC.md`,
+  on the branch `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`).
+  This session reads that branch's report as saying the refusal has not been exercised by a test.
+  Say "undo" to have `fix` fall back to a copy in that case,
+  which loses the guarantee that a kill cannot leave a half-written file.
+- 2026-11-09T05:12:19-05:00,
+  the publish-list reader in `dependent_version` accepts only the line forms `package/config/pnpr/src/generated-config-render.ts` writes and refuses every other line by name and number.
+  No YAML crate was added.
+  The agent found one viable crate,
+  `yaml_serde` 0.10.7,
+  and rejected it because a general parser accepts documents the generator never writes,
+  which is the class of silent miss three reviews kept finding.
+  Say "undo" to have the crate vetted instead.
+- 2026-11-09T04:26:58-05:00,
+  a shell alias (`!`) stays unguarded.
+  Git runs it with its own folder first on `PATH`,
+  so the `git` inside it is real Git and not the wrapper
+  (the agent's control prints `/usr/libexec/git-core/git` both ways).
+  Refusing every `!` alias would break ordinary ones such as a pretty `log`.
+- 2026-11-09T04:26:58-05:00,
+  the audit line for `git worktree remove` keeps its count of changed tracked files.
+  It costs 0.09 s against 0.73 s for the removal on a full checkout of this repository.
+  Say "undo" to drop the count and keep the line to two file reads.
+- 2026-11-09T04:26:58-05:00,
+  the in-process ref listing lands although it is slower here than starting Git,
+  by a median of about 9 ms on this repository,
+  because its callers are not on the commit path.
+  A follow-up makes it cheaper or leaves large repositories to Git.
 - 2026-11-09T03:14:38-05:00,
   `mpm-shadow` now refuses a `cargo-git` plan entry that has no `packageId`,
   where it used to take the plan key as the crate name (issue 2626).

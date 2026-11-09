@@ -96,8 +96,8 @@ fn stage(name: &str) -> Stage {
     let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     let work_item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: repo.display().to_string(),
-        git_dir: repo.join(".git").display().to_string(),
+        repository: repo.to_path_buf(),
+        git_dir: repo.join(".git").to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: landed.clone(),
         parent: String::new(),
@@ -196,8 +196,8 @@ fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scri
     std::fs::create_dir_all(&worktree).expect("worktree directory");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: worktree.display().to_string(),
-        git_dir: git_dir.display().to_string(),
+        repository: worktree.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: String::from("0123456789abcdef0123456789abcdef01234567"),
         parent: String::new(),
@@ -503,8 +503,8 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
     let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]);
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: stage.repo.display().to_string(),
-        git_dir: stage.repo.join(".git").display().to_string(),
+        repository: stage.repo.to_path_buf(),
+        git_dir: stage.repo.join(".git").to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: stage.landed.clone(),
         parent: String::new(),
@@ -615,8 +615,8 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
     git(stage.remote.as_path(), &["config", "receive.hideRefs", "refs/heads/main"]);
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: stage.repo.display().to_string(),
-        git_dir: stage.repo.join(".git").display().to_string(),
+        repository: stage.repo.to_path_buf(),
+        git_dir: stage.repo.join(".git").to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: stage.landed.clone(),
         parent: String::new(),
@@ -742,8 +742,8 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     let newer: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: stage.repo.display().to_string(),
-        git_dir: git_dir.display().to_string(),
+        repository: stage.repo.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: newer.clone(),
         parent: stage.landed.clone(),
@@ -784,8 +784,8 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let planned: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: stage.repo.display().to_string(),
-        git_dir: git_dir.display().to_string(),
+        repository: stage.repo.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: stage.landed.clone(),
         parent: String::new(),

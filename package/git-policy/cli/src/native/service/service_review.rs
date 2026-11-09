@@ -110,7 +110,7 @@ pub fn common_dir_of(git_dir: &Path) -> PathBuf {
 /// optionsFor(item, process.env)
 /// ```
 pub fn options_for(item: &WorkItem, variable: &dyn EnvironmentVariables) -> ReviewOptions {
-    let common: PathBuf = common_dir_of(Path::new(item.git_dir.as_str()));
+    let common: PathBuf = common_dir_of(item.git_dir.as_path());
     let mut options: ReviewOptions = options_from_environment(common.as_path(), variable);
     options.quiet_window = CALL_QUIET_WINDOW;
     return options;
@@ -203,7 +203,7 @@ impl LandedCommitReader for ReadLandedCommit<'_> {
 /// the subject and the review,
 /// without the budget.
 fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, now_millis: &dyn Fn() -> u64) -> ReviewOutcome {
-    let cwd: PathBuf = PathBuf::from(item.repository.as_str());
+    let cwd: PathBuf = item.repository.clone();
     let names: Vec<String> = match read_names(context, cwd.as_path(), item.oid.as_str()) {
         Ok(found) => found,
         Err(message) => return ReviewOutcome::Unread(message),
@@ -273,12 +273,12 @@ pub fn review_item_within(context: &GitContext, item: &WorkItem, options: Review
 pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
     // The service serves many repositories, so its own context names none; the Git command that takes input needs the
     // item's Git directory for its input file, as the landing sets it for each request.
-    let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
+    let owned_context: GitContext = GitContext { common_dir: Some(item.git_dir.clone()), ..context.clone() };
     let owned: WorkItem = item.clone();
     let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(
         runner,
         move || {
-            if !has_shadow_log(Path::new(owned.repository.as_str())) {
+            if !has_shadow_log(owned.repository.as_path()) {
                 return None;
             }
             return Some(run_review(&owned_context, &owned, &options, &wall_clock_millis));

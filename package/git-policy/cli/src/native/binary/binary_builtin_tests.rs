@@ -384,6 +384,36 @@ fn bulk_staging_is_rejected() {
     remove(&fixture);
 }
 
+/// Every pathspec spelling Git resolves to the whole worktree is rejected,
+/// and nothing is staged.
+#[test]
+fn whole_tree_pathspec_spellings_are_rejected() {
+    let fixture: Fixture = fixture("builtin-add-spellings");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
+    std::fs::create_dir(repo.join("sub")).expect("sub directory");
+    std::fs::write(repo.join("sub/below.txt"), b"below\n").expect("below file");
+    let mut let_through: Vec<&str> = Vec::new();
+    for spelling in [":/*", ":/**", ":(top)", "**", ":(glob)**"] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["add", "--", spelling]);
+        if observed.code != Some(1) {
+            let_through.push(spelling);
+        }
+        assert_eq!(
+            porcelain(&fixture, repo.as_path()),
+            "?? file.txt\n?? sub/below.txt\n",
+            "{spelling}: {}",
+            stderr_of(&observed)
+        );
+        git(&fixture, repo.as_path(), &["reset", "--quiet"]);
+    }
+    assert!(
+        let_through.is_empty(),
+        "add-explicit let these whole-tree spellings through: {let_through:?}"
+    );
+    remove(&fixture);
+}
+
 /// The first error stops the pass;
 ///  keep-going reports every finding,
 ///  numbered in order,

@@ -45,8 +45,8 @@ fn commit(fixture: &Fixture, files: &[(&str, &str)], message: &str) -> WorkItem 
     let oid: String = git_text(fixture.root.as_path(), &["rev-parse", "HEAD"]);
     return WorkItem {
         kind: WorkKind::Review,
-        repository: fixture.root.display().to_string(),
-        git_dir: fixture.root.join(".git").display().to_string(),
+        repository: fixture.root.to_path_buf(),
+        git_dir: fixture.root.join(".git").to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid,
         parent: String::new(),
@@ -165,8 +165,8 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
     assert_eq!(common_dir_of(common.as_path()), common, "a main Git directory is its own common directory");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Review,
-        repository: linked.display().to_string(),
-        git_dir: own_git_dir.clone(),
+        repository: linked.to_path_buf(),
+        git_dir: PathBuf::from(own_git_dir.clone()),
         branch_ref: String::from("refs/heads/side"),
         oid: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
         parent: String::new(),
@@ -193,8 +193,8 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
     git(root.as_path(), &["commit", "--quiet", "--message=feat: a"]);
     let item: WorkItem = WorkItem {
         kind: WorkKind::Review,
-        repository: root.display().to_string(),
-        git_dir: root.join(".git").display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: root.join(".git").to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
         parent: String::new(),
@@ -252,7 +252,7 @@ fn options_follow_the_item() {
     let fixture: Fixture = fixture_with_log("review-options");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "x\n")], "feat(a): add a");
     let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
-    assert_eq!(built.log_path, shared_log_path(Path::new(item.git_dir.as_str())));
+    assert_eq!(built.log_path, shared_log_path(item.git_dir.as_path()));
     assert_ne!(built.log_path, fixture.root.join(TRACKED_LOG_RELATIVE));
     assert_eq!(built.quiet_window, CALL_QUIET_WINDOW);
     remove(fixture.parent.as_path());

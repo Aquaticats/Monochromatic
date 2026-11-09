@@ -927,6 +927,40 @@ fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
     remove(root.as_path());
 }
 
+/// A destination that cannot be read is not a destination that holds nothing:
+/// the worktree Git registered and never filled keeps its unfinished record.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_destination_keeps_the_record_of_the_worktree_that_was_not_filled() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("lifecycle-unreadable-destination-keeps-record");
+    let (main, common) = source(root.as_path());
+    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+        &mut |_: &GitStep<'_>| {
+            // Real Git registers the worktree, and then the destination cannot be read by this command at all.
+            run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice());
+            std::fs::set_permissions(topic.as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable");
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1, "Git's own failure is kept");
+    let records: Vec<String> = recorded_names(common.as_path());
+    let add_records: usize = records.iter().filter(|name| return name.ends_with(".add")).count();
+    // Restoring the mode before the fixture is removed, whatever the assertion said.
+    std::fs::set_permissions(topic.as_path(), std::fs::Permissions::from_mode(0o755)).expect("readable again");
+    assert_eq!(
+        add_records, 1,
+        "the worktree Git registered and never filled keeps its unfinished record: {records:?}"
+    );
+    assert_eq!(std::fs::read(topic.join("cache/data")).ok(), None, "nothing was copied into it");
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();

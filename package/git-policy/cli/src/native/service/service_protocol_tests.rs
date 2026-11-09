@@ -17,8 +17,8 @@ fn request() -> CommitRequest {
         reference: String::from("refs/heads/main"),
         base: String::from(BLOB),
         changes: vec![
-            Change { path: String::from("src/a \"b\".txt"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
-            Change { path: String::from("old.txt"), mode: ALLOWED_MODES[0], blob: None },
+            Change { path: PathBuf::from("src/a \"b\".txt"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
+            Change { path: PathBuf::from("old.txt"), mode: ALLOWED_MODES[0], blob: None },
         ],
         message: String::from("subject\n\nbody with \"quotes\" and a\ttab\n"),
         author: None,
@@ -40,6 +40,49 @@ fn a_commit_request_round_trips() {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(!line.contains('\n'), "one line per message");
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
+}
+
+/// What:
+///  A change whose path is not text survives the socket.
+/// Why:
+///   A commit's changed paths travel as JSON,
+/// and a name that lost its bytes would reach the service as another name,
+/// or as none;
+/// the plain field beside the bytes stays for a reader that predates it.
+#[test]
+fn a_change_path_that_is_not_text_round_trips() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let name: PathBuf = PathBuf::from(OsStr::from_bytes(b"caf\xff.txt"));
+    let mut sent: CommitRequest = request();
+    sent.changes = vec![
+        Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
+        Change { path: PathBuf::from("gone.txt"), mode: ALLOWED_MODES[0], blob: None },
+    ];
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
+    let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["changes"][0]["path"].as_str(), Some("caf\u{fffd}.txt"), "the plain field is the readable spelling");
+    assert_eq!(value["changes"][0]["pathHex"].as_str(), Some("636166ff2e747874"), "the bytes are the name");
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
+}
+
+/// What:
+///  A commit request speaks the protocol version that carries a changed path's bytes,
+///  and a line of the version before it is no request this release serves.
+/// Why:
+///   A service built before the bytes travelled ignores `pathHex` and commits the readable spelling of the name,
+/// so the version both sides compare is what keeps such a service from ever being handed the request:
+/// the release text alone cannot,
+/// because two builds of one crate version name the same release.
+#[test]
+fn a_commit_request_carries_the_version_that_knows_a_changed_paths_bytes() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
+    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
+    // The version of the build that ignores `pathHex`: a request in it is served, so this release must not speak it.
+    value["version"] = serde_json::Value::from(7);
+    assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
 }
 
 /// Every service message survives encoding,
@@ -88,7 +131,7 @@ fn unacceptable_requests_are_refused() {
     let hostile_paths = ["/etc/passwd", "../up", "a/../b", "a//b", "a/./b", ".git/config", "dir/.git/x", "", "a\nb"];
     for path in hostile_paths {
         let mut bad: CommitRequest = request();
-        bad.changes[0].path = String::from(path);
+        bad.changes[0].path = PathBuf::from(path);
         assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{path:?}");
     }
     let mut bad_mode: CommitRequest = request();
@@ -107,7 +150,7 @@ fn unacceptable_requests_are_refused() {
     empty.changes.clear();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_ok(), "an empty commit changes no path");
     let mut many: CommitRequest = request();
-    many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: format!("f{n}"), mode: ALLOWED_MODES[0], blob: None }; }).collect();
+    many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: PathBuf::from(format!("f{n}")), mode: ALLOWED_MODES[0], blob: None }; }).collect();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
@@ -154,10 +197,9 @@ fn a_welcome_without_a_release_reads_as_none() {
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
-    let line: String = encode_client(&sent);
-    for bad in ["relative/.git", "", "\\u0000/.git"] {
-        let hostile: String = line.replace("/srv/repo/.git", bad);
-        assert!(decode_client(hostile.as_str()).is_err(), "{bad:?}");
+    for bad in ["relative/.git", "", "/\u{0}/.git"] {
+        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None };
+        assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
@@ -172,15 +214,59 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
 fn a_warm_message_round_trips_and_hostile_paths_are_refused() {
     let sent: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
-    let line: String = encode_client(&sent);
-    for bad in ["relative/.git", "", "\\u0000/.git"] {
-        let hostile: String = line.replace("/srv/repo/.git", bad);
-        assert!(decode_client(hostile.as_str()).is_err(), "{bad:?}");
+    for bad in ["relative/.git", "", "/\u{0}/.git"] {
+        let hostile: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from(bad), repository: PathBuf::from("/srv/repo") };
+        assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
+        let hostile_repository: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from(bad) };
+        assert!(decode_client(encode_client(&hostile_repository).as_str()).is_err(), "{bad:?}");
     }
-    let relative_repository: String = line.replace("\"/srv/repo\"", "\"repo\"");
-    assert!(decode_client(relative_repository.as_str()).is_err());
     let missing: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
     assert!(decode_client(missing.as_str()).is_err());
+}
+
+/// What:
+///  Every message that names a directory round-trips one whose path is not text,
+/// byte for byte.
+/// Why:
+///   The wrapper sends the worktree it commits in over the socket,
+/// and the service acts on the path it reads:
+/// a spelling with replacement characters names a directory that is not the person's,
+/// so the commit would fail there.
+#[test]
+fn a_message_of_a_repository_that_is_not_text_round_trips() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let git_dir: PathBuf = PathBuf::from(OsStr::from_bytes(b"/srv/r\xffpo/.git"));
+    let repository: PathBuf = PathBuf::from(OsStr::from_bytes(b"/srv/r\xffpo"));
+    let mut sent: CommitRequest = request();
+    sent.repository = repository.clone();
+    sent.common_dir = git_dir.clone();
+    sent.git_dir = git_dir.clone();
+    sent.index = git_dir.join("index");
+    // A cleanup belongs to a commit built elsewhere, which is the only request that names one.
+    sent.commit = Some(String::from(BLOB));
+    sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
+    for message in [
+        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None },
+        ClientMessage::Warm { git_dir: git_dir.clone(), repository },
+        ClientMessage::Scratch { git_dir: git_dir.clone(), path: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d") },
+        ClientMessage::Commit(Box::new(sent)),
+    ] {
+        assert_eq!(decode_client(encode_client(&message).as_str()), Ok(message.clone()), "{message:?}");
+    }
+}
+
+/// What:
+///  A line written by a release that spelled its directories as plain text reads as those directories.
+/// Why:
+///   A wrapper of a release that sends only the plain fields must still reach a service of this one,
+/// and the plain field is the whole path whenever the path is text.
+#[test]
+fn a_line_of_an_earlier_release_is_read_as_its_plain_paths() {
+    let warm: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\",\"repository\":\"/srv/repo\"}}");
+    assert_eq!(decode_client(warm.as_str()), Ok(ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") }));
+    let work: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
+    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None }));
 }
 
 /// A commit built elsewhere is named whole,
@@ -320,8 +406,14 @@ fn a_commit_request_names_its_worktrees_git_directory() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(line.contains(&format!("\"gitDir\":\"{}\"", sent.git_dir.display())));
-    assert!(decode_client(line.replace("\"gitDir\"", "\"gitDirectory\"").as_str()).is_err(), "missing");
-    assert!(decode_client(line.replace(&sent.git_dir.display().to_string(), "relative/.git").as_str()).is_err(), "relative");
+    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
+    let fields = value.as_object_mut().expect("an object");
+    fields.remove("gitDir");
+    fields.remove("gitDirHex");
+    assert!(decode_client(value.to_string().as_str()).is_err(), "missing");
+    let mut relative: CommitRequest = sent;
+    relative.git_dir = PathBuf::from("relative/.git");
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err(), "relative");
 }
 
 /// A request that changes as many paths as one may,
@@ -333,9 +425,41 @@ fn a_commit_request_names_its_worktrees_git_directory() {
 fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_line() {
     let mut sent: CommitRequest = request();
     let path: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS);
-    sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: path.clone(), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: PathBuf::from(path.clone()), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    assert_eq!(sent.changes[0].path.to_str(), Some(path.as_str()), "the control's names are text, so they take the plain field only");
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
     assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
+}
+
+/// What:
+///  The most changes at the path length the line ceiling was measured for fit one line while their names are text,
+///  and do not fit once each name must carry its bytes.
+/// Why:
+///   This is the size the preparation measures before it decides whether the service can carry the request
+/// (`commit_request_fits`):
+/// a request that does not fit is one the wrapper builds itself,
+/// so the boundary is the one a person's commit obeys.
+#[test]
+fn the_most_changes_fit_one_line_only_while_their_names_are_text() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let stem: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS - 5);
+    let of_names = |ending: Option<u8>| -> Vec<Change> {
+        return (0..MAX_CHANGES)
+            .map(|number| {
+                let mut bytes: Vec<u8> = format!("{number:04}-{stem}").into_bytes();
+                if let Some(byte) = ending {
+                    bytes.push(byte);
+                }
+                return Change { path: PathBuf::from(OsStr::from_bytes(bytes.as_slice())), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) };
+            })
+            .collect();
+    };
+    let mut sent: CommitRequest = request();
+    sent.changes = of_names(Some(0xff));
+    assert!(!commit_request_fits(&sent), "the bytes beside the readable spelling are more than one line holds");
+    sent.changes = of_names(None);
+    assert!(commit_request_fits(&sent), "a text name of the same length fits the line the ceiling was measured for");
 }
 
 /// The most changes a request may carry is the most the decoder accepts,
@@ -343,9 +467,9 @@ fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_li
 #[test]
 fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
     let mut sent: CommitRequest = request();
-    sent.changes = (0..MAX_CHANGES).map(|number: usize| { return Change { path: format!("f{number}"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    sent.changes = (0..MAX_CHANGES).map(|number: usize| { return Change { path: PathBuf::from(format!("f{number}")), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent.clone()))).as_str()).is_ok());
-    sent.changes.push(Change { path: String::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
+    sent.changes.push(Change { path: PathBuf::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent))).as_str()).is_err());
 }
 

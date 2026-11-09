@@ -37,6 +37,7 @@ use crate::service_journal::{OPEN_EXTENSION, SCRATCH_EXTENSION, batch_path};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, clear_after_dropped_batch};
+use crate::path_bytes_in_records as path_bytes;
 use crate::transaction_git::GitContext;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
@@ -77,8 +78,9 @@ pub(crate) fn record_path(journal: &Path, seq: u64) -> PathBuf {
 fn encode(repository: &Path, git_dir: &Path) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(VERSION));
-    fields.insert(String::from("repository"), Value::from(repository.display().to_string()));
-    fields.insert(String::from("gitDir"), Value::from(git_dir.display().to_string()));
+    // Each path goes in as plain text and as its bytes, so the sweep finds the worktree the reference is in.
+    path_bytes::write_field(&mut fields, "repository", repository);
+    path_bytes::write_field(&mut fields, "gitDir", git_dir);
     return format!("{}\n", Value::Object(fields));
 }
 
@@ -100,9 +102,7 @@ fn decode(text: &str) -> Option<(PathBuf, PathBuf)> {
     if value.get("v").and_then(Value::as_u64) != Some(VERSION) {
         return None;
     }
-    let repository: &str = value.get("repository").and_then(Value::as_str)?;
-    let git_dir: &str = value.get("gitDir").and_then(Value::as_str)?;
-    return Some((PathBuf::from(repository), PathBuf::from(git_dir)));
+    return Some((path_bytes::read_field(&value, "repository").ok()?, path_bytes::read_field(&value, "gitDir").ok()?));
 }
 
 /// What:
@@ -269,3 +269,8 @@ pub(crate) fn clear_recorded_scratch_refs(context: &LandContext, instance: Optio
         }
     }
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_scratch_ref_marker_of_a_batch_tests.rs"]
+mod tests;

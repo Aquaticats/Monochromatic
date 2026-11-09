@@ -6,6 +6,10 @@
 
 use super::*;
 
+/// How long a control waits for a notice that must come,
+/// so a reporter that never prints fails it instead of holding it.
+const PATIENCE: Duration = Duration::from_secs(20);
+
 /// A cadence the ticker tests drive:
 /// one second of grace and ten seconds between notices.
 ///  The values are the case's input,
@@ -136,20 +140,41 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
     );
 }
 
-/// The reporter reports no notice due and prints nothing before the grace.
-///  The grace is an hour,
-/// so no host is slow enough to make the early poll late.
+/// The reporter reports no notice due and prints nothing before the grace,
+/// and its first line comes once the grace has passed:
+///  the grace here is short enough to watch pass,
+/// so neither half rests on a duration no control can outlive.
+///  The polls inside the grace are timed from after the reporter started,
+/// so every one of them is inside a grace of half of it on any host.
 #[test]
 fn the_reporter_prints_nothing_inside_the_grace() {
+    let grace: Duration = Duration::from_millis(500);
     let mut sink: Vec<u8> = Vec::new();
     {
-        let mut reporter: WaitReporter<'_> = WaitReporter::start(
-            Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
-            &mut sink,
-        );
-        assert!(reporter.notice_due().is_none());
+        let mut reporter: WaitReporter<'_> = WaitReporter::start(Cadence { grace, interval: grace }, &mut sink);
+        let started: Instant = Instant::now();
+        while started.elapsed() < grace / 2 {
+            assert!(
+                reporter.notice_due().is_none(),
+                "a notice was due {:?} into a grace of {:?}",
+                started.elapsed(),
+                grace
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        // The other direction, so the polls above are a grace that had not passed rather than a reporter that never prints.
+        let waited: Instant = Instant::now();
+        let mut due: bool = false;
+        while !due {
+            assert!(waited.elapsed() < PATIENCE, "the reporter printed no first line once the grace of {grace:?} had passed");
+            due = reporter.notice_due().is_some();
+            if due {
+                reporter.print_notice("line");
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
     }
-    assert!(sink.is_empty());
+    assert_eq!(String::from_utf8(sink).expect("text"), "line\n", "the first line comes once the grace has passed");
 }
 
 /// The reporter prints a line at the grace and at every interval after it,

@@ -20,9 +20,17 @@
 /// Why a blocking job did not give its value.
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockingJobError {
-    /// The system refused a thread and the pool had none;
-    /// the job did not run.
+    /// The system refused a thread and the pool had none to run the job on,
+    /// and the job will do nothing:
+    ///  a caller that takes the claim on the job's work
+    /// (`the_claim_a_job_takes_before_running_it.rs`)
+    ///  before this answer is what makes that sure.
     NoThreadToStart,
+    /// The system refused a thread for the job's start,
+    ///  and the pool then ran the job on another thread:
+    /// it has started,
+    ///  and whether it finished is not known from here.
+    StartedAfterItsThreadWasRefused,
     /// The job ran and panicked.
     Panicked,
     /// The runtime ended before the job did.
@@ -34,8 +42,14 @@ impl std::fmt::Display for BlockingJobError {
         return match self {
             BlockingJobError::NoThreadToStart => write!(
                 formatter,
-                "the system refused a thread for a blocking step, so the step did not run. Hint: check the process limit \
-                 (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
+                "the system refused a thread for a blocking step, and the step will not run, so it changed nothing. Hint: check \
+                 the process limit (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
+            ),
+            BlockingJobError::StartedAfterItsThreadWasRefused => write!(
+                formatter,
+                "the system refused a thread for a blocking step, and the pool then ran that step on another thread: it has \
+                 started, and whether it finished is not known from here. Hint: check the process limit (`ulimit -u`) and the \
+                 control group's `pids.max`, and check what the step was doing before running the command again"
             ),
             BlockingJobError::Panicked => write!(formatter, "a blocking step panicked; this is a defect of monochromatic-git-policy-cli"),
             BlockingJobError::Cancelled => write!(formatter, "a blocking step was cancelled because the runtime was ending"),
@@ -57,7 +71,8 @@ where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
-    // `spawn_blocking` panics where no thread can start; the closure it consumed is gone, so nothing ran.
+    // `spawn_blocking` panics where no thread can start, and the pool has already queued the closure at that point
+    //  (`tokio-1.54.1/src/runtime/blocking/pool.rs`, `spawn_task`), so a refused job is still queued to run later.
     let started = crate::panic_notice::while_panics_are_expected(job, tokio::task::spawn_blocking::<J, T>);
     let Ok(handle) = started else {
         return Err(BlockingJobError::NoThreadToStart);

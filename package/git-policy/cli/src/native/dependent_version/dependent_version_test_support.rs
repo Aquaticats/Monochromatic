@@ -171,15 +171,51 @@ pub fn manifest_text(fields: &str) -> String {
     return format!("{{\n{fields}\n}}\n");
 }
 
-/// The registry configuration listing names in the generator's shape.
-pub fn config(names: &[&str]) -> MemoryFile {
+/// The repository path of the generated registry configuration.
+pub const CONFIG_PATH: &str = "package/config/pnpr/config.yaml";
+
+/// One rendered list item of the generator's package list,
+/// at the indent the generator writes
+///       it.
+fn config_item(name: &str) -> String {
+    return format!("            - '{name}'");
+}
+
+/// The registry configuration the generator writes around one package list.
+/// Why:
+///  The publish set is the OIDC workload list,
+/// inside `auth.oidc[].workloads[]`;
+/// every
+///       other line is noise the reader has to descend through.
+pub fn config_text(names: &[&str]) -> String {
     let items: Vec<String> = names
         .iter()
-        .map(|name: &&str| return format!("            - '{name}'"))
+        .map(|name: &&str| return config_item(name))
         .collect();
-    let text: String = format!(
-        "auth:\n  oidc:\n    - workloads:\n        - registry: r\n          packages:\n{}\n\nweb:\n  enable: false\n",
+    return format!(
+        "auth:\n  oidc:\n    - name: github\n      workloads:\n        - identity:\n            subject: 'repo:example/main'\n          registry: r\n          packages:\n{}\n\nweb:\n  enable: false\n",
         items.join("\n")
     );
-    return unchanged("package/config/pnpr/config.yaml", &text);
+}
+
+/// The registry configuration listing names in the generator's shape.
+pub fn config(names: &[&str]) -> MemoryFile {
+    return unchanged(CONFIG_PATH, &config_text(names));
+}
+
+/// The registry configuration with a narrower workload list above the publish set.
+/// Why:
+///  The generator writes one list today;
+/// a second,
+///       narrower block above it must not hide the publish set.
+pub fn config_with_a_narrower_list_above(names: &[&str]) -> MemoryFile {
+    let items: Vec<String> = names
+        .iter()
+        .map(|name: &&str| return config_item(name))
+        .collect();
+    let text: String = format!(
+        "auth:\n  oidc:\n    - name: github\n      workloads:\n        - identity:\n            subject: 'repo:example/release'\n          registry: r\n          packages:\n            - '@s/narrow'\n        - identity:\n            subject: 'repo:example/main'\n          registry: r\n          packages:\n{}\n\nweb:\n  enable: false\n",
+        items.join("\n")
+    );
+    return unchanged(CONFIG_PATH, &text);
 }

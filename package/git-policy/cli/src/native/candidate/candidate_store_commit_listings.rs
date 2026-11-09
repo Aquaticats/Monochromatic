@@ -35,24 +35,11 @@ use crate::candidate_tree::{TreeRecord, parse_tree_records};
 /// A hash-based set,
 /// for the membership tests of the parent listing.
 use std::collections::HashSet;
+/// A shared,
+///  immutable listing the store keeps for the commit it listed.
+use std::sync::Arc;
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-
-/// What:
-///  The last commit any store listed with its files,
-/// kept for the rest of the process.
-/// Why:
-///   See `CandidateStore::commit_tree_records`.
-/// One entry bounds the memory to one commit's listing,
-/// and a commit's listing is
-///  the same whichever store asks,
-/// so no store has to be told about another.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// let lastListed: { commit: ObjectId; records: TreeRecord[] } | undefined;
-/// ```
-static LISTED: std::sync::Mutex<Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>>)>> = std::sync::Mutex::new(None);
 
 /// The most commits one `git rev-list` receives.
 ///  `usize` is the type of counts;
@@ -107,29 +94,22 @@ impl CandidateStore {
         &mut self,
         commit: &ObjectId,
     ) -> Result<Vec<TreeRecord>, CandidateError> {
-        // What:  `LISTED` holds the last listing of any store in this process, keyed by the commit it listed.
-        // Why:   A commit's name fixes its tree, so the listing of one commit never changes; the policies before a commit and
-        //        the gate after it list the same base commit with two stores, and each listing starts Git over every tree of a
-        //        repository with tens of thousands of files.
+        // What:  The store keeps the last listing it made, keyed by the commit it listed.
+        // Why:   A commit's name fixes its tree, so the listing of one commit never changes, and a policy that asks for the
+        //        same commit twice must not start Git over every tree of a repository with tens of thousands of files again.
+        //        The answer lives on the store, so no lock and no process-wide state stands between two readers; a second
+        //        store lists the same commit again, which costs one process.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // if (lastListed?.commit === commit) return lastListed.records;
+        // const kept = this.keptListing(commit); if (kept) return [...kept];
         // ```
-        let kept: Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>>)> = match LISTED.lock() {
-            Ok(held) => held.clone(),
-            Err(_) => None,
-        };
-        if let Some((listed, records)) = kept
-            && listed == *commit
-        {
-            return Ok(records.as_ref().clone());
+        if let Some(kept) = self.kept_listing(commit) {
+            return Ok(kept.as_ref().clone());
         }
-        let records: Vec<TreeRecord> = self.list_commit_tree(commit)?;
-        if let Ok(mut held) = LISTED.lock() {
-            *held = Some((commit.clone(), std::sync::Arc::new(records.clone())));
-        }
-        return Ok(records);
+        let listed: Arc<Vec<TreeRecord>> = Arc::new(self.list_commit_tree(commit)?);
+        self.keep_listing(commit, &listed);
+        return Ok(listed.as_ref().clone());
     }
 
     /// The listing of one commit's files by Git,
