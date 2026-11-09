@@ -226,3 +226,53 @@ auth:
 ";
     assert_eq!(names(text), ["app"]);
 }
+
+/// A sequence item with more spaces after its dash than the generator writes is
+/// refused by line:
+/// the reader aligns a compact mapping's keys two columns after the dash,
+/// and a wider
+///       gap would put the workload's keys inside the entry above them.
+#[test]
+fn refuses_a_sequence_item_with_a_wider_gap_than_the_generator_writes() {
+    let text: &str = "\
+auth:
+  oidc:
+    - workloads:
+        - registry: r
+          packages:
+            - '@s/base'
+        -   unused:
+            registry: r
+            packages:
+              - app
+";
+    assert_eq!(
+        reason(text),
+        "puts 3 spaces after its dash, where the generated configuration writes one on line 7"
+    );
+}
+
+/// A document marker inside a line is refused by line,
+/// never stored as part of a key:
+/// `--- auth:` opens a second document to a YAML parser,
+/// and reading its keys as the
+///       first document's would report a publish set it never read.
+#[test]
+fn refuses_a_document_marker_inside_a_line() {
+    let text: &str = "\
+auth:
+  oidc:
+    - workloads:
+        - packages:
+            - '@s/base'
+--- auth:
+  oidc:
+    - workloads:
+        - packages:
+            - app
+";
+    assert_eq!(
+        reason(text),
+        "begins with '---', which marks a document boundary, and this reader reads one document on line 6"
+    );
+}
