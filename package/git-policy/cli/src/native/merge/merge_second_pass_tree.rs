@@ -38,6 +38,7 @@
 //! const resolved = await resolveTree(runner, { commonDir, tree, conflicts }); // { tree, merged } | undefined
 //! ```
 
+use crate::child_environment::environment_value;
 use crate::diagnostic_log::debug;
 use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, INPUTS_HINT, Left, Merged, Verdict, is_attributes_path, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
 use crate::path_bytes::path_message_text;
@@ -123,45 +124,82 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
 }
 
 /// What:
-///  The value the invocation's own `-c` options give `attr.tree`,
+///  The value the invocation's own global options give `attr.tree`,
 /// the last one winning,
 /// or nothing when the command line names no attribute tree.
 /// Why:
-///   Git takes a `-c name=value` above every configuration file (`git_config_from_parameters`),
+///   Git takes a `-c name=value` and a `--config-env=name=variable` above every configuration file
+/// (`git_config_from_parameters`),
 /// so a value given there is the one Git uses
 ///  whether a file sets the key or not;
 /// a value no tree resolves to is ignored,
 /// as a configured one is,
 /// and is told apart from
 ///  none at all here.
+/// `--config-env` takes its value from the environment,
+/// and Git stops before it reads anything when
+///  the variable it names is not there,
+/// so that case is told apart from "nothing names the key".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function commandLineAttributeTree(prefix: string[]): string | null | undefined;
+/// function commandLineAttributeTree(prefix: string[], variables: [string, string][]): 'not-set' | { value: string | null } | 'unknown';
 /// ```
-fn command_line_attribute_tree(prefix: &[OsString]) -> Option<Option<String>> {
-    let mut named: Option<Option<String>> = None;
+fn command_line_attribute_tree(prefix: &[OsString], variables: &[(OsString, OsString)]) -> CommandLineTree {
+    let mut named: CommandLineTree = CommandLineTree::NotSet;
     let mut tokens = prefix.iter();
     while let Some(token) = tokens.next() {
-        if token.to_str() != Some("-c") {
-            continue;
-        }
-        let Some(next) = tokens.next() else { continue };
-        let Some(given) = next.to_str() else { continue };
-        // `-c name=value` sets it, and `-c name` alone sets `true`, which no tree resolves to.
-        let (key, value): (&str, Option<&str>) = match given.split_once('=') {
-            Some((key, value)) => (key, Some(value)),
-            None => (given, None),
+        let Some(text) = token.to_str() else { continue };
+        // The entry an option carries: `-c` and a bare `--config-env` take the next token, and `--config-env=` carries it.
+        let (entry, from_environment): (&str, bool) = match text {
+            "-c" => match tokens.next().and_then(|next| { return next.to_str(); }) {
+                Some(entry) => (entry, false),
+                None => continue,
+            },
+            "--config-env" => match tokens.next().and_then(|next| { return next.to_str(); }) {
+                Some(entry) => (entry, true),
+                None => continue,
+            },
+            _ => match text.strip_prefix("--config-env=") {
+                Some(entry) => (entry, true),
+                None => continue,
+            },
         };
+        // `-c name=value` splits at the first `=` and `--config-env=name=variable` at the last (`config.c` lines 495 and 511):
+        // the variable name may hold no `=` while the key may, and Git refuses a `--config-env` entry with none at all.
+        let split: Option<(&str, &str)> = if from_environment { entry.rsplit_once('=') } else { Some(entry.split_once('=').unwrap_or((entry, ""))) };
+        let Some((key, given)) = split else { continue };
         if canonical_key(key).as_deref() != Some(ATTRIBUTE_TREE_KEY) {
             continue;
         }
-        match value {
-            Some(text) if !text.is_empty() => named = Some(Some(text.to_owned())),
-            _ => named = Some(None),
+        if !from_environment {
+            // `-c name` alone sets `true`, which no tree resolves to.
+            named = if given.is_empty() { CommandLineTree::Set(None) } else { CommandLineTree::Set(Some(given.to_owned())) };
+            continue;
         }
+        let Some(value) = environment_value(variables, given) else {
+            named = CommandLineTree::Unknown;
+            continue;
+        };
+        let from_the_variable: String = value.to_string_lossy().into_owned();
+        // An empty value is no value, which Git ignores as it ignores a configured one.
+        named = if from_the_variable.is_empty() { CommandLineTree::Set(None) } else { CommandLineTree::Set(Some(from_the_variable)) };
     }
     return named;
+}
+
+/// What the invocation's global options say about `attr.tree`.
+enum CommandLineTree {
+    /// No option sets the key.
+    NotSet,
+    /// An option sets it to this value,
+    /// or to no value Git can resolve (`-c attr.tree` alone,
+    /// or an empty value).
+    Set(Option<String>),
+    /// An option names the key,
+    /// but takes its value from a variable the environment does not hold,
+    /// so Git stops before it reads anything.
+    Unknown,
 }
 
 /// What the attribute-tree precedence came to for a merge that must name a tree.
@@ -209,10 +247,14 @@ fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
             return AttributeChoice::ThePerson;
         }
     }
-    let named: Option<Option<String>> = command_line_attribute_tree(probe.global_prefix);
-    let read: Option<Option<String>> = match named {
-        Some(from_the_command_line) => Some(from_the_command_line),
-        None => configured_attribute_tree(probe),
+    let read: Option<Option<String>> = match command_line_attribute_tree(probe.global_prefix, probe.variables) {
+        // The command line names the key and Git stops on the value it cannot find, so no tree is named over it.
+        CommandLineTree::Unknown => {
+            debug(TAG, "an attr.tree of the command line takes its value from a variable the environment does not hold, and Git stops on it, so no attribute tree is named");
+            return AttributeChoice::ThePerson;
+        }
+        CommandLineTree::Set(from_the_command_line) => Some(from_the_command_line),
+        CommandLineTree::NotSet => configured_attribute_tree(probe),
     };
     let Some(configured) = read else {
         debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
