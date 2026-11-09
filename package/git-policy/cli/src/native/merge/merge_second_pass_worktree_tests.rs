@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::merge_second_pass::tests::{Change, World, corpus, runner, world};
+use crate::merge_second_pass_worktree_unchanged::LARGEST_RECORDED_BYTES;
 use crate::test_support::{git, git_context, git_output, git_text, remove};
 use std::path::{Path, PathBuf};
 
@@ -178,6 +179,150 @@ fn entries_of(repo: &Path) -> Vec<IndexEntry> {
 fn staged_text(repo: &Path, path: &str) -> Option<String> {
     let shown: std::process::Output = crate::test_support::git_output(repo, &["show", format!(":0:{path}").as_str()]);
     return if shown.status.code() == Some(0) { Some(String::from_utf8_lossy(&shown.stdout).into_owned()) } else { None };
+}
+
+/// A sparse file of `length` bytes at `path`:
+/// longer than a conflicted file can be,
+/// without writing the bytes no control reads.
+fn sparse_file_of(path: &Path, length: u64) {
+    let file: std::fs::File = std::fs::File::create(path).expect("the file");
+    file.set_len(length).expect("a sparse file of that length");
+}
+
+/// What:
+///  A worktree file that was too large to compare before the pass and is too large again when it installs
+/// is not "unchanged":
+/// it stays as the person left it and the line names it.
+/// Why:
+///   Both reads recorded nothing,
+/// so the comparison of two nothings said "the same bytes" and the pass staged its own merge
+///  over a file it never compared,
+/// which can run to exit `0`
+/// (cross-vendor review round 3,
+/// finding 1).
+#[test]
+fn a_path_too_large_to_compare_twice_is_left_and_named() {
+    let (world, entries) = stopped_merge("second-pass-worktree-too-large-twice");
+    let path: PathBuf = world.repo.join("a.md");
+    sparse_file_of(path.as_path(), LARGEST_RECORDED_BYTES + 1);
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a file past the limit is recorded as nothing to compare");
+    // Different bytes, and still past the limit: the second read records nothing either.
+    sparse_file_of(path.as_path(), LARGEST_RECORDED_BYTES + 2);
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert!(kept.files.is_empty(), "nothing is installed over a file the pass never read: {} merged file(s) would be", kept.files.len());
+    assert_eq!(kept.unreadable, vec![b"a.md".to_vec()], "the path nobody compared is named");
+    assert!(kept.moved.is_empty(), "no edit was seen, so none is claimed: {:?}", kept.moved);
+    assert_eq!(std::fs::metadata(path.as_path()).expect("the file").len(), LARGEST_RECORDED_BYTES + 2, "the newer file is still there");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A worktree path the pass cannot read at all is left and named as one it could not compare.
+/// Why:
+///   A read that fails says nothing about the bytes,
+/// and no person can be told their file changed when nobody read it
+///  (cross-vendor review round 3,
+/// finding 1,
+/// the other half:
+/// "inability to compare is accepted as equality").
+#[test]
+fn a_path_that_cannot_be_read_is_left_and_named() {
+    let (world, entries) = stopped_merge("second-pass-worktree-cannot-read");
+    let path: PathBuf = world.repo.join("a.md");
+    std::fs::remove_file(path.as_path()).expect("the file Git left");
+    std::fs::create_dir(path.as_path()).expect("a directory where the file was");
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that cannot be read is recorded as nothing to compare");
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert!(kept.files.is_empty(), "nothing is installed over a path the pass never read: {} merged file(s) would be", kept.files.len());
+    assert_eq!(kept.unreadable, vec![b"a.md".to_vec()], "the path nobody read is named");
+    assert!(path.is_dir(), "what is at the path is untouched");
+    remove(world.root.as_path());
+}
+
+/// How long an answer that must not wait may take in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  The recorded state of `paths`,
+/// answered inside `PATIENCE`.
+/// Why:
+///   A read that waits has no end of its own,
+/// and a test that waited with it could only be stopped from outside;
+/// the panic here names what waited and why it must not.
+fn held_within(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Held> {
+    let (sender, receiver) = std::sync::mpsc::channel::<BTreeMap<Vec<u8>, Held>>();
+    let handed: PathBuf = root.to_path_buf();
+    let asked: BTreeSet<Vec<u8>> = paths.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(held_paths(handed.as_path(), &asked));
+    });
+    return match receiver.recv_timeout(PATIENCE) {
+        Ok(held) => held,
+        Err(_) => panic!("the worktree snapshot did not answer within {PATIENCE:?}"),
+    };
+}
+
+/// What:
+///  A named pipe with no writer at a conflicted path is refused,
+/// not waited for.
+/// Why:
+///   `File::open` on a pipe waits for a writer that may never come,
+/// and that wait sits in the middle of a foreground command with no deadline and no way to
+///  end it
+/// (cross-vendor review round 3,
+/// finding 2).
+#[test]
+fn a_named_pipe_with_no_writer_is_not_waited_for() {
+    let (world, entries) = stopped_merge("second-pass-worktree-pipe-no-writer");
+    let path: PathBuf = world.repo.join("a.md");
+    std::fs::remove_file(path.as_path()).expect("the file Git left");
+    make_pipe(path.as_path());
+    let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
+    let held: BTreeMap<Vec<u8>, Held> = held_within(world.repo.as_path(), &created);
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that is no plain file is nothing to compare");
+    drop(entries);
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A named pipe whose writer holds it open and says nothing is refused too.
+/// Why:
+///   A writer that keeps the pipe open takes the wait from the open to the read,
+/// and the byte limit bounds neither,
+///  so the command waited for ever with the file open
+/// (cross-vendor review round 3,
+/// finding 2,
+/// the other half).
+#[test]
+fn a_named_pipe_whose_writer_says_nothing_is_not_waited_for() {
+    let (world, entries) = stopped_merge("second-pass-worktree-pipe-silent-writer");
+    let path: PathBuf = world.repo.join("a.md");
+    std::fs::remove_file(path.as_path()).expect("the file Git left");
+    make_pipe(path.as_path());
+    // One handle that is both ends keeps a writer open without a second process and without a thread that could block.
+    let writer: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(path.as_path()).expect("a writer for the pipe");
+    let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
+    let held: BTreeMap<Vec<u8>, Held> = held_within(world.repo.as_path(), &created);
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that is no plain file is nothing to compare");
+    drop(writer);
+    drop(entries);
+    remove(world.root.as_path());
 }
 
 /// A repository whose merge of the two branches stopped with `a.md` conflicted,

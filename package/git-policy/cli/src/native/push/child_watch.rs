@@ -33,13 +33,19 @@
 //!  unmeasured windows (`child_class.rs`),
 //! and the longest quiet gap of every watched step is kept for the timing records
 //!  (`quiet_ledger.rs`) so a measured interval can replace them.
-//!  A person's hook is never ended:
+//!  A person's hook is never below a watched child the wrapper starts for itself:
 //! every Git the wrapper starts carries `core.hooksPath` below `/dev/null` and the hook
 //!  switches (`hooks_off.rs`),
-//! so no hook of the person is ever below a watched child,
-//! and the stop signals the child and what
+//! so the stop signals the child and what
 //!  it started,
 //! never a process beside it.
+//!  A push to a local path or a `file://` remote is the one place a hook of the person runs below a watched child:
+//! the setting does not follow the push into the remote,
+//! so its own `receive-pack` runs `pre-receive`,
+//! `update` and `post-receive` in the push's tree,
+//! and a stop that ends that tree ends those with it (`bounded_push.rs`,
+//! `SPEC.md`,
+//! "A local remote's hooks run in the push's tree").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -90,6 +96,9 @@ pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, EndedByStop,
 /// The sentence a quiet step is reported with,
 /// kept beside the other wordings of a watch's ending.
 pub use crate::child_watch_step_bounds_and_errors::watched_timeout_text;
+/// The sentence for a step whose watcher could not exist,
+/// kept beside the other wordings of a watch's ending.
+pub use crate::child_watch_step_bounds_and_errors::no_watcher_text;
 pub(crate) use crate::child_watch_step_bounds_and_errors::{Outlived, ending_of_a_watched_step};
 use crate::child_watch_step_bounds_and_errors::{output_of};
 
@@ -149,6 +158,10 @@ pub struct ChildWatch {
     ceiling_hit: Arc<AtomicBool>,
     /// Raised by the watcher task when it ended the child because the service was stopped.
     stopped: Arc<AtomicBool>,
+    /// Why nothing watches this child (no worker thread of the runtime),
+    /// in the words the person reads,
+    /// or nothing when a task watches it.
+    unwatched: Option<String>,
 }
 
 impl ChildWatch {
@@ -184,6 +197,33 @@ impl ChildWatch {
     /// ChildWatch.startUnderStop(waitingFor, pid, terms, locks, work.takeArm())
     /// ```
     pub fn start_under_stop(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger, stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>) -> Self {
+        return Self::start_when_a_task_may_run(waiting_for, pid, terms, locks, stop, crate::lazy_runtime::tasks_can_run());
+    }
+
+    /// What:
+    ///  `start_under_stop` where the caller says whether a watcher task can run at all.
+    /// Why:
+    ///  A task needs a worker thread of its own;
+    /// where the runtime has none (the current-thread stand-in,
+    /// a build the system refused)
+    ///  nothing watches the child,
+    /// and the wait must not be unbounded because of it
+    /// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+    /// finding 8).
+    ///  The control hands in `false` instead of exhausting this process's threads.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ChildWatch.startWhenATaskMayRun(waitingFor, pid, terms, locks, work.takeArm(), tasksCanRun())
+    /// ```
+    pub(crate) fn start_when_a_task_may_run(
+        waiting_for: &str,
+        pid: u32,
+        terms: WatchTerms,
+        locks: LockLedger,
+        stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>,
+        a_task_may_run: bool,
+    ) -> Self {
         let (marks, incoming): (UnboundedSender<Mark>, UnboundedReceiver<Mark>) = unbounded_channel();
         let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let stoppable: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
@@ -201,15 +241,40 @@ impl ChildWatch {
         };
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
+        // The child is this process's own unreaped child at this moment, so its number is certainly its own: the pin taken here
+        //  names that child for good, and every signal of the stop goes through it (the third review's finding 1).
+        let root_pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
         let (ended, finished): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
         // The task holds `ended` and drops it however it ends (a panic or an abort included), which `finished` reads as a
         // disconnection.
-        let spawned: Option<JoinHandle<()>> = spawn_on_runtime(async move {
-            let _ends_with_the_task: std::sync::mpsc::Sender<()> = ended;
-            watch_loop(incoming, flags, subject, pid, terms, locks, stop).await;
-        });
+        let spawned: Option<JoinHandle<()>> = if a_task_may_run {
+            spawn_on_runtime(async move {
+                let _ends_with_the_task: std::sync::mpsc::Sender<()> = ended;
+                watch_loop(incoming, flags, subject, pid, terms, locks, stop, root_pin).await;
+            })
+        } else {
+            None
+        };
         let task: Option<RunningWatcher> = running_watcher_of(spawned, finished);
-        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit, stopped };
+        // Nothing watches: the refusal is said once, here, because no task is left to say it, and the wait reads it from the
+        // watch to carry the ceiling the task would have given it. The line goes to the diagnostics of this command, which is
+        // where every other refusal of the wrapper goes: no blocking pool is entered because none may be reachable, and the
+        // line is written once.
+        let unwatched: Option<String> = match task.is_some() {
+            true => None,
+            false => {
+                let refusal: String = no_watcher_text(waiting_for);
+                crate::diagnostic_log::warn("childWatch", refusal.as_str());
+                Some(refusal)
+            }
+        };
+        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit, stopped, unwatched };
+    }
+
+    /// Whether nothing watches this child,
+    /// with the reason in the words the person reads.
+    pub fn unwatched(&self) -> Option<&str> {
+        return self.unwatched.as_deref();
     }
 
     /// Keep the longest quiet gap of this watch in the ledger under `step` when the watch is dropped.
@@ -351,6 +416,50 @@ impl ChildWatch {
             quiet_ledger::note(step.as_str(), gap, self.expired());
         }
     }
+}
+
+// What:
+//  A control that refuses the thread that waits for a step left running,
+//  as a process at its thread limit does with `EAGAIN` from `pthread_create`.
+// Why:
+//   The refusal cannot be produced on demand here:
+//   a thread limit low enough to refuse this thread refuses the control's own threads too,
+//   so the system's answer is injected
+//   (`native_commit_waiting_notice.rs` injects the same refusal the same way).
+//  The thread is started by the thread that runs the step, so the control is of that thread.
+#[cfg(test)]
+thread_local! {
+    /// How many waiter threads the next starts are refused.
+    static WAITER_THREAD_REFUSALS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Refuse the next `count` threads that would wait for a step left running.
+#[cfg(test)]
+pub(crate) fn refuse_the_next_left_running_waiter(count: usize) {
+    WAITER_THREAD_REFUSALS.with(|left| { left.set(count); });
+}
+
+/// What:
+///  The refusal a control armed,
+///  standing in for a system that cannot make another thread.
+/// Why:
+///  The start of the thread that waits for a step left running answers a refused thread the way it answers any other,
+/// and only a control tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusedNow = () => armedRefusal-- > 0 ? new Error('refused') : undefined;
+/// ```
+fn a_waiter_thread_is_refused_now() -> Option<std::io::Error> {
+    #[cfg(test)]
+    if WAITER_THREAD_REFUSALS.with(|left| {
+        let armed: usize = left.get();
+        left.set(armed.saturating_sub(1));
+        return armed > 0;
+    }) {
+        return Some(std::io::Error::other("a control refused the thread that waits for a step left running"));
+    }
+    return None;
 }
 
 /// How long dropping a watch waits for its task to end:
@@ -553,17 +662,39 @@ pub fn output_watched_within_for_a_stop(
     if !stoppable {
         watch.never_stop();
     }
+    // Whatever the watch could not do, the wait for the output carries the step's own ceiling: a watch that cannot run, and one
+    // that may announce a wait but must not end it, both leave this wait as the only thing that ends the step at its ceiling
+    // (the third review's finding 2). A step with no ceiling is waited for as before.
+    let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> =
+        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.unwatched().is_none());
     watch.begin();
     let output: std::io::Result<Output> = match bound {
         StepBound::LeaveRunning { after, extra } => {
             // The child moves to a thread that waits for it and collects its output, so the command can stop waiting and the child
             // goes on; the thread reaps it when it ends.
             let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
-            let waiter = std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
-                let mut leaving: Child = child;
-                // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
-                let _abandoned = sender.send(leaving.wait());
-            });
+            // The child is handed over through a channel rather than moved into the closure, so a refused start leaves it here
+            //  (`a_waiter_thread_is_refused_now`, and a system at its thread limit below).
+            let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
+            let waiter = match a_waiter_thread_is_refused_now() {
+                Some(refusal) => {
+                    // Nothing was given the receiver, so it is dropped here: the channel closes, and the child comes back to this
+                    //  command below to be reaped rather than left in a queue nobody reads.
+                    drop(taken);
+                    Err(refusal)
+                }
+                None => std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
+                    // A refused start drops this receiver with the closure, and the child is handed back to the caller below.
+                    let Ok(mut leaving) = taken.recv() else { return };
+                    // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
+                    let _abandoned = sender.send(leaving.wait());
+                }),
+            };
+            // A child dropped with a refused start would run on unreaped and stay a zombie of this process once it ended, so it is
+            //  kept by whoever can still collect it: the thread above, or a reaper of its own where no thread could start.
+            if let Err(std::sync::mpsc::SendError(unwaited)) = hand_over.send(child) {
+                crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(unwaited);
+            }
             if let Err(error) = waiter {
                 watch.end();
                 return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));
@@ -584,7 +715,7 @@ pub fn output_watched_within_for_a_stop(
             }
         }
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends(child),
+            Some(open) => open.read_until_the_child_ends(child, waiting_for, carried),
             None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
         },
         StepBound::Unbounded => {

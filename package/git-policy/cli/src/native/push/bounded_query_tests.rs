@@ -5,6 +5,8 @@
 
 use super::*;
 use crate::test_support::scratch_environment;
+/// The pipe a control gives a writer.
+use std::process::ChildStdin;
 
 /// A shell command running `script`.
 #[cfg(unix)]
@@ -263,7 +265,7 @@ fn an_input_writer_gives_up_when_the_command_takes_nothing() {
     let mut child: Child = command.spawn().expect("a child that never reads");
     let pipe: Option<ChildStdin> = child.stdin.take();
     let window: Duration = Duration::from_millis(200);
-    let writer: InputWriter = feed_standard_input(pipe, vec![b'x'; 1 << 20], window).expect("a thread to write the input");
+    let writer: InputWriter = feed_standard_input(pipe, vec![b'x'; 1 << 20], window, None).expect("a thread to write the input");
     // The join is bounded here too: a writer that waited for the child would outlast this wait.
     let (done, waited) = std::sync::mpsc::channel::<()>();
     let observer = std::thread::spawn(move || {
@@ -364,5 +366,142 @@ fn a_command_that_closes_its_input_early_is_not_an_answer() {
         }
         other => panic!("expected a Git failure, got {other}"),
     }
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A request that was written whole is not reported as cut when the writer publishes its count after the command has
+///  ended.
+/// Why:
+///   The write of the bytes and the count the answer reads are two steps,
+/// so a command that read everything,
+/// closed its
+///  input and exited zero can be seen before that count is published;
+/// the answer then has to come from the writer's own
+///  finished result,
+/// within a bound,
+/// and not from a count it may not have published yet.
+#[cfg(unix)]
+#[test]
+fn a_request_written_whole_is_not_cut_when_the_writer_publishes_late() {
+    let root: std::path::PathBuf = crate::test_support::fixture("query-writer-publishes-late");
+    let shim: std::path::PathBuf = root.join("command-that-reads-it-all");
+    let marker: std::path::PathBuf = root.join("the-command-exited");
+    // It reads all ten bytes, closes its input, prints its answer, leaves the marker and exits zero.
+    std::fs::write(
+        shim.as_path(),
+        format!("#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\n: > '{}'\nexit 0\n", marker.display()),
+    )
+    .expect("stand-in");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    // The writer is held between its write and the count it publishes until this control lets it go.
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let hold = move || {
+        let _ = held.recv_timeout(Duration::from_secs(10));
+    };
+    let environment: Vec<(OsString, OsString)> = scratch_environment();
+    let path: std::path::PathBuf = shim.clone();
+    let (answered, answer) = std::sync::mpsc::channel::<Result<QueryOutput, SingleFlightError>>();
+    let running = std::thread::spawn(move || {
+        let _sent = answered.send(run_bounded_git_with_hold(
+            Command::new(path.as_path()),
+            "hash-object --stdin",
+            Duration::from_secs(30),
+            Duration::from_millis(500),
+            environment.as_slice(),
+            Some(vec![b'x'; 10]),
+            Box::new(hold),
+        ));
+    });
+    // Wait until the command has ended: it read the whole request before it marked itself done.
+    let began = std::time::Instant::now();
+    while !marker.exists() && began.elapsed() < Duration::from_secs(10) {
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(marker.exists(), "the stand-in ran");
+    // The answer must still be waiting for the writer's own result, and not read the count that is still to come.
+    let early: Result<Result<QueryOutput, SingleFlightError>, std::sync::mpsc::RecvTimeoutError> = answer.recv_timeout(Duration::from_millis(150));
+    assert!(early.is_err(), "the answer waited for the writer to finish: {early:?}");
+    let _released = release.send(());
+    let output: QueryOutput = answer
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the answer comes once the writer is let go")
+        .expect("the request was written whole, so its answer is the command's");
+    assert_eq!(output.code, Some(0), "the command's own status is the answer");
+    assert_eq!(output.stdout, b"answer\n".to_vec());
+    running.join().expect("the query thread ends");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A writer still held at the ceiling is the case the count names,
+/// and the answer comes at that ceiling instead of waiting for the writer.
+/// Why:
+///   The wait for the writer's own result has a bound of its own,
+/// because a writer that stays blocked must not hold the
+///  answer for as long as the command's window:
+/// the answer is the prefix count it can see,
+/// and the words say so.
+///  A control that removed the bound would wait for the release below,
+/// which this one never sends before it has the answer.
+#[cfg(unix)]
+#[test]
+fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
+    let root: std::path::PathBuf = crate::test_support::fixture("query-writer-held-past-the-ceiling");
+    let shim: std::path::PathBuf = root.join("command-that-reads-it-all");
+    let marker: std::path::PathBuf = root.join("the-command-exited");
+    // It reads all ten bytes, closes its input, prints its answer, leaves the marker and exits zero.
+    std::fs::write(
+        shim.as_path(),
+        format!("#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\n: > '{}'\nexit 0\n", marker.display()),
+    )
+    .expect("stand-in");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    // The writer stays between its write and its count until this control lets it go, which is after the answer.
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let hold = move || {
+        let _ = held.recv_timeout(Duration::from_secs(30));
+    };
+    let environment: Vec<(OsString, OsString)> = scratch_environment();
+    let path: std::path::PathBuf = shim.clone();
+    let (answered, answer) = std::sync::mpsc::channel::<Result<QueryOutput, SingleFlightError>>();
+    let running = std::thread::spawn(move || {
+        let _sent = answered.send(run_bounded_git_with_hold(
+            Command::new(path.as_path()),
+            "hash-object --stdin",
+            Duration::from_secs(30),
+            Duration::from_millis(500),
+            environment.as_slice(),
+            Some(vec![b'x'; 10]),
+            Box::new(hold),
+        ));
+    });
+    let began = std::time::Instant::now();
+    while !marker.exists() && began.elapsed() < Duration::from_secs(10) {
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(marker.exists(), "the stand-in ran");
+    // The answer arrives while the writer is still held: the wait for it ends at the ceiling.
+    let failure: SingleFlightError = answer
+        .recv_timeout(WRITER_SETTLE_CEILING + Duration::from_secs(5))
+        .expect("the answer ends at the ceiling, and does not wait for the writer to be let go")
+        .expect_err("the count the answer can see is a prefix, so the request is reported cut");
+    match &failure {
+        SingleFlightError::Git { arguments, code, stderr } => {
+            assert_eq!(arguments, "hash-object --stdin");
+            assert_eq!(*code, None);
+            assert!(stderr.contains("could not be written whole"), "{stderr}");
+            assert!(stderr.contains("after 0 of 10 bytes"), "{stderr}");
+        }
+        other => panic!("expected a Git failure, got {other}"),
+    }
+    let _released = release.send(());
+    running.join().expect("the query thread ends");
     crate::test_support::remove(root.as_path());
 }

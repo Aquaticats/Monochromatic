@@ -1,10 +1,13 @@
 //! What:
 //!  The words a found record becomes:
 //! the text of a failed backup push,
+//! of a push that did not finish,
 //! of a push the service did not make,
 //! and of
 //!  a push lost with its worktree,
 //! with Git's own words indented under them.
+//!  What the push came to is a fact of the push's own outcome and never of the text Git or a remote hook printed,
+//! so the framing of the notice follows it.
 //! Why:
 //!   The reading and the claiming of a record and the words it is shown as are different concerns,
 //! and apart
@@ -21,6 +24,34 @@
 use crate::auto_push::PUSH_FAILED_NOTE;
 use crate::push_failure_notice::{NO_REASON, clean_reason};
 use crate::service_messages::RESTART_COMMAND;
+
+/// What:
+///  What a push that left a record came to.
+/// Why:
+///   A refusal proves nothing was delivered;
+/// a stop or a failure that can pass proves nothing about the remote,
+/// and the retry plan
+///  decides what the person is told next;
+/// the wording follows this,
+/// never the text of Git's or a remote hook's output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PushOutcome = 'refused' | 'unfinished' | 'unfinished-with-no-retry';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PushOutcome {
+    /// Git refused the push,
+    /// so the commit did not reach the remote.
+    Refused,
+    /// The push was stopped or failed for a reason that can pass,
+    /// so whether the remote took the commit is not known,
+    /// and the service keeps it in its retry plan.
+    Unfinished,
+    /// The push did not finish and no retry is planned,
+    /// so nothing tries it again by itself.
+    UnfinishedWithNoRetry,
+}
 
 /// What:
 ///  The text shown for a failed backup push,
@@ -41,8 +72,11 @@ use crate::service_messages::RESTART_COMMAND;
 /// ```ts
 /// worded({ branchRef, shown, reason })
 /// ```
-pub(crate) fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
+pub(crate) fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    if matches!(outcome, PushOutcome::Unfinished | PushOutcome::UnfinishedWithNoRetry) {
+        return worded_unfinished(branch, shown, outcome, reason);
+    }
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
@@ -69,8 +103,49 @@ pub(crate) fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
 /// ```ts
 /// pushFailureText({ branchRef, commit, said })
 /// ```
-pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
-    return worded(branch_ref, commit, clean_reason(said).as_str());
+pub fn push_failure_text(branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> String {
+    return worded(branch_ref, commit, outcome, clean_reason(said).as_str());
+}
+
+/// What:
+///  The text shown for a backup push that did not finish,
+/// so whether the remote took the commit is not known.
+/// Why:
+///   A stop or a failure that can pass proves nothing here,
+/// so the text says what is known and no more,
+/// and it
+///  says what happens next from the retry plan that still exists:
+/// a plan kept is a retry the person can wait
+///  for,
+/// and no plan at all sends them to push by hand.
+///  It carries no advice about the service's settings either:
+/// nothing about them was refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordedUnfinished(branch, shown, outcome, reason)
+/// ```
+pub(crate) fn worded_unfinished(branch: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
+    let detail: String = if reason.is_empty() {
+        NO_REASON.to_string()
+    } else {
+        format!("monochromatic-git-policy-cli and Git said:\n{}", indented(reason))
+    };
+    let (next, closing): (&str, &str) = match outcome {
+        PushOutcome::UnfinishedWithNoRetry => (
+            "and the commit service is not trying this push again by itself",
+            "run `git push` when you can",
+        ),
+        _ => (
+            "and the commit service keeps the push in its retry plan, so it tries again on its own",
+            "if it does not show the commit on the remote, run `git push`",
+        ),
+    };
+    return format!(
+        "The backup push of branch {branch} for commit {shown} did not finish, so the remote may or may not have taken that \
+         commit. The commit is saved in this repository and nothing was lost, {next}.\n{detail}\n\
+         That account is what monochromatic-git-policy-cli found and what Git said when the push ended; {closing}."
+    );
 }
 
 /// What:

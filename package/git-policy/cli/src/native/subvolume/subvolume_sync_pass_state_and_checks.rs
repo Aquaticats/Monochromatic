@@ -116,8 +116,9 @@ pub struct SyncStats {
     pub conflicts: Vec<PathBuf>,
     /// Files that changed while they were copied and had to be copied again.
     pub recopied: u64,
-    /// Source entries the destination lacks that were left out because they are older than `created_since`.
-    pub left_out: u64,
+    /// Source entries the destination lacks that were left out because they are older than `created_since`;
+    /// relative paths.
+    pub left_out: Vec<PathBuf>,
     /// The first few files whose content was copied,
     /// relative paths,
     /// for the report.

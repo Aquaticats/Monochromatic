@@ -269,6 +269,182 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A process that enters the stage after the first holder scan keeps the stage:
+///  the scan immediately before the destroy
+///  sees it,
+///  so the window between the check and the kernel call is one check wide.
+/// Why:
+///   That window cannot be closed without a lock,
+/// so the command takes the last look it can and the person is told
+///  which process entered.
+#[test]
+fn a_process_that_enters_the_stage_after_the_scan_keeps_it() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-late-holder");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let candidate: Candidate = inspect(worktree.as_path()).expect("candidate");
+    let journal: Journal = Journal::load(candidate.admin.as_path()).expect("the journal loads").expect("a journal of the interrupted conversion");
+    let mut say: Vec<String> = Vec::new();
+    let late: std::cell::RefCell<Option<Sleeper>> = std::cell::RefCell::new(None);
+    let mut enter = || {
+        *late.borrow_mut() = Some(Sleeper::start(converting.as_path()));
+    };
+    let verdict = abandon_seamed(&platform, &candidate, journal, &mut |text: &str| { say.push(String::from(text)); }, &mut enter);
+    let pid: i64 = late.borrow().as_ref().expect("the sleeper entered the stage").pid();
+    let Verdict::Skipped(reasons) = verdict.expect("no failure") else { panic!("the abandon keeps the stage a process entered: {say:?}") };
+    let named: String = reasons.join("; ");
+    assert!(named.contains(format!("process {pid}").as_str()), "the refusal names the process that entered: {named}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the stage is kept");
+    drop(late);
+    remove(parent.as_path());
+}
+
+/// What:
+///  A stage renamed aside after the process scan and replaced keeps its replacement:
+///  the last look at the identity,
+/// immediately
+///  before the destroy,
+/// refuses it.
+/// Why:
+///   Binding the destroy to the checked object needs a destroy that takes a descriptor,
+/// which the platform does not
+///  offer,
+/// so the look is placed as late as it can be and the replacement is kept.
+#[test]
+fn a_replacement_that_arrives_after_the_scan_of_a_leftover_stage_is_kept() {
+    let (parent, _root, worktree) = quiet_worktree("convert-leftover-late-replacement");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let admin: PathBuf = admin_of(worktree.as_path());
+    remove(worktree.as_path());
+    remove(admin.as_path());
+    let moved: PathBuf = parent.join("stage.kept");
+    let (at, kept) = (converting.clone(), moved.clone());
+    let mut say: Vec<String> = Vec::new();
+    let replace = &mut || {
+        std::fs::rename(at.as_path(), kept.as_path()).expect("move the recorded stage aside");
+        std::fs::create_dir_all(at.join("d")).expect("a directory at the stage's name");
+        std::fs::write(at.join("d/precious"), b"somebody else's file\n").expect("a file of theirs");
+    };
+    let reason: &str = "the worktree is gone";
+    let verdict = abandon_leftover_stage_seamed(&platform, worktree.as_path(), reason, &mut |text: &str| { say.push(String::from(text)); }, replace);
+    let Some(Verdict::Skipped(reasons)) = verdict.expect("no failure") else { panic!("the replacement is kept: {say:?}") };
+    assert!(reasons.join("; ").contains("changed while the command was about to destroy it"), "{reasons:?}");
+    assert_eq!(std::fs::read(converting.join("d/precious")).expect("the replacement is kept"), b"somebody else's file\n");
+    assert!(moved.exists(), "the recorded stage is still where the other process moved it");
+    remove(parent.as_path());
+}
+
+/// What:
+///  `--abandon` destroys a leftover stage only while the object at that name is the one this conversion recorded,
+///  so a directory someone put there instead is kept and the reason is said.
+/// Why:
+///   Without that proof the suffix alone would let the command delete a directory of the person's own files,
+/// and a
+///  stage moved aside and replaced is exactly how a person changes their mind about a leftover copy.
+#[test]
+fn an_abandon_keeps_a_replacement_that_took_the_leftover_stage_name() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-replaced-stage");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let admin: PathBuf = admin_of(worktree.as_path());
+    // The worktree and its registration go, as a removal leaves them, and the stage stays beside them.
+    remove(worktree.as_path());
+    remove(admin.as_path());
+    let moved: PathBuf = parent.join("stage.kept");
+    std::fs::rename(converting.as_path(), moved.as_path()).expect("move the stage aside");
+    std::fs::create_dir_all(converting.join("d")).expect("a directory at the stage's name");
+    std::fs::write(converting.join("d/precious"), b"somebody else's file\n").expect("a file of theirs");
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let (verdict, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    let Verdict::Skipped(reasons) = verdict.expect("no failure") else { panic!("the abandon keeps what it cannot prove: {lines:?}") };
+    let named: String = reasons.join("; ");
+    assert!(named.contains("not the stage this conversion recorded"), "the refusal says why: {named}");
+    assert_eq!(std::fs::read(converting.join("d/precious")).expect("the replacement is kept"), b"somebody else's file\n");
+    assert!(moved.exists(), "the stage itself is still where the person moved it");
+    remove(parent.as_path());
+}
+
+/// A sleeping process whose working directory is a chosen directory,
+/// killed and reaped when it goes out of scope.
+struct Sleeper(std::process::Child);
+
+impl Sleeper {
+    /// Start `sleep` inside `directory`.
+    fn start(directory: &Path) -> Sleeper {
+        let mut command: std::process::Command = std::process::Command::new("sleep");
+        command.arg("120").current_dir(directory).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        return Sleeper(command.spawn().expect("the sleeper starts"));
+    }
+
+    /// The sleeping process's number.
+    fn pid(&self) -> i64 {
+        return i64::from(self.0.id());
+    }
+}
+
+impl Drop for Sleeper {
+    /// Kill and reap the process.
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// What:
+///  The abandon destroys the stage only while no process is working inside it,
+///  as the removal phase of the same conversion refuses,
+///  because the stage is a directory a person may have a shell or an editor in.
+#[test]
+fn an_abandon_keeps_the_stage_while_a_process_is_inside_it() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-holder");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let holder: Sleeper = Sleeper::start(converting.as_path());
+    let (refused, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    let Verdict::Skipped(reasons) = refused.expect("no failure") else { panic!("the abandon refuses while a process is inside the stage: {lines:?}") };
+    let named: String = reasons.join("; ");
+    assert!(named.contains(format!("process {}", holder.pid()).as_str()), "the refusal names the process: {named} {lines:?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the stage is kept while a process is in it");
+    drop(holder);
+    let (undone, lines2) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    assert_eq!(undone.expect("abandoned"), Verdict::Abandoned, "{lines2:?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the stage goes once nothing is inside it");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A conversion interrupted past its swap keeps the original tree at the converting name on purpose,
+///  so a worktree removed afterwards leaves that full copy beside where it was,
+///  and the journal that alone records it goes with the registration.
+/// `--abandon` must reach it:
+///  every other mode refuses a path without a `.git` before it looks at anything.
+#[test]
+fn an_abandon_reaches_the_stage_that_a_removal_left_behind() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-leftover");
+    let platform: PlainPlatform = PlainPlatform::new();
+    // Past the swap: the checkout is the new subvolume and the original tree waits at the converting name.
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let admin: PathBuf = admin_of(worktree.as_path());
+    // What the removal of the worktree does: its directory and its registration go, and the journal goes with them.
+    remove(worktree.as_path());
+    remove(admin.as_path());
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the full copy stays beside where the worktree was");
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let (verdict, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    assert_eq!(verdict.expect("abandoned"), Verdict::Abandoned, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the stage is gone after the abandon");
+    assert!(lines.iter().any(|line: &String| { return line.contains("leftover"); }), "the abandon says what it destroyed: {lines:#?}");
+    remove(parent.as_path());
+}
+
 /// The final removal deletes the directory the journal recorded and nothing else:
 /// a different directory at the converting
 ///  name is left alone,

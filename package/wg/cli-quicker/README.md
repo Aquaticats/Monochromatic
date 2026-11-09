@@ -385,7 +385,7 @@ it warns that Ghostty,
  ChatGPT,
  Interpreter,
  Qure,
- and OdyTTY will use the tunnel and instructs the user to add
+ OdyTTY and Pi will use the tunnel and instructs the user to add
 `ExemptMark = 100` under `[Interface]`,
 then bring the interface down and up again so application exemptions attach.
 The warning is non-fatal;
@@ -440,7 +440,8 @@ Firefox Nightly's `app-firefox\x2dnightly@*.service`,
 ChatGPT's `app-chatgpt@*.service`,
 Interpreter's `app-interpreter@*.service`,
 Qure's `app-qure@*.service`,
-and OdyTTY's `app-odytty@*.service`,
+OdyTTY's `app-odytty@*.service`,
+and every `pi-<name>.service` Pi agent unit,
 drains queued events,
 and scans again to close creation race.
 It reacts to future cgroup creation and periodically maps every live Helium executable,
@@ -942,6 +943,11 @@ and then bring the tunnel up with the build that has the fixes.
 
 The wg packages alone decide that update traffic leaves outside the tunnel.
 The toolchain (`package/file-enforcer` and `package/mpm-shadow`) knows nothing about the tunnel and never places itself.
+The same packages keep the API hosts of Pi's model providers outside the tunnel,
+and every Pi process with them,
+for the owner's reason in this section:
+the agents' work is this machine's own,
+and the tunnel's exit is not its path.
 The user's words,
 verbatim:
 
@@ -1015,7 +1021,7 @@ and any other failing step is rolled back and rethrown.
 The real `up` needs root,
 so only this sequence is covered here.
 
-### Three methods, one union
+### Every method, one union
 
 Any match means clearnet.
 Every method is always on:
@@ -1041,7 +1047,27 @@ and a test fails if one appears in either wg package.
    together with its command-line words.
    The first command-line word alone never matches,
    because `exec -a mpm /usr/bin/curl` sets it freely.
-2. The update hosts:
+   Pi is an entry point of its own:
+   `node` whose first command-line word is `pi`,
+   which is the single word Pi leaves after it rewrites its process title,
+   or `node` running Pi's CLI entry,
+   `/pi-coding-agent/dist/bundle/cli.js`.
+   The word counts only for `node`,
+   so `exec -a pi /usr/bin/curl` does not match,
+   and a checkout of the same package runs the same entry and matches too.
+2. The socket-marked cgroups:
+   A cgroup of the user's `app.slice` whose name the watcher selects carries the socket mark itself,
+   so every process in it,
+   and every process in a cgroup the manager creates below it,
+   leaves the tunnel without being moved.
+   The terminals and desktop applications above are selected this way,
+   and so is every `pi-<name>.service` unit,
+   because the user's service manager cannot move a service's main process:
+   the mark covers it instead,
+   which is the rule the terminals have.
+   This is how a Pi agent run stays outside the tunnel,
+   its driver and every child process with it.
+3. The update hosts:
    Traffic to the hosts in `src/update-hosts.data.ts` bypasses the tunnel for every program,
    browsers included.
    The list holds every host named by `toolchain.plan.jsonc`,
@@ -1052,7 +1078,28 @@ and a test fails if one appears in either wg package.
    `release-assets.githubusercontent.com`,
    `index.crates.io` and `static.crates.io`.
    A test scans those sources and fails when a host appears there that the list lacks.
-3. The toolchain paths:
+4. The model provider hosts of Pi:
+   Traffic to the hosts in `src/provider-hosts.data.ts` bypasses the tunnel for every program,
+   browsers included,
+   and the list is kept apart from the update hosts because they leave the tunnel for another reason:
+   they carry the requests of the agents.
+   It holds `api.deepseek.com`,
+   `api.neuralwatt.com`,
+   `api.synthetic.new`,
+   `opencode.ai`,
+   `token-plan.ap-southeast-1.maas.aliyuncs.com` and
+   `token-plan.cn-beijing.maas.aliyuncs.com`,
+   each recorded beside the provider id whose base URL names it:
+   `deepseek`,
+   `neuralwatt`,
+   `synthetic`,
+   `opencode-go`,
+   `qwen-token-plan`,
+   `qwen-token-plan-individual` and `qwen-token-plan-cn`.
+   A request to any of them answers without a redirect,
+   and the suite reads the list from those base URLs,
+   so a host cannot be added to a provider without the list following it.
+5. The toolchain paths:
    A process whose executable is under `<data home>/monochromatic-dev/toolchain/` or `toolchain-global/`
    is moved like the first method.
    Every program the toolchain installed there qualifies,
@@ -1074,8 +1121,17 @@ and a test fails if one appears in either wg package.
    This is the user's choice,
    not a side effect,
    and the start notice says it.
+   The toolchain's node is the executable of a running Pi,
+   so this rule reaches every Pi process as well,
+   and the socket-marked unit above is what keeps it outside the tunnel,
+   because the process watch never moves a service's main process.
 
-### How update hosts are routed
+### How the host rules are routed
+
+One reconciliation installs the rules of both lists,
+because a refresh that installed only its own list would remove the other list's rules as unwanted.
+The traffic block reads its exceptions from these rules,
+so a provider host is let through the block the same way an update host is.
 
 For each address of each listed host,
 the route watcher adds `ip rule add to <address> table <bypass table> pref <bypass preference> protocol 201`.
@@ -1148,11 +1204,12 @@ The servers of `fr-par-fr1` are `2606:4700:4700::1111`,
 `2620:fe::fe` and `2620:fe::9`.
 
 A config with no `DNS =` gets no host rules.
-`up` prints `POLICY NOT IN FORCE` for the update-host policy,
+`up` prints `POLICY NOT IN FORCE` for the clearnet-host policy,
 and every refresh prints it again,
 saying that the tunnel sets no DNS server,
-that traffic to the update hosts uses the tunnel,
-and that the process watch and the toolchain paths still run.
+that traffic to the update hosts and the model provider hosts uses the tunnel,
+and that the process watch,
+the toolchain paths and the Pi coverage still run.
 Where the DNS servers or the peer endpoints of the tunnel cannot be read,
 the refresh changes nothing and says so.
 
@@ -1200,9 +1257,13 @@ Every `up` with `ExemptMark` prints a notice on standard error and in the log th
 outside the tunnel:
 the update entry points,
 everything the toolchain installed,
-and every update host.
+Pi with every process of its `pi-<name>.service` unit,
+every update host,
+and every model provider host of Pi.
 It also says why:
-the repository keeps toolchain updates on the physical network.
+the repository keeps toolchain updates on the physical network,
+and the agents' provider requests are its own work,
+not the tunnel's.
 It states what a reader could otherwise miss:
 
 - a host rule carries a whole address,
@@ -1211,7 +1272,12 @@ It states what a reader could otherwise miss:
   and `raw.githubusercontent.com` and `avatars.githubusercontent.com` share four of eight with the release-asset hosts
   (measured 2026-10-31);
 - the toolchain root rule covers every installed program and every script run by the toolchain's node,
-  not only updates;
+  not only updates,
+  and a running Pi is the toolchain's node;
+- a Pi unit is not moved:
+  the user's service manager cannot move a service's main process,
+  so the socket mark attached to the unit's own cgroup covers it and every process below it,
+  the rule the terminals have;
 - what can imitate a match:
   the executable's file name together with its command-line words,
   the tail of a toolchain script path,
@@ -1223,10 +1289,15 @@ It states what a reader could otherwise miss:
   `wg-quicker-exempt` ignores a toolchain folder that is a link,
   wherever it points,
   and reports it loudly at every start),
-  so any program the user can run from such a path or under such a name leaves outside the tunnel too;
+  so any program the user can run from such a path or under such a name leaves outside the tunnel too,
+  and so does `exec -a pi node`,
+  because Pi is matched by the one command-line word it sets for itself,
+  and any unit named `pi-<name>.service`,
+  because a unit name is a name the user can choose;
 - what is not covered:
   processes in another pid namespace (containers and sandboxes),
-  and processes the user's service manager cannot move.
+  processes of a login session,
+  and the main process of a service whose cgroup the watcher does not mark.
 
 The notice is built by `startNotices`,
 a pure function of the config facts,

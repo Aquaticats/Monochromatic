@@ -16,7 +16,10 @@ This loader applies that mark to sockets created in Ghostty,
  Qure,
  and OdyTTY cgroups without enumerating their destination IPs.
 
-It also moves update traffic out of the tunnel by process.
+It also moves update traffic out of the tunnel by process,
+and covers Pi,
+the agent harness this repository runs,
+whose provider traffic leaves the tunnel too.
 See [Update traffic policy](#update-traffic-policy).
 
 ## How it works
@@ -59,7 +62,8 @@ List Ghostty,
  ChatGPT,
  Interpreter,
  Qure,
- and OdyTTY targets without attaching:
+ OdyTTY
+ and `pi-<name>.service` targets without attaching:
 
 ```sh
 wg-quicker-exempt list-targets <uid>
@@ -121,9 +125,11 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   and the aliases `bootstrap` and `prepare:android`),
   `mpm-shadow install`,
   `i`,
-  `update` and `outdated` with or without `-g`,
+  `update` with or without `-g`,
+  pnpm's own aliases `up` and `upgrade` of `update`,
+  `outdated`,
   the `mpm` shadow,
-  and `node` running the TypeScript `mpm-shadow` launcher,
+  `node` running the TypeScript `mpm-shadow` launcher,
   `package/monorepo-task/core-exec/src/mpm-shadow.ts` or its built entry,
   which every root `toolchain:*` task runs and which downloads the locked archive when no installed copy is new enough.
   The launcher entry is a proposal open to the owner's veto:
@@ -139,6 +145,14 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   The first command-line word alone never matches,
   because `exec -a mpm /usr/bin/curl` sets it freely;
   it counts only for `mpm-shadow` started as `mpm`.
+  Pi is an entry point of its own:
+  `node` whose first command-line word is `pi`,
+  the single word Pi leaves after it rewrites its process title,
+  or `node` running Pi's CLI entry,
+  the tail `/pi-coding-agent/dist/bundle/cli.js`.
+  The word counts only for `node`,
+  so `exec -a pi /usr/bin/curl` does not match,
+  and a checkout of that package runs the same entry and matches too.
   Tests read the root and package `mise.toml` files,
   the verb grammar in `package/mpm-shadow/cli/src/toolchain/verb_grammar.rs` and `cli.rs`,
   and the launcher script.
@@ -197,6 +211,25 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   so every script and dev server run by the toolchain's node leaves the tunnel too,
   not only updates;
   the start notice lists what is installed now.
+- The socket-marked cgroups:
+  A cgroup of the user's `app.slice` whose name the watcher's own rules select carries the socket mark itself,
+  so every process in it,
+  and every process of a cgroup the manager creates below it,
+  leaves the tunnel without a move.
+  The named terminals and desktop applications are selected this way,
+  and so is every `pi-<name>.service` Pi agent unit.
+  The user's service manager cannot move a service's main process,
+  so a Pi unit is never moved:
+  the mark attached to the unit's own cgroup covers the agent,
+  its driver and every child process it starts,
+  which is the rule the terminals have.
+  One predicate answers both the attaching and the process watch,
+  so the two can never disagree about which cgroup carries the mark.
+  Not covered:
+  processes in another pid namespace (containers and sandboxes),
+  processes of a login session,
+  and the main process of a service whose cgroup the watcher does not mark;
+  each one that matches is reported by name.
 
 The slice is marked by the same cgroup programs as the application cgroups,
 and a cgroup program applies to every descendant cgroup,
@@ -323,9 +356,12 @@ A watcher that cannot read its own pid namespace says so at start.
 The manager can only move processes inside its own subtree,
 `user@<uid>.service`.
 A process in a login session scope (`session-N.scope` under `user-<uid>.slice`),
-or the main process of a service,
+or the main process of a service the watcher does not mark,
 is not moved,
 and the report says so by name.
+A process of a cgroup the watcher marks itself,
+such as a `pi-<name>.service` unit or a terminal's,
+is covered by that cgroup's mark instead and reported as covered without a move.
 
 ### Leftover scopes of the earlier design
 
@@ -788,6 +824,14 @@ The bypass route watcher of `wg-quicker` has its own sentinel.
 `mise run //package/wg/cli-quicker-exempt:test:unit` runs matcher,
 policy,
 adoption and connector tests on fake procfs trees and byte fixtures.
+Each Pi rule has its own test:
+`pi_agent_service_names_are_marked_by_name` for the unit name,
+`scan_discovers_pi_agent_units` for the scan,
+`socket_marked_cgroups_are_direct_named_app_slice_entries` for the predicate the attaching and the process watch share,
+`pi_is_recognized_by_its_own_word_and_by_the_entry_it_runs` for the command line,
+`a_process_in_a_pi_unit_is_covered_by_the_mark_attached_to_its_own_cgroup` for the gap this fixes,
+`a_process_in_an_unmarked_service_is_still_reported_as_not_moved` for the report that must stay,
+and `a_pi_process_outside_a_marked_unit_is_moved` for a Pi started anywhere else.
 Each guard has a test that fails without it:
 the netlink sender check,
 the overrun path,
@@ -929,6 +973,12 @@ Release builds omit injection seam.
    carry no such name and bypass only while they share a matched cgroup.
    OdyTTY matching accepts every executable whose name begins with `odytty`,
    which covers its AppImage file and the native image it runs.
+- A `pi-<name>.service` unit is marked as a whole:
+   every process in it leaves the tunnel,
+   not only the Pi process,
+   because the mark belongs to the cgroup.
+   A unit whose name begins with `pi-` is marked whoever created it,
+   because a unit name is a name the user can choose.
 - Process discovery attaches entire current cgroup.
    If Helium,
    Pale Moon,

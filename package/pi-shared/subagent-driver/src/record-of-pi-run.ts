@@ -57,6 +57,21 @@ function modelErrorOf({
 }
 
 /**
+ What Pi reported of a compaction, when that is why the run could not go on, as the summary carries it.
+
+ @param run - what the run's events said
+
+ @returns the summary's field, or nothing when Pi reported nothing of a compaction it could not finish
+ */
+function compactionProblemOf(run: ObservedPiRun,): { readonly compactionProblem?: string } {
+  /**
+   What Pi said of the compaction the run ended on, if any.
+   */
+  const failure = run.compactionProblem();
+  return failure.failed ? { compactionProblem: failure.problem, } : {};
+}
+
+/**
  The feed's failure as the summary carries it, when the feed could not be written.
 
  @param runFeed - the run's feed
@@ -261,6 +276,7 @@ export function startRecordOfPiRun({
         },),
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
+        ...compactionProblemOf(observed,),
       };
     },
     close: feed.close,

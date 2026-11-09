@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::time_spent_outside_the_phases::outside_the_phases;
 use std::os::unix::fs::PermissionsExt;
 
 /// An environment of the given pairs.
@@ -151,7 +152,7 @@ fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
         .set_modified(SystemTime::now() + SCRATCH_STALE_AFTER * 2)
         .expect("future");
     // The link itself is fresh, so the first sweep keeps it: only its own time counts, never its target's.
-    let removed: usize = sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    let removed: usize = sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     assert_eq!(removed, 2);
     let mut left: Vec<String> = std::fs::read_dir(&scratch)
         .expect("list")
@@ -161,9 +162,41 @@ fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
     assert_eq!(left, ["cli-git-fresh", "cli-git-future", "cli-git-old-link"]);
     // Two days later the fresh file and the link are stale: both go, and the file the link points at stays.
     let later: SystemTime = SystemTime::now() + SCRATCH_STALE_AFTER * 2;
-    assert_eq!(sweep_stale(scratch.as_path(), later, SCRATCH_STALE_AFTER), 2);
+    assert_eq!(sweep_stale(scratch.as_path(), later, SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 2);
     assert!(std::fs::symlink_metadata(scratch.join("cli-git-old-link")).is_err(), "the link is gone");
     assert_eq!(std::fs::read(&outside).expect("target"), b"outside");
+    remove(root.as_path());
+}
+
+/// A sweep keeps a commit tree that has not been abandoned,
+/// however its owner looks,
+/// because a landing that a killed client left queued is still reading it;
+/// and a tree nothing has written for the abandonment age goes,
+/// long before the sweep's own day has passed.
+#[test]
+fn a_sweep_keeps_a_tree_that_may_still_be_read_and_takes_one_that_is_abandoned() {
+    let root: PathBuf = fixture("scratch-sweep-owner");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    std::fs::create_dir_all(&scratch).expect("scratch directory");
+    let read_by_a_landing: PathBuf = scratch.join("monochromatic-git-policy-cli-service-recent1");
+    std::fs::create_dir_all(&read_by_a_landing).expect("a tree a landing is reading");
+    std::fs::write(read_by_a_landing.join("commit.index"), b"index").expect("a file in the tree");
+    // The client that made this tree was killed a moment ago, and nothing a marker says can take the tree from its landing.
+    let gone: String = format!(
+        "{}{}0 0 1.1:0\n",
+        crate::service_index_marker::LOCK_MARKER,
+        crate::service_index_marker::MARKER_VERSION
+    );
+    std::fs::write(read_by_a_landing.join("owner"), gone.as_bytes()).expect("a marker naming a process that is gone");
+    age(read_by_a_landing.as_path(), Duration::from_secs(60 * 60));
+    let abandoned: PathBuf = scratch.join("monochromatic-git-policy-cli-service-gone1");
+    std::fs::create_dir_all(&abandoned).expect("a tree no command writes any more");
+    age(abandoned.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
+    assert!(read_by_a_landing.exists(), "a tree written an hour ago may still be read by a landing");
+    assert!(!abandoned.exists(), "a tree nothing has written for the abandonment age goes, long before the day");
     remove(root.as_path());
 }
 
@@ -171,7 +204,7 @@ fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
 #[test]
 fn sweeping_a_missing_directory_removes_nothing() {
     let root: PathBuf = fixture("scratch-sweep-missing");
-    assert_eq!(sweep_stale(root.join("missing").as_path(), SystemTime::now(), SCRATCH_STALE_AFTER), 0);
+    assert_eq!(sweep_stale(root.join("missing").as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 0);
     remove(root.as_path());
 }
 
@@ -358,11 +391,42 @@ fn the_sweep_keeps_an_entry_exactly_at_the_bound_and_removes_one_past_it() {
     let modified: SystemTime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
     std::fs::File::open(&entry).expect("open").set_modified(modified).expect("set modification time");
     let at_bound: SystemTime = modified + SCRATCH_STALE_AFTER;
-    assert_eq!(sweep_stale(scratch.as_path(), at_bound, SCRATCH_STALE_AFTER), 0);
+    assert_eq!(sweep_stale(scratch.as_path(), at_bound, SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 0);
     assert!(entry.exists(), "an entry exactly at the bound is kept");
     let past_bound: SystemTime = at_bound + Duration::from_secs(1);
-    assert_eq!(sweep_stale(scratch.as_path(), past_bound, SCRATCH_STALE_AFTER), 1);
+    assert_eq!(sweep_stale(scratch.as_path(), past_bound, SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
     assert!(!entry.exists(), "an entry past the bound is removed");
+    remove(root.as_path());
+}
+
+/// A sweep removes a stale entry within the ceiling it is given,
+/// and one whose removal cannot finish inside that ceiling is reported and left for a later sweep,
+/// never waited for:
+/// the caller is a commit,
+/// and an entry another command left must not hold it.
+#[test]
+fn a_sweep_removes_within_its_ceiling_and_leaves_what_it_cannot() {
+    let root: PathBuf = fixture("scratch-sweep-bounded");
+    let scratch: PathBuf = root.join("scratch");
+    let tree: PathBuf = scratch.join("cli-git-many");
+    std::fs::create_dir_all(&tree).expect("tree");
+    for at in 0..500 {
+        std::fs::write(tree.join(format!("entry-{at}")), b"x").expect("an entry");
+    }
+    age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
+    let before: u64 = outside_the_phases().removals_that_did_not_finish;
+    let removed: usize = sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, Duration::from_micros(1));
+    assert_eq!(removed, 0, "an entry whose removal outlasts the ceiling is not counted as removed");
+    assert_eq!(outside_the_phases().removals_that_did_not_finish, before + 1, "the removal went through the bounded one and said so");
+    assert!(tree.exists(), "what the ceiling cut short stays for a later sweep");
+    // A later sweep, given the ceiling a caller really gives it, removes an entry it finds stale.
+    let second: PathBuf = root.join("second-scratch");
+    let later: PathBuf = second.join("cli-git-later");
+    std::fs::create_dir_all(&later).expect("later tree");
+    std::fs::write(later.join("entry"), b"x").expect("an entry");
+    age(later.as_path(), SCRATCH_STALE_AFTER * 2);
+    assert_eq!(sweep_stale(second.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
+    assert!(!later.exists(), "a stale entry goes within the ceiling");
     remove(root.as_path());
 }
 
@@ -417,7 +481,7 @@ fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
         std::fs::File::open(directory).expect("open").set_modified(long_ago).expect("age");
     }
     renew(kept.as_path());
-    assert_eq!(sweep_stale(root.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER), 1);
+    assert_eq!(sweep_stale(root.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
     assert!(kept.exists() && !left.exists());
     remove(root.as_path());
 }
@@ -427,4 +491,115 @@ fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
 #[test]
 fn the_renewal_pace_is_far_inside_the_stale_age() {
     assert!(SCRATCH_REFRESH_EVERY * 2 < SCRATCH_STALE_AFTER, "{SCRATCH_REFRESH_EVERY:?}");
+}
+
+/// A commit's scratch tree is made inside the repository scratch directory,
+/// which is the place the sweep covers,
+/// and it is private.
+#[test]
+fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
+    let root: PathBuf = fixture("scratch-commit-tree");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let named: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
+    assert_eq!(tree, common.join(REPOSITORY_SCRATCH_NAME).join(named));
+    assert_eq!(mode_of(tree.as_path()), 0o700);
+    remove(root.as_path());
+}
+
+/// A leftover of the command's own earlier attempt whose removal its ceiling cut short does not fail the next attempt:
+///  the leftover is moved aside under a name no commit tree has,
+///  the attempt starts from an empty tree,
+///  and the sweep of a later command collects what was moved.
+///  The removal of the moved tree runs beside this call,
+///  so whether any of it is still there when the assertion below runs is the device's to say,
+///  and what is asserted is that nothing but such a moved tree is left beside the attempt's own.
+#[test]
+fn a_leftover_its_removal_cut_short_is_moved_aside_and_the_attempt_goes_on() {
+    let root: PathBuf = fixture("scratch-leftover-aside");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    let first: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
+    for at in 0..500 {
+        std::fs::write(first.join(format!("entry-{at}")), b"x").expect("a file of the first attempt");
+    }
+    // The ceiling a stalled device gives the removal: the leftover is still there when the next attempt begins.
+    let again: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
+    assert_eq!(again, first, "the attempt keeps the name of its own tree");
+    assert!(!again.join("entry-0").exists(), "the attempt starts from an empty tree");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    let beside: Vec<PathBuf> = std::fs::read_dir(&scratch)
+        .expect("scratch directory")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path != &again; })
+        .collect();
+    for leftover in &beside {
+        let named: String = leftover.file_name().map(|file| { return file.to_string_lossy().into_owned(); }).unwrap_or_default();
+        assert!(named.contains(".removing-"), "the leftover is under a name no commit tree has: {}", leftover.display());
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The name a preparation hands to the removal of its earlier attempt's tree is the name that tree was moved to,
+///  never the name the attempt now beginning makes.
+/// Why:
+///  A removal that outlives its ceiling keeps the pathname it was given and never learns that the tree moved;
+///  one holding this attempt's name would examine that name later,
+///  after this attempt created its tree,
+///  and empty or remove the tree the attempt is writing.
+///  The attempt's own writes are here a private index,
+///  which is the first thing a commit puts in its tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const again = prepareCommitScratch(common, common, name, 1);
+/// expect(removals.named()).not.toContain(again);
+/// expect(await read(again + '/commit.index')).toBe('this attempt');
+/// ```
+#[test]
+fn a_removal_of_a_leftover_is_never_given_the_name_the_next_attempt_makes() {
+    let root: PathBuf = fixture("scratch-leftover-target");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d-0";
+    let first: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
+    std::fs::write(first.join("commit.index"), b"the earlier attempt's index").expect("a private index of the earlier attempt");
+    // The ceiling of a removal that outlives it: the leftover is still there when the next attempt begins.
+    test_targets::forget();
+    let again: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
+    let named: Vec<PathBuf> = test_targets::named();
+    assert_eq!(named.len(), 1, "the leftover's removal is started once: {named:?}");
+    assert_ne!(named[0], again, "the removal is given the name the old tree was moved to, not the name this attempt makes");
+    assert!(named[0] != first, "the removal is not given the name this attempt uses either: {}", named[0].display());
+    // What this attempt writes after it is given its tree is still there once a removal that outlived its ceiling has run.
+    std::fs::write(again.join("commit.index"), b"this attempt's index").expect("this attempt's private index");
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(
+        std::fs::read(again.join("commit.index")).ok().as_deref(),
+        Some(&b"this attempt's index"[..]),
+        "the tree this attempt made is still its own: {}",
+        again.display()
+    );
+    remove(root.as_path());
+}
+
+/// A tree of a command that was killed at any instruction is collected by a later command's preparation of the same
+/// directory,
+/// because nothing else would ever remove it.
+#[test]
+fn a_scratch_tree_of_a_killed_command_is_swept() {
+    let root: PathBuf = fixture("scratch-commit-killed");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d", SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
+    std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
+    // The command is killed here: nothing removes the tree, and no service ever held it.
+    age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
+    let _prepared: PathBuf = prepare_repository_scratch(common.as_path()).expect("a later preparation");
+    assert!(!tree.exists(), "the sweep of the place the tree is in removes it: {}", tree.display());
+    remove(root.as_path());
 }

@@ -19,7 +19,7 @@
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
-use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
+use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
 use crate::service_instance::GitDirUnreachable;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
@@ -379,7 +379,27 @@ impl Replanning {
 /// ```ts
 /// const said = plannedRetry(gitDir, replanning, first, item, attempt, text);
 /// ```
-pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> String {
+/// What:
+///  The words a record of a planned retry carries,
+/// and whether the plan they promise is kept.
+/// Why:
+///   The promise and the plan are one fact:
+/// main's words say the service keeps trying only when the plan could be kept,
+///  and the notice's framing needs the same answer as a value rather than as the presence of a sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PlannedRetry = { words: string; kept: boolean };
+/// ```
+pub(crate) struct PlannedRetry {
+    /// The words for the person's record,
+    /// with the promise only when the plan is kept.
+    pub(crate) words: String,
+    /// Whether the plan the words promise exists.
+    pub(crate) kept: bool,
+}
+
+pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> PlannedRetry {
     let pause: Duration = pause_before(attempt, first);
     // The notice below says the service keeps trying, so the plan that keeps it is written first,
     // and its answer says whether the words may promise it.
@@ -402,7 +422,8 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     );
     // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
     //  its place would not know it, so the person is left with Git's own words and pushing by hand.
-    return if kept { format!("{plan}\n{text}") } else { text.to_string() };
+    let words: String = if kept { format!("{plan}\n{text}") } else { text.to_string() };
+    return PlannedRetry { words, kept };
 }
 
 /// What:
@@ -431,7 +452,7 @@ pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, 
     for due in &retrying.due {
         if due.git_dir == git_dir {
             let cause: String = format!("the repository at {} is not reachable now (is its drive mounted?)", git_dir.display());
-            let _said: String = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str());
+            let _said: PlannedRetry = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str());
         }
     }
     return Drained { wait: None, changes: replanning.changes };
@@ -478,21 +499,27 @@ pub(crate) fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, 
                 crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
             }
             Verdict::Retry(text) => {
-                let said: String = match replanning.first {
-                    Some(first) => planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()),
+                // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
+                let (said, outcome): (String, PushOutcome) = match replanning.first {
+                    Some(first) => {
+                        let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str());
+                        // The framing promises a retry only when the plan the words speak of exists.
+                        let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
+                        (planned.words, outcome)
+                    }
                     None => {
                         replanning.forget(git_dir, branch);
-                        text
+                        (text, PushOutcome::UnfinishedWithNoRetry)
                     }
                 };
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, said.as_str()) {
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, outcome, said.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }
             Verdict::Failed(text) => {
                 crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
                 replanning.forget(git_dir, branch);
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, text.as_str()) {
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, PushOutcome::Refused, text.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }

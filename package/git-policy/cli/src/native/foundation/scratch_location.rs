@@ -31,14 +31,18 @@ use crate::child_environment::environment_value;
 use crate::diagnostic_log::debug;
 /// The private creation primitives shared by every durable record.
 use crate::private_storage::{create_private_directory, create_private_directory_all};
+/// Removing one scratch entry within its ceiling,
+/// and which commit scratch trees a later command takes for abandoned.
+use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
 /// The mode a private directory ends with,
 /// and the call that sets it,
 /// which only Unix has.
 #[cfg(unix)]
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
+/// The names the wrapper keeps on disk.
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 /// OS strings,
 /// paths and time.
-use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -192,7 +196,7 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
             directory.display()
         ));
     }
-    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     return Ok(directory);
 }
 
@@ -253,6 +257,101 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 }
 
 /// What:
+///  The commit's scratch tree,
+///  made in the repository scratch directory the sweep covers,
+///  or in the Git directory when that directory cannot be used,
+///  and returns its path.
+/// Why:
+///   A tree in the repository scratch directory is collected after a day even when the command that made it is killed at
+///  any instruction and no service ever holds it,
+///  which a tree in the Git directory is not.
+///  A repository whose scratch directory cannot be made private still commits,
+///  into the Git directory,
+///  and says so in the debug log:
+///  a commit must not fail over where its scratch files go.
+///  A leftover of this command's own earlier attempt is moved aside before it is removed,
+///  and the removal is given only the aside's name,
+///  so a slow device cannot fail a retry and a removal that outlives its ceiling cannot take the tree the retry makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = prepareCommitScratch(commonDir, gitDir, name);
+/// ```
+pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
+    let covered: Option<PathBuf> = match prepare_repository_scratch(common_dir) {
+        Ok(directory) => Some(directory),
+        Err(error) => {
+            debug(
+                TAG,
+                format!(
+                    "the repository scratch directory of {} cannot be used ({error}), so this commit's scratch tree goes in the Git \
+                     directory, where nothing sweeps it if this command is killed; repair that directory to have the sweep cover it",
+                    common_dir.display()
+                )
+                .as_str(),
+            );
+            None
+        }
+    };
+    let directory: PathBuf = match covered {
+        Some(found) => found,
+        None => git_dir.to_path_buf(),
+    };
+    let mut tree: PathBuf = directory.join(name);
+    // A tree of this command's own earlier attempt is removed first, so every attempt of one command starts from an empty one:
+    //  the name carries this command's identity and no other command makes it.
+    let present: bool = std::fs::symlink_metadata(tree.as_path()).is_ok();
+    if present {
+        // The old tree is moved aside before anything removes it, and only the aside's name is given to the removal: a removal
+        //  that outlives its ceiling keeps the pathname it was given and never learns that the tree moved, so one handed this
+        //  attempt's name could empty the tree this attempt makes next. The aside's name is one no attempt ever makes.
+        let aside: PathBuf = directory.join(format!("{name}.removing-{}", crate::random_id::random_uuid().unwrap_or_default()));
+        match std::fs::rename(tree.as_path(), aside.as_path()) {
+            Ok(()) => {
+                // A control checks which name the removal below is given (`scratch_location_removal_targets_test_support.rs`).
+                #[cfg(test)]
+                test_targets::note(aside.as_path());
+                match remove_within(aside.as_path(), ceiling) {
+                    Removal::Finished => {}
+                    Removal::Unfinished => debug(
+                        TAG,
+                        format!(
+                            "the leftover {} could not be removed within {ceiling:?} and stays at {}, where the sweep of a later command collects it by age",
+                            tree.display(),
+                            aside.display()
+                        )
+                        .as_str(),
+                    ),
+                    Removal::Failed(error) => debug(
+                        TAG,
+                        format!("the leftover was moved to {} and could not be removed: {error}", aside.display()).as_str(),
+                    ),
+                }
+            }
+            Err(error) => {
+                // The name cannot be moved aside, so this attempt cannot have it while a removal of the old tree may still run:
+                //  the old tree is removed where it is, and an attempt that cannot wait for that takes a name of its own instead,
+                //  which no removal was ever given and which the wrapper's scratch rules accept.
+                debug(TAG, format!("the leftover {} cannot be moved aside: {error}", tree.display()).as_str());
+                #[cfg(test)]
+                test_targets::note(tree.as_path());
+                if !remove_within(tree.as_path(), ceiling).finished() {
+                    let fresh: PathBuf = directory.join(format!("{name}-again-{}", crate::random_id::random_uuid().unwrap_or_default()));
+                    debug(
+                        TAG,
+                        format!("the leftover {} is still being removed, so this attempt makes {} instead", tree.display(), fresh.display()).as_str(),
+                    );
+                    tree = fresh;
+                }
+            }
+        }
+    }
+    create_private_directory(tree.as_path())?;
+    assert_private_directory(tree.as_path())?;
+    return Ok(tree);
+}
+
+/// What:
 ///  Create the repository scratch directory beside the common Git directory's other private storage,
 ///  check that it is private,
 ///  sweep its stale entries,
@@ -275,7 +374,7 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
         Err(error) => return Err(error),
     }
     assert_private_directory(directory.as_path())?;
-    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     sweep_earlier_repository_scratch(common_dir);
     return Ok(directory);
 }
@@ -321,7 +420,7 @@ fn sweep_earlier_repository_scratch(common_dir: &Path) {
         debug(TAG, format!("will not sweep {}: {error}", earlier.display()).as_str());
         return;
     }
-    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
 }
 
 /// What:
@@ -373,8 +472,16 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
     return Ok(());
 }
 
+/// The order two stale entries are removed in:
+/// the older one first,
+/// so a machine that keeps making them loses the oldest.
+fn older_first(left: &(SystemTime, PathBuf), right: &(SystemTime, PathBuf)) -> std::cmp::Ordering {
+    return left.0.cmp(&right.0);
+}
+
 /// What:
 ///  Remove every entry of `directory` last modified more than `max_age` before `now`,
+///  within `ceiling` for each entry,
 ///  and return how many it removed.
 ///  A link is removed itself and never followed;
 ///  a directory is removed with its contents.
@@ -385,12 +492,22 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 ///  so every entry in it is the wrapper's;
 ///  an entry modified in the future is kept,
 ///  because a wrong clock must not delete live files.
+///  Each removal goes through `remove_within`,
+///  so an entry whose deletion stalls costs the caller `ceiling` and no more,
+///  and what did not finish stays for a later sweep.
+///  Which entry may go is `service_scratch_abandonment::may_go`'s to decide,
+///  the same decision the collection a preparation does makes,
+///  so a tree whose owner still runs is kept however old it is.
+///  At most `SCRATCH_TREES_REMOVED_PER_COMMAND` entries go per call,
+///  oldest first,
+///  so a backlog left by killed commands delays one command by that many removals and never by its whole length.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const entry of await readdir(dir)) if (now - (await lstat(entry)).mtimeMs > maxAgeMs) await rm(entry, { recursive: true });
+/// const stale = (await readdir(dir)).filter(mayGo).sort(byAge).slice(0, 8);
+/// for (const entry of stale) await removeWithin(entry, ceiling);
 /// ```
-pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usize {
+pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling: Duration) -> usize {
     let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
         Ok(found) => found,
         Err(error) => {
@@ -398,7 +515,8 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usiz
             return 0;
         }
     };
-    let mut removed: usize = 0;
+    // What may go, in the order it goes: the oldest first, so the entries a machine keeps making are the ones that survive.
+    let mut stale: Vec<(SystemTime, PathBuf)> = Vec::new();
     for listed in entries {
         let entry: std::fs::DirEntry = match listed {
             Ok(found) => found,
@@ -415,30 +533,32 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usiz
                 continue;
             }
         };
-        // An entry whose age cannot be told is never old enough to remove.
-        let age: Option<Duration> = match metadata.modified() {
-            Ok(modified) => now.duration_since(modified).ok(),
-            Err(_unsupported) => None,
-        };
-        let old_enough: bool = match age {
-            Some(found) => found > max_age,
-            None => false,
-        };
-        if !old_enough {
+        // One decision, shared with the collection a preparation does: a commit tree stays while the command that made it runs,
+        //  however old it is, and every other entry of the place goes by its age.
+        if !crate::service_scratch_abandonment::may_go(path.as_path(), &metadata, now, max_age) {
             continue;
         }
-        let outcome: std::io::Result<()> = if metadata.is_dir() {
-            std::fs::remove_dir_all(&path)
-        } else {
-            std::fs::remove_file(&path)
-        };
-        match outcome {
-            Ok(()) => removed += 1,
-            Err(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
+        stale.push((metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH), path));
+    }
+    stale.sort_by(older_first);
+    let mut removed: usize = 0;
+    for (_, path) in stale.iter().take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND) {
+        // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the
+        //  next sweep, instead of holding the command that asked for scratch for as long as the device takes.
+        match remove_within(path.as_path(), ceiling) {
+            Removal::Finished => removed += 1,
+            Removal::Unfinished => debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str()),
+            Removal::Failed(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
         }
     }
     return removed;
 }
+
+/// The names a removal of a leftover was handed,
+/// for the controls that prove it never names the tree an attempt makes.
+#[cfg(test)]
+#[path = "scratch_location_removal_targets_test_support.rs"]
+pub(crate) mod test_targets;
 
 /// Environment resolution,
 /// preparation,
