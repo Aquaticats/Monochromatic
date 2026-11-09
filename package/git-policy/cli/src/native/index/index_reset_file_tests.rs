@@ -371,6 +371,28 @@ fn an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it() {
     finish(scene);
 }
 
+/// An intent-to-add entry at a path the commit does not name is left in the index by a landing that resets only the
+/// commit's paths,
+/// as `git reset --no-refresh -- <paths>` leaves it:
+/// the person marked a new file with `git add -N` and a commit of another path keeps the mark,
+/// so a later `git add` of that file stages it as the person expects.
+#[test]
+fn an_intent_to_add_entry_a_landing_does_not_name_is_left_as_it_is() {
+    let files: [(&str, &[u8], bool); 2] = [("a", b"a one\n", false), ("z", b"z one\n", false)];
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
+    let scene: Scene = scene("index-reset-ita-unnamed", &Plan { files: &files, edits: edits.as_slice(), ..Plan::default() });
+    std::fs::write(scene.repo.join("later"), b"later\n").expect("the file the person marks");
+    git(scene.repo.as_path(), &["add", "--intent-to-add", "later"]);
+    let marked = |repo: &Path| -> bool {
+        let index = crate::index_full::parse_full_index(index_bytes(repo).as_slice(), 20).expect("parsed");
+        return index.entries.into_iter().any(|entry| { return entry.path == b"later" && entry.extended & crate::index_full::INTENT_TO_ADD != 0; });
+    };
+    assert!(marked(scene.repo.as_path()), "the fixture holds the mark the case is about");
+    same_as_git(&scene, &named(&["a"]), "an intent-to-add entry the reset does not name");
+    assert!(marked(scene.repo.as_path()), "Git's own result still carries the mark");
+    finish(scene);
+}
+
 /// The modes of the index file after a reset in `repo` with `core.sharedRepository` set to each value,
 /// in Git and in process,
 /// under the mask this process runs with (the callers run it in a child process that starts with the mask).

@@ -578,6 +578,36 @@ fn a_refused_reset_still_sets_the_entry_to_the_head() {
     remove(world.root.as_path());
 }
 
+/// A `--literal-pathspecs` the caller wrote as a global option makes every read answer empty,
+/// so the repair would exclude nothing and the next ordinary commit would record the contents the landing replaced.
+#[test]
+fn a_repair_excludes_the_landed_path_under_the_callers_literal_option() {
+    let world: World = world("service-land-owed-literal-option");
+    std::fs::write(world.repo.join("f"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "f"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let landed: CommitRequest = request(&world, "landed", "f", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.global_prefix.push(std::ffi::OsString::from("--literal-pathspecs"));
+    let captured: crate::service_land_start::IndexWitness =
+        crate::service_land_start::witness_of(real_index_of(&world).as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &captured,
+    )
+    .expect("the repair of the landed path");
+    assert_eq!(left, vec![String::from("f")], "the path the landing replaced is left out");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "", "the commit records nothing about the landed path");
+    remove(world.root.as_path());
+}
+
 /// The repair changes the paths it decided on and nothing else:
 /// with `GIT_ICASE_PATHSPECS=1` in the service's environment,
 /// `:(top,literal)a.txt` matches `A.txt` as well,

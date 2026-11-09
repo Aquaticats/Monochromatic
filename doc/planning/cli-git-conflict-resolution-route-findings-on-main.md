@@ -612,3 +612,204 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   "Decisions this route answers to".
 - Windows and macOS,
   which the owner's pause leaves out.
+
+## Fixed after this audit
+
+Branch `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`.
+The page above stands as the record of the audited revision.
+Each finding got a control that was written first and shown failing,
+then passed with the fix,
+and failed again with the fix removed.
+
+- Finding 1,
+  `cb2a9f230a`:
+  the second pass reads the `merge` attribute from the tree `git merge-tree` produced
+  (`git check-attr --source=<tree>`),
+  so a rule the merge introduces governs the pass;
+  the tree is named only where the person named no source,
+  and a `.gitattributes` the merge left conflicted names no source at all,
+  which keeps every candidate of that merge conflicted.
+  `git merge-tree` itself still reads the first side's tip,
+  which is the choice the planning record leaves to the owner.
+  Controls:
+  `a_merge_rule_the_merge_itself_introduces_keeps_the_isolated_merge_from_merging_the_file`,
+  `a_rule_the_merge_itself_introduces_governs_the_second_pass`,
+  `a_gitattributes_the_merge_left_conflicted_names_no_rule`,
+  `the_merge_result_tree_is_named_only_where_the_person_named_no_source`.
+- Finding 2,
+  `ac7b52c406` (the module split that followed is `18eb5bfb96`):
+  every part line ends with the three blobs it came from
+  (`from base blob <oid>, ours blob <oid>, theirs blob <oid>`),
+  one sentence names `git cat-file blob <oid>`,
+  and the journal entry carries the same three object names in
+  `CLI_GIT_WORD_MERGE_BLOBS`.
+  The line spans stay as the coordinates of the part inside those blobs.
+  Controls:
+  `a_part_line_names_each_input_as_a_blob_that_survives_the_resolution`,
+  the hint assertion of `an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed`,
+  `the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text`,
+  `the_journal_entry_names_the_file_the_operation_and_the_parts`,
+  `the_notice_lists_each_merged_part_and_is_absent_without_one`.
+- Finding 3,
+  `ed47cef2af`:
+  the line that names the files staged as resolved is printed whether or not a finish follows,
+  and a finish that ends with a non-zero status is followed by one line naming the state
+  the person will find,
+  with the command that ends that operation.
+  Controls:
+  `a_finish_that_cannot_reach_the_commit_service_names_what_changed`,
+  `the_closing_words_say_whether_a_conflict_remains`.
+
+Still open after this work:
+
+- The reconcile merge and the replay end to end,
+  which this audit could not exercise either.
+  Both pass their `AttributeProbe` to the same `resolve_tree`,
+  so finding 1's fix reaches them by the same function,
+  and no control starts either with a `.gitattributes` the merge introduces.
+- The commit path still ends a failure it reports with "Nothing in the repository changed.",
+  which is true of that commit and false of the merge that staged the files before it.
+  The wrapper's own line after it is now the last word and the true one;
+  suppressing the commit's sentence would mean passing the state of the index into
+  the landing messages,
+  which no finding required.
+- Which `.gitattributes` `git merge-tree` itself should read
+  stays the owner's item,
+  unchanged by this work.
+
+## The cross-vendor review of that branch, and what it found
+
+The review of `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`
+(model `openai/gpt-6.1-sol`,
+2026-11-09)
+judged the branch and reported seven findings,
+each reproduced here before it was fixed,
+and each with a control that failed first and failed again with the fix removed.
+The page above stands as the record of the audited revision.
+
+- Finding 1,
+  a resolution another command staged was replaced by `install`,
+  `ad36b527dc`:
+  the index stages of each merged path are read again just before the install,
+  and the worktree file's device,
+  inode,
+  length and modification time are compared with what they were when the stages were read;
+  a path that moved is left as it is and named.
+  Controls:
+  `a_resolution_another_command_staged_is_left_alone`,
+  `a_worktree_file_edited_after_it_was_read_is_left_alone`,
+  `a_path_that_did_not_move_is_installed`.
+- Finding 2,
+  a worktree `.gitattributes` holding Git's markers was read as a rule,
+  `2a99eb2035`:
+  a `.gitattributes` among the unmerged paths makes the source `Unknown`,
+  which the tree arm already answered.
+  Control:
+  `a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass`.
+- Finding 3,
+  `-c attr.tree=<spec>` on the command line was not read,
+  `924670342b`:
+  the invocation's `-c` pairs are read before the configuration files.
+  The remaining gap is `--config-env=attr.tree=<variable>`,
+  which is the same mechanism and which `config_options` drops before the pass's own `check-attr`.
+  Controls:
+  `a_configuration_option_on_the_command_line_names_the_tree`,
+  `a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge`.
+- Finding 4,
+  a merge driver that never returns held the reconcile merge for good,
+  `a223881c35`:
+  every command of the reconcile merge's second pass runs under the push query's bound,
+  with its request on standard input and an answer ceiling of one stage per name it asks for.
+  Control:
+  `a_merge_driver_that_never_returns_stops_the_reconcile_merge`,
+  which hung until the package's unit-test watchdog ended the run before the fix.
+- Findings 5 and 6,
+  the line after a finish described the pre-continuation state and named `git commit` for a rebasing pull,
+  `662509bde4`:
+  the index is read again after the failed step and the ending command comes from the state files.
+  Controls:
+  `a_rebase_that_stops_again_is_told_what_is_conflicted_now`,
+  `a_rebasing_pull_that_stops_again_is_told_to_continue_the_rebase`,
+  `the_ending_command_is_the_one_the_state_files_name`.
+- Finding 7,
+  a worktree path ending in a space became a false replay conflict,
+  `4bdc760360`:
+  the replay's `rev-parse --show-toplevel` output keeps every byte except its line break.
+  Control:
+  `the_toplevel_keeps_a_trailing_space_in_a_directory_name`.
+  The reconcile merge reads the same line through `git_output`,
+  whose JavaScript trim is right for every other caller of it,
+  so that call still trims a trailing space;
+  it is recorded here as open rather than changed with one caller in view.
+
+The gap the audit left open is closed for both unattended merges:
+`a_rule_the_remote_introduces_keeps_the_reconcile_merge_from_merging_the_file` and
+`a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file`
+start a merge whose own `.gitattributes` excludes the conflicted file,
+and both fail when `merge_attribute_source` is forced to `Invocation`.
+
+## The second cross-vendor review, and what it found
+
+The second review of the same branch
+(model `openai/gpt-6.1-sol`,
+2026-11-09)
+reported five findings at `[P1]` and three at `[P2]`.
+Each was reproduced against the branch as it stood;
+the owner ordered work on the four that were not the window,
+and instructed that the window be recorded rather than closed.
+
+- `[P1]` the baseline of a path was read after the merge was computed,
+  `ede571f4af`:
+  an edit made while the word merge ran became the baseline and was then overwritten.
+  The baseline now precedes the merge.
+  Control:
+  `an_edit_made_while_the_pass_merges_is_not_replaced`,
+  which waits for the pass's own `git check-attr` inside the command.
+- `[P1]` a configuration key was matched case-sensitively,
+  `773faf0865`:
+  `git -c Attr.Tree=rules merge` reached the pass as no choice at all.
+  The key is now read through `canonical_key`,
+  which is the wrapper's one spelling of a configuration key and which became public for this.
+  Controls:
+  `a_configuration_option_in_any_letter_case_names_the_tree`,
+  `a_configuration_option_in_any_letter_case_names_the_tree_of_an_isolated_merge`.
+- `[P1]` a merge driver that never returns but keeps writing was unbounded,
+  `ad7549e99e`:
+  the push stall window cannot see it,
+  because the driver moves bytes in every sample.
+  A command of a commit's merge step now runs under a total ceiling of 300 seconds
+  (`CLI_GIT_PUSH_MERGE_CEILING_SECONDS`),
+  with `SingleFlightError::Ceiling` saying what was not changed.
+  Control:
+  `a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling`,
+  which timed out at 300 seconds with the stall window restored.
+- `[P1]` different bytes of the same length with a restored modification time passed the check,
+  `f1ffeff185`:
+  the guard compares the conflicted file's bytes now,
+  read up to three times the pass's 8 MiB stage limit.
+  Control:
+  `a_same_length_resolution_with_a_restored_time_is_not_replaced`.
+- `[P1]` a second process inside the window between the check and the install still loses its resolution.
+  Recorded in `SPEC.md` with what the person sees there,
+  as the owner instructed;
+  no mechanism was added.
+- `[P2]` a line about an index that could not be read again claimed no file was conflicted,
+  `08b765358e`:
+  the list is an `Option` now.
+  Control:
+  `a_line_about_an_unread_index_does_not_claim_a_clean_one`.
+- `[P2]` the replay's toplevel parser removed a line break that belonged to a directory's name,
+  `50622d0ff3`:
+  exactly one terminator is removed.
+  Control:
+  `the_toplevel_keeps_a_line_break_that_belongs_to_a_directory_name`.
+- `[P2]` the remaining count included a resolution another command had staged.
+  Not reproduced:
+  in a fixture of 200 conflicted files whose resolution is written and staged by another command inside the pass,
+  that command's `git add` completed after the fresh index read,
+  so the count was right at the instant it was computed and the merge was installed whole.
+  The reviewer's sequence needs a pause inside the wrapper,
+  which this work did not build;
+  the one-line change (count from the fresh index) exists but has no control,
+  so it was not made.
+  Stays open.

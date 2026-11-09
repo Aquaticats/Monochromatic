@@ -57,19 +57,43 @@ pub(crate) fn unchanged_failure(why: String) -> String {
 }
 
 /// What:
-///  The sentence a journal that stays is reported with.
+///  The sentence a journal that stays is reported with,
+///  when the bytes in it are another writer's.
 /// Why:
 ///   The person must be able to find the bytes,
 ///  and the message must not name the candidate's pathname,
 ///       which can hold the text a scan exists to keep out of output.
+///  What the swap displaced is what the other writer saved,
+///  and the path itself holds the correction or the bytes the fix put back,
+///  so the message names the journal as the place those bytes are
+///  (finding of the fifth review).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `kept ${contentOf(journal)} ...`;
+/// `kept ${contentOf(journal)} ... another writer saved ... in that journal, not at the file's own path`;
 /// ```
 pub(crate) fn kept_notice(site: &Prepared) -> String {
     return format!(
-        "monochromatic-git-policy-cli kept {}, which holds the bytes of a file that was written while the fix ran; nothing there was removed, and the file itself holds what the other writer put there.",
+        "monochromatic-git-policy-cli kept {}, which holds the bytes another writer saved while the fix ran; nothing there was removed, and those bytes are in that journal, not at the file's own path.",
+        content_of(site.journal.as_path()).display()
+    );
+}
+
+/// What:
+///  The sentence a journal that stays is reported with,
+///  when nothing proves who wrote the bytes in it.
+/// Why:
+///   A comparison that could not be made says nothing about its writer,
+///  and a rollback that could not move the bytes back leaves them where the fix put them,
+///  so the message names the journal and claims no writer at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `kept ${contentOf(journal)} ... the bytes that file held ...`;
+/// ```
+pub(crate) fn kept_bytes_notice(site: &Prepared) -> String {
+    return format!(
+        "monochromatic-git-policy-cli kept {}, which holds bytes that file held while the fix was replacing it; nothing there was removed, and they are in that journal, not at the file's own path.",
         content_of(site.journal.as_path()).display()
     );
 }
