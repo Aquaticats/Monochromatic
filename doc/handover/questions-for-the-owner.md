@@ -57,7 +57,210 @@ about 26 to 30 agents would reach 20 open calls.
 Anything else using this key counts against the same limit,
 and the host may run short before the provider does.
 
-The trial at twenty is still running and decides the raise to 20 by itself.
+The trial passed,
+so 20 is now the permanent limit in `.agents/skills/pi-as-subagent/SKILL.md`,
+under your "Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20."
+Over 100 one-minute samples,
+60 had at least 20 agents running,
+the fewest were 16 and the most 20.
+Those 100 minutes saw 4919 model turns and no rate-limit error.
+The errors were 2 Cloudflare 520 responses and 1 request timeout,
+each ending one run,
+which is what the driver job is fixing.
+The median model turn was 3937 ms against 3153 ms in the two hours before,
+and that difference has not been compared with the run-to-run spread,
+so it may be noise.
+
+### Should a commit whose command died before its checks ran still be pushed?
+
+A landing moves the branch first and runs the post-commit checks after,
+holding the push until those checks approve it.
+If the command is killed in that gap,
+no verdict exists,
+and the commit is on the branch with its push held.
+The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now pushes such a commit the next time the service wakes for that worktree,
+because a cross-vendor review found a push could stay stranded,
+and a held push with no living owner would otherwise wait forever,
+against your "nothing should ever wait forever or indefinitely".
+A check that is still running is never overtaken:
+only a command proven gone has its push released.
+
+The cost is that a commit whose checks never ran can reach the remote.
+The alternative keeps that commit local until someone pushes it,
+which needs the wrapper to hand the service a durable verdict,
+and the protocol has no such message today.
+Ranking:
+push it (current) > keep it local,
+because a commit left unpushed with no message is easy to miss,
+and a pushed commit can still be followed by a fix.
+That is the session's judgment and not something measured.
+Nothing is waiting on this answer;
+write "keep it local" here to change it.
+
+### Should a commit add the manifests of dependents it bumps?
+
+Your decision of 2026-09-15 and `SPEC.md` say opposite things.
+`doc/decision/private-npm-registry.md:158-160` says:
+"A cli-git commit policy bumps dependents by patch,
+transitively,
+in the same commit as a hand bump."
+It rejects "a read-only check plus a `version:bump` command (two steps when forgotten)".
+`doc/decision/cli-git-policies-platform.md:751-754` says the same.
+`package/git-policy/cli/SPEC.md:207-208` says:
+"A commit adds no paths of its own:
+only the paths it selected reach the landing."
+
+The code follows `SPEC.md`,
+and an audit reproduced the result
+(`doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
+finding 2).
+A hand bump of `a` commits only `a`'s manifest,
+and nothing says the dependents were left behind.
+After that commit,
+`check` and `fix` are silent too,
+because the raise now equals `HEAD`.
+So a published package can depend on an older version of a package it was meant to follow.
+
+Recommended:
+build what the decision says,
+so a commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`.
+It is the only option where a forgotten step cannot leave a stale dependent,
+at the price of a commit touching paths the person did not name.
+The alternative keeps `SPEC.md`,
+changes the decision,
+and makes a commit warn loudly that dependents were left behind.
+That is much less code,
+and the person has one more step to remember.
+
+### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
+
+The session picked the audit's recommendation,
+extending the fixed list,
+because it starts no process and is non-destructive.
+A fix agent is queued for it.
+Write "ask Git" here to change that.
+
+The policy exists so `git add` names the paths it stages
+(`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
+It reads the arguments alone and compares each positional pathspec with four
+byte strings,
+`.`,
+`./`,
+`*` and `:/`
+(`package/git-policy/cli/src/native/command/command_add.rs:113`).
+Five spellings that Git resolves to the whole tree pass that list and staged
+every file in a reproduction:
+`:/*`,
+`:/**`,
+`:(top)`,
+`**` and
+`:(glob)**`
+(`doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`,
+finding 2).
+`:(top)` is the one a person writes expecting a scope rather than a sweep.
+A sixth,
+`:(top)/*`,
+fails inside Git 2.56.0 (`fatal: oops in prep_exclude`) and is reported as
+`content-unavailable`,
+which is Git's own failure and not this choice.
+
+Recommended:
+extend the list with those five and name them in the rejection text,
+because the decision stays argument-only and starts no process before Git
+does,
+and the accidents this policy is about are the common spellings.
+The alternative asks Git what the pathspec selects,
+which catches every form including ones added to Git later,
+at the cost of one Git start per `git add`
+and a decision that no longer follows from the arguments.
+
+### May a moved-path note be added to records in `doc/decision/`?
+
+Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
+Agents may not edit `doc/decision/` without your approval,
+so these open issues are stuck on that alone:
+4365,
+5929,
+6201,
+3279,
+5926,
+5788,
+3191,
+3275,
+5765,
+5766,
+6101 and 4357.
+The note would add a line beside each stale path and change no decision.
+
+Recommended:
+yes,
+for notes of that one kind only,
+because the original words stay and the records stop pointing nowhere.
+The alternative is to leave those issues open,
+and each stays a dead reference.
+
+### Which build profile should the uncovered crates follow? (issue 1641)
+
+22 tracked `Cargo.toml` files declare a build profile,
+and the rules that keep those profiles the same name 11 folders.
+The other crates are uncovered,
+and several say "Enforced by file-enforcer" in their own comments,
+which is not true of them.
+They are `cargo-shadow/cli`,
+`codex-plugin/bash-limit`,
+`git-policy/cli`,
+`git-policy/cli.fuzz`,
+`ide/app`,
+`jsonc-edit/core-rust.fuzz`,
+`linter/monochromatic-lint.fuzz`,
+`mpm-shadow/cli`,
+`pnpm-shadow/cli`,
+`search-shadow/cli`,
+`wg/cli-quicker-exempt` and `xml-edit/core-rust.fuzz`.
+
+Recommended:
+add one rule for the shape the shadow crates share (`panic = "abort"`) and cover the rest with the existing rules,
+so the comments become true.
+The alternative is to delete the claims and leave these crates free to drift,
+which is less work and protects nothing.
+
+### Should upstream forks keep their own MIT text? (issue 1645)
+
+The rule that writes license files knows no MIT text,
+so the MIT files of the packages under `upstream-fork/` are neither written nor removed by it.
+All carry the same copyright line,
+naming Sindre Sorhus.
+
+Recommended:
+keep one text per package and teach the rule to seed it,
+because a shared text would put that copyright on any other MIT project added later.
+The alternative,
+one shared root `LICENSES/MIT.txt`,
+is simpler and is only correct while every MIT fork has the same author.
+
+### Should 30 packages declare a license? (issue 2994)
+
+30 `package/*/*/package.json` files have no `license` field,
+so no license text is due for them and none ships.
+This is a legal choice about your code,
+and nothing about it can be measured.
+Name a license,
+or say these packages stay undeclared.
+
+### Who owns the repository links in `package.json`? (issue 1124)
+
+221 `package.json` files still link to `github.com/Aquaticat/Monochromatic`,
+and 3 link to the current organization.
+No rule owns those fields since the TypeScript tool went away,
+so they drift.
+
+Recommended:
+add a file-enforcer rule for `repository` and `homepage`,
+matching what it already does for `Cargo.toml`,
+so one run corrects them all and they stay correct.
+The alternative is a single rewrite with nothing to keep it true.
 
 ### Are the three findings left on the stat-data landing worth another round?
 
@@ -1013,6 +1216,23 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T02:08:59-05:00,
+  `search-shadow link` when something else already sits at a tool's name:
+  it leaves the entry in place,
+  names it on stderr and exits 0,
+  because the rest of the run succeeded.
+  It takes over an entry only when the link resolves to this program,
+  resolves to a shadow of any version,
+  or is spelled `.../search-shadow`,
+  the last so an upgrade can replace a link a version prune left dangling.
+  A dangling link named `find` that points elsewhere is left alone.
+  Say "undo" to make a conflict exit non-zero or refuse the whole run.
+- 2026-11-09T02:08:59-05:00,
+  the audit `doc/planning/cli-git-tests-that-pass-without-their-race.md` asked whether its weak controls should get fixed now.
+  They are queued for a fix agent,
+  in test code only,
+  under your "Fix flaky tests properly."
+  Say "undo" to leave it as an audit.
 - 2026-11-08T23:47:13-05:00,
   conclusion record on repositories using the files backend:
   a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),

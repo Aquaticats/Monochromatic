@@ -15,6 +15,13 @@
 #[cfg(unix)]
 pub(crate) mod smart_http_support;
 
+/// Whether the run is moving,
+/// and the clock that ends a run which has stopped,
+/// for the watchdog the first fixture arms;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod run_progress;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]

@@ -44,9 +44,9 @@
 
 pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
 use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StatLookup, StatTrust, StoredStat, rewrite_index_stat_with};
+use crate::subvolume_file_write_steps::write_all_then_sync;
 use crate::subvolume_lock::is_ours;
 use std::ffi::OsStr;
-use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -383,8 +383,7 @@ fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredS
 /// then rename `from` over `to`;
 /// each step runs only if the one before it worked.
 fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &Path) -> std::io::Result<()> {
-    file.write_all(bytes)?;
-    file.sync_all()?;
+    write_all_then_sync(file, bytes)?;
     return std::fs::rename(from, to);
 }
 
@@ -424,8 +423,7 @@ fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// flush it,
 /// and rename `sibling` over `index_path` only while `sibling` still names `staged`.
 fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibling: &Path, index_path: &Path) -> std::io::Result<()> {
-    staged.write_all(bytes)?;
-    staged.sync_all()?;
+    write_all_then_sync(staged, bytes)?;
     let named = std::fs::symlink_metadata(sibling)?;
     let own = staged.metadata()?;
     if named.dev() != own.dev() || named.ino() != own.ino() {

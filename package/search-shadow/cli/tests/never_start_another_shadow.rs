@@ -316,3 +316,31 @@ fn link_does_not_take_the_link_of_another_shadow_version_for_a_real_tool() {
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     assert!(links.join("grep").symlink_metadata().is_err(), "a link was made for a tool whose only candidate is a shadow");
 }
+
+/// An upgrade takes over the links an older copy made:
+/// a link to another shadow version is a shadow link,
+/// so `link` points it at this program instead of leaving it behind.
+#[test]
+fn link_takes_over_a_link_that_points_at_another_shadow_version() {
+    let root = scratch();
+    let (older, links, tools) = (root.path().join("older"), root.path().join("links"), root.path().join("tools"));
+    copy_of_another_version(&older.join("search-shadow"));
+    fs::create_dir_all(&links).expect("make the links folder");
+    // The link an older copy made into the very directory this run is asked to link into.
+    std::os::unix::fs::symlink(older.join("search-shadow"), links.join("grep")).expect("make the older link");
+    write_real_script(&tools, "grep");
+
+    let path_variable: String = format!("{}:{}", tools.display(), older.display());
+    let output = Command::new(SHADOW_EXECUTABLE).arg("link").arg(&links).env_clear().env("PATH", &path_variable).output().expect("run link");
+
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        fs::canonicalize(links.join("grep")).expect("resolve the link"),
+        fs::canonicalize(SHADOW_EXECUTABLE).expect("resolve this program"),
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("alone"),
+        "an upgrade must not leave its own older link behind: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
