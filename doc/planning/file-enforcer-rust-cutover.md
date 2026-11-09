@@ -1156,7 +1156,9 @@ The copy holds no secret:
 
 What the real file holds:
 
-- 60 entries in `export const TOOLS` (the lock also has 60 tools).
+- 60 entries in `export const TOOLS` (the lock also has 60 tools),
+  counted on 2026-10-31,
+  which is one more than the 59 the rewrite record counted two days earlier.
   By route:
   19 `bin-sourced`,
   16 `mpm-pnpm`,

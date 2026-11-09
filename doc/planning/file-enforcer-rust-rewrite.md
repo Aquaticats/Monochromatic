@@ -836,7 +836,9 @@ the user chose "One switch" over two stages (my recommendation).
 
 Asked 2026-10-29 about `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts`
 (mode 0600,
-59 entries);
+59 entries counted that day;
+the cutover doc counts 60 on 2026-10-31,
+one tool later);
 the user answered "Convert,
 you just do it,
 no need for my review."
