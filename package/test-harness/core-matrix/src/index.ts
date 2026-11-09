@@ -39,6 +39,16 @@ export {
 } from './container.ts';
 
 /**
+ The read-only mount that lets any container resolve this checkout's installed packages, for every task in the
+ repository that runs a JavaScript tool against the mounted checkout.
+ */
+export {
+  pnpmStoreDirectory,
+  pnpmStoreMountArguments,
+  STORE_DIRECTORY_FROM_HOME,
+} from './pnpm-store-mount.ts';
+
+/**
  @internal Distro detection and per-manager command builders for
  built-artifact tests; not part of the supported matrix API.
  */
