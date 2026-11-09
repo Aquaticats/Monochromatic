@@ -164,8 +164,9 @@ fn scoped_and_plus_names_are_listed_as_git_lists_them() {
     git(repo.as_path(), &["branch", "a+b"]);
     let refs = Refs::new(repo.join(".git").as_path(), 40);
     let head: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim().to_string();
-    assert_eq!(refs.resolve("refs/tags/@scope/package@1.0.0"), Some(head.clone()), "an annotated scoped tag peels to its commit");
-    assert_eq!(refs.resolve("refs/heads/a+b"), Some(head.clone()), "the branch beside it resolves");
+    let tag: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "refs/tags/@scope/package@1.0.0"]).stdout).expect("UTF-8").trim().to_string();
+    assert_eq!(refs.resolve("refs/tags/@scope/package@1.0.0"), Some(tag), "the scoped tag resolves to the object Git names");
+    assert_eq!(refs.resolve("refs/heads/a+b"), Some(head), "the branch beside it resolves");
     for packed in [false, true] {
         if packed {
             git(repo.as_path(), &["pack-refs", "--all", "--prune"]);

@@ -8,7 +8,7 @@
 //! a symbolic file names another ref;
 //! both are plain text.
 //!  Every spelling the reader is not sure of (a link,
-//! a name outside a plain alphabet,
+//! a name Git itself would refuse,
 //! a damaged value,
 //! a linked
 //!  worktree's split of per-worktree and shared refs) is `Unsure`,
@@ -95,15 +95,33 @@ pub struct Refs {
     hex_length: usize,
 }
 
-/// Whether `name` is a ref name of a plain alphabet:
-/// `refs/` and components of ASCII letters,
-/// digits and `._-`
-/// that Git always accepts.
-pub fn is_plain_ref_name(name: &str) -> bool {
+/// Whether `name` is a ref name Git lists and this reader can spell:
+/// `refs/` followed by components Git's own rule accepts.
+/// Why:
+///   Git's rule is its `refname_disposition` table (`refs.c`,
+/// `check_refname_component`):
+/// every printable byte but space and `*` `:` `?` `[` `\\` `^` `~`,
+/// with `.` refused directly after another `.`,
+/// `{` refused directly after `@`,
+/// a component refused when it is empty,
+/// starts with `.` or ends with `.lock`,
+/// and the whole name refused when it ends with `.`.
+///   This reader takes that rule and keeps declining on the bytes it cannot prove Git lists:
+/// a byte above ASCII,
+/// a control byte and DEL.
+///  A name that is refused here ends the whole listing or the lookup with `Unsure`,
+/// which is the safe direction,
+/// because a ref name the reader answered with the wrong spelling would be a wrong answer where a
+///  decline only costs a Git start.
+///   `@`,
+/// `+`,
+/// `{` and `}` are accepted,
+/// which is what the scoped tags of this repository need (`refs/tags/@monochromatic-dev/...`).
+pub fn is_listable_ref_name(name: &str) -> bool {
     let Some(rest) = name.strip_prefix("refs/") else {
         return false;
     };
-    if rest.is_empty() || rest.ends_with('.') || rest.contains("..") {
+    if rest.is_empty() || rest.ends_with('.') || rest.contains("..") || rest.contains("@{") {
         return false;
     }
     for component in rest.split('/') {
@@ -119,12 +137,17 @@ pub fn is_plain_ref_name(name: &str) -> bool {
 }
 
 /// Whether `byte` may appear in a component of a reference name this reader takes:
-/// a letter,
-/// a digit,
-/// `.`,
-/// `_` or `-`.
+/// every printable ASCII byte but the ones Git forbids in a stored ref name
+/// (`*`,
+/// `:`,
+/// `?`,
+/// `[`,
+/// `\`,
+/// `^` and `~`).
+///   `.` and `{` are handled by their own rules in `is_listable_ref_name`,
+/// and the bytes outside printable ASCII are left to Git.
 fn is_reference_name_byte(byte: u8) -> bool {
-    return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
+    return byte.is_ascii_graphic() && !matches!(byte, b'*' | b':' | b'?' | b'[' | b'\\' | b'^' | b'~');
 }
 
 /// Whether `byte` is a lower-case hexadecimal digit.
@@ -164,7 +187,7 @@ impl Refs {
     fn parse_loose(&self, text: &str) -> Option<RefValue> {
         let line: &str = text.strip_suffix('\n')?;
         if let Some(target) = line.strip_prefix("ref: ") {
-            if is_plain_ref_name(target) {
+            if is_listable_ref_name(target) {
                 return Some(RefValue::Symbolic(target.to_string()));
             }
             return None;
@@ -182,12 +205,14 @@ impl Refs {
     }
 
     /// The packed lines as `(name, object name)`;
-    /// with `skip_unplain` a well-formed line whose name is outside the plain
-    ///  alphabet (a tag like `@scope/package@1.0.0`) is left out instead of making the whole file unreadable.
+    /// with `skip_unplain` a well-formed line whose name Git itself would refuse
+    ///  (a name holding a space, for one) is left out instead of making the whole file unreadable.
     /// Why:
-    /// a lookup of one plain name cannot be answered by a line it leaves out,
-    /// and a repository with scoped tags would
-    ///  otherwise have no branch the in-process reader can resolve.
+    /// a lookup of one name Git accepts cannot be answered by a line Git refuses,
+    /// and a Git that lists refs words a broken packed name on standard error and prints the other
+    ///  refs without it (`ref-filter.c`,
+    /// "ignoring ref with broken name"),
+    /// and the reader leaves the reading of such a listing to Git.
     /// A line with a damaged object name still ends the read.
     fn packed_named(&self, skip_unplain: bool) -> Option<Vec<(String, String)>> {
         let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
@@ -218,7 +243,7 @@ impl Refs {
                 return None;
             }
             after_ref = true;
-            if !is_plain_ref_name(name) {
+            if !is_listable_ref_name(name) {
                 if skip_unplain {
                     continue;
                 }
@@ -239,7 +264,7 @@ impl Refs {
     /// What ref `name` holds,
     /// loose first.
     pub fn lookup(&self, name: &str) -> Lookup {
-        if !is_plain_ref_name(name) {
+        if !is_listable_ref_name(name) {
             return Lookup::Unsure;
         }
         let path: PathBuf = self.directory.join(name);
@@ -290,7 +315,7 @@ impl Refs {
     /// Every ref under `refs/`,
     /// sorted by name,
     /// loose over packed;
-    /// `None` when anything is not plain.
+    /// `None` when a name is one Git refuses or one this reader keeps declining on.
     pub fn list(&self) -> Option<Vec<(String, RefValue)>> {
         let mut found: std::collections::BTreeMap<String, RefValue> = std::collections::BTreeMap::new();
         for (name, object) in self.packed()? {
