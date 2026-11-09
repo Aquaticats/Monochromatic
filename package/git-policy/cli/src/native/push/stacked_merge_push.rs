@@ -127,6 +127,12 @@ fn run_planned(action: Action) -> i32 {
             write_to_standard_error(stderr.as_str());
             return code;
         }
+        Action::ExitBytes { code, stdout, stderr } => {
+            // The report is pathnames as bytes: the exit status carries the result.
+            let _written = std::io::stdout().write_all(stdout.as_slice());
+            write_to_standard_error(stderr.as_str());
+            return code;
+        }
         other => {
             debug(TAG, format!("a merge push planned an action it cannot run: {other:?}").as_str());
             write_to_standard_error("monochromatic-git-policy-cli: the merge push could not be planned; nothing was pushed.\n");

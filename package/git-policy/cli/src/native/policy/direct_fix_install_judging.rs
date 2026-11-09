@@ -147,6 +147,12 @@ pub(crate) fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 ///  and a directory or a device at the name is not either.
 ///  A
 ///       judgement that reads through a link would take the person's link for the fix's own file.
+///  A security
+///       label is left out of the comparison:
+///  the kernel and its policy assign it,
+///  a fix carries one only where
+///       the system allows it,
+///  and it says so where it cannot (`Kept::same_as`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,7 +162,7 @@ pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) 
     let Some((held, carried)) = regular_file(path, step)? else {
         return Ok(false);
     };
-    if carried != *kept {
+    if !carried.same_as(kept) {
         return Ok(false);
     }
     return Ok(held.as_slice() == bytes);
@@ -183,7 +189,7 @@ pub(crate) fn holds_digest(path: &Path, digest: &str, kept: &Kept, step: &str) -
     let Some((held, carried)) = regular_file(path, step)? else {
         return Ok(false);
     };
-    if carried != *kept {
+    if !carried.same_as(kept) {
         return Ok(false);
     }
     return Ok(crate::direct_fix_install_journal::digest_of(held.as_slice()) == digest);
