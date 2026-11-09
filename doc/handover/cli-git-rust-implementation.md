@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:41:17-05:00)
+#### Reviews and landings in progress (2026-11-09T04:42:40-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -183,13 +183,18 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
   its agent reports the first review's findings fixed,
   317 of 317 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-2-sol.txt`) names a reused step number that can get an unrelated process killed,
-  and a failed read taken for the step having ended.
-  Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 3,
-  with `scratch-commit-ceiling-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  and run 3 fixed the second review's findings,
+  with 649 of 649 selected tests passing on top of main.
+  It also reads the branch before the silence message.
+  The third review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-3-sol.txt`) names a path that can still signal a reused process number when a step started with no pidfd,
+  a signal error read as the step having ended,
+  and a commit the branch shows as made still returned as a failure.
+  Round 4 removes that path and fixes the rest,
+  and it is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  behind the merge round:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 4,
+  with `scratch-commit-ceiling-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   One wait stays open for the owner in `questions-for-the-owner.md`:
   a step the kernel holds in uninterruptible sleep.
   Two improvements are proposed and not built:
