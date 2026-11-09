@@ -204,3 +204,8 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
         std::thread::sleep(CONNECT_PAUSE * 4);
     }
 }
+
+/// Controls of the wait and of the repair it asks the manager for stay out of the release executable.
+#[cfg(test)]
+#[path = "service_client_reach_service_tests.rs"]
+mod tests;
