@@ -1134,6 +1134,23 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T02:08:59-05:00,
+  `search-shadow link` when something else already sits at a tool's name:
+  it leaves the entry in place,
+  names it on stderr and exits 0,
+  because the rest of the run succeeded.
+  It takes over an entry only when the link resolves to this program,
+  resolves to a shadow of any version,
+  or is spelled `.../search-shadow`,
+  the last so an upgrade can replace a link a version prune left dangling.
+  A dangling link named `find` that points elsewhere is left alone.
+  Say "undo" to make a conflict exit non-zero or refuse the whole run.
+- 2026-11-09T02:08:59-05:00,
+  the audit `doc/planning/cli-git-tests-that-pass-without-their-race.md` asked whether its weak controls should get fixed now.
+  They are queued for a fix agent,
+  in test code only,
+  under your "Fix flaky tests properly."
+  Say "undo" to leave it as an audit.
 - 2026-11-08T23:47:13-05:00,
   conclusion record on repositories using the files backend:
   a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),

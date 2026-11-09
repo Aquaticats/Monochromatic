@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:04:23-05:00)
+#### Reviews and landings in progress (2026-11-09T02:07:53-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -217,6 +217,20 @@ The old tree kept for the rollback stays until the owner deletes it.
   resume the run `service-work-items-keep-non-utf8-paths` as run 2,
   with `service-work-items-path-bytes-round-2-prompt.md` and the session file named in run 1's `summary.json`.
   Issue 6005 is commented on or closed after it lands.
+- `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
+  its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
+  among them an interrupted upgrade that leaves every command reaching the old service,
+  and a launcher that clears its environment and so defeats both recursion guards.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `entry-and-service-findings-fixed` as run 2,
+  with `entry-and-service-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+- `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start a run with `tests-that-pass-without-their-race-fixed-prompt.md`,
+  branch `fix/git-policy-cli-controls-witness-their-race-by-ordering`.
 - `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
