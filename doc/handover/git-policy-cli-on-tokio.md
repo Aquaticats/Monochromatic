@@ -1103,8 +1103,8 @@
   and the reconcile resolves a conflicted merge through `merge/`,
   whose only seam to Git is a synchronous trait method
   (`GitRunner::run`,
-  `merge/merge_second_pass_git_runner.rs:35`) taken by nine
-  functions across 14,916 lines.
+  `merge/merge_second_pass_git_runner.rs:35`) taken by seven
+  functions across 9,381 lines of source.
   The plan records the two ways out and what each costs the typed `git merge`
   path;
   the owner decides between them.

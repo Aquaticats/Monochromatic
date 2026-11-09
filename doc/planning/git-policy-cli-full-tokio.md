@@ -7193,17 +7193,17 @@ The wording of a refusal:
     and the reconcile's `PushRunner`
     (`push/auto_push_reconcile_merge_commit.rs:91`) implements it with
     `run_bounded_git`.
-    Nine functions take `&dyn GitRunner`
+    Seven functions take `&dyn GitRunner`
     (`second_pass`,
     `merge_attributes`,
     `read_blobs`,
     `write_blob`,
-    `tree_with_files` and `install`,
-    plus `resolve_tree` and its two helpers),
-    and the folder that holds them is 14,916 lines
-    (`merge/`),
-    of which `merge_second_pass_worktree.rs` also serves a person's
-    own `git merge`.
+    `tree_with_files`,
+    `resolve_tree` and `install`),
+    and the folder that holds them is 9,381 lines of source,
+    14,916 with its controls (`merge/`),
+    of which `merge_second_pass_worktree.rs` also serves a person's own
+    `git merge`.
   - So the reconcile is not "about a dozen functions in six files":
     awaiting it means the second pass's runner hands back a future,
     and
@@ -7275,7 +7275,8 @@ The wording of a refusal:
     `push::auto_push_destination` 7 of 7,
     `lfs::` 71 of 71 (and `lfs::lfs_upload` 13 of 13 after the pool change),
     `push::auto_push` 165 of 165.
-  - `native:clippy` clean after the last commit,
+  - `native:clippy` clean at the last commit of this run's own work
+    (`021afd91dc`).
     and `//package/git-policy/cli:lint` 0 errors and 0 warnings on the folders
     this run touched
     (`landing/maintenance_run.rs`,
@@ -7286,6 +7287,14 @@ The wording of a refusal:
     `push/auto_push_destination_tests.rs`,
     `lfs/`),
     after `format:monochromatic-lint` wrote the breaks it asked for.
+    At the merged tip `native:clippy` reports one finding this run does not
+    touch:
+    `foundation/lazy_runtime.rs:434` is "manual implementation of
+    `Option::map`",
+    and that file's last change is main's `6e27b3add3`
+    (`style(git-policy-cli): lint at zero on main`).
+    It was left alone rather than fixed here,
+    because another branch owns that file.
     The package-wide `//package/git-policy/cli:lint` is not clean on this base
     and was not made clean here:
     `worktree_copying/worktree_copy_stage_claim_reaping.rs` is over the
@@ -7310,14 +7319,19 @@ The wording of a refusal:
     `service::service_review::tests::a_silent_gateway_ends_the_review_when_it_has_been_silent_for_the_quiet_window`,
     took 22.4 s and is the recorded shape of a time window a loaded host
     reaches.
-    At the merged tip the same suite was run again and
-    `source_guard` is 46 of 47:
-    `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`
-    reports `commit/commit_prepare_part_durations.rs` as a lock outside the
-    inventory,
-    and that file's last change is main's `e6a69463ed`,
-    so it came
-    with the merge and not with this run.
+    At the merged tip the same suite was run again:
+    5816 run,
+    5815 passed (one slow),
+    1 failed,
+    14 skipped.
+    The one failure is
+    `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`,
+    which reports `commit/commit_prepare_part_durations.rs` as a lock outside
+    the inventory;
+    that file's last change is main's `e6a69463ed`,
+    so it came with the merge and not with this run.
+    `source_guard` is 46 of 47 for that reason,
+    and every other selection of the merged tip passed.
   - Not run:
     `native:test:binary:host`,
     the container gate
