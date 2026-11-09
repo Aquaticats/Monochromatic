@@ -150,6 +150,34 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 }
 
 /// What:
+///  Promotes the held pushes of earlier commands,
+/// whose post-commit gate never decided because their process died.
+/// Why:
+///   A held record is drained by nothing.
+/// The next command in the worktree can finish what a killed one started,
+/// and it
+///  leaves its own record alone:
+/// its gate is still deciding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// promoteStrandedPushes(handoff, landed)
+/// ```
+pub fn promote_stranded_pushes(handoff: &ServiceHandoff, landed: &str) {
+    let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
+    let mine: String = push_item(handoff, landed).id();
+    let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
+        return;
+    };
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name != mine && crate::work_item::promote(work_dir.as_path(), name.as_str()) {
+            crate::service_log!("promoted the push record {name}, whose command never finished its gate");
+        }
+    }
+}
+
+/// What:
 ///  Takes the push record back when the post-commit gate blocks the backup.
 /// Why:
 ///   A blocked gate keeps the commit local,

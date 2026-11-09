@@ -21,7 +21,7 @@
 //! ```
 use crate::commit_timing::CommitTiming;
 use crate::service_commit::{ServiceCommit, service_commit};
-use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
+use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_stranded_pushes, promote_the_push};
 use crate::service_messages::render;
 use crate::commit_transaction::{CommitInvocation, TransactionStop};
 use crate::config_schema::CliGitConfig;
@@ -260,6 +260,9 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
     //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.
 
+    // A push whose command died between the service's answer and its gate waits in the queue's held state, which nothing drains: this
+    //  command is the next one in the worktree, so it makes those runnable. Its own record is left to its own gate.
+    promote_stranded_pushes(handoff, landed);
     let gating: Instant = Instant::now();
     let gate = run_post_commit_gate(&request);
     timing.gate += gating.elapsed();

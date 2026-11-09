@@ -19,7 +19,7 @@
 //! ```
 
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::work_item::{HELD, PENDING, WorkItem, state_directory};
+use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, state_directory};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -65,10 +65,67 @@ pub fn hold(work_dir: &Path, item: &WorkItem) -> Result<(), String> {
 /// promote(workDir, id) // rename held/<id> to pending/<id>
 /// ```
 pub fn promote(work_dir: &Path, id: &str) -> bool {
-    if create_private_directory_all(state_directory(work_dir, PENDING).as_path()).is_err() {
+    if !create_states(work_dir) {
         return false;
     }
     return std::fs::rename(state_directory(work_dir, HELD).join(id), state_directory(work_dir, PENDING).join(id)).is_ok();
+}
+
+/// What:
+///  Creates every state directory a claimed item passes through.
+/// Why:
+///   A claim moves an item into `recovering` and then into `claimed`,
+/// and its settlement into `done` or `failed`;
+/// a
+///  worktree whose first record was held has none of them,
+/// so a promotion that made only `pending` would leave an approved
+///  push that no consumer can ever claim.
+/// The set is the one `enqueue_all` makes,
+/// because both are the queue's own directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// createStates(workDir) // pending, claimed, done, failed, recovering
+/// ```
+fn create_states(work_dir: &Path) -> bool {
+    for state in [PENDING, HELD, CLAIMED, DONE, FAILED, RECOVERING] {
+        if create_private_directory_all(state_directory(work_dir, state).as_path()).is_err() {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Makes every held record of a worktree runnable,
+/// and gives how many there were.
+/// Why:
+///   A held record is a push whose command died before its post-commit gate decided,
+/// and nothing drains it.
+/// A
+///  service start and the next command in the worktree are the moments when no gate of a killed command is
+///  still deciding,
+/// so an approved or abandoned push is never stranded.
+/// A record whose gate is still running in a living
+///  command is rare and is overtaken here,
+/// which is the price of never stranding one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// promoteHeld(workDir) // the count promoted
+/// ```
+pub fn promote_held(work_dir: &Path) -> usize {
+    let Ok(listing) = std::fs::read_dir(state_directory(work_dir, HELD)) else {
+        return 0;
+    };
+    let mut promoted: usize = 0;
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if promote(work_dir, name.as_str()) {
+            promoted += 1;
+        }
+    }
+    return promoted;
 }
 
 /// Forgets a held item whose producer refused it;
