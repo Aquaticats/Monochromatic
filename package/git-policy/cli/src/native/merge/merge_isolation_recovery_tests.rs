@@ -130,6 +130,47 @@ fn directory_to_file_world(name: &str) -> World {
 }
 
 /// What:
+///  A repository where the branch holds `dir/sub/child.txt` and the merge deletes it and adds a file named `dir`,
+///  with the merge commit ready and nothing of it
+///  in the checkout.
+/// Why:
+///  The tree diff of that merge names the deleted file and no entry for `dir/sub`,
+/// so a check of the directory's
+///  immediate children needs the whole subtree to judge it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repository(...); write('dir/sub/child.txt'); commit(); /* feature: rm dir/sub/child.txt, write file 'dir' */ const merge = mergeTreeCommit(...);
+/// ```
+fn nested_directory_to_file_world(name: &str) -> World {
+    let parent: PathBuf = fixture(name);
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::create_dir_all(repo.join("dir/sub")).expect("directory");
+    std::fs::write(repo.join("dir/sub/child.txt"), b"child base\n").expect("file");
+    std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "dir/sub/child.txt", "h.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    // `git rm` prunes the emptied directories, so the path is free for a file.
+    git(repo.as_path(), &["rm", "--quiet", "--", "dir/sub/child.txt"]);
+    std::fs::write(repo.join("dir"), b"the merge's file\n").expect("a file where the directory stood");
+    git(repo.as_path(), &["add", "--", "dir"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let new_oid: String = git_text(
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    );
+    let git_dir: PathBuf = repo.join(".git");
+    return World { parent, repo, git_dir, old_oid, new_oid };
+}
+
+/// What:
 ///  A repository whose merge changes exactly one path,
 ///  `f.txt`,
 ///  with the merge commit ready and nothing of it in the checkout.
@@ -2406,6 +2447,42 @@ fn a_saved_merge_that_replaces_a_symlink_finishes() {
         b"payload\n",
         "the file the link pointed at is untouched"
     );
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A saved merge that replaces a directory holding only nested tracked files it deletes finishes.
+/// Why:
+///  The directory was judged by its immediate children compared with the tree diff,
+/// and that diff names the
+///  deleted file `dir/sub/child.txt` and never `dir/sub`,
+/// so a directory of the branch's own files was read as someone
+///  else's and the saved merge could never finish
+///  (a cross-vendor review of the ninth round,
+/// its eighth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = nestedDirectoryToFileWorld(); const record = deferredRecord(); const outcomes = await recover(...); expect(outcomes[0].action).toBe('completed'); expect(read('dir')).toEqual("the merge's file\n"); expect(exists('dir/sub')).toBe(false);
+/// ```
+#[test]
+fn a_saved_merge_that_replaces_a_nested_directory_finishes() {
+    let world: World = nested_directory_to_file_world("merge-recovery-nested-directory");
+    let record: PathBuf = deferred_record_of(&world, "52525252-0000-4000-8000-000000000052", "refs/cli-git/kept/52");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch names the merge");
+    assert_eq!(
+        std::fs::read(world.repo.join("dir")).expect("the merge's file"),
+        b"the merge's file\n",
+        "the merge's file stands where the branch's directory stood"
+    );
+    assert!(!world.repo.join("dir/sub").exists(), "the emptied directories of the branch's files are pruned");
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
     assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
     remove(world.parent.as_path());
