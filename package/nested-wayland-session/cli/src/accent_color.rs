@@ -4,9 +4,9 @@
 //! The portal wants three doubles between 0 and 1,
 //!  so the conversion lives here with the parser.
 
-/// The channel count and width of the textual form,
-///  `RRGGBB`.
-const HEX_DIGITS: usize = 6;
+/// Characters of the textual form `RRGGBB`,
+///  two digits for each of the three channels the portal serves.
+const RRGGBB_DIGITS: usize = 6;
 
 /// The largest value of one 8-bit channel,
 ///  the divisor that maps a channel into 0 to 1.
@@ -68,7 +68,7 @@ impl AccentColor {
     ///       A `#` prefix or a short form would be a second spelling of the same color,
     ///  and the control verb must refuse what the startup option refuses.
     pub fn parse(text: &str) -> Result<Self, String> {
-        if text.len() != HEX_DIGITS || !text.bytes().all(is_hex_byte) {
+        if text.len() != RRGGBB_DIGITS || !text.bytes().all(is_hex_byte) {
             return Err(refusal(text));
         }
         return Ok(Self {
