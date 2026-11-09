@@ -429,21 +429,36 @@ The old tree kept for the rollback stays until the owner deletes it.
   which main has worse because it always deletes,
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
-  Run 2 of its agent reports them fixed,
-  Run 3 fixed the second review's findings,
-  710 of 710 tests pass on top of main,
-  and the third review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`) names four smaller defects in the same prune,
-  among them a recursive removal that can take a version just installed.
-  A small round 4 is meant to be the last before this branch lands.
-  It waits for a free agent slot,
-  behind the merge and commit-ceiling rounds:
-  resume the run `mpm-shadow-open-issues` as run 4,
-  with `mpm-shadow-round-4-prompt.md` and the session file named in run 3's `summary.json`.
-  Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
-  By its own report the agent ran its cargo commands outside the required resource limits,
-  and that listing installed `1.79.0` in the real rustup home before the guard existed,
-  which it uninstalled.
-  `1.99.0` also appeared there during the round and no step it reports installed it.
+  Run 2 of its agent reports the first review's findings fixed,
+  run 3 fixed the second review's,
+  and run 4 fixed the four of the third
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`),
+  all in the prune:
+  `78a3967387` removes a crate directory with `remove_dir`,
+  so a version another run installed after the scan is not carried away with it;
+  `19d9fb19ff` repoints an archive's `current` before its old versions go,
+  as the cargo route already did;
+  `afa323c042` removes a crate's `current` link before its versions when no lock names the crate,
+  and still leaves a link that only forwards to the other root alone;
+  `554079b3d9` restates any failure that follows a deletion with what was already removed,
+  instead of the scan's fixed `nothing was deleted`.
+  The fifth finding,
+  a lock another command replaces between this run's read and its deletions,
+  stays as it is under the owner's instruction,
+  and `8beb0b8529` says so beside the prune's rules in the package README,
+  with the fact that a version arriving after the scan is never in the plan.
+  715 of 715 tests and Clippy pass on top of main (`0d77dbaa99`),
+  and every cargo command ran inside `systemd-run --user --scope`.
+  One suite run under load average 86 failed two `never_start_another_shadow` tests on their five-second
+  bound;
+  both pass alone in under a quarter of a second.
+  Open:
+  a row naming a bare `nightly` with a dated version text still reads `ok`,
+  the tag characters `+`,
+  `#` and `/` were never tested against a real release tag,
+  the `packageId` requirement on `cargo-git` rows waits for the owner,
+  and the issue comments for 2623,
+  3511 and 3512 wait for this branch to land.
   `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
   before that,
   a branch outside the wrapper got an empty review.
