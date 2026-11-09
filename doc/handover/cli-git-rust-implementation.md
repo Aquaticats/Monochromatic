@@ -7213,6 +7213,21 @@ No verdict is claimed about which control the reported run failed,
 because the recorded control reads its list only after joining the holder,
 which cannot happen unless the wait did say a line.
 
+The whole host suite on that branch (2026-11-08T23:26:23-05:00,
+`mise run //package/git-policy/cli:native:test:host`)
+ran 4028 of 4812 tests and 4023 passed;
+the five failures are all of `subvolume::`,
+`subvolume_btrfs_tests::a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange`
+and four of `subvolume_migrate::tests`,
+each aborted by the run's own watchdog between 122.3 and 149.7 s.
+That module is not touched by the branch,
+and its controls are the family this record already calls slow on this host
+("Two lock controls claim their endings", and the btrfs measurement under it).
+The 784 tests the run then stopped include the 709 of
+`testing::`, `transaction::`, `worktree::` and `worktree_copying::`,
+which passed when run on their own,
+and 75 inside `subvolume::` itself, which that run did not reach.
+
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
   `5083511eed` was merged into it,
