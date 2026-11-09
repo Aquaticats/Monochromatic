@@ -357,4 +357,10 @@ but the worktree stays unfilled.
 Commits:
 `87dbe215b0` (the bytes),
 `91ef3e7485` and `389919c65c` (the records' controls and
-the corrected hexadecimal comparison).
+the corrected hexadecimal comparison),
+`53394e2d59` (this record),
+`c30f6367e3`,
+`b60f909509` and `cd84905dfd` (the linter's prose breaks,
+the path vocabulary's own module and the list writer's loops).
+`monochromatic-lint --max-warnings 0` over the changed paths reports nothing,
+and `cargo nextest run --lib -E 'test(worktree_copying)'` on this branch is 320 of 320 in 169 s.
