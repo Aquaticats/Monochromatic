@@ -21,7 +21,7 @@
 //! ```
 
 use crate::index_lock_evidence::{
-    Verdict, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    Verdict, WaitEnd, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
     ceiling_line, blocker_words, unproven_removal_advice, holder_way_out,
 };
 use crate::index_lock_holders::scan_platform_holders_bounded;
@@ -56,6 +56,11 @@ fn earlier_commit_line(earlier_seconds: u64) -> String {
 
 /// What the diagnostic of a dead owner says becomes of the commit that was waiting.
 const COMMIT_NOT_MADE: &str = "this commit was not made";
+
+/// What the notice of a wait for a held lock says becomes of the commit when the wait reaches its ceiling,
+/// where the commit is withdrawn rather than run into Git's refusal the way a merge is:
+/// the ceiling's own line (`ceiling_line`) gives the full account.
+pub const COMMIT_WITHDRAWN: &str = "this commit is withdrawn and its change stays uncommitted";
 
 /// What one look at a held lock proved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -103,7 +108,7 @@ struct Looked {
 /// its notice line for the person,
 /// its words,
 /// and the diagnostic for a look that ends the wait.
-fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
+fn look_at_holder(index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
     let gathered = gather_with(index, resolve_process_start, scan_platform_holders_bounded);
     let evidence = match gathered {
         Ok(Some(found)) => found,
@@ -111,18 +116,20 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
         Ok(None) => return Looked { blocker: String::new(), proved: Proved::Gone, line: None, who: None, open: None, ending: None, way_out: None },
         Err(_) => {
             let lock: std::path::PathBuf = crate::service_index_lock::lock_path_of(index);
-            return Looked { blocker: String::from("an owner whose evidence could not be read"), proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None)), who: None, open: None, ending: None, way_out: None };
+            let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: COMMIT_WITHDRAWN };
+            return Looked { blocker: String::from("an owner whose evidence could not be read"), proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None, end)), who: None, open: None, ending: None, way_out: None };
         }
     };
+    let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: COMMIT_WITHDRAWN };
     // The processes the scan saw with the lock open are the one source of `open_by`: the scan is made once, and bounded in time.
     let open: Option<String> = open_by_text(evidence.holders.as_ref());
     return match classify_index_lock(&evidence) {
         Verdict::ProvenAlive { pid, by_descriptor, command } => {
             let way_out: String = holder_way_out(pid, command.as_deref());
             let line: String = if first {
-                proven_holder_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path())
+                proven_holder_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), end)
             } else {
-                proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs())
+                proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), end)
             };
             Looked { blocker: blocker_words(&evidence), proved: Proved::Alive, line: Some(format!("{line}{way_out}")), who: Some(holder_words(pid, command.as_deref())), open, ending: None, way_out: Some(way_out) }
         }
@@ -138,7 +145,7 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
         Verdict::EvidenceFree => Looked {
             blocker: blocker_words(&evidence),
             proved: Proved::Nothing,
-            line: Some(unproven_wait_line(evidence.lock_path.as_path(), Some(&evidence))),
+            line: Some(unproven_wait_line(evidence.lock_path.as_path(), Some(&evidence), end)),
             who: None,
             open,
             ending: None,
@@ -241,7 +248,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
         let at_ceiling: bool = already_waited.is_some() || waited >= ceiling;
-        let mut looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
+        let mut looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
         if let Some((words, who)) = left_stale {
             // The notice is the person's way to the lock; the holder is named from the marker, not from a process scan.
             looked.line = Some(words);

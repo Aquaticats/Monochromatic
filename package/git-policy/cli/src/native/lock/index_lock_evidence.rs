@@ -32,6 +32,8 @@ use crate::index_lock_holder_words::partial_summary;
 use crate::recovery_files::lock_pid_path;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// How long a span lasts.
+use std::time::Duration;
 
 /// Longest PID file text quoted in evidence,
 ///  in UTF-16 code units for ASCII text.
@@ -438,26 +440,53 @@ fn holder_name(pid: i64, command: Option<&str>) -> String {
 }
 
 /// What:
+///  The end of a wait,
+/// as a notice line about it says it:
+/// the longest the wait lasts,
+/// and what becomes of the command when that time is up.
+/// Why:
+///   The owner's rule is that nothing waits for ever (2026-11-03:
+/// "nothing should ever wait forever or
+///  indefinitely"),
+/// so a line that describes a wait says when the wait ends and what happens then;
+/// the ceiling comes from the constant
+///  the wait itself runs on,
+/// so the line and the wait cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface WaitEnd { within: Duration; ending: string }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct WaitEnd<'a> {
+    /// The longest the wait lasts.
+    pub within: Duration,
+    /// What becomes of the command when that time is up.
+    pub ending: &'a str,
+}
+
+/// What:
 ///  The one standard-error line naming a proven-alive holder.
 /// Why:
 ///   `provenHolderLine`:
 ///  the person learns what the wait is for and which process holds the lock;
-/// a holder proven alive
-///  will let go,
-/// so this line names no time at which the wait ends;
-/// the ceiling's own line does (`ceiling_line`).
+/// the line names the end of the wait
+///  as well,
+/// because a holder proven alive is waited for until `end.within` and not for as long as it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenHolderLine({ verdict, lockPath }): string;
+/// function provenHolderLine({ verdict, lockPath, end }): string;
 /// ```
-pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path) -> String {
+pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, end: WaitEnd<'_>) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "monochromatic-git-policy-cli: waiting for {}, which holds {} (proven by {proof}); this waits for as long as that process holds the lock \
-         and leaves the lock in place.\n",
+        "monochromatic-git-policy-cli: waiting for {}, which holds {} (proven by {proof}); this waits until that process lets go, for at most {} seconds; \
+         after that, {}, and the lock is left in place.\n",
         holder_name(pid, command),
-        lock_path.display()
+        lock_path.display(),
+        end.within.as_secs(),
+        end.ending
     );
 }
 
@@ -467,19 +496,23 @@ pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, 
 ///   Each repeat names the holder,
 /// the proof and how long the wait has lasted,
 /// so a reader of the last line alone knows what
-///  is going on.
+///  is going on,
+/// and the repeat names the end of the wait too,
+/// so the last line alone also says how long the wait can last and what happens then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenHolderProgressLine({ verdict, lockPath, waitedSeconds }): string;
+/// function provenHolderProgressLine({ verdict, lockPath, waitedSeconds, end }): string;
 /// ```
-pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, waited_seconds: u64) -> String {
+pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, waited_seconds: u64, end: WaitEnd<'_>) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "monochromatic-git-policy-cli: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; this waits for as \
-         long as that process holds the lock and leaves the lock in place.\n",
+        "monochromatic-git-policy-cli: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; this waits until that process \
+         lets go, for at most {} seconds in all; after that, {}, and the lock is left in place.\n",
         holder_name(pid, command),
-        lock_path.display()
+        lock_path.display(),
+        end.within.as_secs(),
+        end.ending
     );
 }
 
@@ -506,6 +539,8 @@ fn evidence_words(evidence: &Evidence) -> String {
 /// What:
 ///  The line that says a lock's owner cannot be proven alive,
 /// what is known about it,
+/// how long the wait lasts,
+/// what becomes of the command then,
 /// and what a person can do.
 /// Why:
 ///   An owner nothing proves alive is waited for like one proven alive,
@@ -519,17 +554,19 @@ fn evidence_words(evidence: &Evidence) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unprovenWaitLine({ lockPath, evidence }): string;
+/// function unprovenWaitLine({ lockPath, evidence, end }): string;
 /// ```
-pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> String {
+pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>, end: WaitEnd<'_>) -> String {
     let known: String = match evidence {
         Some(found) => format!(" ({})", evidence_words(found)),
         None => String::from(" (the evidence about its owner could not be read)"),
     };
     return format!(
-        "monochromatic-git-policy-cli: waiting for {lock}, whose owner cannot be proven alive{known}; this waits for as long as the lock stays there. \
-         If no program is using this repository, the lock was left by a program that was killed, and removing the file {lock} \
+        "monochromatic-git-policy-cli: waiting for {lock}, whose owner cannot be proven alive{known}; this waits until the lock goes, for at most {} seconds; \
+         after that, {}. If no program is using this repository, the lock was left by a program that was killed, and removing the file {lock} \
          lets the command run.\n",
+        end.within.as_secs(),
+        end.ending,
         lock = lock_path.display()
     );
 }
