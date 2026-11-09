@@ -6984,7 +6984,9 @@ Options that select the whole index (`--all`,
 
 #### The commit's scratch directory
 
-The commit's scratch directory holds the private indexes and,
+The commit's scratch directory holds the private indexes,
+the marker that names the command that made it,
+and,
 when real Git must build the commit,
 the scratch repository.
 It is made at
@@ -6993,7 +6995,9 @@ inside the repository scratch directory,
 and never in the worktree's own Git directory as releases before this one made it.
 Code:
 `src/native/foundation/scratch_location.rs`,
-`src/native/landing/service_prepare_ready_shapes.rs`.
+`src/native/landing/service_prepare_ready_shapes.rs`,
+`src/native/landing/service_scratch_abandonment.rs`,
+`src/native/landing/service_scratch_renewal.rs`.
 
 Why there:
 a command killed at any instruction,
@@ -7020,17 +7024,45 @@ and how long anyone waits:
 - A command killed before it could remove its tree,
   and a tree whose removal did not finish,
   wait for a later command.
-  The directory is inside the repository scratch directory,
-  so a later command's preparation removes it once it is older than
-  `COMMIT_SCRATCH_TREE_ABANDONED_AFTER` (two hours,
+  Two things there decide,
+  and neither of them is age alone:
+  the tree carries a file `owner`,
+  written as the tree is made,
+  which names this command's own process and that process's birth identity
+  in the marker format the index lock uses
+  (`service_index_marker.rs`,
+  `service_index_identity.rs`);
+  a later command's preparation reads it and removes the tree at once when `/proc`
+  proves that process is gone,
+  and leaves it alone while that process lives,
+  **however old the tree is**:
+  a commit can hold its tree for as long as a person leaves an editor open in it,
+  because the step that runs real Git in the scratch repository is unwatched and unbounded.
+  A tree with no marker at all is one a release before this one made,
+  or one a command was killed in between making and marking;
+  that one goes once it is older than
+  `UNMARKED_SCRATCH_TREE_AGE` (two hours,
   six times the longest wait a commit can have),
-  at most `COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) per command,
   and the sweep removes whatever is older than `SCRATCH_STALE_AFTER` (a day) whatever its number.
+  A marker that cannot be written,
+  and a `/proc` that cannot answer,
+  leave the tree to the age rule and a line in the debug log,
+  so a commit never fails over either.
   That is what bounds the trees a kill leaves:
   one tree of about 9 MiB per killed command,
-  no older than two hours,
-  and eight removed per command,
+  gone at the next command instead of after two hours,
+  and at most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) removed per command,
   which holds whether or not a service ever held them.
+- A tree a command still holds is kept fresh while that command lives:
+  `ScratchRenewal` sets the tree's modification time to now every `SCRATCH_REFRESH_EVERY`
+  (a twenty-fourth of a day,
+  so a sweep finds a live tree at most an hour old),
+  and it stops when the command lets the tree go,
+  by an answer,
+  a stop or a panic,
+  and with the process when the command is killed.
+  So the age a sweep sees is the liveness of the command that made the tree,
+  not how long its work takes.
 - Every removal of a scratch entry runs on a thread of its own and stops being waited for at
   `SCRATCH_REMOVAL_CEILING` (thirty seconds,
   twelve times the slowest single `unlinkat` the timing record holds),
@@ -7045,11 +7077,22 @@ the tree goes into the worktree's Git directory,
 where nothing sweeps it,
 and the debug log says so.
 
+A cleanup a request carries,
+which names the directory of a commit built elsewhere,
+is refused at the decoder unless it is exactly one of those two places,
+holding the wrapper's prefix and an identity of letters,
+digits and dashes,
+with no relative part that could lead elsewhere
+(`is_scratch_path`,
+`service_protocol_messages_and_name_checks.rs`),
+so no request can ask the service to remove a directory the wrapper did not make.
+
 A service of an earlier release refuses an announcement of a place it does not know,
 and the client does not read that refusal,
 because a service that takes the announcement answers nothing at all and reading for an answer would put a wait on every
 commit.
-Such a tree waits for the abandonment age instead of being removed at once,
+Such a tree carries no marker,
+so it waits for the age a tree without one has to reach instead of being removed at once,
 which costs one tree of about 9 MiB per worktree for two hours while an installation switches releases:
 the next commit retires the service of the other release and starts this one.
 

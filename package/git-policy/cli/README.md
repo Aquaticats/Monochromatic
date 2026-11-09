@@ -3215,14 +3215,20 @@ A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` i
  the commit service removes it when the command's connection closes,
 however the command ends,
 and a command that no service took the tree from removes it itself as it ends,
-while a tree a kill left goes to the next command's preparation once it is two hours old.
+while a tree a kill left goes to the next command's preparation at once.
+That tree names the process that made it in a file `owner`,
+so a later command removes it when that process is gone and leaves it alone while that process lives,
+however old the tree is;
+a tree carrying no such marker,
+which a release before this one made,
+goes once it is two hours old.
 Nothing in a commit waits for that removal:
  it happens beside the landing loop,
 bounded by `SCRATCH_REMOVAL_CEILING` (thirty seconds),
  so a device that stalls costs a partial removal and a line in the service journal,
 never a slow commit.
-The trees a machine makes while no service answers are bounded by that age (about 9 MiB each,
-no older than two hours)
+The trees a machine makes while no service answers are bounded by that rule (about 9 MiB each,
+removed by the next command)
  and by at most eight removed per command;
  the sweep removes whatever is a day old whatever its number.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
