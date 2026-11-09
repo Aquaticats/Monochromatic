@@ -5118,6 +5118,13 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  The connection that carries the beats is accepted before the recovery of the batch an earlier service left open,
+  so a service that is recovering still greets and still beats,
+  and nothing is landed before that recovery is over because only the landing thread lands and it reads the queue after it
+  (finding C of the audit `commit-kills-and-concurrency`,
+  2026-11-09:
+  every client exited 1 after about 5.5 s with "not known whether the commit was made"
+  while the recovering service landed their commits).
   After a commit was prepared,
   that failure reads the branch once (`git merge-base --is-ancestor <prepared> <reference>`)
   and states what it shows:
