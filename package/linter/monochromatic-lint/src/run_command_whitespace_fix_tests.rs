@@ -349,7 +349,7 @@ fn real_tree_keeps_every_token_and_block_structure_under_the_whitespace_rule() {
     let names: Vec<String> = String::from_utf8(listing.stdout)
         .expect("tracked names are text")
         .split('\0')
-        .filter(|name| !name.is_empty())
+        .filter(|name| return !name.is_empty())
         .map(String::from)
         .collect::<Vec<String>>();
     assert!(!names.is_empty(), "{root} lists no Markdown or Rust file");
