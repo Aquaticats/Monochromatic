@@ -173,7 +173,9 @@ The built token must hold only characters a part of a file name can carry,
 and the journal and temporary names built around it must give it back.
 Any accepted token must have a positive PID and a non-empty birth identity,
 and must parse back to itself after being restated.
-Any text read as a journal or temporary name must end in its suffix and give a token without a dot.
+Any text read as a journal or temporary name must end in its suffix and give a non-empty token without a dot;
+a journal is read through its path's last component,
+so a text ending with a separator names the component before it.
 A transaction owner record is parsed as written
 and restated;
 an accepted one must have a positive safe PID and a non-empty identity.
