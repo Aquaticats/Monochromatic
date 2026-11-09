@@ -8,13 +8,14 @@
 
 use super::*;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_with};
+use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_awaiting, refresh_all_indexes_with};
 use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place, may_run_all_at_once};
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 /// How many linked worktrees the checkout of these controls has;
 /// the checkout's own index makes one more.
@@ -314,4 +315,63 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
         "the report must say either that no rewrite could start or that its result is not known: {said}"
     );
     remove(parent.as_path());
+}
+
+/// How long the control of the preparation waits for the refresh to give up on its own.
+/// The refresh's own timeout is `REFRESH_STOP_BY`, far below this, so only a runtime blocked before the first
+/// await can make this wait run out.
+const PREPARATION_STOP_BY: Duration = Duration::from_secs(5);
+
+/// The timeout the control puts around the refresh itself: a preparation read that hangs must not outlast it.
+const REFRESH_STOP_BY: Duration = Duration::from_millis(200);
+
+/// What:
+///  A refresh whose preparation read hangs gives up in bounded time,
+///  because that read is a job of the blocking pool and never runs on the thread that polls the runtime.
+/// Why:
+///  The first thing `refresh_all_indexes_awaiting` reads is the repository's configuration, with a synchronous
+/// `std::fs::read` (`subvolume_index_files::repository_hash_length`).
+/// Opening a named pipe with no writer blocks until one comes,
+///  so on the runtime's own thread the future never reaches an await, no timeout can expire, and every other task
+/// of that runtime stops with it ("nothing should ever wait forever").
+#[test]
+fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires() {
+    let (parent, root) = checkout_with_linked("index-preparation-hangs");
+    let config: PathBuf = root.join(".git").join("config");
+    let kept: PathBuf = root.join(".git").join("config.kept");
+    std::fs::rename(&config, &kept).expect("the configuration is kept");
+    let named = std::ffi::CString::new(config.to_str().expect("UTF-8")).expect("no NUL");
+    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode, and touches no memory.
+    assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "the named pipe at the configuration");
+    let request: AllIndexes =
+        AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, rewrite: Arc::new(refresh_index_file_with) };
+    let (told, heard) = std::sync::mpsc::channel::<&'static str>();
+    let refresh = std::thread::spawn(move || {
+        // A runtime of its own, so a thread this control hangs cannot take the suite with it.
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+        let ended = runtime.block_on(async move {
+            let mut sink: Vec<String> = Vec::new();
+            let outcome = tokio::time::timeout(REFRESH_STOP_BY, refresh_all_indexes_awaiting(&request, &mut sink)).await;
+            return match outcome {
+                Ok(Ok(_count)) => "the refresh finished",
+                Ok(Err(refused)) => if format!("{refused}").is_empty() { "the refresh failed" } else { "the refresh failed" },
+                Err(_elapsed) => "the refresh gave up",
+            };
+        });
+        let _told = told.send(ended);
+        // The runtime keeps its blocking pool until it is dropped, and one job may still be opening the pipe.
+        std::mem::forget(runtime);
+    });
+    let said: Result<&'static str, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(PREPARATION_STOP_BY);
+    // A writer that closes at once gives the blocked read an empty file, so `std::fs::read` ends and the thread can be
+    //  joined however the control ends.
+    let released = std::fs::OpenOptions::new().write(true).open(&config);
+    drop(released);
+    let ended = refresh.join();
+    assert!(ended.is_ok(), "the thread of the refresh ended");
+    std::fs::remove_file(&config).expect("the named pipe goes");
+    std::fs::rename(&kept, &config).expect("the configuration comes back");
+    remove(parent.as_path());
+    let said: &'static str = said.expect("the refresh answered within the control's wait");
+    assert_eq!(said, "the refresh gave up", "a preparation read that hangs must be a job of the blocking pool, so the runtime stays free and the refresh's own timeout expires");
 }
