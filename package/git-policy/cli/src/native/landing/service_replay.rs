@@ -378,13 +378,13 @@ fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &st
     }
     let bytes: Vec<u8> = path.chars().filter_map(byte_of_character).collect();
     let exclusion: String = format!("^{}", captured.base);
-    let mut request: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
+    let mut spec_words: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
     pathspec.extend_from_slice(bytes.as_slice());
-    request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+    spec_words.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it: literal mode would read
     // it as a file name, and two glob modes at once make Git refuse the log and end the replay as a failure.
-    let request: GitRequest = request.own_pathspecs();
+    let request: GitRequest = spec_words.own_pathspecs();
     let listed = run_git_checked(site.context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
     // The capture stamp of each commit that changed the path, nothing for a commit this service did not land.
@@ -441,17 +441,17 @@ fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &st
 /// ```
 pub fn first_landed(context: &GitContext, cwd: &Path, base: &str, tip: &str, paths: &[Vec<u8>]) -> Result<Option<LandedFirst>, TransactionStop> {
     let exclusion: String = format!("^{base}");
-    let mut request: GitRequest = GitRequest::new(
+    let mut spec_words: GitRequest = GitRequest::new(
         cwd,
         &["log", "--reverse", "--format=%h%x00%s", "--no-color", "--no-show-signature", tip, exclusion.as_str(), "--"],
     );
     for path in paths {
         let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
         pathspec.extend_from_slice(path.as_slice());
-        request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+        spec_words.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     }
     // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it.
-    let request: GitRequest = request.own_pathspecs();
+    let request: GitRequest = spec_words.own_pathspecs();
     let listed = run_git_checked(context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
     let Some(first) = text.lines().find(is_not_empty_line) else { return Ok(None) };
