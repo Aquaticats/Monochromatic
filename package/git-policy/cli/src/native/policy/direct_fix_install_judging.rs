@@ -5,8 +5,11 @@
 //!  Every judgement of an install is about a file's bytes together with what it carries:
 //!  its permission
 //!       bits,
-//!  its owner and its kind,
-//!  read without following a symbolic link.
+//!  its owner,
+//!  the extended attributes it holds outside its bytes,
+//!  and its kind,
+//!  read without
+//!       following a symbolic link.
 //!  Bytes alone would take a file the
 //!       person narrowed for the fix's own,
 //!  and a link whose target happens to hold the correction,
@@ -18,8 +21,12 @@
 //! // const state = lstatAndRead(path); const same = state.kind === 'file' && equal(state.bytes, bytes) && sameKept(state.kept, kept);
 //! ```
 
-/// The permission bits and owner a file carries.
+/// The permission bits,
+///  owner and extended attributes a file carries.
 use crate::direct_fix_install_writes::Kept;
+/// The attributes themselves,
+///  read from the file each judgement is about.
+use crate::direct_fix_install_attributes::attributes_of;
 /// The site a judgement is about.
 use crate::direct_fix_install::Prepared;
 /// The journal that holds what a swap displaced.
@@ -52,7 +59,8 @@ pub(crate) enum SiteState {
     File {
         /// The bytes it holds.
         bytes: Vec<u8>,
-        /// Its permission bits and owner.
+        /// Its permission bits,
+        ///  owner and extended attributes.
         kept: Kept,
     },
 }
@@ -79,7 +87,16 @@ pub(crate) fn state_of(path: &Path, step: &str) -> Result<SiteState, String> {
     if !described.file_type().is_file() {
         return Ok(SiteState::NotAFile);
     }
-    let kept: Kept = Kept::of(&described);
+    // What: The attributes the file carries are read beside its description, because a nameless object has none and the
+    //       attributes decide whose file it is.
+    // Why:  A replacement that could not carry them would delete data no commit holds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kept = { ...Kept.of(described), attributes: await attributesOf(path, step) };
+    // ```
+    let mut kept: Kept = Kept::of(&described);
+    kept.attributes = attributes_of(path, step)?;
     let bytes: Vec<u8> = match std::fs::read(path) {
         Ok(read) => read,
         Err(error) => return Err(format!("{step} failed ({error})")),
@@ -102,7 +119,7 @@ pub(crate) fn state_of(path: &Path, step: &str) -> Result<SiteState, String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unchanged = (site) => { const s = stateOf(contentOf(site)); return s.kind === 'file' && equal(s.bytes, site.original) && s.kept.mode === site.kept.mode && s.kept.uid === site.kept.uid && s.kept.gid === site.kept.gid; };
+/// const unchanged = (site) => { const s = stateOf(contentOf(site)); return s.kind === 'file' && sameKept(s.kept, site.kept) && equal(s.bytes, site.original); };
 /// ```
 pub(crate) fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
     return holds_exactly(
@@ -114,9 +131,10 @@ pub(crate) fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 }
 
 /// What:
-///  Whether the name holds exactly these bytes with these permission bits and this owner,
-///  as a
-///       regular file,
+///  Whether the name holds exactly these bytes with these permission bits,
+///  this owner and these
+///       extended attributes,
+///  as a regular file,
 ///  never following a symbolic link.
 ///  `&str` names the step that failed,
 ///  for the person's
@@ -132,7 +150,7 @@ pub(crate) fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holdsExactly = (path, bytes, kept, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' && equal(s.bytes, bytes) && s.kept.mode === kept.mode && s.kept.uid === kept.uid && s.kept.gid === kept.gid; };
+/// const holdsExactly = (path, bytes, kept, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' && sameKept(s.kept, kept) && equal(s.bytes, bytes); };
 /// ```
 pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) -> Result<bool, String> {
     let Some((held, carried)) = regular_file(path, step)? else {
@@ -146,8 +164,8 @@ pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) 
 
 /// What:
 ///  Whether the name holds a regular file whose digest is `digest`,
-///  with these permission bits and
-///       this owner,
+///  with these permission bits,
+///       this owner and these extended attributes,
 ///  never following a symbolic link.
 /// Why:
 ///   A record keeps a digest instead of the bytes,
@@ -159,7 +177,7 @@ pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holdsDigest = (path, digest, kept, step) => { const f = regularFile(path, step); return f !== undefined && sameKept(f.kept, kept) && digestOf(f.bytes) === digest; };
+/// const holdsDigest = (path, digest, kept, step) => { const f = regularFile(path, step); return f !== undefined && sameKept(kept, f.kept) && digestOf(f.bytes) === digest; };
 /// ```
 pub(crate) fn holds_digest(path: &Path, digest: &str, kept: &Kept, step: &str) -> Result<bool, String> {
     let Some((held, carried)) = regular_file(path, step)? else {

@@ -5398,13 +5398,21 @@ file through `renameat2(RENAME_EXCHANGE)`,
 so the corrected bytes go in while the file they displaced stays
 readable:
 
-- the corrected bytes are created with the destination's own permission bits and owner,
-  so a file kept at `0600` stays private and the set-user-id,
-  set-group-id and sticky bits survive;
+- the corrected bytes are created with the destination's own permission bits,
+  owner and extended attributes,
+  so a file kept at `0600` stays private,
+  the set-user-id,
+  set-group-id and sticky bits survive,
+  and the access-control list that decides who may read it is the one the person
+  wrote;
   the owner is
   given before the bits,
   because changing a file's owner clears those bits even when the owner
-  and group stay the same;
+  and group stay the same,
+  and the attributes are given before the bits,
+  because setting an access-control list sets the group's bits from its mask;
+  an attribute this process may not set refuses the whole fix and names the
+  attribute;
   an owner this process may not give is refused rather than handed over,
   and the comparison is against what the
   replacement actually carries,
@@ -5431,7 +5439,8 @@ readable:
   command owns:
   bytes,
   permission bits,
-  owner and file kind,
+  owner,
+  extended attributes and file kind,
   never through a symbolic link.
   Only bytes that are
   this fix's replacement let the journal go;
@@ -5447,8 +5456,19 @@ readable:
   and a journal the fix
   cannot remove is named rather than reported as a success that says nothing.
 
-What a replacement does not carry is its extended attributes and access-control list,
-its inode number and birth time,
+A replacement carries every extended attribute the file lists,
+as the bytes it holds,
+the access-control list included,
+and an attribute this process may not read or may not set refuses the whole fix
+with the attribute's name,
+leaving the original file in place:
+that data exists in no commit,
+so a replacement that dropped it would delete its only copy.
+A namespace the system does not let this process list,
+such as another user's `trusted.*`,
+is invisible to the fix and is neither carried nor counted.
+
+What a replacement does not carry is its inode number and birth time,
 and its share of a hard link,
 whose other name keeps the bytes it had.
 
@@ -5501,6 +5521,7 @@ a record of the file (`record`:
 its pathname,
 permission bits,
 owner,
+the extended attributes it carries,
 the writer's owner token,
 and the
 digest of the corrected bytes).
@@ -5540,8 +5561,8 @@ proves,
 by the same judgement the rollback makes of a file it took out of a swap:
 `content` is a regular file,
 read without following a symbolic link,
-whose bytes hash to the recorded replacement and whose permission bits and owner are the ones the
-record names.
+whose bytes hash to the recorded replacement and whose permission bits,
+owner and extended attributes are the ones the record names.
 A digest alone would take a file the person saved with the correction's own bytes,
 or the same
 bytes narrowed to `0600`,
