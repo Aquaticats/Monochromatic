@@ -325,7 +325,7 @@ fn a_stuck_run_ends_its_process_though_its_report_cannot_be_written() {
 const WATCHERS_UNDER_TEST: usize = 2;
 
 /// What:
-///  How many watchers this process has registered,
+///  How many threads are registered as readers of this run,
 /// waiting up to `within` for `expected` of them to start.
 /// Why:
 ///   A watcher registers itself at the start of its own thread,
@@ -338,23 +338,23 @@ const WATCHERS_UNDER_TEST: usize = 2;
 /// and a write is work,
 /// so the watcher that must end this child does not judge it quiet while it is still finding out,
 /// and a child
-///  that saw fewer watchers than it expected can still say so.
+///  that saw fewer readers than it expected can still say so.
 /// The count is read again every 200 ms,
 /// which is well inside the watcher's own 500 ms look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const deadline = now() + within; let running = watching().length;
-/// while (running !== expected && now() < deadline) { write('\n'); await sleep(200); running = watching().length }
+/// const deadline = now() + within; let running = readingThreads().length;
+/// while (running !== expected && now() < deadline) { write('\n'); await sleep(200); running = readingThreads().length }
 /// return running;
 /// ```
-fn watchers_running(expected: usize, within: Duration) -> usize {
+fn readers_running(expected: usize, within: Duration) -> usize {
     let started: Instant = Instant::now();
-    let mut running: usize = watching().len();
+    let mut running: usize = reading_threads().len();
     while running != expected && started.elapsed() < within {
         let _written = std::io::stdout().write_all(b"\n");
         std::thread::sleep(Duration::from_millis(200));
-        running = watching().len();
+        running = reading_threads().len();
     }
     return running;
 }
@@ -369,7 +369,7 @@ fn child_that_sleeps_under_two_watchers() {
     arm_watchdog();
     let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
     // The parent reads this count: one watcher ends this child either way, so only the count tells two apart from one.
-    println!("watchers: {}", watchers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
+    println!("watchers: {}", readers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
     std::thread::sleep(Duration::from_secs(5));
 }
 
@@ -397,4 +397,30 @@ fn a_run_that_keeps_moving_past_its_window_is_not_ended() {
     assert!(output.status.success(), "the moving child ended on its own:\n{ran}\n{said}");
     assert!(ran.contains("1 passed"), "the child ran the test named, not nothing:\n{ran}");
     assert!(!said.contains("a test is stuck"), "{said}");
+}
+
+/// Child of the control below:
+/// a run whose only thread waits for an event nothing delivers,
+/// with a window far past the watcher's,
+///  so only the watcher can end it.
+#[test]
+#[ignore = "started by a_wait_does_not_keep_the_watchdog_alive in a process of its own"]
+fn child_that_waits_under_the_watchdog() {
+    forbid_core_dumps();
+    let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    // The wait reads the run itself at every look, and those reads are not the run's work.
+    let _held: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor { window: Duration::from_secs(600), done: &|| { return false; } });
+}
+
+/// A thread inside a control's wait does not keep the watchdog alive:
+/// the watchdog ends the process although the waiting thread reads the run.
+#[test]
+fn a_wait_does_not_keep_the_watchdog_alive() {
+    let ended: Option<std::process::Output> = run_child_with_stderr_until("child_that_waits_under_the_watchdog", std::process::Stdio::piped());
+    let output: std::process::Output = ended.expect("the watchdog ended the process although a thread of it was waiting for an event nothing delivers");
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    assert!(ran.contains(child_path("child_that_waits_under_the_watchdog").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process:\n{said}");
+    assert!(said.contains("a test is stuck"), "{said}");
 }
