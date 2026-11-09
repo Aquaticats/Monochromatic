@@ -1,0 +1,362 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-09T18:25:12.988Z",
+  "label": "baseline-a1",
+  "binary": "/home/user/temp/agent/gitp-bin/baseline-77d79100fd",
+  "binaryBuild": "f437c61804e777ec4261f460e4dfc37f024dfd14cc053835e54af556c99b2e64",
+  "repository": "/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-commit-landing-service-cost",
+  "agents": 8,
+  "rounds": 4,
+  "barMilliseconds": 5000,
+  "failures": [],
+  "elapsed": {
+    "count": 32,
+    "median": 4280.043868,
+    "p95": 8622.755883,
+    "maximum": 8676.756431,
+    "overBar": 14
+  },
+  "elapsedOverBar": 14,
+  "records": 32,
+  "perRound": [
+    {
+      "count": 8,
+      "median": 4277.598387,
+      "p95": 4310.42279,
+      "maximum": 4310.42279,
+      "overBar": 0
+    },
+    {
+      "count": 8,
+      "median": 5632.766934,
+      "p95": 5689.758601,
+      "maximum": 5689.758601,
+      "overBar": 6
+    },
+    {
+      "count": 8,
+      "median": 1718.834753,
+      "p95": 1757.644685,
+      "maximum": 1757.644685,
+      "overBar": 0
+    },
+    {
+      "count": 8,
+      "median": 8591.523124,
+      "p95": 8676.756431,
+      "maximum": 8676.756431,
+      "overBar": 8
+    }
+  ],
+  "phases": {
+    "prepareMs": {
+      "count": 32,
+      "median": 3487,
+      "p95": 5276,
+      "maximum": 5280,
+      "overBar": 8
+    },
+    "buildMs": {
+      "count": 32,
+      "median": 3,
+      "p95": 4,
+      "maximum": 4,
+      "overBar": 0
+    },
+    "provisionMs": {
+      "count": 32,
+      "median": 0,
+      "p95": 0,
+      "maximum": 0,
+      "overBar": 0
+    },
+    "submitMs": {
+      "count": 32,
+      "median": 755,
+      "p95": 3025,
+      "maximum": 3028,
+      "overBar": 0
+    },
+    "afterLandingMs": {
+      "count": 32,
+      "median": 0,
+      "p95": 0,
+      "maximum": 0,
+      "overBar": 0
+    },
+    "gateMs": {
+      "count": 32,
+      "median": 151,
+      "p95": 2701,
+      "maximum": 2702,
+      "overBar": 0
+    },
+    "handoffMs": {
+      "count": 32,
+      "median": 14,
+      "p95": 32,
+      "maximum": 71,
+      "overBar": 0
+    },
+    "otherMs": {
+      "count": 32,
+      "median": 19,
+      "p95": 63,
+      "maximum": 74,
+      "overBar": 0
+    }
+  },
+  "landing": {
+    "lockHoldMs": {
+      "count": 32,
+      "median": 165,
+      "p95": 207,
+      "maximum": 217,
+      "overBar": 0
+    },
+    "queuedBehind": [
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "readsMs": {
+      "count": 32,
+      "median": 29,
+      "p95": 75,
+      "maximum": 75,
+      "overBar": 0
+    },
+    "reads": {
+      "config": {
+        "count": 32,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "branch": {
+        "count": 32,
+        "median": 0,
+        "p95": 1,
+        "maximum": 2,
+        "overBar": 0
+      },
+      "parents": {
+        "count": 32,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "changed": {
+        "count": 32,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "content": {
+        "count": 32,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "witness": {
+        "count": 32,
+        "median": 2,
+        "p95": 6,
+        "maximum": 6,
+        "overBar": 0
+      },
+      "conclusion": {
+        "count": 32,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "owed": {
+        "count": 32,
+        "median": 18,
+        "p95": 51,
+        "maximum": 51,
+        "overBar": 0
+      },
+      "follow": {
+        "count": 32,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      }
+    },
+    "syncs": [
+      7,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+    ]
+  },
+  "service": {
+    "answered": 32,
+    "queuedMs": {
+      "count": 32,
+      "median": 227,
+      "p95": 1620,
+      "maximum": 1621,
+      "overBar": 0
+    },
+    "landingMs": {
+      "count": 32,
+      "median": 382,
+      "p95": 2773,
+      "maximum": 2773,
+      "overBar": 0
+    },
+    "readsMs": {
+      "count": 32,
+      "median": 29,
+      "p95": 75,
+      "maximum": 75,
+      "overBar": 0
+    },
+    "lockHoldMs": {
+      "count": 32,
+      "median": 165,
+      "p95": 207,
+      "maximum": 217,
+      "overBar": 0
+    },
+    "syncHeldMs": {
+      "count": 32,
+      "median": 0,
+      "p95": 0,
+      "maximum": 0,
+      "overBar": 0
+    },
+    "queuedBehind": [
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "syncsWaited": 0,
+    "syncsQueued": 193,
+    "syncNames": [
+      [
+        "intent-file",
+        32
+      ],
+      [
+        "intent-dir",
+        32
+      ],
+      [
+        "lock-marker",
+        1
+      ],
+      [
+        "index-dir",
+        32
+      ],
+      [
+        "indexed-file",
+        32
+      ],
+      [
+        "indexed-dir",
+        32
+      ],
+      [
+        "journal-dir",
+        32
+      ]
+    ]
+  }
+}

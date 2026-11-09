@@ -1015,6 +1015,7 @@ fn a_service_that_ignores_changed_path_bytes_is_retired_and_never_given_a_commit
                         id: String::from("same-release-1"),
                         commit: String::from("0123456789abcdef0123456789abcdef01234567"),
                         already: false,
+                        landing: None,
                     });
                     answer.push('\n');
                     let _answered = (&stream).write_all(answer.as_bytes());

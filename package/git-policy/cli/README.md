@@ -2368,9 +2368,10 @@ none is waited out or retried on the moved head yet:
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
   commits queued behind the same lock are refused at once),
-  or was left by a dead owner (Git's
-   lock PID file names a process that is gone;
-  a diagnostic names it at once).
+  or holds a Git lock PID file naming a number this process table does not have
+  (a killed Git leaves one,
+  and so does a live Git in another PID namespace,
+  so the commit waits and the line says which number was read).
   The commit is withdrawn,
    kept on a side ref named
    in the message (`refs/cli-git/kept/<batch>`),
@@ -4952,6 +4953,28 @@ all durations in whole milliseconds taken from the monotonic clock:
   `unproven` for an owner nobody could prove alive,
   null when there was none),
   `reconnects` counts connections that broke and `sends` counts requests written.
+- `landing` states what the landing of this commit spent and held,
+  which the service measures and the answer carries,
+  and is `null` for a service of a release that sends no figures:
+  `lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
+  `queuedBehind` is how many requests were still waiting for their answer when the landing finished,
+  `readsMs` is the whole of the residual reads,
+  `reads` names each of them
+  (`config`,
+  `branch`,
+  `parents`,
+  `changed`,
+  `content`,
+  `witness`,
+  `conclusion`,
+  `owed`,
+  `follow`,
+  and never more than `readsMs` together),
+  and `syncs` is every file or directory sync the landing asked for,
+  in the order it asked,
+  each as `{"what": "built-index", "waited": true, "ms": 12}`,
+  with `waited` false for one it handed to the background task and never waited for.
 - `handoffMs` is one figure:
   leaving the work records and waking the service,
   which reaches the service a second time.
@@ -5002,6 +5025,31 @@ all durations in whole milliseconds taken from the monotonic clock:
   The service's `answered` line ends with `steps="git rev-parse@3+4;..."` (`name@offset+duration`,
   the offset from the request's
   acceptance) and `steps_dropped=<count>`.
+
+The landing's own figures are on the same line and in the record's `landing`:
+
+- `landing_ms` is the whole landing,
+  and its phases are `lock_wait_ms` (another program's hold on the index),
+  `reads_ms`,
+  `objects_ms`,
+  `journal_ms`,
+  `ref_ms` and `index_update_ms`.
+- `reads_ms` is named one read at a time by `reads_config_ms`,
+  `reads_branch_ms`,
+  `reads_parents_ms`,
+  `reads_changed_ms`,
+  `reads_content_ms`,
+  `reads_witness_ms`,
+  `reads_conclusion_ms`,
+  `reads_owed_ms` and `reads_follow_ms`,
+  which are parts of it and never more than it together.
+- `lock_hold_ms` is how long the landing held the index,
+  and `queued_behind` is how many requests were still waiting for their answer when it finished,
+  the batch's own taken out.
+- `syncs_waited` and `syncs_queued` count the syncs the landing waited for and the ones it handed to the background,
+  `sync_held_ms` is the time it spent waiting for its own,
+  and `syncs="built-index=12;intent-file=queued;..."` names each one with its milliseconds or with `queued`.
+  A background batch of a landing's records says in the journal how many it made and what they cost.
 
 The service writes to its standard error,
 which the service manager keeps in the journal of its unit.

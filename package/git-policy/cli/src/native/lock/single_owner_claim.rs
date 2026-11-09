@@ -43,7 +43,7 @@
 //! await claim.release();
 //! ```
 
-use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
+use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::subvolume_error::MigrateError;
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -306,9 +306,12 @@ const SMALL_RECORD_LIMIT: u64 = 4096;
 fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateError> {
     let ClaimRecord::Owned { pid, birth, namespace } = record else { return Ok(None) };
     match foreign_owner_standing(namespace.as_deref(), path) {
-        Some(Ok(())) => return Ok(Some(*pid)),
+        Some(ForeignStanding::Standing) => return Ok(Some(*pid)),
+        // The claim of another namespace that its owner removed is a finished owner's: nothing is held, so nothing is taken
+        //  from a live owner either (cross-vendor review of 2026-11-09, finding 3).
+        Some(ForeignStanding::Finished) => return Ok(None),
         // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old claim of another namespace is neither taken nor trusted.
-        Some(Err(expired)) => return Err(MigrateError::Journal(expired.describe(*pid))),
+        Some(ForeignStanding::Refused(refused)) => return Err(MigrateError::Journal(refused.describe(*pid))),
         None => {}
     }
     return match process_birth_identity(*pid) {

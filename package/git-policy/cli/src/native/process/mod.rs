@@ -51,6 +51,10 @@ pub mod signal_relay_descriptor;
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
+/// The device and the inode of the file an open descriptor refers to,
+/// read from the kernel's own copy of the descriptor.
+pub mod open_file_of_a_descriptor;
+
 /// The processes below one process,
 /// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;

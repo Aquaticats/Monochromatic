@@ -23,7 +23,7 @@ use crate::time_spent_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
 use crate::service_instance::instance_of;
-use crate::service_protocol::RELEASE;
+use crate::service_protocol::{LandingFigures, LandingSync, RELEASE};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -42,6 +42,17 @@ const GATE_MS: u64 = 37;
 const HANDOFF_MS: u64 = 41;
 /// Time the controls leave to no phase.
 const UNCOVERED_MS: u64 = 43;
+/// The figures a control landing states:
+/// how long it held the index,
+/// how many commits queued behind it,
+/// and the reads and syncs it names.
+const LANDING_HOLD_MS: u64 = 47;
+const LANDING_QUEUED_BEHIND: u64 = 3;
+const LANDING_READS_MS: u64 = 53;
+const LANDING_READ_BRANCH_MS: u64 = 2;
+const LANDING_READ_WITNESS_MS: u64 = 5;
+const LANDING_SYNC_INDEX_MS: u64 = 7;
+
 /// The stretches of the preparation the controls record,
 /// two of one name,
 /// so a sum and its count both show.
@@ -54,6 +65,20 @@ const PREPARE_PARTS_DROPPED: usize = 3;
 const SCRATCH_REMOVAL_MS: u64 = 47;
 const REMOVALS_THAT_DID_NOT_FINISH: u64 = 2;
 const STANDARD_ERROR_MS: u64 = 53;
+
+/// The figures of the landing the controls state.
+fn landing_figures() -> LandingFigures {
+    return LandingFigures {
+        lock_hold_ms: LANDING_HOLD_MS,
+        queued_behind: LANDING_QUEUED_BEHIND,
+        reads_ms: LANDING_READS_MS,
+        reads: vec![(String::from("branch"), LANDING_READ_BRANCH_MS), (String::from("witness"), LANDING_READ_WITNESS_MS)],
+        syncs: vec![
+            LandingSync { what: String::from("built-index"), waited: true, ms: LANDING_SYNC_INDEX_MS },
+            LandingSync { what: String::from("intent-file"), waited: false, ms: 0 },
+        ],
+    };
+}
 
 /// A timing with every phase set,
 /// and the sum of those the record counts as disjoint.
@@ -68,6 +93,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.build = Duration::from_millis(BUILD_MS);
     timing.provision = Duration::from_millis(PROVISION_MS);
     timing.submit = SubmitTrace {
+        landing: Some(landing_figures()),
         total: Duration::from_millis(SUBMIT_MS),
         reach: ReachTrace {
             tries: 5,
@@ -449,5 +475,49 @@ fn the_record_states_the_preparations_own_work_by_name() {
     let lines: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
     let last: serde_json::Value = parsed(lines.lines().last().map(|line| { return format!("{line}\n"); }).expect("a line").as_str());
     assert_eq!(last["prepareSpans"], serde_json::Value::from(Vec::<u64>::new()));
+    remove(root.as_path());
+}
+
+/// What:
+///  The record states what the landing of this commit spent and held:
+/// the reads it names,
+/// the time it held what others queued on,
+/// how many commits queued behind it,
+/// and each of its syncs with its time.
+/// Why:
+///   The landing runs in the resident service,
+/// so the record of the commit said nothing about it,
+/// and a landing that held the index for a second
+///  under a queue of others could only be found in a second file.
+#[test]
+fn the_record_states_what_the_landing_spent_and_held() {
+    let root: PathBuf = fixture("commit-timing-landing");
+    let (timing, total) = filled(root.as_path());
+    let record: serde_json::Value = parsed(timing.line(total, 0).as_str());
+    let landing: &serde_json::Value = &record["landing"];
+    assert_eq!(landing["lockHoldMs"], LANDING_HOLD_MS, "{record}");
+    assert_eq!(landing["queuedBehind"], LANDING_QUEUED_BEHIND, "{record}");
+    assert_eq!(landing["readsMs"], LANDING_READS_MS, "{record}");
+    assert_eq!(landing["reads"]["branch"], LANDING_READ_BRANCH_MS, "{record}");
+    assert_eq!(landing["reads"]["witness"], LANDING_READ_WITNESS_MS, "{record}");
+    let syncs: &Vec<serde_json::Value> = landing["syncs"].as_array().expect("the syncs");
+    assert_eq!(syncs.len(), 2, "{record}");
+    assert_eq!(syncs[0]["what"], "built-index");
+    assert_eq!(syncs[0]["waited"], true);
+    assert_eq!(syncs[0]["ms"], LANDING_SYNC_INDEX_MS);
+    assert_eq!(syncs[1]["what"], "intent-file");
+    assert_eq!(syncs[1]["waited"], false);
+    remove(root.as_path());
+}
+
+/// A commit whose service sent no figures says so in the record,
+/// so a reader never takes a zero for a figure nobody measured.
+#[test]
+fn a_record_of_a_service_without_figures_states_none() {
+    let root: PathBuf = fixture("commit-timing-no-landing");
+    let (mut timing, total) = filled(root.as_path());
+    timing.submit.landing = None;
+    let record: serde_json::Value = parsed(timing.line(total, 0).as_str());
+    assert!(record["landing"].is_null(), "{record}");
     remove(root.as_path());
 }
