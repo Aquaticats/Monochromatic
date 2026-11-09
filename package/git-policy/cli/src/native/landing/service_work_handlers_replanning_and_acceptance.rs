@@ -99,9 +99,9 @@ pub fn work_directory(git_dir: &Path) -> PathBuf {
 /// isAcceptable(item, gitDir)
 /// ```
 pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
-    return Path::new(item.repository.as_str()).is_absolute()
-        && Path::new(item.repository.as_str()).is_dir()
-        && Path::new(item.git_dir.as_str()) == git_dir
+    return item.repository.is_absolute()
+        && item.repository.is_dir()
+        && item.git_dir.as_path() == git_dir
         && item.branch_ref.starts_with("refs/")
         && !item.branch_ref.contains(['\0', '\n', ' '])
         && item.oid.len() >= 40

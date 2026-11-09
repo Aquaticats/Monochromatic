@@ -45,7 +45,7 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let mut expected: Vec<String> = HANDED_OVER
         .iter()
         .map(|kind| {
-            return WorkItem { kind: *kind, repository: String::new(), git_dir: String::new(), branch_ref: handoff.reference.clone(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 }.id();
+            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.clone(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 }.id();
         })
         .collect();
     expected.sort();

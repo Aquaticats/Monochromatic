@@ -146,8 +146,8 @@ fn wait_until_settled_in(git_dir: &Path, branch: &str, commit: &str) {
         // The record's own id, which carries the branch as well as the commit.
         let record: WorkItem = WorkItem {
             kind: WorkKind::Push,
-            repository: String::new(),
-            git_dir: String::new(),
+            repository: PathBuf::new(),
+            git_dir: PathBuf::new(),
             branch_ref: String::from(branch),
             oid: String::from(commit),
             parent: String::new(),
@@ -262,8 +262,8 @@ fn a_skipped_service_push_keeps_an_earlier_failure() {
 fn push_item(setup: &Setup, commit: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
-        repository: setup.repo.display().to_string(),
-        git_dir: common_dir(setup).display().to_string(),
+        repository: setup.repo.to_path_buf(),
+        git_dir: common_dir(setup).to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: commit.to_string(),
         parent: String::new(),
@@ -460,8 +460,8 @@ fn leave_pending_push(setup: &Setup, linked: &Path, own: &Path, branch: &str) ->
     let commit: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: linked.display().to_string(),
-        git_dir: own.display().to_string(),
+        repository: linked.to_path_buf(),
+        git_dir: own.to_path_buf(),
         branch_ref: format!("refs/heads/{branch}"),
         oid: commit.clone(),
         parent: String::new(),

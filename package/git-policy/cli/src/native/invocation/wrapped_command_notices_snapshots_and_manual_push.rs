@@ -133,6 +133,9 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
+    // A push whose command stopped before it was released is not released by anything, and the next push of its branch carries it:
+    //  every command says which commit that is, through the same notice, once.
+    crate::service_handoff::record_held_push_notices(git_dir.as_path());
     let mut notices: Vec<Notice> = push_failures_for(git_dir.as_path(), None, &abbreviate);
     notices.extend(orphaned_push_failures(common_dir.as_path(), &abbreviate));
     for notice in &notices {

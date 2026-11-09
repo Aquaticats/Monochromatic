@@ -52,8 +52,8 @@ const MAX_TRIES: u32 = 3;
 fn item(kind: WorkKind, oid: &str) -> WorkItem {
     return WorkItem {
         kind,
-        repository: String::from("/repo with space"),
-        git_dir: String::from("/repo with space/.git"),
+        repository: PathBuf::from("/repo with space"),
+        git_dir: PathBuf::from("/repo with space/.git"),
         branch_ref: String::from("refs/heads/main"),
         oid: String::from(oid),
         parent: String::new(),
@@ -85,6 +85,45 @@ fn a_record_round_trips() {
         assert!(original.id().starts_with(format!("{}-abc", kind.name()).as_str()));
         assert_eq!(WorkKind::from_name(kind.name()), Some(kind));
     }
+}
+
+/// What:
+///  A record keeps the directories of a repository whose path is not UTF-8,
+/// byte for byte.
+/// Why:
+///   The record is text,
+/// and the service compares the Git directory it reads back with the directory it drains,
+/// so a path that text cannot spell would refuse every item of such a repository.
+#[test]
+fn a_record_keeps_the_bytes_of_a_path_that_is_not_text() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("work-item-non-utf8");
+    let worktree: PathBuf = root.join(OsStr::from_bytes(b"w\xffrktree"));
+    let git_dir: PathBuf = root.join(OsStr::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
+    let original: WorkItem = WorkItem { repository: worktree.clone(), git_dir: git_dir.clone(), ..item(WorkKind::Push, "abc") };
+    let read: WorkItem = WorkItem::decode(original.encode().as_str()).expect("the record decodes");
+    assert_eq!(read.git_dir, git_dir, "the Git directory is the one the wrapper named");
+    assert_eq!(read.repository, worktree, "the worktree is the one the wrapper named");
+    assert_eq!(read, original);
+    remove(root.as_path());
+}
+
+/// What:
+///  A record written by a release that spelled a directory as plain text is still read,
+/// and that text is the directory.
+/// Why:
+///   A service that starts across a pending item of an upgrade must run it,
+/// not fail it,
+/// so the form the earlier release wrote has to decode.
+#[test]
+fn a_record_of_plain_text_directories_is_still_read() {
+    // The one line the release before the Hexadecimal field wrote for the same item.
+    let earlier: &str = "{\"v\":1,\"tries\":0,\"kind\":\"push\",\"id\":\"push-abc\",\"repository\":\"/srv/repo\",\"gitDir\":\"/srv/repo/.git\",\"ref\":\"refs/heads/main\",\"oid\":\"abc\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}\n";
+    let read: WorkItem = WorkItem::decode(earlier).expect("an earlier release's record decodes");
+    assert_eq!(read.git_dir, PathBuf::from("/srv/repo/.git"));
+    assert_eq!(read.repository, PathBuf::from("/srv/repo"));
 }
 
 /// Records that are not exactly the format are refused with a reason.

@@ -959,6 +959,53 @@ fn the_fast_forward_moves_a_clean_checkout_to_the_target() {
     remove(&s.root);
 }
 
+/// What:
+///  The record that guards a fast-forward is written in the worktree's own Git directory when that path is not text.
+/// Why:
+///   The directory comes from `rev-parse --absolute-git-dir`,
+/// which prints its bytes;
+/// read as text it names another directory,
+/// or none,
+/// so the record is written where recovery never looks
+///  and a kill between Git's checkout and its ref update leaves a merge with no intent.
+#[test]
+fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text() {
+    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, list_merge_intents};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt as _;
+    let root: PathBuf = fixture("ar-ff-bytes");
+    let repo: PathBuf = root.join(OsStr::from_bytes(b"r\xffpo"));
+    std::fs::create_dir_all(repo.as_path()).expect("repository directory");
+    git(&repo, &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a.txt");
+    git(&repo, &["add", "a.txt"]);
+    git(&repo, &["commit", "--quiet", "-m", "one"]);
+    let old: String = text_of(&repo, &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a.txt");
+    git(&repo, &["commit", "--quiet", "-m", "two", "--", "a.txt"]);
+    let target: String = text_of(&repo, &["rev-parse", "HEAD"]);
+    git(&repo, &["reset", "--quiet", "--hard", old.as_str()]);
+    // A stand-in for Git looks for the record while Git moves the checkout, which is the instant a kill would leave it for.
+    let seen: PathBuf = root.join("record-seen");
+    let shim: PathBuf = root.join("watching-git");
+    let script = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ]; then\n    if ls .git/{MERGE_INTENT_DIRECTORY}/*.json > /dev/null 2>&1; then echo present > '{seen}'; else echo absent > '{seen}'; fi\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        seen = seen.display()
+    );
+    std::fs::write(&shim, script).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut watching: PushGit = push_git(repo.as_path());
+    watching.real_git = shim;
+    let _moved: () = crate::auto_push_reconcile_branch_advance::fast_forward_recorded(&watching, "refs/heads/main", old.as_str(), target.as_str(), crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)
+        .expect("git")
+        .expect("the branch and the checkout moved");
+    assert_eq!(std::fs::read_to_string(seen.as_path()).expect("the stand-in looked"), "present\n", "the record is in the worktree's own Git directory");
+    assert_eq!(text_of(&repo, &["rev-parse", "HEAD"]), target);
+    assert!(list_merge_intents(repo.join(".git").as_path()).expect("listing").is_empty(), "the record goes with the settled merge");
+    remove(root.as_path());
+}
+
 /// A detached `HEAD` is not a branch to move.
 #[test]
 fn a_detached_head_is_not_fast_forwarded() {

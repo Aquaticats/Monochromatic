@@ -261,7 +261,10 @@ pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str
 pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, move_branch: BranchMove<'_>) -> Result<Result<(), String>, SingleFlightError> {
     let git_dir: Option<PathBuf> = {
         let named = run_query(git, &argv(&["rev-parse", "--absolute-git-dir"]))?;
-        if named.code == Some(0) { Some(PathBuf::from(String::from_utf8_lossy(&named.stdout).trim())) } else { None }
+        // Git prints the directory's bytes and ends them with one line break that belongs to no path, so the record is
+        //  written in the worktree a path that is not text names and not in a directory made from its text.
+        let printed: &[u8] = named.stdout.strip_suffix(b"\n".as_slice()).unwrap_or(named.stdout.as_slice());
+        if named.code == Some(0) { Some(PathBuf::from(crate::path_bytes::os_from_path_bytes(printed))) } else { None }
     };
     let mut recorded: Option<(PathBuf, MergeIntent)> = None;
     if let Some(dir) = git_dir.as_deref() {
@@ -421,7 +424,7 @@ pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, l
     let owner = current_transaction_owner(random_uuid().ok()?.as_str(), now_iso().as_str()).ok()?;
     let intent: MergeIntent = MergeIntent {
         owner,
-        repository_root: git.cwd.to_string_lossy().into_owned(),
+        repository_root: git.cwd.to_path_buf(),
         target_ref: Some(branch_ref.to_owned()),
         old_oid: local.to_owned(),
         new_oid: merge_oid.to_owned(),

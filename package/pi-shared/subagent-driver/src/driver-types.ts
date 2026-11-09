@@ -4,6 +4,8 @@
  @module
  */
 
+import type { ModelErrorKind, } from './retries-of-a-model-error.ts';
+
 /**
  One JSON object of Pi's RPC protocol, in either direction.
  */
@@ -90,6 +92,24 @@ export type RunSummary = {
   readonly modelError?: string;
 
   /**
+   How many attempts the run made at its last model error: one attempt and each retry after it. It is here only when the run ended
+   on that error, and a run whose attempts ran out names them all here.
+   */
+  readonly modelErrorAttempts?: number;
+
+  /**
+   How many attempts after a model error the run made, so a run that needed one reads apart from a run that did not. It is zero
+   for every run that never answered a model error with another attempt.
+   */
+  readonly retries: number;
+
+  /**
+   How many model errors named a rate limit or a quota, whether or not another attempt could fix them, because the coordinator
+   measures those apart from other failures.
+   */
+  readonly rateLimitErrors: number;
+
+  /**
    Why the feed is incomplete, when writing it failed.
    */
   readonly feedProblem?: string;
@@ -122,6 +142,17 @@ export type DriverOptions = {
   readonly wallSeconds: number;
   readonly idleSeconds: number;
   readonly turnCap: number;
+
+  /**
+   How many attempts follow a model error another attempt may fix. Zero ends every such run as it ended before: on the first
+   error.
+   */
+  readonly retryCap: number;
+
+  /**
+   Seconds before the first attempt after a model error, doubling with each attempt.
+   */
+  readonly retryBaseSeconds: number;
 };
 
 /**
@@ -140,6 +171,42 @@ export type RunEnding = {
   readonly piExit: PiExit;
   readonly piHasExited: boolean;
   readonly sessionStats: unknown;
+};
+
+/**
+ One attempt after a model error, as the feed and the summary carry it.
+ */
+export type RetryTaken = {
+  /**
+   Which attempt this is, counting from one.
+   */
+  readonly attempt: number;
+
+  /**
+   How many attempts the run allows, so a reader sees the bound this one sits under.
+   */
+  readonly of: number;
+
+  /**
+   Milliseconds the driver waited before this attempt.
+   */
+  readonly delayMilliseconds: number;
+
+  /**
+   What kind of failure it answers.
+   */
+  readonly kind: ModelErrorKind;
+
+  /**
+   What the model said when its message ended in the error this attempt answers.
+   */
+  readonly problem: string;
+
+  /**
+   How many replies had succeeded when this attempt was sent, so an attempt is credited to the failures before the reply that
+   arrived while its command was being answered rather than to the ones after it.
+   */
+  readonly answersBefore: number;
 };
 
 /**
@@ -183,6 +250,22 @@ export type RecordOfPiRun = {
    The error Pi settled on, when the last assistant message ended in one and nothing after it recovered.
    */
   readonly unrecoveredModelError: () => RunFailure;
+
+  /**
+   How many attempts after a model error the run has made, which bounds the retries it may still take.
+   */
+  readonly retriesTaken: () => number;
+
+  /**
+   How many assistant messages have replied without an error, which tells an attempt sent before a reply from one sent after it.
+   */
+  readonly answersTaken: () => number;
+
+  /**
+   Notes an attempt after a model error on the feed, counts it for the summary, and takes the error it answers as answered, so the
+   same error is never counted twice.
+   */
+  readonly countRetry: (retry: RetryTaken,) => void;
   readonly observe: (observation: EventObservation,) => void;
   readonly summarize: (ending: RunEnding,) => RunSummary;
 

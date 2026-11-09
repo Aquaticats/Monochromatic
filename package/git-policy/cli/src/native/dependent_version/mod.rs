@@ -33,6 +33,17 @@ pub mod dependent_version_text;
 /// Publishable package names from the generated registry configuration.
 pub mod dependent_version_publishable;
 
+/// The block YAML subset the registry configuration is read with:
+/// a mapping,
+/// a sequence and a scalar.
+pub mod dependent_version_yaml;
+
+/// One line of that YAML:
+/// its indentation,
+/// its key,
+/// and its scalar.
+pub mod dependent_version_yaml_lines;
+
 /// Whether source text imports a package.
 pub mod dependent_version_imports;
 

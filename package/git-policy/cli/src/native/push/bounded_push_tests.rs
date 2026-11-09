@@ -226,7 +226,11 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
     )
     .expect("runs");
     let elapsed: Duration = started.elapsed();
+    // The claim is the lower bound: the stop request is asked, and the kill comes only once the grace it was given has passed.
     assert!(elapsed >= deadline + grace, "{elapsed:?}");
+    // The ceiling is a liveness guard and not a claim about a host: nothing the child does after it stops answering the request
+    //  is a sign of progress this control could read. Measured on this host at a load average of 47: the attempt took 0.66 s for
+    //  a deadline and grace of 0.6 s, so the 20 s ceiling carries 30 times the figure it was measured at.
     assert!(elapsed < Duration::from_secs(20), "{elapsed:?}");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
     assert!(attempt.output.starts_with("up\n"), "{}", attempt.output);

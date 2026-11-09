@@ -37,19 +37,9 @@ use super::model::LockedTool;
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
 
-/// The rustup channel a tool's toolchain is installed as:
-/// the plan's `packageId` when it names one (a `{version}` placeholder is already expanded),
-/// else the locked version.
-/// Why:
-/// `rustup` names a channel that way (`nightly`, `1.90.0`, `nightly-2026-10-30`),
-/// and every later `rustup` call about that toolchain must ask for the same channel.
-fn rustup_channel(tool: &LockedTool) -> &str {
-    return tool.declaration.package_id.as_deref().unwrap_or(&tool.version);
-}
-
 /// `rustup toolchain install --no-self-update <package id, or the locked version>`.
 pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
-    let channel: &str = rustup_channel(tool);
+    let channel: &str = tool.rustup_channel();
     let request: RunRequest = ctx.request("rustup", &["toolchain", "install", "--no-self-update", channel]);
     run_checked(ctx, &request, "rustup toolchain install", &tool.declaration.id)?;
     return Ok(());
@@ -69,18 +59,18 @@ pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), To
 /// ```
 pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     for component in tool.declaration.options.rust_components.clone().unwrap_or_default() {
-        let request: RunRequest = ctx.request("rustup", &["component", "add", &component, "--toolchain", rustup_channel(tool)]);
+        let request: RunRequest = ctx.request("rustup", &["component", "add", &component, "--toolchain", tool.rustup_channel()]);
         run_checked(ctx, &request, &format!("rustup component add ({component})"), &tool.declaration.id)?;
     }
     for target in tool.declaration.options.rust_targets.clone().unwrap_or_default() {
-        let request: RunRequest = ctx.request("rustup", &["target", "add", &target, "--toolchain", rustup_channel(tool)]);
+        let request: RunRequest = ctx.request("rustup", &["target", "add", &target, "--toolchain", tool.rustup_channel()]);
         run_checked(ctx, &request, &format!("rustup target add ({target})"), &tool.declaration.id)?;
     }
     return Ok(());
 }
 
 /// What:
-/// The names `rustup <listing subcommand> list --installed --toolchain <version>` prints,
+/// The names `rustup <listing subcommand> list --installed --toolchain <channel>` prints,
 /// one per line with the empty lines dropped,
 /// for the `component` row or the `target` row of a toolchain.
 /// Why:
@@ -91,7 +81,10 @@ pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), T
 /// function installedNames(ctx: Context, tool: LockedTool, listing: 'component' | 'target'): string[]
 /// ```
 fn installed_names(ctx: &Context, tool: &LockedTool, listing: &str) -> Result<Vec<String>, ToolchainError> {
-    let request: RunRequest = ctx.request("rustup", &[listing, "list", "--installed", "--toolchain", rustup_channel(tool)]);
+    // What: a `rustup_query`, so the question cannot install the toolchain it asks about.
+    // Why: see `Context::rustup_query`; a query that installs answers as if the parts were always there.
+    let request: RunRequest =
+        ctx.rustup_query(&[listing, "list", "--installed", "--toolchain", tool.rustup_channel()]);
     let what: String = format!("rustup {listing} list --installed");
     // What: `run_checked` starts `rustup` and turns a non-zero exit into an error naming this step.
     // Why: a listing that fails cannot prove which parts are installed, so the tool is reported as failed
@@ -252,7 +245,7 @@ fn declared_names(row: &Option<Vec<String>>) -> Vec<String> {
 /// function addPart(ctx: Context, tool: LockedTool, listing: 'component' | 'target', name: string, added: string[]): void
 /// ```
 fn add_part(ctx: &Context, tool: &LockedTool, listing: &str, name: &str, added: &mut Vec<String>) -> Result<(), ToolchainError> {
-    let request: RunRequest = ctx.request("rustup", &[listing, "add", name, "--toolchain", rustup_channel(tool)]);
+    let request: RunRequest = ctx.request("rustup", &[listing, "add", name, "--toolchain", tool.rustup_channel()]);
     let what: String = format!("rustup {listing} add ({name})");
     run_checked(ctx, &request, &what, &tool.declaration.id)?;
     // What: `format!` builds the sentence the report prints in place of counting the tool unchanged.
