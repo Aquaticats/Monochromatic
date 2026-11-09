@@ -8246,7 +8246,7 @@ this repository with 1442 refs and four packs of 514k objects):
 the answer took 13.7 ms at the median against 3.8 ms for `git for-each-ref`,
 and 10.8 ms of it was that check.
 Of those 10.8 ms,
-6.6 ms were a `stat` of a loose path for every packed object;
+6.6 ms were the loose path lookup for every packed object;
 the packs are asked before the loose paths now,
 which leaves 4.3 ms for the check and 7.1 ms for the answer.
 The layout read and the ref walk alone take 1.8 ms,
