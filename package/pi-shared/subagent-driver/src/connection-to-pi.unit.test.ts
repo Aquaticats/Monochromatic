@@ -35,6 +35,10 @@ import {
   type PiRecord,
   startConnectionToPi,
 } from '../dist/final/node/index.mjs';
+import {
+  COMPACTION_FAILURE_TEXT,
+  COMPACTION_MILLISECONDS,
+} from './stand-in-pi-compaction-plays-fixture.ts';
 import { STANDARD_ERROR_TEXT, } from './stand-in-pi-records-fixture.ts';
 
 const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
@@ -114,6 +118,29 @@ async function waitForProblem({
     await wait(LOOK_MILLISECONDS,);
   }
   throw new Error(`no problem naming ${text}; the ones reported were ${heard.problems.join(', ')}`,);
+}
+
+/**
+ Sends one command under the bound these tests wait with, so a test that is not about the deadline still gets one.
+
+ @param connection - the running Pi
+
+ @param request - the command, and any shorter silence bound or deadline the test is about
+
+ @returns Pi's answer, or how waiting for it ended
+ */
+async function sendTo(
+  connection: ConnectionToPi,
+  request: {
+    readonly command: PiRecord;
+    readonly answerMilliseconds?: number;
+    readonly deadline?: number;
+  },
+): Promise<PiRecord> {
+  return await connection.send({
+    ...request,
+    deadline: request.deadline ?? (Date.now() + ANSWER_MILLISECONDS),
+  },);
 }
 
 /**
@@ -282,7 +309,7 @@ await describe({
       name: 'matches an answer to its command and ends Pi by closing its input',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'normal', },);
-        const answer = await opened.connection.send({ command: { type: 'get_state', }, },);
+        const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         expect(answer.success,).toBe(true,);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
@@ -294,7 +321,7 @@ await describe({
       name: 'matches an answer to a command that brought an identifier of its own',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'normal', },);
-        const answer = await opened.connection.send({
+        const answer = await sendTo(opened.connection, {
           command: {
             id: 'custom',
             type: 'get_state',
@@ -308,21 +335,82 @@ await describe({
       name: 'a silent Pi gives a failed answer naming the bound asked for, so that bound is the one used',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'exit-later', },);
-        const answer = await opened.connection.send({ command: { type: 'get_state', }, answerMilliseconds: SHORT_ANSWER_MILLISECONDS, },);
-        expect(answer.success,).toBe(false,);
+        const answer = await sendTo(opened.connection, {
+          command: { type: 'get_state', },
+          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+        },);
+        expect(answer.ending,).toBe('silence',);
         // The answer that named no bound, or Pi's own leaving, would be a different text; this one proves the bound asked for
         // was the bound used, whatever the host's schedule made of the two timers.
-        expect(answer.error,).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
+        expect(answer.problem,).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
+      },
+    },),
+    it({
+      name: 'a compaction under way is not silence, so the wait outlives the bound asked for and still takes the answer',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'compaction-then-answer', },);
+        const started = Date.now();
+        const answer = await sendTo(opened.connection, {
+          command: {
+            type: 'prompt',
+            message: 'hello',
+          },
+          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+          deadline: started + ANSWER_MILLISECONDS,
+        },);
+        expect(answer.ending,).toBe('answered',);
+        expect(answer.record?.success,).toBe(true,);
+        // The compaction held the answer past the bound, which is what proves the bound stopped counting while Pi compacted.
+        expect(Date.now() - started,).toBeGreaterThan(COMPACTION_MILLISECONDS,);
+      },
+    },),
+    it({
+      name: 'a compaction that never ends is ended by the deadline, and the answer names the compaction it waited on',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'compaction-never-ends', },);
+        const started = Date.now();
+        const answer = await sendTo(opened.connection, {
+          command: {
+            type: 'prompt',
+            message: 'hello',
+          },
+          deadline: started + COMPACTION_MILLISECONDS,
+        },);
+        expect(answer.ending,).toBe('deadline',);
+        expect(answer.problem,).toContain('compacting',);
+        expect(answer.compactionProblem,).toContain('compacting',);
+        // The wall bound the caller gave is the one that ended it, not the far longer silence bound the driver ships.
+        expect(Date.now() - started,).toBeLessThan(ANSWER_MILLISECONDS / 2,);
+      },
+    },),
+    it({
+      name: 'a failed compaction is named in the answer that stops waiting, and the silence bound still ends that wait',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'compaction-fails', },);
+        const started = Date.now();
+        const answer = await sendTo(opened.connection, {
+          command: {
+            type: 'prompt',
+            message: 'hello',
+          },
+          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+          deadline: started + ANSWER_MILLISECONDS,
+        },);
+        expect(answer.ending,).toBe('silence',);
+        expect(answer.problem,).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
+        expect(answer.compactionProblem,).toContain(COMPACTION_FAILURE_TEXT,);
+        // The bound is measured from the end of the compaction, so the wait outlives the compaction and then some.
+        expect(Date.now() - started,).toBeGreaterThan(COMPACTION_MILLISECONDS,);
       },
     },),
     it({
       name: 'a command waiting when Pi exits gets a failed answer, and later commands fail at once',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'exits-silently', },);
-        const answer = await opened.connection.send({ command: { type: 'get_state', }, },);
+        const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         expect(answer.error,).toBe('pi exited',);
         expect(opened.connection.exitDetails().code,).toBe(3,);
-        const later = await opened.connection.send({ command: { type: 'get_state', }, },);
+        const later = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         expect(later.error,).toBe('pi exited',);
         opened.connection.write({ type: 'get_state', },);
       },
@@ -334,7 +422,7 @@ await describe({
           scenario: 'ignores-input-close',
           graceMilliseconds: ESCALATION_GRACE_MILLISECONDS,
         },);
-        await opened.connection.send({ command: { type: 'get_state', }, },);
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.exitDetails().signal,).toBe('SIGTERM',);
@@ -347,7 +435,7 @@ await describe({
           scenario: 'ignores-sigterm',
           graceMilliseconds: ESCALATION_GRACE_MILLISECONDS,
         },);
-        await opened.connection.send({ command: { type: 'get_state', }, },);
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.exitDetails().signal,).toBe('SIGKILL',);
@@ -357,7 +445,7 @@ await describe({
       name: 'a tool still holding the output open does not keep the driver waiting',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'keeps-output-open', },);
-        await opened.connection.send({ command: { type: 'get_state', }, },);
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.hasExited(),).toBe(true,);
@@ -368,7 +456,7 @@ await describe({
       name: 'skips a blank line, reports a line that is not a record, and treats a response without a text id as an event',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'odd-lines', },);
-        const answer = await opened.connection.send({ command: { type: 'get_state', }, },);
+        const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         expect(answer.success,).toBe(true,);
         expect(opened.heard.unreadable,).toEqual(['[1]',],);
         expect(opened.heard.events,).toEqual([{ type: 'response', id: 7, },],);
@@ -378,7 +466,7 @@ await describe({
       name: 'a Pi that cannot be started is reported, and a command sent to it fails',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'normal', withoutPi: true, },);
-        const answer = await opened.connection.send({ command: { type: 'get_state', }, },);
+        const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         expect(answer.error,).toBe('pi exited',);
         expect(String(opened.connection.exitDetails().processError,),).toContain('ENOENT',);
       },
@@ -387,7 +475,7 @@ await describe({
       name: 'keeps what Pi writes to its standard error',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'stderr-note', },);
-        await opened.connection.send({ command: { type: 'get_state', }, },);
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
         expect(await readFile(opened.standardErrorFile, 'utf8',),).toContain(STANDARD_ERROR_TEXT,);
@@ -410,7 +498,7 @@ await describe({
       name: 'a write to a Pi that closed its input is reported, and is not taken for an exit',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'closes-input', },);
-        await opened.connection.send({ command: { type: 'get_state', }, },);
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         await waitForLogLine({ log: opened.log, text: 'marker input-closed', },);
         opened.connection.write({ type: 'get_state', },);
         await waitForProblem({ heard: opened.heard, text: 'could not write', },);
