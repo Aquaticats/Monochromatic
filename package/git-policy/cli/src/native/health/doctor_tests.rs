@@ -664,3 +664,53 @@ fn a_bare_repository_has_no_checkout_and_a_separate_git_directory_keeps_its_work
     assert_eq!(reported(worktree.as_path()), (Some(worktree.clone()), CheckoutLayout::Main));
     remove(root.as_path());
 }
+
+/// A pathname resolution that never answers,
+/// as one on a hard-mounted network file system whose server stopped answering does not.
+///
+/// The thread parks,
+/// so it spends no processor time while it waits:
+/// this is a stall,
+/// not a load.
+fn stalled_identity(_path: &Path) -> Option<PathBuf> {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// What:
+///  A configured `core.hooksPath` is kept when deciding whether it is the default directory never answers.
+/// Why:
+///  Deciding that resolved both spellings before any ceiling started,
+/// and pathname resolution waits in the kernel on a
+///  mount whose server has stopped,
+/// so the doctor waited with no end before it ever scanned.
+/// The configured directory
+///  is scanned when the answer does not come:
+/// a directory looked at twice costs a duplicate line,
+/// and a directory Git
+///  runs hooks in that was never looked at costs the finding.
+#[test]
+fn a_directory_identity_that_never_answers_keeps_the_configured_directory() {
+    let location: HooksLocation = HooksLocation {
+        common_directory: PathBuf::from("/repo/.git"),
+        git_directory: PathBuf::from("/repo/.git"),
+        configured: Some(PathBuf::from("/mnt/gone/custom-hooks")),
+    };
+    let (done, finished) = std::sync::mpsc::channel::<Vec<PathBuf>>();
+    let worker = std::thread::spawn(move || {
+        let directories: Vec<PathBuf> = hook_directories_with(stalled_identity, std::time::Duration::from_millis(50), &location);
+        let _sent = done.send(directories);
+    });
+    // The worker is left behind on purpose: a resolution that never answers has no end, and the test process ends it.
+    let answered: Result<Vec<PathBuf>, _> = finished.recv_timeout(std::time::Duration::from_secs(10));
+    let _abandoned = worker;
+    let directories: Vec<PathBuf> = answered.unwrap_or_else(|_| {
+        panic!("the identity check never returned, so pathname resolution on a stopped mount holds the doctor before its scan")
+    });
+    assert_eq!(
+        directories,
+        vec![PathBuf::from("/repo/.git/hooks"), PathBuf::from("/mnt/gone/custom-hooks")],
+        "the configured directory is scanned when its identity is unknown"
+    );
+}

@@ -92,6 +92,38 @@ pub struct HooksLocation {
 }
 
 /// What:
+///  The identity the file system gives one pathname,
+/// or nothing when it names no directory.
+///  `fn(&Path) -> Option<PathBuf>` is a function pointer,
+/// so a control can stand a resolution that never answers where
+///  a mount that stopped answering stands.
+/// Why:
+///   Pathname resolution asks the file system,
+/// which waits in the kernel on a mount whose server has stopped;
+/// this is the
+///  read the ceiling is placed on,
+/// and it is a value the report is given rather than a call it makes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DirectoryIdentity = (path: string) => string | undefined;
+/// ```
+pub type DirectoryIdentity = fn(&Path) -> Option<PathBuf>;
+
+/// What:
+///  The identity the file system gives one pathname.
+/// Why:
+///   This is the production resolution the bounded comparison takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identityByTheFileSystem = (path) => { try { return realpathSync(path); } catch { return undefined; } };
+/// ```
+fn identity_by_the_file_system(path: &Path) -> Option<PathBuf> {
+    return std::fs::canonicalize(path).ok();
+}
+
+/// What:
 ///  The directories to scan,
 /// each once.
 /// Why:
@@ -103,9 +135,31 @@ pub struct HooksLocation {
 /// unique([join(commonDirectory, 'hooks'), configured].filter(Boolean));
 /// ```
 pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
+    return hook_directories_with(identity_by_the_file_system, REPORT_SCAN_CEILING, location);
+}
+
+/// What:
+///  `hook_directories` with the directory identity and the ceiling given.
+/// Why:
+///   Deciding whether two spellings are one directory resolves both,
+/// and that resolution waits in the kernel when a mount
+///  holding either has stopped answering;
+/// it runs on a thread of its own and is awaited no longer than the ceiling,
+///  because "nothing should ever wait forever or indefinitely".
+/// A resolution that gives no answer keeps the configured directory:
+/// a
+///  directory that is scanned twice costs one line the reader can tell apart,
+/// and a directory Git runs hooks in that was
+///  never looked at costs the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hookDirectoriesWith(identityByTheFileSystem, REPORT_SCAN_CEILING, location);
+/// ```
+pub fn hook_directories_with(identity: DirectoryIdentity, ceiling: Duration, location: &HooksLocation) -> Vec<PathBuf> {
     let mut directories: Vec<PathBuf> = vec![location.common_directory.join("hooks")];
     if let Some(configured) = &location.configured
-        && !directory_is_listed(directories.as_slice(), configured.as_path())
+        && !directory_is_listed_with(identity, ceiling, directories.as_slice(), configured.as_path())
     {
         directories.push(configured.clone());
     }
@@ -114,7 +168,8 @@ pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
 
 /// What:
 ///  Whether `candidate` is one of the directories already listed,
-/// judged by the identity the file system gives it.
+/// judged by the identity the file system gives it,
+/// within `ceiling`.
 /// Why:
 ///   Only the file system can say that `redirect/../hooks` and `hooks` are one directory,
 /// because a symbolic link
@@ -124,24 +179,33 @@ pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
 ///  scan looked at a directory Git runs no hook in.
 ///  A spelling whose directory does not exist is kept as given,
 /// because one that does not exist holds no hooks either
-///  way.
+///  way,
+/// and so is one whose resolution gives no answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const same = (realpath(listed)) === (realpath(candidate));
 /// ```
-fn directory_is_listed(listed: &[PathBuf], candidate: &Path) -> bool {
-    let identity: Option<PathBuf> = std::fs::canonicalize(candidate).ok();
+fn directory_is_listed_with(identity: DirectoryIdentity, ceiling: Duration, listed: &[PathBuf], candidate: &Path) -> bool {
+    // Two spellings of the same bytes are the same directory without asking the file system.
+    let mut others: Vec<PathBuf> = Vec::new();
     for existing in listed {
         if existing.as_path() == candidate {
             return true;
         }
-        let known: Option<PathBuf> = std::fs::canonicalize(existing).ok();
-        if identity.is_some() && identity == known {
-            return true;
-        }
+        others.push(existing.clone());
     }
-    return false;
+    let named: PathBuf = candidate.to_path_buf();
+    let identified: Option<bool> = work_within(ceiling, move || {
+        let Some(found) = identity(named.as_path()) else { return false };
+        for existing in &others {
+            if identity(existing.as_path()).as_deref() == Some(found.as_path()) {
+                return true;
+            }
+        }
+        return false;
+    });
+    return identified.unwrap_or(false);
 }
 
 /// What:

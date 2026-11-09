@@ -464,6 +464,10 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   judged by the identity the file system gives it:
   a symbol link in the way decides what `..` means,
   so a lexical rewrite of the path would scan a directory Git runs no hook in.
+  That identity is decided within the report's ceiling,
+  because pathname resolution waits on a mount whose server has stopped answering;
+  a resolution that gives no answer keeps the configured directory,
+  which is then scanned beside the default one.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
