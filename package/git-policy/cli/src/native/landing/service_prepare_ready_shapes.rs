@@ -74,7 +74,7 @@ impl Scratch {
     /// const scratch = makeScratch(commonDir, gitDir, name);
     /// ```
     pub fn make(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<Self> {
-        let path: PathBuf = prepare_commit_scratch(common_dir, git_dir, name)?;
+        let path: PathBuf = prepare_commit_scratch(common_dir, git_dir, name, SCRATCH_REMOVAL_CEILING)?;
         crate::service_scratch_abandonment::mark_the_owner(path.as_path());
         let renewal: crate::service_scratch_renewal::ScratchRenewal = crate::service_scratch_renewal::ScratchRenewal::of_a_commit(path.as_path());
         if let Some(directory) = path.parent() {

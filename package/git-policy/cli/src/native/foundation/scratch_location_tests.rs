@@ -524,9 +524,38 @@ fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let named: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), named).expect("the scratch tree");
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
     assert_eq!(tree, common.join(REPOSITORY_SCRATCH_NAME).join(named));
     assert_eq!(mode_of(tree.as_path()), 0o700);
+    remove(root.as_path());
+}
+
+/// A leftover of the command's own earlier attempt whose removal its ceiling cut short does not fail the next attempt:
+///  the leftover is moved aside under a name no commit tree has,
+///  the attempt starts from an empty tree,
+///  and the sweep of a later command collects what was moved.
+#[test]
+fn a_leftover_its_removal_cut_short_is_moved_aside_and_the_attempt_goes_on() {
+    let root: PathBuf = fixture("scratch-leftover-aside");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    let first: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
+    for at in 0..500 {
+        std::fs::write(first.join(format!("entry-{at}")), b"x").expect("a file of the first attempt");
+    }
+    // The ceiling a stalled device gives the removal: the leftover is still there when the next attempt begins.
+    let again: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
+    assert_eq!(again, first, "the attempt keeps the name of its own tree");
+    assert!(!again.join("entry-0").exists(), "the attempt starts from an empty tree");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    let moved: Vec<PathBuf> = std::fs::read_dir(&scratch)
+        .expect("scratch directory")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".removing-"); }); })
+        .collect();
+    assert_eq!(moved.len(), 1, "the leftover was moved aside rather than left in the way");
     remove(root.as_path());
 }
 
@@ -538,7 +567,7 @@ fn a_scratch_tree_of_a_killed_command_is_swept() {
     let root: PathBuf = fixture("scratch-commit-killed");
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
-    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d").expect("the scratch tree");
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d", SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
     std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
     // The command is killed here: nothing removes the tree, and no service ever held it.
     age(tree.as_path(), SCRATCH_STALE_AFTER * 2);

@@ -269,12 +269,14 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 ///  into the Git directory,
 ///  and says so in the debug log:
 ///  a commit must not fail over where its scratch files go.
+///  A leftover of this command's own earlier attempt that its ceiling cut short is moved aside rather than left in the way,
+///  so a slow device cannot fail a retry either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const tree = prepareCommitScratch(commonDir, gitDir, name);
 /// ```
-pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<PathBuf> {
+pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
     let covered: Option<PathBuf> = match prepare_repository_scratch(common_dir) {
         Ok(directory) => Some(directory),
         Err(error) => {
@@ -299,7 +301,17 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str) -> 
     //  the name carries this command's identity and no other command makes it.
     let present: bool = std::fs::symlink_metadata(tree.as_path()).is_ok();
     if present {
-        let _removed: Removal = remove_within(tree.as_path(), SCRATCH_REMOVAL_CEILING);
+        let removal: Removal = remove_within(tree.as_path(), ceiling);
+        // A removal that did not finish leaves the name taken, and a commit must not fail over that: the leftover is moved aside
+        //  under a name no commit tree has, where the sweep of a later command collects it by age, and this attempt starts from an
+        //  empty tree as every attempt does.
+        if !removal.finished() {
+            let aside: PathBuf = directory.join(format!("{name}.removing-{}", crate::random_id::random_uuid().unwrap_or_default()));
+            match std::fs::rename(tree.as_path(), aside.as_path()) {
+                Ok(()) => debug(TAG, format!("the leftover {} could not be removed yet, so it was moved to {}", tree.display(), aside.display()).as_str()),
+                Err(error) => debug(TAG, format!("the leftover {} could not be removed or moved aside: {error}", tree.display()).as_str()),
+            }
+        }
     }
     create_private_directory(tree.as_path())?;
     assert_private_directory(tree.as_path())?;
