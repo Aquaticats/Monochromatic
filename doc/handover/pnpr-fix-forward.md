@@ -188,7 +188,9 @@ Both push and
 Full record:
 `doc/troubleshooting/pnpr-oidc-github-actions-subject-claim.md`.
 
-The fix (the held items 9 and 10 in "Held lockstep commit (uncommitted)") makes the generated subject identical to the minted claim,
+The fix (the publish-401 trust fix,
+item 9 of the lockstep list in "Held lockstep commit (uncommitted)",
+landed as `fd2890ba0d`) makes the generated subject identical to the minted claim,
 measured with a node string comparison.
 Ranking note:
 hypotheses 2 (signature or metadata) and 3
