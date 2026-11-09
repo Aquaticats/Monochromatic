@@ -6,6 +6,7 @@
 //! concurrent appenders.
 
 use super::*;
+use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::test_support::{fixture, remove};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -30,7 +31,7 @@ fn sha(tag: &str) -> String {
 /// An entry text that names the commit,
 /// ends with its receipt line and the blank line that separates entries.
 fn entry(tag: &str) -> String {
-    return format!("- Date:\n  D\n  Subject:\n  {} `s`\n  reviewed: {}\n\n", token(sha(tag).as_str()), sha(tag));
+    return format!("- Date:\n  D\n  Subject:\n  {} `s`\n  reviewed: {}\n\n", &sha(tag)[..SHORT_SHA_LENGTH], sha(tag));
 }
 
 /// A log path inside a fixture directory that does not exist yet,
@@ -172,7 +173,7 @@ fn a_commit_name_inside_another_entry_is_not_a_receipt() {
     let root: PathBuf = fixture("append-inside-text");
     let log: PathBuf = root.join("log.md");
     let named: String = sha("bbb");
-    std::fs::write(log.as_path(), format!("- Date:\n  D\n  Subject:\n  {} `s`\n  cost_verdict: no ({named} 0.9)\n\n", token(sha("aaa").as_str()))).expect("log");
+    std::fs::write(log.as_path(), format!("- Date:\n  D\n  Subject:\n  {} `s`\n  cost_verdict: no ({named} 0.9)\n\n", &sha("aaa")[..SHORT_SHA_LENGTH])).expect("log");
     assert!(!names_commit(log.as_path(), named.as_str()), "text inside another entry is not this commit's receipt");
     assert_eq!(deliver(log.as_path(), named.as_str(), entry("bbb").as_str()), Ok(Delivery::Appended), "so the review of the named commit still runs");
     remove(root.as_path());
@@ -185,8 +186,8 @@ fn a_fragment_before_the_receipt_is_not_a_finished_review() {
     let root: PathBuf = fixture("append-fragment");
     let log: PathBuf = root.join("log.md");
     let whole: String = entry("aaa");
-    let token_text: String = token(sha("aaa").as_str());
-    let cut: usize = whole.find(token_text.as_str()).expect("the entry names the commit") + token_text.len();
+    let short: &str = &sha("aaa")[..SHORT_SHA_LENGTH];
+    let cut: usize = whole.find(short).expect("the entry names the commit") + short.len();
     let fragment: &str = &whole[..cut];
     std::fs::write(log.as_path(), fragment).expect("seed the fragment");
     assert!(!names_commit(log.as_path(), sha("aaa").as_str()), "a fragment is not a receipt");

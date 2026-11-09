@@ -20,7 +20,7 @@ impl<Read: Fn(&[ChangedPath]) -> Result<LandedCommit, String>> LandedCommitReade
     }
 }
 use crate::standards_review_mock::{ANSWER_WINDOW, Answer, CONTROL_CEILING, Mock, SILENT_AT_MOST, http_reply};
-use crate::standards_review_entry::SHORT_SHA_LENGTH;
+use crate::standards_review_entry::{SHORT_SHA_LENGTH, receipt_line};
 use crate::standards_review_input::{CODE_SUFFIXES, SHARED_LOG_RELATIVE, TRACKED_LOG_RELATIVE};
 use crate::test_support::{fixture, remove};
 use std::cell::Cell;
@@ -267,7 +267,8 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     let again = review_landed(&names, "0123456789abcdefff", "s", &|_: &[ChangedPath]| -> Result<LandedCommit, String> { panic!("a logged commit is not read again") }, &opts, &clock());
     assert_eq!(again, ReviewOutcome::AlreadyLogged);
     let text: String = std::fs::read_to_string(opts.log_path.as_path()).expect("the first entry created the log");
-    assert_eq!(text.matches(&"0123456789abcdefff"[..SHORT_SHA_LENGTH]).count(), 1, "the repeated item added nothing");
+    let receipt: String = receipt_line("0123456789abcdefff");
+    assert_eq!(text.matches(receipt.as_str()).count(), 1, "the repeated item added nothing");
     remove(directory.as_path());
 }
 
