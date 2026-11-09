@@ -116,7 +116,8 @@ fn edits_of_the_same_line_conflict_and_the_first_commit_is_named() {
 /// A name with a two-byte UTF-8 character.
 const NON_ASCII_FILE: &str = "é.txt";
 
-/// The real, distinct name that `NON_ASCII_FILE`'s bytes spell when they are read as Latin-1 and written as UTF-8.
+/// The real,
+/// distinct name that `NON_ASCII_FILE`'s bytes spell when they are read as Latin-1 and written as UTF-8.
 const ALIASING_FILE: &str = "Ã©.txt";
 
 /// The exact bytes of one file of a tree.
@@ -164,7 +165,7 @@ fn a_conflict_on_one_name_keeps_the_other_names_landed_edit() {
     let world: World = World { root, repo, context: git_context(), base };
     let mine: Captured = Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
     let merged_tree: String = match merge(&world, &mine) {
-        Merged::Tree(tree) | Merged::Combined { tree, .. } => tree,
+        Merged::Tree(merged) | Merged::Combined { tree: merged, .. } => merged,
         Merged::Conflict(paths) => panic!("the captured bytes contain the landed edit of the conflicting name: {paths:?}"),
     };
     assert_eq!(file_bytes_of(&world, merged_tree.as_str(), NON_ASCII_FILE), prepared_text.as_bytes(), "the captured bytes land");
