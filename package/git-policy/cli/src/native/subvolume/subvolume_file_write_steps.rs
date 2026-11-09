@@ -195,7 +195,8 @@ pub fn write_beside_then_rename(target: &Path, bytes: &[u8]) -> std::io::Result<
     };
 }
 
-/// Controls for the steps, the writer and the switch stay out of the release executable.
+/// Controls for the steps,
+/// the writer and the switch stay out of the release executable.
 #[cfg(test)]
 #[path = "subvolume_file_write_steps_tests.rs"]
 mod tests;
