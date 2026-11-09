@@ -490,7 +490,8 @@ fn is_inline(kind: MdastNodeType) -> bool {
 }
 
 /// What:
-///  The exact source of every code and raw HTML block, in document order.
+///  The exact source of every code and raw HTML block,
+/// in document order.
 /// Why:
 ///  The token comparison of a whole file sets line-leading markers aside everywhere,
 ///  including inside a fence,

@@ -81,7 +81,8 @@ fn without_leading_comment_marker(line: &str) -> &str {
 
 /// Drop the quote markers that open a line,
 ///  which a broken line inside a quotation gains at the depth it continues.
-///  A marker is container structure, like a list marker or a Rust comment marker,
+///  A marker is container structure,
+/// like a list marker or a Rust comment marker,
 ///  and not a token a reader sees;
 ///  the tests that require a particular depth compare exact bytes and parsed containers instead.
 fn without_leading_quote_markers(line: &str) -> &str {
@@ -313,11 +314,13 @@ fn the_property_comparisons_detect_a_moved_word_a_split_quotation_and_a_changed_
 /// The measurement on a real tree,
 ///  run through the package task:
 ///  `MONOCHROMATIC_LINT_PROPERTY_ROOT=<directory> MONOCHROMATIC_LINT_PROPERTY_STEP=<n> mise run //package/linter/monochromatic-lint:test:property`.
-///  Every `n`th tracked Markdown, MDX and Rust file under the directory is fixed on standard input.
+///  Every `n`th tracked Markdown,
+/// MDX and Rust file under the directory is fixed on standard input.
 ///  Tokens are compared for every file;
 ///  every Markdown host is parsed before and after so its paragraphs,
 ///  its block boundaries and its quoted source are compared as well.
-///  Nothing is skipped: a host the linter cannot process,
+///  Nothing is skipped:
+/// a host the linter cannot process,
 ///  a file that cannot be read and a host that stops parsing are failures,
 ///  so the measurement cannot pass by measuring less.
 #[test]

@@ -234,7 +234,7 @@ fn a_partially_marked_lazy_line_gets_the_paragraph_depth_on_the_inserted_line() 
 }
 
 /// A list item's continuation line keeps its item by starting at the item's content column,
-///  because re-emitting `-`, `1.` or `[ ]` there would open a new block instead of continuing this one:
+///  because writing a list marker there again would open a new block instead of continuing this one:
 ///  a paragraph's containers offer only list markers and quote markers,
 ///  and the quote markers are the family that has to be written again.
 #[test]
