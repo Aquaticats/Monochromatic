@@ -99,6 +99,50 @@ fn a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text() {
     remove_fixture(root.as_path());
 }
 
+/// What:
+///  Two Git directories that differ only in bytes that are not text keep their own plans.
+/// Why:
+///   A plan file is found by the key of its directory,
+/// so a key that loses those bytes gives two directories one key,
+/// and saving the second plan deletes the first,
+/// leaving one push untried after a restart.
+#[test]
+fn plans_of_directories_that_differ_only_in_bytes_are_kept_apart() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("retry-store-distinct-bytes");
+    let higher: StoredPlan = StoredPlan { git_dir: root.join(OsStr::from_bytes(b"r\xff")).join(".git"), ..plan("refs/heads/main", FIRST_OID, 1) };
+    let lower: StoredPlan = StoredPlan { git_dir: root.join(OsStr::from_bytes(b"r\xfe")).join(".git"), ..plan("refs/heads/main", SECOND_OID, 2) };
+    save(root.as_path(), &higher).expect("saved");
+    save(root.as_path(), &lower).expect("saved");
+    let mut loaded: Vec<StoredPlan> = load(root.as_path());
+    loaded.sort_by(|left, right| { return left.git_dir.cmp(&right.git_dir); });
+    assert_eq!(loaded, vec![lower, higher], "both plans survive the second save");
+    remove_fixture(root.as_path());
+}
+
+/// What:
+///  A plan file an earlier release wrote is removed with the plan of its branch.
+/// Why:
+///   That file's name is keyed by the text of the directory,
+/// so a removal that knew only the key of its bytes would leave it to be read again at every start.
+#[test]
+fn a_plan_file_of_an_earlier_release_is_removed_with_its_branch() {
+    let root: PathBuf = fixture("retry-store-earlier-key");
+    let first: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
+    let earlier: PathBuf = root.join(format!(
+        "{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}",
+        earlier_branch_key(first.git_dir.as_path(), first.item.branch_ref.as_str()),
+        1,
+        crate::push_failure_notice::fnv_hex(FIRST_OID)
+    ));
+    std::fs::write(earlier.as_path(), encode(&first)).expect("a plan an earlier release wrote");
+    assert_eq!(load(root.as_path()), vec![first], "the earlier plan is read before the upgrade writes one");
+    save(root.as_path(), &plan("refs/heads/main", SECOND_OID, 1)).expect("saved");
+    assert!(!earlier.exists(), "the earlier file goes with the branch");
+    remove_fixture(root.as_path());
+}
+
 /// A plan saved for a branch replaces the earlier plan of that branch,
 /// with another try number or another commit.
 #[test]

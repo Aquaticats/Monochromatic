@@ -62,7 +62,21 @@ pub struct StoredPlan {
 }
 
 /// The part of every file name that belongs to one branch of one Git directory.
+/// Why:
+///   The key is built from the bytes of the directory,
+/// so two directories whose paths differ only in a byte that is not text get a key each;
+/// their text is the same,
+/// and a shared key would let the plan of the second remove the plan of the first.
 fn branch_key(git_dir: &Path, branch_ref: &str) -> String {
+    return fnv_hex(format!("{}\n{branch_ref}", path_bytes::hex_of_path(git_dir)).as_str());
+}
+
+/// The key a release before the bytes were used wrote,
+/// so that its plan files are still found and removed.
+/// Why:
+///   A plan file an earlier release wrote carries this key,
+/// and `remove` after an upgrade would otherwise leave it to be read again at every start.
+fn earlier_branch_key(git_dir: &Path, branch_ref: &str) -> String {
     return fnv_hex(format!("{}\n{branch_ref}", git_dir.display()).as_str());
 }
 
@@ -129,24 +143,25 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(format!("writing the plan failed: {error}")),
     }
-    remove_files_of(directory, branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()).as_str(), Some(name.as_str()));
+    remove_files_of(directory, &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())], Some(name.as_str()));
     return Ok(());
 }
 
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), None);
+    remove_files_of(directory, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], None);
 }
 
-/// Removes the plan files of one branch key,
+/// Removes the plan files of one branch,
+/// whose keys are `keys`,
 /// except the one named `keep`.
-fn remove_files_of(directory: &Path, key: &str, keep: Option<&str>) {
+fn remove_files_of(directory: &Path, keys: &[String], keep: Option<&str>) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
-    let prefix: String = format!("{key}{NAME_SEPARATOR}");
+    let prefixes: Vec<String> = keys.iter().map(|key| { return format!("{key}{NAME_SEPARATOR}"); }).collect();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with(prefix.as_str()) && keep != Some(name.as_str()) {
+        if prefixes.iter().any(|prefix| { return name.starts_with(prefix.as_str()); }) && keep != Some(name.as_str()) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }
