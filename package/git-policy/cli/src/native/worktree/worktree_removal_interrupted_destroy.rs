@@ -34,6 +34,7 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, open_root, remove_at};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::worktree_convert_journal::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
 use crate::worktree_removal_snapshot_promotion::promote_snapshot;
@@ -54,8 +55,11 @@ pub const RECORD_FOLDER: &str = "monochromatic-git-policy-cli/recorded-destroys"
 /// and a worktree path far under any limit.
 const RECORD_LIMIT: u64 = 4096;
 
-/// The last line of a record whose kernel call returned,
+/// The first line of a record whose kernel call returned,
 /// which is the only proof that the files of the worktree are gone.
+/// It comes first because the rest of the record is a pathname,
+/// whose bytes are the person's and may be anything,
+/// including these very bytes.
 const DESTROYED_MARK: &[u8] = b"destroyed=1\n";
 
 /// The path of the record of one registration.
@@ -125,23 +129,28 @@ pub fn record_destroy(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &
 /// ```
 pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
     let path: PathBuf = record_path(common_dir, id);
-    let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
+    let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
         Ok(read) => read,
         Err(error) => {
             warn(TAG, format!("{} cannot be read, so the finished destroy of {id:?} is not recorded ({error})", path.display()).as_str());
             return;
         }
     };
-    let marked: Vec<u8> = [bytes.as_slice(), DESTROYED_MARK].concat();
-    // The mark replaces the record whole: a sibling of its own name, then one rename, so a kill leaves the intent or the proof.
-    let sibling: PathBuf = path.with_extension(format!("recorded.{}", std::process::id()));
-    if let Err(error) = std::fs::write(sibling.as_path(), marked.as_slice()) {
-        warn(TAG, format!("{} cannot be written ({error}), so a later command cannot finish the removal of {id:?}", sibling.display()).as_str());
-        return;
-    }
-    if let Err(error) = std::fs::rename(sibling.as_path(), path.as_path()) {
-        warn(TAG, format!("{} cannot be put in place ({error}), so a later command cannot finish the removal of {id:?}", path.display()).as_str());
-        let _removed: std::io::Result<()> = std::fs::remove_file(sibling.as_path());
+    let read: DestroyRecord = match read_record(bytes.as_slice()) {
+        Ok(found) => found,
+        Err(reason) => {
+            warn(TAG, format!("{} cannot be read, so the finished destroy of {id:?} is not recorded ({reason})", path.display()).as_str());
+            return;
+        }
+    };
+    // The record is rewritten whole with the mark first, through the replacing write: a sibling created exclusively under a
+    // name of its own, then one rename, so a kill leaves the intent or the proof and nothing is ever written through a link.
+    let mut marked: Vec<u8> = DESTROYED_MARK.to_vec();
+    marked.extend_from_slice(read.admin.encode().as_bytes());
+    marked.push(b'\n');
+    marked.extend_from_slice(read.target.as_os_str().as_bytes());
+    if let Err(error) = write_beside_then_rename(path.as_path(), marked.as_slice()) {
+        warn(TAG, format!("{} cannot be marked ({error}), so a later command cannot finish the removal of {id:?}", path.display()).as_str());
     }
 }
 
@@ -204,23 +213,25 @@ fn is_newline(byte: &u8) -> bool {
 /// type DestroyRecord = { admin: ObjectId; target: string; destroyed: boolean };
 /// ```
 fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
-    let Some(split_at) = bytes.iter().position(is_newline) else {
+    // The mark is the first line, so nothing a pathname holds can be taken for it. A record of an earlier build starts
+    // with the identity instead, and its mark, which came last, is not read: such a record counts as one whose kernel call
+    // is not proven, and recovery then leaves the registration alone and says so.
+    let (rest, destroyed): (&[u8], bool) = match bytes.strip_prefix(DESTROYED_MARK) {
+        Some(after_mark) => (after_mark, true),
+        None => (bytes, false),
+    };
+    let Some(split_at) = rest.iter().position(is_newline) else {
         return Err(String::from("it has no identity line"));
     };
-    let (identity_bytes, after_identity): (&[u8], &[u8]) = bytes.split_at(split_at);
+    let (identity_bytes, after_identity): (&[u8], &[u8]) = rest.split_at(split_at);
     let Ok(identity_text) = std::str::from_utf8(identity_bytes) else {
         return Err(String::from("its identity line is not text"));
     };
     let Some(admin) = ObjectId::decode(identity_text) else {
         return Err(format!("its identity line {identity_text} cannot be read"));
     };
-    // The rest is the target's own bytes, then, only once the kernel call returned, this mark as a last line.
-    let rest: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
-    let (with_newline, destroyed): (&[u8], bool) = match rest.strip_suffix(DESTROYED_MARK) {
-        Some(left) => (left, true),
-        None => (rest, false),
-    };
-    let target: &[u8] = with_newline.strip_suffix(b"\n").unwrap_or(with_newline);
+    // Everything after the identity's newline is the target, byte for byte.
+    let target: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
     return Ok(DestroyRecord { admin, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
 }
 

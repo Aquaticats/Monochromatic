@@ -323,6 +323,45 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     remove(root.as_path());
 }
 
+/// The one registration id under `common/worktrees`.
+fn only_registration_id(common: &Path) -> std::ffi::OsString {
+    let mut names: Vec<std::ffi::OsString> = std::fs::read_dir(common.join("worktrees")).expect("registrations").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name(); }).collect();
+    names.sort();
+    assert_eq!(names.len(), 1, "one registration: {names:?}");
+    return names.remove(0);
+}
+
+/// What:
+///  A worktree whose pathname ends with the bytes of the finished mark is not read as one whose destroy finished:
+///  the
+///  mark is the record's first line,
+///  so no byte of a path can be taken for it,
+///  and the registration and the worktree are kept.
+/// Why:
+///   The mark was stripped from the end of the record,
+/// so a path ending in those bytes made recovery believe the files
+///  were gone and delete the registration of a worktree that still exists.
+#[test]
+fn a_pathname_that_ends_with_the_finished_mark_is_not_proof_of_destruction() {
+    let root: PathBuf = fixture("remove-record-mark-name");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let name: &str = "wtdestroyed=1
+";
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join(name).as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let id: std::ffi::OsString = only_registration_id(common.as_path());
+    let admin: PathBuf = common.join("worktrees").join(&id);
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), id.as_os_str(), &identity, worktree.as_path()).expect("record");
+    let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+    // The worktree is where the record names it, so nothing was destroyed and the record is dropped without a word, as for
+    // every removal that did not happen.
+    assert!(problems.is_empty(), "{problems:?}");
+    assert!(admin.join("gitdir").is_file(), "the registration of a worktree that still exists is kept");
+    assert!(worktree.join("tracked.txt").is_file(), "and so is the worktree");
+    remove(root.as_path());
+}
+
 /// A named pipe at `path`,
 /// created with the platform's own call.
 fn named_pipe(path: &Path) {

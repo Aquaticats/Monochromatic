@@ -1776,8 +1776,16 @@ the record is dropped by a removal that finished and by a destroy that failed,
 so a command killed in the window
 between the destroy and the removal of the registration leaves one decidable state.
 The record is marked once the kernel call returned,
-and only that mark proves the
-files are gone:
+and only that mark proves the files are gone.
+The mark is a line of
+its own at the very start of the record,
+so the pathname's bytes,
+which are the person's and may hold anything,
+can never be read as
+one;
+a record written by an earlier build starts with the identity instead and is read as one whose kernel call is
+not proven,
+which leaves the registration alone and is reported.
 an absent pathname is not proof,
 because a person can move an intact worktree,
 and emptying its registration would
