@@ -335,12 +335,15 @@ pub fn prune_toolchain(
     extra_locks: &[PathBuf],
     dry_run: bool,
 ) -> Result<Vec<PathBuf>, ToolchainError> {
+    // What: the versions installed now are listed before any lock is read.
+    // Why: a version that finishes installing after this point is not in this list, so this run cannot delete it.
+    // Read after the locks, such a version would look like one no lock names, which is exactly what gets deleted.
+    let present = present_versions(&scope.toolchain_root)?;
     let mut lock_files: Vec<PathBuf> = vec![scope.lock_file.clone()];
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
     let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
-    let present = present_versions(&scope.toolchain_root)?;
     let mut removed: Vec<PathBuf> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);

@@ -162,6 +162,38 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
 }
 
+/// A version installed while the prune runs is never deleted:
+/// the prune lists what is present before it reads any lock,
+/// so an install that lands afterwards is not in the list it deletes from.
+#[test]
+fn an_installation_that_lands_while_the_prune_runs_is_never_deleted() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.0.0"), "fd-find", "1.0.0", &["fd"]);
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.1.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    // Another run finishes installing 1.2.0 while this prune lists worktrees, before it reads any lock.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(&version_directory(&installed_into, "fd-find", "1.2.0"), "fd-find", "1.2.0", &["fd"]);
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert!(
+        version_directory(&root, "fd-find", "1.2.0").is_dir(),
+        "the version installed after the prune listed what was present was deleted: {removed:?}"
+    );
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "the named version stays");
+    assert!(!version_directory(&root, "fd-find", "1.0.0").exists(), "a version that was there and unnamed is still pruned");
+}
+
 /// Sets a directory's mode, so a read of it can be made to fail.
 fn set_mode(path: &std::path::Path, mode: u32) {
     use std::os::unix::fs::PermissionsExt;
