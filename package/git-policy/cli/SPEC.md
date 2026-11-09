@@ -1505,12 +1505,14 @@ that never comes while the claim of the checkout is held.
 An index is read up to a gigabyte,
 the largest index this repository held at 3,097,973 bytes (measured 2026-11-09) and the bound the
 merge pass uses;
-the record files beside a checkout (a journal,
-a list of unreadable files,
-a registration's `gitdir`,
-a `.git` file and a repository's configuration) are read up to a mebibyte,
+the record files the migration reads (its journal,
+its list of unreadable files,
+a registration's `gitdir` and the repository's configuration) are read up to a mebibyte,
 and a longer one is refused with its path named
 rather than read whole.
+The conversion reads a worktree's `.git` file and a registration's `gitdir` up to
+`GIT_FILE_LIMIT` (64 KiB),
+as it did before this work.
 A dry run reconciles an exchange the journal has not recorded in memory,
 as a real run does,
 and writes nothing.

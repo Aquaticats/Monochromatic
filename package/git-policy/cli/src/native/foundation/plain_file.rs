@@ -32,17 +32,18 @@ use std::path::Path;
 /// How many bytes of a small file this reads:
 /// a journal,
 /// a registration's `gitdir`,
-/// a worktree's `.git` file,
 /// a repository's configuration or a list of paths.
 ///  A file past the bound is refused with its path named rather than read whole,
 /// so no record beside a checkout decides how much memory a command reads.
 ///  The measurement beside the value,
 /// on this repository on 2026-11-09:
-/// its `.git/config` is 74,878 bytes,
-///  its longest registration `gitdir` 122 bytes and its longest worktree `.git` file 106.
+/// its `.git/config` is 74,878 bytes and
+///  its longest registration `gitdir` 122.
 ///  A list of unreadable files has no measurement:
 /// it holds one path per entry the migration
 ///  could not read.
+/// A worktree's `.git` file is read with the smaller `GIT_FILE_LIMIT`
+///  (`worktree_convert_inspection.rs`).
 pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 
 /// What:
