@@ -19,7 +19,6 @@ use super::commit::{remove_settled, wrapped_commit};
 use super::support::{
     Fixture, fixture, git, repository,
 };
-use git_policy_cli::service_messages::NOT_STARTED_NOTICE;
 use git_policy_cli::wait_ceilings::{LANDING_LOCK_CEILING, WAITING_NOTICE_VARIABLE};
 use std::ffi::OsStr;
 use std::fs::File;

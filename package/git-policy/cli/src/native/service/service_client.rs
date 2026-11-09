@@ -32,7 +32,7 @@ pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, F
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
-use crate::service_messages::{ClientFailure, NOT_STARTED_NOTICE, SILENT_NOTICE, position_notice};
+use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -182,7 +182,7 @@ fn place_number(place: (usize, usize)) -> usize {
 /// What:
 ///  Says where a waiting commit stands once it has waited long enough to matter:
 /// how many commits the service put before it,
-/// or that the service has not started on it.
+/// or that the service has not said where it stands.
 /// Why:
 ///   Two commits waited 62 and 32 seconds and said nothing about themselves,
 /// and a person cannot tell a commit the service has not
@@ -210,7 +210,8 @@ fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: O
     *told = Some(named);
     let words: String = match place {
         Some((number, of)) => position_notice(number, of),
-        None => String::from(NOT_STARTED_NOTICE),
+        // What the client knows and no more: the service named no place, and how long the commit has waited.
+        None => unplaced_notice(since.elapsed()),
     };
     let _written = writeln!(notices, "{words}");
 }

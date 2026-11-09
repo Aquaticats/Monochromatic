@@ -20,6 +20,7 @@
 //! ```
 
 use std::path::Path;
+use std::time::Duration;
 
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
@@ -40,16 +41,6 @@ pub const STARTING_NOTICE: &str = "Starting the commit service...";
 /// Printed each time the service goes silent while a commit waits,
 /// before the same request is sent to it again.
 pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
-
-/// Printed once when a commit has waited long enough to matter and the service has not said where it stands,
-/// which means the
-///  service has not begun on it.
-/// Why:
-///   The commit that waited 62 s said nothing about itself,
-/// so the person could not tell it from one the service had lost;
-/// where the service names a place,
-/// `position_notice` says how many commits go first.
-pub const NOT_STARTED_NOTICE: &str = "The commit service has not started on this commit yet; it is still reading it.";
 
 /// Printed once when the service is being replaced by a newer one.
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";
@@ -413,6 +404,30 @@ pub fn position_notice(number: usize, of: usize) -> String {
         1 => String::from("Waiting for 1 earlier commit."),
         many => format!("Waiting for {many} earlier commits."),
     };
+}
+
+/// What:
+///  The notice for a commit the service has named no place for,
+/// given how long it has waited.
+/// Why:
+///   The client knows only that no answer has come and that the service named no place:
+/// the landing may not have read the
+///  request yet,
+/// or it may be waiting behind another program's `index.lock`,
+/// so the words may say nothing about whether the landing has
+///  begun.
+///  The wait so far is the one figure it does know,
+/// and every other waiting line gives it too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unplacedNotice(elapsed) // 'The commit service has not said where this commit stands yet; it has waited 12 seconds.'
+/// ```
+pub fn unplaced_notice(waited: Duration) -> String {
+    // A part second of waiting is a second waited, and a long wait counts in whole seconds.
+    let seconds: u64 = waited.as_secs().max(1);
+    let unit: &str = if seconds == 1 { "second" } else { "seconds" };
+    return format!("The commit service has not said where this commit stands yet; it has waited {seconds} {unit}.");
 }
 
 /// The texts that must never reach a user:

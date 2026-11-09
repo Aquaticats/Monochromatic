@@ -25,7 +25,7 @@
 use git_policy_cli::commit_timing::SubmitTrace;
 use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
 use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
-use git_policy_cli::service_messages::{ClientFailure, NOT_STARTED_NOTICE, SILENT_NOTICE, position_notice};
+use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
 
 /// The words a commit the service named no place for is told, as the person reads them,
 /// without the seconds it waited.
