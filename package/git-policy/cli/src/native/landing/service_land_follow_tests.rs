@@ -162,13 +162,94 @@ fn the_index_update_of_derived_paths_survives_an_inherited_literal_pathspec_mode
     remove(root.as_path());
 }
 
-/// A removal request whose scratch directory is gone has nothing left to compare and is done.
+/// A removal request whose scratch directory is gone and whose copy was never kept compares nothing,
+/// so it removes nothing and says so:
+/// answering success left the worktree's `MERGE_HEAD` behind,
+/// and the next commit concluded the merge again.
 #[test]
-fn a_cleanup_without_its_scratch_directory_is_done() {
+fn a_cleanup_whose_comparison_is_gone_removes_nothing_and_answers_so() {
     let root: PathBuf = fixture("service-follow-gone");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let cleanup: Cleanup = Cleanup { git_dir: repo.join(".git"), scratch: repo.join(".git").join("gone"), reftable: false };
-    assert!(remove_conclusion_state(&git_context(), repo.as_path(), &cleanup));
+    std::fs::write(repo.join(".git").join("MERGE_HEAD"), "kept\n").expect("state");
+    assert!(!remove_conclusion_state(&git_context(), repo.as_path(), &cleanup, None), "nothing can be compared, so nothing is done");
+    assert_eq!(std::fs::read_to_string(repo.join(".git").join("MERGE_HEAD")).expect("read"), "kept\n", "the state is not touched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree with the state a concluded merge leaves,
+/// the copies a preparation makes of it in the client's scratch directory,
+/// and the copy the
+///  landing keeps in its journal.
+/// Why:
+///   The finding is about the instant between the two:
+/// the client is gone and its scratch directory with it,
+/// and the
+///  state it would have removed is still there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, cleanup, kept } = concludedMergeWithTheScratchGone('service-follow-kept');
+/// ```
+fn concluded_merge_with_the_scratch_gone(name: &str) -> (PathBuf, PathBuf, Cleanup, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    std::fs::write(git_dir.join("MERGE_HEAD"), "0123456789012345678901234567890123456789\n").expect("state");
+    std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'other'\n").expect("state");
+    let scratch: PathBuf = root.join("scratch");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("copies");
+    std::fs::create_dir_all(scratch.join("shadow").as_path()).expect("shadow");
+    for state in ["MERGE_HEAD", "MERGE_MSG"] {
+        std::fs::copy(git_dir.join(state), copies.join(state)).expect("copy");
+    }
+    // The record of the pseudorefs the store holds, which the files backend holds none of.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), "{}\n").expect("store record");
+    // The shadow repository removed them as native Git's own commit does, which the copy keeps by holding none.
+    let cleanup: Cleanup = Cleanup { git_dir, scratch: scratch.clone(), reftable: false };
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    let kept: PathBuf = crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 7).expect("the landing keeps what the cleanup compares");
+    std::fs::remove_dir_all(scratch.as_path()).expect("the service removes the client's scratch directory");
+    return (root, repo, cleanup, kept);
+}
+
+/// A copy of the comparison that cannot be made publishes nothing:
+/// the name the cleanup reads is never taken by a partial copy,
+/// so a landing that could not keep everything is one that kept nothing.
+#[test]
+fn a_copy_of_the_conclusion_state_that_fails_half_way_publishes_nothing() {
+    let root: PathBuf = fixture("service-follow-partial-copy");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let scratch: PathBuf = root.join("scratch");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("copies");
+    std::fs::write(copies.join("MERGE_HEAD"), "0123456789012345678901234567890123456789\n").expect("copy");
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), "{}\n").expect("store record");
+    // The shadow's entry cannot be copied: a directory stands where its file belongs.
+    std::fs::create_dir_all(scratch.join("shadow").join("MERGE_HEAD")).expect("a directory in the way");
+    let cleanup: Cleanup = Cleanup { git_dir, scratch, reftable: false };
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9).is_none(), "a copy that cannot be made keeps nothing");
+    assert!(!crate::conclusion_state_copy::path_of(&journal, 9).exists(), "the name the cleanup reads is never taken by a partial copy");
+    assert!(!journal.join("9.cleanup.tmp").exists(), "the staging copy goes with the failure");
+    remove(root.as_path());
+}
+
+/// A cleanup that failed once is finished after the client's scratch directory is gone:
+/// the copy the landing kept in its journal is what the comparison reads,
+/// so the concluded merge's state goes and the next
+///  commit does not conclude the merge again.
+#[test]
+fn a_conclusions_state_goes_when_the_clients_scratch_directory_is_gone_and_its_copy_was_kept() {
+    let (root, repo, cleanup, kept) = concluded_merge_with_the_scratch_gone("service-follow-kept");
+    assert!(remove_conclusion_state(&git_context(), repo.as_path(), &cleanup, Some(kept.as_path())), "the state the commit concluded is removed");
+    assert!(!repo.join(".git").join("MERGE_HEAD").exists(), "the merge is not in progress any more");
+    assert!(!repo.join(".git").join("MERGE_MSG").exists(), "the concluded merge's message goes with it");
     remove(root.as_path());
 }
 

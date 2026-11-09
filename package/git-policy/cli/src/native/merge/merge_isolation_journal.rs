@@ -24,6 +24,7 @@
 use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
 use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
 /// The owner of a record.
+use crate::path_bytes_in_records as path_bytes;
 use crate::transaction_owner::TransactionOwner;
 /// Exclusive,
 /// synced,
@@ -65,7 +66,7 @@ pub struct MergeIntent {
     pub owner: TransactionOwner,
     /// Canonical worktree top level,
     /// where recovery runs Git.
-    pub repository_root: String,
+    pub repository_root: PathBuf,
     /// The branch ref that moves;
     /// absent for a detached `HEAD`.
     pub target_ref: Option<String>,
@@ -122,8 +123,11 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
     if let Some(namespace) = &intent.owner.owner_pid_namespace {
         writer.string("ownerPidNamespace", namespace.as_str());
     }
+    // The root goes in as plain text and as its bytes, so recovery runs Git in the worktree the merge was made for.
+    let plain_root: String = intent.repository_root.display().to_string();
     writer
-        .string("repositoryRoot", intent.repository_root.as_str())
+        .string("repositoryRoot", plain_root.as_str())
+        .string("repositoryRootHex", path_bytes::hex_of_path(intent.repository_root.as_path()).as_str())
         .string("targetRef", intent.target_ref.as_deref().unwrap_or_default())
         .string("oldOid", intent.old_oid.as_str())
         .string("newOid", intent.new_oid.as_str());
@@ -151,9 +155,13 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
     let owner_identity: &str = string_field(&map, "ownerIdentity")?;
     let old_oid: &str = string_field(&map, "oldOid")?;
     let new_oid: &str = string_field(&map, "newOid")?;
-    let repository_root: &str = string_field(&map, "repositoryRoot")?;
+    let repository_root: PathBuf = match map.get("repositoryRootHex") {
+        Some(serde_json::Value::String(hexadecimal)) => path_bytes::path_of_hex(hexadecimal.as_str())?,
+        Some(_not_text) => return None,
+        None => PathBuf::from(string_field(&map, "repositoryRoot")?),
+    };
     if owner_pid < 1 || owner_identity.is_empty() || old_oid.is_empty() || new_oid.is_empty()
-        || repository_root.is_empty()
+        || repository_root.as_os_str().is_empty()
     {
         return None;
     }
@@ -169,7 +177,7 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
                 _ => None,
             },
         },
-        repository_root: String::from(repository_root),
+        repository_root,
         target_ref: if target_ref.is_empty() { None } else { Some(String::from(target_ref)) },
         old_oid: String::from(old_oid),
         new_oid: String::from(new_oid),

@@ -426,6 +426,68 @@ fn every_byte_the_file_hands_over_is_charged() {
     remove(root.as_path());
 }
 
+/// A read the system interrupts for ever ends in the same refusal a hard read error does,
+/// after a counted number of tries:
+/// nothing waits for an interruption to stop.
+#[test]
+fn repeatedly_interrupted_reads_end_in_a_refusal() {
+    /// How many interruptions the control hands over before it stops the read itself,
+    /// so a reader with no bound cannot hang the run.
+    const CONTROL_STOPS_AFTER: usize = 10_000;
+    let root: PathBuf = fixture_root("index-worktree-stat-interrupted");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a one\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
+    let hashed: StdCell<u64> = StdCell::new(0);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let attempts: &StdCell<usize> = Box::leak(Box::new(StdCell::new(0)));
+    let mut read = move |_opened: &std::fs::File, _buffer: &mut [u8]| -> std::io::Result<usize> {
+        attempts.set(attempts.get() + 1);
+        if attempts.get() > CONTROL_STOPS_AFTER {
+            return Ok(0);
+        }
+        return Err(std::io::Error::from(std::io::ErrorKind::Interrupted));
+    };
+    let mut before_open = || {};
+    let mut after_read = || {};
+    assert_eq!(
+        recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read }),
+        None,
+        "an interrupted read proves nothing, so the entry keeps the zero stat data"
+    );
+    assert!(attempts.get() < CONTROL_STOPS_AFTER, "the reader stopped on its own after {} of {CONTROL_STOPS_AFTER} interruptions", attempts.get());
+    remove(root.as_path());
+}
+
+/// One interruption is not a fact about the file,
+/// so the read is tried again and the file records its stat data.
+#[test]
+fn one_interrupted_read_is_tried_again() {
+    let root: PathBuf = fixture_root("index-worktree-stat-one-interruption");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a one\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
+    let attempts: &StdCell<usize> = Box::leak(Box::new(StdCell::new(0)));
+    let mut read = move |opened: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
+        attempts.set(attempts.get() + 1);
+        if attempts.get() == 1 {
+            return Err(std::io::Error::from(std::io::ErrorKind::Interrupted));
+        }
+        return read_some(opened, buffer);
+    };
+    let hashed: StdCell<u64> = StdCell::new(0);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let mut before_open = || {};
+    let mut after_read = || {};
+    let recorded: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read });
+    assert!(recorded.is_some(), "an interruption costs nothing, and the file records its stat data");
+    // The interruption, the read that takes the file's bytes, and the read that reports the end of the file.
+    assert_eq!(attempts.get(), 3, "the interruption is retried once");
+    remove(root.as_path());
+}
+
 /// A fifo renamed over the path before the open is not opened for reading:
 /// an open that can wait for a writer would hold the landing's index lock for ever.
 #[test]

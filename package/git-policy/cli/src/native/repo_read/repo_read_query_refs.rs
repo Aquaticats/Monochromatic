@@ -28,7 +28,7 @@ use crate::repo_read_config_list::{ListedEntry, list_config, listing_bytes};
 use crate::repo_read_object::{ObjectKind, from_hex};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_query_request_answer_and_context::{Answer, Context, Parsed, flags_are};
-use crate::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
+use crate::repo_read_refs::{Lookup, RefValue, Refs, is_listable_ref_name};
 use std::ffi::OsString;
 
 /// The `--format` text of the one listing the wrapper asks for.
@@ -237,7 +237,7 @@ pub(crate) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
 /// which would make the short name ambiguous.
 fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
     let name: String = format!("{prefix}{short}");
-    if !is_plain_ref_name(name.as_str()) {
+    if !is_listable_ref_name(name.as_str()) {
         return Some(false);
     }
     return match refs.lookup(name.as_str()) {
@@ -298,7 +298,7 @@ fn upstream(context: &Context) -> Option<Answer> {
     };
     let remote_name: &str = std::str::from_utf8(remote.as_slice()).ok()?;
     let merge_name: &str = std::str::from_utf8(merge.as_slice()).ok()?;
-    if remote_name == "." || !is_plain_ref_name(merge_name) {
+    if remote_name == "." || !is_listable_ref_name(merge_name) {
         return None;
     }
     let tracking: String = tracking_ref(listed.as_slice(), remote_name, merge_name)?;

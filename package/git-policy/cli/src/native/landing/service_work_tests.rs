@@ -26,7 +26,7 @@ const THIRD_OID: &str = "456789abcdef0123456789abcdef0123456789ab";
 struct Recorder {
     verdict: Verdict,
     pushes: RefCell<Vec<Vec<String>>>,
-    upkeeps: RefCell<Vec<String>>,
+    upkeeps: RefCell<Vec<PathBuf>>,
     reviews: RefCell<Vec<String>>,
 }
 
@@ -73,8 +73,8 @@ fn repo(name: &str) -> Repo {
 fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
     return WorkItem {
         kind,
-        repository: repo.worktree.display().to_string(),
-        git_dir: repo.common.display().to_string(),
+        repository: repo.worktree.to_path_buf(),
+        git_dir: repo.common.to_path_buf(),
         branch_ref: branch.to_string(),
         oid: oid.to_string(),
         parent: String::new(),
@@ -247,7 +247,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
 #[test]
 fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     let repo: Repo = repo("work-refused");
-    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere").display().to_string(), ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), ..item(&repo, WorkKind::Push, OID, BRANCH) };
     let bad_reference: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/a b");
     for refused in [&elsewhere, &bad_reference] {
         assert!(!is_acceptable(refused, repo.common.as_path()), "{refused:?}");
@@ -863,8 +863,8 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let common: PathBuf = root.join(".git");
     let review: WorkItem = WorkItem {
         kind: WorkKind::Review,
-        repository: root.display().to_string(),
-        git_dir: common.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: common.to_path_buf(),
         branch_ref: BRANCH.to_string(),
         oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
         parent: String::new(),
@@ -1008,4 +1008,56 @@ fn a_drain_of_many_claims_lists_the_state_directories_once() {
     for (_count, listings) in &measured {
         assert_eq!(*listings, first, "the listings of a drain do not grow with its claims: {measured:?}");
     }
+}
+
+/// The names in one state directory of the work queue below `common`.
+fn state_names(common: &Path, state: &str) -> Vec<String> {
+    let mut found: Vec<String> = std::fs::read_dir(state_directory(work_directory(common).as_path(), state)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    found.sort();
+    return found;
+}
+
+/// What:
+///  The after-commit work of a repository whose path is not UTF-8 runs.
+/// Why:
+///   The wrapper writes a work item's directories into the record as text and the drain reads them back
+/// to compare the Git directory with the one it drains,
+/// so text that cannot hold the path's bytes makes every item of such a repository unacceptable,
+/// and the push and the upkeep never run.
+#[test]
+fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
+    use crate::service_handoff::{HANDED_OVER, ServiceHandoff, hand_over};
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("work-non-utf8-path");
+    // No encoding of "wörktree" and "cömmon" spells these two names: their bytes after 0x77 and 0x63 are not text.
+    let repository: PathBuf = root.join(<std::ffi::OsStr as OsStrExt>::from_bytes(b"w\xffrktree"));
+    let common: PathBuf = root.join(<std::ffi::OsStr as OsStrExt>::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(repository.as_path()).expect("worktree");
+    std::fs::create_dir_all(common.as_path()).expect("Git directory");
+    let handoff: ServiceHandoff = ServiceHandoff {
+        config: crate::service_client::ClientConfig {
+            address: crate::service_server::Bind::Path(root.join("no-service.sock")),
+            activation: crate::service_client::Activation::Unsupported(crate::service_messages::Platform::LinuxWithoutUserServices),
+            start_wait: Duration::from_millis(100),
+            heartbeat_silence: Duration::from_secs(1),
+            start_watch: None,
+            keep_fresh: None,
+            answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
+            withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
+            extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
+            start_ceiling: crate::wait_ceilings::START_CEILING,
+        },
+        repository: repository.clone(),
+        git_dir: common.clone(),
+        reference: BRANCH.to_string(),
+        parent: String::new(),
+    };
+    let mut notices: Vec<u8> = Vec::new();
+    // No service can be started here, so the wake fails; the records are written before it and are the subject.
+    let _not_woken = hand_over(&handoff, OID, &mut notices);
+    assert_eq!(state_names(common.as_path(), PENDING).len(), HANDED_OVER.len(), "the handoff left one record per kind");
+    drain(common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+    assert!(state_names(common.as_path(), FAILED).is_empty(), "no work of this repository is refused: {:?}", state_names(common.as_path(), FAILED));
+    assert_eq!(state_names(common.as_path(), DONE).len(), HANDED_OVER.len(), "the push and the upkeep ran");
+    remove(root.as_path());
 }

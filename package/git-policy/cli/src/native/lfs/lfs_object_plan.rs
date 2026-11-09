@@ -68,7 +68,7 @@ mod unix {
     use crate::repo_read_layout::RepoLayout;
     use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
     use crate::repo_read_odb::ObjectDatabase;
-    use crate::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
+    use crate::repo_read_refs::{Lookup, RefValue, Refs, is_listable_ref_name};
 
     /// The tag of the decision lines.
     const TAG: &str = "monochromatic-git-policy-cli lfs-object-plan";
@@ -148,7 +148,7 @@ mod unix {
             format!("refs/remotes/{typed}/HEAD"),
         ];
         for candidate in &candidates {
-            if !is_plain_ref_name(candidate) {
+            if !is_listable_ref_name(candidate) {
                 continue;
             }
             match refs.lookup(candidate) {

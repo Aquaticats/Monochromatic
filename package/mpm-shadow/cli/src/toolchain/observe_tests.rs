@@ -12,7 +12,7 @@ use super::fakes::{Rig, write_executable};
 use super::fakes_cargo::finish_install;
 use super::layout::tool_install_dir;
 use super::model::OsFamily;
-use super::observe::{format_status, observe_all, observe_tool};
+use super::observe::{format_status, observe_all, observe_tool, satisfies_lock};
 
 
 #[test]
@@ -117,17 +117,124 @@ fn a_python_tool_is_absent_when_uv_itself_is_not_installed() {
     assert_eq!(observe_tool(&rig.context(), &tool), None);
 }
 
+/// A toolchain row names a channel, and rustup resolves that channel to the toolchain it installed:
+/// the observation asks `rustup which` about the channel and reports the channel,
+/// so a dated install of the same channel is never renamed into this row's toolchain.
 #[test]
-fn a_rust_toolchain_is_the_listed_name_that_starts_with_the_locked_channel() {
+fn a_rust_toolchain_is_the_one_rustup_resolves_for_the_channel_the_row_names() {
     let rig = Rig::new();
+    let tool = rig.lock.tool("rust").expect("tool").clone();
     rig.runner.answer(
-        "rustup toolchain list",
-        "stable-x86_64-unknown-linux-gnu\nnightly-2026-10-30-x86_64-unknown-linux-gnu (active, default)\n",
+        "rustup which --toolchain nightly-2026-10-30 rustc",
+        "/home/someone/.rustup/toolchains/nightly-2026-10-30-x86_64-unknown-linux-gnu/bin/rustc\n",
         0,
     );
+    let observed = observe_tool(&rig.context(), &tool);
+    assert_eq!(observed, Some("nightly-2026-10-30".to_string()));
+    assert!(satisfies_lock(&tool, observed.as_deref().expect("observed")), "the channel the row names satisfies it");
+    let listing: Vec<String> = rig.runner.lines();
+    assert!(listing.iter().all(|line| return !line.starts_with("rustup toolchain list")), "no name is matched by prefix: {listing:?}");
+    let call = &rig.runner.calls()[0];
+    let env = call.env.as_ref().expect("an explicit environment");
+    assert_eq!(env.get("RUSTUP_AUTO_INSTALL").map(String::as_str), Some("0"), "the query cannot install: {call:?}");
+}
+
+/// The row names `stable` and records the release that channel resolved to (`1.90.0`):
+/// the toolchain is the channel, and a `1.90.0` install is another toolchain.
+#[test]
+fn a_toolchain_of_the_recorded_release_is_not_the_channel_the_row_names() {
+    let rig = Rig::new();
+    let mut tool = rig.lock.tool("rust").expect("tool").clone();
+    tool.declaration.package_id = Some("stable".to_string());
+    tool.version = "1.90.0".to_string();
+    // rustup resolves `stable`, not `1.90.0`; asking about the release is answered as another channel.
+    rig.runner.answer("rustup which --toolchain 1.90.0 rustc", "/home/someone/.rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc\n", 0);
+    rig.runner.fail("rustup which --toolchain stable rustc", "error: toolchain 'stable-x86_64-unknown-linux-gnu' is not installed");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "`stable` is not installed, and 1.90.0 is another toolchain");
+}
+
+/// A row naming a bare channel is not the dated install of that channel:
+/// `rustup which --toolchain nightly` fails when only `nightly-2026-10-30` is installed.
+#[test]
+fn a_bare_channel_is_not_a_dated_install_of_that_channel() {
+    let rig = Rig::new();
+    let mut tool = rig.lock.tool("rust").expect("tool").clone();
+    tool.declaration.package_id = Some("nightly".to_string());
+    tool.version = "nightly-2026-10-30".to_string();
+    rig.runner.answer("rustup toolchain list", "nightly-2026-10-30-x86_64-unknown-linux-gnu\n", 0);
+    rig.runner.fail("rustup which --toolchain nightly rustc", "error: toolchain 'nightly-x86_64-unknown-linux-gnu' is not installed");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "the dated install is not the channel `nightly`");
+}
+
+/// A channel whose text is not the locked release must still hold that release:
+/// `stable` at `1.91.0` is not the `1.90.0` the lock records.
+#[test]
+fn a_channel_holding_another_release_does_not_satisfy_a_lock_that_names_one() {
+    let rig = Rig::new();
+    let mut tool = rig.lock.tool("rust").expect("tool").clone();
+    tool.declaration.package_id = Some("stable".to_string());
+    tool.version = "1.90.0".to_string();
+    rig.runner.answer(
+        "rustup which --toolchain stable rustc",
+        "/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc\n",
+        0,
+    );
+    rig.runner.answer("rustc --version", "rustc 1.91.0 (abc 2026-10-01)\n", 0);
+    assert_eq!(
+        observe_tool(&rig.context(), &tool),
+        None,
+        "the channel holds 1.91.0, which is not the release the lock records"
+    );
+}
+
+/// The same channel at the locked release satisfies it.
+#[test]
+fn a_channel_holding_the_locked_release_satisfies_the_lock() {
+    let rig = Rig::new();
+    let mut tool = rig.lock.tool("rust").expect("tool").clone();
+    tool.declaration.package_id = Some("stable".to_string());
+    tool.version = "1.90.0".to_string();
+    rig.runner.answer(
+        "rustup which --toolchain stable rustc",
+        "/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc\n",
+        0,
+    );
+    rig.runner.answer("rustc --version", "rustc 1.90.0 (def 2026-09-01)\n", 0);
+    assert_eq!(observe_tool(&rig.context(), &tool), Some("stable".to_string()));
+}
+
+/// A dated channel is its own release: that channel's compiler reports a nightly release with a commit
+/// date, which names no channel date, so nothing is compared and no compiler runs.
+#[test]
+fn a_dated_channel_is_read_without_asking_the_compiler_which_release_it_holds() {
+    let rig = Rig::new();
     let tool = rig.lock.tool("rust").expect("tool").clone();
-    assert_eq!(observe_tool(&rig.context(), &tool), Some("nightly-2026-10-30-x86_64-unknown-linux-gnu".to_string()));
-    rig.runner.answer("rustup toolchain list", "stable-x86_64-unknown-linux-gnu\n", 0);
+    rig.runner.answer(
+        "rustup which --toolchain nightly-2026-10-30 rustc",
+        "/rustup/toolchains/nightly-2026-10-30-x86_64-unknown-linux-gnu/bin/rustc\n",
+        0,
+    );
+    assert_eq!(observe_tool(&rig.context(), &tool), Some("nightly-2026-10-30".to_string()));
+    let lines: Vec<String> = rig.runner.lines();
+    assert!(lines.iter().all(|line| return !line.contains("--version")), "a dated channel needs no compiler run: {lines:?}");
+}
+
+/// A query that failed proves nothing, whatever it printed;
+/// an answer with no path proves nothing either.
+#[test]
+fn a_failed_or_empty_rustup_which_leaves_the_toolchain_absent() {
+    let failed = Rig::new();
+    let tool = failed.lock.tool("rust").expect("tool").clone();
+    failed.runner.answer_streams(
+        "rustup which --toolchain nightly-2026-10-30 rustc",
+        "/home/someone/.rustup/toolchains/nightly-2026-10-30-x86_64-unknown-linux-gnu/bin/rustc\n",
+        "error: something else went wrong",
+        1,
+    );
+    assert_eq!(observe_tool(&failed.context(), &tool), None, "a failed query certifies nothing");
+    let silent = Rig::new();
+    silent.runner.answer("rustup which --toolchain nightly-2026-10-30 rustc", "", 0);
+    assert_eq!(observe_tool(&silent.context(), &tool), None, "no path is no proof");
 }
 
 #[test]
