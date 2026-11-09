@@ -652,3 +652,39 @@ fn an_edit_made_while_the_pass_merges_is_not_replaced() {
     assert!(said.contains(edited.as_str()), "and names it by path: {said}");
     remove(&fixture);
 }
+
+/// What:
+///  A resolution of the same length whose modification time was put back is still not replaced.
+/// Why:
+///   The check compared the file's device,
+/// inode,
+/// length and modification time,
+/// and a writer can restore the time it saved,
+/// so different bytes passed it and `checkout-index --force` then wrote the merge over them
+/// (cross-vendor review round 2, finding 3).
+/// These are conflicted files the pass has already read,
+/// so the bytes are what it compares.
+#[test]
+fn a_same_length_resolution_with_a_restored_time_is_not_replaced() {
+    use std::time::SystemTime;
+    let fixture: Fixture = fixture("word-merge-same-length");
+    let repo: PathBuf = many_conflicts(&fixture, CONFLICTS_FOR_A_WINDOW);
+    let edited: String = format!("conflict{:02}.md", CONFLICTS_FOR_A_WINDOW / 2);
+    let target: PathBuf = repo.join(edited.as_str());
+    let (observed, watcher) = watched_run(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice(), move |root: u32| {
+        return during_the_pass(root, move || {
+            let before: std::fs::Metadata = std::fs::metadata(target.as_path()).expect("the file Git left");
+            let saved: SystemTime = before.modified().expect("its modification time");
+            let replacement: Vec<u8> = vec![b'R'; before.len() as usize];
+            std::fs::write(target.as_path(), replacement.as_slice()).expect("the other command's write");
+            let file: std::fs::File = std::fs::File::options().write(true).open(target.as_path()).expect("the file");
+            file.set_times(std::fs::FileTimes::new().set_modified(saved)).expect("the time put back");
+        });
+    });
+    let said: String = stderr_of(&observed);
+    assert!(watcher.join().expect("the watcher thread"), "the control reached the merge pass: {said}");
+    let held: Vec<u8> = std::fs::read(repo.join(edited.as_str())).expect("the file");
+    assert!(held.iter().all(|byte| { return *byte == b'R'; }), "the other command's bytes survive: {said}");
+    assert!(said.contains("changed while the second merge pass"), "the line names the path the pass left: {said}");
+    remove(&fixture);
+}

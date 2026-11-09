@@ -8081,6 +8081,17 @@ and one line names each such path:
 what the worktree held at each of those paths is read the moment the command left them,
 before the merge looks at any stage,
 so an edit made while the merge runs is never the baseline it is compared with;
+the bytes of each are what the comparison uses,
+not their length and modification time,
+because a writer can write different bytes of the same length and put the saved time back
+(`src/native/merge/merge_second_pass_worktree_unchanged.rs`),
+and a conflicted file is one the pass has already read:
+measuring the read on the development host on 2026-11-09 took 1.56 ms for 16 MiB against 1.23 ms for 64 bytes,
+medians of five runs each,
+so the two reads of a 14 MiB conflicted file cost about 0.6 ms beside the 396 ms and 403 ms the whole merge step
+of a 7 MiB conflict was measured at;
+a file larger than three times the pass's 8 MiB stage limit is never compared by its bytes,
+and the pass leaves that conflict alone;
 the index stages are read again just before the install,
 and the worktree file's device,
 inode,
@@ -8088,6 +8099,16 @@ length and modification time are compared with what they were when the stages we
 so a path that moved in either place keeps the version that is there now and is never replaced by the pass.
 Where every merged file moved,
 nothing is installed and that line alone is printed.
+The check and the install are two Git commands,
+so a second process that resolves and stages the same path in the few instructions between them still loses that resolution:
+`git update-index --index-info` replaces its stage 0 entry and `git checkout-index --force` replaces its worktree bytes.
+The owner's instruction of 2026-11-09 is to record that window rather than close it with more mechanism
+(`doc/planning/cli-git-conflict-resolution-route-findings-on-main.md`),
+and what the person sees if they are in it is their resolution replaced:
+the file holds the pass's merged bytes,
+the line names the path among those staged as resolved,
+and `git diff --cached -- <path>` and the file itself show the merge rather than what they wrote.
+Nothing else is lost: the index stages, the merge's own inputs and the commit are untouched.
 When a finish is planned the line says the wrapper finishes the operation below;
 otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,

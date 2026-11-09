@@ -20,39 +20,37 @@ use crate::merge_second_pass::{Conflict, Merged};
 use crate::path_bytes::os_from_path_bytes;
 use crate::repo_read_index::IndexEntry;
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
-/// What a worktree path held when the conflicts were read.
+/// The largest worktree file the pass records:
+/// a conflicted file holds both sides' bytes and Git's markers,
+/// and the pass merges no stage larger than `LARGEST_STAGE_BYTES`,
+/// so three of them bound it,
+/// with room for the markers.
+pub(super) const LARGEST_RECORDED_BYTES: u64 = 3 * crate::merge_second_pass::LARGEST_STAGE_BYTES + 64 * 1024;
+
+/// What a worktree path held when the conflicts were read:
+/// its bytes,
+/// or nothing when they cannot be compared (the file cannot be read, or it is larger than a conflicted file can be).
 /// Why:
 ///   The pass computes a merge from the index stages and then replaces the worktree file.
-/// A file that moved in between holds
-///  bytes the merge was never computed from,
+/// A file that moved in between holds bytes the merge was never computed from,
 /// and writing over it discards them.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct Held {
-    /// The file's length in bytes.
-    size: u64,
-    /// Its last modification time,
-    /// when the system reports one.
-    modified: Option<SystemTime>,
-    /// Its device and inode on a system that numbers them,
-    /// so a replacement of the same length at the same time still shows.
-    numbers: Option<(u64, u64)>,
-}
+/// The bytes are what it compares,
+/// not their length and time:
+/// a writer can write different bytes of the same length and put the saved modification time back,
+/// and `SPEC.md` records that such a file is one the pass has already read.
+pub(super) type Held = Option<Vec<u8>>;
 
 /// What the worktree holds at `path` now,
-/// or nothing when it cannot be read.
-pub(super) fn worktree_state(path: &Path) -> Option<Held> {
-    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
-    #[cfg(unix)]
-    let numbers: Option<(u64, u64)> = {
-        use std::os::unix::fs::MetadataExt;
-        Some((metadata.dev(), metadata.ino()))
-    };
-    #[cfg(not(unix))]
-    let numbers: Option<(u64, u64)> = None;
-    return Some(Held { size: metadata.len(), modified: metadata.modified().ok(), numbers });
+/// or nothing when it cannot be compared.
+pub(super) fn worktree_state(path: &Path) -> Held {
+    let file: std::fs::File = std::fs::File::open(path).ok()?;
+    let mut bytes: Vec<u8> = Vec::new();
+    let kept: std::io::Result<usize> = file.take(LARGEST_RECORDED_BYTES + 1).read_to_end(&mut bytes);
+    let Ok(read) = kept else { return None };
+    return if read as u64 > LARGEST_RECORDED_BYTES { None } else { Some(bytes) };
 }
 
 /// The path a stage names,
@@ -62,8 +60,8 @@ fn path_under(root: &Path, path: &[u8]) -> PathBuf {
 }
 
 /// What the worktree holds at each of `paths`.
-pub(super) fn held_paths(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Option<Held>> {
-    let mut held: BTreeMap<Vec<u8>, Option<Held>> = BTreeMap::new();
+pub(super) fn held_paths(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Held> {
+    let mut held: BTreeMap<Vec<u8>, Held> = BTreeMap::new();
     for path in paths {
         held.insert(path.clone(), worktree_state(path_under(root, path).as_path()));
     }
@@ -79,7 +77,7 @@ pub(super) struct Before<'a> {
     /// read again after the merge was computed.
     pub(super) entries: &'a [IndexEntry],
     /// What the worktree held at each path when the conflicts were read.
-    pub(super) held: &'a BTreeMap<Vec<u8>, Option<Held>>,
+    pub(super) held: &'a BTreeMap<Vec<u8>, Held>,
 }
 
 /// What the install may replace,
@@ -114,7 +112,8 @@ fn still_holds(before: &Before<'_>, file: &Merged) -> bool {
         return false;
     }
     let Some(recorded) = before.held.get(&file.path) else { return false };
-    return *recorded == worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
+    let now: Held = worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
+    return *recorded == now;
 }
 
 /// What:

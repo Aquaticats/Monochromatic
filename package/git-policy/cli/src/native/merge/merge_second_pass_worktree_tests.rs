@@ -198,7 +198,7 @@ fn stopped_merge(name: &str) -> (World, Vec<IndexEntry>) {
 /// The one file of a stopped merge,
 /// merged by word,
 /// with its blob written.
-fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap<Vec<u8>, Option<Held>>) {
+fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap<Vec<u8>, Held>) {
     let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
     let conflicts: Vec<Conflict> = conflicts_of_index(entries, &created);
     let context: GitContext = git_context();
@@ -206,7 +206,7 @@ fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap
     let verdicts: Vec<Verdict> = second_pass(&pass, conflicts.as_slice(), AttributeSource::Invocation).expect("the pass runs");
     let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("the one file resolves by word: {verdicts:?}") };
     let oid: String = write_blob(&pass, file.bytes.as_slice()).expect("the merged blob");
-    let held: BTreeMap<Vec<u8>, Option<Held>> = held_paths(world.repo.as_path(), &created);
+    let held: BTreeMap<Vec<u8>, Held> = held_paths(world.repo.as_path(), &created);
     return ((**file).clone(), oid, held);
 }
 

@@ -246,7 +246,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     }
     let conflicts: Vec<Conflict> = conflicts_of_index(entries.as_slice(), &created);
     // What the worktree held at the moment the command left these conflicts, read before the merge looks at any stage: an edit made while the merge runs must not become the baseline it is compared with.
-    let held: BTreeMap<Vec<u8>, Option<Held>> = held_paths(layout.worktree_root.as_path(), &created);
+    let held: BTreeMap<Vec<u8>, Held> = held_paths(layout.worktree_root.as_path(), &created);
     let context: GitContext = GitContext {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
