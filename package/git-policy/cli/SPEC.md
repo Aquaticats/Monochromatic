@@ -2662,6 +2662,10 @@ of the review call and of the whole review).
   the transport ends the call itself,
   and its global timeout ends
   it at the ceiling with a sentence that names the call and the command that reviews the commit again.
+  The answer is read against `MAX_RESPONSE_BYTES` (four times the model input's cap) frame by frame:
+  a body past it ends the call as a failed one while it still arrives,
+  and the review's entry records the failure,
+  so no answer is ever held whole and the display excerpt of a failure message is not a memory bound.
   The whole review of a commit is waited for `REVIEW_CEILING` (2 minutes) by the service (`run_contained`);
   a review it stopped
   waiting for is counted as outstanding until its thread ends and no other review starts meanwhile (the refused item fails with the
