@@ -67,6 +67,11 @@ pub mod child_number_told_at_start;
 /// owned through every failure after its start.
 pub mod child_awaited_through_a_pidfd;
 
+/// The children this command stopped waiting for,
+/// gathered by a thread of their own,
+/// and kept when the system refuses that thread.
+pub mod stuck_children_reaped_when_the_kernel_lets_go;
+
 /// A child waited for by the thread that owns it,
 /// with a ceiling,
 /// so a query that never answers is ended by its owner.

@@ -139,15 +139,24 @@ fn run_git_bytes_starting_with(
     input: Option<&str>,
 ) -> Result<Vec<u8>, ManualPushRangeError> {
     let mut command = git_command(git, arguments);
+    // The two pipes of the query's answers are made and registered with the runtime before the start, so a refusal starts
+    //  nothing, and both streams are read by the runtime in one place that holds the cap-free read and the post-exit drain.
+    // This is the reader `process/step_output_read_whole_through_pipes.rs` already uses for a step's streams
+    // (the fourth review's findings about reader threads, their unbounded queues and their blocked reads).
+    let pipes: crate::step_output_read_whole_through_pipes::StepPipes = match crate::step_output_read_whole_through_pipes::attach_pipes(&mut command) {
+        Ok(opened) => opened,
+        Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be given its answers: {error}"))),
+    };
     // The request list goes in through a pipe of this process's own, so its write end is this process's and a refused thread
     //  start costs the query its start rather than leaving a child nothing waits for.
     let (reader, writer) = match std::io::pipe() {
         Ok(pair) => pair,
         Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be given its input: {error}"))),
     };
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    // The input is written on this thread while the caller reads both replies: neither can hold the other up, which is what a
-    //  request list larger than a pipe did before.
+    // The input is written on this thread while the runtime reads both replies: neither can hold the other up, which is what a
+    //  request list larger than a pipe did before. What became of that write is told back, because a list that was cut short
+    //  leaves a partial answer that only its own report can name (the fourth review's finding 7).
+    let (wrote, watch_the_write) = std::sync::mpsc::channel::<bool>();
     let writing: Option<std::thread::JoinHandle<()>> = match input {
         Some(requests) => {
             let text: String = requests.to_owned();
@@ -155,7 +164,8 @@ fn run_git_bytes_starting_with(
             let started = std::thread::Builder::new().name(String::from("cli-git-range-input")).spawn(move || {
                 // A Git that exits before reading the whole list surfaces through its status, and one that never reads it has
                 //  its own ceiling: the write gives up when that passes rather than waiting for the reader's life.
-                let _written: bool = write_within(&mut writing_end, text.as_bytes(), RANGE_QUERY_CEILING);
+                let wrote_all: bool = write_within(&mut writing_end, text.as_bytes(), RANGE_QUERY_CEILING);
+                let _reported = wrote.send(wrote_all);
             });
             match started {
                 Ok(written) => {
@@ -175,29 +185,53 @@ fn run_git_bytes_starting_with(
             None
         }
     };
-    let child: Child = match command.spawn_retrying() {
+    let started = command.spawn_retrying();
+    // The write ends of the answers are this process's until the command lets them go, and a pipe whose write end this process
+    //  holds never reaches its end: the readers are given them back whether or not the start worked.
+    crate::step_output_read_whole_through_pipes::release_write_ends(&mut command);
+    let child: Child = match started {
         Ok(started) => started,
         Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"))),
     };
-    // This thread waits for the child and ends it at the ceiling, so no other thread signals its number and none can reach a
-    //  process that took the number after it was reaped.
-    let answered: std::process::Output = match crate::child_waited_for_within_a_ceiling::output_within(child, RANGE_QUERY_CEILING) {
+    // The runtime reads both streams and waits for the child, and this wait carries the ceiling: one place holds the read, the
+    //  post-exit drain and the end of the wait, so no reader thread and no queue stands between the query and its answer.
+    let shown: String = words_of(arguments);
+    let carried: crate::step_output_read_whole_through_pipes::CarriedCeiling = crate::step_output_read_whole_through_pipes::carried_by(
+        RANGE_QUERY_CEILING,
+        crate::step_output_read_whole_through_pipes::CeilingWhy::TheQueryIsBounded,
+    );
+    let answered: std::process::Output = match pipes.read_until_the_child_ends(child, shown.as_str(), Some(carried)) {
         Ok(output) => output,
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-            let shown: String = words_of(arguments);
+            // A query the kernel would not release is reported as left running, not as ended (the fourth review's finding 9).
+            let left_running: bool = crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&error);
+            let ending: &str = if left_running { "and could not be ended, so it was left running" } else { "and was ended" };
             return Err(range_error(ManualPushCause::GitSilent, format!(
-                "git {shown} did not answer within {} seconds, the longest one of these queries waits, and was ended. Hint: check \
-                 with `ps` what that Git waits for, and run the command again.",
+                "git {shown} did not answer within {} seconds, the longest one of these queries waits, {ending}. Hint: check with \
+                 `ps` what that Git waits for, and run the command again.",
                 RANGE_QUERY_CEILING.as_secs()
             )));
         }
         Err(error) => return Err(range_error(ManualPushCause::GitSilent, format!("git did not finish: {error}"))),
     };
-    // What: the thread that writes the request list is not joined.
-    // Why:  its write ends when the query's input closes, which the query's own end does: the next write fails with `EPIPE`
-    //       and the thread ends. A program the query started that holds the read end open past that keeps this thread alive
-    //       until it ends or this process exits, and nothing of the command waits for it.
+    // What: the thread that writes the request list is not joined, and what became of its write is read here.
+    // Why:  its write ends when the query's input closes, which the query's own end does: the next write fails with `EPIPE` and
+    //       the thread ends. A program the query started that holds the read end open past that keeps this thread alive until it
+    //       ends or this process exits, and nothing of the command waits for it.
     let _input_thread_left_to_end = writing;
+    // Nothing waits for that report: a writer still in its write has not put the whole list in, and the answer at hand covers
+    //  only the part of it that went (the fourth review's finding 7).
+    let wrote_all: bool = watch_the_write.try_recv().unwrap_or(false);
+    if input.is_some() && !wrote_all {
+        // Git answers what it read, and a list that was cut short leaves answers to part of it: that is not this query's answer
+        //  (the fourth review's finding 7).
+        return Err(range_error(ManualPushCause::GitSilent, format!(
+            "git {shown} answered, but the request list this command wrote was cut short at its {} second deadline, so the \
+             answers cover only the part of the list that went in. Hint: check with `ps` what that Git waits for, and run the \
+             command again.",
+            RANGE_QUERY_CEILING.as_secs()
+        )));
+    }
     if !answered.status.success() {
         let mut shown: Vec<String> = Vec::new();
         for argument in arguments {

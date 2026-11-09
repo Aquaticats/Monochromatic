@@ -22,9 +22,10 @@
 //! const status = await owned.wait();           // never blocks the event loop
 //! ```
 
+use crate::bounded_push::STOP_GRACE;
 use std::os::fd::OwnedFd;
 use std::process::{Child, ExitStatus};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::Interest;
 use tokio::io::unix::AsyncFd;
 
@@ -32,6 +33,9 @@ use tokio::io::unix::AsyncFd;
 /// the fallback is a timer,
 /// not a blocking wait and not a thread.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// How often a child that was killed is looked at while the stop's grace runs.
+const LOOK_INTERVAL: Duration = POLL_INTERVAL;
 
 /// A failure to inject after the start,
 /// so the invariant "none of them is a failed start" can be tested.
@@ -177,7 +181,24 @@ impl OwnedChild {
         if let Some(mut child) = self.child.take() {
             // A kill of an exited child fails harmlessly; the wait reaps either way.
             let _ = child.kill();
-            let _ = child.wait();
+            // The stop's grace, and no more: a child in an uninterruptible call ends only when the kernel lets it go, and the
+            //  command must not wait for that. A child that does not end in the grace is handed to a reaper thread, which is the
+            //  route `SPEC.md` states for a leader that does not end in `STOP_GRACE`.
+            let began: Instant = Instant::now();
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_status)) => return,
+                    Ok(None) => {}
+                    // A record that cannot be read is not the child's end, so the grace decides, not this answer.
+                    Err(_unreadable) => break,
+                }
+                if began.elapsed() >= STOP_GRACE {
+                    crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
+                    return;
+                }
+                std::thread::sleep(LOOK_INTERVAL);
+            }
+            crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
         }
     }
 

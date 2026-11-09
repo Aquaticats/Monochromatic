@@ -243,6 +243,22 @@ impl PinnedMember {
         }
     }
 
+    /// What:
+    ///  Whether the process this pin names has ended.
+    /// Why:
+    ///   A stop must not read the tree of a root that is gone,
+    /// nor report a step that already ended as ended at its
+    ///  ceiling (the fourth review's findings 1 and 2),
+    /// and the descriptor answers that without a signal.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pin.hasEnded(); // poll(descriptor, POLLIN, 0)
+    /// ```
+    pub fn has_ended(&self) -> bool {
+        return has_ended(&self.descriptor);
+    }
+
     /// Send `signal` to the pinned process,
     /// and to no other.
     pub fn signal(&self, signal: i32) -> Delivered {

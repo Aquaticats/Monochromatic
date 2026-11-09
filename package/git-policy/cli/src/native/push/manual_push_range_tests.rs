@@ -329,17 +329,21 @@ fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
 }
 
 /// What:
-///  A query that answers is returned even though a program it started still holds the read end of its input.
+///  A query whose request list a program holds without reading it is not waited for,
+/// and its partial answer is not returned as an answer.
 /// Why:
 ///  The request list goes in from a thread of its own;
 /// a helper that inherited the query's input and never reads it keeps
-///  that thread in `write_all` for as long as it lives,
-/// so waiting for it after the answer arrived would outlast
-///  `RANGE_QUERY_CEILING` and hang the command on a query that had already answered.
-/// The helper ends by itself (`sleep`),
-/// so the control kills nothing.
+///  that thread in its write for as long as it lives,
+/// so waiting for the write after the answer arrived would outlast
+///  `RANGE_QUERY_CEILING`.
+/// What Git answered covers only the part of the list that went in,
+/// so the query fails and
+///  says the list was cut short (the fourth review's finding 7),
+/// rather than answering with the replies to part of it.
+/// The helper ends by itself (`sleep 8`), so the control kills nothing.
 #[test]
-fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
+fn a_query_whose_request_list_a_program_holds_is_not_answered() {
     let root: PathBuf = fixture("manual-push-range-held-input");
     let program: PathBuf = root.join("stand-in-git");
     // The helper holds a copy of the query's input and reads none of it. A plain background job of a non-interactive shell
@@ -352,8 +356,6 @@ fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
     let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
     let requests: String = "0123456789abcdef\n".repeat(8000);
     let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
-    // The query runs on a thread of its own and is taken with a deadline, so a wait that never ends is reported here instead of
-    //  hanging the run.
     let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, ManualPushRangeError>>();
     let querying = {
         let for_the_query: PushGit = git.clone();
@@ -369,12 +371,13 @@ fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
     let answer: Result<Result<Vec<u8>, ManualPushRangeError>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(15));
     let waited: Duration = began.elapsed();
     remove(root.as_path());
-    let returned = answer.expect("the query returned; a helper that never reads its input held it up");
+    let returned: Result<Vec<u8>, ManualPushRangeError> = answer.expect("the query returned; a helper that never reads its input held it up");
     let _joined = querying.join();
-    let bytes: Vec<u8> = returned.expect("the query answers");
-    assert_eq!(bytes, b"answered\n".to_vec(), "the answer is the query's own");
+    let failure: ManualPushRangeError = returned.expect_err("a list that was cut short is not this query's answer");
+    assert!(failure.message.contains("request list this command wrote was cut short"), "{}", failure.message);
     assert!(waited < Duration::from_secs(3), "the answer was held up for {waited:?} by a helper that never reads the input");
 }
+
 
 /// What:
 ///  No control of this module signals a process by a number,

@@ -127,9 +127,13 @@ fn the_one_shot_git_questions_no_longer_block_a_thread_on_command_output() {
 ///  a query reaps it as soon as it ends,
 /// so the number read at the start may name another process by the time a ceiling
 ///  is reached.
-/// The signal goes through a descriptor taken while the number certainly named the query
-///  (`pin_of_our_own_child`);
-/// a host that gives none sends nothing and says so.
+/// Nothing on these paths signals a number at all: the one-shot query is waited for,
+/// and ended,
+/// by the thread that
+///  owns it (`wait_within`),
+/// and the batch query is read by the runtime,
+/// which owns its child for the same reason
+///  (`read_until_the_child_ends`).
 #[test]
 fn neither_query_path_signals_by_number() {
     let sources: [(&str, &str); 2] = [
@@ -139,6 +143,9 @@ fn neither_query_path_signals_by_number() {
     for (name, source) in sources {
         let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
         assert!(!code.contains("libc::kill"), "{name} still signals a process by its number");
-        assert!(code.contains("wait_within") || code.contains("output_within"), "{name} does not wait for its child with a ceiling");
+        assert!(
+            code.contains("wait_within") || code.contains("read_until_the_child_ends"),
+            "{name} does not wait for its child with a ceiling that its own thread keeps"
+        );
     }
 }

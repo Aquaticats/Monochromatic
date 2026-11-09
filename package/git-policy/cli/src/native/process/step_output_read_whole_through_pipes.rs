@@ -513,11 +513,21 @@ pub enum CeilingWhy {
     /// nothing proved which process to stop,
     /// so this wait is what ends it at the ceiling.
     TheWatchCouldNotEndIt,
+    /// Nothing watches this read and nothing else bounds it:
+    /// it is a read-only query,
+    /// and its ceiling is the longest one of those waits
+    /// (`src/native/push/manual_push_range.rs`).
+    TheQueryIsBounded,
 }
 
 /// What:
-///  The ceiling a wait carries for a step with `ceiling`,
-/// and why it is the wait that ends it.
+///  The ceiling a wait carries,
+/// and why it is the wait that ends what it waits for.
+/// Why:
+///   A step with a ceiling may have no watch (a refused thread),
+/// a watch that could not end it,
+/// or no watch of
+///  its own at all (a read-only query, whose ceiling is the longest one of those waits).
 /// Why:
 ///   The reason is the watch's to tell:
 /// a watch that could not run at all,
@@ -531,9 +541,18 @@ pub enum CeilingWhy {
 /// carriedFor(ceiling, aWatchRuns)
 /// ```
 pub fn carried_for(ceiling: Option<Duration>, a_watch_runs: bool) -> Option<CarriedCeiling> {
-    let limit: Duration = ceiling?;
     let why: CeilingWhy = if a_watch_runs { CeilingWhy::TheWatchCouldNotEndIt } else { CeilingWhy::NoWatcher };
-    return Some(CarriedCeiling { limit, why });
+    return Some(carried_by(ceiling?, why));
+}
+
+/// The ceiling `limit` carried for the reason `why`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// carriedBy(limit, why)
+/// ```
+pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
+    return CarriedCeiling { limit, why };
 }
 
 /// What:
@@ -560,6 +579,10 @@ fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling) -> St
         CeilingWhy::TheWatchCouldNotEndIt => {
             "though its watch could not end it: nothing proved which process to stop. Hint: check with `ps` what the step waits \
              for, and run the command again"
+        }
+        CeilingWhy::TheQueryIsBounded => {
+            "and it was ended. Such a query changes nothing of the repository. Hint: check with `ps` what that program waits for, \
+             and run the command again"
         }
     };
     return format!(
