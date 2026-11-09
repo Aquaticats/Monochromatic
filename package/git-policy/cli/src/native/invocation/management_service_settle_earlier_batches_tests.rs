@@ -61,7 +61,7 @@ impl Setup {
             new: "b".repeat(40),
             ids: vec![format!("id-{seq}")],
             commits: vec!["c".repeat(40)],
-            paths: vec![String::from("a.txt")],
+            paths: vec![b"a.txt".to_vec()],
             derived: false,
             cleanup: None,
             index: git_dir.join("index"),
