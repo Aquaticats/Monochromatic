@@ -8667,7 +8667,18 @@ For injected commit-only semantics:
     a copied mark makes `git add --all` skip or refuse a file the commit named,
     where native Git stages it.
     A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
-    with the same answers.
+    with the same answers,
+    and one thing more:
+    it writes the requested tree's own entry over every path an intent-to-add mark names,
+    before the reset.
+    A rebuild holds exactly that tree,
+    so an entry the reset would leave marked must not survive:
+    a scratch-commit hook that restages an unrelated file invalidates the cached tree,
+    and a surviving mark would leave a tracked file nobody named out of the tree the index writes.
+    Native Git's own reset leaves such a mark,
+    and a tree built from that index omits the path (measured with Git 2.56.0);
+    the wrapper keeps the file,
+    as it does for the first preparation.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;

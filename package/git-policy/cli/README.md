@@ -2984,7 +2984,11 @@ Each line names what the command waits for,
    233,618,538 bytes of LFS content cleaned and 3.6 s with an index built by a plain `read-tree`,
    against 0.1 s with the real index's stat data).
    An intent-to-add entry copies as it is,
-   and an index that holds an assume-unchanged or skip-worktree mark,
+   and the paths it names are written as the requested tree's own entries before the reset,
+   so a scratch-commit hook that restages an unrelated file cannot leave one of them out of the tree the index writes
+   (native Git's reset leaves the mark,
+  and its tree then omits that path);
+   an index that holds an assume-unchanged or skip-worktree mark,
    or one the wrapper cannot read,
    is built from the tree alone instead.
 - The object reader and the Git steps of a commit that run long,
