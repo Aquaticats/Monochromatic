@@ -1897,6 +1897,12 @@ and `owner=<owner>` last;
 the first line is written only when text spells the whole path and it fits one line,
 so a claim whose path is not text refuses in a reader that knows only that line.
 The first line is what the release installed before `containerHex` reads.
+A reader takes the bytes line only as the first line or the line after the text line,
+and requires those two lines to name one path when both are there,
+because the release installed before the bytes line wrote a container path verbatim:
+a destination parent holding a line break then spelled lines of the record itself.
+A claim of any other shape is refused and kept,
+never acted on.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them.
 
@@ -1957,6 +1963,15 @@ Every pending transaction then reaches an end:
   recovery removes the private stage and journal,
   never touches the destination path,
   and writes one notice line.
+  The `.git` pointer is read as bytes,
+  with every trailing line feed and carriage return stripped as Git's `read_gitfile_raw` strips them,
+  so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds.
+- A destination whose pointer cannot be followed,
+  because the file names no directory or the directory it names is not there,
+  is not evidence either way:
+  recovery keeps the stage and the journal,
+  writes one notice line saying that whether the worktree is still registered is unknown,
+  and names the commands that show and settle it.
 - A transaction whose private stage is gone is discarded the same way,
   with a notice that ignored files in the destination may be incomplete.
 - Otherwise installation resumes.
