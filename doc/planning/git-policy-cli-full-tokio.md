@@ -7669,6 +7669,87 @@ The wording of a refusal:
     command,
     so `native:perf` was not run to say what it would cost.
 
+## A refused thread ends with the sentence that names the limit, 2026-11-09T17:30:00-05:00
+
+- What a command does when the system refuses a thread,
+  on every path a commit,
+  merge,
+  push or worktree command takes,
+  had two halves in this tree:
+  the work runs on a thread the command already has
+  (`foundation/scoped_start.rs::start_or_run_with`,
+  which the worktree copy,
+  the worktree clean check,
+  the repair clone,
+  the ordered runner and the side-by-side runner all use),
+  or the command ends with a sentence.
+  The sentence was missing at five places,
+  and one of them called the refusal a defect of this program:
+  `push/bounded_query_input.rs` (the write half of a push query),
+  `push/child_watch.rs` (the waiter of a step left running),
+  `markdown/markdown_linter_guard.rs` (the linked linter of a commit),
+  `service/service_server.rs` (the service's after-commit work thread,
+  which ended the service), and
+  `standards_review/standards_review_run.rs`,
+  which answered a refused thread as `Contained::Panicked`,
+  so `service/service_review.rs` told the person
+  "the review of <oid> stopped with an internal error".
+- `foundation/scoped_start.rs::refused_thread_sentence` is the one sentence now:
+  "no thread could be started to <what>: the system refused the thread (<the system's error>).
+  Hint: check the process limit (`ulimit -u`),
+  the address-space limit (`ulimit -v`) and the control group's `pids.max`,
+  free some, and run the command again".
+- `Contained` gained `NoThread(String)`,
+  and gave up `Copy` with it because the sentence is owned;
+  nothing in the tree copied a `Contained`.
+- The controls,
+  each refused a thread for real in a child whose `RLIMIT_NPROC` is one
+  (`testing/no_threads_child_test_support.rs`):
+  `push::bounded_query::tests::where_no_thread_can_start_the_input_writer_names_the_limit`,
+  `markdown::markdown_linter_guard::tests::where_no_thread_can_start_the_guard_names_the_limit`,
+  `service::service_review::tests::where_no_thread_can_start_the_review_names_the_limit`,
+  and,
+  at the binary level,
+  `fault_limits::a_service_whose_work_thread_is_refused_says_which_limit_refused_it`
+  (the service under `RLIMIT_NPROC` one,
+  and its own log line is what the control reads).
+- `push::child_watch::tests::a_step_left_running_whose_waiter_is_refused_names_the_limit`
+  arms the refusal instead of making one,
+  and has to:
+  the step is a process of the very process whose thread start is refused,
+  so `RLIMIT_NPROC` refuses the fork too;
+  a limit lowered once the child exists does not arrive in time either,
+  because the waiter's start follows the child's within a millisecond while the step's number is visible only
+  after 30.4 ms (measured on 2026-11-09).
+- Measured task counts,
+  the gate's own settings
+  (`--cpus 2 --memory 2g`,
+  nextest's concurrency of two test binaries and two tests each,
+  the image built from `776281f4ee`):
+  a container running `--lib` and `--test native_binary` peaks at 192 tasks
+  (`/sys/fs/cgroup/pids.peak` inside it,
+  against `pids.max` 8192),
+  and a person's commit through the wrapper peaks at 14 tasks in the scope that held it together with
+  the test harness that drove it,
+  its fixture service and Git.
+  The container run failed the same four tests the 2026-11-09T16:14 gate failed
+  (`wait_notice` three,
+  `word_merge` one) on a tree that does not hold this branch's changes,
+  so those failures are not this cap and not these changes.
+- `--pids-limit 512` stays what it is:
+  192 measured leaves it 2.7 times the room,
+  and the thread refusals in the 16:14 gate log came from the tests that set `RLIMIT_NPROC`,
+  `RLIMIT_AS` and `RLIMIT_NOFILE` on the wrapper and on the service themselves
+  (`binary/binary_fault_limits_tests.rs`),
+  not from the container's cap.
+  Raising the cap would hide none of them and fix none.
+- What no in-process guard can answer:
+  a thread that starts and then cannot map its signal stack ends the process with `rtabort!`
+  (`library/std/src/sys/pal/unix/stack_overflow.rs`,
+  outside any unwind),
+  so the runtime plan keeps `runtime_plan.rs`'s `ADDRESS_SPACE_RESERVE_BYTES` back for it and
+  `a_memory_limit_close_to_exhaustion_on_the_service_...` accepts the band where nothing can start.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
