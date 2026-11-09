@@ -183,6 +183,11 @@ const TRANSIENT_PHRASES: readonly string[] = [
 ];
 
 /**
+ The lowest status a response writes when the request itself is what it refused, which is where an error status begins.
+ */
+const FIRST_ERROR_STATUS = 400;
+
+/**
  The server status codes of a failure another attempt can fix, read only where the failure text starts with one: that is where a
  response writes its status, before the body that explains it.
  */
@@ -273,6 +278,24 @@ function leadingStatusCode(text: string,): string {
 }
 
 /**
+ Tells whether a failure text starts with a status that refused the request itself.
+
+ A status the text starts with is the answer the provider gave, and the body after it only explains that answer: a `400` whose
+ body mentions an internal error is still a request the provider will not take, so no attempt at the same request reaches another
+ answer.
+
+ @param status - the digits the text starts with, or an empty string when it starts with anything else
+
+ @returns whether the status is one the request itself earned
+ */
+function startsWithRefusedStatus(status: string,): boolean {
+  return (status !== '')
+    && (Number(status,) >= FIRST_ERROR_STATUS)
+    && (!TRANSIENT_CODES.includes(status,))
+    && (status !== THROTTLE_CODE);
+}
+
+/**
  Tells whether a text folded to lower case holds one of these phrases, or starts with one of these status codes.
 
  @param text - text folded to lower case
@@ -327,6 +350,9 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
     statusCodes: [THROTTLE_CODE,],
   },)) {
     return 'throttled';
+  }
+  if (startsWithRefusedStatus(leadingStatusCode(text,),)) {
+    return 'permanent';
   }
   if (holdsOneOf({
     text,

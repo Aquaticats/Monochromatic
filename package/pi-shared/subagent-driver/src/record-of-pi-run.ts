@@ -133,12 +133,18 @@ export function startRecordOfPiRun({
     retriesSinceAnswer: number;
 
     /**
+     How many assistant messages have replied without an error.
+     */
+    answers: number;
+
+    /**
      How many model errors named a rate limit or a quota.
      */
     rateLimitErrors: number;
   } = {
     retries: 0,
     retriesSinceAnswer: 0,
+    answers: 0,
     rateLimitErrors: 0,
   };
 
@@ -178,6 +184,7 @@ export function startRecordOfPiRun({
       }
     },
     noteAnswer: function noteAnswer() {
+      state.answers += 1;
       state.retriesSinceAnswer = 0;
     },
   },);
@@ -196,9 +203,16 @@ export function startRecordOfPiRun({
     retriesTaken: function retriesTaken() {
       return state.retries;
     },
+    answersTaken: function answersTaken() {
+      return state.answers;
+    },
     countRetry: function countRetry(retry: RetryTaken,) {
       state.retries += 1;
-      state.retriesSinceAnswer += 1;
+      // A reply that arrived while this attempt's command was being answered belongs to this attempt, so the attempt is
+      // credited to the failures before it rather than to the ones after it.
+      if (state.answers === retry.answersBefore) {
+        state.retriesSinceAnswer += 1;
+      }
       note({
         kind: 'retry',
         attempt: retry.attempt,

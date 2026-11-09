@@ -12,8 +12,11 @@ import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
 import { seen, } from './stand-in-pi-log-fixture.ts';
 import {
   answer,
+  assistantFailure,
+  assistantReply,
   emit,
   emitErrorWithoutSettling,
+  emitInOneWrite,
   finishRun,
   finishRunInError,
   LONG_WAIT_ERROR_TEXT,
@@ -52,6 +55,11 @@ const FAILING_ATTEMPTS_BEFORE_A_LONG_RUN = 2;
 const PROMPT_THAT_STARTS_A_LONG_RUN = FAILING_ATTEMPTS_BEFORE_A_LONG_RUN + 1;
 
 /**
+ Which prompt a run that takes a few looks to reply answers, which the prompt before it hands to a Pi at rest.
+ */
+const PROMPT_ANSWERED_AFTER_A_FEW_LOOKS = 3;
+
+/**
  Leaves this process after a delay, so a test can watch what the driver does in the wait before it goes.
 
  @param milliseconds - how long to stay
@@ -59,6 +67,16 @@ const PROMPT_THAT_STARTS_A_LONG_RUN = FAILING_ATTEMPTS_BEFORE_A_LONG_RUN + 1;
 async function leaveAfter(milliseconds: number,): Promise<void> {
   await wait(milliseconds,);
   exit(CLEAN_EXIT_STATUS,);
+}
+
+/**
+ Finishes a run after a delay, so a test can see what the driver does while that run is still going.
+
+ @param text - assistant's reply
+ */
+async function finishRunLater(text: string,): Promise<void> {
+  await wait(LEAVE_AFTER_FAILURE_MILLISECONDS,);
+  finishRun(text,);
 }
 
 /**
@@ -152,6 +170,47 @@ export const modelErrorPlays: ReadonlyMap<string, (id: unknown,) => void> = new 
       answer({ id, },);
       finishRunInError(TRANSIENT_ERROR_TEXT,);
       void leaveAfter(LEAVE_AFTER_FAILURE_MILLISECONDS,);
+    },
+  ],
+  [
+    'spent-retries-then-inbox',
+    function failTheAttemptsThenAnswerTheInbox(id,) {
+      if (seen.prompts < PROMPT_ANSWERED_AFTER_A_FEW_LOOKS) {
+        answer({ id, },);
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      // What a message from the inbox starts: a run that takes a few looks to reply, so a driver that ended the run on the
+      // retries it had spent would abort it before its reply arrived.
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      void finishRunLater(RECOVERED_REPLY,);
+    },
+  ],
+  [
+    'recovers-then-fails',
+    function replyThenFailInOneRead(id,) {
+      if (seen.prompts === 1) {
+        answer({ id, },);
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      // One read holds Pi's answer and the whole run that followed it: a reply, and then a failure of the same run.
+      emitInOneWrite([
+        {
+          type: 'response',
+          id,
+          success: true,
+          data: {},
+        },
+        { type: 'agent_start', },
+        { type: 'turn_start', },
+        assistantReply(RECOVERED_REPLY,),
+        { type: 'agent_end', },
+        { type: 'turn_start', },
+        assistantFailure(TRANSIENT_ERROR_TEXT,),
+        { type: 'agent_settled', },
+      ],);
     },
   ],
   [

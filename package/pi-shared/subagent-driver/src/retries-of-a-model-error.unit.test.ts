@@ -114,6 +114,10 @@ await describe({
         // The control: a status the text starts with does decide.
         expect(kindOfModelError('500 Internal Server Error',),).toBe('transient',);
         expect(kindOfModelError('520 ',),).toBe('transient',);
+        // A status the text starts with decides whatever the body it explains says, so a request the provider refused is not
+        // made again because its body mentions a transient failure.
+        expect(kindOfModelError('400 Bad Request: internal error while reading the request',),).toBe('permanent',);
+        expect(kindOfModelError('503 Service Unavailable: internal error while reading the request',),).toBe('transient',);
       },
     },),
     it({

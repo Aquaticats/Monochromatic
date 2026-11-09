@@ -104,19 +104,19 @@ export function answer({
 }
 
 /**
- Writes a finished run.
+ The record of an assistant message that replied with text.
 
  @param text - assistant's reply
 
+ @returns the `message_end` record
+
  @example
  ```ts
- finishRun('done',);
+ emit(assistantReply('done',),);
  ```
  */
-export function finishRun(text: string,): void {
-  emit({ type: 'agent_start', },);
-  emit({ type: 'turn_start', },);
-  emit({
+export function assistantReply(text: string,): PiRecord {
+  return {
     type: 'message_end',
     message: {
       role: 'assistant',
@@ -131,7 +131,52 @@ export function finishRun(text: string,): void {
         cost: { total: 0, },
       },
     },
-  },);
+  };
+}
+
+/**
+ The record of an assistant message that ended in an error.
+
+ @param error - what the model said
+
+ @returns the `message_end` record
+
+ @example
+ ```ts
+ emit(assistantFailure('Request timed out.',),);
+ ```
+ */
+export function assistantFailure(error: string,): PiRecord {
+  return {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [],
+      stopReason: 'error',
+      errorMessage: error,
+      usage: {
+        input: 1,
+        output: 0,
+        cost: { total: 0, },
+      },
+    },
+  };
+}
+
+/**
+ Writes a finished run.
+
+ @param text - assistant's reply
+
+ @example
+ ```ts
+ finishRun('done',);
+ ```
+ */
+export function finishRun(text: string,): void {
+  emit({ type: 'agent_start', },);
+  emit({ type: 'turn_start', },);
+  emit(assistantReply(text,),);
   emit({ type: 'agent_end', },);
   emit({ type: 'agent_settled', },);
 }
@@ -152,21 +197,29 @@ export function finishRun(text: string,): void {
 export function emitErrorWithoutSettling(error: string,): void {
   emit({ type: 'agent_start', },);
   emit({ type: 'turn_start', },);
-  emit({
-    type: 'message_end',
-    message: {
-      role: 'assistant',
-      content: [],
-      stopReason: 'error',
-      errorMessage: error,
-      usage: {
-        input: 1,
-        output: 0,
-        cost: { total: 0, },
-      },
-    },
-  },);
+  emit(assistantFailure(error,),);
   emit({ type: 'agent_end', },);
+}
+
+/**
+ Writes several records in one write, so a test sees the driver read Pi's answer to a command and the events of the run it started
+ in the same read, which is what a real Pi does when a run fails or replies before its answer is read.
+
+ @param records - records to write, in order
+
+ @example
+ ```ts
+ emitInOneWrite([{ type: 'response', id: 'c1', success: true, }, { type: 'agent_settled', },],);
+ ```
+ */
+export function emitInOneWrite(records: readonly PiRecord[],): void {
+  /**
+   Each record as a line of its own, which one write carries together.
+   */
+  const lines = records.map(function asLine(record,) {
+    return `${JSON.stringify(record,)}\n`;
+  },);
+  stdout.write(lines.join('',),);
 }
 
 /**

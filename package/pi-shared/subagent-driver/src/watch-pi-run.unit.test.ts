@@ -73,6 +73,23 @@ const MESSAGE_NAME = 'message.txt';
 const FAILURE_TEXT = 'Request timed out.';
 
 /**
+ The failure no attempt can fix, shaped as three real runs' feeds recorded it on 2026-11-09: the provider is not configured, so
+ another attempt reaches the same answer.
+ */
+const PERMANENT_FAILURE_TEXT = 'Provider is not configured: neuralwatt';
+
+/**
+ How many attempts may follow a model error, for a run whose retries are spent before the error even settles.
+ */
+const NO_RETRIES = 0;
+
+/**
+ Seconds before the first attempt, longer than one look and shorter than two, so a reply can land between the look that
+ schedules the attempt and the look that would send it.
+ */
+const WAIT_LONGER_THAN_ONE_LOOK_SECONDS = ((POLL_MILLISECONDS * 3) / 2) / MILLISECONDS_PER_SECOND;
+
+/**
  Seconds before the first attempt at a failure, for a test that wants the wait over on the very next look.
  */
 const NO_WAIT_SECONDS = 0;
@@ -214,22 +231,7 @@ async function startRunWithAMessage(): Promise<RunUnderTest> {
  */
 async function startRunThatFailed({ atWork }: { readonly atWork: boolean },): Promise<RunUnderTest> {
   const run = await startRunAtWork();
-  run.record.observe({
-    event: {
-      type: 'message_end',
-      message: {
-        role: 'assistant',
-        content: [],
-        stopReason: 'error',
-        errorMessage: FAILURE_TEXT,
-      },
-    },
-    declineDialog: refuseDialog,
-  },);
-  run.record.observe({
-    event: { type: 'agent_settled', },
-    declineDialog: refuseDialog,
-  },);
+  observeFailedAttempt(run.record, FAILURE_TEXT,);
   if (atWork) {
     run.record.observe({
       event: { type: 'agent_start', },
@@ -237,6 +239,58 @@ async function startRunThatFailed({ atWork }: { readonly atWork: boolean },): Pr
     },);
   }
   return run;
+}
+
+/**
+ Observes an attempt that ended in a failure Pi settled on, which is what the watch answers with another attempt.
+
+ @param record - the run's record
+
+ @param text - what the model said when the message ended in the error
+ */
+function observeFailedAttempt(record: RecordOfPiRun, text: string,): void {
+  record.observe({
+    event: {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        errorMessage: text,
+      },
+    },
+    declineDialog: refuseDialog,
+  },);
+  record.observe({
+    event: { type: 'agent_settled', },
+    declineDialog: refuseDialog,
+  },);
+}
+
+/**
+ Observes the reply that recovers a failure: an assistant message that did not end in an error, and the settle after it.
+
+ @param record - the run's record
+ */
+function observeSuccessfulReply(record: RecordOfPiRun,): void {
+  record.observe({
+    event: {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: 'recovered',
+        },],
+        stopReason: 'stop',
+      },
+    },
+    declineDialog: refuseDialog,
+  },);
+  record.observe({
+    event: { type: 'agent_settled', },
+    declineDialog: refuseDialog,
+  },);
 }
 
 /**
@@ -508,6 +562,107 @@ await describe({
         expect(summary.retries,).toBe(0,);
         expect(summary.modelError,).toBe(FAILURE_TEXT,);
         expect(summary.modelErrorAttempts,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'holds the ending on a failure while Pi is at work on a run that may still reply',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: true, },);
+        /**
+         The messages the watch sent, which no attempt at this failure is left to send.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: NO_RETRIES,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // The retries are spent, but the run Pi is at work on may still reply, and a reply that succeeds recovers the error:
+        // ending the run now would abort work whose message is already off the inbox.
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'drops an owed attempt whose failure a reply recovered before it went',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which a recovered failure owes nothing to.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over.
+         */
+        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        /**
+         What the watch does, which runs while the reply arrives.
+         */
+        const watching = watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: 2 * HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: WAIT_LONGER_THAN_ONE_LOOK_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // The attempt is scheduled on the first look and would go on the next one, so the reply lands in between.
+        await wait(POLL_MILLISECONDS + (POLL_MILLISECONDS / 2),);
+        observeSuccessfulReply(run.record,);
+        const endReason = await watching;
+        expect(endReason,).toBe('idle',);
+        expect(sent,).toEqual([],);
+        expect(run.record.retriesTaken(),).toBe(0,);
+      },
+    },),
+    it({
+      name: 'drops an owed attempt whose failure another one replaced, and reads the new one afresh',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which the failure that replaced the first one earns none of.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over.
+         */
+        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        /**
+         What the watch does, which runs while the second failure arrives.
+         */
+        const watching = watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: 2 * HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: WAIT_LONGER_THAN_ONE_LOOK_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        await wait(POLL_MILLISECONDS + (POLL_MILLISECONDS / 2),);
+        observeFailedAttempt(run.record, PERMANENT_FAILURE_TEXT,);
+        const endReason = await watching;
+        // What stands now is a failure no attempt can fix, whatever the failure the owed attempt was scheduled for.
+        expect(endReason,).toBe('model-error',);
+        expect(sent,).toEqual([],);
+        expect(run.record.retriesTaken(),).toBe(0,);
       },
     },),
   ],

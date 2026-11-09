@@ -201,6 +201,12 @@ export type RetryTaken = {
    What the model said when its message ended in the error this attempt answers.
    */
   readonly problem: string;
+
+  /**
+   How many replies had succeeded when this attempt was sent, so an attempt is credited to the failures before the reply that
+   arrived while its command was being answered rather than to the ones after it.
+   */
+  readonly answersBefore: number;
 };
 
 /**
@@ -249,6 +255,11 @@ export type RecordOfPiRun = {
    How many attempts after a model error the run has made, which bounds the retries it may still take.
    */
   readonly retriesTaken: () => number;
+
+  /**
+   How many assistant messages have replied without an error, which tells an attempt sent before a reply from one sent after it.
+   */
+  readonly answersTaken: () => number;
 
   /**
    Notes an attempt after a model error on the feed, counts it for the summary, and takes the error it answers as answered, so the

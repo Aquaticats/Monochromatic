@@ -443,7 +443,7 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
      The next message to deliver, if any. An inbox message waits out a retry that is about to go, so a prompt meant for a resting
      Pi cannot start a run the retry prompt then lands in the middle of.
      */
-    const [nextMessage,] = (retry.at === undefined) ? await readyMessages(watch.inbox,) : [];
+    const [nextMessage,] = (retry.owed === undefined) ? await readyMessages(watch.inbox,) : [];
     if (nextMessage !== undefined) {
       await deliverOrSetAside({
         watch,
@@ -451,7 +451,7 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       },);
     }
     // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.at === undefined) && mayEndIdle(watch,)) {
+    else if ((retry.owed === undefined) && mayEndIdle(watch,)) {
       return 'idle';
     }
   }

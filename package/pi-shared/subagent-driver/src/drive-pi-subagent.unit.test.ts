@@ -106,10 +106,10 @@ const LOOKS_A_RETRY_WAIT_SPANS = 4;
  */
 const WAIT_PAST_THE_RUN_SECONDS = 600;
 /**
- Seconds a run may last when its subject is what the driver does while a run it did not start is going: long enough for start-up,
- a retry and an inbox delivery on a loaded host, and short enough that the test waits for the wall clock itself.
+ How many looks the driver would need to schedule the attempt it owes and send it, which a test waits out so an attempt that
+ should not go has had its chance.
  */
-const RUN_THAT_STAYS_BUSY_WALL_SECONDS = 3;
+const LOOKS_THAT_WOULD_SEND_A_RETRY = 3;
 /** Status of a run that ended on its own terms. */
 const CLEAN_STATUS = 0;
 /** Status of a run that did not. */
@@ -904,7 +904,10 @@ await describe({
             await writeFile(join(running.runFolder, 'stop',), '',);
           },
         },);
-        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).map((command,) => command.message),)
+        // The message goes after the retry prompt, whether Pi is still finishing that attempt's run when the driver hands it
+        // over or has settled on it by then: a steer for a run still going, a prompt for a Pi at rest.
+        expect(run.sentCommands.filter((command,) => (command.type === 'prompt') || (command.type === 'steer'))
+          .map((command,) => command.message),)
           .toEqual([
             'hello',
             continuationPromptOf({ problem: TRANSIENT_ERROR_TEXT, },),
@@ -963,7 +966,6 @@ await describe({
       fn: async () => {
         const run = await runDriver({
           scenario: 'busy-after-inbox',
-          wallSeconds: RUN_THAT_STAYS_BUSY_WALL_SECONDS,
           idleSeconds: LONG_IDLE_SECONDS,
           extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
           whileRunning: async (running,) => {
@@ -971,9 +973,18 @@ await describe({
             await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
             await dropInInbox({ runFolder: running.runFolder, text: 'a message that starts a run of its own', },);
             await waitForFeed({ ...running, text: '"kind":"inbox"', },);
+            // The attempt the driver owes answers a failure the run it started may still recover, so it must not go: a driver
+            // that sent it would have sent it by now.
+            await wait(POLL_MILLISECONDS * LOOKS_THAT_WOULD_SEND_A_RETRY,);
+            await writeFile(join(running.runFolder, 'stop',), '',);
           },
         },);
-        expect(run.summary.endReason,).toBe('wall-clock',);
+        // The failure the run settled on was never answered, and a failure stays until a reply succeeds, so a run the stop file
+        // ends while that failure stands reports it.
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(TRANSIENT_ERROR_TEXT,);
+        expect(run.summary.retries,).toBe(1,);
         /**
          What Pi was sent: the first prompt, the retry that answers the failure, and the message the inbox held. A fourth one
          would have been the retry landing in the run that message started.
@@ -1001,6 +1012,50 @@ await describe({
         expect(run.summary.modelErrorAttempts,).toBe(1,);
         expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
         expect(run.sentCommands.filter((command,) => command.type === 'prompt'),).toHaveLength(1,);
+      },
+    },),
+    it({
+      name: 'a run Pi is at work on outlasts the retries the run has spent',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'spent-retries-then-inbox',
+          idleSeconds: LONG_IDLE_SECONDS,
+          turnCap: TURN_CAP_ABOVE_RETRIES,
+          extraOptions: [
+            '--retry-cap=1',
+            `--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,
+          ],
+          whileRunning: async (running,) => {
+            // The message waits out the retry, which goes first, and the driver then hands it to a resting Pi.
+            await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
+            await dropInInbox({ runFolder: running.runFolder, text: 'a message that answers the task', },);
+            await waitForFeed({ ...running, text: '"kind":"inbox"', },);
+          },
+        },);
+        // The retries were spent, but the run the inbox started replied, and a reply that succeeds recovers the failure.
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+        expect(run.summary.retries,).toBe(1,);
+        expect(run.summary.modelError,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'counts a retry at the failure it answered, not at the reply its own run produced',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'recovers-then-fails',
+          turnCap: TURN_CAP_ABOVE_RETRIES,
+          extraOptions: [
+            '--retry-cap=1',
+            `--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,
+          ],
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(run.summary.retries,).toBe(1,);
+        // The reply ended the failure the retry answered, and the failure the run ends on came after it: one attempt at it.
+        expect(run.summary.modelErrorAttempts,).toBe(1,);
       },
     },),
     it({
