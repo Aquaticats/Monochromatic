@@ -189,7 +189,9 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
 /// Why:
 ///   The removal falls back to deleting a plain directory when the name holds no subvolume,
 /// so a directory that
-///  replaced the stage would be deleted with whatever it holds.
+///  replaced the stage would be deleted with whatever it holds;
+/// and a journal that records no identity names no subvolume at all,
+/// so nothing can be shown to be the one this rollback deletes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -212,13 +214,22 @@ fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
         });
     }
     // The journal names the subvolume this migration made; a subvolume another process put at the same name is not it, and
-    // an identity that cannot be read is treated the same way rather than deleting what it cannot name.
-    let recorded: crate::fs_beneath::ObjectId = run.journal.stage_identity()?;
+    // an identity that cannot be read is treated the same way rather than deleting what it cannot name. A journal that
+    // records none at all is one a kill left between the creation and the identity, or one an earlier release wrote.
+    let Some(recorded) = run.journal.stage_identity() else {
+        return Some(Refusal {
+            cause: format!(
+                "the journal records no identity for the subvolume this migration made, so {} cannot be shown to be the one this rollback deletes; nothing was deleted",
+                new_path.display()
+            ),
+            remedy: String::from(
+                "If the subvolume is the migration's own stage, delete it yourself and run the command again; if it is yours, move it away and delete the journal, or run `--remove-old` after a finished migration.",
+            ),
+        });
+    };
     let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(new_path);
     if let Some(identity) = found
-        && identity.device == recorded.device
-        && identity.inode == recorded.inode
-        && (recorded.birth.is_none() || recorded.birth == identity.birth)
+        && crate::worktree_convert_journal::is_recorded_object(&recorded, &identity)
     {
         return None;
     }
