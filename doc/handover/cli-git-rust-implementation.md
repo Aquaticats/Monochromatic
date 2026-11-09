@@ -7432,6 +7432,25 @@ so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
 
+No review covers the publishing route either:
+the push record a landing or a merge leaves,
+the queue,
+the retry plan and the reconcile.
+Its audit,
+with twelve findings ranked by what they risk losing,
+four of them reproduced,
+one of those in part,
+is `doc/planning/cli-git-push-route-findings-on-main.md`
+(2026-11-09;
+main at `554f973343`).
+The first two leave a branch of a landed commit unpublished with no record that says so:
+a push record keyed by the commit alone
+(the second branch reaching a commit is never queued),
+and a retry notice written before the retry plan is durable.
+The waits that no ceiling ends,
+the one move that can advance a branch the reconcile never checked,
+and the notice deleted before it is shown are there with `path:line` and suggested fixes.
+
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
 merges and pushes that never fail").
