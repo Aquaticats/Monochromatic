@@ -7,13 +7,32 @@
 //!  `merge_second_pass.rs` runs the pass and stays under the file-size limit;
 //! the way Git is started needs nothing from it,
 //! so it lives in a file of its own that the pass imports.
+//!  A start is awaited because the second pass is reached from both sides:
+//! the reconcile of the auto-push runs it as a task of the runtime
+//! (`push/auto_push_reconcile_merge_commit.rs`),
+//! and a person's own `git merge` reaches it through one synchronous face that enters the runtime
+//! (`lock/index_writer_forward.rs`).
+//! A trait with an `async` method cannot be a `dyn` value,
+//! so a start is handed back as a boxed future,
+//! as the awaited query of the Git LFS step is
+//! (`lfs/lfs_upload_settings.rs`,
+//! `GitQueryAwaiting`).
+//! The alternative was a second copy of the whole pass for the awaited callers,
+//! and this folder is the code a person's conflict resolution depends on,
+//! so it has one body
+//! (`doc/planning/git-policy-cli-full-tokio.md`,
+//! "Step T12,
+//! the landing round awaits its push chain,
+//! and the merge's second pass is what stops it",
+//! option A).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const reply = await runner.run(["merge-tree", "--write-tree"], undefined, undefined); // { code, stdout, stderr }
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -34,11 +53,22 @@ pub struct GitReply {
 /// with its environment and global options.
 pub trait GitRunner {
     /// Start Git with `arguments`,
-    /// `input` on standard input and `index_file` as the index when given.
+    /// `input` on standard input and `index_file` as the index when given,
+    /// and await its end.
     /// `Err` means Git could
     /// not be started;
     /// an exit status other than 0 is a reply.
-    fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String>;
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// interface GitRunner { run(args: string[], input?: Uint8Array, indexFile?: string): Promise<GitReply> }
+    /// ```
+    fn run<'a>(
+        &'a self,
+        arguments: &'a [&'a str],
+        input: Option<&'a [u8]>,
+        index_file: Option<&'a Path>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>>;
 }
 
 /// The runner for callers that start Git through `run_git`:
@@ -59,20 +89,28 @@ pub struct ContextRunner<'a> {
     pub environment: Vec<(OsString, OsString)>,
 }
 
-/// Starting Git through the shared runner.
+/// Starting Git through the shared runner,
+/// with every wait of it a wait of the runtime.
 impl GitRunner for ContextRunner<'_> {
-    fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
-        let mut request: GitRequest = GitRequest::new(self.cwd, arguments);
-        request.without_prefix = self.without_prefix;
-        request.object_directory = self.object_directory.map(Path::to_path_buf);
-        request.environment.clone_from(&self.environment);
-        request.input = input.map(<[u8]>::to_vec);
-        request.index = index_file.map(PathBuf::from);
-        let output = match run_git(self.context, &request) {
-            Ok(done) => done,
-            Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
-        };
-        return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
+    fn run<'a>(
+        &'a self,
+        arguments: &'a [&'a str],
+        input: Option<&'a [u8]>,
+        index_file: Option<&'a Path>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>> {
+        return Box::pin(async move {
+            let mut request: GitRequest = GitRequest::new(self.cwd, arguments);
+            request.without_prefix = self.without_prefix;
+            request.object_directory = self.object_directory.map(Path::to_path_buf);
+            request.environment.clone_from(&self.environment);
+            request.input = input.map(<[u8]>::to_vec);
+            request.index = index_file.map(PathBuf::from);
+            let output = match run_git_awaiting(self.context, &request).await {
+                Ok(done) => done,
+                Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
+            };
+            return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
+        });
     }
 }
 

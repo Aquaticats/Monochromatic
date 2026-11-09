@@ -377,7 +377,8 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 /// await runStep(runGit, args, env);
 /// ```
 pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
-    return match run_git.run(&GitStep::Other { arguments, environment }) {
+    // A step of the ladder runs after the add's binding is recorded, so its Git needs no name in a record.
+    return match run_git.run(&GitStep::Other { arguments, environment }, &mut |_pid: u32| {}) {
         Ok(status) => Ok(status),
         Err(error) => Err(error.0),
     };
