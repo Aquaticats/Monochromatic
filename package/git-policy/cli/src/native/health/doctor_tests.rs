@@ -429,3 +429,58 @@ fn each_of_the_four_shims_is_recognized() {
     assert_eq!((code, stdout.as_str()), (0, ""));
     remove(root.as_path());
 }
+
+/// What:
+///  A newline inside a path is part of that path, never the end of one answer;
+/// the repository Git selected is the one examined.
+/// Why:
+///  The answers were read as lines,
+/// so a newline in the selected repository's own name ended the answer early and
+///  the doctor scanned, and renamed state in, an unrelated directory beside it (`STB`).
+#[cfg(unix)]
+#[test]
+fn a_newline_in_a_path_is_no_separator() {
+    let root: PathBuf = fixture("doctor-newline");
+    let decoy: PathBuf = root.join("newline-decoy");
+    std::fs::create_dir_all(decoy.join("hooks")).expect("decoy hooks");
+    executable(decoy.join("hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    std::fs::create_dir_all(decoy.join("cli-git")).expect("decoy kept folder");
+    std::fs::write(decoy.join("cli-git/do-not-move.txt"), b"unrelated-content\n").expect("decoy file");
+    let repo: PathBuf = root.join("newline-decoy\nactual");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let context: GitContext = git_context();
+    let location: HooksLocation = located(&context, repo.as_path()).expect("locate");
+    assert_eq!(location.common_directory, repo.join(".git"));
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!((code, stdout.as_str()), (0, ""));
+    assert!(decoy.join("cli-git/do-not-move.txt").exists(), "the unrelated directory keeps its folder");
+    assert!(!decoy.join("monochromatic-git-policy-cli").exists(), "the unrelated directory was renamed");
+    remove(root.as_path());
+}
+
+/// What:
+///  A `core.hooksPath` whose bytes are not UTF-8 names a directory Git runs,
+/// and the doctor reads it byte for byte.
+/// Why:
+///  A pathname is a byte string;
+/// the answer was decoded as UTF-8 and a valid pathname was refused as an error,
+///  although Git runs a hook there.
+#[cfg(unix)]
+#[test]
+fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
+    use std::ffi::{OsStr, OsString};
+    use std::os::unix::ffi::OsStrExt as _;
+    let root: PathBuf = fixture("doctor-non-utf8");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xff")));
+    std::fs::create_dir(hooks.as_path()).expect("hooks");
+    executable(hooks.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), hooks.as_os_str()]);
+    let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(location.configured, Some(hooks.clone()));
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hook is found: {stdout}");
+    assert!(stdout.ends_with("pre-commit\n"), "{stdout}");
+    remove(root.as_path());
+}

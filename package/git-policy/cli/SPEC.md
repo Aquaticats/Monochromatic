@@ -446,9 +446,14 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 
 - It asks real Git,
   with the caller's global options,
-  for the common Git directory
-  (`git rev-parse --path-format=absolute --git-common-dir`) and for `core.hooksPath`
+  for the common Git directory,
+  for the Git directory itself
+  (`git rev-parse --path-format=absolute --git-common-dir` and `--absolute-git-dir`),
+  and for `core.hooksPath`
   (`git config --type=path --get core.hooksPath`).
+  Each pathname is asked for on its own,
+  and each answer is read as bytes with only its one terminating line feed removed,
+  so a pathname that holds a line feed or bytes that are not UTF-8 is read exactly as Git printed it.
 - It scans `<git-common-dir>/hooks` and,
   when `core.hooksPath` is set,
   the directory it names.

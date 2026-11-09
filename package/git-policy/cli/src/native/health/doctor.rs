@@ -228,16 +228,20 @@ monochromatic-git-policy-cli, which supports no external hook program and runs n
 or express what it checked as a policy under policies in monochromatic-git-policy-cli.config.jsonc.\n";
 
 /// What:
-///  Run one Git query in `cwd` and return its standard output as text.
+///  Run one Git query in `cwd` and return its standard output as bytes.
 /// Why:
-///   Locating the repository takes three small questions,
+///   Locating the repository takes a few small questions,
 /// and each failure is reported with Git's own words.
+/// A path answer is
+///  bytes, not text:
+/// a pathname is a byte string,
+/// and one that is not UTF-8 is a directory Git runs hooks in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const { stdout } = await git(args, { cwd });
 /// ```
-async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, String> {
+async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<Vec<u8>>, String> {
     let request: GitRequest = GitRequest::new(cwd, arguments);
     let output = match run_git_awaiting(context, &request).await {
         Ok(done) => done,
@@ -249,11 +253,82 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
     if !output.succeeded() {
         return Err(format!("git {} failed: {}", arguments.join(" "), output.error_text()));
     }
-    let text: String = match String::from_utf8(output.stdout) {
-        Ok(decoded) => decoded,
-        Err(_) => return Err(format!("git {} printed bytes that are not UTF-8", arguments.join(" "))),
+    return Ok(Some(output.stdout));
+}
+
+/// What:
+///  One answer without the single line feed Git ends it with.
+/// Why:
+///   Exactly one line feed is the terminator;
+/// a pathname that ends with a line feed of its own keeps it,
+///  which trimming every trailing line feed threw away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bytes.endsWith('\n') ? bytes.slice(0, -1) : bytes
+/// ```
+fn without_the_terminator(answer: &[u8]) -> &[u8] {
+    return match answer.strip_suffix(&[b'\n'][..]) {
+        Some(body) => body,
+        None => answer,
     };
-    return Ok(Some(text));
+}
+
+/// What:
+///  A pathname from the bytes Git printed for it.
+/// Why:
+///   A pathname is a byte string here,
+/// so a directory whose name is not UTF-8 is scanned like any other,
+///  as Git runs the hooks in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(bytes); // Node pathnames are byte strings
+/// ```
+#[cfg(unix)]
+fn path_answer(bytes: &[u8]) -> PathBuf {
+    use std::os::unix::ffi::OsStrExt;
+    return PathBuf::from(std::ffi::OsStr::from_bytes(bytes));
+}
+
+/// What:
+///  A pathname from the bytes Git printed for it,
+/// for a platform that spells pathnames in text.
+/// Why:
+///   Refusing a pathname Git named would hide a directory it runs hooks in,
+/// and naming it approximately is
+///  better than not looking at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new TextDecoder().decode(bytes);
+/// ```
+#[cfg(not(unix))]
+fn path_answer(bytes: &[u8]) -> PathBuf {
+    return PathBuf::from(String::from_utf8_lossy(bytes).into_owned());
+}
+
+/// What:
+///  Ask Git for one pathname and read its own answer.
+/// Why:
+///   Each pathname is asked for alone:
+/// a pathname may hold the line feed that separated two answers in one report,
+///  and then a shared report cannot be split into them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await gitQuestion(context, cwd, args);
+/// ```
+async fn path_answer_question(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<PathBuf, String> {
+    let answer: Vec<u8> = match query(context, cwd, arguments).await? {
+        Some(bytes) => bytes,
+        None => Vec::new(),
+    };
+    let value: &[u8] = without_the_terminator(answer.as_slice());
+    if value.is_empty() {
+        return Err(format!("git {} printed no path", arguments.join(" ")));
+    }
+    return Ok(path_answer(value));
 }
 
 /// What:
@@ -272,45 +347,37 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
 /// const location = await locateHooks({ context, cwd });
 /// ```
 pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, String> {
-    let report: String = query(
-        context,
-        cwd,
-        &["rev-parse", "--path-format=absolute", "--git-common-dir", "--absolute-git-dir"],
-    )
-    .await?
-    .unwrap_or_default();
-    let mut lines = report.lines();
-    let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
-        return Err(String::from("git rev-parse did not report the common and Git directories"));
-    };
-    // An answer with nothing after its trailing line feed counts as no answer, as `.filter(...)` made it.
-    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"]).await? {
-        Some(text) => {
-            let stripped: String = text.strip_suffix('\n').unwrap_or(text.as_str()).to_string();
-            if stripped.is_empty() { None } else { Some(stripped) }
+    // One question per pathname: a pathname may hold the line feed that a shared report is split at.
+    let common: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--git-common-dir"]).await?;
+    let git_directory: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]).await?;
+    // An answer with nothing left after its terminator counts as no answer, as `.filter(...)` made it.
+    let configured: Option<PathBuf> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"]).await? {
+        Some(answer) => {
+            let value: &[u8] = without_the_terminator(answer.as_slice());
+            if value.is_empty() { None } else { Some(path_answer(value)) }
         }
         None => None,
     };
-    let Some(value) = configured_text else {
+    let Some(configured) = configured else {
         return Ok(HooksLocation {
-            common_directory: PathBuf::from(common),
+            common_directory: common,
             configured: None,
         });
     };
-    if Path::new(value.as_str()).is_absolute() {
+    if configured.is_absolute() {
         return Ok(HooksLocation {
-            common_directory: PathBuf::from(common),
-            configured: Some(PathBuf::from(value)),
+            common_directory: common,
+            configured: Some(configured),
         });
     }
     // A relative value resolves where Git runs hooks; a repository without a worktree has no top level.
-    let base: PathBuf = match query(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
-        Ok(Some(top)) if !top.trim_end().is_empty() => PathBuf::from(top.trim_end()),
-        Ok(_) | Err(_) => PathBuf::from(git_directory),
+    let base: PathBuf = match path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
+        Ok(top) => top,
+        Err(_) => git_directory,
     };
     return Ok(HooksLocation {
-        common_directory: PathBuf::from(common),
-        configured: Some(base.join(value)),
+        common_directory: common,
+        configured: Some(base.join(configured)),
     });
 }
 
