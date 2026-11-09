@@ -9,8 +9,7 @@
 //! other branches and remote-tracking refs as they stood at invocation.
 //!  With the files backend the snapshot is one `packed-refs` file and the private target is a loose ref,
 //!  which takes precedence over a packed entry;
-//!  with reftable the snapshot is one `update-ref --stdin` transaction
-//!  (`src/shadow-repository/shadow-refs.ts`).
+//!  with reftable the snapshot is one `update-ref --stdin` transaction.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

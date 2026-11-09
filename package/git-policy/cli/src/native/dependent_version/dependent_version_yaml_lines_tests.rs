@@ -159,6 +159,12 @@ fn refuses_keys_it_does_not_read() {
     assert_eq!(split_key(":"), Err(String::from("names no key")));
     assert_eq!(split_key("'':"), Err(String::from("names no key")));
     assert_eq!(split_key("-x: 1"), Ok(Some((String::from("-x"), "1"))));
+    // A colon inside a comment names no key: the scan stops where the comment starts.
+    assert_eq!(split_key("app # publication: enabled"), Ok(None));
+    assert_eq!(
+        split_key("name: github # publication: enabled"),
+        Ok(Some((String::from("name"), "github # publication: enabled")))
+    );
     assert_eq!(
         split_key("'a':b"),
         Err(String::from(

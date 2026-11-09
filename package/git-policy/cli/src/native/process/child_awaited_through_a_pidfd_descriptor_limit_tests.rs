@@ -15,7 +15,7 @@
 
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
-use std::fs::File;
+use crate::test_support::{leave_free, open_descriptors, restore_limit, set_soft_limit};
 use std::process::{Command, Stdio};
 
 /// The most descriptors a start needs beyond the process's baseline:
@@ -37,48 +37,6 @@ fn describe_descriptors() -> Vec<String> {
         .flatten()
         .map(|entry| { return format!("{} -> {:?}", entry.file_name().to_string_lossy(), std::fs::read_link(entry.path())); })
         .collect();
-}
-
-/// The number of descriptors the process holds now,
-/// the directory handle of the listing itself not counted.
-fn open_descriptors() -> usize {
-    let listed: usize = std::fs::read_dir("/proc/self/fd").expect("the descriptor listing").count();
-    return listed - 1;
-}
-
-/// Sets the soft descriptor limit and returns the one it replaced,
-/// so the caller restores it.
-fn set_soft_limit(soft: u64) -> rustix::process::Rlimit {
-    let before: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nofile);
-    let lowered: rustix::process::Rlimit = rustix::process::Rlimit { current: Some(soft), maximum: before.maximum };
-    rustix::process::setrlimit(rustix::process::Resource::Nofile, lowered).expect("a soft limit below the hard one can be set");
-    return before;
-}
-
-/// Puts a limit back.
-fn restore_limit(before: rustix::process::Rlimit) {
-    rustix::process::setrlimit(rustix::process::Resource::Nofile, before).expect("the limit can be raised back to the hard one");
-}
-
-/// Opens descriptors until `free` are left under the limit;
-/// returns them,
-/// to be dropped when the step under test is done.
-fn leave_free(free: usize) -> Vec<File> {
-    let mut held: Vec<File> = Vec::new();
-    loop {
-        match File::open("/dev/null") {
-            Ok(file) => held.push(file),
-            Err(error) => {
-                assert_eq!(error.raw_os_error(), Some(libc::EMFILE), "only the limit stops the opens: {error}");
-                break;
-            }
-        }
-    }
-    // Give back `free` of them, so that exactly that many opens still work.
-    for _ in 0..free {
-        held.pop();
-    }
-    return held;
 }
 
 /// Whether the process still has a child it has not reaped:
@@ -126,7 +84,7 @@ fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
     for free in FREE_FOR_THE_PIDFD {
         let before = set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
         let child: std::process::Child = quick_child(3).expect("a start with room");
-        let held: Vec<File> = leave_free(free);
+        let held: Vec<std::fs::File> = leave_free(free);
         // The registration with the reactor needs the runtime, so the child is adopted inside it.
         let (used_the_pidfd, waited) = run_on_runtime(async {
             let mut owned: OwnedChild = adopt(child);

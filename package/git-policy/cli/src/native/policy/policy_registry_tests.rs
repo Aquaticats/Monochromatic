@@ -41,16 +41,19 @@ fn registry_order_and_names_are_stable() {
     );
 }
 
-/// Every policy's default severity is pinned to the incumbent definition's `defaultSeverity`.
-/// Sources:
-///  `src/policy-engine/{require-root,linked-worktree,branch-worktree,add-explicit,final-newline}-policy.ts`,
-/// `src/optional/markdown-lint/index.ts`,
-///  `src/optional/repository-policy/index.ts`,
-/// `src/optional/repository-policy/dependent-version-bump-policy.ts`,
-///  `src/optional/forbidden-strings/index.ts`.
+/// Every policy's default severity is pinned to the `defaultSeverity` of the definition it came
+/// from.
+/// Those definitions were
+///  `package/git-policy/cli/src/policy-engine/{require-root,linked-worktree,branch-worktree,add-explicit,final-newline}-policy.ts`,
+/// `package/git-policy/cli/src/optional/markdown-lint/index.ts`,
+///  `package/git-policy/cli/src/optional/repository-policy/index.ts`,
+/// `package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts` and
+///  `package/git-policy/cli/src/optional/forbidden-strings/index.ts`,
+/// all deleted on 2026-10-13 in `642b6d72cb`,
+/// so `git show 642b6d72cb^` holds each.
 #[test]
 fn every_identity_resolves_to_its_declared_row() {
-    // (identity, name, incumbent defaultSeverity, warnSafe, accepts options, off unless listed)
+    // (identity, name, TypeScript defaultSeverity, warnSafe, accepts options, off unless listed)
     let expected: [(PolicyId, &str, Severity, bool, bool, bool); 10] = [
         (
             PolicyId::RequireRoot,

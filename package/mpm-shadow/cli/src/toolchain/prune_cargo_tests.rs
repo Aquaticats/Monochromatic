@@ -187,6 +187,34 @@ fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
     assert!(leftover.exists(), "the crate directory was removed with something inside it: {removed:?}");
 }
 
+/// A recursive removal that fails can have unlinked part of the tree before it gave up,
+/// so the report names the directory it was removing and says so,
+/// never that nothing was deleted.
+#[test]
+fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let victim = version_directory(&root, "fd-find", "1.1.0");
+    finish_install(&victim, "fd-find", "1.1.0", &["fd"]);
+    // A directory the removal cannot empty: without its write bit, `remove_dir_all` stops partway through.
+    let locked = victim.join("locked");
+    fs::create_dir(&locked).expect("make");
+    fs::write(locked.join("held"), "").expect("write");
+    set_mode(&locked, 0o500);
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&locked, 0o755);
+    let error = pruned.expect_err("the removal stops partway");
+    assert!(error.message.contains(&victim.display().to_string()), "the report names the directory: {error}");
+    assert!(error.message.contains("part of it may be gone"), "the report hedges what a partial removal left: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a partial removal is not nothing: {error}");
+}
+
 /// A crate no lock names loses every version, so its `current` link goes before them:
 /// a run killed in between leaves no link rather than one naming a version that is deleted.
 #[test]
@@ -275,6 +303,204 @@ fn an_installation_that_lands_while_the_prune_runs_is_never_deleted() {
     );
     assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "the named version stays");
     assert!(!version_directory(&root, "fd-find", "1.0.0").exists(), "a version that was there and unnamed is still pruned");
+}
+
+/// The link is never pointed at a version that is not there at that moment:
+/// a concurrent install that finished a newer version and retired the one this run's snapshot keeps
+/// must not be undone into a dangling link.
+#[test]
+fn the_link_is_not_pointed_at_a_version_a_concurrent_install_already_removed() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let crate_name = "monochromatic-lint";
+    finish_install(&version_directory(&root, crate_name, "1.0.0"), crate_name, "1.0.0", &[crate_name]);
+    std::os::unix::fs::symlink("1.0.0", current_link(&root, crate_name)).expect("current");
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-lint\":{\"request\":\"cargo:monochromatic-lint@latest\",\"version\":\"1.0.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    // Another command finishes 1.1.0, points `current` at it and retires 1.0.0 while this run lists worktrees.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(&version_directory(&installed_into, crate_name, "1.1.0"), crate_name, "1.1.0", &[crate_name]);
+            let link = current_link(&installed_into, crate_name);
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink("1.1.0", link).expect("point at the new install");
+            fs::remove_dir_all(version_directory(&installed_into, crate_name, "1.0.0")).expect("retire the old one");
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&root, crate_name);
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.1.0"), "the concurrent install's link is not undone");
+    assert!(fs::metadata(&link).is_ok(), "and it resolves");
+}
+
+/// A link that already names a finished version newer than the one this run's snapshot would pick stays as it is:
+/// the snapshot is older than the install in front of it.
+#[test]
+fn the_link_already_naming_a_newer_finished_version_is_not_moved_back() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let crate_name = "monochromatic-lint";
+    finish_install(&version_directory(&root, crate_name, "1.0.0"), crate_name, "1.0.0", &[crate_name]);
+    std::os::unix::fs::symlink("1.0.0", current_link(&root, crate_name)).expect("current");
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-lint\":{\"request\":\"cargo:monochromatic-lint@latest\",\"version\":\"1.0.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(&version_directory(&installed_into, crate_name, "1.1.0"), crate_name, "1.1.0", &[crate_name]);
+            let link = current_link(&installed_into, crate_name);
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink("1.1.0", link).expect("point at the new install");
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&root, crate_name);
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.1.0"), "the newer install keeps the link");
+}
+
+/// When the version the plan keeps has been retired by another command, the link is settled rather than left:
+/// a link naming a version this run deletes must not survive the link pass, even though the guard above
+/// refused to point it at the vanished version.
+#[test]
+fn the_link_is_settled_when_the_version_the_plan_keeps_has_vanished() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let crate_name = "monochromatic-lint";
+    for version in ["0.9.0", "1.0.0"] {
+        finish_install(&version_directory(&root, crate_name, version), crate_name, version, &[crate_name]);
+    }
+    std::os::unix::fs::symlink("0.9.0", current_link(&root, crate_name)).expect("current at the older version");
+    // The lock names the crate, so the plan keeps only the newest finished version, 1.0.0, and deletes 0.9.0.
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-lint\":{\"request\":\"cargo:monochromatic-lint@latest\",\"version\":\"1.0.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    // Another command retires 1.0.0 while this run lists worktrees.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            fs::remove_dir_all(version_directory(&installed_into, crate_name, "1.0.0")).expect("retire the kept version");
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let _ = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+
+    let link = current_link(&root, crate_name);
+    assert!(!version_directory(&root, crate_name, "0.9.0").exists(), "the version the link named is deleted");
+    assert!(fs::symlink_metadata(&link).is_err(), "the link does not outlive the version it named");
+}
+
+/// A repoint that fails after another crate's link was removed says what already went,
+/// the way an unlink failure does.
+#[test]
+fn a_repointing_failure_after_another_link_says_what_was_removed() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    // No lock names `monochromatic-a`, so its only version goes and its link goes with it.
+    finish_install(&version_directory(&root, "monochromatic-a", "1.0.0"), "monochromatic-a", "1.0.0", &["monochromatic-a"]);
+    std::os::unix::fs::symlink("1.0.0", current_link(&root, "monochromatic-a")).expect("current");
+    // The lock names `monochromatic-b` at 1.0.0, so 0.9.0 goes and `current` must move to 1.0.0.
+    for version in ["0.9.0", "1.0.0"] {
+        finish_install(
+            &version_directory(&root, "monochromatic-b", version),
+            "monochromatic-b",
+            version,
+            &["monochromatic-b"],
+        );
+    }
+    std::os::unix::fs::symlink("0.9.0", current_link(&root, "monochromatic-b")).expect("current at the older version");
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-b\":{\"request\":\"cargo:monochromatic-b@latest\",\"version\":\"1.0.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    // `monochromatic-b`'s crate directory may be read and searched but not written, so the new link cannot land.
+    let unlistable = root.join("cargo").join("monochromatic-b");
+    set_mode(&unlistable, 0o555);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&unlistable, 0o755);
+    let error = pruned.expect_err("the new link cannot be written");
+    let gone = current_link(&root, "monochromatic-a");
+    assert!(error.message.contains(&gone.display().to_string()), "the report names the link it removed: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a link was removed: {error}");
+}
+
+/// A link this run already removed is not nothing: a failure on the next crate says what went,
+/// the way the recursive removals do.
+#[test]
+fn a_link_removal_failure_after_another_link_says_what_was_removed() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for crate_name in ["monochromatic-a", "monochromatic-b"] {
+        finish_install(&version_directory(&root, crate_name, "1.0.0"), crate_name, "1.0.0", &[crate_name]);
+        std::os::unix::fs::symlink("1.0.0", current_link(&root, crate_name)).expect("current");
+    }
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("a lock that names nothing");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    // `monochromatic-b`'s crate directory may be read and searched but not written, so its link cannot be removed.
+    let unlistable = root.join("cargo").join("monochromatic-b");
+    set_mode(&unlistable, 0o555);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&unlistable, 0o755);
+    let error = pruned.expect_err("the second link cannot be removed");
+    let gone = current_link(&root, "monochromatic-a");
+    assert!(error.message.contains(&gone.display().to_string()), "the report names the link it removed: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a link was removed: {error}");
+}
+
+/// The link removal takes only a version this run deletes or one that is already gone:
+/// a `current` another command moved to a version it just installed is that command's to keep.
+#[test]
+fn the_link_removal_leaves_a_current_that_names_a_version_installed_meanwhile() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(
+        &version_directory(&root, "monochromatic-lint", "1.1.0"),
+        "monochromatic-lint",
+        "1.1.0",
+        &["monochromatic-lint"],
+    );
+    std::os::unix::fs::symlink("1.1.0", current_link(&root, "monochromatic-lint")).expect("current");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("a lock that names nothing");
+    // Another command finishes installing 1.2.0 and points `current` at it while this run lists worktrees.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(
+                &version_directory(&installed_into, "monochromatic-lint", "1.2.0"),
+                "monochromatic-lint",
+                "1.2.0",
+                &["monochromatic-lint"],
+            );
+            let link = current_link(&installed_into, "monochromatic-lint");
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink("1.2.0", link).expect("point at the new install");
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&root, "monochromatic-lint");
+    assert!(version_directory(&root, "monochromatic-lint", "1.2.0").is_dir(), "the concurrent install survives");
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.2.0"), "the concurrent install's link is gone");
+    assert!(fs::metadata(&link).is_ok(), "and it resolves");
 }
 
 /// Sets a directory's mode, so a read of it can be made to fail.

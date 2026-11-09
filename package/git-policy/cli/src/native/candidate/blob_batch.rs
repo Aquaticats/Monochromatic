@@ -6,7 +6,7 @@
 //! Why:
 //!  Post-landing completion reads the original and intended bytes of every added path;
 //!  one
-//!      batch replaces a Git start per object (`src/policy-engine/blob-batch.ts`).
+//!      batch replaces a Git start per object.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

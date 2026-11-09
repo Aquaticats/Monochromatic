@@ -31,7 +31,7 @@
 use crate::command_checkout_table::{
     CHECKOUT_TABLE, DISCARD_CHANGES, FORCE, PATCH, PATHSPEC_FROM_FILE, STAGE, SWITCH_TABLE,
 };
-use crate::command_options::{Boundary, DEFAULT_MODE, OptionError, ParsedOptions, parse_options};
+use crate::command_options::{Boundary, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options};
 use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
 use std::ffi::OsString;
 
@@ -58,6 +58,35 @@ pub enum Discard {
     MovesHead,
     /// The region overwrites or deletes worktree files or staged entries by itself.
     Overwrites,
+}
+
+/// What:
+///  The revision a region names before its paths,
+/// if it names one.
+///  `Option<OsString>` is "the revision or nothing".
+/// Why:
+///   A forced checkout,
+///  a forced switch and a hard reset write a tree into the worktree,
+///  and
+///  which tree decides whether an ignored file the worktree holds is replaced;
+///  the tree is the first
+///  positional token before `--`,
+///  and the tokens after `--` are paths.
+///  A region Git refuses
+///  names nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function revisionBeforePaths(region: string[], table: OptionSpec[]): string | undefined;
+/// ```
+pub fn revision_before_paths(region: &[OsString], table: &[OptionSpec]) -> Option<OsString> {
+    // `let Ok(parsed) = ... else { return None; }` is the accepted region or nothing.
+    let Ok(parsed) = parse_options(region, table, DEFAULT_MODE, &[]) else {
+        return None;
+    };
+    // `.first()` is the first positional index before the boundary; `?` returns when there is none.
+    let first: &usize = parsed.leading.first()?;
+    return Some(region[*first].clone());
 }
 
 /// What:

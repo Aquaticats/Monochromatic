@@ -24,7 +24,7 @@ use crate::service_messages::ClientFailure;
 use crate::service_work::work_directory;
 use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
-use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all};
+use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -45,7 +45,7 @@ pub struct ServiceHandoff {
 }
 
 /// The kinds of work a landed commit leaves for the service.
-pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
+pub const HANDED_OVER: [WorkKind; 1] = [WorkKind::Maintenance];
 
 /// What:
 ///  The value of an environment variable,
@@ -105,8 +105,8 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
     for kind in HANDED_OVER.iter().chain(review.iter()).copied() {
         items.push(WorkItem {
             kind,
-            repository: handoff.repository.display().to_string(),
-            git_dir: handoff.git_dir.display().to_string(),
+            repository: handoff.repository.clone(),
+            git_dir: handoff.git_dir.clone(),
             branch_ref: handoff.reference.clone(),
             oid: landed.to_string(),
             parent: handoff.parent.clone(),
@@ -119,8 +119,77 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 }
 
 /// What:
+///  Promotes the push record the service held for a commit it landed,
+/// once the post-commit gate approves the backup.
+/// Why:
+///   The record must outlive a wrapper killed between the answer and the gate,
+/// and it must not run before the gate:
+///  the service writes no record of its own,
+/// so nothing pushes a commit whose gate blocked it,
+/// and a record the gate
+///  then allows is the one the hand-off wakes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await leaveThePush(handoff, landed)
+/// ```
+///
+/// # Errors
+///
+/// The work queue's own words when the record cannot be written.
+pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
+    let item: WorkItem = push_item(handoff, landed);
+    // The push is released, so the line that says it is held must not be shown.
+    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
+    if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
+        return Ok(());
+    }
+    // Nothing was held for this commit: the record is written here instead, so the push is not lost.
+    return match enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item) {
+        Ok(_enqueued) => Ok(()),
+        Err(reason) => Err(ClientFailure::WorkNotHandedOver(reason)),
+    };
+}
+
+/// What:
+///  Takes the push record back when the post-commit gate blocks the backup.
+/// Why:
+///   A blocked gate keeps the commit local,
+/// and a record left behind would push it at the next wake.
+/// A record another round already
+///  claimed is not reached here:
+/// the gate is what says whether the push may run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetThePush(handoff, landed) // unlink the pending record
+/// ```
+pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
+    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
+    let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let id: String = push_item(handoff, landed).id();
+    // The verdict is durable: a later recovery of the same batch must not hold the push again.
+    crate::work_item::block(work_dir.as_path(), id.as_str());
+    let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id));
+}
+
+/// The push record of one landed commit of a worktree.
+fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: handoff.repository.clone(),
+        git_dir: handoff.git_dir.clone(),
+        branch_ref: handoff.reference.clone(),
+        oid: landed.to_string(),
+        parent: handoff.parent.clone(),
+        created: now_iso(),
+        tries: 0,
+    };
+}
+
+/// What:
 ///  Writes the push record for a branch tip that a command other than a commit moved,
-/// and wakes the service.
+/// before anything asks whether a service can be reached.
 /// Why:
 ///   A merge,
 /// a cherry-pick,
@@ -129,23 +198,43 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 ///  be the first to push.
 /// Only the push is left:
 /// the review and the upkeep belong to a commit.
+///   The record is a directory of this worktree's own Git directory,
+/// so writing it needs no service,
+/// no socket and no session bus,
+/// and a context with no route to the service still leaves the push on disk for the next wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writePushRecord({ repository, gitDir, reference, tip, parent })
+/// ```
+pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repository.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
+        branch_ref: reference.to_string(),
+        oid: tip.to_string(),
+        parent: parent.to_string(),
+        created: now_iso(),
+        tries: 0,
+    };
+    enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    return Ok(());
+}
+
+/// What:
+///  `write_push_record` for a handoff,
+/// and then the wake of the service.
+/// Why:
+///   The caller that already knows how to reach the service leaves both in one call;
+/// a caller that may find no route writes the record with `write_push_record` and wakes only when it has one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await handOverPush(handoff, tip)
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Push,
-        repository: handoff.repository.display().to_string(),
-        git_dir: handoff.git_dir.display().to_string(),
-        branch_ref: handoff.reference.clone(),
-        oid: tip.to_string(),
-        parent: handoff.parent.clone(),
-        created: now_iso(),
-        tries: 0,
-    };
-    enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
     return wake(&handoff.config, handoff.git_dir.as_path(), None, notices);
 }
 
@@ -153,3 +242,19 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
 #[cfg(test)]
 #[path = "service_handoff_tests.rs"]
 mod tests;
+
+/// What:
+///  The one sentence the worktree says about a held push.
+/// Why:
+///   What is known is that the push is held and that the next push of its branch carries the commit.
+/// Whether the
+///  command that held it has stopped cannot be told,
+/// so the sentence does not claim it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldPushLine(branchRef, commit)
+/// ```
+pub fn held_push_line(reference: &str, commit: &str) -> String {
+    return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {reference}");
+}

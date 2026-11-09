@@ -132,6 +132,84 @@ fn the_note_written_at_provisioning_maps_the_instance_to_its_worktree() {
     remove(machine.root.as_path());
 }
 
+/// What:
+///  The note of a worktree whose Git directory is not text still maps its instance to that directory.
+/// Why:
+///   The note is read back and its path is hashed to find the instance it belongs to,
+/// so a note that lost the path's bytes names no instance,
+/// and the units of a removed worktree are never stopped (the survey says "unmapped").
+#[test]
+fn the_note_of_a_directory_that_is_not_text_maps_its_instance() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let machine: Machine = machine("units-note-bytes");
+    let removed: PathBuf = machine.linked("removed", false).join(OsStr::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(removed.as_path()).expect("Git directory");
+    let instance: String = instance_of(removed.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), removed.as_path()).expect("note written");
+    assert_eq!(worktree_of(&machine.folders(), instance.as_str()), UnitWorktree::Known(removed));
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A note an earlier release wrote for a worktree whose Git directory ends with a line break names that worktree.
+/// Why:
+///   That release wrote the text and nothing after it,
+/// so trimming one line break from the note names the sibling directory,
+/// whose text hashes to another instance,
+/// and the units of the removed worktree are never found again.
+#[test]
+fn a_note_of_an_earlier_release_whose_path_ends_with_a_line_break_names_that_worktree() {
+    let machine: Machine = machine("units-note-line-break");
+    let removed: PathBuf = machine.linked("topic\n", false);
+    let sibling: PathBuf = machine.linked("topic", false);
+    std::fs::create_dir_all(sibling.as_path()).expect("the sibling's Git directory");
+    let instance: String = instance_of(removed.as_path());
+    let note: PathBuf = note_path(machine.runtime.as_path(), instance.as_str());
+    std::fs::create_dir_all(note.parent().expect("parent")).expect("the note folder");
+    std::fs::write(note.as_path(), removed.to_string_lossy().as_bytes()).expect("an earlier note");
+    assert_eq!(worktree_of(&machine.folders(), instance.as_str()), UnitWorktree::Known(removed), "the note names the worktree it was written for");
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A note written by a release that spelled the directory as plain text is still read.
+/// Why:
+///   An upgrade must not lose the units it can already name,
+/// so the older form has to keep mapping.
+#[test]
+fn a_note_of_plain_text_is_still_read() {
+    let machine: Machine = machine("units-note-plain");
+    let removed: PathBuf = machine.linked("removed", false);
+    let instance: String = instance_of(removed.as_path());
+    let note: PathBuf = note_path(machine.runtime.as_path(), instance.as_str());
+    std::fs::create_dir_all(note.parent().expect("parent")).expect("the note folder");
+    std::fs::write(note.as_path(), removed.to_string_lossy().as_bytes()).expect("an earlier note");
+    assert_eq!(worktree_of(&machine.folders(), instance.as_str()), UnitWorktree::Known(removed));
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  An instance with no note is mapped by the `gitdirHex=` line of a record in its service journal.
+/// Why:
+///   The service writes the bytes beside the plain text in its records,
+/// and that line is what names a directory whose path is not text.
+#[test]
+fn an_instance_is_mapped_by_the_bytes_in_its_journal_records() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let machine: Machine = machine("units-journal-bytes");
+    let removed: PathBuf = machine.linked("removed", false).join(OsStr::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(removed.as_path()).expect("Git directory");
+    let instance: String = instance_of(removed.as_path());
+    let journal: PathBuf = machine.state.join("monochromatic-git-policy-cli/service").join(instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal");
+    let bytes: String = crate::path_bytes_in_records::hex_of_path(removed.as_path());
+    std::fs::write(journal.join("1.done"), format!("seq=1\ngitdirHex={bytes}\n")).expect("record");
+    assert_eq!(worktree_of(&machine.folders(), instance.as_str()), UnitWorktree::Known(removed));
+    remove(machine.root.as_path());
+}
+
 /// An instance with no note is mapped by the `gitdir=` line of a record in its service journal,
 /// when that line's text hashes to the instance.
 #[test]

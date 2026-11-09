@@ -27,6 +27,12 @@ use std::time::SystemTime;
 /// The state directories,
 /// in the order an item moves through them.
 pub const PENDING: &str = "pending";
+
+/// The state of a work item whose producer has not approved it yet:
+/// nothing drains it,
+/// and only an explicit promotion makes it runnable.
+/// It is where a landed commit's push waits for the post-commit gate.
+pub const HELD: &str = "held";
 /// Held by one consumer,
 /// with a lease.
 pub const CLAIMED: &str = "claimed";

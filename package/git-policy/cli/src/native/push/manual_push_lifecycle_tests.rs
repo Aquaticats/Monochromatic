@@ -1,9 +1,11 @@
 //! Controls for the manual-push candidate scope of one push,
 //! against real repositories.
-//! The TypeScript corpus is `src/policy-engine/manual-push-lifecycle` behavior in
-//! `src/policy-engine/manual-push.integration.unit.test.ts` (blocked on new branch,
+//! The corpus is the `manual-push-lifecycle` behavior of
+//! `package/git-policy/cli/src/manual-push.integration.unit.test.ts` (blocked on new branch,
 //! prior destination,
-//! probe failure).
+//! probe failure),
+//! deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//! so `git show 642b6d72cb^` holds it.
 
 use super::*;
 use crate::test_support::{fixture, git, remove};

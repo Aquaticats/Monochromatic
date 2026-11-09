@@ -5,6 +5,8 @@
 
 use super::*;
 use crate::candidate_prediction::CandidateRequest;
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::command_test_support::os_arguments;
 use crate::config_schema::PolicyConfig;
 use crate::policy_checks::shipped_checks;
@@ -77,7 +79,7 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
         facts,
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("a.txt")])),
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,
@@ -155,7 +157,7 @@ fn stored_states_compare_equal_exactly_when_the_corrected_bytes_match() {
         facts,
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("a.txt")])),
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,
