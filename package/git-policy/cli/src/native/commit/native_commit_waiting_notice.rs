@@ -35,6 +35,14 @@
 //! the same reading `programs_below` already makes.
 //! A commit that opens the person's editor prints nothing and is never stopped,
 //! because the person is the wait.
+//! The ceiling is counted from the first look that found the step below this process,
+//! never from when the notice started (`SIGHTING_INTERVAL`):
+//! a start this host held up would otherwise pass the ceiling before the step existed,
+//! and a look that finds nothing would then end the notice and the ceiling with it,
+//! which is how a commit landed after a 36,651 ms step under a 3,006 ms ceiling on 2026-11-08.
+//! Once the step has been seen,
+//! a look that finds nothing means it ended by itself,
+//! and the commit lands.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -78,6 +86,27 @@ use std::time::{Duration, Instant};
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
 const LOOK_PAUSE: Duration = Duration::from_millis(1);
+
+/// The longest the notice goes between two looks for the step below this process,
+/// until it has found it.
+/// Why:
+///   The ceiling is counted from the first look that found the step,
+/// so a start this host held up (a full process table,
+/// memory pressure,
+/// a stall in starting a process) cannot take the ceiling away:
+/// a look that finds nothing is a statement about the start,
+/// never about the step.
+///  That reading is the one the record could not make for a commit whose step ran 36,651 ms under a
+///  3,006 ms ceiling on 2026-11-08:
+/// it landed,
+/// so the ceiling never ended it.
+///  A look reads every `/proc` entry (`descendants_of`):
+/// measured on 2026-11-09 on this host (1,210 entries,
+/// load average 90 on 6 threads),
+/// 17.6 ms at the median and 19.7 ms at most over 30 looks.
+/// A quarter of a second keeps a step that is started late seen within that much of its start,
+/// and a step that ends sooner than that is ended by its own channel before a second look.
+const SIGHTING_INTERVAL: Duration = Duration::from_millis(250);
 
 /// What a started notice is given.
 pub struct NoticeStart<'a> {
@@ -240,13 +269,19 @@ impl NativeCommitNotice {
         let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
+            // When the step was first found below this process; the ceiling is counted from then.
+            let mut seen_at: Option<Duration> = None;
             loop {
                 let waited: Duration = began.elapsed();
-                if waited >= ceiling {
+                if seen_at.is_none() && !descendants_of(i32::try_from(std::process::id()).unwrap_or(0)).is_empty() {
+                    seen_at = Some(waited);
+                }
+                let since_seen: Option<Duration> = seen_at.map(|seen| { return waited.saturating_sub(seen); });
+                if since_seen.is_some_and(|seen| { return seen >= ceiling; }) {
                     // Everything below this process is the step and its signer; nothing of the person's runs there.
                     let below = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
                     if below.is_empty() {
-                        // The step ended on its own as the ceiling came.
+                        // The step ended on its own after it was seen running.
                         return None;
                     }
                     kill_members(below.as_slice());
@@ -259,8 +294,13 @@ impl NativeCommitNotice {
                     let _written = sink.write_all(line.as_bytes());
                     let _flushed = sink.flush();
                 }
-                let to_ceiling: Duration = ceiling.saturating_sub(began.elapsed());
-                match ended.recv_timeout(ticker.next_in(began.elapsed()).min(to_ceiling).max(LOOK_PAUSE)) {
+                // Wake for the sooner of the next line, the look that has not found the step yet, and the ceiling.
+                let to_next: Duration = ticker.next_in(waited);
+                let pause: Duration = match since_seen {
+                    Some(seen) => to_next.min(ceiling.saturating_sub(seen)),
+                    None => to_next.min(SIGHTING_INTERVAL),
+                };
+                match ended.recv_timeout(pause.max(LOOK_PAUSE)) {
                     Err(RecvTimeoutError::Timeout) => {}
                     Ok(()) | Err(RecvTimeoutError::Disconnected) => return None,
                 }
