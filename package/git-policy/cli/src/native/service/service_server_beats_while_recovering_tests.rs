@@ -163,10 +163,10 @@ fn a_client_that_connects_while_the_service_recovers_is_greeted_and_beaten() {
     let settings: ServeSettings = world.settings();
     let serving = std::thread::spawn(move || {
         // The recovery runs on this thread, so the hook that holds it is set here, on this thread's own record of it.
-        let held: mpsc::Receiver<()> = held;
+        let waiting: mpsc::Receiver<()> = held;
         hooks::set(IN_THE_RECOVERY, std::rc::Rc::new(move || {
             let _said = entered.send(());
-            let _let_go = held.recv();
+            let _let_go = waiting.recv();
         }));
         serve(listener, &context, &settings);
     });
@@ -177,7 +177,7 @@ fn a_client_that_connects_while_the_service_recovers_is_greeted_and_beaten() {
     let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
     let mut request: String = encode_client(&ClientMessage::Commit(Box::new(a_request(&world, "second", SECOND_MESSAGE))));
     request.push('\n');
-    let _sent = (&stream).write_all(request.as_bytes()).expect("the client sends its request");
+    (&stream).write_all(request.as_bytes()).expect("the client sends its request");
     assert!(greeted(&mut reader), "the service greets a client that connects while it recovers");
     let mut beats: usize = 0;
     let waited: Instant = Instant::now();
@@ -220,7 +220,7 @@ fn retire(socket: &Path) {
     let _greeted: bool = greeted(&mut reader);
     let mut line: String = encode_client(&ClientMessage::Retire);
     line.push('\n');
-    let _sent = (&stream).write_all(line.as_bytes()).expect("the retire reaches the service");
+    (&stream).write_all(line.as_bytes()).expect("the retire reaches the service");
 }
 
 /// Waits at most `PATIENCE` for a serving thread to end,
