@@ -30,6 +30,10 @@
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
 use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
+/// The preparation's own work,
+/// by name,
+/// as its sites note it.
+use crate::prepare_work_spans::{PrepareSpan, drain_spans, spans_json};
 use crate::commit_prepare_part_durations::{PreparePart, drain_prepare_parts, prepare_parts_json};
 use crate::time_spent_outside_the_phases::{OutsideThePhases, outside_the_phases};
 use crate::common_directory_of_a_git_directory::common_directory_of;
@@ -264,6 +268,26 @@ pub struct CommitTiming {
     /// taken from the ledger when the record is written (`commit_index_builds.rs`):
     /// empty for a commit that stopped before it built an index.
     pub index_builds: Vec<IndexBuild>,
+    /// What the preparation's own work did,
+    /// by name,
+    /// with how often,
+    /// the whole of its time and its longest run,
+    /// taken from the ledger when the record is written (`prepare_work_spans.rs`):
+    /// empty for a commit that noted no step.
+    /// Each name is a literal of this crate:
+    /// the index's stat check,
+    /// its read,
+    /// its copies,
+    /// the answer of whether it already holds the base,
+    /// the writes of corrected entries,
+    /// the candidate set a pass's content policies share,
+    /// and every policy with the lifecycle point whose pass ran it.
+    /// The record's `steps` hold the Git children these steps started,
+    /// so a step that starts Git is stated twice:
+    /// once as the work and once as the program it ran.
+    pub prepare_spans: Vec<PrepareSpan>,
+    /// How many step names came after the list reached its bound.
+    pub prepare_spans_dropped: usize,
     /// What the waiting notice of the scratch `git commit` saw in each build of it,
     /// in the order built
     /// (`scratch_commit_step.rs`):
@@ -344,6 +368,8 @@ impl CommitTiming {
             outcome: "stopped",
             attempts: 0,
             index_builds: Vec::new(),
+            prepare_spans: Vec::new(),
+            prepare_spans_dropped: 0,
             scratch_steps: Vec::new(),
             prepare: Duration::ZERO,
             build: Duration::ZERO,
@@ -395,7 +421,7 @@ impl CommitTiming {
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
              \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
-             \"prepareMs\":{},\"attempts\":{},\"indexBuilds\":{},\"scratchSteps\":{},\"buildMs\":{},\"provisionMs\":{},\
+             \"prepareMs\":{},\"attempts\":{},\"prepareSpans\":{},\"prepareSpansDropped\":{},\"indexBuilds\":{},\"scratchSteps\":{},\"buildMs\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
@@ -413,6 +439,8 @@ impl CommitTiming {
             total.as_millis(),
             self.prepare.as_millis(),
             self.attempts,
+            spans_json(self.prepare_spans.as_slice()),
+            self.prepare_spans_dropped,
             index_builds_json(self.index_builds.as_slice()),
             scratch_steps_json(self.scratch_steps.as_slice()),
             self.build.as_millis(),
@@ -469,6 +497,7 @@ impl CommitTiming {
         with_quiet.quiet = drain();
         (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
         with_quiet.index_builds = drain_index_builds();
+        (with_quiet.prepare_spans, with_quiet.prepare_spans_dropped) = drain_spans();
         with_quiet.outside = outside_the_phases();
         (with_quiet.prepare_parts, with_quiet.prepare_parts_dropped) = drain_prepare_parts();
         with_quiet.scratch_steps = drain_scratch_steps();
