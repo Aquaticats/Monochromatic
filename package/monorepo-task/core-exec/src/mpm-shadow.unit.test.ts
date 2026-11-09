@@ -887,6 +887,21 @@ await describe({
           },
         },),
         it({
+          name: 'names the lock file it compared, so a reader can tell which worktree is out of date',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, } = world;
+            writeExecutable({ path: join(root, TOOLCHAIN_BIN_LINK,), content: lockedStub('0.2.3',), },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+
+            expect(run.stderr,).toContain(
+              `locked at ${LOCKED_VERSION} in ${join(root, 'toolchain.lock.json',)}, 0.2.3 runs;`,
+            );
+          },
+        },),
+        it({
           name: 'runs the newest finished version folder of the toolchain root over a stale link, with the note, and downloads nothing',
           fn: async () => {
             using directory = makeDirectory();
