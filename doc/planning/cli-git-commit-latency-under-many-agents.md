@@ -1209,11 +1209,15 @@ That is why the stall stayed in the records measured after the revert.
 The third entry of "What would take the tail under five seconds",
 measured.
 
-A preparation read the real index three times over:
-the stat check read it,
+A preparation read an index's bytes four times over:
+the stat check read the real one,
 the captured copy was made from it,
-and the commit's own copy was a copy of that captured file,
-whose bytes the seed decision read again.
+the seed decision read that copy,
+and the commit's own copy was a copy of it.
+An index commit made three of those reads:
+the stat check,
+the captured copy,
+and the commit's own copy read from the captured one.
 `IndexBytes` (`commit_index_bytes.rs`) reads the file once and writes every copy from those bytes,
 so both private copies hold one state by construction:
 a staging that lands in the real index after the read reaches neither,
@@ -1351,8 +1355,10 @@ Three fields were added to the commit timing record because a slow landing could
   the conclusion copy,
   the records a batch owes,
   and the head question under the lock.
-  `reads_ms` stays the whole, and the named parts never add up to more than it.
-- `landing.lockHoldMs` is how long the landing held the index lock, which is what the commits behind it queued on,
+  `reads_ms` stays the whole,
+  and the named parts never add up to more than it.
+- `landing.lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
   and `landing.queuedBehind` is how many requests were still waiting for their answer when the landing finished.
 - `landing.syncs` is every file or directory sync the landing asked for,
   in the order it asked,
@@ -1363,19 +1369,23 @@ The service measures all three,
 so the answer to a commit carries them and the record states them;
 a service of a release that sends none leaves the field `null`,
 never zeros.
-The `answered` line of the journal states the same figures, so the two files agree.
+The `answered` line of the journal states the same figures,
+so the two files agree.
 
 ### The measurement
 
-One binary, two runs of four rounds of eight overlapping commits in a disposable clone of this repository
+One binary,
+two runs of four rounds of eight overlapping commits in a disposable clone of this repository
 (452 990 objects and 22 462 tracked files),
 started together on one branch so they land as one batch:
 
-- run A: 32 commits,
+- run A:
+  32 commits,
   median 4 280 ms,
   p95 8 623 ms,
   14 of 32 over 5 000 ms.
-- run B, the same binary:
+- run B,
+  the same binary:
   32 commits,
   median 22 002 ms,
   p95 40 868 ms,
@@ -1398,17 +1408,27 @@ clone the repository somewhere disposable,
 point its `origin` at a bare repository of that scratch tree so no push reaches the checkout it came from,
 and start the wrapper's service for the clone with `bench`-style arguments under an `XDG_RUNTIME_DIR` of its own.
 
-The commit's phases, as the record counts them:
+The commit's phases,
+as the record counts them:
 
-- prepare: median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
-- submit: median 755 ms and 10 843 ms (p95 3 025 and 24 813).
-- gate: median 151 ms and 1 519 ms (p95 2 701 and 10 569).
-- build: median 3 ms in both; after-landing, handoff and uncovered time under 80 ms.
+- prepare:
+  median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
+- submit:
+  median 755 ms and 10 843 ms (p95 3 025 and 24 813).
+- gate:
+  median 151 ms and 1 519 ms (p95 2 701 and 10 569).
+- build:
+  median 3 ms in both;
+  after-landing,
+  handoff and uncovered time under 80 ms.
 
-The landing, as the service splits it:
+The landing,
+as the service splits it:
 
-- landing: median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
-- the wait for another program's hold on the index: median 10 539 ms in run B (p95 14 249),
+- landing:
+  median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
+- the wait for another program's hold on the index:
+  median 10 539 ms in run B (p95 14 249),
   which is 98 percent of that run's median landing.
 - everything the landing itself does:
   reads median 29 ms in A and 15 ms in B,
@@ -1416,25 +1436,40 @@ The landing, as the service splits it:
   the intent journal 0 ms,
   the branch move 14 ms,
   the index update 89 ms.
-- the hold on the index: median 165 ms in A and 190 ms in B (p95 207 and 2 771).
-- queued behind a landing: seven commits for the first request of each batch and none for the rest,
+- the hold on the index:
+  median 165 ms in A and 190 ms in B (p95 207 and 2 771).
+- queued behind a landing:
+  seven commits for the first request of each batch and none for the rest,
   because the eight commits of a round land as one batch.
 - six syncs per landing,
   always handed to the background and never waited for:
   193 over 32 landings in each run,
-  named `intent-file`, `intent-dir`, `index-dir`, `indexed-file`, `indexed-dir` and `journal-dir`,
+  named `intent-file`,
+  `intent-dir`,
+  `index-dir`,
+  `indexed-file`,
+  `indexed-dir` and `journal-dir`,
   with `lock-marker` only for the first landing of a run (the marker is made ahead after that).
 
 ### The same clone, one commit at a time
 
-A third run, of six commits one after another in the same clone,
+A third run,
+of six commits one after another in the same clone,
 so nothing ever queued:
 
-- the wait for another program's hold on the index: median 1 ms, largest 3 040 ms.
-- the hold on the index: median 305 ms, largest 724 ms.
-- the index update: median 192 ms.
-- reads: median 4 ms.
-- queued behind a landing: none, in every one of the six.
+- the wait for another program's hold on the index:
+  median 1 ms,
+  largest 3 040 ms.
+- the hold on the index:
+  median 305 ms,
+  largest 724 ms.
+- the index update:
+  median 192 ms.
+- reads:
+  median 4 ms.
+- queued behind a landing:
+  none,
+  in every one of the six.
 
 Seven siblings in one batch turn that 1 ms into 10 539 ms,
 and no sibling at all leaves it at 1 ms.
@@ -1449,7 +1484,8 @@ locking only around the write,
 one sync per batch and one index update per batch is already how the landing works.
 The landing's one large cost is a wait it does not cause:
 each commit of a batch refreshes the real index in its own preparation
-(`git update-index --refresh`, which takes `index.lock`),
+(`git update-index --refresh`,
+which takes `index.lock`),
 so the batch's landing waits for its own members to stop refreshing,
 and those members wait for the landing in turn.
 
@@ -1502,7 +1538,8 @@ and the second is the gate's.
 
 - The ranking of the four entries above changes:
   the landing's own share is smaller than the records suggested
-  (382 ms of a 4 280 ms median commit, with no named read over 51 ms),
+  (382 ms of a 4 280 ms median commit,
+  with no named read over 51 ms),
   and what its number was made of is a wait on the preparation of the batch's own members.
   Removing waste inside the landing would therefore not move the tail,
   and the entry that would is the preparation's per-commit refresh of the real index,
