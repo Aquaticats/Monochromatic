@@ -215,7 +215,7 @@ impl ServeSettings {
 /// while an ended service is started again by the manager.
 fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
     if let Err(error) = std::thread::Builder::new().spawn(body) {
-        crate::service_error!("cannot start the thread for {what}: {error}");
+        crate::service_error!("{}", crate::scoped_start::refused_thread_sentence(format!("run {what}").as_str(), &error));
         std::process::exit(4);
     }
 }
