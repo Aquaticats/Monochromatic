@@ -24,12 +24,13 @@
 //! await rollback(run); await removeOldTree(run, { discardUnreadable });
 //! ```
 
+use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, open_root};
 use crate::subvolume_arguments::MIGRATE_RISK_NOTICE;
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
-use crate::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
+use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
@@ -290,16 +291,116 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await carryLateWrites(run);
+/// await carryLateWrites(run, pinned, shown);
 /// ```
-fn carry_late_writes(run: &mut Run<'_>) -> Result<(), MigrateError> {
-    let (root, old_path): (PathBuf, PathBuf) = (run.layout.root.clone(), run.layout.old_path.clone());
+fn carry_late_writes(run: &mut Run<'_>, destination: &Path, shown: &Path) -> Result<(), MigrateError> {
+    let old_path: PathBuf = run.layout.old_path.clone();
     let since: i64 = run.journal.seconds_of("catchup").unwrap_or(i64::MAX);
-    let stats: SyncStats = run.pass_late("late writes (files written to the old tree after the catch-up)", old_path.as_path(), root.as_path(), since)?;
+    let stats: SyncStats = run.pass_late("late writes (files written to the old tree after the catch-up)", old_path.as_path(), destination, since)?;
     if stats.files_copied > 0 || !stats.conflicts.is_empty() {
-        run.line(format!("{} file(s) written to the old tree after the catch-up were carried into {}", stats.files_copied, root.display()).as_str());
+        run.line(format!("{} file(s) written to the old tree after the catch-up were carried into {}", stats.files_copied, shown.display()).as_str());
     }
     return Ok(());
+}
+
+/// The journal's form of an identity:
+/// device and inode,
+/// without the birth time the descriptor's identity also carries.
+fn recorded_form(identity: &ObjectId) -> String {
+    return format!("{}:{}", identity.device, identity.inode);
+}
+
+/// What:
+///  The checkout the carry writes into,
+/// held open,
+/// with the identity it had when it was opened.
+/// Why:
+///   A path is resolved again by every call inside the carry,
+/// so a checkout moved aside and another put at the same
+///  path between the check and the carry would receive the old tree's newer files.
+/// The directory is opened below its parent without
+///  following a link,
+/// its identity is read from that descriptor,
+/// and every write of the carry goes through the descriptor,
+/// so
+///  the files land in the directory that was checked whatever happens to its path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PinnedRoot = { parent: FileHandle; name: string; directory: FileHandle; identity: ObjectId };
+/// ```
+struct PinnedRoot {
+    /// The directory that holds the checkout.
+    parent: std::fs::File,
+    /// The checkout's name in `parent`.
+    name: std::ffi::OsString,
+    /// The checkout itself,
+    /// held open.
+    directory: std::fs::File,
+    /// The identity of the held directory.
+    identity: ObjectId,
+}
+
+/// What:
+///  Open the checkout and prove it is the directory the migration installed,
+/// or say why it is not.
+///  `Ok(Err(refusal))` means nothing was written and nothing was deleted.
+/// Why:
+///   See `PinnedRoot`.
+/// The recorded identity is compared on the descriptor,
+/// so the check and the use are the same
+///  object,
+/// and a journal of an earlier release that records no identity still gets a pinned directory,
+/// its
+///  identity being the one the check after the carry compares against.
+/// A checkout moved aside after this moment receives the files at
+///  the directory it became,
+/// which is the directory the migration installed,
+/// and the old tree is kept because its name no
+///  longer leads there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pinned = await pinRoot(run, layout);
+/// ```
+fn pin_root(run: &Run<'_>, after_pinned: &mut dyn FnMut()) -> Result<Result<PinnedRoot, Refusal>, MigrateError> {
+    let root: &Path = run.layout.root.as_path();
+    let Some(parent_path) = root.parent() else {
+        return Ok(Err(Refusal { cause: format!("{} has no parent directory", root.display()), remedy: String::from("Run the command for a checkout that is a directory.") }));
+    };
+    let name: std::ffi::OsString = root.file_name().unwrap_or_default().to_os_string();
+    let parent: std::fs::File = MigrateError::from_io_result(open_root(parent_path), "hold the directory of the checkout", parent_path)?;
+    let directory: std::fs::File = MigrateError::from_io_result(open_directory_at(&parent, name.as_os_str()), "hold the checkout", root)?;
+    let identity: ObjectId = MigrateError::from_io_result(identity_of(&directory), "examine", root)?;
+    let now: String = recorded_form(&identity);
+    if let Some(recorded) = run.journal.value(INSTALLED_ROOT)
+        && now != recorded
+    {
+        return Ok(Err(Refusal {
+            cause: format!("{} is not the directory installed by the migration there: it is {now} and the journal records {recorded}", root.display()),
+            remedy: String::from("If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed."),
+        }));
+    }
+    after_pinned();
+    return Ok(Ok(PinnedRoot { parent, name, directory, identity }));
+}
+
+/// Whether the name of the pinned checkout still leads to it;
+/// a refusal naming both identities when it does not.
+fn pinned_root_moved(run: &Run<'_>, pinned: &PinnedRoot) -> Option<Refusal> {
+    let root: &Path = run.layout.root.as_path();
+    let held: String = recorded_form(&pinned.identity);
+    let now: String = match identity_at(&pinned.parent, pinned.name.as_os_str()) {
+        Ok(found) => recorded_form(&found),
+        Err(_gone) => String::from("a name that leads nowhere"),
+    };
+    if now == held {
+        return None;
+    }
+    return Some(Refusal {
+        cause: format!("{} was the directory {held} while the old tree's newer files were carried into it, and it is {now} now", root.display()),
+        remedy: String::from("Nothing was deleted. Check what is at that path, move the directory the migration installed back, and run the command again."),
+    });
 }
 
 /// What:
@@ -323,8 +424,31 @@ fn carry_late_writes(run: &mut Run<'_>) -> Result<(), MigrateError> {
 /// const refused = await removeOldTree(run, { discardUnreadable, discardLeftOut });
 /// ```
 pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    return remove_old_tree_seamed(run, discard_unreadable, discard_left_out, &mut nothing_at_all);
+}
+
+/// A step that does nothing,
+/// for the run between the checkout being pinned and the carry.
+fn nothing_at_all() {}
+
+/// What:
+///  `remove_old_tree`,
+/// with a call right after the checkout was opened and judged to be the installed one,
+/// where a control
+///  moves it aside and puts another directory at its name.
+/// Why:
+///   The window between the identity check and the writes is the defect the pin closes,
+/// and a test of it can only
+///  enter that window through a seam.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeOldTreeSeamed(run, flags, afterPinned);
+/// ```
+pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool, after_pinned: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
     let old_path: PathBuf = run.layout.old_path.clone();
+    let mut pinned: Option<PinnedRoot> = None;
     if refusals.is_empty() {
         let metadata: std::fs::Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(&old_path), "examine", old_path.as_path())?;
         if metadata.file_type().is_symlink() {
@@ -335,7 +459,20 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool, discard_left
         }
         // The carry is the first step that writes; the refusal below comes after it, so the risk is said from here on.
         run.line(MIGRATE_RISK_NOTICE);
-        carry_late_writes(run)?;
+        match pin_root(run, after_pinned)? {
+            Ok(found) => {
+                let destination: PathBuf = handle_path(&found.directory);
+                carry_late_writes(run, destination.as_path(), run.layout.root.as_path())?;
+                pinned = Some(found);
+            }
+            Err(refusal) => return Ok(Some(vec![refusal])),
+        }
+    }
+    // The files went into the directory that was pinned; the old tree is deleted only while the name still leads to it.
+    if let Some(found) = pinned.as_ref()
+        && let Some(refusal) = pinned_root_moved(run, found)
+    {
+        return Ok(Some(vec![refusal]));
     }
     if refusals.is_empty() && !run.left_out.is_empty() && !discard_left_out {
         refusals.push(Refusal {

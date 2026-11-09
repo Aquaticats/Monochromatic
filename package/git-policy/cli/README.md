@@ -1252,6 +1252,10 @@ Both `--remove-old` and `--rollback` refuse when the directory at the checkout p
  (its device and inode are recorded with the migration's last step),
  because a checkout moved or replaced by hand since then
  is one the migration never recorded.
+The carry writes through a descriptor on the directory whose identity was checked,
+ so a checkout moved aside and another
+ put at its path receives nothing,
+ and the old tree is kept when the name no longer leads to that directory.
 `--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
  their copy,
 and files the checkout lacks that are no older than the catch-up;

@@ -577,6 +577,42 @@ fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
 }
 
 /// What:
+///  A checkout moved aside between the identity check and the carry receives nothing:
+///  the carry goes through the descriptor of the directory that was checked,
+///  and the old tree is kept when the name no longer leads to it.
+/// Why:
+///   The check and the writes were detached,
+/// so a directory put at the checkout's path in that window received the old
+///  tree's newer files and the old tree was then deleted.
+#[test]
+fn a_checkout_replaced_after_the_identity_check_never_receives_the_carry() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-swap-after-check", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let installed: PathBuf = parent.join("checkout.kept");
+    // Newer than the checkout's copy, so the carry would write it wherever the path points by then.
+    std::fs::write(layout.old_path.join("README.md"), b"from the old tree\n").expect("late write");
+    let (at, kept) = (root.clone(), installed.clone());
+    let mut say = |_text: &str| {};
+    let never: Interrupt = Interrupt::never();
+    let mut run = crate::subvolume_run::Run::open(&platform, &layout, &never, &mut say).expect("run");
+    let swap = &mut || {
+        std::fs::rename(at.as_path(), kept.as_path()).expect("move the installed checkout aside");
+        std::fs::create_dir_all(at.join("src")).expect("a directory at the checkout's path");
+        std::fs::write(at.join("README.md"), b"the replacement's own\n").expect("the replacement's file");
+        // Older than the old tree's late write, so a carry that resolved the path would replace it.
+        set_seconds(at.join("README.md").as_path(), 1_000_000_000);
+    };
+    let refused = remove_old_tree_seamed(&mut run, false, false, swap).expect("no failure");
+    assert_eq!(std::fs::read(root.join("README.md")).expect("the replacement's file"), b"the replacement's own\n", "nothing is written into the directory that took the checkout's place");
+    assert_eq!(std::fs::read(installed.join("README.md")).expect("the installed checkout"), b"from the old tree\n", "the files go where the descriptor points");
+    assert!(layout.old_path.exists() && layout.journal_path.exists(), "the old tree and its journal are kept");
+    let Some(reasons) = refused else { panic!("the deletion is refused, because the name no longer leads to the directory that was checked") };
+    assert!(reasons.iter().any(|reason: &Refusal| { return reason.cause.contains("was the directory") && reason.cause.contains("now"); }), "{reasons:?}");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A checkout replaced by hand since the migration is not the directory the migration installed,
 ///  so neither `--remove-old` nor
 ///  `--rollback` acts on it:

@@ -1542,6 +1542,16 @@ the migration never recorded,
 and the carry would write into it and the rollback would exchange it.
 A journal written by an earlier release records no identity,
 and a command that has none does not refuse on a guess.
+`--remove-old` opens the checkout below its parent without following a link,
+compares the identity it reads on that
+descriptor with the recorded one,
+and carries the old tree's newer files through the descriptor,
+so a checkout moved aside
+after the check receives nothing;
+the name is compared with the held identity again before the old tree is deleted,
+and a
+difference keeps the old tree,
+names both identities and changes nothing.
 `--remove-old` carries into the checkout what was written to the old tree after the catch-up,
 and that carry leaves out an entry the checkout lacks whose modification time is older than the catch-up,
 because that is also the shape of a file the person deleted from the checkout on purpose.
