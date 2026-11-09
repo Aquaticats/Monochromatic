@@ -1283,7 +1283,7 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
     })
     .expect("the runtime");
     assert!(answering.is_ok(), "a watcher whose child had ended spun on its ceiling branch instead of waiting for the mark that ends it");
-    let _ended = answering.expect("the task answered").expect("the watcher ended normally");
+    answering.expect("the task answered").expect("the watcher ended normally");
 }
 
 /// What:
