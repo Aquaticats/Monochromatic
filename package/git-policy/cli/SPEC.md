@@ -3635,6 +3635,13 @@ on the commit path:
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
   then runs and reports what Git says.
+  Before the wait it learns which index it writes from two queries,
+  `git rev-parse --path-format=absolute --absolute-git-dir` and then `--git-path index`,
+  each asked on its own and each answer read as bytes with only its one terminating line feed removed,
+  because a pathname may hold a line feed,
+  the reading `src/native/landing/landing_location.rs` and `health/doctor.rs` both make.
+  The in-process reader answers first,
+  so a command in a plain checkout starts no query for it.
 - A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
   journal
   command.
