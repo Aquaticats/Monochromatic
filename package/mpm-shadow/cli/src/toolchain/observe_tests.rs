@@ -266,3 +266,48 @@ fn an_observed_version_satisfies_a_repository_published_lock_by_the_alpha_number
     locked.version = "0.4.5-alpha.9".to_string();
     assert!(super::observe::satisfies_lock(&locked, "0.4.5-alpha.10"), "alpha.10 is newer than the locked alpha.9");
 }
+
+/// The `bin` downloader of the bin-sourced route, as the fake toolchain would have installed it.
+fn install_bin_downloader(rig: &Rig) -> std::path::PathBuf {
+    let tool = rig.lock.tool("bin").expect("the downloader tool");
+    let directory: std::path::PathBuf = tool_install_dir(&rig.scope.toolchain_root, "bin", &tool.version).expect("an install directory");
+    let path: std::path::PathBuf = directory.join("bin");
+    write_executable(&path);
+    return path;
+}
+
+/// The positive control:
+/// a row on standard output of a successful listing is read as the installed version.
+/// Why:
+/// A null result from the two tests below counts only when this one moves.
+#[test]
+fn a_bin_listing_row_on_stdout_is_read_as_installed() {
+    let rig = Rig::new();
+    let tool = rig.lock.tool("pnpm").expect("tool").clone();
+    install_bin_downloader(&rig);
+    rig.runner.answer("bin list", "pnpm  10.1.0  https://registry.example/pnpm", 0);
+    assert_eq!(observe_tool(&rig.context(), &tool), Some("10.1.0".to_string()));
+}
+
+/// A row printed on stderr is not a listing:
+/// every other observer reads stdout only, and a diagnostic that happens to look like a row must not
+/// be recorded as an installed version.
+#[test]
+fn a_bin_listing_row_on_stderr_is_not_read_as_installed() {
+    let rig = Rig::new();
+    let tool = rig.lock.tool("pnpm").expect("tool").clone();
+    install_bin_downloader(&rig);
+    rig.runner.answer_streams("bin list", "", "pnpm  10.1.0  https://registry.example/pnpm", 0);
+    assert_eq!(observe_tool(&rig.context(), &tool), None);
+}
+
+/// A failed listing is read as absent, not as installed:
+/// a run that exited non-zero proves nothing about what is installed.
+#[test]
+fn a_failed_bin_listing_is_read_as_absent() {
+    let rig = Rig::new();
+    let tool = rig.lock.tool("pnpm").expect("tool").clone();
+    install_bin_downloader(&rig);
+    rig.runner.answer_streams("bin list", "pnpm  10.1.0  https://registry.example/pnpm", "", 1);
+    assert_eq!(observe_tool(&rig.context(), &tool), None);
+}
