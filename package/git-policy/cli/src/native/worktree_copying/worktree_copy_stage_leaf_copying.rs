@@ -17,6 +17,7 @@ use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::side_by_side_threads::run_all_side_by_side;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
+use crate::worktree_copy_error::failure_with_cause;
 use crate::worktree_copy_selection::filesystem_path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::path::{Path, PathBuf};
@@ -362,36 +363,120 @@ fn copy_leaves(
     entries: &[WorktreeCopyEntry],
     stamps: &mut [Option<FileStamp>],
     failed: &AtomicBool,
-) -> Result<(), WorktreeCopyError> {
+    clone: fn(&std::fs::File, &std::fs::File) -> bool,
+) -> Result<Vec<String>, WorktreeCopyError> {
     let mut last_parent: Option<PathBuf> = None;
+    let mut gone: Vec<String> = Vec::new();
     for (entry, slot) in entries.iter().zip(stamps.iter_mut()) {
         if failed.load(Ordering::Relaxed) {
-            return Ok(());
+            return Ok(gone);
         }
         if entry.kind == EntryKind::Directory {
             continue;
         }
-        let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_str())?;
         let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
         let parent: PathBuf = parent_of(stage_path.as_path());
         if last_parent.as_ref() != Some(&parent) {
             create_private_tree(parent.as_path())?;
             last_parent = Some(parent);
         }
-        // `match` on the kind: files are cloned or copied and links recreated with their exact target.
-        match entry.kind {
-            EntryKind::Directory => {}
-            EntryKind::File => {
-                *slot = copy_file_exclusive_with(source_path.as_path(), stage_path.as_path(), try_clone)?;
-            }
-            EntryKind::Symlink => {
-                let target: PathBuf = std::fs::read_link(source_path.as_path())
-                    .map_err(raw_failure_of)?;
-                symlink_at(target.as_path(), stage_path.as_path())?;
-            }
+        match copy_one_leaf(source_root, stage_path.as_path(), entry, clone)? {
+            CopiedLeaf::Staged(stamp) => *slot = stamp,
+            // The source no longer holds it, so there is nothing to copy and no reason to fail the add.
+            CopiedLeaf::Gone => gone.push(entry.relative_path.clone()),
         }
     }
-    return Ok(());
+    return Ok(gone);
+}
+
+/// What:
+///  The answer of copying one manifest entry into the stage.
+/// Why:
+///   A source entry that is no longer there has nothing to copy,
+/// and a live checkout is constantly
+///  removing and rewriting its ignored files,
+/// so that answer is not a failure of the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CopiedLeaf = { kind: 'staged'; stamp?: FileStamp } | { kind: 'gone' };
+/// ```
+pub enum CopiedLeaf {
+    /// The entry is in the stage;
+    /// the stamp proves the bytes when one was taken from a clone.
+    Staged(Option<FileStamp>),
+    /// The source no longer holds the entry.
+    Gone,
+}
+
+/// What:
+///  Copy one file or link of the manifest into `stage_path`,
+/// and say whether the source still had it.
+/// Why:
+///   The walk and the copy are separate passes,
+/// so a file a build removed between them is gone by now;
+///  reading it is what discovers that,
+/// and the answer is a skip rather than a failure.
+/// A failure names the source path it
+///  could not read,
+/// never only the checkout it was copying from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copyOneLeaf(sourceRoot, stagePath, entry): CopiedLeaf { try { return { kind: 'staged', stamp: copyFileExclusiveWith(...) }; } catch (e) { if (e.code === 'ENOENT') return { kind: 'gone' }; throw `${sourcePath} cannot be copied (${e})`; } }
+/// ```
+pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopyEntry, clone: fn(&std::fs::File, &std::fs::File) -> bool) -> Result<CopiedLeaf, WorktreeCopyError> {
+    let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_str())?;
+    return match entry.kind {
+        EntryKind::Directory => Ok(CopiedLeaf::Staged(None)),
+        EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone) {
+            Ok(stamp) => Ok(CopiedLeaf::Staged(stamp)),
+            Err(_gone_now) if !still_there(&source_path) => Ok(CopiedLeaf::Gone),
+            Err(error) => Err(named_source_failure(&source_path, "cannot be copied", &error)),
+        },
+        EntryKind::Symlink => match std::fs::read_link(source_path.as_path()) {
+            Ok(target) => {
+                symlink_at(target.as_path(), stage_path)?;
+                Ok(CopiedLeaf::Staged(None))
+            }
+            Err(_gone_now) if !still_there(&source_path) => Ok(CopiedLeaf::Gone),
+            Err(error) => Err(named_source_failure(&source_path, "cannot be read", &failure_with_cause(format!("{error}").as_str(), None))),
+        },
+    };
+}
+
+/// What:
+///  Whether the source still holds an entry a step just failed on.
+/// Why:
+///   A file and the directory holding it can both go between the walk and the copy,
+/// and only the
+///  filesystem knows whether the failure was that,
+/// so the question is asked again after the failure rather than guessed
+///  from its text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillThere = (path) => { try { lstatSync(path); return true; } catch { return false; } };
+/// ```
+fn still_there(source_path: &Path) -> bool {
+    return std::fs::symlink_metadata(source_path).is_ok();
+}
+
+/// What:
+///  A failure of one source entry,
+/// worded with the path the person can act on.
+/// Why:
+///   `No such file or directory` names no file,
+/// and the checkout it came from holds thousands:
+/// the line says which entry failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${path} ${what} (${error})`
+/// ```
+fn named_source_failure(source_path: &Path, what: &str, error: &WorktreeCopyError) -> WorktreeCopyError {
+    let message: String = format!("{} {what} ({})", source_path.display(), error.0);
+    return failure_with_cause(message.as_str(), None);
 }
 
 /// What:
@@ -413,7 +498,51 @@ pub fn copy_manifest_entries(
     source_root: &Path,
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
-) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
+) -> Result<CopiedManifest, WorktreeCopyError> {
+    return copy_manifest_entries_with(source_root, stage_root, entries, try_clone);
+}
+
+/// What:
+///  What one copy of the manifest left in the stage and what it found gone.
+/// Why:
+///   A stamp belongs to the entry it was taken for,
+/// and an entry the source no longer holds has no stamp
+///  and no stage file;
+/// the caller has to know both to compare the stage with the source and to install
+///  only what exists.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CopiedManifest = { stamps: (FileStamp | undefined)[]; gone: string[] };
+/// ```
+pub struct CopiedManifest {
+    /// The stamp of each entry, in manifest order;
+    /// `None` when the bytes were copied rather than cloned,
+    /// and for every entry the source no longer held.
+    pub stamps: Vec<Option<FileStamp>>,
+    /// The manifest entries the source no longer held when their turn came, in manifest order.
+    pub gone: Vec<String>,
+}
+
+/// What:
+///  `copy_manifest_entries` with the clone request the caller supplies,
+/// so a control can make a source entry change or
+///  vanish at a stated moment.
+/// Why:
+///   The landing and the worktree copy both reach the same primitive,
+/// and only a supplied clone lets a
+///  control place a write between one entry's copy and the next one's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copyManifestEntriesWith({ sourceRoot, stageRoot, entries, clone }): CopiedManifest;
+/// ```
+pub fn copy_manifest_entries_with(
+    source_root: &Path,
+    stage_root: &Path,
+    entries: &[WorktreeCopyEntry],
+    clone: fn(&std::fs::File, &std::fs::File) -> bool,
+) -> Result<CopiedManifest, WorktreeCopyError> {
     for entry in entries {
         if entry.kind != EntryKind::Directory {
             continue;
@@ -425,25 +554,26 @@ pub fn copy_manifest_entries(
     let workers: usize = copy_worker_count(entries.len());
     let failed: AtomicBool = AtomicBool::new(false);
     if workers <= 1 {
-        copy_leaves(source_root, stage_root, entries, stamps.as_mut_slice(), &failed)?;
-        return Ok(stamps);
+        let gone: Vec<String> = copy_leaves(source_root, stage_root, entries, stamps.as_mut_slice(), &failed, clone)?;
+        return Ok(CopiedManifest { stamps, gone });
     }
     let slice_length: usize = entries.len().div_ceil(workers);
-    let mut slices: Vec<(&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool)> = Vec::new();
+    let mut slices: Vec<(&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool, fn(&std::fs::File, &std::fs::File) -> bool)> = Vec::new();
     for (slice, slots) in entries.chunks(slice_length).zip(stamps.chunks_mut(slice_length)) {
-        slices.push((source_root, stage_root, slice, slots, &failed));
+        slices.push((source_root, stage_root, slice, slots, &failed, clone));
     }
-    let mut outcomes: Vec<Result<(), WorktreeCopyError>> = Vec::new();
+    let mut outcomes: Vec<Result<Vec<String>, WorktreeCopyError>> = Vec::new();
     for joined in run_all_side_by_side(slices, copy_slice_and_flag_failure) {
         outcomes.push(match joined {
             Ok(outcome) => outcome,
             Err(_panic) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
         });
     }
+    let mut gone: Vec<String> = Vec::new();
     for outcome in outcomes {
-        outcome?;
+        gone.extend(outcome?);
     }
-    return Ok(stamps);
+    return Ok(CopiedManifest { stamps, gone });
 }
 
 /// What:
@@ -460,9 +590,9 @@ pub fn copy_manifest_entries(
 /// function copySliceAndFlagFailure([sourceRoot, stageRoot, slice, slots, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
 /// ```
 fn copy_slice_and_flag_failure(
-    (source_root, stage_root, slice, slots, failed): (&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool),
-) -> Result<(), WorktreeCopyError> {
-    let outcome: Result<(), WorktreeCopyError> = copy_leaves(source_root, stage_root, slice, slots, failed);
+    (source_root, stage_root, slice, slots, failed, clone): (&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool, fn(&std::fs::File, &std::fs::File) -> bool),
+) -> Result<Vec<String>, WorktreeCopyError> {
+    let outcome: Result<Vec<String>, WorktreeCopyError> = copy_leaves(source_root, stage_root, slice, slots, failed, clone);
     if outcome.is_err() {
         failed.store(true, Ordering::Relaxed);
     }

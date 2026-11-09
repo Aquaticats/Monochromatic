@@ -18,11 +18,11 @@ use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::diagnostic_log::debug;
 pub use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
-use crate::worktree_copy_stage_leaf_copying::{copy_manifest_entries, copy_worker_count, create_private_tree};
-use crate::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
+use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, copy_worker_count, create_private_tree, try_clone};
+use crate::worktree_copy_settling::{Settled, SettlingRequest, settle_the_copy};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of, wrap_raw};
 use crate::worktree_copy_manifest::{
-    FileStamp, WorktreeCopyEntry, apply_entry_modes, collect_pruned_manifest,
+    FileStamp, WorktreeCopyEntry, collect_pruned_manifest,
 };
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, select_roots};
@@ -69,6 +69,9 @@ pub struct StagedSnapshot {
     /// left out of the stage;
     ///  empty for a stage rebuilt from a journal.
     pub unreadable: Vec<String>,
+    /// Repository paths that kept changing under the copy and were left in their source;
+    ///  empty for a stage rebuilt from a journal.
+    pub unsettled: Vec<String>,
 }
 
 /// What:
@@ -212,6 +215,7 @@ pub fn stage_ignored_snapshot(
         stage_root.as_path(),
         git_selected,
         selection.prune(),
+        try_clone,
     );
     // Any failure removes the whole container, so no partial stage survives the attempt.
     match staged {
@@ -258,6 +262,7 @@ fn stage_into(
     stage_root: &Path,
     git_selected: Vec<String>,
     prune: Prune,
+    clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let excluded_source_roots: Vec<PathBuf> =
         source_exclusions(source_root, registered_roots, stage_container);
@@ -309,31 +314,37 @@ fn stage_into(
         );
     }
     let walked: std::time::Duration = started.elapsed();
-    let stamps: Vec<Option<FileStamp>> =
-        copy_manifest_entries(source_root, stage_root, entries.as_slice())?;
+    let copied_manifest: CopiedManifest =
+        copy_manifest_entries_with(source_root, stage_root, entries.as_slice(), clone)?;
     let copied: std::time::Duration = started.elapsed();
-    apply_entry_modes(stage_root, entries.as_slice())?;
-    let moded: std::time::Duration = started.elapsed();
-    assert_final_source_equivalence_pruned(
+    // The copy settles the stage against the source: what went away is dropped, what changed is copied again,
+    //  and what will not hold still stays in its source and is named rather than failing an add Git already made.
+    let settled: Settled = settle_the_copy(SettlingRequest {
         source_root,
         stage_root,
-        selected_roots.as_slice(),
-        excluded_source_roots.as_slice(),
-        entries.as_slice(),
-        &FinalCheck { prune, stamps: stamps.as_slice() },
-    )?;
+        selected_roots: selected_roots.as_slice(),
+        excluded_source_roots: excluded_source_roots.as_slice(),
+        prune,
+        entries,
+        stamps: copied_manifest.stamps,
+        clone,
+        gone: copied_manifest.gone,
+    })?;
+    let entries: Vec<WorktreeCopyEntry> = settled.entries;
+    let stamps: Vec<Option<FileStamp>> = settled.stamps;
     debug(
         "worktreeCopyStage",
         format!(
-            "staged {} entries ({} cloned under a stamp) in {} ms: walk {} ms, copy by {} workers {} ms, modes {} ms, final check {} ms",
+            "staged {} entries ({} cloned under a stamp) in {} ms: walk {} ms, copy by {} workers {} ms, settling and modes {} ms; {} went away and {} kept changing",
             entries.len(),
             stamps.iter().flatten().count(),
             started.elapsed().as_millis(),
             walked.as_millis(),
             copy_worker_count(entries.len()),
             (copied - walked).as_millis(),
-            (moded - copied).as_millis(),
-            (started.elapsed() - moded).as_millis()
+            (started.elapsed() - copied).as_millis(),
+            settled.gone,
+            settled.unsettled.len()
         )
         .as_str(),
     );
@@ -344,6 +355,7 @@ fn stage_into(
         stage_container: stage_container.to_path_buf(),
         stage_root: stage_root.to_path_buf(),
         unreadable,
+        unsettled: settled.unsettled,
     });
 }
 

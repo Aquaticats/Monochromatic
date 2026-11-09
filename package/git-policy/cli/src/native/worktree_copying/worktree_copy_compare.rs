@@ -21,6 +21,7 @@ use crate::worktree_copy_manifest::{
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
 use crate::json_record::quote;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -307,6 +308,73 @@ pub fn assert_final_source_equivalence_pruned(
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
+    let differences: Differences = differences_from_the_source(source_root, stage_root, selected_roots, excluded_source_roots, staged_entries, check)?;
+    if !differences.gone.is_empty() || !differences.appeared.is_empty() {
+        return Err(failure_with_cause(
+            "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
+            None,
+        ));
+    }
+    if let Some(first) = differences.changed.first() {
+        let message: String = format!(
+            "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
+            quote(first.as_str())
+        );
+        return Err(failure_with_cause(message.as_str(), None));
+    }
+    return Ok(());
+}
+
+/// What:
+///  What the source and the stage walks say about the manifest the copy made,
+/// by relative path.
+/// Why:
+///   The caller has to know which entries went away,
+/// which ones changed under the copy,
+/// and which ones appeared after the listing:
+/// a vanished entry has nothing left to copy,
+/// an entry that
+///  keeps changing is retried and then left in its source,
+/// and an entry that appeared was never in the listing.
+/// Paths,
+///  not positions,
+/// are what makes the three tellable apart once the walks disagree on how many entries there are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Differences = { gone: string[]; changed: string[]; appeared: string[] };
+/// ```
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct Differences {
+    /// Manifest entries the source no longer holds.
+    pub gone: Vec<String>,
+    /// Manifest entries whose shape or bytes the source and the stage disagree about.
+    pub changed: Vec<String>,
+    /// Source paths the listing did not name, which appeared while the copy ran.
+    pub appeared: Vec<String>,
+}
+
+/// What:
+///  Walk the source and the stage beside each other and compare them with the manifest,
+/// by relative
+///  path.
+/// Why:
+///   Two walks taken at one instant are the only evidence the stage matches the source,
+/// and a
+///  difference has to be named by its path so the caller can retry or leave out exactly that entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function differencesFromTheSource(...): Differences;
+/// ```
+pub fn differences_from_the_source(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[String],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<Differences, WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
     let (source_joined, stage_walked): (std::thread::Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
         run_beside_caller(
@@ -319,32 +387,44 @@ pub fn assert_final_source_equivalence_pruned(
     };
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
-    if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
-        return Err(failure_with_cause(
-            "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
-            None,
-        ));
+    let mut by_source: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in &final_source {
+        by_source.insert(entry.relative_path.as_str(), entry);
     }
+    let mut by_stage: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in &final_stage {
+        by_stage.insert(entry.relative_path.as_str(), entry);
+    }
+    let mut differences: Differences = Differences::default();
     for (index, staged) in staged_entries.iter().enumerate() {
-        let source_entry: &WorktreeCopyEntry = &final_source[index];
-        let stage_entry: &WorktreeCopyEntry = &final_stage[index];
-        let same_shape: bool = source_entry.kind == staged.kind
-            && source_entry.mode == staged.mode
-            && source_entry.relative_path == staged.relative_path
-            && stage_entry.kind == staged.kind
-            && stage_entry.mode == staged.mode
-            && stage_entry.relative_path == staged.relative_path;
+        let path: &str = staged.relative_path.as_str();
+        let Some(source_entry) = by_source.get(path) else {
+            differences.gone.push(String::from(path));
+            continue;
+        };
+        let same_shape: bool = match by_stage.get(path) {
+            Some(stage_entry) => {
+                source_entry.kind == staged.kind
+                    && source_entry.mode == staged.mode
+                    && stage_entry.kind == staged.kind
+                    && stage_entry.mode == staged.mode
+                    && stage_entry.relative_path == staged.relative_path
+            }
+            None => false,
+        };
         let stamp: Option<&FileStamp> = check.stamps.get(index).and_then(Option::as_ref);
         // The content check runs last so the cheap shape checks fail fast without reading large files.
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
-                quote(staged.relative_path.as_str())
-            );
-            return Err(failure_with_cause(message.as_str(), None));
+            differences.changed.push(String::from(path));
         }
     }
-    return Ok(());
+    let staged_paths: BTreeSet<&str> = staged_entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.as_str(); }).collect();
+    for path in by_source.keys() {
+        if !staged_paths.contains(path) {
+            differences.appeared.push(String::from(*path));
+        }
+    }
+    return Ok(differences);
 }
 
 /// Compare controls stay out of the release executable.

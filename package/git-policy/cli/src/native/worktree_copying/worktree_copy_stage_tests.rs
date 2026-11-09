@@ -511,8 +511,9 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
         std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
     }
     let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[String::from("many")], &[]).expect("manifest");
-    let stamps = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
-    assert_eq!(stamps.len(), entries.len());
+    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
+    assert_eq!(copied.stamps.len(), entries.len());
+    assert!(copied.gone.is_empty(), "no entry went away here");
     assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");
     remove(&root);
 }
