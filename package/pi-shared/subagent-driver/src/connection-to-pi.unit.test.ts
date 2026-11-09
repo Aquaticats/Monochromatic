@@ -35,7 +35,7 @@ import {
   type PiRecord,
   startConnectionToPi,
 } from '../dist/final/node/index.mjs';
-import { STANDARD_ERROR_TEXT, } from './stand-in-pi-prompt-plays-fixture.ts';
+import { STANDARD_ERROR_TEXT, } from './stand-in-pi-records-fixture.ts';
 
 const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
 

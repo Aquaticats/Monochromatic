@@ -1010,6 +1010,13 @@ These binary-level controls in `binary_dependent_version_tests.rs` show the exec
   and stages the manifest.
 - `a_staged_deletion_does_not_block_the_check`:
   a staged deletion of an unrelated file does not stop `check --all` from reporting both dependents.
+- `a_version_raising_commit_lands_without_a_publish_set`:
+  a real wrapped commit of a raised workspace manifest exits 0 with the
+  raised version in `HEAD`,
+  both with `package/config/pnpr/config.yaml` untracked and with it listing
+  no name.
+  No publish set the reader cannot read can fail a commit,
+  because no commit reaches the reader.
 
 Guard proof:
 a refusal line placed before the `check_dependent_version` call made the three controls present at the time
@@ -1025,16 +1032,24 @@ all three passed again.
   `fix` installs corrections through the engine's atomic install,
   as the other content policies do.
 - `git add` plans nothing.
-  `check_dependent_version` returns no findings for the pre-forward trigger unless the forwarded command is `commit`,
-  the same condition as the incumbent at
-  `package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts:182`.
-- `git commit` cannot reach the planner yet.
-  The native executable refuses it with exit 2 and the message that the commit transaction
-  "is not implemented in this native development executable".
-  `check_dependent_version` also returns early for every pre-forward trigger
-  and passes `forwards_commit: false`.
-  Commit planning changes both together,
-  and belongs to the commit transaction port.
+  `check_dependent_version` returns no findings for every pre-forward trigger,
+  before it reads a candidate,
+  and it passes `forwards_commit: false` in the request it builds.
+- `git commit` plans nothing either.
+  The commit path's own stage request is `Trigger::PreForward`
+  (`commit/commit_command.rs:207-212`),
+  and the convergence passes run under that same request
+  (`commit/commit_convergence.rs`),
+  so the early return reaches them too.
+  The commit lands,
+  and no publish set can fail it:
+  the planner reads the registry configuration only on `direct-check` and
+  `direct-fix`.
+  A commit that raises a version and leaves a dependent stale is therefore
+  reported by `check` and `fix` alone,
+  which is finding 2 of
+  `doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
+  still open and a decision rather than a defect of the reader.
 
 ### Release task differential
 
@@ -1634,3 +1649,104 @@ for a later rerun after a land or a merge:
 `GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:test:container`
 - Mutation:
 `GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy/policy_checks.rs' --file 'src/native/dependent_version/policy_dependent_version.rs'`
+
+## Round: the reader takes only the generator's forms, 2026-11-09
+
+Two review rounds found YAML this hand-written reader took for something a
+parser would read differently,
+and each time a package left the publish set with no error,
+which is the one outcome this policy exists to prevent.
+The rule is now one rule instead of one fix per shape:
+the reader accepts exactly the line forms
+`package/config/pnpr/src/generated-config-render.ts` writes and refuses every
+other line by name and number.
+The accepted set is closed,
+the template is its specification,
+and the refusals are enumerated in `SPEC.md`,
+section "Dependent version bump".
+
+A maintained YAML parser crate was the other candidate and lost.
+Screening evidence:
+`serde_yaml` 0.9.34 is unmaintained (its own README says the project is no
+longer maintained);
+`yaml_serde` 0.10.7 is the maintained fork of it,
+and its deserializer bounds collection depth at 128
+(`src/de.rs`,
+`remaining_depth: 128` and `recursion_check`),
+so it would have
+survived the deep-nesting gate;
+`saphyr` 0.0.12 loads through an event loop on a heap stack
+(`src/loader.rs`,
+`doc_stack`) but its tree is a recursive enum with no drop
+shim,
+and its version is pre-1.0;
+`unsafe-libyaml` 0.2.11 is translated C and an unsafe boundary.
+`yaml_serde` would have read both of this round's misreads correctly and
+refused a third document (`MoreThanOneDocument`).
+It lost because its whole added capability is unused here
+(the file is generated,
+and no other YAML reaches this reader),
+while its cost is a libyaml port,
+`serde` and `indexmap` in a published,
+privileged CLI whose audit surface this repository keeps small,
+and because accepting every YAML document moves the "accepted is understood"
+burden back into a traversal that would still be hand-written.
+No dependency was added.
+The owner may veto this rule and ask for the crate;
+that would need the vetting the `choosing-technology` skill requires.
+
+### The three shapes, each pinned by a control
+
+- `dependent_version_publishable_tests.rs::refuses_a_sequence_item_with_a_wider_gap_than_the_generator_writes`:
+  a dash followed by three spaces used to put a compact mapping's keys inside
+  the entry above it,
+  so `read_publishable_names` answered `["@s/base"]` while `app` vanished.
+  The item separator is now exactly the template's one space,
+  and a wider gap or a tab after the gap is refused with its line
+  (`dependent_version_yaml_lines.rs`,
+  `read_lines`,
+  `GENERATED_ITEM_GAP`).
+- `refuses_a_document_marker_inside_a_line`:
+  `--- auth:` was stored as the key `--- auth` in the first document,
+  and the second document's packages were ignored.
+  A line beginning `---` that is not exactly `---` is now refused with its
+  line.
+- `binary_dependent_version_tests.rs::a_configuration_deeper_than_the_generated_one_stops_the_check`:
+  a chain of deeper and deeper empty-valued keys ran the block recursion into
+  the stack.
+  Reproduced on a disposable repository through the built executable at 6000
+  chain levels,
+  an 18,021,227-byte configuration:
+  `thread 'main' has overflowed its stack`,
+  `fatal runtime error: stack overflow, aborting`,
+  exit 134.
+  No line may now sit deeper than fourteen spaces,
+  the depth of the template's `claims` children
+  (`GENERATED_MAX_INDENT`),
+  so the block recursion is bounded by that indentation and runs on constant
+  stack;
+  the first over-deep line is refused before any block is read,
+  and `dependent_version_yaml_tests.rs::refuses_indentation_deeper_than_the_generated_configuration`
+  pins the bound.
+
+The first bound written was twelve spaces,
+from a reading of the template that missed the `claims` children,
+and it refused the repository's own generated file at `repository_id`
+(fourteen spaces).
+`dependent_version_yaml_tests.rs::reads_the_generated_configuration` now
+carries that deepest shape,
+and the reader returns all 169 names of the checked-in
+`package/config/pnpr/config.yaml`,
+which has no line deeper than fourteen spaces and no dash followed by more
+than one.
+
+The mapping whose entries held a repeated-key scan is now a set
+(`dependent_version_yaml.rs`,
+`held`),
+so a mapping of unbounded keys is one pass instead of quadratic.
+
+All three controls were red first and are green after the fix;
+removing the named check makes each fail again.
+The 119 `dependent_version` library tests and the 10 binary controls of the
+module pass,
+and the package lint is clean.

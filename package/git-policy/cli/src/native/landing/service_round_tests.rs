@@ -131,12 +131,13 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     assert!(allowed > 1 && allowed < REPOSITORIES, "the control needs a bound between one and the repositories: {allowed}");
     let running: AtomicUsize = AtomicUsize::new(0);
     let busiest: AtomicUsize = AtomicUsize::new(0);
-    let point: Rendezvous = Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10);
+    // The patience bounds only how long a run that never reaches the bound waits before it fails.
+    let point: Rendezvous = Rendezvous::impatient(allowed, PATIENCE);
     let handlers: Handlers<'_> = Handlers {
         on_push: Box::new(|_directory: &Path| {
             let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
             busiest.fetch_max(now, Ordering::SeqCst);
-            point.arrive();
+            point.arrive_at_the_bound(allowed);
             running.fetch_sub(1, Ordering::SeqCst);
         }),
         began: Mutex::new(Vec::new()),
@@ -189,6 +190,9 @@ fn the_retry_list_keeps_the_order_the_directories_were_named() {
 
 /// Two directories of one repository (the common directory and a linked worktree's) are drained one after another,
 /// never at once.
+///  The first drain keeps its place inside the work until a second drain of the same repository arrives,
+/// so a drain that begins while another is inside is an event the arriving drain reports,
+///  and no fixture sleep decides whether the overlap is long enough to see.
 #[test]
 fn the_directories_of_one_repository_are_drained_one_after_another() {
     let (root, made) = repositories("round-lane", 1);
@@ -208,10 +212,16 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
     enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
     let running: AtomicUsize = AtomicUsize::new(0);
     let busiest: AtomicUsize = AtomicUsize::new(0);
+    let overlapped: AtomicUsize = AtomicUsize::new(0);
+    // A drain waits here for a second drain of the same repository: a lane rule that gives each directory a lane of its
+    // own brings one, and a lane rule that holds them one after another cannot.
+    let together: Rendezvous = Rendezvous::impatient(2, SERIAL_PATIENCE);
     let handlers: Handlers<'_> = Handlers {
         on_push: Box::new(|_directory: &Path| {
             busiest.fetch_max(running.fetch_add(1, Ordering::SeqCst) + 1, Ordering::SeqCst);
-            std::thread::sleep(Duration::from_millis(150));
+            if together.arrive_and_give_back() {
+                overlapped.fetch_add(1, Ordering::SeqCst);
+            }
             running.fetch_sub(1, Ordering::SeqCst);
         }),
         began: Mutex::new(Vec::new()),
@@ -219,6 +229,7 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
     let directories: Vec<Assignment> = vec![Assignment::plain(made[0].common.clone()), Assignment::plain(linked.clone())];
     drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &handlers, now: &ClaimTime::read(), host: &LARGE_HOST });
     assert_eq!(handlers.began.lock().expect("pushes").len(), 2, "both directories were drained");
+    assert_eq!(overlapped.load(Ordering::SeqCst), 0, "a drain of one repository began while another was inside its push");
     assert_eq!(busiest.load(Ordering::SeqCst), 1);
     remove(root.as_path());
 }

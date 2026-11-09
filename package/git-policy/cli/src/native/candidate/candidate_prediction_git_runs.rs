@@ -20,7 +20,7 @@ use crate::candidate_error::{CandidateError, CandidateFailure};
 /// The captured output of a Git run,
 /// the run itself,
 /// and the helpers that read a printed path.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, strip_git_line};
 /// The real Git executable is put first in the child environment.
 use crate::git_system_config::with_real_git;
 /// The in-process repository layout,
@@ -104,7 +104,13 @@ pub fn run_git(
     // `match` on the start result: `Err(error)` means Git could not be started at all.
     let output: MetadataOutput = match run_metadata_git(real_git, arguments.as_slice(), overlay) {
         Ok(captured) => captured,
-        Err(error) => return Err(not_started(purpose, operation.as_str(), &error)),
+        // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
+        Err(error) => {
+            return Err(match read_stopped_text(operation.as_str(), &error) {
+                Some(stopped) => CandidateError::new(CandidateFailure::GitStopped, stopped.as_str()),
+                None => not_started(purpose, operation.as_str(), &error),
+            });
+        }
     };
     if !output.success {
         return Err(command_failure(purpose, operation.as_str(), &output));

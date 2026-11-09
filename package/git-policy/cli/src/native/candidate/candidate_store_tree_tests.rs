@@ -116,21 +116,30 @@ fn a_failed_listing_is_reported() {
     remove(root.as_path());
 }
 
-/// A commit's files are listed by Git once in a process,
-/// whichever store asks:
-/// the commit hook of the wrapper builds a store for
-/// the policies before the commit and another for the gate after it,
-/// both over the same base commit,
-/// and each listing is a Git
-/// start that reads every tree of a repository with tens of thousands of files (measured:
-/// 41 ms warm for 20,740 files).
-/// The
-/// second store is answered with the first one's records;
-/// removing the tree object between the two asks makes a listing by Git
-/// fail,
-/// so an answer proves that Git was not asked again.
+/// What:
+///  One store lists a commit once and answers its own repeat from memory,
+///  and a second store
+///       lists the same commit again.
+/// Why:
+///  The policies before a commit ask one store for the same commit's files more than once,
+///  and
+///       each listing is a Git start that reads every tree of a repository with tens of thousands of
+///       files (measured:
+///  41 ms warm for 20,740 files).
+///  The answer lives on the store that made it
+///       rather than in a process-wide slot behind a lock (owner:
+///  "use as few locks as possible");
+///  removing the tree object between the asks makes a listing by Git fail,
+///  so an answer proves
+///       that Git was not asked again,
+///  and a second store's failure proves it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const listed = store.headTreeRecords(); rm(treeObject); expect(store.headTreeRecords()).toEqual(listed); expect(other.headTreeRecords()).rejects.toThrow();
+/// ```
 #[test]
-fn a_commit_listed_by_one_store_is_not_listed_again_by_another() {
+fn a_store_lists_a_commit_once_and_a_second_store_lists_it_again() {
     let root: PathBuf = fixture("store-head-tree-once");
     let repo: PathBuf = repository(root.as_path(), "repo");
     write(repo.as_path(), b"file.txt", b"content\n");
@@ -142,8 +151,15 @@ fn a_commit_listed_by_one_store_is_not_listed_again_by_another() {
     let head: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD:"]).stdout).expect("tree name");
     let tree: &str = head.trim();
     std::fs::remove_file(repo.join(".git/objects").join(&tree[..2]).join(&tree[2..])).expect("remove the tree object");
+    assert_eq!(
+        first.head_tree_records().expect("answered without Git"),
+        listed
+    );
     let mut second: CandidateStore = store(repo.as_path());
-    assert_eq!(second.head_tree_records().expect("answered without Git"), listed);
+    let refused: crate::candidate_error::CandidateError = second
+        .head_tree_records()
+        .expect_err("a second store lists again");
+    assert!(refused.message.contains("ls-tree"), "{}", refused.message);
     remove(root.as_path());
 }
 
