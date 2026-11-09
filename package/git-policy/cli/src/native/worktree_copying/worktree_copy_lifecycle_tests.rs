@@ -995,7 +995,7 @@ fn a_creation_that_git_refused_leaves_no_record() {
     assert_eq!(recorded_names(common.as_path()), Vec::<String>::new(), "nothing is left to act on");
     assert_eq!(String::from_utf8(stderr).expect("utf8"), String::new(), "an add Git never made is not reported");
     assert!(
-        std::fs::read_dir(&destination).is_ok_and(|mut entries| entries.next().is_none()),
+        std::fs::read_dir(&destination).is_ok_and(|mut entries| return entries.next().is_none()),
         "the refused add leaves its empty directory in place rather than removing one it may not own"
     );
     remove(root.as_path());
