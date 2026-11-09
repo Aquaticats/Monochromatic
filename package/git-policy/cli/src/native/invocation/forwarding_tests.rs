@@ -339,3 +339,41 @@ fn collected_here(pid: i32) -> bool {
     }
     return false;
 }
+
+/// What:
+///  A step under a ceiling keeps this process's group,
+/// so a conversion filter that reads the terminal is a foreground
+///  reader.
+/// Why:
+///   The line discipline stops a process group that is not the terminal's foreground group when it reads,
+/// with
+///  `SIGTTIN`,
+/// so a group of its own turns a filter that asks for a credential or a confirmation on `/dev/tty`
+///  into a stopped process and the add fails at its ceiling.
+/// A Git the person starts themselves keeps their shell's group,
+/// and the
+///  step keeps it too;
+/// the child writes the group the kernel gave it,
+/// and this control compares it with its own.
+/// Nothing here waits on a terminal,
+/// so the answer does not depend on how the host schedules the child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const group = numberIn(await boundedStep(program, [], [], endedChildCeiling));
+/// expect(group).toBe(process.getpgrp());
+/// ```
+#[test]
+fn a_bounded_step_keeps_the_process_group_of_this_one() {
+    let root: PathBuf = fixture("forward-ceiling-group");
+    let group_file: PathBuf = root.join("group.txt");
+    let program: PathBuf = root.join("printing-git");
+    let script: String = format!("#!/bin/sh\nread -r line < /proc/self/stat\nset -- $line\nprintf '%s\\n' \"$5\" > {}\n", group_file.display());
+    executable(program.as_path(), script.as_bytes());
+    let outcome: ChildOutcome = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect("the script ends at once");
+    assert_eq!(outcome, ChildOutcome::Exited(0), "the script ran to its end");
+    // SAFETY: `getpgrp` takes no argument and touches no memory.
+    let mine: i32 = unsafe { libc::getpgrp() };
+    assert_eq!(number_in(group_file.as_path()), mine, "the step runs in this process's group, which is the terminal's foreground group");
+    remove(root.as_path());
+}
