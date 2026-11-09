@@ -44,10 +44,11 @@ fn review_entry_lines_follow_the_log_layout() {
         String::from("    `````text"),
         format!("    {}", entry.outcome),
         String::from("    `````"),
-        String::new(),
+        receipt_line(entry.sha.as_str()),
         String::new(),
     ];
     assert_eq!(lines, expected.iter().map(String::as_str).collect::<Vec<&str>>());
+    assert_eq!(text.lines().count(), expected.len() - 1, "one line feed ends the last line and no blank line follows it");
 }
 
 /// A truncated patch says so with the cap,
@@ -78,13 +79,15 @@ fn hostile_text_cannot_add_lines() {
     assert_eq!(render_skipped("sha", "a\n- Skipped:").lines().count(), render_skipped("sha", "a").lines().count());
 }
 
-/// The skip entry is three lines with the short name.
+/// The skip entry names the commit short,
+/// says why,
+/// and ends with its receipt.
 #[test]
-fn skipped_entry_has_three_lines() {
+fn skipped_entry_carries_its_receipt() {
     let sha: &str = "0123456789abcdef0123456789abcdef01234567";
     let text: String = render_skipped(sha, "SUBJECT");
-    assert_eq!(text.lines().count(), 3);
+    assert_eq!(text.lines().count(), 4);
     assert!(text.starts_with("- Skipped:\n"));
     assert!(text.contains(&format!("  {} (no code files):\n", &sha[..SHORT_SHA_LENGTH])));
-    assert!(text.ends_with("  `SUBJECT`\n"));
+    assert!(text.ends_with(&format!("  `SUBJECT`\n{}\n", receipt_line(sha))));
 }

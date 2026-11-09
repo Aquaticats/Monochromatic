@@ -75,6 +75,34 @@ const FLAG_OPTIONS: &[&[u8]] = &[
     b"--no-advice",
 ];
 
+/// The no-value globals of `FLAG_OPTIONS` that make Git refuse an alias expansion,
+///  because they change a variable of the environment Git runs the expansion in
+///  (`envchanged` in git.c::handle_options).
+const ENVIRONMENT_FLAGS: &[&[u8]] = &[
+    b"-P",
+    b"--no-pager",
+    b"--no-lazy-fetch",
+    b"--no-replace-objects",
+    b"--bare",
+    b"--literal-pathspecs",
+    b"--no-literal-pathspecs",
+    b"--glob-pathspecs",
+    b"--noglob-pathspecs",
+    b"--icase-pathspecs",
+    b"--no-optional-locks",
+    b"--no-advice",
+];
+
+/// The separated-value globals of `VALUE_OPTIONS` that change such a variable,
+///  `-C` beside them because it moves the directory instead.
+const ENVIRONMENT_VALUE_OPTIONS: &[&[u8]] = &[
+    b"--git-dir",
+    b"--work-tree",
+    b"--namespace",
+    b"--shallow-file",
+    b"--attr-source",
+];
+
 /// Inline-value forms explicitly recognized by the native release.
 const INLINE_OPTIONS: &[&[u8]] = &[
     b"--git-dir=",
@@ -84,21 +112,153 @@ const INLINE_OPTIONS: &[&[u8]] = &[
     b"--attr-source=",
 ];
 
+/// The inline-value globals of `INLINE_OPTIONS` that change such a variable.
+const ENVIRONMENT_INLINE_OPTIONS: &[&[u8]] = &[
+    b"--git-dir=",
+    b"--work-tree=",
+    b"--namespace=",
+    b"--attr-source=",
+];
+
 /// What:
-///  Find a command/query/error boundary with one forward scan.
+///  Whether Git reads this token as a global option that consumes the token after it.
 /// Why:
-///  Values such as '-h',
-///  empty -C paths and non-UTF-8 filenames remain original opaque argument values.
-/// Symlink-sensitive -C chaining is not approximated lexically;
-///  repository queries forward the complete prefix.
+///   Two readings need the same answer:
+///  the boundary scan below skips such a value,
+///  and `option_tokens` leaves it out of the options.
+///  A second list of the value-taking globals could disagree with this one,
+///  and a rule reading a value as an option lets a command through that Git reads differently.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function globalLayout(nativeArgs): { prefixLen: number; outcome: GlobalOutcome };
+/// const takesValue = (token: string) => VALUE_OPTIONS.includes(token);
 /// ```
-pub fn global_layout(arguments: &[OsString]) -> GlobalLayout {
+fn takes_value(token: &[u8]) -> bool {
+    return VALUE_OPTIONS.contains(&token);
+}
+
+/// What:
+///  The tokens of a global prefix that Git reads as options,
+///  in the order the caller wrote them,
+///  with every value a separated-value option consumes left out.
+/// Why:
+///   A global option's value is not an option:
+///  `git -C --literal-pathspecs add -- '**'` changes into the directory of that name,
+///  so Git sets no pathspec mode and expands the pattern over the whole worktree,
+///  and a rule that read the value as a mode would permit what Git does.
+///  The values are the ones the boundary scan skips,
+///  so both readings consume the same tokens.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const optionTokens = (prefix: string[]) => prefix.filter((token, index) => !(index > 0 && takesValue(prefix[index - 1])));
+/// ```
+pub fn option_tokens(global_prefix: &[OsString]) -> Vec<&OsString> {
+    let mut options: Vec<&OsString> = Vec::new();
     // True while the token being visited is the value of the separated-value option before it.
     let mut is_value: bool = false;
+    for token in global_prefix {
+        if is_value {
+            is_value = false;
+            continue;
+        }
+        options.push(token);
+        is_value = takes_value(token.as_encoded_bytes());
+    }
+    return options;
+}
+
+/// What:
+///  The caller's global prefix without the options that set a pathspec mode.
+/// Why:
+///   A mode the caller chose governs the caller's own pathspecs,
+/// never a pathspec the wrapper generated:
+///  under `--icase-pathspecs` the wrapper's `:(top,literal)a.txt` matches `A.txt` too,
+///  under `--literal-pathspecs` it names a file that is not there,
+///  and the two together make Git refuse every pathspec.
+///  A value a separated-value option consumes is kept,
+///  so a directory that spells a mode option is still that directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withoutPathspecModeOptions = (prefix: string[]) => prefix.filter((token, index) => isValue(prefix, index) || !MODE_OPTIONS.includes(token));
+/// ```
+pub fn without_pathspec_mode_options(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut kept: Vec<OsString> = Vec::with_capacity(global_prefix.len());
+    // True while the token being visited is the value of the separated-value option before it.
+    let mut is_value: bool = false;
+    for token in global_prefix {
+        if is_value {
+            is_value = false;
+            kept.push(token.clone());
+            continue;
+        }
+        is_value = takes_value(token.as_encoded_bytes());
+        if is_value || !is_pathspec_mode_option(token.as_encoded_bytes()) {
+            kept.push(token.clone());
+        }
+    }
+    return kept;
+}
+
+/// What:
+///  Whether Git reads this token as a global option that sets a pathspec mode.
+/// Why:
+///   `conflict_side_modes::MODE_OPTIONS` names those five options for the conflict-side guard,
+/// and this file reads the same list rather than keeping a second one that could disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPathspecModeOption = (token: string) => MODE_OPTIONS.includes(token);
+/// ```
+fn is_pathspec_mode_option(token: &[u8]) -> bool {
+    for option in crate::conflict_side_modes::MODE_OPTIONS {
+        if token == option.as_bytes() {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Where Git's command boundary is,
+///  and whether a global before it changed a variable of the environment.
+/// Why:
+///   `global_layout` answers the boundary for every caller;
+///  `prefix_changes_environment` answers the other
+///       question from the same scan,
+///  so neither can read an option differently from the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GlobalScan = { prefixLen: number; outcome: GlobalOutcome; changesEnvironment: boolean };
+/// ```
+struct GlobalScan {
+    /// Count of globals before the first word that is not one.
+    prefix_len: usize,
+    /// What the scan found there.
+    outcome: GlobalOutcome,
+    /// Whether one of those globals sets an environment variable or moves the directory.
+    changes_environment: bool,
+}
+
+/// What:
+///  Scan the globals once,
+///  answering both the boundary and the environment question.
+/// Why:
+///   Git stops its option loop at the first word that is not an option,
+///  so a `-C` after the
+///       command word is that command's argument and not a global.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function scanGlobals(args): GlobalScan;
+/// ```
+fn scan_globals(arguments: &[OsString]) -> GlobalScan {
+    // True while the token being visited is the value of the separated-value option before it.
+    let mut is_value: bool = false;
+    // Whether a global so far sets a variable; `-C` with an empty value does not.
+    let mut changes_environment: bool = false;
     // `.iter().enumerate()` visits every argument once with its position, so the scan
     // always ends: there is no hand-stepped index that a mistake could leave standing still.
     for (index, token) in arguments.iter().enumerate() {
@@ -109,9 +269,10 @@ pub fn global_layout(arguments: &[OsString]) -> GlobalLayout {
         // Borrow native encoded bytes solely to recognize Git's ASCII option syntax.
         let argument: &[u8] = token.as_encoded_bytes();
         if !argument.starts_with(b"-") {
-            return GlobalLayout {
+            return GlobalScan {
                 prefix_len: index,
                 outcome: GlobalOutcome::Command,
+                changes_environment,
             };
         }
         if [
@@ -126,35 +287,58 @@ pub fn global_layout(arguments: &[OsString]) -> GlobalLayout {
         .contains(&argument)
             || argument.starts_with(b"--list-cmds=")
         {
-            return GlobalLayout {
+            return GlobalScan {
                 prefix_len: index,
                 outcome: GlobalOutcome::Query,
+                changes_environment,
             };
         }
         // Git's own prefix branch treats every --exec-path suffix except '=' as a query.
         if let Some(remainder) = argument.strip_prefix(b"--exec-path") {
             if remainder.first() != Some(&b'=') {
-                return GlobalLayout {
+                return GlobalScan {
                     prefix_len: index,
                     outcome: GlobalOutcome::Query,
+                    changes_environment,
                 };
             }
+            // `--exec-path=` rewrites the path Git starts commands from, not an environment variable.
             continue;
         }
-        if VALUE_OPTIONS.contains(&argument) {
+        if takes_value(argument) {
             if index + 1 == arguments.len() {
-                return GlobalLayout {
+                return GlobalScan {
                     prefix_len: index,
                     outcome: GlobalOutcome::MissingValue,
+                    changes_environment,
                 };
+            }
+            if ENVIRONMENT_VALUE_OPTIONS.contains(&argument) {
+                changes_environment = true;
+            } else if argument == b"-C" && !arguments[index + 1].as_encoded_bytes().is_empty() {
+                // An empty `-C` moves Git nowhere, and Git's own flag stays clear for it.
+                changes_environment = true;
             }
             is_value = true;
             continue;
         }
         if FLAG_OPTIONS.contains(&argument) {
+            if ENVIRONMENT_FLAGS.contains(&argument) {
+                changes_environment = true;
+            }
             continue;
         }
         let mut inline: bool = false;
+        for prefix in ENVIRONMENT_INLINE_OPTIONS {
+            if argument.starts_with(prefix) {
+                changes_environment = true;
+                inline = true;
+                break;
+            }
+        }
+        if inline {
+            continue;
+        }
         for prefix in INLINE_OPTIONS {
             if argument.starts_with(prefix) {
                 inline = true;
@@ -164,15 +348,60 @@ pub fn global_layout(arguments: &[OsString]) -> GlobalLayout {
         if inline {
             continue;
         }
-        return GlobalLayout {
+        return GlobalScan {
             prefix_len: index,
             outcome: GlobalOutcome::InvalidOption,
+            changes_environment,
         };
     }
-    return GlobalLayout {
+    return GlobalScan {
         prefix_len: arguments.len(),
         outcome: GlobalOutcome::NoCommand,
+        changes_environment,
     };
+}
+
+/// What:
+///  Find a command/query/error boundary with one forward scan.
+/// Why:
+///  Values such as '-h',
+///  empty -C paths and non-UTF-8 filenames remain original opaque argument values.
+/// Symlink-sensitive -C chaining is not approximated lexically;
+///  repository queries forward the complete prefix.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function globalLayout(nativeArgs): { prefixLen: number; outcome: GlobalOutcome };
+/// ```
+pub fn global_layout(arguments: &[OsString]) -> GlobalLayout {
+    let scan: GlobalScan = scan_globals(arguments);
+    return GlobalLayout {
+        prefix_len: scan.prefix_len,
+        outcome: scan.outcome,
+    };
+}
+
+/// What:
+///  Whether Git refuses these words as an alias expansion,
+///  because one of the globals moves
+///       the directory or sets a variable of the environment
+///  (`git.c:316`,
+/// `git.c:418`).
+/// Why:
+///   The wrapper expands an alias itself before handing Git the arguments,
+///  so it must not build an
+///       expansion Git would refuse;
+///  the caller's own globals are never refused this way,
+///  only the words an alias
+///       value contributes,
+///  which is why this reads a word list of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function prefixChangesEnvironment(words: string[]): boolean;
+/// ```
+pub fn prefix_changes_environment(arguments: &[OsString]) -> bool {
+    return scan_globals(arguments).changes_environment;
 }
 
 /// What:

@@ -34,7 +34,7 @@
 /// ```
 use crate::command_branch_table::{
     COPY, COPY_FORCE, DELETE, DELETE_FORCE, DELETE_MERGED, DRY_RUN, EDIT_DESCRIPTION, FILTER, KIND,
-    LIST, MOVE, MOVE_FORCE, POINTS_AT, RECURSE_SUBMODULES, SET_UPSTREAM, SET_UPSTREAM_TO,
+    LIST, MOVE, MOVE_FORCE, POINTS_AT, RECURSE_SUBMODULES, REMOTES, SET_UPSTREAM, SET_UPSTREAM_TO,
     SHOW_CURRENT, TRACK, UNSET_UPSTREAM,
 };
 use crate::command_options::ParsedOptions;
@@ -150,5 +150,8 @@ pub(crate) fn branch_creates(parsed: &ParsedOptions, positional_count: usize) ->
         return false;
     }
     // Creation refuses `-a`/`-r` and the `--set-upstream` tracking mode (1294-1299).
-    return named && !is_stated(parsed, KIND) && !track_is_override(parsed);
+    return named
+        && !is_stated(parsed, KIND)
+        && !is_stated(parsed, REMOTES)
+        && !track_is_override(parsed);
 }

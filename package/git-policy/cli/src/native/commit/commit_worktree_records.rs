@@ -108,7 +108,9 @@ pub fn settled_entry(
     // The pathspec is magic, and this start skips the caller's prefix, so literal pathspec mode,
     // from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`, is switched off here: under it the
     // name would match nothing and a landed correction would never reach the worktree copy.
-    let mut request: GitRequest = GitRequest::new(cwd, &["--no-literal-pathspecs", "ls-files", "--stage", "-z", "--"]);
+    // `--full-name` answers with repository-relative names, which is how `path` is written: from a
+    // nested working directory `ls-files` would otherwise report `a.txt` for the `sub/a.txt` asked about.
+    let mut request: GitRequest = GitRequest::new(cwd, &["--no-literal-pathspecs", "ls-files", "--stage", "-z", "--full-name", "--"]);
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());
@@ -117,6 +119,12 @@ pub fn settled_entry(
         let Some(tab) = record.iter().position(is_tab_byte) else {
             continue;
         };
+        // This asks about one path, so a record naming another is not its settled entry: under
+        // `GIT_ICASE_PATHSPECS=1` Git lists every entry whose name differs only in case, and the first one is
+        // not necessarily the path asked about.
+        if record.get(tab + 1..) != Some(path) {
+            continue;
+        }
         let metadata: String = String::from_utf8_lossy(&record[..tab]).into_owned();
         let fields: Vec<&str> = metadata.split(' ').collect();
         if fields.len() == 3 && fields[2] == "0" {

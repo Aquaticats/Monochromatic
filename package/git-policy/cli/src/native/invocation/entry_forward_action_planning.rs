@@ -74,7 +74,7 @@ pub(crate) fn forward_action(
         // These queries send no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
+    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice());
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {

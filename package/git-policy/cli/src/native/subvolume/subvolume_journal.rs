@@ -29,6 +29,7 @@
 //! ```
 
 use crate::iso_time::{format_iso_milliseconds, now_iso};
+use crate::plain_file::read_plain_text;
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_file_write_steps::{sync_directory_to_disk, write_all_then_sync};
 use serde_json::{Map, Value};
@@ -178,7 +179,7 @@ impl Journal {
     /// const journal = await Journal.load(path);
     /// ```
     pub fn load(path: &Path) -> Result<Journal, MigrateError> {
-        let text: String = match std::fs::read_to_string(path) {
+        let text: String = match read_plain_text(path) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), persisted: false });

@@ -47,6 +47,9 @@ pub struct WaitNotes {
     /// Time from the first placement to the lock being taken or given up:
     /// the wait for a holder.
     pub placing: Duration,
+    /// Whether the wait looked again at the poll pace while another reclaimer held a claim on the stale lock,
+    /// because the end of a claim leaves no event on the lock's name to be woken by.
+    pub polled: bool,
 }
 
 /// The word for what a reader makes of the holder a marker names.

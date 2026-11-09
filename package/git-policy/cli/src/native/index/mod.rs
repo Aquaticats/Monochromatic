@@ -14,7 +14,15 @@
 /// any non-zero byte.
 pub mod index_byte_search;
 
-/// A read of the assume-unchanged and skip-worktree marks of an index file.
+/// In-process index update:
+/// stat fields and Git's varint.
+pub mod index_stat;
+
+/// A read of the assume-unchanged,
+/// skip-worktree and intent-to-add marks of an index file,
+/// and of the paths the intent-to-add entries name.
+///  Declared after `index_stat`,
+/// whose varint a version 4 entry's strip count is read with.
 pub mod index_flags;
 
 /// In-process index update:
@@ -29,10 +37,6 @@ pub mod index_cache_tree;
 /// In-process index update:
 /// the resolve-undo extension.
 pub mod index_resolve_undo;
-
-/// In-process index update:
-/// stat fields and Git's varint.
-pub mod index_stat;
 
 /// In-process index update:
 /// the untracked-cache extension as directories,

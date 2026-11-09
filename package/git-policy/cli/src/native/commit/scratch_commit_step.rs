@@ -84,7 +84,9 @@ pub struct ScratchStepFacts {
     pub ceiling: Option<Duration>,
     /// Whether a notice thread ran to enforce the ceiling:
     /// false for a commit with an editor,
-    /// and for one whose thread the system refused.
+    /// and for one whose thread the system refused,
+    /// which the wait that owns the step ends instead,
+    /// and whose stop then says `true`.
     ///  A thread that ran but did not answer within the notice's bound is `true` with `looks` at zero,
     /// which no thread that ran can otherwise report:
     /// every one of them looks before it can end.
@@ -128,9 +130,9 @@ impl ScratchStepFacts {
     /// What:
     ///  The facts of a step whose ceiling no thread enforced.
     /// Why:
-    ///   A commit that may open an editor keeps no ceiling,
-    /// and one whose thread could not be started keeps none either;
-    /// the record says which of the two it was.
+    ///   A commit that may open an editor keeps no ceiling;
+    /// one whose thread could not be started keeps a ceiling that the wait owning the step enforces,
+    /// and the stop it makes says so.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

@@ -22,7 +22,9 @@ use crate::replay_subsumption_text::{TextSubsumptionError, subsumed_text_paths};
 use crate::replay_shadow::{replay_base_index, run_shadow_checked};
 use crate::transaction_git::{GitContext, GitFailure};
 /// Decisions per path and the path-keyed maps.
-use std::collections::BTreeMap;
+/// The capture-order decisions by path,
+/// and the set of the subsumed text paths.
+use std::collections::{BTreeMap, HashSet};
 /// `Path` names the shadow and the directories.
 use std::path::Path;
 
@@ -253,17 +255,22 @@ fn write_subsumed_base(
 }
 
 /// What:
-///  Whether a shared path is decided by identity or the text check,
-/// before capture order applies:
-///       identical entries,
-/// or a text candidate the text check subsumes.
+///  Whether the prepared and landed entries of a shared path are the same entry:
+///  the same mode and object,
+/// or both absent.
 /// Why:
-///   Capture order decides first;
-/// only the remaining paths go through these rules.
+///   The identity half of the subsumption rules,
+/// and only that half:
+/// a path whose two sides hold the same entry reaches the merge settled,
+///  without the text check.
+///  Capture order is not asked here either;
+/// `subsume_landed_changes` skips the paths it ordered
+///  before calling this,
+/// and asks the text check about the entries this returns `false` for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// subsumeLandedChanges(...) // identical ∪ text
+/// sameEntry({ left: shared.prepared, right: shared.landed })
 /// ```
 pub fn is_identical(shared: &SharedPath) -> bool {
     return same_entry(&shared.prepared, &shared.landed);
@@ -302,8 +309,13 @@ pub fn subsume_landed_changes(
             text_candidates.push(entry.clone());
         }
     }
-    let text: Vec<String> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
-        .map_err(SubsumptionError::Text)?;
+    // A set answers "is this path a subsumed text path" by naming the one collected path it
+    //  compares with, so deciding every unordered path is one pass
+    //  (`AGENTS.md` `RG2`); the paths beside the question are not read in order.
+    let text: HashSet<String> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
+        .map_err(SubsumptionError::Text)?
+        .into_iter()
+        .collect();
     // Every synthetic base edit in Git order.
     let mut edits: Vec<BaseEdit> = Vec::new();
     for entry in shared {
@@ -311,7 +323,10 @@ pub fn subsume_landed_changes(
             CaptureOrderDecision::Prepared => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Prepared }),
             CaptureOrderDecision::Landed => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Landed }),
             CaptureOrderDecision::Unordered => {
-                let subsumed: bool = is_identical(entry) || text.contains(&entry.path);
+                let subsumed: bool = is_identical(entry) || {
+                    crate::collected_elements_looked_at::note_looked_at(1);
+                    text.contains(&entry.path)
+                };
                 if subsumed {
                     edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Subsumed });
                 }

@@ -3,19 +3,20 @@
 
 use super::*;
 
-/// Owned names from literals.
-fn names(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| return String::from(*item)).collect();
+/// Owned names from literals,
+/// as Git's NUL-separated names give them.
+fn names(items: &[&str]) -> Vec<ChangedPath> {
+    return items.iter().map(|item| return ChangedPath::from_bytes(item.as_bytes().to_vec())).collect();
 }
 
 /// A commit whose patch has `patch_lines` lines (no final newline) and whose files are given.
 fn commit_with(patch_lines: usize, files: &[(&str, &str)]) -> LandedCommit {
-    let patch: String = (0..patch_lines).map(|number| return format!("patch {number}")).collect::<Vec<String>>().join("\n");
+    let patch: Vec<u8> = (0..patch_lines).map(|number| return format!("patch {number}")).collect::<Vec<String>>().join("\n").into_bytes();
     return LandedCommit {
         sha: String::from("0123456789abcdef"),
         subject: String::from("subject"),
         patch,
-        contents: files.iter().map(|(name, text)| return (String::from(*name), String::from(*text))).collect(),
+        contents: files.iter().map(|(name, text)| return (ChangedPath::from_bytes(name.as_bytes().to_vec()), String::from(*text))).collect(),
     };
 }
 
@@ -30,8 +31,8 @@ fn plan_follows_the_names() {
     assert_eq!(plan_for(&names(&["doc/a.md", TRACKED_LOG_RELATIVE])), Plan::NoCode);
     assert_eq!(plan_for(&names(&["a.tsx.md", "b.TS", "c.json"])), Plan::NoCode);
     for suffix in CODE_SUFFIXES {
-        let name: String = format!("src/x{suffix}");
-        assert_eq!(plan_for(&[name.clone(), String::from("README.md")]), Plan::Review(vec![name]));
+        let name: ChangedPath = ChangedPath::from_bytes(format!("src/x{suffix}").into_bytes());
+        assert_eq!(plan_for(&[name.clone(), ChangedPath::from_bytes(b"README.md".to_vec())]), Plan::Review(vec![name]));
     }
 }
 
@@ -57,7 +58,7 @@ fn patch_cap_switches_exactly_at_the_cap() {
 #[test]
 fn a_final_newline_counts_as_a_line() {
     let mut commit: LandedCommit = commit_with(3, &[]);
-    commit.patch.push('\n');
+    commit.patch.push(b'\n');
     assert_eq!(build_input(&commit, &[]).diff_line_count, 4);
 }
 
@@ -68,7 +69,7 @@ fn a_final_newline_counts_as_a_line() {
 fn excerpt_window_is_span_plus_context() {
     let file: String = (1..=200).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
     let mut commit: LandedCommit = commit_with(0, &[("src/a.ts", file.as_str())]);
-    commit.patch = String::from("diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -100,2 +100,2 @@\n-l100\n-l101\n+x\n+y\n");
+    commit.patch = Vec::from("diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -100,2 +100,2 @@\n-l100\n-l101\n+x\n+y\n");
     let input: ReviewInput = build_input(&commit, &names(&["src/a.ts"]));
     // The two added lines are new lines 100 and 101.
     let from: i64 = 100 - EXCERPT_CONTEXT;
@@ -85,7 +86,7 @@ fn the_window_follows_new_side_lines() {
     let file: String = (1..=300).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
     let mut commit: LandedCommit = commit_with(0, &[("a.ts", file.as_str())]);
     // Old lines 200 to 201 became new lines 210 to 211 after ten lines were inserted earlier.
-    commit.patch = String::from("diff --git a/a.ts b/a.ts\n@@ -200,2 +210,2 @@\n-old\n-old\n+new\n+new\n");
+    commit.patch = Vec::from("diff --git a/a.ts b/a.ts\n@@ -200,2 +210,2 @@\n-old\n-old\n+new\n+new\n");
     let input: ReviewInput = build_input(&commit, &names(&["a.ts"]));
     assert!(input.model_input.contains(&format!("lines {} to {} of", 210 - EXCERPT_CONTEXT, 211 + EXCERPT_CONTEXT)));
 }
@@ -108,7 +109,8 @@ fn excerpts_stop_at_the_file_cap() {
     let many: Vec<String> = (0..=MAX_EXCERPT_FILES).map(|number| return format!("f{number}.rs")).collect();
     let files: Vec<(&str, &str)> = many.iter().map(|name| return (name.as_str(), "x")).collect();
     let commit: LandedCommit = commit_with(1, files.as_slice());
-    let input: ReviewInput = build_input(&commit, many.as_slice());
+    let paths: Vec<ChangedPath> = many.iter().map(|name| return ChangedPath::from_bytes(name.as_bytes().to_vec())).collect();
+    let input: ReviewInput = build_input(&commit, paths.as_slice());
     assert_eq!(input.code_file_count, many.len());
     assert_eq!(input.model_input.matches("// candidate excerpt of").count(), MAX_EXCERPT_FILES);
     assert!(!input.model_input.contains(many[MAX_EXCERPT_FILES].as_str()));
@@ -121,7 +123,7 @@ fn excerpts_stop_at_the_line_cap_and_skip_deleted_files() {
     let wide: String = (0..EXCERPT_LINE_CAP).map(|_| return "w").collect::<Vec<&str>>().join("\n");
     let mut commit: LandedCommit = commit_with(1, &[("a.ts", wide.as_str()), ("c.ts", "late")]);
     // One hunk adding every line of the first file, so its window alone reaches the cap.
-    commit.patch = format!("diff --git a/a.ts b/a.ts\n@@ -0,0 +1,{EXCERPT_LINE_CAP} @@\n{}", "+w\n".repeat(usize::try_from(EXCERPT_LINE_CAP).expect("small")));
+    commit.patch = format!("diff --git a/a.ts b/a.ts\n@@ -0,0 +1,{EXCERPT_LINE_CAP} @@\n{}", "+w\n".repeat(usize::try_from(EXCERPT_LINE_CAP).expect("small"))).into_bytes();
     let input: ReviewInput = build_input(&commit, &names(&["a.ts", "gone.ts", "c.ts"]));
     assert!(input.model_input.contains("excerpt of a.ts"));
     assert!(!input.model_input.contains("gone.ts"));
@@ -138,11 +140,26 @@ fn excerpts_stop_at_the_line_cap_and_skip_deleted_files() {
 #[test]
 fn input_is_cut_by_utf16_units() {
     let mut commit: LandedCommit = commit_with(1, &[]);
-    commit.patch = "\u{1f600}".repeat(INPUT_UNIT_CAP);
+    commit.patch = "\u{1f600}".repeat(INPUT_UNIT_CAP).into_bytes();
     let input: ReviewInput = build_input(&commit, &[]);
     assert_eq!(input.model_input_units, INPUT_UNIT_CAP);
     assert!(utf16_length(input.model_input.as_str()) <= INPUT_UNIT_CAP);
     assert!(input.model_input.chars().all(|character| return character == '\u{1f600}' || character == '\n'));
     let short: ReviewInput = build_input(&commit_with(2, &[]), &[]);
     assert_eq!(short.model_input_units, utf16_length(short.model_input.as_str()));
+}
+
+/// A section whose path Git quotes still anchors its excerpt on the changed line,
+/// so the model reads that line's context and never the head of the file.
+#[test]
+fn a_quoted_path_section_anchors_its_excerpt() {
+    let name: &str = "quote\".rs";
+    let file: String = (1..=200).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
+    let changed: i64 = 123;
+    let mut commit: LandedCommit = commit_with(0, &[(name, file.as_str())]);
+    // The header Git writes for a quoted path, and a one-line replacement at `changed`.
+    commit.patch = format!("diff --git \"a/quote\\\".rs\" \"b/quote\\\".rs\"\n--- \"a/quote\\\".rs\"\n+++ \"b/quote\\\".rs\"\n@@ -{changed},1 +{changed},1 @@\n-before\n+after\n").into_bytes();
+    let input: ReviewInput = build_input(&commit, &names(&[name]));
+    let (from, to) = (changed - EXCERPT_CONTEXT, changed + EXCERPT_CONTEXT);
+    assert!(input.model_input.contains(&format!("// candidate excerpt of {name}, lines {from} to {to} of 200")), "{}", input.model_input);
 }

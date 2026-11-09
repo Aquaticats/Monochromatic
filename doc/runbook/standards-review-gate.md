@@ -112,7 +112,9 @@ and it has no rotation:
 it grows by one entry per landed commit,
 and the once-per-commit check reads all of it.
 Entries written before 2026-11-01 are in the tracked file;
-the entry format is the same in both files.
+the entry format is the same in both files,
+except the receipt line the service writes last,
+which the entries of that file lack.
 
 ## How to run it
 
@@ -174,7 +176,40 @@ input size (files and lines),
 reviewer route,
 wall-clock cost,
 whether the review named superlinear cost,
-and the findings it kept.
+the findings it kept,
+and the receipt line,
+`reviewed: <the whole commit name>`.
+
+The receipt is the once-per-commit check's only evidence,
+and it is written as the entry's last line,
+line feed included.
+The check compares it as one whole line,
+never as a name found somewhere in the log,
+so text a remote answer or a subject happens to spell cannot suppress another
+commit's review,
+and a receipt the system cut short before its line feed,
+or an entry cut short before its receipt,
+is not taken as finished:
+the retry appends the whole entry and leaves the fragment where it is.
+A commit whose entry was written before the receipt line existed,
+and whose item is queued again,
+is therefore reviewed once more.
+
+Every append begins with a line feed of its own,
+so an entry is never joined to a line an earlier write left unfinished,
+and the file begins with the first entry's line feed.
+An entry's own text ends with one line feed,
+so two entries sit one blank line apart.
+
+The log is read as bytes and its receipt is compared as bytes,
+so a tail a cut-short write left in the middle of a character,
+or of a line,
+never stops a later review from being logged:
+
+- A fragment of a character stays where it is and costs only its own line.
+- A fragment of a line stays where it is,
+  and the entry written after it starts on the next line.
+
 Those fields are the graduation evidence:
 per-diff cost and run-to-run determinism on real diffs.
 

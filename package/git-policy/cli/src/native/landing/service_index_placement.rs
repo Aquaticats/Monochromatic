@@ -54,7 +54,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Platform = { rename; link; unlink; identity; watch; sync; inspect };
+/// type Platform = { rename; link; unlink; identity; watch; scan; sync; inspect };
 /// ```
 pub struct Platform<'a> {
     /// A rename that fails when the target exists (`renameat2` with `RENAME_NOREPLACE`).
@@ -72,6 +72,9 @@ pub struct Platform<'a> {
     pub identity: &'a dyn Fn() -> Result<String, ProcessIdentityError>,
     /// A watch on the directory of the lock.
     pub watch: &'a dyn Fn(&Path) -> Option<Watch>,
+    /// The scan for the processes that have the lock open,
+    /// which decides whether a lock nothing is known to hold is removed.
+    pub scan: fn(&Path, u64, u64) -> crate::index_lock_holders::HolderEvidence,
     /// The flush of the staged marker to storage,
     /// before it becomes the lock.
     pub sync: &'a dyn Fn(&std::fs::File) -> std::io::Result<()>,
@@ -90,6 +93,7 @@ pub const SYSTEM: Platform<'static> = Platform {
     unlink: &unlink_file,
     identity: &own_identity,
     watch: &Watch::on,
+    scan: crate::index_lock_holders::scan_platform_holders_bounded,
     sync: &sync_file,
     inspect: inspect_ownership,
     release: unlink_file,

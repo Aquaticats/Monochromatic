@@ -83,7 +83,9 @@ pub enum IndexPaths<'a> {
 }
 
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, arguments);
+    // Every pathspec this module writes is its own, so no pathspec mode of the caller's reaches it
+    // (`GitRequest::own_pathspecs`), whether the caller set it as a variable or as a global option.
+    let mut request: GitRequest = GitRequest::new(repository, arguments).own_pathspecs();
     request.input = input;
     request.index = index.map(Path::to_path_buf);
     return match run_git(git, &request) {
@@ -281,17 +283,31 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
     }
     // Tries that met no holder to wait for: a refusal with the lock already gone, or a failure that is not the lock's.
     let mut tries: usize = 0;
+    // One ceiling for the whole update, not one per hold: a hold that ends and is taken again is waited for under this deadline, so
+    //  no schedule of handoffs keeps the command waiting.
+    let deadline: std::time::Instant = std::time::Instant::now() + ceiling;
     loop {
         let code: FailureCode = match reset_once(git, repository, new, paths, None) {
             Ok(()) => return Ok(()),
             Err(code) => code,
         };
         if code == FailureCode::IndexInUse {
-            match wait_for_index_release_within(index, "commit", ceiling, Cadence::from_environment(), &mut std::io::stderr()) {
+            // The wait gets what is left of the one ceiling, so a hold that ends and is taken again cannot add a full wait.
+            let left: std::time::Duration = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(code);
+            }
+            match wait_for_index_release_within(index, "commit", left, Cadence::from_environment(), &mut std::io::stderr()) {
                 // The diagnostic of a wait that ended on a dead owner is already written.
                 IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
-                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
-                IndexWait::Released(_) => continue,
+                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well, under the
+                //  same deadline.
+                IndexWait::Released(_) => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(code);
+                    }
+                    continue;
+                }
                 IndexWait::NotHeld => {}
             }
         }

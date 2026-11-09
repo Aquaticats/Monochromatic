@@ -19,6 +19,10 @@ use crate::standards_review_request::ROUTE;
 use crate::standards_review_input::CAP_LINES;
 use crate::standards_review_text::on_one_line;
 
+/// The label of the line that records a finished review,
+/// and the only place a full object name appears in an entry.
+pub const RECEIPT_LABEL: &str = "reviewed";
+
 /// Leading characters of the commit name the log prints.
 ///  Exempt from a citation under `LQM` (class:
 /// display cap):
@@ -69,6 +73,24 @@ pub struct ReviewEntry {
 }
 
 /// What:
+///  The line every entry ends with:
+/// this review of `sha` finished,
+/// named by the whole object name.
+/// Why:
+///   It is the log's receipt and the once-per-commit test reads it as one whole line,
+/// so only an entry
+///  that was written whole can carry it,
+/// and no text an entry's own fields repeat can pass for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const receiptLine = (sha: string) => `  ${RECEIPT_LABEL}: ${sha}`;
+/// ```
+pub fn receipt_line(sha: &str) -> String {
+    return format!("  {RECEIPT_LABEL}: {sha}");
+}
+
+/// What:
 ///  The first `SHORT_SHA_LENGTH` characters of a commit name.
 /// Why:
 ///   The log names commits by that prefix.
@@ -82,32 +104,40 @@ fn short(sha: &str) -> String {
 }
 
 /// What:
-///  The three-line entry for a commit with no code files.
+///  The entry for a commit with no code files:
+/// its skip lines and the receipt.
 /// Why:
 ///   Coverage stays visible:
 /// every skipped landing leaves a line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// entry('- Skipped:'); entry(`  ${sha.slice(0, 12)} (no code files):`); entry(`  \`${subject}\``);
+/// entry('- Skipped:'); entry(`  ${sha.slice(0, 12)} (no code files):`); entry(`  \`${subject}\``); entry(receiptLine(sha));
 /// ```
 pub fn render_skipped(sha: &str, subject: &str) -> String {
-    return format!("- Skipped:\n  {} (no code files):\n  `{}`\n", short(sha), on_one_line(subject));
+    return format!("- Skipped:\n  {} (no code files):\n  `{}`\n{}\n", short(sha), on_one_line(subject), receipt_line(sha));
 }
 
 /// What:
-///  The review entry,
-/// ending in the blank line that separates entries.
+///  The review entry:
+/// its fields and the receipt line of the commit.
 /// Why:
 ///   `Named superlinear cost` is the choice for `yes` and `no`,
 /// the two-line gesture for `partial`,
 /// and `unjudged` for
 ///   anything else,
 /// as the script prints it.
+/// The receipt is the entry's last line,
+/// so only an entry written whole carries one and the
+///  once-per-commit test cannot find it in an entry the system cut short.
+/// The entry ends with one line feed and no blank line:
+/// the write of the next entry supplies the line feed
+///  that separates them,
+/// so two entries always sit one blank line apart and the last one ends the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// entry('- Date:'); // ... entry('')
+/// entry('- Date:'); // ... entry(receiptLine(entry.sha)); entry('')
 /// ```
 pub fn render_review(entry: &ReviewEntry) -> String {
     let capped: String = if entry.truncated { format!(", capped at {CAP_LINES}") } else { String::new() };
@@ -117,7 +147,7 @@ pub fn render_review(entry: &ReviewEntry) -> String {
         _ => String::from("  unjudged"),
     };
     return format!(
-        "- Date:\n  {date}\n  Subject:\n  {sha} `{subject}`\n  Input size:\n  `{files} code files, {lines} diff lines{capped}, luna input {units} chars`\n  Reviewer route:\n  `{ROUTE}`\n  Wall-clock cost:\n  {seconds} s\n  Named superlinear cost:\n{judged}\n  Findings kept:\n    `````text\n    {outcome}\n    `````\n\n",
+        "- Date:\n  {date}\n  Subject:\n  {sha} `{subject}`\n  Input size:\n  `{files} code files, {lines} diff lines{capped}, luna input {units} chars`\n  Reviewer route:\n  `{ROUTE}`\n  Wall-clock cost:\n  {seconds} s\n  Named superlinear cost:\n{judged}\n  Findings kept:\n    `````text\n    {outcome}\n    `````\n{receipt}\n",
         date = entry.date,
         sha = short(entry.sha.as_str()),
         subject = on_one_line(entry.subject.as_str()),
@@ -126,6 +156,7 @@ pub fn render_review(entry: &ReviewEntry) -> String {
         units = entry.input_units,
         seconds = entry.seconds,
         outcome = on_one_line(entry.outcome.as_str()),
+        receipt = receipt_line(entry.sha.as_str()),
     );
 }
 

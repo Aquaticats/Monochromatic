@@ -230,6 +230,21 @@ fn the_copy_just_saved_survives_a_pass_that_would_otherwise_remove_it() {
     remove(root.as_path());
 }
 
+/// How many saves the writer of the control below makes:
+/// one for each of the phases a pass can meet it in,
+/// and no more.
+/// Why:
+///   A save is a durable copy: the file is flushed and the two directories that hold it,
+/// measured on 2026-11-09 at 30
+///  to 82 ms a save against 0.4 ms a pass,
+/// so forty saves cost the disk a hundred and twenty flushes and took one suite run
+///  to the five-minute limit of the runner (305 s),
+/// for work four overlapping saves already demonstrate:
+/// the pass ran 4,936 times
+///  in the 2.0 s one run's forty saves took,
+/// so every save of four is met by hundreds of passes.
+const SAVES: usize = 4;
+
 /// A writer that saves copies while a pass runs loses nothing:
 /// every save is a young directory,
 /// which neither cut reaches,
@@ -243,7 +258,7 @@ fn a_writer_saving_during_a_pass_loses_no_copy() {
     let content: Vec<u8> = vec![b'w'; 20_000];
     std::fs::write(root.join("a.rs"), &content).expect("worktree file");
     let now: i64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return i64::try_from(elapsed.as_millis()).unwrap_or(0); });
-    let saves: usize = 40;
+    let saves: usize = SAVES;
     let mut places: Vec<PathBuf> = Vec::new();
     std::thread::scope(|scope| {
         let writer = scope.spawn(|| {

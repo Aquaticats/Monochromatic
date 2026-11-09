@@ -1095,8 +1095,55 @@ fn a_creation_copies_only_into_the_destination_it_named() {
     remove(root.as_path());
 }
 
-/// A journal whose owner still runs belongs to a copy in progress:
-/// a creation neither waits for it nor recovers it.
+/// A process that lives until the control ends,
+/// killed and reaped however the control ends.
+struct LiveProcess(std::process::Child);
+
+impl LiveProcess {
+    /// Start a `sleep` that outlives the call the control makes,
+    /// which may take minutes on a contended disk:
+    /// measured on 2026-11-09, one run of this control took 217 s,
+    /// longer than the minute its owner was first given,
+    /// so the owner's own ending would have been read as a wait.
+    fn sleeping(seconds: &str) -> LiveProcess {
+        let mut command: std::process::Command = std::process::Command::new("sleep");
+        command.arg(seconds);
+        let child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("the owner starts");
+        return LiveProcess(child);
+    }
+}
+
+impl Drop for LiveProcess {
+    fn drop(&mut self) {
+        let _killed = self.0.kill();
+        let _reaped = self.0.wait();
+    }
+}
+
+/// The owner a live process names,
+/// as a journal of the copy that process is making would.
+fn owner_named_by(child: &LiveProcess) -> crate::worktree_copy_owner::CopyOwner {
+    let pid: i64 = i64::from(child.0.id());
+    return crate::worktree_copy_owner::CopyOwner {
+        pid,
+        birth_identity: crate::process_identity::process_birth_identity(pid).expect("identity").expect("running"),
+        pid_namespace: crate::pid_namespace::current_pid_namespace(),
+    };
+}
+
+/// What:
+///  A journal whose owner still runs belongs to a copy in progress:
+///  a creation neither waits for it nor recovers it.
+/// Why:
+///   The clock this control used (under 30 s) could not tell a wait from a slow disk:
+/// another agent reports it failing at 38.9 s and at 71 to 75 s in a suite while it passed alone in 6.0 to 8.9 s,
+/// and this host's fixture disk stalls any step for seconds at a time.
+/// The wait it was there to catch could only end when the copy's owner went away,
+/// so the owner is now a process of its own that outlives the call:
+/// the creation returning while that process still runs is the event that says nothing waited for it.
+/// A wait that a later change added would not return while that process lives,
+/// so this control would hang rather than fail,
+/// and the unit-test watchdog ends a run that stops moving (`run_progress`).
 #[cfg(unix)]
 #[test]
 fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
@@ -1104,20 +1151,21 @@ fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
     let (main, common) = source(root.as_path());
     let older: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("older");
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "older", older.to_str().expect("utf8")]);
-    let live = journal_for(main.as_path(), common.as_path(), older.as_path(), &crate::worktree_copy_owner::current_copy_owner().expect("owner"));
+    let copy_in_progress: LiveProcess = LiveProcess::sleeping("86400");
+    let owner: crate::worktree_copy_owner::CopyOwner = owner_named_by(&copy_in_progress);
+    let live = journal_for(main.as_path(), common.as_path(), older.as_path(), &owner);
     let topic: PathBuf = root.join("topic");
     let mut stderr: Vec<u8> = Vec::new();
-    let started: std::time::Instant = std::time::Instant::now();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
         &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
         &mut stderr,
     )
     .expect("settled");
-    assert!(started.elapsed() < std::time::Duration::from_secs(30), "the creation must not wait for the live copy");
+    assert!(owner.is_alive(live.path.as_path()).expect("the owner is judged"), "the creator waited for the live copy's owner, which only ends when that process ends");
     assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
     assert!(live.path.exists(), "the live journal is whole");
-    assert!(Path::new(live.journal.stage_container.as_str()).exists(), "its stage is whole");
+    assert!(live.journal.stage_container.as_path().exists(), "its stage is whole");
     assert!(!older.join("cache").exists(), "its copy is not installed by anyone else");
     assert!(!String::from_utf8(stderr).expect("utf8").contains("recovered"));
     remove(root.as_path());
@@ -1605,5 +1653,69 @@ fn the_repair_is_handed_exactly_the_confirmed_destination() {
     )
     .expect("settled");
     assert!(none.created.is_empty());
+    remove(root.as_path());
+}
+
+/// A worktree added from a source whose path is not text,
+/// into a destination whose path is not text,
+/// receives its ignored state exactly as it would on text paths.
+#[cfg(unix)]
+#[test]
+fn a_worktree_add_between_paths_that_are_not_text_copies_the_ignored_state() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("lifecycle-add-bytes");
+    let (main, common) = source(root.as_path());
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let source_parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"src\xff"));
+    std::fs::create_dir_all(source_parent.as_path()).expect("source parent");
+    let source_root: PathBuf = source_parent.join("source");
+    let arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "source"]
+        .iter()
+        .map(OsString::from)
+        .chain([source_root.clone().into_os_string()])
+        .collect();
+    git(main.as_path(), arguments.as_slice());
+    let source_canonical: PathBuf = std::fs::canonicalize(source_root).expect("canonical source");
+    std::fs::create_dir_all(source_canonical.join("cache")).expect("cache");
+    std::fs::write(source_canonical.join("cache/data"), b"payload").expect("data");
+    let destination_parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"dst\xff"));
+    std::fs::create_dir_all(destination_parent.as_path()).expect("destination parent");
+    let topic: PathBuf = destination_parent.join("topic");
+    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: common.clone(),
+        git_dir: common.join("worktrees").join("source"),
+        worktree_root: source_canonical.clone(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity,
+            effective_cwd: source_canonical.clone(),
+            creates: true,
+            destination: Some(topic.clone()),
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
+        },
+        &mut |_step: &GitStep<'_>| {
+            let add_arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
+                .iter()
+                .map(OsString::from)
+                .chain([topic.clone().into_os_string()])
+                .collect();
+            let output: Output = git_output(source_canonical.as_path(), add_arguments.as_slice());
+            return Ok(GitStatus { code: output.status.code() });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{}", String::from_utf8_lossy(stderr.as_slice()));
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied"), b"payload");
+    let replacement: PathBuf = PathBuf::from(topic.to_string_lossy().into_owned());
+    assert!(!replacement.exists(), "nothing is written at the replacement spelling");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     remove(root.as_path());
 }

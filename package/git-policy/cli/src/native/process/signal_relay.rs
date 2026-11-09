@@ -62,11 +62,13 @@ use crate::signal_relay_descriptor::{ensure_relay_descriptor, pidfd_of, point_re
 use crate::child_awaited_through_a_pidfd::adopt;
 /// `Command` builds the child,
 /// and `ExitStatus` is how it ended.
-use std::process::{Command, ExitStatus};
+use std::process::Command;
 
 /// The Git child's end,
 /// with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
+/// The record of a step the wait had to end itself at its ceiling.
+use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -527,28 +529,63 @@ impl SignalGuard {
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
         let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-        return run_relayed(command, self.relaying, &unheeded).await;
+        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None };
+        let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) = run_relayed(command, self.relaying, duty).await?;
+        return Ok(outcome);
     }
 
     /// What:
     ///  Start `command`,
     /// wait for it while relaying signals,
     /// and return how it ended,
-    /// having published the child's number into `told` as soon as it exists.
+    /// with the ceiling's stop when the ceiling came first;
+    /// the child's number is published into `duty.told` as soon as it exists.
     /// Why:
     ///   A ceiling that ends a step must name that step and no other child of this process,
     /// and the only moment its number can be had is the moment it starts.
+    ///  This wait ends the child it owns when the ceiling comes,
+    /// whose number cannot be reused before it is reaped,
+    /// so the ceiling depends on no thread and on no name a reuse can reach.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const outcome = guard.runChildNaming(command, (pid) => notice.stepStarted(pid));
+    /// const [outcome, ceilingStop] = guard.runChildNaming(command, { told: notice.stepNumber(), bound });
     /// ```
-    pub fn run_child_telling_its_number(&self, command: &mut Command, told: &crate::child_number_told_at_start::ChildNumber) -> io::Result<ChildOutcome> {
-        return match run_on_runtime(run_relayed(command, self.relaying, told)) {
+    pub fn run_child_telling_its_number(
+        &self,
+        command: &mut Command,
+        duty: CeilingDuty<'_>,
+    ) -> io::Result<(ChildOutcome, Option<CeilingStop>)> {
+        return match run_on_runtime(run_relayed(command, self.relaying, duty)) {
             Ok(outcome) => outcome,
             Err(refusal) => Err(io::Error::other(refusal.to_string())),
         };
     }
+}
+
+/// What:
+///  Who ends a Git step that reaches its ceiling.
+/// Why:
+///  The wait that owns a child is the only place its number cannot be reused,
+/// so it is the enforcement a ceiling always has (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+///  The notice thread ends the same step through the descriptor taken at its start,
+/// which names that step for good,
+/// so one bound has two enforcers and its stop is recorded once.
+///  A commit that may open an editor is under no ceiling at all:
+/// the person is the wait,
+/// and a stop would lose what they typed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CeilingDuty = { told: ChildNumber; bound?: number };
+/// ```
+pub struct CeilingDuty<'a> {
+    /// The spot the step's number is published into the moment it starts.
+    pub told: &'a crate::child_number_told_at_start::ChildNumber,
+    /// The ceiling the step is under,
+    /// counted from its start;
+    /// nothing when a message may be typed into an editor in it.
+    pub bound: Option<std::time::Duration>,
 }
 
 /// Spawns the child,
@@ -561,18 +598,38 @@ impl SignalGuard {
 /// so that signal is relayed here,
 /// not lost.
 #[cfg(unix)]
-async fn run_relayed(command: &mut Command, relaying: bool, told: &crate::child_number_told_at_start::ChildNumber) -> io::Result<ChildOutcome> {
+async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_>) -> io::Result<(ChildOutcome, Option<CeilingStop>)> {
     // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
     let (_unfinished, stop) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child("a Git step of a commit")?;
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
-    told.publish(i32::try_from(started.id()).unwrap_or(0));
+    duty.told.publish(i32::try_from(started.id()).unwrap_or(0));
     let owned = adopt(started);
     let published: bool = relaying && publish(owned.id());
-    let waited: io::Result<ExitStatus> = crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await;
+    // What: The wait that owns the child is the one that ends it at the ceiling.
+    // Why:  A ceiling that depends on the notice's thread depends on a thread the system may refuse to make,
+    //       and on one that has not died since it started.
+    //       This wait needs neither:
+    //       the number of an unreaped child cannot be reused, and only this path reaps it,
+    //       so its signal reaches the step and never a successor.
+    //       The notice's own ceiling stays as the second enforcer of the same bound,
+    //       and a stop is recorded once, by whichever of the two ended the step.
+    let waited: (ChildOutcome, Option<CeilingStop>) = match duty.bound {
+        Some(ceiling) => crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_exits_the_stop_or_the_ceiling(
+            owned,
+            stop,
+            ceiling,
+            "a Git step of a commit",
+        )
+        .await?,
+        None => (
+            crate::forwarding::outcome_of(crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await?),
+            None,
+        ),
+    };
     // The child is reaped, so a signal that finds the descriptor still pointing at it fails with `ESRCH`; the descriptor is
     //  repointed before the next child all the same.
     retire(published);
-    return Ok(crate::forwarding::outcome_of(waited?));
+    return Ok(waited);
 }
 
 /// Publish the child with this id to the handler and relay what was waiting for it;

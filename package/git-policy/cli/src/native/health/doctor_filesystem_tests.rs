@@ -8,8 +8,10 @@
 use super::*;
 use crate::action::Action;
 use crate::doctor::{doctor_action, doctor_action_with_section};
-use crate::test_support::{executable, fixture, git_context, remove, repository};
+use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use std::time::Duration;
 use crate::transaction_git::GitContext;
+use std::ffi::OsStr;
 use std::os::unix::fs::MetadataExt;
 
 /// The checkout path the built facts use.
@@ -21,6 +23,15 @@ const MOUNT: &str = "/work";
 /// unless a control separates them.
 const SOURCE: &str = "/dev/mapper/root";
 
+/// The production filesystem section,
+/// read for the checkout Git named for the command.
+fn section_of_the_named_checkout(viewpoint: &crate::doctor::CheckoutViewpoint<'_>) -> String {
+    return match viewpoint.checkout {
+        Some(checkout) => checkout_section(checkout, viewpoint.layout),
+        None => String::new(),
+    };
+}
+
 /// The doctor's action with a filesystem section,
 /// its report built by a task of the runtime,
 /// because every Git question of the report is awaited there.
@@ -28,7 +39,7 @@ fn with_section(
     context: &GitContext,
     cwd: &Path,
     home: Option<&Path>,
-    section: &dyn Fn(&Path, Option<&Path>) -> String,
+    section: &dyn Fn(&crate::doctor::CheckoutViewpoint<'_>) -> String,
 ) -> (i32, String, String) {
     let action: Action = crate::lazy_runtime::run_on_runtime(doctor_action_with_section(context, cwd, home, section)).expect("the runtime");
     let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
@@ -39,6 +50,7 @@ fn with_section(
 fn facts(kind: FilesystemKind, root_is_subvolume: bool, has_removal_option: Option<bool>) -> FilesystemFacts {
     return FilesystemFacts {
         root: PathBuf::from(ROOT),
+        layout: CheckoutLayout::Main,
         kind,
         root_is_subvolume,
         mount: has_removal_option.map(|active: bool| { return MountSummary { mount_point: PathBuf::from(MOUNT), source: String::from(SOURCE), has_removal_option: active }; }),
@@ -195,30 +207,32 @@ fn rootflags_values_keep_their_equal_signs() {
 #[test]
 fn the_facts_of_a_real_directory_agree_with_the_kernel() {
     let parent: PathBuf = fixture("doctor-filesystem-facts");
-    let found: FilesystemFacts = gather_facts(parent.as_path()).expect("facts");
+    let found: FilesystemFacts = gather_facts(parent.as_path(), CheckoutLayout::Main).expect("facts");
     assert_eq!(found.root, parent);
     assert_eq!(found.kind, filesystem_kind(parent.as_path()).expect("kind"));
     let inode_256: bool = std::fs::metadata(parent.as_path()).expect("metadata").ino() == 256;
     assert_eq!(found.root_is_subvolume, found.kind == FilesystemKind::Btrfs && inode_256);
     assert!(found.mount.is_some(), "the fixture is under some mount");
     assert!(found.root_source.is_some(), "the mount table lists the filesystem the kernel command line configures");
-    assert_eq!(gather_facts(parent.join("absent").as_path()), None);
+    assert_eq!(gather_facts(parent.join("absent").as_path(), CheckoutLayout::Main), None);
     remove(parent.as_path());
 }
 
-/// The section for a common Git directory starts with the marker and names the main checkout;
-/// a directory not called
-///  `.git` and a path that is not there give nothing.
+/// What:
+///  The section names the checkout Git reported and starts with the marker,
+/// and a directory whose file system cannot be identified gives nothing.
+/// Why:
+///  The section's subject is Git's answer and no longer a directory name,
+/// so a relative name and a directory that is
+///  not there are simply facts that cannot be read.
 #[test]
-fn the_host_section_names_the_main_checkout_and_is_empty_for_anything_else() {
+fn the_section_names_the_checkout_git_reported() {
     let parent: PathBuf = fixture("doctor-filesystem-host");
     let repo: PathBuf = repository(parent.as_path(), "repo");
-    let section: String = host_section(repo.join(".git").as_path());
+    let section: String = checkout_section(repo.as_path(), CheckoutLayout::Main);
     assert_shape(section.as_str());
     assert!(section.contains(repo.display().to_string().as_str()), "{section}");
-    assert_eq!(host_section(repo.as_path()), "", "the checkout is not its common Git directory");
-    assert_eq!(host_section(parent.join("absent/.git").as_path()), "");
-    assert_eq!(host_section(Path::new(".git")), "", "a relative name has no parent to ask about");
+    assert_eq!(checkout_section(parent.join("absent").as_path(), CheckoutLayout::Main), "");
     remove(parent.as_path());
 }
 
@@ -231,7 +245,7 @@ fn the_section_is_informational_and_last() {
     let parent: PathBuf = fixture("doctor-filesystem-order");
     let repo: PathBuf = repository(parent.as_path(), "repo");
     let section_text: &str = "git monochromatic-git-policy-cli doctor: filesystem: informational test text\n";
-    let section = |_common_directory: &Path, _home: Option<&Path>| -> String { return section_text.to_string(); };
+    let section = |_viewpoint: &crate::doctor::CheckoutViewpoint<'_>| -> String { return section_text.to_string(); };
     let split = |action: Action| -> (i32, String, String) {
         let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
         return (code, stdout, stderr);
@@ -314,4 +328,111 @@ fn the_kernel_command_line_is_split_at_unquoted_spaces() {
     assert_eq!(kernel_value("a\"b c\"d"), "a\"b c\"d", "quotes inside a value stay");
     assert_eq!(kernel_value("\"unterminated"), "unterminated");
     assert_eq!(parse_rootflags("rootflags=\"never closed and more words"), vec![String::from("\"never closed and more words")]);
+}
+
+/// A read of the host's facts that never answers,
+/// as one on a mount whose server stopped answering does not.
+///
+/// The thread parks,
+/// so it spends no processor time while it waits:
+/// this is a stall,
+/// not a load.
+fn stalled_host_facts(_checkout: &Path, _layout: CheckoutLayout) -> String {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// What:
+///  A read of the host facts that never answers ends at its ceiling with one line that says so.
+/// Why:
+///  `statfs` and the mount table wait in the kernel on a mount whose server stopped answering,
+/// and the owner's rule is
+///  "nothing should ever wait forever or indefinitely".
+/// The line matters as much as the bound:
+/// a section silently
+///  left out would read as "nothing to say about this file system".
+#[test]
+fn a_stalled_host_facts_read_gives_up_at_its_ceiling() {
+    let parent: PathBuf = fixture("doctor-filesystem-stalled");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    let named: PathBuf = repo.join(".git");
+    let (done, finished) = std::sync::mpsc::channel::<String>();
+    let worker = std::thread::spawn(move || {
+        let section: String = checkout_section_with(stalled_host_facts, Duration::from_millis(50), named.as_path(), CheckoutLayout::Main);
+        let _sent = done.send(section);
+    });
+    // The worker is left behind on purpose: a read that never answers has no end, and the test process ends it.
+    let answered: Result<String, _> = finished.recv_timeout(Duration::from_secs(10));
+    let _abandoned = worker;
+    let section: String = answered.unwrap_or_else(|_| { panic!("the host facts never returned, so a mount that stopped answering holds the report forever") });
+    assert!(section.starts_with(SECTION_MARKER), "{section}");
+    assert!(section.contains("could not be read within"), "{section}");
+    assert!(section.ends_with('\n'), "{section}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A repository whose Git directory is not beside its worktree is reported on its worktree,
+/// and never on the directory that holds the metadata.
+/// Why:
+///  The section's subject was taken from the common Git directory's name,
+/// so a separate Git directory's parent,
+///  a directory of metadata and not a checkout,
+/// was measured and named as the place to migrate.
+#[test]
+fn a_separate_git_directory_is_reported_on_its_worktree() {
+    let parent: PathBuf = fixture("doctor-filesystem-separate");
+    let worktree: PathBuf = parent.join("real-worktree");
+    let metadata: PathBuf = parent.join("metadata");
+    std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+    std::fs::create_dir(metadata.as_path()).expect("metadata directory");
+    git(
+        worktree.as_path(),
+        &[OsStr::new("init"), OsStr::new("--quiet"), OsStr::new(format!("--separate-git-dir={}", metadata.join(".git").display()).as_str())],
+    );
+    let section: String = with_section(&git_context(), worktree.as_path(), None, &section_of_the_named_checkout).2;
+    assert!(!section.contains(metadata.display().to_string().as_str()), "the metadata directory is not a checkout: {section}");
+    assert!(section.is_empty() || section.contains(worktree.display().to_string().as_str()), "the worktree the command runs in is the subject: {section}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A bare repository has no checkout,
+/// so the section says nothing about a file system.
+/// Why:
+///  Its common Git directory may be named `\u200b.git`,
+/// and the directory above it is an ordinary parent directory,
+/// not a worktree;
+/// the
+///  section measured that parent and printed the migration command for it.
+#[test]
+fn a_bare_repository_gets_no_filesystem_section() {
+    let parent: PathBuf = fixture("doctor-filesystem-bare");
+    let bare: PathBuf = parent.join("bare-parent");
+    std::fs::create_dir_all(bare.join(".git")).expect("bare Git directory");
+    git(bare.join(".git").as_path(), &["init", "--quiet", "--bare", "--initial-branch=main"]);
+    let section: String = with_section(&git_context(), bare.join(".git").as_path(), None, &section_of_the_named_checkout).2;
+    assert!(!section.contains(SECTION_MARKER), "a bare repository has no checkout to report on: {section}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A linked worktree is advised the command that converts it,
+/// and never the one that refuses it.
+/// Why:
+///  `migrate-to-subvolume` converts a repository's main checkout;
+/// a linked worktree is converted with
+///  `convert-worktree-to-subvolume`,
+/// so printing the first would name a command that refuses the directory it just described.
+#[test]
+fn a_linked_checkout_is_advised_its_own_conversion_command() {
+    let mut linked: FilesystemFacts = facts(FilesystemKind::Btrfs, false, Some(false));
+    linked.layout = CheckoutLayout::Linked;
+    let text: String = render_section(&linked);
+    assert!(text.contains("convert-worktree-to-subvolume"), "{text}");
+    assert!(!text.contains("migrate-to-subvolume"), "{text}");
+    let main: String = render_section(&facts(FilesystemKind::Btrfs, false, Some(false)));
+    assert!(main.contains("migrate-to-subvolume"), "{main}");
+    assert!(!main.contains("convert-worktree-to-subvolume"), "{main}");
 }

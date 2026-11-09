@@ -49,35 +49,11 @@ pub fn hold(work_dir: &Path, item: &WorkItem) -> Result<(), String> {
     }
     let path: PathBuf = state_directory(work_dir, HELD).join(item.id());
     return match write_private_file_unsynced(path.as_path(), item.encode().as_bytes()) {
-        Ok(()) => {
-            say_held(item);
-            Ok(())
-        }
+        Ok(()) => Ok(()),
         // The same commit's push is already held; the gate has not decided either way.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(format!("writing the held record failed: {error}")),
     };
-}
-
-/// What:
-///  Writes the worktree's notice about a push that is held,
-/// where it is held.
-/// Why:
-///   The notice exists from the moment the push is held,
-/// so the next command shows it whether or not any notice
-///  directory existed before,
-/// and takes it once;
-/// releasing the push or its gate's verdict clears it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// sayHeld(item) // record a push-skip notice for the held commit
-/// ```
-fn say_held(item: &WorkItem) {
-    let said: String = crate::service_handoff::held_push_line(item.branch_ref.as_str(), item.oid.as_str());
-    if let Err(reason) = crate::push_failure_notice::record_push_skip(item.git_dir.as_path(), item.branch_ref.as_str(), item.oid.as_str(), said.as_str()) {
-        crate::service_warn!("the held push of {} cannot be said ({reason})", item.oid);
-    }
 }
 
 /// What:

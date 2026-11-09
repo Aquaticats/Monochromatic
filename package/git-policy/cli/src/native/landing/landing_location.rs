@@ -16,6 +16,7 @@
 //! ```
 
 /// Running real Git for the location query.
+use crate::path_bytes::os_from_path_bytes;
 use crate::repo_read_adapter::landing_of;
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout;
@@ -66,6 +67,20 @@ fn layout_arguments() -> Vec<OsString> {
 }
 
 /// What:
+///  Whether a byte ends a line of Git's layout output.
+/// Why:
+///   `split` takes a named predicate,
+///  which keeps the parser free of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0x0a
+/// ```
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
 ///  Split the layout output into its two fixed lines,
 ///  refusing any other shape.
 /// Why:
@@ -76,15 +91,20 @@ fn layout_arguments() -> Vec<OsString> {
 /// const [gitDir, indexPath] = stdout.split('\n'); if (!indexPath) throw new TypeError(...);
 /// ```
 pub fn parse_layout(stdout: &[u8]) -> Result<LandingLocation, String> {
-    let text: String = String::from_utf8_lossy(stdout).into_owned();
-    let lines: Vec<&str> = text.split('\n').collect();
-    if lines.len() < 2 || lines[0].is_empty() || lines[1].is_empty() {
-        return Err(format!("Unexpected rev-parse layout: {text:?}"));
+    let mut lines = stdout.split(is_line_feed);
+    let git_dir_bytes: &[u8] = lines.next().unwrap_or_default();
+    let index_bytes: &[u8] = lines.next().unwrap_or_default();
+    if git_dir_bytes.is_empty() || index_bytes.is_empty() {
+        // A refusal names the text a person reads, with replacement characters for bytes that are not UTF-8.
+        return Err(format!("Unexpected rev-parse layout: {:?}", String::from_utf8_lossy(stdout)));
     }
-    let git_dir: PathBuf = PathBuf::from(lines[0]);
+    // The paths stay bytes (`path_bytes.rs`): a lock or a transaction registry placed at the
+    //  text with replacement characters would sit where no file is, and two different names
+    //  would become the same one.
+    let git_dir: PathBuf = PathBuf::from(os_from_path_bytes(git_dir_bytes));
     return Ok(LandingLocation {
         real_index_path: git_dir.join("index"),
-        index_path: PathBuf::from(lines[1]),
+        index_path: PathBuf::from(os_from_path_bytes(index_bytes)),
         git_dir,
     });
 }
