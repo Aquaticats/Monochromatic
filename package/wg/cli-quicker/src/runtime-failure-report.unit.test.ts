@@ -29,7 +29,7 @@ import {
 } from '../dist/final/node/failure-repeat-limit.mjs';
 import { resolveNotificationUser, } from '../dist/final/node/notification-user.mjs';
 import {
-  POLICY_UPDATE_HOSTS,
+  POLICY_CLEARNET_HOSTS,
   policyNotInForce,
 } from '../dist/final/node/update-policy-notice.mjs';
 import {
@@ -385,9 +385,9 @@ await describe({
         /**
          Loud lines for two different errors of one kind.
          */
-        const denied = policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: '3 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 30 s: github.com answered Access denied', },);
-        const exists = policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: '3 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 30 s: github.com answered Unit already exists', },);
-        const other = policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: '7 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 45 s: github.com answered Access denied', },);
+        const denied = policyNotInForce({ policy: POLICY_CLEARNET_HOSTS, detail: '3 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 30 s: github.com answered Access denied', },);
+        const exists = policyNotInForce({ policy: POLICY_CLEARNET_HOSTS, detail: '3 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 30 s: github.com answered Unit already exists', },);
+        const other = policyNotInForce({ policy: POLICY_CLEARNET_HOSTS, detail: '7 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 45 s: github.com answered Access denied', },);
         expect(normalizeCause({ line: denied, },),).not.toBe(normalizeCause({ line: exists, },),);
         expect(normalizeCause({ line: denied, },),).toBe(normalizeCause({ line: other, },),);
         expect(denied.indexOf('github.com',),).toBeGreaterThan(100,);

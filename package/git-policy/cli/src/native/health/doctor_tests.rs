@@ -520,6 +520,52 @@ fn the_doctor_changes_nothing_and_still_reports_an_earlier_releases_folder() {
 }
 
 /// What:
+///  A `doctor` run inside a Git the wrapper started reports the hooks of the person's directories,
+///  and never the wrapper's own hooks-off path.
+/// Why:
+///   The wrapper's switches travel into a child Git as command-scope configuration,
+/// and a Git query that reads Git's
+///  answer sees them last,
+/// so a run inside wrapper-started Git would scan `/dev/null/cli-git-no-hooks`,
+/// list nothing,
+/// and exit 0.
+#[cfg(unix)]
+#[test]
+fn a_nested_doctor_lists_the_persons_hooks_and_not_the_wrappers() {
+    let root: PathBuf = fixture("doctor-nested-hooks-path");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    std::fs::create_dir(repo.join("custom")).expect("custom");
+    executable(repo.join("custom/commit-msg").as_path(), b"#!/bin/sh\n");
+    let mut context: GitContext = git_context();
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_CONFIG_PARAMETERS"),
+        std::ffi::OsString::from("'core.hookspath'='/dev/null/cli-git-no-hooks'"),
+    ));
+    // Without a configured hooks directory, the default one is still the one scanned.
+    let (default_code, default_stdout, default_stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!(default_code, 1, "{default_stderr}");
+    assert_eq!(
+        default_stdout,
+        format!("{}\n", repo.join(".git/hooks/pre-commit").display()),
+        "{default_stderr}"
+    );
+    // A configured one is read through the wrapper's own entry rather than replaced by it.
+    git(repo.as_path(), &["config", "core.hooksPath", "custom"]);
+    let (code, stdout, stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(
+        stdout,
+        format!(
+            "{}\n{}\n",
+            repo.join(".git/hooks/pre-commit").display(),
+            repo.join("custom/commit-msg").display()
+        ),
+        "{stderr}"
+    );
+    remove(root.as_path());
+}
+
 ///  A newline inside a path is part of that path,
 /// never the end of one answer;
 /// the repository Git selected is the one examined.
@@ -552,6 +598,66 @@ fn a_newline_in_a_path_is_no_separator() {
 }
 
 /// What:
+///  A hook that is gone between the listing and the look is not a hook now,
+///  and one vanished name does not cost the whole report.
+/// Why:
+///   The person deletes a hook in another terminal,
+/// a script reinstalls the hooks,
+/// or a `git-lfs` upgrade rewrites
+///  the directory,
+/// and `doctor` is the report a person reads after a commit warning:
+/// a scan that ended at the first vanished name
+///  would list none of the hooks it did look at.
+#[cfg(unix)]
+#[test]
+fn a_hook_that_vanished_between_the_listing_and_the_look_is_skipped() {
+    let root: PathBuf = fixture("doctor-vanished-hook");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = repo.join(".git/hooks");
+    executable(hooks.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    executable(hooks.join("update").as_path(), b"#!/bin/sh\n");
+    // The listing the scan works from, taken before the directory changes under it.
+    let listed: Vec<std::fs::DirEntry> = std::fs::read_dir(&hooks).expect("read the hooks directory").flatten().collect();
+    std::fs::remove_file(hooks.join("update")).expect("the other terminal deletes it");
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in &listed {
+        if is_hook_entry(entry.path().as_path()).expect("a vanished entry is not a failure to examine the directory") {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    assert_eq!(names(found.as_slice()), vec!["pre-commit"]);
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hooks that are there are still listed: {stderr}");
+    assert_eq!(stdout, format!("{}\n", hooks.join("pre-commit").display()));
+    remove(root.as_path());
+}
+
+/// What:
+///  `doctor` reports no configured hook and exits 0 when the author switched every event of it off,
+///  and still lists the one that has an event switched on.
+/// Why:
+///   A script that gates on `doctor`'s status must not fail for keys that ask for nothing:
+/// `hook.<event>.enabled=false` is
+///  Git's own switch for every hook of that event.
+#[test]
+fn a_hook_of_an_event_the_author_switched_off_is_not_reported() {
+    let root: PathBuf = fixture("doctor-event-disabled");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["config", "hook.control.event", "pre-commit"]);
+    git(repo.as_path(), &["config", "hook.control.command", "run it"]);
+    git(repo.as_path(), &["config", "hook.pre-commit.enabled", "false"]);
+    let (off_code, off_stdout, off_stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!((off_code, off_stdout.as_str()), (0, ""), "{off_stderr}");
+    assert!(!off_stderr.contains("hook.control"), "{off_stderr}");
+    // The same hook with its event switched on is reported.
+    git(repo.as_path(), &["config", "hook.pre-commit.enabled", "true"]);
+    let (on_code, on_stdout, on_stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(on_code, 1, "{on_stderr}");
+    assert_eq!(on_stdout, "hook.control (events: pre-commit)\n");
+    remove(root.as_path());
+}
+
 ///  A `core.hooksPath` whose bytes are not UTF-8 names a directory Git runs,
 /// and the doctor reads it byte for byte.
 /// Why:
@@ -647,6 +753,29 @@ fn a_stalled_directory_listing_gives_up_at_its_ceiling() {
 }
 
 /// What:
+///  A `core.hooksPath` value that holds a line break is one directory,
+/// and doctor scans the hooks in it.
+/// Why:
+///   Git reports every value of the key NUL-delimited,
+/// so splitting the listing on line breaks turned one configured
+///  directory into two values and scanned a directory the person never named.
+#[cfg(unix)]
+#[test]
+fn a_hooks_path_that_holds_a_line_break_is_scanned_where_it_points() {
+    let root: PathBuf = fixture("doctor-hooks-path-line-break");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let directory: PathBuf = repo.join("custom\nhooks");
+    std::fs::create_dir(directory.as_path()).expect("configured directory");
+    executable(directory.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    git(repo.as_path(), &["config", "core.hooksPath", "custom\nhooks"]);
+    let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(location.configured, Some(directory.clone()), "one configured value, not two");
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the executable hook is found: {stdout}{stderr}");
+    assert_eq!(stdout, format!("{}\n", directory.join("pre-commit").display()));
+    remove(root.as_path());
+}
+
 ///  A `core.hooksPath` of `redirect/../hooks`,
 /// where `redirect` is a symbolic link,
 /// scans the directory Git runs hooks
@@ -680,6 +809,38 @@ fn a_dot_dot_after_a_symlink_scans_the_directory_git_runs() {
 }
 
 /// What:
+///  A later value still decides,
+/// and the value the wrapper supplied is still not the person's.
+/// Why:
+///   The listing is read for its values,
+/// not for its line breaks,
+/// so a value holding a line break,
+/// one of the wrapper's own
+///  paths and an empty value all have to be told apart.
+#[cfg(unix)]
+#[test]
+fn every_value_of_the_hooks_path_is_told_apart_from_the_one_before_it() {
+    let root: PathBuf = fixture("doctor-hooks-path-values");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let directory: PathBuf = repo.join("odd\nhooks");
+    std::fs::create_dir(directory.as_path()).expect("configured directory");
+    executable(directory.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    // The wrapper's own transaction directory is one of its values and never the person's.
+    let wrapper: String = format!(
+        "{}/monochromatic-git-policy-cli/shadow/0123abcd-0000-4000-8000-000000000000/no-hooks",
+        repo.join(".git").display()
+    );
+    git(repo.as_path(), &["config", "--add", "core.hooksPath", wrapper.as_str()]);
+    git(repo.as_path(), &["config", "--add", "core.hooksPath", "odd\nhooks"]);
+    let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(location.configured, Some(directory.clone()), "the last value that is not the wrapper's is the person's");
+    // An empty last value is the person's own reset and names no directory.
+    git(repo.as_path(), &["config", "--add", "core.hooksPath", ""]);
+    let reset: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(reset.configured, None, "an empty value is no directory");
+    remove(root.as_path());
+}
+
 ///  The checkout the section reports on is the one Git names,
 /// and its layout is Git's answer about which worktree the command runs in.
 /// Why:

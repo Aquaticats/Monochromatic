@@ -39,23 +39,6 @@ Do not pass `--cwd`:
 the child then will not read the repo `CLAUDE.md`,
 and Claude Code's cwd handling is unreliable.
 
-Use
-`timeout 3600 pi --model openai/gpt-6.1-sol --print --no-tools --no-skills --no-themes --thinking xhigh "<question>"`
-alongside advisor,
-never instead:
-advisor reads the transcript,
-sol reads only what you paste.
-Paste whole files,
-never prose.
-Attach a diff as an `@path` argument,
-not as prose.
-It is the cross-vendor reviewer:
-a Claude subagent is a second pass.
-`timeout` here takes SECONDS.
-Background it;
-never poll or kill it;
-it may never return.
-
 Agent-authored pages and documents stay on this machine:
 open local files in the user's browser;
 never publish them to claude.ai (Artifacts,
@@ -302,6 +285,28 @@ IRW:
 A same-vendor subagent is a second pass:
  label it so,
  never as independent.
+
+XVW:
+ Cross-vendor review,
+ `timeout` in seconds:
+ `timeout 3600 pi --model openai/gpt-6.1-sol --print --no-tools --no-skills --no-themes --thinking xhigh "<question>"`
+ alongside advisor,
+ never instead.
+
+PFW:
+ A `gpt-6.1-sol` review reads only what you paste:
+ whole files,
+ never prose;
+ a diff goes in as `@path`.
+Background it;
+ never poll or kill it;
+ it may never return.
+
+WGH:
+ A reviewer told to find issues returns issues whether or not any are worth fixing:
+ weigh each finding with your own judgement,
+ fix those that earn it,
+ and dismiss the rest.
 
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.

@@ -104,6 +104,83 @@ fn a_step_that_outlasts_its_ceiling_is_ended_and_reaped_here() {
 }
 
 /// What:
+///  A step that ended by itself between the ceiling and the signal is reported by its own status,
+///  with no ceiling stop beside it.
+/// Why:
+///   That interval is a few instructions wide on a real host,
+///  and a step that finishes there landed:
+///  reading its reaped status as a ceiling kill turns a preparation that succeeded into a failure with nothing committed.
+///  A control holds the step at that instruction,
+///  so the order is the control's and not a clock's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const pid = sh('sleep 0.2; exit 0'); endTheStepBeforeTheSignal(); const [outcome, stop] = await wait(adopt(pid), undefined, 20); expect(outcome).toEqual({ exited: 0 }); expect(stop).toBeUndefined()
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_that_ended_before_the_signal_is_reported_by_its_own_status() {
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(async {
+        // The step ends by itself well after the ceiling, and was adopted inside the runtime so the wait holds its
+        //  descriptor, which is what the control looks at.
+        let mut command: Command = Command::new("sh");
+        command.arg("-c").arg("sleep 0.2; exit 0").stdin(Stdio::null());
+        let step: Child = crate::test_support::spawn_owned(&mut command).expect("a step that ends by itself");
+        a_control_ends_the_step_here();
+        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Duration::from_millis(20), "a step").await.expect("the wait answers");
+    })
+    .expect("the runtime");
+    assert_eq!(outcome, ChildOutcome::Exited(0), "a step that finished between the ceiling and the signal landed, and its own status decides");
+    assert_eq!(a_stop, None, "a step that ended by itself is no ceiling stop");
+}
+
+/// What:
+///  A program below the step whose descriptor the kernel refused is recorded in the stop,
+///  so the person is told it may still be running.
+/// Why:
+///   Round six of the review:
+///  a ceiling that ends the `git commit` and silently fails to end the signing program
+///  leaves that program holding the person's terminal and the agent's socket,
+///  and a stop that says every program was ended leaves them to find it with `ps`.
+///  The refusal stands where a descriptor limit makes it real,
+///  and the helper really is left running,
+///  which is what the record now says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const pid = sh('sleep 600 & echo $!; wait'); refuseTheNextDescriptor(); const [outcome, stop] = await wait(adopt(pid), undefined, 400); expect(stop.belowUnended).toBe(1)
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_program_the_kernel_refused_to_signal_is_recorded_in_the_stop() {
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("sleep 600 & echo $!; wait").stdout(Stdio::piped()).stdin(Stdio::null());
+    let mut step: Child = crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
+    let helper: i32 = number_below(&mut step);
+    // The step's own descriptor is opened first, so the refusal falls on the helper's.
+    let owned: OwnedChild = adopt(step);
+    crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(1);
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(owned, None, Duration::from_millis(400), "a step"))
+        .expect("the runtime")
+        .expect("the wait answers");
+    assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL), "the step itself is ended through the child this wait owns");
+    let stop: CeilingStop = a_stop.expect("the ceiling came");
+    assert!(stop.below_listed, "the programs below the step were listed");
+    assert_eq!(stop.below_unended, 1, "the program whose signal was refused is recorded, so the person is told it may still run");
+    assert!(!went_within(helper, STILL_RUNNING_BOUND), "the refusal this control injects is real: the helper was left running");
+}
+
+/// The number of the program a step printed below itself.
+#[cfg(target_os = "linux")]
+fn number_below(step: &mut Child) -> i32 {
+    use std::io::{BufRead, BufReader};
+    let output = step.stdout.take().expect("the helper's number");
+    let mut line: String = String::new();
+    BufReader::new(output).read_line(&mut line).expect("a number");
+    return line.trim().parse::<i32>().expect("a process number");
+}
+
+/// What:
 ///  A program the step started is ended with it,
 ///  and a walk that could not list the programs below the step says so.
 /// Why:

@@ -9,7 +9,7 @@ import {
 } from './runtime-failure-report.ts';
 import {
   POLICY_BYPASS_TABLE,
-  POLICY_UPDATE_HOSTS,
+  POLICY_CLEARNET_HOSTS,
   policyNotInForce,
 } from './update-policy-notice.ts';
 
@@ -51,8 +51,8 @@ export function watcherStoppedReport({ error, }: { readonly error: unknown; },):
     policy: POLICY_BYPASS_TABLE,
     detail: `the route watcher stopped (${String(error,)}) and the bypass table no longer follows the physical default route`,
   },)}; ${policyNotInForce({
-    policy: POLICY_UPDATE_HOSTS,
-    detail: 'the same watcher stopped, so update-host rules are no longer refreshed from DNS and stay as they are '
+    policy: POLICY_CLEARNET_HOSTS,
+    detail: 'the same watcher stopped, so the host rules of the update hosts and the model provider hosts are no longer refreshed from DNS and stay as they are '
       + 'until `wg-quicker down` removes them; run `wg-quicker up` again after fixing the cause',
   },)}`;
 }
@@ -110,8 +110,8 @@ export function watcherDiedReport({ pid, }: { readonly pid: number; },): string 
     detail: `the route watcher (pid ${String(pid,)}) is no longer running and wg-quicker did not stop it (it was killed, ran out of memory or crashed), `
       + 'so the bypass table no longer follows the physical default route',
   },)}; ${policyNotInForce({
-    policy: POLICY_UPDATE_HOSTS,
-    detail: 'the same watcher died, so update-host rules are no longer refreshed from DNS and stay as they are '
+    policy: POLICY_CLEARNET_HOSTS,
+    detail: 'the same watcher died, so the host rules of the update hosts and the model provider hosts are no longer refreshed from DNS and stay as they are '
       + 'until `wg-quicker down` removes them; run `wg-quicker up` again',
   },)}`;
 }
@@ -143,6 +143,6 @@ export function watcherEndUnknownReport(
     policy: POLICY_BYPASS_TABLE,
     detail: `the route watcher (pid ${String(pid,)}) is no longer running and its identity record cannot be read (${reason}), `
       + 'so it cannot be told whether wg-quicker asked for that; if not, the bypass table no longer follows the physical default route '
-      + 'and update-host rules are no longer refreshed',
+      + 'and the host rules of the update hosts and the model provider hosts are no longer refreshed',
   },);
 }

@@ -17,6 +17,10 @@ pub mod doctor_config;
 /// or the setting that turns it on.
 pub mod doctor_fsmonitor;
 
+/// Pathnames as Git prints them,
+/// and every value of `core.hooksPath` with its scope.
+pub mod hooks_path_values;
+
 /// The configured external hooks,
 /// read from the snapshot,
 /// and the loud report that none runs.
