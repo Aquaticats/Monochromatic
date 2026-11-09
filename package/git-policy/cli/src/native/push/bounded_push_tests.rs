@@ -321,7 +321,8 @@ fn a_program_that_cannot_start_is_a_start_failure() {
 /// (cross-vendor review of 2026-11-09,
 /// finding 3;
 /// `Proof::PidGone` is removed).
-/// What replaced the removal is the notice: the sweep names the lock,
+/// What replaced the removal is the notice:
+/// the sweep names the lock,
 /// its size and age,
 /// and the `rm --` command that clears it with its pid file,
 /// and the next push that meets it prints that line before Git refuses.
