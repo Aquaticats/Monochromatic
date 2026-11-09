@@ -9148,6 +9148,15 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   and a FIFO replacing a launcher record between `metadata` and `read_to_string`
   (`repair/package_repair_toolchain.rs:136-143`,
   review `~/temp/agent/reviews/tokio-repair-round-2-sol.txt`).
+- Pi's automatic retry (2026-11-09T13:26:09-05:00):
+  the owner wrote
+  "The provider confirmed it was CF and told us to turn on client retries for terminated errors.
+  Do it for pi permanently."
+  `retry.enabled` in `~/.pi/agent/settings.json` is now `true`,
+  with the file's other fields unchanged.
+  The evidence and the end-to-end test are in `doc/troubleshooting/pi-responses-ended-terminated-at-cloudflare.md`.
+  The connection watchers that were waiting for the next cut-off are stopped;
+  their records stay in `~/temp/agent/connection-cut-off-watch-2026-11-09/`.
 - Standing authorization (2026-10-13):
   "bump and publish any updates of the native wrapper crate and its `forbidden-strings`
   dependency during this session,
