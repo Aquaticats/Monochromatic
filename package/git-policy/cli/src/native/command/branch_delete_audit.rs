@@ -188,33 +188,40 @@ fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, re
     if commit_of(context, root, intended.as_os_str()).is_some() {
         return Some((intended, name.to_string_lossy().into_owned()));
     }
-    let expanded: OsString = expanded_branch_name(context, root, name)?;
+    let expanded: OsString = expanded_branch_name(context, root, name, remotes)?;
     let reference: OsString = reference_of(expanded.as_os_str(), remotes);
     return Some((reference, expanded.to_string_lossy().into_owned()));
 }
 
 /// What:
-///  The branch name a deletion name expands to,
-///  or nothing when Git expands it to no branch name at all.
+///  The branch name a deletion operand expands to in its own namespace,
+///  or nothing when Git expands it to no branch name there.
 ///  `Option<OsString>` is "the expanded name or nothing".
 /// Why:
-///   `git branch -D` expands its operand with Git's `copy_branchname` under
-///  `INTERPRET_BRANCH_LOCAL`,
-///  and `git check-ref-format --branch` is that same expansion before the
-///       namespace is put in front of it,
-///  so `@{-1}` is the branch the worktree visited before the current one
-///  and a revision that is no branch name (`HEAD`,
+///   `git branch` expands its operand with Git's `copy_branchname` under the kind of the
+///  namespace it deletes from,
+///  and the two kinds differ:
+///  `INTERPRET_BRANCH_LOCAL` reads `@{-1}` as the branch the worktree visited before and
+///  refuses a mark that names a remote-tracking reference,
+///  where `INTERPRET_BRANCH_REMOTE` reads the upstream and push marks and reads no
+///       previous branch at all.
+///  Each kind is asked through the one plumbing that performs it,
+///  so a revision that is no branch name (`HEAD`,
 ///  `@`,
-///  `main@{1}`) expands to nothing.
-///  General revision resolution would answer `refs/heads/main` for `HEAD`,
-///  and the line would then name a branch the deletion never took,
-///  where Git refused the deletion and deleted nothing.
+///  `main@{1}`) expands to nothing and the line is not written,
+///  where general revision resolution answers `refs/heads/main` for `HEAD` and would name
+///  a branch the deletion never took.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = await runGit([...global, 'check-ref-format', '--branch', name]);
+/// const output = remotes
+///   ? await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name])
+///   : await runGit([...global, 'check-ref-format', '--branch', name]);
 /// ```
-fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
+fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<OsString> {
+    if remotes {
+        return expanded_remote_tracking_name(context, root, name);
+    }
     let query: Vec<OsString> = query_arguments(&["check-ref-format", "--branch"], name);
     let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
@@ -227,6 +234,47 @@ fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr)
         return None;
     }
     return Some(os_string_of(reference));
+}
+
+/// What:
+///  The name a remote-tracking deletion operand expands to,
+///  or nothing when Git's remote-tracking expansion reads none.
+/// Why:
+///   `git check-ref-format --branch` performs the local kind, which refuses every mark a
+///  remote-tracking deletion does read,
+///  so this namespace asks `rev-parse --symbolic-full-name`,
+///  which reads the marks of both kinds.
+///  Only a reference in the remote-tracking namespace is an answer there,
+///  which is exactly what `branch_interpret_allowed` leaves of a mark for
+///       `INTERPRET_BRANCH_REMOTE`:
+///  `@{-1}` and `HEAD` resolve to a local branch and are no remote-tracking name.
+///  A branch mark always spells `@{`,
+///  so an operand without it is no mark,
+///  and answering it here would name a reference Git prefixes again and never deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!name.includes('@{')) return undefined;
+/// const output = await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name]);
+/// ```
+fn expanded_remote_tracking_name(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
+    let bytes: &[u8] = name.as_encoded_bytes();
+    let mark: bool = bytes.windows(2).any(|pair: &[u8]| pair == b"@{".as_slice());
+    if !mark {
+        return None;
+    }
+    let query: Vec<OsString> = query_arguments(&["rev-parse", "--symbolic-full-name", "--verify", "--quiet"], name);
+    let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
+    if !output.success {
+        return None;
+    }
+    let first: &[u8] = output.stdout.split(is_line_break).next().unwrap_or_default();
+    let reference: &[u8] = first.trim_ascii();
+    let short: &[u8] = reference.strip_prefix(REMOTES.as_bytes())?;
+    if short.is_empty() {
+        return None;
+    }
+    return Some(os_string_of(short));
 }
 
 /// What:
