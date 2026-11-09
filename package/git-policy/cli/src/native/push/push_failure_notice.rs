@@ -100,8 +100,12 @@ const LONGEST_KEY: usize = 100;
 const RECORD_MAGIC: &str = "monochromatic-git-policy-cli push notice 1";
 
 /// First line of a record of a push that did not finish,
-/// so whether the remote took the commit is not known.
+/// so whether the remote took the commit is not known,
+/// and that the service keeps trying.
 const UNFINISHED_MAGIC: &str = "monochromatic-git-policy-cli push unfinished 1";
+
+/// First line of a record of a push that did not finish and that nothing will try again by itself.
+const UNFINISHED_NO_RETRY_MAGIC: &str = "monochromatic-git-policy-cli push unfinished-no-retry 1";
 
 /// First line of a record of a push the service did not make because the branch has no destination it can name;
 /// its fields are
@@ -215,6 +219,7 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outco
     let magic: &str = match outcome {
         PushOutcome::Refused => RECORD_MAGIC,
         PushOutcome::Unfinished => UNFINISHED_MAGIC,
+        PushOutcome::UnfinishedWithNoRetry => UNFINISHED_NO_RETRY_MAGIC,
     };
     let text: String = format!("{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
@@ -261,6 +266,9 @@ enum RecordKind<'a> {
     /// so whether the remote took the commit is not known,
     /// with Git's cleaned words.
     Unfinished(&'a str),
+    /// A push that did not finish and that nothing will try again by itself,
+    /// with Git's cleaned words.
+    UnfinishedWithNoRetry(&'a str),
     /// A push the service did not make,
     /// with its cleaned words.
     Skipped(&'a str),
@@ -290,7 +298,7 @@ fn earlier_spelling(rest: &str) -> String {
 /// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
 /// ```
 fn current_magic_of(line: &str) -> Option<&'static str> {
-    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
+    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
         let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);
@@ -314,6 +322,7 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
         LOST_MAGIC => RecordKind::Lost,
         SKIPPED_MAGIC => RecordKind::Skipped(reason),
         UNFINISHED_MAGIC => RecordKind::Unfinished(reason),
+        UNFINISHED_NO_RETRY_MAGIC => RecordKind::UnfinishedWithNoRetry(reason),
         _ => RecordKind::Failed(reason),
     }));
 }
@@ -515,6 +524,9 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         texts.push(match parsed {
             Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Refused, reason),
             Some((branch, commit, RecordKind::Unfinished(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Unfinished, reason),
+            Some((branch, commit, RecordKind::UnfinishedWithNoRetry(reason))) => {
+                worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::UnfinishedWithNoRetry, reason)
+            }
             Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
             // The finished text an earlier release wrote.

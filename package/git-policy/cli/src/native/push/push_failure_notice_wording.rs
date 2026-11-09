@@ -41,7 +41,7 @@ use crate::service_messages::RESTART_COMMAND;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PushOutcome = 'refused' | 'unfinished';
+/// type PushOutcome = 'refused' | 'unfinished' | 'unfinished-with-no-retry';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PushOutcome {
@@ -49,8 +49,12 @@ pub enum PushOutcome {
     /// so the commit did not reach the remote.
     Refused,
     /// The push was stopped or failed for a reason that can pass,
-    /// so whether the remote took the commit is not known.
+    /// so whether the remote took the commit is not known,
+    /// and the service keeps it in its retry plan.
     Unfinished,
+    /// The push did not finish and no retry is planned,
+    /// so nothing tries it again by itself.
+    UnfinishedWithNoRetry,
 }
 
 /// Said when Git gave no words at all.
@@ -143,8 +147,8 @@ pub fn clean_reason(said: &str) -> String {
 /// ```
 pub fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    if outcome == PushOutcome::Unfinished {
-        return worded_unfinished(branch, shown, reason);
+    if matches!(outcome, PushOutcome::Unfinished | PushOutcome::UnfinishedWithNoRetry) {
+        return worded_unfinished(branch, shown, outcome, reason);
     }
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
@@ -180,18 +184,27 @@ pub fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason: &str)
 /// ```ts
 /// wordedUnfinished(branch, shown, reason)
 /// ```
-pub fn worded_unfinished(branch: &str, shown: &str, reason: &str) -> String {
+pub fn worded_unfinished(branch: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
         format!("monochromatic-git-policy-cli and Git said:\n{}", indented(reason))
     };
+    // What happens next is a fact of the retry plan, and the plan may have been dropped by the round that wrote this.
+    let (next, closing): (&str, &str) = match outcome {
+        PushOutcome::UnfinishedWithNoRetry => (
+            "and the commit service is not trying this push again by itself",
+            "run `git push` when you can",
+        ),
+        _ => (
+            "and the commit service keeps the push in its retry plan, so it tries again on its own",
+            "if it does not show the commit on the remote, run `git push`",
+        ),
+    };
     return format!(
         "The backup push of branch {branch} for commit {shown} did not finish, so the remote may or may not have taken that \
-         commit. The commit is saved in this repository and nothing was lost, and the commit service keeps the push in its \
-         retry plan, so it tries again on its own.\n{detail}\n\
-         That account is what monochromatic-git-policy-cli found and what Git said when the push ended; if it does not show \
-         the commit on the remote, run `git push`."
+         commit. The commit is saved in this repository and nothing was lost, {next}.\n{detail}\n\
+         That account is what monochromatic-git-policy-cli found and what Git said when the push ended; {closing}."
     );
 }
 

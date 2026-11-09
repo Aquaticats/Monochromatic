@@ -406,14 +406,15 @@ pub(crate) fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, 
                 crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
             }
             Verdict::Retry(text) => {
-                let said: String = match replanning.first {
-                    Some(first) => planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()),
+                // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
+                let (said, outcome): (String, PushOutcome) = match replanning.first {
+                    Some(first) => (planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()), PushOutcome::Unfinished),
                     None => {
                         replanning.forget(git_dir, branch);
-                        text
+                        (text, PushOutcome::UnfinishedWithNoRetry)
                     }
                 };
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, PushOutcome::Unfinished, said.as_str()) {
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, outcome, said.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }

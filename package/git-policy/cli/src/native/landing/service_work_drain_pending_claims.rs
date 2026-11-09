@@ -132,14 +132,20 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
                 }
                 Verdict::Retry(text) => {
                     // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
-                    //  have reached the remote, so its record says that instead of naming what was refused.
-                    let said: String = match (members.last(), replanning.first) {
-                        (Some(newest), Some(first)) => planned_retry(git_dir, replanning, first, &newest.item, 1, text.as_str()),
-                        _ => text,
+                    //  have reached the remote, so its record says that instead of naming what was refused, and it says
+                    //  whether a plan will try it again.
+                    let (said, outcome): (String, PushOutcome) = match (members.last(), replanning.first) {
+                        (Some(newest), Some(first)) => (planned_retry(git_dir, replanning, first, &newest.item, 1, text.as_str()), PushOutcome::Unfinished),
+                        _ => (text, PushOutcome::UnfinishedWithNoRetry),
                     };
                     if let Some(newest) = members.last()
-                        && let Err(reason) =
-                            record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), PushOutcome::Unfinished, said.as_str())
+                        && let Err(reason) = record_push_failure(
+                            git_dir,
+                            newest.item.branch_ref.as_str(),
+                            newest.item.oid.as_str(),
+                            outcome,
+                            said.as_str(),
+                        )
                     {
                         crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }

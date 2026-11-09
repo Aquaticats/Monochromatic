@@ -405,6 +405,11 @@ fn a_push_that_did_not_finish_is_worded_as_one_whose_delivery_is_not_known() {
     for absent in ["exists only on this computer", "The backup push of branch main failed", PUSH_FAILED_NOTE] {
         assert!(!text.contains(absent), "{absent} in {text}");
     }
+    // A push nothing will try again says so, and promises no retry it cannot keep.
+    let alone: String = push_failure_text(BRANCH, COMMIT, PushOutcome::UnfinishedWithNoRetry, "fatal: could not read from remote repository");
+    assert!(alone.contains("did not finish") && alone.contains("may or may not have taken that commit"), "{alone}");
+    assert!(alone.contains("is not trying this push again by itself"), "{alone}");
+    assert!(!alone.contains("keeps the push in its retry plan"), "{alone}");
     // A refusal is worded as one: the remote answered and nothing was delivered.
     let refused: String = push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "fatal: could not read from remote repository");
     assert!(refused.contains("failed for commit") && refused.contains(PUSH_FAILED_NOTE), "{refused}");
@@ -422,19 +427,27 @@ fn a_push_that_did_not_finish_is_worded_as_one_whose_delivery_is_not_known() {
 fn the_record_keeps_what_the_push_came_to() {
     let root: PathBuf = fixture("notice-outcome");
     let forged: String = format!("remote: {A_REMOTE_SPEAKING_OF_DELIVERY}");
+    // One branch per kind, so the three records and the three wordings can be told apart.
+    const THIRD: &str = "fedcba9876543210fedcba9876543210fedcba98";
     record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, forged.as_str()).expect("record");
     record_push_failure(root.as_path(), "refs/heads/other", OTHER_COMMIT, PushOutcome::Unfinished, forged.as_str()).expect("record");
+    record_push_failure(root.as_path(), "refs/heads/third", THIRD, PushOutcome::UnfinishedWithNoRetry, forged.as_str()).expect("record");
     let shown: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(shown.len(), 2, "{shown:?}");
-    let main: &str = shown.iter().find(|text| { return text.contains(COMMIT) && !text.contains(OTHER_COMMIT); }).expect("the refused record");
+    assert_eq!(shown.len(), 3, "{shown:?}");
+    let main: &str = shown.iter().find(|text| { return text.contains(COMMIT); }).expect("the refused record");
     assert!(main.contains("failed for commit"), "{main}");
     let other: &str = shown.iter().find(|text| { return text.contains(OTHER_COMMIT); }).expect("the unfinished record");
-    assert!(other.contains("did not finish") && other.contains("may or may not have taken that commit"), "{other}");
+    assert!(other.contains("did not finish") && other.contains("keeps the push in its retry plan"), "{other}");
+    let third: &str = shown.iter().find(|text| { return text.contains(THIRD); }).expect("the record of a push nothing tries again");
+    assert!(third.contains("did not finish") && third.contains("is not trying this push again by itself"), "{third}");
+    for notice in [main, other, third] {
+        assert!(notice.starts_with("The backup push of branch"), "the framing is the wrapper's own: {notice}");
+    }
     // The kind is in the record's own first line, not in the words Git printed.
     for entry in std::fs::read_dir(notice_directory(root.as_path())).expect("directory").flatten() {
         let text: String = std::fs::read_to_string(entry.path()).expect("record");
         assert!(
-            text.starts_with(RECORD_MAGIC) || text.starts_with(UNFINISHED_MAGIC),
+            text.starts_with(RECORD_MAGIC) || text.starts_with(UNFINISHED_MAGIC) || text.starts_with(UNFINISHED_NO_RETRY_MAGIC),
             "a record names what the push came to: {text}"
         );
     }

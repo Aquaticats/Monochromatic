@@ -4222,15 +4222,26 @@ in-process reader can) gives every value of the multi-valued keys.
   so the note says it did not
   finish,
   that the remote may or may not have taken the commit,
-  and that the service keeps the push in its retry plan.
-  Neither wording is ever chosen from the
+  and what happens next,
+  which follows the retry plan that still exists:
+  the service keeps the push in its retry plan,
+  or,
+  when the round that wrote the
+  record kept none,
+  it is not trying the push again by itself and the person pushes by hand
+  (`src/native/push/push_failure_notice_wording.rs`).
+  A round says so as it writes the record,
+  because it is the round that plans the next try or forgets the
+  branch's plan,
+  and a notice promising a try that was forgotten sends the person to wait for nothing.
+  No wording is ever chosen from the
   text of Git's output or a remote hook's,
   because a remote's hook controls that text:
   a hook that prints the wrapper's own
   delivery sentence is shown as what Git said and changes no framing
   (`src/native/push/push_failure_notice.rs`).
   The notice claims no delivery at all,
-  in either framing:
+  in any framing:
   a stopped or unfinished push says only that it did not finish and that the remote may or may
   not have taken the commit,
   and the retry is what settles it.
