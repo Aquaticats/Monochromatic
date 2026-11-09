@@ -343,6 +343,19 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
         let _count: usize = refreshed?;
         run.journal.mark("rollback-indexes", "done")?;
     }
+    // The stage is the subvolume the migration created; a directory that replaced it is somebody else's, and the removal's
+    // fallback would delete it with whatever it holds.
+    if new_path.exists() && !run.platform.is_subvolume_root(new_path.as_path()).unwrap_or(false) {
+        return Ok(Some(vec![Refusal {
+            cause: format!(
+                "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
+                new_path.display()
+            ),
+            remedy: String::from(
+                "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
+            ),
+        }]));
+    }
     if new_path.exists() {
         run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());
         remove_subvolume_tree(run, new_path.as_path())?;

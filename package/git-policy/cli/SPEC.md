@@ -1611,6 +1611,10 @@ The conversion's journal also records when its proving pass finished,
 in milliseconds after the epoch,
 so the removal can tell a file changed after the proof from one the copy already carried;
 a journal written by an earlier release has no such field.
+A rollback deletes the new subvolume only while the name holds a subvolume root,
+which is what the migration created there:
+a directory that replaced it is refused with both paths and nothing is deleted,
+because the removal's fallback would otherwise delete it and whatever it holds.
 The migration's list of files this user may not read is published the same way:
 staged in a sibling created exclusively and mode owner-only,
 synchronized,
