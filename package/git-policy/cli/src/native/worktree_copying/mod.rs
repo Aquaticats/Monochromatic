@@ -54,6 +54,13 @@ pub mod worktree_copy_settling;
 #[cfg(unix)]
 pub mod worktree_copy_install_entry;
 
+/// The publication of one staged regular file at its destination name in one step:
+/// unnamed while it is filled,
+/// with the entry's mode before it can be read,
+/// and linked into place only when whole.
+#[cfg(unix)]
+pub mod worktree_copy_publish_file;
+
 /// Installation of a validated stage into a new worktree,
 /// with preflight,
 /// batches and rollback on failure.

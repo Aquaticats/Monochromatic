@@ -2732,7 +2732,17 @@ Create absent entries exclusively and retain the Git-created worktree on any fai
 Install a regular file as a hard link to its staged copy,
 so it appears atomically with its final bytes and mode;
 when the filesystem refuses the link,
-fall back to the exclusive copy-on-write request.
+fill a file the filesystem has given no name (`O_TMPFILE`) in the destination's own directory,
+give it the entry's exact mode before it can be read,
+and link it to the destination name only once it holds every byte.
+A filesystem without unnamed files is filled under a private name in that directory,
+`.monochromatic-git-policy-cli-partial-` followed by a digest of the stage and the entry,
+which a resumed copy of the same stage computes again and removes before filling it again;
+the name reaches the destination by a rename that does not replace,
+else by a hard link whose staging name is removed after.
+No file therefore ever holds a destination name before its bytes and mode are whole,
+so a copy killed at any instruction leaves nothing at that name,
+and the next command installs the entry instead of refusing the destination it finds.
 The staged copy is independent of the source,
 so a destination file never shares storage with its source file.
 Immediate rollback visits only transaction-owned paths in child-first order;

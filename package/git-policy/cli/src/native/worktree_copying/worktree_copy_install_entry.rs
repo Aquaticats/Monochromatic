@@ -18,7 +18,6 @@ use crate::worktree_copy_compare::lstat_or_absent;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::json_record::quote;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
@@ -202,19 +201,21 @@ fn is_link_unsupported(error: &std::io::Error) -> bool {
 /// What:
 ///  Installs one staged regular file:
 /// a hard link when the filesystem allows it,
-/// otherwise an exclusive copy with the entry's mode.
+/// otherwise a copy published at the destination name only once its bytes and mode are whole.
 /// Why:
 ///   The link shares the staged bytes and mode in one step;
-/// the copy is the fallback the contract requires.
+/// the copy is the fallback the contract requires,
+/// and  it can never leave a partial file with the destination's name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function installFile({ stagePath, destinationPath, mode }): Promise<void>;
+/// async function installFile({ stageRoot, stagePath, destinationPath, entry }): Promise<void>;
 /// ```
 fn install_file(
+    stage_root: &Path,
     stage_path: &Path,
     destination_path: &Path,
-    mode: u32,
+    entry: &WorktreeCopyEntry,
 ) -> Result<(), WorktreeCopyError> {
     // `match` on the link result: success ends here, a refusal copies, and any other failure is reported.
     match std::fs::hard_link(stage_path, destination_path) {
@@ -222,17 +223,33 @@ fn install_file(
         Err(error) if is_link_unsupported(&error) => {}
         Err(error) => return Err(raw_failure(&error)),
     }
-    copy_file_exclusive(stage_path, destination_path)?;
-    let applied: std::io::Result<()> = std::fs::set_permissions(
-        destination_path,
-        std::os::unix::fs::PermissionsExt::from_mode(mode),
+    let temporary: std::ffi::OsString = crate::worktree_copy_publish_file::temporary_name_of(
+        stage_container_name(stage_root).as_str(),
+        entry.relative_path.as_str(),
     );
-    if let Err(error) = applied {
-        // A copy that cannot take its mode is removed, so the next attempt starts from the absent path.
-        let _ignored_removal: std::io::Result<()> = std::fs::remove_file(destination_path);
-        return Err(raw_failure(&error));
-    }
-    return Ok(());
+    return crate::worktree_copy_publish_file::publish_copy_of_file(
+        stage_path,
+        destination_path,
+        entry.mode,
+        temporary.as_os_str(),
+    );
+}
+
+/// What:
+///  The name of the private stage container one payload belongs to.
+/// Why:
+///   The name carries the random identifier of this copy,
+/// so a temporary file a killed run left is told from every other copy's by its name alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stageContainerName = (stageRoot) => path.basename(path.dirname(stageRoot));
+/// ```
+fn stage_container_name(stage_root: &Path) -> String {
+    let Some(container) = stage_root.parent().and_then(Path::file_name) else {
+        return String::new();
+    };
+    return container.to_string_lossy().into_owned();
 }
 
 /// What:
@@ -263,7 +280,7 @@ pub fn create_selected_entry(
                 .map_err(raw_failure_of);
         }
         EntryKind::File => {
-            return install_file(stage_path.as_path(), destination_path.as_path(), entry.mode);
+            return install_file(stage_root, stage_path.as_path(), destination_path.as_path(), entry);
         }
         EntryKind::Symlink => {
             let target: PathBuf = std::fs::read_link(stage_path.as_path())
