@@ -149,6 +149,10 @@ function collectCommandInfoFromScript(
    */
   const parseErrors: ShellParseError[] = [];
   /**
+   Parser node kinds the walk had no visitor for, in traversal order.
+   */
+  const notUnderstoodNodeKinds: string[] = [];
+  /**
    Mutable traversal flags updated while stack drains.
    */
   const flags = {
@@ -176,6 +180,7 @@ function collectCommandInfoFromScript(
     },);
     commands.push(...result.commands,);
     parseErrors.push(...result.parseErrors,);
+    notUnderstoodNodeKinds.push(...result.notUnderstoodNodeKinds,);
     flags.isPipeline ||= result.flags
       .isPipeline;
     flags.hasBackground ||= result.flags
@@ -193,6 +198,7 @@ function collectCommandInfoFromScript(
     commands,
     flags,
     parseErrors,
+    notUnderstoodNodeKinds,
   };
 }
 

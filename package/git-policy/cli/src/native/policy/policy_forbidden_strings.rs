@@ -430,7 +430,7 @@ fn service_reads_the_same_rules(
     selected: &RulesSource,
 ) -> bool {
     let configured = rules_source(settings.options.rules_files.as_deref(), None, repository_root);
-    return configured.is_ok_and(|without_variable| without_variable == *selected);
+    return configured.is_ok_and(|without_variable| return without_variable == *selected);
 }
 
 /// What:

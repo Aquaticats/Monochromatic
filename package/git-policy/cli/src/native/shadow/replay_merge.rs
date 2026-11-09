@@ -21,7 +21,7 @@ use crate::merge_second_pass::{Conflict, conflicts_of_merge_tree};
 /// The attribute tree a merge from objects reads.
 use crate::child_environment::environment_with_overlay;
 use crate::merge_second_pass::ContextRunner;
-use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables};
+use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables_on_the_runtime};
 /// Shadow runs and the raw runner for a merge whose exit status matters.
 use crate::shadow_git::shadow_request;
 use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
@@ -124,7 +124,7 @@ pub fn merge_replay_tree(
     let variables = environment_with_overlay(process_environment.as_slice(), context.overlay.as_slice());
     let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, object_directory: None, environment: Vec::new() };
     let probe = AttributeProbe { directory: worktree_root, global_prefix: &[], variables: variables.as_slice(), runner: &probing };
-    request.environment.extend(attribute_tree_variables(current, &probe));
+    request.environment.extend(attribute_tree_variables_on_the_runtime(current, &probe));
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => {
