@@ -68,10 +68,12 @@ pub struct SubsumptionBase {
     /// Paths whose prepared entries replay as they are:
     /// subsumed ones and those the prepared commit captured later,
     /// in Git order.
-    pub subsumed_paths: Vec<String>,
+    /// Each path is its bytes.
+    pub subsumed_paths: Vec<Vec<u8>>,
     /// Paths whose landed entries stay because a landed commit captured them later,
-    /// in Git order.
-    pub kept_landed_paths: Vec<String>,
+    /// in Git order,
+    /// each as its bytes.
+    pub kept_landed_paths: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -138,6 +140,26 @@ fn oid_width(shared: &SharedPath) -> usize {
 }
 
 /// What:
+///  One `update-index --index-info` record:
+/// its mode,
+/// its object and its path,
+/// NUL-terminated.
+/// Why:
+///   The path stays the bytes Git listed,
+/// so a record names the file the change came from and not a spelling of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = (mode, oid, path) => Buffer.concat([Buffer.from(`${mode} ${oid}\t`), path, Buffer.from([0])]);
+/// ```
+fn index_info_record(mode: &str, oid: &str, path: &[u8]) -> Vec<u8> {
+    let mut record: Vec<u8> = format!("{mode} {oid}\t").into_bytes();
+    record.extend_from_slice(path);
+    record.push(0);
+    return record;
+}
+
+/// What:
 ///  The `update-index --index-info` record that sets a subsumed path to its landed content.
 /// Why:
 ///   A regular file keeps the base's mode so a mode change still merges three-way;
@@ -153,13 +175,13 @@ pub fn subsumed_record(shared: &SharedPath) -> Vec<u8> {
             Some(entry) => entry.oid.len(),
             None => 0,
         };
-        return format!("0 {}\t{}\0", "0".repeat(width), shared.path).into_bytes();
+        return index_info_record("0", "0".repeat(width).as_str(), shared.path.as_slice());
     };
     let mode: &str = match &shared.base {
         Some(base) if is_regular_triple(shared) => base.mode.as_str(),
         _ => landed.mode.as_str(),
     };
-    return format!("{mode} {}\t{}\0", landed.oid, shared.path).into_bytes();
+    return index_info_record(mode, landed.oid.as_str(), shared.path.as_slice());
 }
 
 /// What:
@@ -172,10 +194,10 @@ pub fn subsumed_record(shared: &SharedPath) -> Vec<u8> {
 /// ```ts
 /// exactRecord({ path, entry, width });
 /// ```
-pub fn exact_record(path: &str, entry: &Option<TreeEntry>, width: usize) -> Vec<u8> {
+pub fn exact_record(path: &[u8], entry: &Option<TreeEntry>, width: usize) -> Vec<u8> {
     return match entry {
-        None => format!("0 {}\t{path}\0", "0".repeat(width)).into_bytes(),
-        Some(present) => format!("{} {}\t{path}\0", present.mode, present.oid).into_bytes(),
+        None => index_info_record("0", "0".repeat(width).as_str(), path),
+        Some(present) => index_info_record(present.mode.as_str(), present.oid.as_str(), path),
     };
 }
 
@@ -191,8 +213,8 @@ pub fn exact_record(path: &str, entry: &Option<TreeEntry>, width: usize) -> Vec<
 pub fn base_record(edit: &BaseEdit) -> Vec<u8> {
     return match edit.rule {
         BaseRule::Subsumed => subsumed_record(&edit.shared),
-        BaseRule::Prepared => exact_record(&edit.shared.path, &edit.shared.landed, oid_width(&edit.shared)),
-        BaseRule::Landed => exact_record(&edit.shared.path, &edit.shared.prepared, oid_width(&edit.shared)),
+        BaseRule::Prepared => exact_record(edit.shared.path.as_slice(), &edit.shared.landed, oid_width(&edit.shared)),
+        BaseRule::Landed => exact_record(edit.shared.path.as_slice(), &edit.shared.prepared, oid_width(&edit.shared)),
     };
 }
 
@@ -278,7 +300,7 @@ pub fn is_identical(shared: &SharedPath) -> bool {
 
 /// The capture-order decision for one shared path;
 /// a path the order does not name is unordered.
-fn decision_of(order: &BTreeMap<String, CaptureOrderDecision>, shared_path: &SharedPath) -> CaptureOrderDecision {
+fn decision_of(order: &BTreeMap<Vec<u8>, CaptureOrderDecision>, shared_path: &SharedPath) -> CaptureOrderDecision {
     return order.get(&shared_path.path).copied().unwrap_or(CaptureOrderDecision::Unordered);
 }
 
@@ -301,7 +323,7 @@ pub fn subsume_landed_changes(
     replay: u64,
     merge_base: &str,
     shared: &[SharedPath],
-    order: &BTreeMap<String, CaptureOrderDecision>,
+    order: &BTreeMap<Vec<u8>, CaptureOrderDecision>,
 ) -> Result<SubsumptionBase, SubsumptionError> {
     let mut text_candidates: Vec<SharedPath> = Vec::new();
     for entry in shared {
@@ -312,7 +334,7 @@ pub fn subsume_landed_changes(
     // A set answers "is this path a subsumed text path" by naming the one collected path it
     //  compares with, so deciding every unordered path is one pass
     //  (`AGENTS.md` `RG2`); the paths beside the question are not read in order.
-    let text: HashSet<String> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
+    let text: HashSet<Vec<u8>> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
         .map_err(SubsumptionError::Text)?
         .into_iter()
         .collect();
@@ -333,8 +355,8 @@ pub fn subsume_landed_changes(
             }
         }
     }
-    let mut subsumed_paths: Vec<String> = Vec::new();
-    let mut kept_landed_paths: Vec<String> = Vec::new();
+    let mut subsumed_paths: Vec<Vec<u8>> = Vec::new();
+    let mut kept_landed_paths: Vec<Vec<u8>> = Vec::new();
     for edit in &edits {
         if edit.rule == BaseRule::Landed {
             kept_landed_paths.push(edit.shared.path.clone());

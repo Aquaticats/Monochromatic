@@ -102,3 +102,24 @@ pub(super) fn moved_words(moved: &[String]) -> String {
         moved.join(", ")
     );
 }
+
+/// What:
+///  The sentence that names the paths the pass left because it could not compare them.
+/// Why:
+///   Two failed reads are not two equal ones:
+/// a path that could not be read says nothing about whether it still holds
+///  what the merge was computed from;
+/// the sentence must not claim the file changed when nobody read it,
+/// and it must not
+///  leave the person wondering why the file still conflicts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unreadableWords = (paths: string[]) => `${LINE_PREFIX}${REPORT_MARK}: could not be read to compare with what the merge was computed from, so it is left as it is now: ${paths.join(', ')}. `;
+/// ```
+pub(super) fn unreadable_words(unreadable: &[String]) -> String {
+    return format!(
+        "{LINE_PREFIX}{REPORT_MARK}: could not be read to compare with what the merge was computed from, so it is left as it is now: {}. ",
+        unreadable.join(", ")
+    );
+}
