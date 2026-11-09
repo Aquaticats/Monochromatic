@@ -275,7 +275,7 @@ pub(crate) fn open_journal(
         uid: kept.uid,
         gid: kept.gid,
         owner: owner.map(String::from),
-        replacement: to_hex(sha256(replacement).as_slice()),
+        replacement: digest_of(replacement),
     };
     let written: std::io::Result<()> = std::fs::write(
         directory.join(RECORD_FILE),
@@ -341,8 +341,34 @@ impl std::fmt::Display for JournalFailure {
 /// const record = readRecord(directory); // undefined when unreadable
 /// ```
 pub(crate) fn read_record(journal: &Path) -> Option<JournalRecord> {
-    let text: String = std::fs::read_to_string(journal.join(RECORD_FILE)).ok()?;
+    let record: PathBuf = journal.join(RECORD_FILE);
+    // What: The type of the name first, never through a link, and the bytes only for a regular file.
+    // Why:  Opening a FIFO no process writes to blocks for ever, and a record is a file a killed fix wrote.
+    //
+    // In TS you'd write (pseudocode):
+    // if (!lstatSync(record).isFile()) return undefined; return decode(readFileSync(record, 'utf8'));
+    let described: std::fs::Metadata = std::fs::symlink_metadata(record.as_path()).ok()?;
+    if !described.file_type().is_file() {
+        return None;
+    }
+    let text: String = std::fs::read_to_string(record.as_path()).ok()?;
     return JournalRecord::decode(text.as_str());
+}
+
+/// What:
+///  The SHA-256 of `bytes`,
+///  in lower-case hexadecimal.
+/// Why:
+///   A record keeps the correction's digest rather than its bytes,
+///  and every comparison against it needs
+///  the same spelling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const digestOf = (bytes) => createHash('sha256').update(bytes).digest('hex');
+/// ```
+pub(crate) fn digest_of(bytes: &[u8]) -> String {
+    return to_hex(sha256(bytes).as_slice());
 }
 
 /// The corrected bytes' path inside a journal directory,
@@ -471,7 +497,15 @@ fn journals_below(git_dir: &Path) -> Vec<PathBuf> {
 /// const markWriterGone = (journal) => rewriteOwner(journal, deadToken());
 /// ```
 pub fn mark_writer_gone(journal: &Path) {
-    let text: String = match std::fs::read_to_string(journal.join(RECORD_FILE)) {
+    let record: PathBuf = journal.join(RECORD_FILE);
+    // A name that is not a regular file is left alone: opening it could block, and this helper writes no record then.
+    let Ok(described) = std::fs::symlink_metadata(record.as_path()) else {
+        return;
+    };
+    if !described.file_type().is_file() {
+        return;
+    }
+    let text: String = match std::fs::read_to_string(record.as_path()) {
         Ok(found) => found,
         Err(_unreadable) => return,
     };
@@ -555,18 +589,39 @@ pub(crate) fn reap_interrupted_installs(git_dir: &Path, notices: &mut Vec<String
             continue;
         }
         let content: PathBuf = content_of(journal.as_path());
-        let Ok(held) = std::fs::read(content.as_path()) else {
-            notices.push(format!(
-                "monochromatic-git-policy-cli found {} from a fix whose process ended, and the bytes it holds cannot be read, so nothing was done with it; the bytes stay for you to look at.",
-                journal.display()
-            ));
-            continue;
+        // What: The correction first, judged as the rollback judges a file it took out of a swap: a regular file
+        //       whose bytes, permission bits and owner are the ones the record names. The type is read before any byte.
+        // Why:  A digest match alone does not say whose file it is: the person can save the correction's own bytes and
+        //       narrow them to `0600`, and the swap then moves their file into the journal. A name that is not a regular
+        //       file is never opened, so a FIFO cannot hold the sweep.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const recorded = { mode: record.mode, uid: record.uid, gid: record.gid };
+        // if (!holdsDigest(content, record.replacement, recorded, 'reading what a killed fix left')) { notices.push(reportedLeftover(journal)); continue; }
+        // ```
+        let recorded: Kept = Kept {
+            mode: record.mode,
+            uid: record.uid,
+            gid: record.gid,
         };
-        if to_hex(sha256(held.as_slice()).as_slice()) != record.replacement {
-            // What it holds is not the correction, which is the only bytes a fix writes there, so it may be the
-            // person's: it stays, and the file it belongs to is not touched.
-            notices.push(reported_leftover(journal.as_path()));
-            continue;
+        match crate::direct_fix_install_judging::holds_digest(
+            content.as_path(),
+            record.replacement.as_str(),
+            &recorded,
+            "reading what a killed fix left",
+        ) {
+            Ok(true) => {}
+            Ok(false) => {
+                // What it holds is not exactly the correction, so it may be the person's: it stays, and the file it
+                // belongs to is not touched.
+                notices.push(reported_leftover(journal.as_path()));
+                continue;
+            }
+            Err(detail) => {
+                notices.push(format!("{detail}; {}", reported_leftover(journal.as_path())));
+                continue;
+            }
         }
         // The correction itself: recomputable, and none of the person's bytes. Removing it changes no file.
         if remove(journal.as_path()) {

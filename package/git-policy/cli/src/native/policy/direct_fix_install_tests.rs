@@ -1289,3 +1289,110 @@ fn a_replacement_keeps_the_group_the_file_had() {
     assert_eq!(actual, own, "the replacement keeps the group it was asked for");
     remove(root.as_path());
 }
+
+/// What:
+///  A journal is reaped only when it is exactly the correction the record names,
+///  bits and owner
+///       included,
+///  and a permission change of the person's keeps it.
+/// Why:
+///  A digest match does not say the journal holds the fix's own replacement:
+///  the person can save the
+///       correction's bytes themselves,
+///  and a file they narrowed to `0600` moved into the journal by the swap
+///       both matches on content and is theirs.
+///  Reaping it would discard the mode they chose and leave the
+///       broader `0644` replacement in the worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // writeFile(a, 'a\n'); chmod(a, 0o600); exchange(contentOf(j), a); markOwnerDead(j); reap(); expect(modeOf(contentOf(j))).toBe(0o600)
+/// ```
+#[test]
+fn a_reap_never_removes_a_permission_change_the_person_made() {
+    let fixture_tree: Tree = tree("install-reap-mode");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    let journal: PathBuf = prepared[0].journal.clone();
+    let destination: PathBuf = fixture_tree.top.join("a.txt");
+    // The person saves the correction's own bytes and narrows the file.
+    std::fs::write(&destination, b"a\n").expect("a save");
+    std::fs::set_permissions(&destination, std::fs::Permissions::from_mode(0o600)).expect("narrow");
+    // The swap installs the fix's 0644 replacement and moves the person's file into the journal.
+    super::exchange(content_of(journal.as_path()).as_path(), &destination).expect("the swap");
+    mark_writer_dead(journal.as_path());
+    let mut notices: Vec<String> = Vec::new();
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays: {notices:?}");
+    let kept_mode: u32 = std::fs::metadata(content_of(journal.as_path()))
+        .expect("the kept bytes")
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(kept_mode, 0o600, "the person's mode is kept: {kept_mode:o}");
+    assert!(
+        notices.iter().any(|notice| return notice.contains("cli-git-direct-fix-")),
+        "{notices:?}"
+    );
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A journal whose `content` is not a regular file is neither read nor reaped,
+///  and the sweep returns
+///       at once.
+/// Why:
+///  The swap moves whatever stands at the destination into the journal,
+///  and opening a FIFO with no
+///       writer blocks for ever:
+///  a recovery that read its bytes would hold every later fix, against the owner's
+///       "nothing should wait forever".
+///  The check is the file's own type,
+///  read without following a link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // mkfifo(a); exchange(contentOf(j), a); markOwnerDead(j); race(reap(), sleep(10)) // the reap must win
+/// ```
+#[test]
+fn a_journal_holding_a_fifo_never_waits_and_is_kept() {
+    let fixture_tree: Tree = tree("install-reap-fifo");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    let journal: PathBuf = prepared[0].journal.clone();
+    let destination: PathBuf = fixture_tree.top.join("a.txt");
+    // Another command puts a FIFO where the corrected file is, and the swap moves it into the journal.
+    std::fs::remove_file(&destination).expect("remove the file");
+    let made: std::process::Output = std::process::Command::new("mkfifo")
+        .arg(&destination)
+        .output()
+        .expect("mkfifo runs");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    super::exchange(content_of(journal.as_path()).as_path(), &destination).expect("the swap");
+    let displaced: std::fs::FileType = std::fs::symlink_metadata(content_of(journal.as_path()))
+        .expect("the displaced entry")
+        .file_type();
+    assert!(!displaced.is_file(), "the control needs a non-regular entry");
+    mark_writer_dead(journal.as_path());
+    // The sweep runs on another thread, so a sweep that blocks cannot hold this control for ever.
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<String>>();
+    let git_dir: PathBuf = fixture_tree.root.clone();
+    let _sweeper = std::thread::spawn(move || {
+        let mut noticed: Vec<String> = Vec::new();
+        reap_interrupted_installs(git_dir.as_path(), &mut noticed);
+        // A receiver that is gone means the control already failed; nobody is left to tell.
+        let _sent = sender.send(noticed);
+    });
+    let notices: Vec<String> = match receiver.recv_timeout(std::time::Duration::from_secs(10)) {
+        Ok(found) => found,
+        Err(_) => panic!("the sweep opened the FIFO and never returned"),
+    };
+    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays: {notices:?}");
+    assert!(
+        notices.iter().any(|notice| return notice.contains("cli-git-direct-fix-")),
+        "{notices:?}"
+    );
+    remove(fixture_tree.root.as_path());
+}

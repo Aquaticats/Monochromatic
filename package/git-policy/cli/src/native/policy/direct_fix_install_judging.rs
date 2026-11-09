@@ -135,16 +135,62 @@ pub(crate) fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 /// const holdsExactly = (path, bytes, kept, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' && equal(s.bytes, bytes) && s.kept.mode === kept.mode && s.kept.uid === kept.uid && s.kept.gid === kept.gid; };
 /// ```
 pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) -> Result<bool, String> {
-    let found: SiteState = state_of(path, step)?;
-    let SiteState::File {
-        bytes: held,
-        kept: carried,
-    } = found
-    else {
+    let Some((held, carried)) = regular_file(path, step)? else {
         return Ok(false);
     };
-    if carried.mode != kept.mode || carried.uid != kept.uid || carried.gid != kept.gid {
+    if carried != *kept {
         return Ok(false);
     }
     return Ok(held.as_slice() == bytes);
+}
+
+/// What:
+///  Whether the name holds a regular file whose digest is `digest`,
+///  with these permission bits and
+///       this owner,
+///  never following a symbolic link.
+/// Why:
+///   A record keeps a digest instead of the bytes,
+///  and a digest alone would take a file the person saved
+///       with the correction's own bytes - or narrowed to `0600` - for the fix's own.
+///  The bits,
+///  the
+///       owner and the kind are part of whose file it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsDigest = (path, digest, kept, step) => { const f = regularFile(path, step); return f !== undefined && sameKept(f.kept, kept) && digestOf(f.bytes) === digest; };
+/// ```
+pub(crate) fn holds_digest(path: &Path, digest: &str, kept: &Kept, step: &str) -> Result<bool, String> {
+    let Some((held, carried)) = regular_file(path, step)? else {
+        return Ok(false);
+    };
+    if carried != *kept {
+        return Ok(false);
+    }
+    return Ok(crate::direct_fix_install_journal::digest_of(held.as_slice()) == digest);
+}
+
+/// What:
+///  The bytes and the attributes of the regular file at `path`,
+///  or nothing when the name holds no
+///       regular file.
+/// Why:
+///   Every judgement of this route reads a name the same way:
+///  the type first,
+///  never through a link,
+///  and
+///       the bytes only once the name is known to be a regular file,
+///  so a FIFO or a device at the name is never
+///       opened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const regularFile = (path, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' ? s : undefined; };
+/// ```
+fn regular_file(path: &Path, step: &str) -> Result<Option<(Vec<u8>, Kept)>, String> {
+    return match state_of(path, step)? {
+        SiteState::File { bytes, kept } => Ok(Some((bytes, kept))),
+        SiteState::Absent | SiteState::NotAFile => Ok(None),
+    };
 }
