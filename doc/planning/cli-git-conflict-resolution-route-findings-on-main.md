@@ -536,6 +536,11 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   which is the attribute source talking,
   not the markers;
   the input is in "Withdrawn by measurement" because it does not support the finding it first suggested.
+- A file whose last line has no newline on one side (`trailing-newline`):
+  left as Git's conflict.
+- Both sides changing the whitespace between words differently (`tab-and-space`):
+  left as Git's conflict;
+  the pass does not choose one side's spacing.
 - A path that is a symbolic link (`symlink`):
   never a candidate,
   because the stages' modes are not a plain file's
