@@ -31,6 +31,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  type CommandAnswer,
   type ConnectionToPi,
   type PiRecord,
   startConnectionToPi,
@@ -61,6 +62,12 @@ const ESCALATION_GRACE_MILLISECONDS = 1_500;
 const ANSWER_MILLISECONDS = 60_000;
 /** Milliseconds to wait for an answer that will never come, far below the bound the driver ships. */
 const SHORT_ANSWER_MILLISECONDS = 50;
+/**
+ Milliseconds of silence a wait allows in the tests where Pi reports a compaction while the wait runs. It is far above the time
+ the stand-in takes to read the command and report the compaction, so a busy host cannot spend it on that read, and far below
+ the compaction the scenarios play, so a wait that counted the compaction as silence would end mid-way through it.
+ */
+const COMPACTION_BOUND_MILLISECONDS = 300;
 /** Milliseconds between looks at what a test waits for. */
 const LOOK_MILLISECONDS = 20;
 /**
@@ -136,11 +143,63 @@ async function sendTo(
     readonly answerMilliseconds?: number;
     readonly deadline?: number;
   },
-): Promise<PiRecord> {
+): Promise<CommandAnswer> {
   return await connection.send({
     ...request,
     deadline: request.deadline ?? (Date.now() + ANSWER_MILLISECONDS),
   },);
+}
+
+/**
+ Pi's own record, which a test asserting on an answer expects.
+
+ @param answer - how waiting for the answer ended
+
+ @returns Pi's response record
+
+ @throws when the driver's own bound ended the wait instead
+ */
+function answeredRecord(answer: CommandAnswer,): PiRecord {
+  if (answer.ending !== 'answered') {
+    throw new Error(`Pi answered nothing; the wait ended as ${answer.ending}: ${answer.problem}`,);
+  }
+  return answer.record;
+}
+
+/**
+ What the driver named for ending a wait, which a test expecting no answer asserts on.
+
+ @param answer - how waiting for the answer ended
+
+ @returns the driver's words for it
+
+ @throws when Pi answered instead
+ */
+function problemOf(answer: CommandAnswer,): string {
+  if (answer.ending === 'answered') {
+    throw new Error('Pi answered, so no bound is named',);
+  }
+  return answer.problem;
+}
+
+/**
+ What Pi reported of a compaction the wait spanned.
+
+ @param answer - how waiting for the answer ended
+
+ @returns the compaction's own words, or nothing when Pi named none
+
+ @throws when Pi answered instead
+ */
+function compactionProblemOf(answer: CommandAnswer,): string {
+  if (answer.ending === 'answered') {
+    throw new Error('Pi answered, so no compaction is recorded',);
+  }
+  const { compactionProblem } = answer;
+  if (compactionProblem === undefined) {
+    throw new Error(`no compaction was recorded; the wait ended as ${answer.ending}: ${answer.problem}`,);
+  }
+  return compactionProblem;
 }
 
 /**
@@ -310,7 +369,7 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'normal', },);
         const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
-        expect(answer.success,).toBe(true,);
+        expect(answeredRecord(answer,).success,).toBe(true,);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.hasExited(),).toBe(true,);
@@ -328,7 +387,7 @@ await describe({
           },
           answerMilliseconds: ANSWER_MILLISECONDS,
         },);
-        expect(answer.success,).toBe(true,);
+        expect(answeredRecord(answer,).success,).toBe(true,);
       },
     },),
     it({
@@ -342,32 +401,38 @@ await describe({
         expect(answer.ending,).toBe('silence',);
         // The answer that named no bound, or Pi's own leaving, would be a different text; this one proves the bound asked for
         // was the bound used, whatever the host's schedule made of the two timers.
-        expect(answer.problem,).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
+        expect(problemOf(answer,),).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
       },
     },),
     it({
       name: 'a compaction under way is not silence, so the wait outlives the bound asked for and still takes the answer',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'compaction-then-answer', },);
+        // One command first, so the stand-in is up before the bound starts: a bound this short would otherwise be spent on
+        // the stand-in's own start-up, which is not what this test is about.
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const started = Date.now();
         const answer = await sendTo(opened.connection, {
           command: {
             type: 'prompt',
             message: 'hello',
           },
-          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+          answerMilliseconds: COMPACTION_BOUND_MILLISECONDS,
           deadline: started + ANSWER_MILLISECONDS,
         },);
         expect(answer.ending,).toBe('answered',);
-        expect(answer.record?.success,).toBe(true,);
+        expect(answeredRecord(answer,).success,).toBe(true,);
         // The compaction held the answer past the bound, which is what proves the bound stopped counting while Pi compacted.
-        expect(Date.now() - started,).toBeGreaterThan(COMPACTION_MILLISECONDS,);
+        expect(Date.now() - started,).toBeGreaterThan(COMPACTION_BOUND_MILLISECONDS,);
       },
     },),
     it({
       name: 'a compaction that never ends is ended by the deadline, and the answer names the compaction it waited on',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'compaction-never-ends', },);
+        // One command first, so the stand-in is up and its compaction is under way before the deadline starts: a deadline this
+        // short would otherwise be spent on the stand-in's own start-up, which is not what this test is about.
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const started = Date.now();
         const answer = await sendTo(opened.connection, {
           command: {
@@ -377,8 +442,8 @@ await describe({
           deadline: started + COMPACTION_MILLISECONDS,
         },);
         expect(answer.ending,).toBe('deadline',);
-        expect(answer.problem,).toContain('compacting',);
-        expect(answer.compactionProblem,).toContain('compacting',);
+        expect(problemOf(answer,),).toContain('compacting',);
+        expect(compactionProblemOf(answer,),).toContain('compacting',);
         // The wall bound the caller gave is the one that ended it, not the far longer silence bound the driver ships.
         expect(Date.now() - started,).toBeLessThan(ANSWER_MILLISECONDS / 2,);
       },
@@ -387,18 +452,21 @@ await describe({
       name: 'a failed compaction is named in the answer that stops waiting, and the silence bound still ends that wait',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'compaction-fails', },);
+        // One command first, so the stand-in is up before the bound starts: a bound this short would otherwise be spent on
+        // the stand-in's own start-up, which is not what this test is about.
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
         const started = Date.now();
         const answer = await sendTo(opened.connection, {
           command: {
             type: 'prompt',
             message: 'hello',
           },
-          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+          answerMilliseconds: COMPACTION_BOUND_MILLISECONDS,
           deadline: started + ANSWER_MILLISECONDS,
         },);
         expect(answer.ending,).toBe('silence',);
-        expect(answer.problem,).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
-        expect(answer.compactionProblem,).toContain(COMPACTION_FAILURE_TEXT,);
+        expect(problemOf(answer,),).toBe(`no answer in ${String(COMPACTION_BOUND_MILLISECONDS,)} ms`,);
+        expect(compactionProblemOf(answer,),).toContain(COMPACTION_FAILURE_TEXT,);
         // The bound is measured from the end of the compaction, so the wait outlives the compaction and then some.
         expect(Date.now() - started,).toBeGreaterThan(COMPACTION_MILLISECONDS,);
       },
@@ -408,10 +476,11 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'exits-silently', },);
         const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
-        expect(answer.error,).toBe('pi exited',);
+        expect(answer.ending,).toBe('pi-exited',);
+        expect(problemOf(answer,),).toBe('pi exited',);
         expect(opened.connection.exitDetails().code,).toBe(3,);
         const later = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
-        expect(later.error,).toBe('pi exited',);
+        expect(later.ending,).toBe('pi-exited',);
         opened.connection.write({ type: 'get_state', },);
       },
     },),
@@ -457,7 +526,7 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'odd-lines', },);
         const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
-        expect(answer.success,).toBe(true,);
+        expect(answeredRecord(answer,).success,).toBe(true,);
         expect(opened.heard.unreadable,).toEqual(['[1]',],);
         expect(opened.heard.events,).toEqual([{ type: 'response', id: 7, },],);
       },
@@ -467,7 +536,8 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'normal', withoutPi: true, },);
         const answer = await sendTo(opened.connection, { command: { type: 'get_state', }, },);
-        expect(answer.error,).toBe('pi exited',);
+        expect(answer.ending,).toBe('pi-exited',);
+        expect(problemOf(answer,),).toBe('pi exited',);
         expect(String(opened.connection.exitDetails().processError,),).toContain('ENOENT',);
       },
     },),

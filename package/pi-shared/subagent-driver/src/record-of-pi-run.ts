@@ -241,6 +241,7 @@ export function startRecordOfPiRun({
       piExit,
       piHasExited,
       sessionStats,
+      compactionProblem,
     },) {
       return {
         endReason,
@@ -261,6 +262,7 @@ export function startRecordOfPiRun({
         },),
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
+        ...(compactionProblem === undefined ? {} : { compactionProblem, }),
       };
     },
     close: feed.close,

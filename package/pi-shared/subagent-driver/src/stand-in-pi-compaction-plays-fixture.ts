@@ -14,10 +14,10 @@ import {
 } from './stand-in-pi-records-fixture.ts';
 
 /**
- Milliseconds a compaction takes in the scenarios that finish one, far above the answer bound a test asks for, so a wait that
- never noticed the compaction would end long before the answer comes.
+ Milliseconds a compaction takes in the scenarios that finish one, far above the silence bound a test asks for and far above the
+ time the stand-in takes to report a compaction, so a wait that counted the compaction as silence would end mid-way through it.
  */
-export const COMPACTION_MILLISECONDS = 400;
+export const COMPACTION_MILLISECONDS = 1_000;
 
 /**
  Why Pi begins these compactions: the session is over the part of its model's window Pi keeps for a reply, which is the reason
@@ -50,24 +50,33 @@ function emitFinishedCompaction(): void {
 }
 
 /**
- Compacts, then answers the prompt the compaction held, then finishes the run with a reply.
+ Finishes the compaction and answers the prompt it held, once the compaction has run its course.
+
+ @param id - command's identifier
+ */
+async function finishCompactionAndAnswer(id: unknown,): Promise<void> {
+  await wait(COMPACTION_MILLISECONDS,);
+  emitFinishedCompaction();
+  answer({ id, },);
+  finishRun('done',);
+}
+
+/**
+ Compacts, leaving the prompt to be answered once the compaction ends.
 
  @param id - command's identifier
 
  @example
  ```ts
- void compactThenAnswer('c1',);
+ compactThenAnswer('c1',);
  ```
  */
-export async function compactThenAnswer(id: unknown,): Promise<void> {
+export function compactThenAnswer(id: unknown,): void {
   emit({
     type: 'compaction_start',
     reason: THRESHOLD_REASON,
   },);
-  await wait(COMPACTION_MILLISECONDS,);
-  emitFinishedCompaction();
-  answer({ id, },);
-  finishRun('done',);
+  void finishCompactionAndAnswer(id,);
 }
 
 /**
@@ -78,7 +87,7 @@ export async function compactThenAnswer(id: unknown,): Promise<void> {
  void startCompactionNeverEnding();
  ```
  */
-export async function startCompactionNeverEnding(): Promise<void> {
+export function startCompactionNeverEnding(): void {
   emit({
     type: 'compaction_start',
     reason: THRESHOLD_REASON,
@@ -86,19 +95,11 @@ export async function startCompactionNeverEnding(): Promise<void> {
 }
 
 /**
- Compacts, fails, and answers nothing more: the session cannot be summarised, so the model window is still overfull when the
- prompt would reach it.
+ Reports the failed compaction, once it has run its course.
 
- @example
- ```ts
- void failCompactionThenStaySilent();
- ```
+ @param id - command's identifier, which is never answered
  */
-export async function failCompactionThenStaySilent(): Promise<void> {
-  emit({
-    type: 'compaction_start',
-    reason: THRESHOLD_REASON,
-  },);
+async function failAfterWaiting(id: unknown,): Promise<void> {
   await wait(COMPACTION_MILLISECONDS,);
   emit({
     type: 'compaction_end',
@@ -107,16 +108,46 @@ export async function failCompactionThenStaySilent(): Promise<void> {
     willRetry: false,
     errorMessage: COMPACTION_FAILURE_TEXT,
   },);
+  // Pi says nothing more: the session cannot be summarised, so its prompt is never taken.
+  void id;
+}
+
+/**
+ Compacts, fails, and answers nothing more: the session cannot be summarised, so the model window is still overfull when the
+ prompt would reach it.
+
+ @param id - command's identifier, which is never answered
+
+ @example
+ ```ts
+ failCompactionThenStaySilent('c1',);
+ ```
+ */
+export function failCompactionThenStaySilent(id: unknown,): void {
+  emit({
+    type: 'compaction_start',
+    reason: THRESHOLD_REASON,
+  },);
+  void failAfterWaiting(id,);
 }
 
 /**
  What each compaction scenario does with a prompt, by scenario name.
  */
-export const compactionPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Map<
+export const compactionPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<
   string,
-  (id: unknown,) => Promise<void>
->([
-  ['compaction-then-answer', compactThenAnswer,],
-  ['compaction-never-ends', startCompactionNeverEnding,],
-  ['compaction-fails', failCompactionThenStaySilent,],
-],);
+  (id: unknown,) => void
+  >([
+    [
+      'compaction-then-answer',
+      compactThenAnswer,
+    ],
+    [
+      'compaction-never-ends',
+      startCompactionNeverEnding,
+    ],
+    [
+      'compaction-fails',
+      failCompactionThenStaySilent,
+    ],
+  ],);

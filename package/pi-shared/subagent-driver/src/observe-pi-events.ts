@@ -26,11 +26,13 @@ import {
 } from './read-pi-fields.ts';
 
 /**
- The events worth a feed line of their own detail.
+ The events worth a feed line of their own detail: a compaction of the session, how it ended, and the other waits a run makes a
+ reader sit through.
  */
 const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set([
   'auto_retry_start',
   'compaction_start',
+  'compaction_end',
   'queue_update',
 ],);
 

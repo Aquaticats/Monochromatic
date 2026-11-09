@@ -107,7 +107,7 @@ export async function playPrompt(id: unknown,): Promise<void> {
   const compactionPlay = compactionPlays.get(scenario,);
   if (compactionPlay !== undefined) {
     // Not awaited: Pi answers other commands while its compaction runs, so the stand-in must go on reading them.
-    void compactionPlay(id,);
+    compactionPlay(id,);
     return;
   }
   /**

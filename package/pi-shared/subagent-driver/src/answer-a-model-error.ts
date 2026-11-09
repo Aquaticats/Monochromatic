@@ -7,11 +7,12 @@
 
 import { MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS, } from './driver-constants.ts';
 import type {
+  CommandAnswer,
+  RecordOfPiRun,
   RetryTaken,
   RunProgress,
 } from './driver-types.ts';
 import {
-  answerMillisecondsBefore,
   millisecondsLeftUntil,
 } from './deadline.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
@@ -95,7 +96,7 @@ async function answerWithAnotherAttempt(
    */
   const attempt = taken + 1;
   /**
-   Pi's answer, waited for only as long as the run has left.
+   Pi's answer, waited for within the run's own deadline.
    */
   const answer = await watch.connection
     .send({
@@ -103,7 +104,7 @@ async function answerWithAnotherAttempt(
         type: 'prompt',
         message: continuationPromptOf({ problem, },),
       },
-      answerMilliseconds: answerMillisecondsBefore(watch.deadline,),
+      deadline: watch.deadline,
     },);
   // The attempt is counted here rather than when it was scheduled: a wait the wall clock, the stop file or Pi's exit cuts short
   // leaves a model error standing with no attempt behind it, and the summary must not name an attempt nobody made.
@@ -123,30 +124,91 @@ async function answerWithAnotherAttempt(
       answersBefore,
     },);
   /**
-   What Pi did with the prompt.
+   What Pi did with the prompt, or what the driver's own bound named instead.
    */
-  const { disposition, } = fieldsOf(answer.data,);
-  watch.record
-    .note({
-      kind: 'retry_prompt',
-      success: answer.success,
-      disposition,
-      error: answer.error ?? null,
-    },);
+  const disposition = noteRetryAnswer({
+    answer,
+    record: watch.record,
+  },);
   delete retry.owed;
   retry.settlesAtAttempt = settlesBefore;
-  if (answer.success === false) {
-    if (millisecondsLeftUntil(watch.deadline,) === 0) {
-      return 'wall-clock';
-    }
-    return watch.connection
-      .hasExited() ? 'pi-exited' : 'prompt-rejected';
+  if (answer.ending === 'deadline') {
+    return 'wall-clock';
+  }
+  if (answer.ending === 'pi-exited') {
+    return 'pi-exited';
+  }
+  /**
+   Whether Pi refused the prompt itself, or the driver's own silence bound ended the wait.
+   */
+  if ((answer.ending === 'silence') || (answeredRefusal(answer,))) {
+    // Pi refused nothing when the driver's own bound ended the wait, which the run's deadline may be what brought on.
+    return (millisecondsLeftUntil(watch.deadline,) === 0) ? 'wall-clock' : 'prompt-rejected';
   }
   if (disposition === 'handled') {
     watch.record
       .countHandledPrompt();
   }
   return 'still-running';
+}
+
+/**
+ Tells whether Pi refused the prompt itself.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns whether Pi answered with a refusal
+ */
+function answeredRefusal(answer: CommandAnswer,): boolean {
+  if (answer.ending !== 'answered') {
+    return false;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  return record.success === false;
+}
+
+/**
+ Notes on the feed what Pi made of the retry prompt, including the bound that ended the wait when Pi answered nothing.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @param record - run's record
+
+ @returns what Pi said it did with the prompt, which is nothing when Pi said nothing at all
+ */
+function noteRetryAnswer({
+  answer,
+  record,
+}: {
+  readonly answer: CommandAnswer;
+  readonly record: RecordOfPiRun
+},): unknown {
+  if (answer.ending !== 'answered') {
+    record.note({
+      kind: 'retry_prompt',
+      success: false,
+      error: answer.problem,
+    },);
+    return undefined;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record: answered } = answer;
+  /**
+   What Pi did with the prompt.
+   */
+  const { disposition, } = fieldsOf(answered.data,);
+  record.note({
+    kind: 'retry_prompt',
+    success: answered.success ?? false,
+    disposition,
+    error: answered.error ?? null,
+  },);
+  return disposition;
 }
 
 /**
