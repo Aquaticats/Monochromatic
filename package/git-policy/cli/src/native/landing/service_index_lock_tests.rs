@@ -202,6 +202,7 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     ///  takes the whole interval (10 s),
     /// so a fifth sits between the two by a factor of five either way.
     const WAKE_WITHIN: Duration = Duration::from_secs(2);
+    assert_eq!(WAKE_WITHIN * 5, NOTICE_EVERY, "the bound stays a fifth of the interval that repeats the holder's line");
     let (root, index) = index_in("index-lock-wait");
     let foreign: PathBuf = lock_path_of(&index);
     std::fs::write(&foreign, "foreign").expect("foreign lock");
@@ -215,18 +216,18 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
     // Whether the foreign lock stood at each placement, in the order the placements were made.
     let met: Mutex<Vec<bool>> = Mutex::new(Vec::new());
-    let counting = |from: &Path, to: &Path| -> std::io::Result<()> {
+    let noting = |from: &Path, to: &Path| -> std::io::Result<()> {
         met.lock().expect("lock").push(foreign.exists());
         return rename_noreplace(from, to);
     };
-    let platform: Platform = Platform { rename: &counting, ..SYSTEM };
+    let platform: Platform = Platform { rename: &noting, ..SYSTEM };
     // When the wait said what it waits for: the interval its own reminder is counted in begins there, after the staging.
     let said_at: Mutex<Option<Instant>> = Mutex::new(None);
     let lock = acquire_on(&platform, &index, 2, &|note| {
         {
-            let mut first = said_at.lock().expect("lock");
-            if first.is_none() {
-                *first = Some(Instant::now());
+            let mut when = said_at.lock().expect("lock");
+            if when.is_none() {
+                *when = Some(Instant::now());
                 let _sent = looked.send(());
             }
         }
@@ -240,7 +241,6 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
     // The holder let go a hold after the wait's line, so a wait that returned before the foreign lock was gone is caught by the placements and here.
     let since_said: Duration = said.expect("the wait said what it waits for").elapsed();
-    assert_eq!(WAKE_WITHIN * 5, NOTICE_EVERY, "the bound stays a fifth of the interval that repeats the holder's line");
     assert!(since_said >= HOLD, "the wait returned before the hold it was told to keep: {since_said:?}");
     assert!(since_said < WAKE_WITHIN, "the wake came {since_said:?} after the line, so it was the reminder's timer and not the removal");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(2));
