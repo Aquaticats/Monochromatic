@@ -20,10 +20,10 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
-  extractTypeFromAttributes,
   extractTypeFromOptions,
   getStringLiteralValue,
   NO_ATTR_TYPE,
+  staticDeclAttrType,
 } from './ast-extract.ts';
 
 //region Logger
@@ -144,13 +144,11 @@ export async function scanImporterForAttribute({
     ImportDeclaration(node: ForeignBorrowed<ESTree.ImportDeclaration>,): void {
       if (found !== NO_ATTR_TYPE)
         return;
-      if ((node.source
+      if (node.source
         .value
-        !== specifier) || (node.attributes
-          .length
-          === 0))
+        !== specifier)
         return;
-      found = extractTypeFromAttributes(node.attributes,);
+      found = staticDeclAttrType(node.attributes,);
     },
 
     ExportNamedDeclaration(node: ForeignBorrowed<ESTree.ExportNamedDeclaration>,): void {
@@ -160,26 +158,19 @@ export async function scanImporterForAttribute({
         === null)
         || (node.source
           .value
-          !== specifier)
-        || (node.attributes
-          .length
-          === 0))
-        {
+          !== specifier))
         return;
-      }
-      found = extractTypeFromAttributes(node.attributes,);
+      found = staticDeclAttrType(node.attributes,);
     },
 
     ExportAllDeclaration(node: ForeignBorrowed<ESTree.ExportAllDeclaration>,): void {
       if (found !== NO_ATTR_TYPE)
         return;
-      if ((node.source
+      if (node.source
         .value
-        !== specifier) || (node.attributes
-          .length
-          === 0))
+        !== specifier)
         return;
-      found = extractTypeFromAttributes(node.attributes,);
+      found = staticDeclAttrType(node.attributes,);
     },
 
     ImportExpression(node: ForeignBorrowed<ESTree.ImportExpression>,): void {

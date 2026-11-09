@@ -33,10 +33,12 @@ import {
   resolve,
 } from 'node:path';
 import type {
+  LoadResult,
   Plugin,
   PluginContext,
   ResolveIdExtraOptions,
   ResolveIdResult,
+  TransformResult,
 } from 'rolldown';
 
 import { NO_ATTR_TYPE, } from './ast-extract.ts';
@@ -92,7 +94,7 @@ function filePathOf(id: string,): string {
  
  @param specifier - specifier to resolve, already stripped of any attribute query
  
- @param importer - importing module, or `undefined` for an entry
+ @param importer - importing module; absent when rolldown reports an entry module
  
  @param attrType - attribute type encoded into the resolved ID
  
@@ -121,7 +123,7 @@ async function resolveTaggedSpecifier({
 }: {
   readonly context: PluginContext;
   readonly specifier: string;
-  readonly importer: string | undefined;
+  readonly importer?: string;
   readonly attrType: string;
   readonly options: ResolveIdExtraOptions;
 },): Promise<ResolveIdResult> {
@@ -205,7 +207,7 @@ function importAttributesPlugin(): Plugin {
     transform(
       code,
       id,
-    ): { code: string; } | null {
+    ): TransformResult {
       /**
        Transformed module, or {@link NO_TRANSFORM} when no attribute clause was present.
        */
@@ -242,10 +244,13 @@ function importAttributesPlugin(): Plugin {
        */
       const queryAttrType = extractAttrType(source,);
       if (queryAttrType !== NO_QUERY_ATTR) {
+        /**
+         Tagged specifier: the transform already decided the type, so only resolution and relative fallback remain.
+         */
         return await resolveTaggedSpecifier({
           context: this,
           specifier: stripAttrQuery(source,),
-          importer,
+          ...(importer === undefined ? {} : { importer, }),
           attrType: queryAttrType,
           options,
         },);
@@ -284,7 +289,7 @@ function importAttributesPlugin(): Plugin {
      {@link NO_QUERY_ATTR}) by reading the file and passing its content
      through the registered {@link HANDLERS} handler.
      */
-    async load(id,): Promise<{ code: string; } | null> {
+    async load(id,): Promise<LoadResult> {
       /**
        Attribute type encoded in the requested ID; absent IDs are left to other loaders.
        */
@@ -350,6 +355,7 @@ export {
   getStringLiteralValue,
   NO_ATTR_TYPE,
   NON_STRING_NODE,
+  staticDeclAttrType,
 } from './ast-extract.ts';
 
 /**

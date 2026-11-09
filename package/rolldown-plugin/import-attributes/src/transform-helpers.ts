@@ -5,6 +5,7 @@
  */
 
 import type { ESTree, } from 'rolldown/utils';
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { ATTR_QUERY_KEY, } from './patterns.ts';
 
@@ -101,6 +102,9 @@ function skipComment({
   readonly idx: number;
 },): number {
   if (code.startsWith('/*', idx,)) {
+    /**
+     Offset of the block comment's closing `*\/`; -1 means it never closes.
+     */
     const blockEnd = code.indexOf(
       '*/',
       idx + 2,
@@ -108,6 +112,9 @@ function skipComment({
     return blockEnd === (-1) ? code.length : blockEnd + 2;
   }
   if (code.startsWith('//', idx,)) {
+    /**
+     Offset of the newline that ends the line comment; -1 means it runs to the end of the source.
+     */
     const lineEnd = code.indexOf(
       '\n',
       idx + 2,
@@ -138,29 +145,31 @@ function skipClauseGap({
   readonly code: string;
   readonly idx: number;
 },): number {
-  /**
-   Cursor advanced past one gap segment per iteration until none starts here.
-   */
-  let cursor = idx;
-  for (;;) {
+  return (function scan(): number {
     /**
-     Position past a whitespace run starting at the cursor.
+     Cursor advanced past one gap segment per iteration until none starts here.
      */
-    const afterWhitespace = skipWithClauseWhitespace({
-      s: code,
-      idx: cursor,
-    },);
-    /**
-     Position past a comment starting where the whitespace run stopped.
-     */
-    const afterComment = skipComment({
-      code,
-      idx: afterWhitespace,
-    },);
-    if (afterComment === afterWhitespace)
-      return afterWhitespace;
-    cursor = afterComment;
-  }
+    let cursor = idx;
+    for (;;) {
+      /**
+       Position past a whitespace run starting at the cursor.
+       */
+      const afterWhitespace = skipWithClauseWhitespace({
+        s: code,
+        idx: cursor,
+      },);
+      /**
+       Position past a comment starting where the whitespace run stopped.
+       */
+      const afterComment = skipComment({
+        code,
+        idx: afterWhitespace,
+      },);
+      if (afterComment === afterWhitespace)
+        return afterWhitespace;
+      cursor = afterComment;
+    }
+  })();
 }
 
 /**
@@ -220,30 +229,32 @@ function findWithClauseEnd({
   readonly code: string;
   readonly afterLastAttr: number;
 },): number {
-  /**
-   Cursor walked right through the gap after the last attribute; a comment it
-   enters is skipped whole, so the braces it holds are never read as the end.
-   */
-  let cursor = afterLastAttr;
-  while (cursor < code
-    .length) {
+  return (function scan(): number {
     /**
-     Position past a comment starting at the cursor, or the cursor itself when none starts there.
+     Cursor walked right through the gap after the last attribute; a comment it
+     enters is skipped whole, so the braces it holds are never read as the end.
      */
-    const commentEnd = skipComment({
-      code,
-      idx: cursor,
-    },);
-    if (commentEnd !== cursor) {
-      cursor = commentEnd;
-      continue;
+    let cursor = afterLastAttr;
+    while (cursor < code
+      .length) {
+      /**
+       Position past a comment starting at the cursor, or the cursor itself when none starts there.
+       */
+      const commentEnd = skipComment({
+        code,
+        idx: cursor,
+      },);
+      if (commentEnd !== cursor) {
+        cursor = commentEnd;
+        continue;
+      }
+      if (code.charAt(cursor,)
+        === '}')
+        return cursor + 1;
+      cursor += 1;
     }
-    if (code.charAt(cursor,)
-      === '}')
-      return cursor + 1;
-    cursor += 1;
-  }
-  return code.length + 1;
+    return code.length + 1;
+  })();
 }
 
 //endregion Clause scanning
@@ -273,12 +284,12 @@ export function collectStaticReplacements({
   attributes,
   attrType,
   code,
-}: {
-  readonly source: ESTree.StringLiteral;
-  readonly attributes: readonly ESTree.ImportAttribute[];
-  readonly attrType: string;
-  readonly code: string;
-},): readonly Replacement[] {
+}: ForeignBorrowed<Readonly<{
+  source: ESTree.StringLiteral;
+  attributes: readonly ESTree.ImportAttribute[];
+  attrType: string;
+  code: string;
+}>>,): readonly Replacement[] {
   /**
    Text of the specifier literal spanning both quotes, escape sequences
    exactly as the source spelled them.

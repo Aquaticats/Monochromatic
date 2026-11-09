@@ -121,7 +121,7 @@ await describe({
          loaded this module on the plugin's behalf.
          */
         expect(code,).not.toContain(ATTR_QUERY_KEY,);
-        expect(code,).not.toMatch(/\bwith\s*\{/u,);
+        expect(code,).not.toContain('with',);
         /**
          The entry reaches the following plugin byte-identical to its file.
          */
