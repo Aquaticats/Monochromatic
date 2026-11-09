@@ -118,28 +118,38 @@ fn committed(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// The proof accepts a worktree that equals its commit and names each way it does not.
+/// The proof accepts a worktree that equals its commit,
+/// a carried ignored path,
+/// and names each way it does not.
 #[test]
 fn the_proof_accepts_what_gits_checkout_leaves_and_names_what_it_does_not() {
     let root: PathBuf = crate::test_support::fixture("restore-proof");
     let repo: PathBuf = committed(root.as_path());
     let target: Target = target_of(repo.as_path());
-    assert_eq!(prove_restored(&git_context(), &target, repo.as_path()), Ok(()), "positive control");
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), &[]), Ok(()), "positive control");
     std::fs::write(repo.join("untracked.txt"), b"u").expect("untracked");
-    let untracked: String = prove_restored(&git_context(), &target, repo.as_path()).expect_err("an untracked file");
+    let untracked: String = prove_restored(&git_context(), &target, repo.as_path(), &[]).expect_err("an untracked file");
     assert!(untracked.contains("untracked.txt") && untracked.contains("still untracked"), "{untracked}");
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), &[b"untracked.txt".to_vec()]), Ok(()), "the same file is carried");
+    std::fs::create_dir(repo.join("cache")).expect("ignored directory");
+    std::fs::write(repo.join("cache/data.bin"), b"d").expect("ignored file");
+    assert!(prove_restored(&git_context(), &target, repo.as_path(), &[b"untracked.txt".to_vec()]).expect_err("a file inside an ignored directory").contains("cache"), "a carried directory's name is not the name of a file in it");
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), &[b"untracked.txt".to_vec(), b"cache/".to_vec()]), Ok(()), "a carried directory covers what it holds");
+    std::fs::remove_dir_all(repo.join("cache")).expect("remove");
     std::fs::remove_file(repo.join("untracked.txt")).expect("remove");
     git(repo.as_path(), &["rm", "--cached", "--quiet", "a.txt"]);
-    assert!(prove_restored(&git_context(), &target, repo.as_path()).expect_err("a staged deletion").contains("index"));
+    assert!(prove_restored(&git_context(), &target, repo.as_path(), &[]).expect_err("a staged deletion").contains("index"));
     git(repo.as_path(), &["add", "a.txt"]);
     std::fs::write(repo.join("a.txt"), b"changed\n").expect("edit");
-    assert!(prove_restored(&git_context(), &target, repo.as_path()).expect_err("an edit").contains("differs"));
+    assert!(prove_restored(&git_context(), &target, repo.as_path(), &[]).expect_err("an edit").contains("differs"));
     remove(root.as_path());
 }
 
-/// The restore runs `read-tree --reset -u <commit>` through the lifecycle's runner and then a captured `clean --force -d`,
-/// in that
-///  order,
+/// The restore lists the stage's ignored paths,
+/// then runs a captured `clean --force -d`,
+/// then `read-tree --reset -u <commit>`
+///  through the lifecycle's runner,
+/// in that order,
 /// each in the stage under the new worktree's Git directory;
 /// nothing else is run through the runner,
 /// and the `clean`

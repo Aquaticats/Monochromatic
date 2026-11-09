@@ -862,14 +862,30 @@ so the index and the files are one instant and the
 stat data still marks every file that was edited.
 Then,
 in the stage only and before it is swapped in,
-two real-Git steps run under the new worktree's Git directory and the
-stage as work tree:
-`git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
-rewriting exactly the paths whose files or entries differ) and `git clean --force -d` (untracked files that no
-ignore rule covers,
+three real-Git runs under the new worktree's Git directory and the stage as work tree,
+in this order:
+`git ls-files --others --ignored --exclude-standard --directory --no-empty-directory` (the ignored paths the
+stage holds now,
+under the source's own rules,
+each whole ignored directory as one name),
+`git clean --force -d` (untracked files that no ignore rule covers,
 and empty untracked directories,
 go;
-ignored files stay).
+ignored files stay),
+and `git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
+rewriting exactly the paths whose files or entries differ).
+The clean runs before the reset,
+so the rules that decide what goes are the source's,
+and a
+new commit that ignores less than the source (a branch that predates an ignore rule,
+or one that removed it)
+cannot turn a person's ignored cache,
+local configuration or environment file into a file the clean removes.
+Those paths are then carried
+into the new worktree,
+which is the state the ignored-state copy gives the worktree on every filesystem
+that cannot snapshot ("Linked-worktree ignored-state synchronization"),
+and the proof below counts them as carried.
 The `clean` carries no `--quiet` (see "Wrapper output and options",
 the inner runs);
 it is run captured,
@@ -878,11 +894,11 @@ under the same Git directory as the proof below,
 and what it says ("Removing <path>" for each untracked file of the stage) is
 kept in the journal and not printed,
 because those paths belong to a stage the person's command never names.
-These two steps and nothing else are run for the restore.
+These three runs and nothing else are run for the restore.
 The `read-tree` is started as a real Git child by the lifecycle's runner,
 the same path as the `git read-tree -m -u` of a clean
 snapshot,
-and the `clean` the same way as the proof's reads,
+and the `clean` and the listing the same way as the proof's reads,
 so the wrapper's own guards of a person's `reset` and `clean` do not apply to them:
 they act on the wrapper's own
 new snapshot,
@@ -891,7 +907,9 @@ and they refuse to start when the stage is the source's directory or the
 Git directory is the source's.
 The stage is then proven:
 `git diff-index --cached --quiet <new commit>` (the index equals the commit's tree),
-`git ls-files --others --exclude-standard --directory --no-empty-directory` lists nothing,
+`git ls-files --others --exclude-standard --directory --no-empty-directory` lists nothing besides the carried
+the listing named (the same name,
+or a file below a carried directory),
 and `git diff-files --quiet`
 finds no tracked file different from its entry.
 A failed step or a failed proof ends the rung:
@@ -906,7 +924,7 @@ Unless `--quiet` is given,
 a second line follows the snapshot note:
 the uncommitted changes of the main checkout (their number
 of paths) were left out of the new worktree,
-which holds what Git's own checkout holds.
+which holds the committed files and none of the changes.
 The same words go to the journal as one entry of priority `info` under the `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli`,
 with the fields
 `CLI_GIT_WORKTREE`,
