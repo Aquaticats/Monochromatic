@@ -39,14 +39,22 @@ fn arguments(values: &[&str]) -> Vec<OsString> {
     return list;
 }
 
+/// Prepare through real Git with an explicit argument prefix and an extra environment.
+fn prepare_with_prefix(
+    prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+    request: &CandidateRequest,
+) -> Result<PreparedCandidates, CandidateError> {
+    return prepare_candidates(Path::new(REAL_GIT), prefix, overlay, request);
+}
+
 /// Prepare through real Git with `-C directory` and an extra environment.
 fn prepare_with(
     directory: &Path,
     overlay: &[(OsString, OsString)],
     request: &CandidateRequest,
 ) -> Result<PreparedCandidates, CandidateError> {
-    return prepare_candidates(
-        Path::new(REAL_GIT),
+    return prepare_with_prefix(
         &[OsString::from("-C"), directory.as_os_str().to_os_string()],
         overlay,
         request,
@@ -616,6 +624,75 @@ fn staged_at_base_compares_with_the_recorded_base_and_not_the_moved_head() {
     )
     .expect("empty scope");
     assert!(nothing.version.candidates().is_empty());
+    remove(root.as_path());
+}
+
+/// Both staged arms name the paths their own pathspecs name under literal pathspec mode,
+/// from the variable and from the global option:
+/// the listing must read the same pathspec mode the request writes.
+#[test]
+fn staged_arms_name_their_paths_under_literal_pathspec_mode() {
+    let root: PathBuf = fixture("predict-staged-literal");
+    let repo: PathBuf = base(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"tracked, edited\n").expect("edit");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    let before: Vec<u8> = index_bytes(repo.as_path());
+    let scope: Vec<OsString> = vec![OsString::from(":(top,literal)tracked.txt")];
+    let modes: [(&str, Vec<OsString>, Vec<(OsString, OsString)>); 2] = [
+        (
+            "the variable",
+            vec![OsString::from("-C"), repo.as_os_str().to_os_string()],
+            vec![(
+                OsString::from("GIT_LITERAL_PATHSPECS"),
+                OsString::from("1"),
+            )],
+        ),
+        (
+            "the global option",
+            vec![
+                OsString::from("--literal-pathspecs"),
+                OsString::from("-C"),
+                repo.as_os_str().to_os_string(),
+            ],
+            Vec::new(),
+        ),
+    ];
+    for (name, prefix, overlay) in modes {
+        let staged: Vec<(String, CandidateChange)> = listed(
+            &prepare_with_prefix(
+                prefix.as_slice(),
+                overlay.as_slice(),
+                &CandidateRequest::Staged(scope.clone()),
+            )
+            .expect("staged"),
+        );
+        assert_eq!(
+            staged,
+            vec![(String::from("tracked.txt"), CandidateChange::Modified)],
+            "{name}"
+        );
+        let at_base: Vec<(String, CandidateChange)> = listed(
+            &prepare_with_prefix(
+                prefix.as_slice(),
+                overlay.as_slice(),
+                &CandidateRequest::StagedAtBase {
+                    base: None,
+                    pathspecs: scope.clone(),
+                },
+            )
+            .expect("at base"),
+        );
+        assert_eq!(
+            at_base,
+            vec![(String::from("tracked.txt"), CandidateChange::Added)],
+            "{name}"
+        );
+        assert_eq!(
+            index_bytes(repo.as_path()),
+            before,
+            "{name}: the real index is unchanged"
+        );
+    }
     remove(root.as_path());
 }
 
