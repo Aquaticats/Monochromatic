@@ -122,6 +122,25 @@ fn a_gitdir_that_cannot_be_resolved_proves_nothing_about_a_registration() {
     remove(root.as_path());
 }
 
+/// A recorded path is bytes, and the first of them can be a space:
+/// `bind_registration` removes the terminating line feed alone,
+/// so a registration whose `gitdir` begins with a space names the worktree inside the registration,
+/// not the sibling those bytes name once the space is trimmed away.
+#[cfg(unix)]
+#[test]
+fn a_recorded_path_keeps_the_space_it_begins_with() {
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("registration-naming-leading-space");
+    let common: PathBuf = root.join("common");
+    let admin: PathBuf = common.join("worktrees/odd");
+    let destination: PathBuf = admin.join(std::ffi::OsStr::from_bytes(b" \xff"));
+    std::fs::create_dir_all(destination.as_path()).expect("the worktree the registration names");
+    std::fs::write(admin.join("gitdir").as_path(), b" \xff/.git\n").expect("a gitdir recorded relative to the registration");
+    let answer: NamedRegistration = registration_naming(common.as_path(), destination.as_path());
+    assert_eq!(answer, NamedRegistration::Named(admin), "{answer:?}");
+    remove(root.as_path());
+}
+
 /// A registration whose recorded worktree is gone names nothing,
 /// as Git would prune it,
 /// and the destination still exists.

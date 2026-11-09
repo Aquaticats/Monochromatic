@@ -355,6 +355,36 @@ fn a_gitdir_that_cannot_be_resolved_keeps_the_pending_copy() {
     remove(root.as_path());
 }
 
+/// `bind_registration` removes the terminating line feed alone,
+/// so a registration whose `gitdir` begins with a space names the worktree inside the registration,
+/// and a pending copy for that worktree is resumed rather than discarded.
+#[cfg(unix)]
+#[test]
+fn a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy() {
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("recovery-registration-leading-space");
+    let (source, _topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let worktrees: PathBuf = std::fs::canonicalize(common.join("worktrees")).expect("worktrees");
+    let admin: PathBuf = worktrees.join("space");
+    std::fs::create_dir(admin.as_path()).expect("an administrative directory");
+    let destination: PathBuf = admin.join(std::ffi::OsStr::from_bytes(b" \xff"));
+    std::fs::create_dir(destination.as_path()).expect("the worktree the registration names");
+    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display()).as_bytes()).expect("the pointer back to the registration");
+    std::fs::write(admin.join("gitdir"), b" \xff/.git\n").expect("a gitdir recorded relative to the registration");
+    // The pair Git would leave passes the binding every copy is made against, so the space is part of the path it records.
+    let _bound = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("a registration the binding accepts");
+    let pending: PendingJournal = staged_journal(source.as_path(), destination.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1, "{:?}", report.notices);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert_eq!(std::fs::read(destination.join("cache/data")).expect("resumed copy"), b"payload");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(!stage.exists(), "a finished copy takes its stage with it");
+    remove(root.as_path());
+}
+
 /// A `.git` that another command replaced with a named pipe must be answered without waiting:
 /// the pending check runs before every forwarded command,
 /// so a pipe with no writer would stick a command in an unrelated worktree.
