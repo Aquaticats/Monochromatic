@@ -47,7 +47,7 @@ use crate::version::compare_versions;
 /// Imports what this module uses from `super::cargo_installs`.
 use super::across_roots::other_root_forwards_to;
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at_newest, recorded_version};
+use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at, recorded_version};
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
     NamedArchive, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
@@ -394,11 +394,19 @@ pub fn prune_toolchain(
                 // copy (see `managed_losers.rs`): nothing is pruned from it, so its link is not this run's to move.
                 continue;
             }
-            if keeps_a_version(crate_name, &present[crate_name], &planned) {
-                point_current_at_newest(&scope.toolchain_root, crate_name)?;
-            } else {
+            // What: the candidates are the versions of this crate the plan keeps, not every installed version.
+            // Why: the newest installed one may be one this run deletes, because the other toolchain root forwards
+            // to an older one instead (see `across_roots.rs`), and a prune that succeeds must not leave `current`
+            // naming a directory it removed.
+            let kept: Vec<&PresentVersion> =
+                present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
+            if kept.is_empty() {
                 remove_current_link(&scope.toolchain_root, crate_name)?;
+            } else if let Some(newest) = newest_finished(&kept) {
+                point_current_at(&scope.toolchain_root, crate_name, &newest)?;
             }
+            // Nothing finished stays: there is no finished version for the link to name, and another step's link is
+            // left as it is rather than removed on the way to installing one.
         }
     }
     let mut removed: Vec<PathBuf> = Vec::new();
@@ -439,16 +447,35 @@ pub fn prune_toolchain(
 }
 
 /// What:
-/// Whether at least one version of `crate_name` is not one of `removals`.
+/// Whether this run keeps `candidate`, a version of `crate_name`, from `removals`.
 /// Why:
-/// A crate that keeps a version has `current` to point at its newest finished one;
-/// a crate that keeps none must lose the link before the versions it names are deleted.
-fn keeps_a_version(crate_name: &str, versions: &[PresentVersion], removals: &[(String, String, PathBuf)]) -> bool {
-    return versions.iter().any(|candidate| {
-        return !removals.iter().any(|(crate_of_removal, version, _directory)| {
-            return crate_of_removal == crate_name && version == &candidate.version;
-        });
+/// The link decision counts only the versions that stay,
+/// and a removal carries the crate it belongs to.
+fn stays(crate_name: &str, candidate: &PresentVersion, removals: &[(String, String, PathBuf)]) -> bool {
+    return !removals.iter().any(|(crate_of_removal, version, _directory)| {
+        return crate_of_removal == crate_name && version == &candidate.version;
     });
+}
+
+/// What:
+/// The newest finished version of `kept`, or `None` when none of them finished.
+/// Why:
+/// Only a finished version can be what `current` names: an unfinished one is still being written.
+fn newest_finished(kept: &[&PresentVersion]) -> Option<String> {
+    let mut newest: Option<&str> = None;
+    for candidate in kept {
+        if !candidate.finished {
+            continue;
+        }
+        let is_newer: bool = match newest {
+            Some(held) => compare_versions(&candidate.version, held).is_gt(),
+            None => true,
+        };
+        if is_newer {
+            newest = Some(&candidate.version);
+        }
+    }
+    return newest.map(|version| return version.to_string());
 }
 
 /// What:
