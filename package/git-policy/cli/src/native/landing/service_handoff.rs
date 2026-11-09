@@ -26,7 +26,7 @@ use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
 use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What the wrapper knows about a commit the service landed.
 #[derive(Clone, Debug)]
@@ -120,7 +120,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 
 /// What:
 ///  Writes the push record for a branch tip that a command other than a commit moved,
-/// and wakes the service.
+/// before anything asks whether a service can be reached.
 /// Why:
 ///   A merge,
 /// a cherry-pick,
@@ -129,23 +129,43 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 ///  be the first to push.
 /// Only the push is left:
 /// the review and the upkeep belong to a commit.
+///   The record is a directory of this worktree's own Git directory,
+/// so writing it needs no service,
+/// no socket and no session bus,
+/// and a context with no route to the service still leaves the push on disk for the next wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writePushRecord({ repository, gitDir, reference, tip, parent })
+/// ```
+pub fn write_push_record(repository: &Path, git_dir: &Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repository.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: reference.to_string(),
+        oid: tip.to_string(),
+        parent: parent.to_string(),
+        created: now_iso(),
+        tries: 0,
+    };
+    enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    return Ok(());
+}
+
+/// What:
+///  `write_push_record` for a handoff,
+/// and then the wake of the service.
+/// Why:
+///   The caller that already knows how to reach the service leaves both in one call;
+/// a caller that may find no route writes the record with `write_push_record` and wakes only when it has one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await handOverPush(handoff, tip)
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Push,
-        repository: handoff.repository.display().to_string(),
-        git_dir: handoff.git_dir.display().to_string(),
-        branch_ref: handoff.reference.clone(),
-        oid: tip.to_string(),
-        parent: handoff.parent.clone(),
-        created: now_iso(),
-        tries: 0,
-    };
-    enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
     return wake(&handoff.config, handoff.git_dir.as_path(), None, notices);
 }
 

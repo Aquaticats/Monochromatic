@@ -240,3 +240,26 @@ fn a_trigger_record_is_one_line_that_names_the_decision() {
     assert!(!trigger_line(&decision(Ending::HandedOver, "ahead-of-upstream", "", None)).contains("\"branch\""));
     assert!(trigger_line(&decision(Ending::HandedOver, "ahead-of-upstream", "", None)).contains("\"outcome\":\"handed-over\""));
 }
+
+/// A merge whose context has no route to the commit service leaves its push record on disk,
+/// so the next command that reaches the service pushes the commits.
+/// The record is a file of this worktree's own Git directory,
+/// which is why nothing about the route has to be known first.
+#[test]
+fn a_handover_with_no_route_still_leaves_the_push_queued() {
+    let (root, repo) = repository("atr-no-route");
+    let watched: TipWatch = watch(&repo);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=more"]);
+    let tip: String = oid(&repo, "HEAD");
+    let mut stderr: Vec<u8> = Vec::new();
+    hand_over_if_ahead(&watched, "merge", &mut stderr);
+    let said: String = String::from_utf8_lossy(stderr.as_slice()).into_owned();
+    assert!(said.contains("was queued to be pushed"), "the words say what became of the push: {said}");
+    let work: PathBuf = crate::service_work::work_directory(repo.join(".git").as_path());
+    let queued: Vec<String> = std::fs::read_dir(crate::work_item::state_directory(work.as_path(), crate::work_item::PENDING))
+        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .unwrap_or_default();
+    let wanted: String = crate::work_item::WorkItem { kind: crate::work_item::WorkKind::Push, repository: String::new(), git_dir: String::new(), branch_ref: String::from("refs/heads/main"), oid: tip, parent: String::new(), created: String::new(), tries: 0 }.id();
+    assert_eq!(queued, vec![wanted], "the push is queued although no route was found");
+    remove(&root);
+}

@@ -42,9 +42,10 @@ use crate::repo_read_refs::{RefValue, Refs};
 use crate::repo_read_tree::parse_commit;
 use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
 use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_handoff::{ServiceHandoff, hand_over_push};
-use crate::service_messages::{ClientFailure, render};
+use crate::service_handoff::{ServiceHandoff, hand_over_push, write_push_record};
+use crate::service_messages::{render};
 use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
+use crate::service_messages::platform_remedy;
 use crate::service_provision::platform_without_manager;
 use crate::service_route::{Route, route_from_environment};
 use std::collections::{HashSet, VecDeque};
@@ -396,10 +397,23 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
             return;
         }
     };
+    // The record is written before the route is read: a context with no route (a non-systemd session, a container, another
+    //  `XDG_RUNTIME_DIR`) then leaves the push on disk for the next wake instead of losing it with the message.
+    if let Err(failure) = write_push_record(watch.layout.worktree_root.as_path(), watch.layout.git_dir.as_path(), branch, tip.as_str(), watch.before.as_str()) {
+        record_ending(watch, command, Outcome::Declined, "handover-failed", render(&failure).as_str());
+        // Terminal output error: the message is the only report of a push that was not handed over.
+        let _written = writeln!(stderr, "{}", render(&failure));
+        return;
+    }
     let Some(Route { address, provision }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
         record_ending(watch, command, Outcome::Declined, "no-route", "no way to reach the commit service");
-        // Terminal output error: the message is the only report of a push that was not handed over.
-        let _written = writeln!(stderr, "{}", render(&ClientFailure::NoActivation(platform_without_manager())));
+        // Terminal output error: the message is the only report of a push that waits for a service.
+        // This is a merge or a pull that already happened, so the words say what became of its push, never that a commit was not made.
+        let _written = writeln!(
+            stderr,
+            "monochromatic-git-policy-cli: {branch} was queued to be pushed, and no way to reach the commit service was found now. {} The push stays queued: the next command that reaches the service pushes it.",
+            platform_remedy(platform_without_manager())
+        );
         return;
     };
     let handoff: ServiceHandoff = ServiceHandoff {
