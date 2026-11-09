@@ -211,6 +211,32 @@ fn a_lock_replaced_between_the_scan_and_the_unlink_is_never_removed() {
     remove(root.as_path());
 }
 
+/// A Git that writes its index into the lock while the scan runs and closes its descriptor is the editor-phase
+/// holder this module measured,
+/// so the file is judged again after the scan and before the removal:
+/// the lock that is no longer empty keeps its name.
+/// Why:
+///  The emptiness that was read when the file was opened says nothing about the file the unlink then reaches,
+///  and a lock judged empty there was a live commit's
+///  (cross-vendor review of 2026-11-09,
+/// finding 1).
+#[test]
+fn a_lock_filled_during_the_scan_is_never_removed() {
+    let (root, index) = index_in("unheld-filled-during-scan");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, "").expect("empty foreign lock");
+    let hook_lock: PathBuf = lock.clone();
+    hooks::set("unheld-scanned", std::rc::Rc::new(move || {
+        // A native Git writes the whole index into its lock and closes the descriptor, as its editor phase does.
+        std::fs::write(&hook_lock, "DIRC".repeat(48)).expect("the index written into the lock");
+    }));
+    let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
+    hooks::clear();
+    assert_eq!(outcome, Unheld::Kept, "a lock a Git filled after the scan was removed");
+    assert!(lock.exists(), "a live commit's lock was unlinked");
+    remove(root.as_path());
+}
+
 /// A lock that is gone asks for another placement,
 /// not for a wait.
 #[test]

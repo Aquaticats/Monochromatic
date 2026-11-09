@@ -227,6 +227,16 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
     }
     // A control reaches here to act as another program would after the scan.
     crate::service_fault::reach("unheld-scanned");
+    // A Git that writes the index into this lock while the scan runs and closes its descriptor is the editor-phase holder the
+    // module measured, and the scan sees no holder of it then: the file is judged again here, through the descriptor it was
+    // opened with and as late as the removal can be decided, so the emptiness the removal rests on is the file's at the moment
+    // of the removal (cross-vendor review of 2026-11-09, finding 1).
+    let Ok(filled) = file.metadata() else {
+        return Unheld::Kept;
+    };
+    if !filled.is_file() || filled.len() != 0 || marker_of_file(&file).is_some() {
+        return Unheld::Kept;
+    }
     match same_file(lock.as_path(), &file) {
         Ok(true) => {}
         Ok(false) => return Unheld::Changed,
