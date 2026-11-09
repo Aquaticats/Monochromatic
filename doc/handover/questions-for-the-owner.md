@@ -1216,6 +1216,12 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T03:14:38-05:00,
+  `mpm-shadow` now refuses a `cargo-git` plan entry that has no `packageId`,
+  where it used to take the plan key as the crate name (issue 2626).
+  The cross-vendor review points out that an entry whose key equals its crate name worked before and is refused now.
+  No entry in `toolchain.plan.jsonc` or `toolchain.lock.json` uses that route,
+  so nothing changes today.
 - 2026-11-09T02:08:59-05:00,
   `search-shadow link` when something else already sits at a tool's name:
   it leaves the entry in place,
