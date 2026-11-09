@@ -50,9 +50,8 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_engine::StageRequest;
 use crate::random_id::random_uuid;
 use crate::repository_facts::RepositoryFacts;
-use crate::scratch_location::SCRATCH_REFRESH_EVERY;
-use crate::notice_stream_that_does_not_hold_its_writer::NoticeStreamThatDoesNotHoldItsWriter;
-use crate::service_client::{ClientConfig, FreshScratch, ScratchWatch, Submitted, submit_traced, watch_scratch};
+use crate::service_client::{ClientConfig, ScratchWatch, Submitted, watch_scratch};
+use crate::service_commit_waiting_notices::submit_saying_where_it_stands;
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
@@ -301,20 +300,9 @@ pub fn service_commit<F: RepositoryFacts>(
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
         provisioned = provision_when_needed(provisioning.as_ref(), provisioned, &mut timing.provision)?;
-        // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command would
-        //  otherwise remove it from under a wait that outlasts its age.
-        let waiting_config: ClientConfig = ClientConfig {
-            keep_fresh: Some(FreshScratch { path: ready.scratch.0.clone(), every: SCRATCH_REFRESH_EVERY }),
-            ..config.clone()
-        };
-        // What the wait says is optional, and a reader that stopped draining the terminal must not hold the commit: this
-        //  thread is the one that reads the service's answer, judges the ceiling, withdraws the request and keeps the
-        //  scratch directory fresh. Lines go to a thread of their own, and the line still waiting at the end is given no
-        //  longer than `WARNING_WRITE_CEILING`, so a stalled reader costs this command that ceiling and no more.
-        let mut notices: NoticeStreamThatDoesNotHoldItsWriter = NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(std::io::stderr()));
-        let submitted: Result<Submitted, ClientFailure> = submit_traced(&waiting_config, &sent, &mut notices, &mut timing.submit);
-        notices.finish();
-        match submitted {
+        // Both bounds of a long wait: the scratch directory is renewed while it waits, however long, and a reader that
+        //  stopped draining the terminal never holds this thread (`service_commit_waiting_notices.rs`).
+        match submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit) {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
                 let outcome: ServiceCommit = the_landed_commit(LandedAftermath {

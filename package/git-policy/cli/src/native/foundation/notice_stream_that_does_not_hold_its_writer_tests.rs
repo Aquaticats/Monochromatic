@@ -24,7 +24,8 @@ const PATIENCE: Duration = Duration::from_secs(10);
 struct KeptLines(Arc<Mutex<Vec<u8>>>);
 
 impl KeptLines {
-    /// Everything written so far, as text.
+    /// Everything written so far,
+    /// as text.
     fn text(&self) -> String {
         let bytes: Vec<u8> = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
         return String::from_utf8_lossy(bytes.as_slice()).into_owned();
@@ -62,7 +63,9 @@ struct StoppedReader {
 }
 
 impl Write for StoppedReader {
-    /// Announce the line, wait to be released, and keep it.
+    /// Announce the line,
+    /// wait to be released,
+    /// and keep it.
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let _told = self.held.send(());
         let _let_go = self.release.recv();
@@ -77,13 +80,14 @@ impl Write for StoppedReader {
     }
 }
 
-/// The lines a reader that takes them receives, in the order they were said.
+/// The lines a reader that takes them receives,
+/// in the order they were said.
 #[test]
 fn a_reader_that_takes_every_line_receives_them_in_order() {
     let kept: KeptLines = KeptLines::default();
     let mut stream = NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(kept.clone()));
-    let _first = write!(stream, "This commit is next.\n");
-    let _second = write!(stream, "Waiting for 2 earlier commits.\n");
+    let _first = writeln!(stream, "This commit is next.");
+    let _second = writeln!(stream, "Waiting for 2 earlier commits.");
     stream.finish();
     assert_eq!(kept.text(), "This commit is next.\nWaiting for 2 earlier commits.\n");
     assert_eq!(stream.dropped_lines(), 0, "nothing is dropped when the reader takes every line");
@@ -98,7 +102,7 @@ fn a_line_handed_over_in_pieces_reaches_the_reader_whole() {
     let _head = write!(stream, "Waiting for ");
     let _tail = write!(stream, "3 earlier commits.");
     let _flushed = stream.flush();
-    let _next = write!(stream, "\nThis commit is next.\n");
+    let _next = writeln!(stream, "\nThis commit is next.");
     stream.finish();
     assert_eq!(kept.text(), "Waiting for 3 earlier commits.\nThis commit is next.\n");
 }
@@ -167,8 +171,11 @@ fn a_stream_with_no_writer_says_nothing_and_counts_every_line() {
 /// and this control names that.
 #[test]
 fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
+    let submission: &str = include_str!("../landing/service_commit_waiting_notices.rs");
+    assert!(submission.contains("NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(std::io::stderr()))"), "the submission starts the stream of its waiting notices");
+    assert!(submission.contains("submit_traced(&waiting_config, request, &mut notices, trace)"), "the stream is what the client writes its notices to");
+    assert!(submission.contains("notices.finish()"), "the last line is given its ceiling before the command goes on");
     let commit_path: &str = include_str!("../landing/service_commit.rs");
-    assert!(commit_path.contains("NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(std::io::stderr()))"), "the commit path starts the stream of its waiting notices");
-    assert!(commit_path.contains("submit_traced(&waiting_config, &sent, &mut notices, &mut timing.submit)"), "the stream is what the client writes its notices to");
-    assert!(!commit_path.contains("submit_traced(&waiting_config, &sent, &mut std::io::stderr()"), "no notice of the wait goes straight to standard error");
+    assert!(commit_path.contains("submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit)"), "the commit path submits through it");
+    assert!(!commit_path.contains("submit_traced("), "no submission of the commit path writes its notices itself");
 }

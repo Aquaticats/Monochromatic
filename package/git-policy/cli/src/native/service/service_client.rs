@@ -231,8 +231,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let mut announced: bool = false;
     let mut breaks: usize = 0;
-    // The place the service named for this commit, as it named it, and the place the person was last told.
-    let mut last_place: Option<(usize, usize)> = None;
+    // The place the person was last told.
     let mut told_place: Option<Option<usize>> = None;
     // When the request line first reached the service, which is where the wait the telling answers begins.
     let mut parked: Option<Instant> = None;
@@ -251,16 +250,17 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut last_renewed: Option<Instant> = None;
     loop {
         // What:
-        //  A place comes from one connection, so it is forgotten when that connection is replaced.
+        //  The place the service named,
+        // which belongs to this connection and to no other.
         // Why:
-        //  The place is the position in a batch the answering service decided,
-        // and the request is sent again to a service that decides its own:
-        // a
-        //   place read from a service that went away would be printed as this wait's,
-        // and it is not.
-        //  What the person was already told stays told,
-        // so the words of the new service are compared with them.
-        last_place = None;
+        //  The place is a position in a batch the answering service decided,
+        // and a request sent again goes to a service that decides
+        //  its own,
+        // so a place read here cannot outlive the connection it came from.
+        // It is therefore held inside this loop,
+        // and
+        //  what the person was already told (`told_place`) is what outlives it.
+        let mut last_place: Option<(usize, usize)> = None;
         let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
         service_seen = true;
         let mut payload: String = line.clone();

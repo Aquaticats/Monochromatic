@@ -30,9 +30,11 @@ use std::process::{Child, Command, Stdio};
 /// in seconds:
 /// the smallest the variable accepts.
 const NOTICE_SECONDS: &str = "1";
-/// The words a commit the service named no place for is told, as the person reads them.
+/// The words a commit the service named no place for is told,
+/// as the person reads them.
 ///
-/// A control asserts on the part of the line that does not state the seconds it waited, so the line may name them.
+/// A control asserts on the part of the line that states no seconds,
+/// because the line may name them.
 const UNPLACED_SAID: &str = "has not said where this commit stands";
 
 

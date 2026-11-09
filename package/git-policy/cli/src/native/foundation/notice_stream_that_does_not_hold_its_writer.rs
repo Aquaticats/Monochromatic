@@ -174,7 +174,11 @@ impl NoticeStreamThatDoesNotHoldItsWriter {
 /// ```
 fn write_lines(mut sink: Box<dyn Write + Send>, lines: &Receiver<Vec<u8>>, finished: std::sync::mpsc::Sender<()>) {
     for line in lines {
-        if sink.write_all(line.as_slice()).and_then(|()| sink.flush()).is_err() {
+        // A stream that refuses a line ends the thread: every line after it would be refused too.
+        if sink.write_all(line.as_slice()).is_err() {
+            break;
+        }
+        if sink.flush().is_err() {
             break;
         }
     }
@@ -182,12 +186,25 @@ fn write_lines(mut sink: Box<dyn Write + Send>, lines: &Receiver<Vec<u8>>, finis
     let _told = finished.send(());
 }
 
-/// Writing bytes appends them to the line being built and hands over each whole line.
+/// Whether `byte` ends a line,
+/// which is where a whole line of the stream ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x0a
+/// ```
+fn ends_a_line(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Appends the bytes to the line being built,
+/// and hands over each whole line it completes.
 impl Write for NoticeStreamThatDoesNotHoldItsWriter {
-    /// Append the bytes, and hand over each line it completes.
+    /// Append the bytes,
+    /// and hand over each line it completes.
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.buffered.extend_from_slice(bytes);
-        while let Some(end) = self.buffered.iter().position(|byte| *byte == b'\n') {
+        while let Some(end) = self.buffered.iter().position(ends_a_line) {
             let line: Vec<u8> = self.buffered.drain(..=end).collect();
             self.hand_over(line);
         }

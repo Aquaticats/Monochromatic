@@ -27,7 +27,8 @@ use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
 use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
 use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
 
-/// The words a commit the service named no place for is told, as the person reads them,
+/// The words a commit the service named no place for is told,
+/// as the person reads them,
 /// without the seconds it waited.
 const UNPLACED_SAID: &str = "has not said where this commit stands";
 use git_policy_cli::service_protocol::{
@@ -215,7 +216,9 @@ struct StalledStream {
 }
 
 impl Write for StalledStream {
-    /// Announce that the line arrived, wait to be released, and keep it.
+    /// Announce that the line arrived,
+    /// wait to be released,
+    /// and keep it.
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let _told = self.held.send(());
         let _let_go = self.release.recv();
@@ -229,7 +232,8 @@ impl Write for StalledStream {
     }
 }
 
-/// What the stream kept, once it took it, within the patience of the controls.
+/// What the stream kept once it took it,
+/// within the patience of the controls.
 fn kept_within(kept: &Arc<Mutex<Vec<u8>>>) -> String {
     let began: Instant = Instant::now();
     loop {
