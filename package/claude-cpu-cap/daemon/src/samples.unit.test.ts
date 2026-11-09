@@ -51,7 +51,8 @@ await describe({
         /**
          Disposable host.
          */
-        const { paths, } = await makeHost({ threads: '28', cpuPressure: 1.5, },);
+        await using host = await makeHost({ threads: '28', cpuPressure: 1.5, },);
+        const { paths, } = host;
         /**
          Sensors found in the fixture.
          */
@@ -90,7 +91,8 @@ await describe({
             /**
              Disposable host.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await mkdir(paths.sampleDir, { recursive: true, },);
             /**
              Path of the new file.
@@ -106,7 +108,8 @@ await describe({
             /**
              Disposable host.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await mkdir(paths.sampleDir, { recursive: true, },);
             /**
              Path of the file with an older header.
@@ -123,7 +126,8 @@ await describe({
             /**
              Disposable host.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await mkdir(paths.sampleDir, { recursive: true, },);
             /**
              Path of the file with the current header and one row.
@@ -145,7 +149,8 @@ await describe({
             /**
              Disposable host.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await mkdir(paths.sampleDir, { recursive: true, },);
             await Promise.all(['2026-09-01.csv', '2026-10-12.csv', 'notes.txt',].map(async function createFile(name,) {
               await writeFile(join(paths.sampleDir, name,), 'x',);
@@ -165,7 +170,8 @@ await describe({
             /**
              Disposable host.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 1.5, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 1.5, },);
+            const { paths, } = host;
             /**
              Sensors found in the fixture.
              */

@@ -26,7 +26,8 @@ await describe({
             /**
              Host whose cap file holds 28.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             expect(await desiredThreads({ capFile: paths.capFile, totalThreads: 32, l: recordingLogger(), },),).toBe(28,);
           },
         },),
@@ -36,7 +37,8 @@ await describe({
             /**
              Host with an unrelated cap file path.
              */
-            const { root, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { root, } = host;
             expect(await desiredThreads({ capFile: `${root}/missing`, totalThreads: 32, l: recordingLogger(), },),).toBe(DEFAULT_THREADS,);
           },
         },),
@@ -47,7 +49,8 @@ await describe({
               /**
                Host whose cap file holds the bad value.
                */
-              const { paths, } = await makeHost({ threads: bad, cpuPressure: 0, },);
+              await using host = await makeHost({ threads: bad, cpuPressure: 0, },);
+              const { paths, } = host;
               /**
                Recorder for this case.
                */
@@ -68,7 +71,8 @@ await describe({
             /**
              Host whose cgroup starts unlimited.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             /**
              Recorder for the logged lines.
              */
@@ -85,7 +89,8 @@ await describe({
             /**
              Host whose cgroup already holds the quota.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await writeFile(paths.cgroupFile, `${28 * PERIOD_USEC} ${PERIOD_USEC}\n`,);
             /**
              Recorder for the logged lines.
@@ -102,7 +107,8 @@ await describe({
             /**
              Host with a cgroup path that does not exist.
              */
-            const { root, paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { root, paths, } = host;
             expect(await reconcileCap({ capFile: paths.capFile, cgroupFile: `${root}/no-cgroup/cpu.max`, totalThreads: 32, l: recordingLogger(), },),)
               .toEqual({ threads: 28, applied: false, },);
           },
