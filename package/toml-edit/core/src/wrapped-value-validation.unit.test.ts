@@ -188,6 +188,16 @@ const REJECTED_VALUES = [
     value: '2026-02-30',
   },
   {
+    name: 'local-date payload naming a skipped century leap day',
+    tomlKind: 'local-date',
+    value: '1900-02-29',
+  },
+  {
+    name: 'local-date payload with an unpadded month field',
+    tomlKind: 'local-date',
+    value: '2026-5-14',
+  },
+  {
     name: 'local-date-time payload that would inject a key line',
     tomlKind: 'local-date-time',
     value: '2026-05-14T10:00:00\nbad = "x"',
@@ -253,6 +263,36 @@ const REJECTED_VALUES = [
     value: '25:00:00',
   },
   {
+    name: 'local-time payload naming an impossible minute',
+    tomlKind: 'local-time',
+    value: '10:60:00',
+  },
+  {
+    name: 'local-time payload naming an impossible second',
+    tomlKind: 'local-time',
+    value: '10:00:61',
+  },
+  {
+    name: 'local-time payload carrying an empty fraction',
+    tomlKind: 'local-time',
+    value: '10:00:00.',
+  },
+  {
+    name: 'local-time payload carrying two fractions',
+    tomlKind: 'local-time',
+    value: '10:00:00.5.6',
+  },
+  {
+    name: 'local-time payload carrying a fraction without seconds',
+    tomlKind: 'local-time',
+    value: '10:00.5',
+  },
+  {
+    name: 'local-time payload without minutes',
+    tomlKind: 'local-time',
+    value: '10',
+  },
+  {
     name: 'local-time payload that is really an offset time',
     tomlKind: 'local-time',
     value: '10:00:00Z',
@@ -302,6 +342,8 @@ const ACCEPTED_VALUES = [
     text: '2026-05-14T10:00',
   },
   { name: 'leap-day local date', value: tomlLocalDate('2024-02-29',), text: '2024-02-29', },
+  { name: 'leap day of a 400-year cycle', value: tomlLocalDate('2000-02-29',), text: '2000-02-29', },
+  { name: 'common-year February', value: tomlLocalDate('1900-02-28',), text: '1900-02-28', },
   { name: 'local time', value: tomlLocalTime('10:00:00',), text: '10:00:00', },
   { name: 'local time with a fraction', value: tomlLocalTime('10:00:00.25',), text: '10:00:00.25', },
   { name: 'leap-second local time', value: tomlLocalTime('10:00:60',), text: '10:00:60', },
