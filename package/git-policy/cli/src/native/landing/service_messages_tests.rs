@@ -76,7 +76,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
         ClientFailure::ContentPruned => 23,
-        ClientFailure::PermissionDenied(_) => 24,
+        ClientFailure::PermissionDenied(_) => 27,
         ClientFailure::RepositoryFrozen(_) => 25,
         ClientFailure::ConclusionStateChanged { .. } => 26,
         ClientFailure::StepTooSlow => 22,
@@ -119,11 +119,15 @@ fn contains_whole(text: &str, word: &str) -> bool {
     return false;
 }
 
-/// Every variant has a sample.
+/// Every variant has a sample,
+/// and every sample is a variant of its own:
+/// a number two variants share would let one of them go unrendered.
+/// The highest number is the last one,
+/// so a sample added without a number of its own fails here.
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::RepositoryFrozen(String::new())) + 1;
+    let expected: usize = variant_index(&ClientFailure::PermissionDenied(String::new())) + 1;
     assert_eq!(covered.len(), expected);
 }
 

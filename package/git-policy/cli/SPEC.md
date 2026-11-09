@@ -9877,6 +9877,16 @@ and how long anyone waits:
   in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
   with a line at warning priority in the service journal when the removal cannot finish.
   Neither the client nor the landing loop waits for it.
+  A request the service did not land,
+  one it sent back to be prepared again (`retry-prepare`) or one whose branch moved (`branch-moved`),
+  is not one whose landing read the tree:
+  the tree goes back to its client,
+  which reads the change it captured from the tree's private index to make the commit again
+  (`retry_of` in `src/native/landing/service_replay.rs`)
+  and releases it beside its own command,
+  in a task and under the same ceiling.
+  Removing it in the service took that read from under every rebuild,
+  which failed with a private index that was not there.
   Nothing else in the service removes a tree a request named:
   the tree holds the private index and the conclusion copies the landing reads,
   and a client killed while its request waits is not evidence that the landing is over.
@@ -10502,6 +10512,44 @@ each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
 
+### The amend a moved branch makes
+
+An amend whose branch is no longer at the commit it replaces lands its changes as a new commit on the branch as it is now
+(the owner's choice, 2026-11-09:
+"A: land as a new commit (Recommended)";
+the refusal and a rewrite of the commit another session landed were both rejected).
+The result is the replaced commit,
+then the commit that moved the branch,
+then the amendment,
+and neither earlier commit is changed.
+The commit is made from:
+
+- its tree:
+  the amendment's own tree merged onto the branch as it is now by the replay rule above
+  (`git merge-tree --write-tree` from the replaced commit as the merge base);
+- its one parent:
+  the branch as it is now;
+- its author,
+  committer and message:
+  those of the amend,
+  kept as stored,
+  so the author's date survives the rebuild;
+- its header lines and its signature:
+  written whole by `git hash-object -t commit -w` under the identities and message the amend made,
+  or,
+  when the amend was signed,
+  signed again by `git commit-tree -S` with the `-S` option the command line named,
+  whose other header lines a signature cannot carry are dropped with a warning.
+
+Nothing waits for another command and nothing is refused for it.
+The person is told what the amend became after it lands:
+a line naming the branch,
+the commit that landed,
+and that the commits already there were left as they are
+(`amend_lands_as_new_note` in `src/native/landing/landed_summary.rs`).
+Code:
+`src/native/landing/service_amend_replayed.rs`.
+
 ### Word-level second merge pass
 
 Git's line merge reports a conflict where two changes touch (one ends where the other begins):
@@ -11043,18 +11091,34 @@ and the message the person typed saved in a file with the command that reuses it
 A merged tree equal to the branch ends with `concurrent-commit/already-committed`.
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
-in five builds at most (the first and four more);
-one built after an editor keeps the typed message in a file and is built again from it within the same five;
-an amend is never sent for another tip and fails with a plain message.
-The retry is bounded;
-a branch that keeps changing ends the commit with a plain message naming the branch
-and the number of attempts it made:
-"changed 5 times" for the commits Git built,
-and "changed 3 times" for a commit the wrapper built (its `retry-prepare` rounds)
-and for a batch the service builds again after its reference update finds the branch moved,
-each three attempts at most.
-The bounds are `REBUILD_ATTEMPTS` in `src/native/landing/service_commit.rs`
-and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
+while the time since its first build is under the ceiling;
+one built after an editor keeps the typed message in a file and is built again from it under the same ceiling.
+A commit that concludes a merge,
+a cherry-pick or a revert depends on the state the worktree holds and not on the tip,
+so it is built again the same way:
+its parents come from `MERGE_HEAD`,
+`CHERRY_PICK_HEAD` or `REVERT_HEAD`,
+the tree is the replay above,
+and the preparation refuses with `ConclusionStateChanged` when that state is no longer the one the commit was
+prepared over,
+because another command either finished the operation or abandoned it
+(`conclusion_state_text` in `conclusion_copy.rs`).
+No commit waits for another, and no command is refused for another session's commit or merge
+(the owner, 2026-11-09:
+"I would consider this to be a defect in our wrapper.
+Agents should never wait on each other on commits or merges.").
+An amend whose branch moved is not made as an amend again:
+it lands as a new commit on the branch as it is now
+(see "The amend a moved branch makes").
+The retry is bounded by time, not by a count of builds:
+`MOVED_BRANCH_REBUILD_CEILING` in `src/native/service/wait_ceilings.rs`,
+which `CLI_GIT_REBUILD_CEILING_SECONDS` sets for a control,
+and every rebuild says how many builds were made,
+how long it has been,
+and when the rebuilding stops.
+A branch that keeps changing past the ceiling ends the commit with a plain message naming the branch
+and the number of attempts it made;
+the attempts of one landing are `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
