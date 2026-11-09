@@ -208,6 +208,7 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
+    assert!(render(&ClientFailure::NoCommonVersion).contains(STOP_COMMAND));
     let unsure: String = render(&ClientFailure::MayNotHaveLanded);
     for command in CHECK_COMMANDS {
         assert!(unsure.contains(command), "{unsure}");
@@ -289,4 +290,25 @@ fn the_rebuild_notice_names_the_branch_the_builds_the_time_and_the_ceiling() {
         assert!(said.contains(part), "{part}: {said}");
     }
     assert!(said.ends_with('\n') && !said.contains("so it was built again"), "{said}");
+}
+
+/// What:
+///  A git older than the running service is told both ways to get a service it can work with,
+/// and the one a rollback needs names the command that stops the newer service.
+/// Why:
+///  Finding 2 of the audit of service restarts and version skew (2026-11-09):
+/// with a newer service running,
+/// an older client exits in milliseconds with advice to update the wrapper,
+/// which is the opposite of a rollback,
+/// and the newer service then runs until its idle exit (`IDLE_EXIT`) because nothing names the command that stops it.
+/// `AGENTS.md` rule `DGT`:
+/// name every valid remediation path.
+#[test]
+fn an_older_git_is_told_how_to_get_a_service_it_can_work_with() {
+    let text: String = render(&ClientFailure::NoCommonVersion);
+    assert!(text.contains(STOP_COMMAND), "the stop a rollback needs is named: {text}");
+    assert!(text.contains("Update this git"), "the upgrade is still named: {text}");
+    assert!(text.contains("install the release"), "the rollback is named: {text}");
+    assert!(text.contains(NOTHING_CHANGED), "nothing landed: {text}");
+    assert!(!text.contains(RESTART_COMMAND), "a restart starts the newer service again, so it is not the remedy here: {text}");
 }
