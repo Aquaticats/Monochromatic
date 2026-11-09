@@ -409,6 +409,50 @@ fn unreadable_files_hold_back_the_deletion_unless_discarded() {
     remove(parent.as_path());
 }
 
+/// What:
+///  The unreadable-file list is replaced whole,
+/// never rewritten in place.
+/// Why:
+///  The late-writes pass of `--remove-old` records a file it finds unreadable by rewriting the
+/// list;
+///  the old writer truncated the file and then wrote it,
+/// so a kill between the two left an empty list,
+///  which the next run read as "nothing was recorded" and deleted what it protected.
+/// A replaced file
+///  leaves the earlier record whole for a reader that opened it,
+/// and a kill leaves either the old record or the
+///  new one.
+#[test]
+fn rewriting_the_unreadable_list_replaces_it_and_never_truncates_it() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("remove-old-list-replaced");
+    std::fs::write(root.join("ignored/secret-a.log"), b"secret a").expect("a");
+    std::fs::set_permissions(root.join("ignored/secret-a.log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable a");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let first: std::fs::Metadata = std::fs::metadata(layout.unreadable_path.as_path()).expect("the first list");
+    assert!(std::fs::read_to_string(layout.unreadable_path.as_path()).expect("list").contains("secret-a.log"));
+    // A reader that opened the record before the rewrite keeps the record it opened.
+    let mut opened: File = File::open(layout.unreadable_path.as_path()).expect("open the list");
+    // A second unreadable file, written to the old tree after the catch-up, is recorded by the late-writes pass.
+    std::fs::write(layout.old_path.join("ignored/secret-b.log"), b"secret b").expect("b");
+    std::fs::set_permissions(layout.old_path.join("ignored/secret-b.log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable b");
+    let (code2, lines2) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    let second: std::fs::Metadata = std::fs::metadata(layout.unreadable_path.as_path()).expect("the rewritten list");
+    assert_ne!(first.ino(), second.ino(), "the list is replaced, not rewritten in place");
+    let mut kept: String = String::new();
+    std::io::Read::read_to_string(&mut opened, &mut kept).expect("read the list that handle opened");
+    assert!(kept.contains("secret-a.log"), "a reader that opened the earlier record still reads it whole: {kept:?}");
+    let rewritten: String = std::fs::read_to_string(layout.unreadable_path.as_path()).expect("list");
+    assert!(rewritten.contains("secret-a.log") && rewritten.contains("secret-b.log"), "{rewritten}");
+    remove(parent.as_path());
+}
+
 /// A file that exists only in the new subvolume and that this user may not read cannot be carried back:
 /// the rollback is
 ///  refused before the exchange,
