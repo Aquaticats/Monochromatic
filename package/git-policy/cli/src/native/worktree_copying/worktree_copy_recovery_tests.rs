@@ -49,7 +49,8 @@ fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
 }
 
 /// A linked worktree of the repository is registered;
-/// a removed or re-pointed one is not.
+/// a removed or re-pointed one is not,
+/// and a pointer that names a directory which is not there proves nothing either way.
 #[cfg(unix)]
 #[test]
 fn registration_follows_the_linked_pointer() {
@@ -70,7 +71,7 @@ fn registration_follows_the_linked_pointer() {
     std::fs::write(other.join(".git"), b"gitdir: /nonexistent/admin\n").expect("dangling pointer");
     assert_eq!(
         destination_registration(common.as_path(), other.as_path()).expect("dangling"),
-        Registration::Unregistered
+        Registration::PointerUnfollowable
     );
     let plain: PathBuf = root.join("plain");
     std::fs::create_dir(plain.as_path()).expect("plain");
