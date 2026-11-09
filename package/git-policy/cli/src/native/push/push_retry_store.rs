@@ -32,6 +32,7 @@
 //! await save(dir, plan); const plans = await load(dir); await remove(dir, gitDir, branchRef);
 //! ```
 
+use crate::path_bytes_in_records as path_bytes;
 use crate::push_failure_notice::fnv_hex;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::work_item::WorkItem;
@@ -77,7 +78,8 @@ fn encode(plan: &StoredPlan) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(PLAN_VERSION));
     fields.insert(String::from("attempt"), Value::from(plan.attempt));
-    fields.insert(String::from("gitDir"), Value::from(plan.git_dir.display().to_string()));
+    // The directory goes in as plain text and as its bytes, so a plan is read back as the directory it was saved for.
+    path_bytes::write_field(&mut fields, "gitDir", plan.git_dir.as_path());
     fields.insert(String::from("item"), Value::from(plan.item.encode()));
     return format!("{}\n", Value::Object(fields));
 }
@@ -98,14 +100,11 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
     let Ok(attempt) = u32::try_from(number) else {
         return Err(String::from("the plan has no try number"));
     };
-    let Some(git_dir) = value.get("gitDir").and_then(Value::as_str) else {
-        return Err(String::from("the plan names no Git directory"));
-    };
     let Some(item_text) = value.get("item").and_then(Value::as_str) else {
         return Err(String::from("the plan holds no push item"));
     };
     let item: WorkItem = WorkItem::decode(item_text)?;
-    return Ok(StoredPlan { git_dir: PathBuf::from(git_dir), item, attempt });
+    return Ok(StoredPlan { git_dir: path_bytes::read_field(&value, "gitDir")?, item, attempt });
 }
 
 /// What:

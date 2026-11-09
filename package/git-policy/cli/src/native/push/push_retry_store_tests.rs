@@ -47,6 +47,58 @@ fn a_saved_plan_is_read_back_whole() {
     remove_fixture(root.as_path());
 }
 
+/// What:
+///  A plan whose Git directory is not text is read back whole.
+/// Why:
+///   The plan names the directory its push belongs to,
+/// and a restart finds the push by that name,
+/// so a name that lost the path's bytes would leave the push untried and its file unremoved.
+#[test]
+fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("retry-store-non-utf8");
+    let git_dir: PathBuf = root.join(OsStr::from_bytes(b"c\xffmmon"));
+    let worktree: PathBuf = root.join(OsStr::from_bytes(b"w\xffrktree"));
+    std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
+    let saved: StoredPlan = StoredPlan {
+        git_dir: git_dir.clone(),
+        item: WorkItem { repository: worktree, git_dir: git_dir.clone(), ..plan("refs/heads/main", FIRST_OID, 2).item },
+        attempt: 2,
+    };
+    save(root.as_path(), &saved).expect("saved");
+    assert_eq!(load(root.as_path()), vec![saved.clone()], "the plan comes back as it went in");
+    remove_fixture(root.as_path());
+}
+
+/// What:
+///  A service that starts again finds the plan of a directory that is not text,
+/// and tries it when it is due.
+/// Why:
+///   This is the plan's whole purpose:
+/// a push that waits across a restart is pushed again.
+/// The list is keyed by the directory the drain names,
+/// which is the real one.
+#[test]
+fn a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text() {
+    use crate::push_retry::{Due, PushRetries};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::time::{Duration, Instant};
+    let root: PathBuf = fixture("retry-store-non-utf8-restored");
+    let git_dir: PathBuf = root.join(OsStr::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
+    let saved: StoredPlan = StoredPlan { git_dir: git_dir.clone(), ..plan("refs/heads/main", FIRST_OID, 1) };
+    save(root.as_path(), &saved).expect("saved");
+    let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(1), root.as_path());
+    assert_eq!(retries.directories(), vec![git_dir.clone()], "the plan is held under the directory it was saved for");
+    let later: Instant = Instant::now() + Duration::from_secs(600);
+    let due: Vec<Due> = retries.take_due(git_dir.as_path(), later);
+    assert_eq!(due.len(), 1, "the plan of this directory is due");
+    assert_eq!(due[0].git_dir, git_dir);
+    remove_fixture(root.as_path());
+}
+
 /// A plan saved for a branch replaces the earlier plan of that branch,
 /// with another try number or another commit.
 #[test]
