@@ -24,6 +24,37 @@ fn what_the_branch_shows_is_read_from_the_branch() {
     assert_eq!(no_such_branch, WhatTheBranchShows::Unread, "a branch that cannot be read is not a fact either way");
 }
 
+/// What:
+///  A commit a later commit sits on top of was still made by this command.
+/// Why:
+///   Finding 5 of the third review:
+/// the service can land the prepared commit and a concurrent command then advances the branch,
+/// so the tip differs although the prepared commit is in the branch's history.
+/// Tip inequality establishes only that the prepared commit is not the tip.
+#[test]
+fn a_commit_a_later_commit_sits_on_top_of_was_made() {
+    let root: std::path::PathBuf = crate::test_support::repository(crate::test_support::fixture_root().as_path(), "service-branch-shows-on-top");
+    let earlier: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    crate::test_support::git(root.as_path(), &["commit", "--quiet", "--allow-empty", "--message=later"]);
+    let later: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let elsewhere: String = {
+        // A commit that is not on the branch at all.
+        crate::test_support::git(root.as_path(), &["checkout", "--quiet", "--detach", "HEAD~1"]);
+        crate::test_support::git(root.as_path(), &["commit", "--quiet", "--allow-empty", "--message=elsewhere"]);
+        let made: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+        crate::test_support::git(root.as_path(), &["checkout", "--quiet", "main"]);
+        made
+    };
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
+    let on_top: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", earlier.as_str());
+    let the_tip: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", later.as_str());
+    let elsewhere: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", elsewhere.as_str());
+    crate::test_support::remove(root.as_path());
+    assert_eq!(on_top, WhatTheBranchShows::Made, "a commit the branch's tip sits on top of was made by this command");
+    assert_eq!(the_tip, WhatTheBranchShows::Made, "the tip itself is the commit this command prepared");
+    assert_eq!(elsewhere, WhatTheBranchShows::NotMade, "a commit the branch does not hold was not made by this command");
+}
+
 /// The three answers say different things,
 /// and the one that says the commit was made offers nothing to fix.
 #[test]
