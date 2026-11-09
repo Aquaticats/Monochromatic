@@ -76,6 +76,9 @@ pub struct GitRequest {
     /// Whether every pathspec in this request is the wrapper's own,
     ///  so no pathspec mode the caller set reaches it,
     /// from the environment or from the global options the request forwards.
+    ///  `own_pathspecs()` is the way to set it:
+    /// the flag and the four removed variables are one decision,
+    /// and a request built with the flag alone would keep the modes it means to drop.
     pub own_pathspecs: bool,
     /// Private index,
     ///  as `GIT_INDEX_FILE`.

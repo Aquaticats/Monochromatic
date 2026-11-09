@@ -34,7 +34,7 @@ use crate::candidate_stage::{StageRecord, parse_stage_records};
 /// Import the version types and builder.
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
 /// Import the captured-query runner and its line helper.
-use crate::git_metadata::{MetadataOutput, read_stopped_text, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, read_stopped_text, run_metadata_git_without, strip_git_line};
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
@@ -261,11 +261,15 @@ impl CandidateStore {
         // `.clone()` copies the stored prefix; `.extend_from_slice(..)` appends the command after it.
         let mut arguments: Vec<OsString> = self.global_prefix.clone();
         arguments.extend_from_slice(command);
+        // Every listing names a pathspec the wrapper wrote, so no pathspec mode the caller set may reach it:
+        // literal mode would read it as a file name, case-insensitive matching would widen it, and two glob modes
+        // at once make Git refuse the listing and fail the judgement that asked for it.
         // `match` on the run's `Result`: `Err(error)` means Git could not be started.
-        let output: MetadataOutput = match run_metadata_git(
+        let output: MetadataOutput = match run_metadata_git_without(
             self.real_git.as_path(),
             arguments.as_slice(),
             self.overlay.as_slice(),
+            crate::conflict_side_modes::MODE_VARIABLES.as_slice(),
         ) {
             Ok(captured) => captured,
             Err(error) => {

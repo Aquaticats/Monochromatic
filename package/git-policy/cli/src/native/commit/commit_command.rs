@@ -20,6 +20,7 @@
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
 use crate::commit_timing::CommitTiming;
+use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
@@ -85,16 +86,19 @@ pub struct CommitEnding {
 
 /// What:
 ///  Write text to standard error,
-/// ignoring a closed stream.
+/// ignoring a closed stream,
+///  and counting the wait for its reader.
 /// Why:
 ///   The exit status already carries the result.
+///  The write is the one place a slow reader becomes time the commit spends,
+///  which the timing record states as `stderrMs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// process.stderr.write(text);
 /// ```
 fn write_stderr(text: &str) {
-    let mut stream = std::io::stderr();
+    let mut stream: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
     let _ = stream.write_all(text.as_bytes());
     let _ = stream.flush();
 }
@@ -256,7 +260,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         config: command.config.policies.clone(),
         controls: command.controls.clone(),
     };
-    let mut stderr = std::io::stderr();
+    let mut stderr: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
     // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
     //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.
 
