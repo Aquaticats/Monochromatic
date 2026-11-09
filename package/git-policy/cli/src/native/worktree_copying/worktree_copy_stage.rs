@@ -25,7 +25,7 @@ use crate::worktree_copy_manifest::{
     FileStamp, WorktreeCopyEntry, collect_pruned_manifest,
 };
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, select_roots};
+use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, is_separator_byte, select_roots, shown_repository_path};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 
@@ -57,7 +57,7 @@ pub struct StagedSnapshot {
     /// Parent-first manifest that was staged and verified.
     pub entries: Vec<WorktreeCopyEntry>,
     /// Git-selected ignored roots that the manifest walked.
-    pub selected_roots: Vec<String>,
+    pub selected_roots: Vec<Vec<u8>>,
     /// Canonical source worktree.
     pub source_root: PathBuf,
     /// Private container holding the payload;
@@ -68,10 +68,10 @@ pub struct StagedSnapshot {
     /// Repository paths the user could not read,
     /// left out of the stage;
     ///  empty for a stage rebuilt from a journal.
-    pub unreadable: Vec<String>,
+    pub unreadable: Vec<Vec<u8>>,
     /// Repository paths that kept changing under the copy and were left in their source;
     ///  empty for a stage rebuilt from a journal.
-    pub unsettled: Vec<String>,
+    pub unsettled: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -125,8 +125,8 @@ fn nested_under(source_root: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
 /// ```ts
 /// component.startsWith(STAGE_PREFIX)
 /// ```
-fn starts_private_stage(component: &str) -> bool {
-    return component.starts_with(STAGE_PREFIX);
+fn starts_private_stage(component: &[u8]) -> bool {
+    return component.starts_with(STAGE_PREFIX.as_bytes());
 }
 
 /// What:
@@ -157,8 +157,29 @@ fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
 /// ```ts
 /// repositoryPath.split('/').some((component) => component.startsWith(STAGE_PREFIX))
 /// ```
-fn names_private_stage(repository_path: &str) -> bool {
-    return repository_path.split('/').any(starts_private_stage);
+fn names_private_stage(repository_path: &[u8]) -> bool {
+    return repository_path
+        .split(is_separator_byte)
+        .any(starts_private_stage);
+}
+
+/// What:
+///  The unreadable entries of one stage as the text a person reads,
+/// comma-separated.
+/// Why:
+///   The verbose log names every entry the copy left out,
+/// so the person can look for those names in the new worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shown = (paths) => paths.map(shownRepositoryPath).join(', ')
+/// ```
+fn shown_unreadable(unreadable: &[Vec<u8>]) -> String {
+    let mut names: Vec<String> = Vec::with_capacity(unreadable.len());
+    for path in unreadable {
+        names.push(shown_repository_path(path.as_slice()));
+    }
+    return names.join(", ");
 }
 
 /// What:
@@ -200,7 +221,7 @@ pub fn stage_ignored_snapshot(
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
-    let git_selected: Vec<String> = select_roots(context, source_root, nested.as_slice(), selection)?;
+    let git_selected: Vec<Vec<u8>> = select_roots(context, source_root, nested.as_slice(), selection)?;
     debug(
         "worktreeCopyStage",
         format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
@@ -260,18 +281,18 @@ fn stage_into(
     registered_roots: &[PathBuf],
     stage_container: &Path,
     stage_root: &Path,
-    git_selected: Vec<String>,
+    git_selected: Vec<Vec<u8>>,
     prune: Prune,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let excluded_source_roots: Vec<PathBuf> =
         source_exclusions(source_root, registered_roots, stage_container);
-    let mut candidate_roots: Vec<String> = Vec::new();
+    let mut candidate_roots: Vec<Vec<u8>> = Vec::new();
     for repository_path in git_selected {
-        if names_private_stage(repository_path.as_str()) || prune.skips_path(repository_path.as_str()) {
+        if names_private_stage(repository_path.as_slice()) || prune.skips_path(repository_path.as_slice()) {
             continue;
         }
-        let Ok(source_path) = filesystem_path(source_root, repository_path.as_str()) else {
+        let Ok(source_path) = filesystem_path(source_root, repository_path.as_slice()) else {
             continue;
         };
         if lies_within_any(source_path.as_path(), excluded_source_roots.as_slice()) {
@@ -280,7 +301,7 @@ fn stage_into(
         candidate_roots.push(repository_path);
     }
     let started: std::time::Instant = std::time::Instant::now();
-    let mut unreadable: Vec<String> = Vec::new();
+    let mut unreadable: Vec<Vec<u8>> = Vec::new();
     let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root,
         candidate_roots.as_slice(),
@@ -289,13 +310,13 @@ fn stage_into(
         &mut unreadable,
     )?;
     // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
-    let mut staged_paths: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut staged_paths: std::collections::HashSet<&[u8]> = std::collections::HashSet::new();
     for entry in &entries {
-        staged_paths.insert(entry.relative_path.as_str());
+        staged_paths.insert(entry.relative_path.as_slice());
     }
-    let mut selected_roots: Vec<String> = Vec::new();
+    let mut selected_roots: Vec<Vec<u8>> = Vec::new();
     for repository_path in candidate_roots {
-        if staged_paths.contains(repository_path.as_str()) {
+        if staged_paths.contains(repository_path.as_slice()) {
             selected_roots.push(repository_path);
         }
     }
@@ -308,7 +329,7 @@ fn stage_into(
                 "{} unreadable ignored entries are left out of the copy from {}: {}",
                 unreadable.len(),
                 source_root.display(),
-                unreadable.join(", ")
+                shown_unreadable(unreadable.as_slice())
             )
             .as_str(),
         );
