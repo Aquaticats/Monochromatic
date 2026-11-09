@@ -8639,6 +8639,19 @@ and how long anyone waits:
   removes it itself as it goes out of scope,
   with the same ceiling,
   so a declined or abandoned commit leaves nothing.
+  A command whose submission got a definite answer that the service never took the request
+  removes its tree the same way:
+  the service confirmed the withdrawal (`StillWithService`),
+  refused the request before queueing it (`Refused`),
+  or could not be reached at all
+  (`the_service_never_took` in `src/native/landing/service_commit.rs`).
+  Every other failure leaves the tree where it is,
+  because an unanswered request is not proof that nothing is running:
+  an unconfirmed withdrawal,
+  a silence and a broken connection can all leave a branch write inside the landing,
+  which reads the private index and the conclusion copies in that tree.
+  Such a tree is the service's to remove when it lands,
+  and otherwise goes by the age rule that follows.
 - A tree no request ever named,
   because the command was killed before it submitted or before it made the tree at all,
   goes when nothing has written it for `SCRATCH_TREE_ABANDONED_AFTER` (two hours,

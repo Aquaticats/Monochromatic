@@ -87,6 +87,45 @@ pub struct ServiceCommit {
 }
 
 /// What:
+///  Whether a submission result is a definite answer that the service never took the request,
+///  so the commit's scratch tree goes back to this process and is removed as it ends.
+/// Why:
+///   A request the service took is one whose tree the service removes once its landing is over,
+///  so this process leaves it alone.
+///  An unanswered result is not proof that nothing took the request:
+///  a withdrawal the service did not confirm,
+///  a silence and a broken connection can all leave a branch write running,
+///  and removing the tree here would take the private index and the conclusion copies
+///  from under that landing.
+///  Such a tree waits for the service,
+///  and when no service ever collected it,
+///  for the age sweep of the repository scratch directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const neverTook = (result) => result.kind === 'still-with-service' || result.kind === 'refused' || result.kind === 'did-not-start' || ...;
+/// ```
+fn the_service_never_took(result: &Result<Submitted, ClientFailure>) -> bool {
+    let Err(failure) = result else { return false };
+    return matches!(
+        failure,
+        // The service answered that it withdrew the request, so it will never land and its tree is no landing's to read.
+        ClientFailure::StillWithService { .. }
+            // The service refused the request before it queued it.
+            | ClientFailure::Refused
+            // No service was reached at all, so nothing was written and nothing can be running.
+            | ClientFailure::DidNotStart
+            | ClientFailure::NoActivation(_)
+            | ClientFailure::OtherAccount
+            | ClientFailure::NoCommonVersion
+            | ClientFailure::OtherRelease
+            | ClientFailure::ProgramMissing(_)
+            | ClientFailure::CouldNotStart(_)
+            | ClientFailure::UnitInTheWay(_)
+    );
+}
+
+/// What:
 ///  Lands the commit through the service,
 /// for every command line.
 /// Why:
@@ -297,8 +336,9 @@ pub fn service_commit<F: RepositoryFacts>(
         };
         let submitted: Result<Submitted, ClientFailure> = submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit);
         // A request the service took is one whose tree the service removes once its landing is over, so this process leaves it
-        //  alone; a request the service never took leaves the tree to this process, which removes it as it ends.
-        ready.scratch.held_by_the_service(submitted.is_ok());
+        //  alone; only a definite answer that the service never took the request leaves the tree to this process, which removes
+        //  it as it ends.
+        ready.scratch.held_by_the_service(!the_service_never_took(&submitted));
         match submitted {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
