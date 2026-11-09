@@ -8982,9 +8982,13 @@ a colon a space or tab follows inside a value,
 text a closing quote does not separate,
 and an interior carriage return are refused too.
 A space or a tab separates a key from its value and starts a comment,
-so `- app` with a tab and `# published` after it lists the package `app`,
 and an interior tab stays part of a plain scalar as it does to a YAML parser.
-Because no line sits deeper than twelve spaces,
+A list item holds no `#`,
+because the template writes its items without a comment,
+so a `#` on one is refused with its line;
+the colon that makes a key is looked for only before a comment,
+so a colon inside one names no key.
+Because no line sits deeper than fourteen spaces,
 the block recursion is bounded by that indentation and the reader runs on constant stack;
 a configuration nested deeper is refused at its first over-deep line
 instead of exhausting the stack.

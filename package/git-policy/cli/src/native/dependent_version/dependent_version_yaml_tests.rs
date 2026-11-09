@@ -220,6 +220,11 @@ fn refuses_what_it_cannot_place() {
         problem("a: 1\nno key\n"),
         YamlProblem::new(2, "holds no key and colon")
     );
+    // A colon inside a comment names no key of the line that holds it.
+    assert_eq!(
+        problem("a:\n  b # c: d\n"),
+        YamlProblem::new(2, "holds no key and colon")
+    );
     assert_eq!(
         problem("a: 1\nb: 2\na: 3\n"),
         YamlProblem::new(3, "names the key \"a\" a second time")
@@ -286,6 +291,30 @@ fn refuses_indentation_deeper_than_the_generated_configuration() {
             &format!(
                 "is indented deeper than the generated configuration's deepest key, which sits {GENERATED_MAX_INDENT} spaces in"
             )
+        )
+    );
+}
+
+/// A '#' on a list item is refused by line,
+/// never read as a compact mapping:
+/// the
+///       generator writes no '#' on an item,
+/// and a colon inside a trailing comment used
+///       to turn the item into a mapping whose key held the comment.
+#[test]
+fn refuses_a_hash_on_a_list_item() {
+    let text: &str = "\
+auth:
+  oidc:
+    - workloads:
+        - packages:
+            - app # publication: enabled
+";
+    assert_eq!(
+        problem(text),
+        YamlProblem::new(
+            5,
+            "holds a '#' on a list item, where the generated configuration writes none"
         )
     );
 }
