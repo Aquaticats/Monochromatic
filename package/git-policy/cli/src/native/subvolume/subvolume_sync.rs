@@ -59,6 +59,50 @@ use std::path::{Path, PathBuf};
 pub use crate::subvolume_sync_pass_state_and_checks::{SyncOptions, SyncStats};
 use crate::subvolume_sync_pass_state_and_checks::*;
 
+//region A test-only seam: one callback for every entry a pass examines
+#[cfg(test)]
+thread_local! {
+    // The callback a control installs to change one entry *during* a pass, after the pass reached it; nothing in a release
+    // build reads or sets it.
+    static ENTRY_WATCH: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Install `watch` to run for every entry a pass examines on this thread,
+///  or clear the callback with `None`.
+/// Why:
+///   A control of what a pass cannot see must change a file at a point no other seam reaches:
+/// the pass
+///  has compared that entry and will not look at it again.
+/// The callback runs on this thread only,
+/// so two controls in
+///  one process cannot see each other's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchEntries((path) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_entries(watch: Option<Box<dyn FnMut(&Path)>>) {
+    ENTRY_WATCH.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the entry at `path`,
+/// if a control installed one.
+#[cfg(test)]
+fn note_entry(path: &Path) {
+    ENTRY_WATCH.with(|slot| {
+        // The borrow ends before the callback runs nothing of this module's, so it cannot re-enter the slot.
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
+}
+//endregion
+
 impl Pass<'_> {
 
     /// Open the destination directory of a relative path.
@@ -116,6 +160,8 @@ impl Pass<'_> {
         }
         for (name, metadata) in children {
             self.stats.entries += 1;
+            #[cfg(test)]
+            note_entry(self.source.join(relative).join(&name).as_path());
             self.handle_child(&directory, relative.join(&name), metadata, stack)?;
         }
         return Ok(());

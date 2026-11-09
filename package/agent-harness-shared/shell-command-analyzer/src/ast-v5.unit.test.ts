@@ -12,6 +12,71 @@
 import { analyzeShellCommand, } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 
+//region Fixtures
+
+/**
+ One shell form whose hidden command must reach the analysis.
+
+The marker is the argument the hidden command carries,
+so a reported command can be traced back to the form that held it.
+ */
+type SubstitutionForm = {
+  /**
+   Shell source handed to the analyzer; it is never executed.
+   */
+  readonly source: string;
+  /**
+   Argument the nested command carries.
+   */
+  readonly marker: string;
+  /**
+   Whether the nesting holds a process substitution instead of a command substitution.
+   */
+  readonly processSubstitution: boolean;
+};
+
+/**
+ Word and expression forms that can hold a nested command, keyed by where the
+ substitution sits.
+ */
+const NESTED_SUBSTITUTION_FORMS: readonly SubstitutionForm[] = [
+  { source: 'echo {a,$(touch marker)}', marker: 'marker', processSubstitution: false, },
+  { source: 'echo {a,{b,$(touch marker)}}', marker: 'marker', processSubstitution: false, },
+  { source: 'echo @(a|$(touch marker))', marker: 'marker', processSubstitution: false, },
+  { source: 'echo !(a|$(touch marker))', marker: 'marker', processSubstitution: false, },
+  { source: 'echo *(a|$(touch marker))', marker: 'marker', processSubstitution: false, },
+  { source: 'echo +(a|$(touch marker))', marker: 'marker', processSubstitution: false, },
+  { source: 'echo ?(a|$(touch marker))', marker: 'marker', processSubstitution: false, },
+  { source: 'echo [$(touch marker)]', marker: 'marker', processSubstitution: false, },
+  { source: 'echo $(( 1$(touch marker) ))', marker: 'marker', processSubstitution: false, },
+  { source: `echo $(( \${value:-$(touch marker)} ))`, marker: 'marker', processSubstitution: false, },
+  { source: 'echo $(( 1@(a|$(touch marker)) ))', marker: 'marker', processSubstitution: false, },
+  { source: `echo \${value:-{x,$(touch marker)}}`, marker: 'marker', processSubstitution: false, },
+  { source: 'echo {a,@(b|$(touch marker))}', marker: 'marker', processSubstitution: false, },
+  { source: 'echo hi > {a,$(touch marker)}', marker: 'marker', processSubstitution: false, },
+  { source: 'cat <<< {a,$(touch marker)}', marker: 'marker', processSubstitution: false, },
+  { source: 'value={a,$(touch marker)} printf hi', marker: 'marker', processSubstitution: false, },
+  { source: 'value=({a,$(touch marker)}) printf hi', marker: 'marker', processSubstitution: false, },
+  { source: 'for name in {a,$(touch marker)}; do printf hi; done', marker: 'marker', processSubstitution: false, },
+  { source: 'case x in {a,$(touch marker)}) printf hi;; esac', marker: 'marker', processSubstitution: false, },
+  { source: 'cat <<EOF\n{a,$(touch marker)}\nEOF', marker: 'marker', processSubstitution: false, },
+  { source: 'echo {a,<(touch marker)}', marker: 'marker', processSubstitution: true, },
+  { source: 'echo @(a|<(touch marker))', marker: 'marker', processSubstitution: true, },
+];
+
+/**
+ Word forms the shell grammar keeps literal, so no command can hide in them.
+ */
+const COMMAND_FREE_FORMS: readonly { readonly source: string; readonly reason: string }[] = [
+  { source: 'echo \'$(touch marker)\'', reason: 'single quotes suppress every expansion', },
+  { source: 'echo $\'$(touch marker)\'', reason: 'ANSI-C quoting only decodes backslash escapes', },
+  { source: 'echo *', reason: 'a star glob part carries no child list', },
+  { source: 'echo a[bc]d', reason: 'a bracket glob over literals carries no expansion', },
+  { source: 'cat <<\'EOF\'\n$(touch marker)\nEOF', reason: 'a quoted heredoc delimiter makes the body literal', },
+];
+
+//endregion Fixtures
+
 await describe({
   name: '',
   children: [
@@ -188,6 +253,59 @@ await describe({
             expect(result.commands.flatMap(function targets(command,) {
               return command.redirectTargets;
             },),).toEqual(['output.txt',],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'nested command substitution',
+      children: [
+        ...NESTED_SUBSTITUTION_FORMS.map(function substitutionForm(form,) {
+          return it({
+            name: `reports the nested command in ${form.source}`,
+            fn: async function testNestedSubstitutionForm() {
+              const result = analyzeShellCommand(form.source,);
+              expect(result.parsed,).toBe(true,);
+              expect(result.hasCommandSubstitution,).toBe(!form.processSubstitution,);
+              expect(result.hasProcessSubstitution,).toBe(form.processSubstitution,);
+              expect(result.notUnderstoodNodeKinds,).toEqual([],);
+              expect(result.executedCommands.filter(function carriesMarker(command,) {
+                return command.args.includes(form.marker,);
+              },).map(function markerCommandName(command,) {
+                return command.name;
+              },),).toEqual(['touch',],);
+            },
+          },);
+        },),
+        ...COMMAND_FREE_FORMS.map(function commandFreeForm(form,) {
+          return it({
+            name: `reports no command in ${form.source} because ${form.reason}`,
+            fn: async function testCommandFreeForm() {
+              const result = analyzeShellCommand(form.source,);
+              expect(result.parsed,).toBe(true,);
+              expect(result.hasCommandSubstitution,).toBe(false,);
+              expect(result.hasProcessSubstitution,).toBe(false,);
+              expect(result.notUnderstoodNodeKinds,).toEqual([],);
+              expect(result.commands.some(function isTouch(command,) {
+                return command.name === 'touch';
+              },),).toBe(false,);
+            },
+          },);
+        },),
+        it({
+          name: 'names a parameter operation the analyzer cannot read',
+          fn: async function testUnreadParameterOperation() {
+            const result = analyzeShellCommand(`echo \${value;text}`,);
+            expect(result.parsed,).toBe(true,);
+            expect(result.notUnderstoodNodeKinds,).toEqual(['Unknown',],);
+          },
+        },),
+        it({
+          name: 'names no unread node kind for a readable parameter default',
+          fn: async function testReadParameterOperation() {
+            const result = analyzeShellCommand(`echo \${value:-text}`,);
+            expect(result.parsed,).toBe(true,);
+            expect(result.notUnderstoodNodeKinds,).toEqual([],);
           },
         },),
       ],

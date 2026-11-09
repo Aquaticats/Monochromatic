@@ -276,6 +276,10 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     if let Err(failure) = promote_the_push(handoff, landed) {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
+    // A test kills the wrapper here: the push record is runnable and nothing has been woken for it yet, so the service finds it
+    //  only through the note the landing wrote (`service_claim_watch.rs`), and the person only through the line the next command
+    //  reads from the record (`held_push_notices`). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it.
+    crate::service_fault::reach(crate::service_fault::AFTER_PROMOTE);
     let handing_over: Instant = Instant::now();
     let handed = hand_over(handoff, landed, &mut stderr);
     timing.handoff += handing_over.elapsed();

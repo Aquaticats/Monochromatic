@@ -12,7 +12,73 @@ Literal `for` loop bindings preserve both forms for expansion-provenance checks.
 Callers can distinguish commands that run while the script is evaluated
 from commands only stored inside function bodies.
 
-The adapter consumes the `unbash` 5 syntax tree,
+## Every word and expression form
+
+A nested command is reported wherever the shell grammar can put one.
+The traversal descends each word part that carries a child list
+(`parts` in the parser's types),
+which covers `DoubleQuoted`,
+`LocaleString`,
+`BraceExpansion`,
+`ExtendedGlob`,
+and a `bracket` `Glob`,
+and it descends an `ArithmeticWord` for the same reason.
+`ParameterExpansion` is read through its own operation table:
+`Default`,
+`Remove`,
+`CaseModification`,
+and `Transform` carry one operand,
+`Replace` carries a pattern and a replacement,
+`Slice` carries an offset and an optional length,
+`Names` carries none,
+and the parser's `Unknown` operation is reported as unread.
+Here-document bodies,
+here-string words,
+case patterns,
+`for` word lists,
+assignment values,
+array elements,
+and redirect targets are read as words too,
+so `echo {a,$(bun test)}` reports the inner `bun test`.
+
+The parts the grammar keeps literal are named as leaves rather than guessed at:
+`Literal`,
+`SingleQuoted`,
+`SimpleExpansion`,
+`AnsiCQuoted` (which decodes backslash escapes and expands nothing),
+and the `star` and `question` `Glob` kinds,
+whose `parts` field is typed `undefined`.
+
+## A node kind the traversal does not know
+
+`ShellCommandAnalysis.notUnderstoodNodeKinds` names every parser node kind
+the walk met and had no visitor for.
+An empty list means the answered tree was walked whole;
+a non-empty list means part of the command was named instead of read,
+so `commands` is not proof that nothing else runs.
+
+A limit this list does not cover:
+past the parser's nesting budget (`MAX_SYNTAX_NESTING`,
+256 in unbash 6.0.4),
+a sub-field keeps its raw text and has no parts to walk,
+so a command nested that deep is neither reported nor named.
+That depth takes a command written to reach it.
+
+A limit this list does not cover:
+past the parser's nesting budget (`MAX_SYNTAX_NESTING`,
+256 in unbash 6.0.4),
+a sub-field keeps its raw text and has no parts to walk,
+so a command nested that deep is neither reported nor named.
+That depth takes a command written to reach it.
+`parsed` still reports parser success,
+because unparsable syntax and unread syntax are different answers.
+`hasNotUnderstoodShellSyntax` and `NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON`
+give guards the refusal that keeps that answer from becoming an allow.
+Bash rejects the reachable unread form itself
+(`printf %s ${value;text}` is a bad substitution),
+so refusing it costs a rewrite and never a working command.
+
+The adapter consumes the `unbash` 6 syntax tree,
 including redirected compounds,
 command-wrapper nodes,
 declaration assignments,
