@@ -65,10 +65,10 @@ const OWNER_EXECUTE_BIT: u32 = 0o100;
 ///  `Option<&Path>` is the directory the wrapper was started in,
 ///  which the caller's
 ///       `-C` options move,
-///  `Option<&Path>` is the directory Git's command word runs in,
+///  and nothing when it cannot be read;
+///  the other `Option<&Path>` is the directory Git's command word runs in,
 ///  those options already applied,
-///  and nothing to apply them to the directory the wrapper was started in,
-///  and nothing when it cannot be read.
+///  and nothing to apply them to the directory the wrapper was started in.
 /// Why:
 ///  The wrapper substitutes the expansion it resolved,
 ///  so it must not do that for a word Git resolves
@@ -131,9 +131,12 @@ pub fn dashed_external_selected(
 ///  its exec path first and then every `PATH` entry,
 /// or
 ///       nothing when the directory Git runs in or its exec path cannot be read.
-///  `Option<&Path>` is the directory Git's command word runs in,
-///  the caller's directory options already applied,
-///  and nothing to apply those options to the directory the wrapper was started in.
+///  `Option<&Path>` is the directory the wrapper was started in,
+///  which the caller's options move,
+///  and nothing when it cannot be read;
+///  the other `Option<&Path>` is the directory Git's command word runs in,
+///  those options already applied,
+///  and nothing to apply them to the directory the wrapper was started in.
 /// Why:
 ///  `setup_path` puts the exec path in front of `PATH` once,
 ///  before any command runs
