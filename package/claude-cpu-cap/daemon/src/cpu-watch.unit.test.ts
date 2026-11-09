@@ -30,7 +30,8 @@ await describe({
         /**
          Disposable host the watcher is pointed at.
          */
-        const { root, paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+        await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+        const { root, paths, } = host;
         /**
          The watcher process with every path overridden to the fixture.
          */

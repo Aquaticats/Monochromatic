@@ -57,6 +57,30 @@ pub use warning::CacheWarning;
 /// Imports closed warning reason values.
 use warning::CacheWarningReason;
 
+/// What:
+///  Whether a load may add the rules it compiled to the shared cache.
+/// Why:
+///   A host that publishes the compiled rules somewhere else
+///  (a resident service reading the same repository)
+///  must not pay for the write itself,
+///  and every read validates the whole artifact,
+///  so a load that only reads is as correct as one that writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CacheAccess = 'read-write' | 'read-only';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CacheAccess {
+    /// Read a valid artifact,
+    ///  compile on a miss,
+    ///  and publish what was compiled.
+    ReadWrite,
+    /// Read a valid artifact and compile on a miss,
+    ///  never writing the cache.
+    ReadOnly,
+}
+
 /// Runtime cache result consumed by frx loader.
 pub(crate) struct CacheLoad {
     /// Valid compiled rules from artifact or authoritative text.
@@ -65,8 +89,10 @@ pub(crate) struct CacheLoad {
     pub(crate) warnings: Vec<CacheWarning>,
 }
 
-/// Loads compatible artifact or compiles and best-effort repairs from one snapshot of the rules files.
-pub(crate) fn load_or_compile(snapshot: &RulesSnapshot) -> Result<CacheLoad> {
+/// Loads compatible artifact or compiles and,
+///  under [`CacheAccess::ReadWrite`],
+///  best-effort repairs from one snapshot of the rules files.
+pub(crate) fn load_or_compile(snapshot: &RulesSnapshot, access: CacheAccess) -> Result<CacheLoad> {
     let digest = match source_digest(snapshot.text().as_bytes()) {
         Ok(digest) => digest,
         Err(error) => return Err(anyhow!("rules {}: {}", snapshot.label(), error)),
@@ -92,27 +118,67 @@ pub(crate) fn load_or_compile(snapshot: &RulesSnapshot) -> Result<CacheLoad> {
         Ok(bytes) => match decode(&bytes, digest) {
             Ok(compiled) => return Ok(CacheLoad { compiled, warnings: Vec::new() }),
             Err(error) => {
-                return compile_and_repair(snapshot, digest, &location, error.warning_reason());
+                return compile_and_repair(snapshot, digest, &location, error.warning_reason(), access);
             }
         },
         Err(ArtifactReadError::Missing) => {
-            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Missing);
+            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Missing, access);
         }
         Err(ArtifactReadError::Unreadable) => {
-            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Unreadable);
+            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Unreadable, access);
         }
     }
 }
 
-/// Compiles source snapshot and appends write warning when repair cannot publish safely.
+/// Whether the shared cache holds a file for this snapshot's compiled form.
+/// Why:
+///  A host asks this before it loads the rules,
+///  to learn whether the load can miss and so whether it must arrange for someone else to publish;
+///  the answer is the artifact file's presence,
+///  because the load validates whatever it finds and repairs an artifact a read rejects,
+///  so a corrupt file here costs this command the write the question was trying to place elsewhere.
+/// Nothing is read past one `stat`,
+///  so a warm cache pays no second read of the artifact.
+///
+pub(crate) fn artifact_exists(snapshot: &RulesSnapshot) -> bool {
+    let Ok(digest) = source_digest(snapshot.text().as_bytes()) else { return false };
+    let Ok(root) = resolve_cache_root(&current_environment(), current_platform()) else { return false };
+    return cache_location(&root, digest).artifact_path.is_file();
+}
+
+/// Whether the shared cache holds a file for the compiled form of these rules files' text.
+/// Why:
+///  An embedding host arranges for the compiled rules to be published off its own path when the cache
+///  holds no compiled form,
+///  and every rules-file question this asks is the one its own load asks
+///  (the files in list order,
+///  an absent optional entry skipped).
+/// A list that cannot be read answers no,
+///  so the caller keeps the write itself and the next load says why it failed.
+///
+pub fn compiled_rules_artifact_exists(entries: &[RulesEntry]) -> bool {
+    let Ok(snapshot) = RulesSnapshot::read(entries) else { return false };
+    if snapshot.is_empty() {
+        return false
+    }
+    return artifact_exists(&snapshot);
+}
+
+/// Compiles source snapshot and,
+///  when the access allows it,
+///  appends a write warning when repair cannot publish safely.
 fn compile_and_repair(
     snapshot: &RulesSnapshot,
     digest: SourceDigest,
     location: &path::CacheLocation,
     reason: CacheWarningReason,
+    access: CacheAccess,
 ) -> Result<CacheLoad> {
     let compiled = snapshot.compile()?;
     let mut warnings = vec![CacheWarning::compile_from_text(reason)];
+    if access == CacheAccess::ReadOnly {
+        return Ok(CacheLoad { compiled, warnings })
+    }
     if !snapshot.still_current() || !publish_compiled_snapshot(&compiled, digest, location) {
         warnings.push(CacheWarning::write_failed());
     }

@@ -19,7 +19,7 @@ const COPYING: Prune = Prune::MainCheckout { run_records: true };
 fn shipped_rule_follows_the_toggle() {
     assert_eq!(Prune::main_checkout(), Prune::MainCheckout { run_records: COPY_RUN_RECORDS });
     // The owner answered 2026-11-02 "Skip run records (Recommended)", so the shipped rule leaves a run record out.
-    assert!(Prune::main_checkout().skips_path("node_modules/.monochromatic/2026-11-01/log.jsonl"));
+    assert!(Prune::main_checkout().skips_path(b"node_modules/.monochromatic/2026-11-01/log.jsonl"));
 }
 
 /// Dependencies and builds are never left out,
@@ -43,7 +43,7 @@ fn dependencies_and_builds_are_kept() {
             "mise.local.toml",
             ".env.local.json",
         ] {
-            assert!(!prune.skips_path(kept), "{kept} is needed by a new worktree");
+            assert!(!prune.skips_path(kept.as_bytes()), "{kept} is needed by a new worktree");
         }
     }
 }
@@ -70,7 +70,7 @@ fn caches_are_left_out_except_the_root_cache() {
             "package/x/target/x86_64-unknown-linux-gnu/debug/incremental",
             "package/x/target/zig-global-cache/z",
         ] {
-            assert!(prune.skips_path(cache), "{cache} is a cache");
+            assert!(prune.skips_path(cache.as_bytes()), "{cache} is a cache");
         }
     }
 }
@@ -80,16 +80,16 @@ fn caches_are_left_out_except_the_root_cache() {
 /// and the installed artifacts are the build a worktree needs.
 #[test]
 fn zig_outputs_are_kept() {
-    assert!(!SKIPPING.skips_path("package/x/zig-out"));
-    assert!(!SKIPPING.skips_path("package/x/zig-out/bin/tool"));
+    assert!(!SKIPPING.skips_path(b"package/x/zig-out"));
+    assert!(!SKIPPING.skips_path(b"package/x/zig-out/bin/tool"));
 }
 
 /// `incremental` and `zig-global-cache` are caches only inside a build output directory.
 #[test]
 fn target_cache_names_apply_only_below_a_target_directory() {
-    assert!(!SKIPPING.skips_path("package/x/incremental"));
-    assert!(!SKIPPING.skips_path("package/x/zig-global-cache"));
-    assert!(!SKIPPING.skips_path("package/x/src/incremental/data"));
+    assert!(!SKIPPING.skips_path(b"package/x/incremental"));
+    assert!(!SKIPPING.skips_path(b"package/x/zig-global-cache"));
+    assert!(!SKIPPING.skips_path(b"package/x/src/incremental/data"));
 }
 
 /// Run records are left out only while the toggle says so.
@@ -108,8 +108,8 @@ fn run_records_follow_the_toggle() {
         "test-results/a.json",
         ".serena/cache/symbols",
     ] {
-        assert!(SKIPPING.skips_path(record), "{record} is a run record that is skipped");
-        assert!(!COPYING.skips_path(record), "{record} is a run record that the toggle copies");
+        assert!(SKIPPING.skips_path(record.as_bytes()), "{record} is a run record that is skipped");
+        assert!(!COPYING.skips_path(record.as_bytes()), "{record} is a run record that the toggle copies");
     }
 }
 
@@ -120,7 +120,7 @@ fn run_records_follow_the_toggle() {
 #[test]
 fn record_names_need_their_parents() {
     for kept in [".monochromatic", "package/x/.monochromatic/a", "package/x/verification/a", "package/x/cache/a", "target/debug/verification"] {
-        assert!(!SKIPPING.skips_path(kept), "{kept} is not a run record");
+        assert!(!SKIPPING.skips_path(kept.as_bytes()), "{kept} is not a run record");
     }
 }
 
@@ -128,9 +128,9 @@ fn record_names_need_their_parents() {
 /// except another command's stage container.
 #[test]
 fn no_rule_leaves_out_nothing() {
-    assert!(!Prune::Never.skips_path("node_modules/.pnpm-store"));
-    assert!(!Prune::Never.skips_path("package/x/target/debug/incremental"));
-    assert!(!Prune::Never.skips_checkout(&[String::from(".git")]));
+    assert!(!Prune::Never.skips_path(b"node_modules/.pnpm-store"));
+    assert!(!Prune::Never.skips_path(b"package/x/target/debug/incremental"));
+    assert!(!Prune::Never.skips_checkout(&[b".git".to_vec()]));
 }
 
 /// What:
@@ -157,11 +157,11 @@ fn a_stage_container_of_another_command_is_never_carried() {
             format!(".claude/worktrees/{container}"),
             format!(".claude/worktrees/{container}/payload/node_modules/pkg/index.js"),
         ] {
-            assert!(prune.skips_path(path.as_str()), "{path} is another command's stage container");
+            assert!(prune.skips_path(path.as_bytes()), "{path} is another command's stage container");
         }
     }
-    assert!(!SKIPPING.skips_path("package/x/node_modules"), "a dependency tree of the source is not a stage");
-    assert!(!SKIPPING.skips_path("package/x/cli-git-worktree-copy-notes.md"), "a name that merely holds the prefix is not a stage");
+    assert!(!SKIPPING.skips_path(b"package/x/node_modules"), "a dependency tree of the source is not a stage");
+    assert!(!SKIPPING.skips_path(b"package/x/cli-git-worktree-copy-notes.md"), "a name that merely holds the prefix is not a stage");
 }
 
 /// A directory holding `.git`,
@@ -170,8 +170,8 @@ fn a_stage_container_of_another_command_is_never_carried() {
 /// a lookalike name is not.
 #[test]
 fn a_directory_holding_dot_git_is_another_checkout() {
-    assert!(SKIPPING.skips_checkout(&[String::from("src"), String::from(".git")]));
-    assert!(COPYING.skips_checkout(&[String::from(".git")]));
-    assert!(!SKIPPING.skips_checkout(&[String::from(".github"), String::from("gitignore")]));
+    assert!(SKIPPING.skips_checkout(&[b"src".to_vec(), b".git".to_vec()]));
+    assert!(COPYING.skips_checkout(&[b".git".to_vec()]));
+    assert!(!SKIPPING.skips_checkout(&[b".github".to_vec(), b"gitignore".to_vec()]));
     assert!(!SKIPPING.skips_checkout(&[]));
 }

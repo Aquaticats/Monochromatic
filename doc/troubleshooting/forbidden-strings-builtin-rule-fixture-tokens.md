@@ -1,5 +1,10 @@
 # forbidden-strings 0.4.1 built-in `hashicorp-tf-password` matches synthetic fixture tokens in JSON receipts, blocking every merge that brings the file in
 
+Note 2026-11-09T16:55:17-05:00:
+`package/git-policy/cli/src/native/policy_trigger.rs` is now
+`package/git-policy/cli/src/native/policy/policy_trigger.rs`,
+moved 2026-11-03 in `4a7706221a`.
+
 ## Symptom
 
 A merge commit that brings `doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json`

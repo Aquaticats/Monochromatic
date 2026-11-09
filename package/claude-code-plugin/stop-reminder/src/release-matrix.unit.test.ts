@@ -1,8 +1,6 @@
 import { execFileSync, } from 'node:child_process';
-import {
-  mkdtempSync,
-  writeFileSync,
-} from 'node:fs';
+import { writeFileSync, } from 'node:fs';
+import { mkdtempDisposable, } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
@@ -28,9 +26,13 @@ const BUNDLE = resolve(
 );
 
 /**
- Scratch directory holding one transcript per case.
+ Scratch directory holding one transcript per case, removed when this module's
+ scope unwinds.
  */
-const SCRATCH = mkdtempSync(join(scratchRoot(), 'stop-reminder-release-',),);
+await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'stop-reminder-release-',),);
+
+/** Fixture root this suite shares; `scratchDirectory` owns its removal. */
+const SCRATCH = scratchDirectory.path;
 
 /**
  Transcript line for a turn the user typed, which closes the counting window.

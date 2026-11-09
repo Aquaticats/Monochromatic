@@ -82,7 +82,7 @@ const MOST_PASSES: usize = 6;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SettlingRequest = { sourceRoot: string; stageRoot: string; selectedRoots: string[]; excludedSourceRoots: string[]; prune: Prune; entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; clone: CloneRequest };
+/// type SettlingRequest = { sourceRoot: string; stageRoot: string; selectedRoots: Uint8Array[]; excludedSourceRoots: string[]; prune: Prune; entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; clone: CloneRequest };
 /// ```
 pub struct SettlingRequest<'a> {
     /// The checkout the copy came from.
@@ -90,8 +90,9 @@ pub struct SettlingRequest<'a> {
     /// The private payload the entries are copied into.
     pub stage_root: &'a Path,
     /// The roots Git selected,
-    /// relative to the source.
-    pub selected_roots: &'a [String],
+    /// relative to the source,
+    /// as the bytes of each name.
+    pub selected_roots: &'a [Vec<u8>],
     /// The source roots no walk enters.
     pub excluded_source_roots: &'a [PathBuf],
     /// The leave-out rule the staged walk uses.
@@ -104,8 +105,9 @@ pub struct SettlingRequest<'a> {
     /// The clone request the copy and its retries use.
     pub clone: fn(&std::fs::File, &std::fs::File) -> bool,
     /// The manifest entries the copy found gone,
-    /// which the settling drops before it compares anything.
-    pub gone: Vec<String>,
+    /// which the settling drops before it compares anything,
+    /// as the bytes of each name.
+    pub gone: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -119,7 +121,7 @@ pub struct SettlingRequest<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Settled = { entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; unsettled: string[] };
+/// type Settled = { entries: WorktreeCopyEntry[]; stamps: (FileStamp | undefined)[]; unsettled: Uint8Array[] };
 /// ```
 pub struct Settled {
     /// The entries the stage holds.
@@ -127,8 +129,9 @@ pub struct Settled {
     /// The stamp of each of them,
     /// in entry order.
     pub stamps: Vec<Option<FileStamp>>,
-    /// The entries left in the source because they kept changing under the copy.
-    pub unsettled: Vec<String>,
+    /// The entries left in the source because they kept changing under the copy,
+    /// as the bytes of each name.
+    pub unsettled: Vec<Vec<u8>>,
     /// How many manifest entries the source no longer held when their turn came.
     pub gone: usize,
 }
@@ -153,7 +156,7 @@ pub struct Settled {
 pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, WorktreeCopyError> {
     let mut entries: Vec<WorktreeCopyEntry> = request.entries;
     let mut stamps: Vec<Option<FileStamp>> = request.stamps;
-    let mut unsettled: Vec<String> = Vec::new();
+    let mut unsettled: Vec<Vec<u8>> = Vec::new();
     let gone_count: usize = request.gone.len();
     // An entry the copy found gone has no stage file, so it leaves the manifest before the modes are applied.
     leave_out(&mut entries, &mut stamps, request.gone.as_slice(), request.stage_root)?;
@@ -203,7 +206,7 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
 /// ```ts
 /// const nextPass = (pass, dropped) => { if (pass >= MOST_PASSES) throw `the ignored entries would not hold still while the copy was made`; return pass + 1; };
 /// ```
-fn next_pass(pass: usize, dropped: &[String]) -> Result<usize, WorktreeCopyError> {
+fn next_pass(pass: usize, dropped: &[Vec<u8>]) -> Result<usize, WorktreeCopyError> {
     let _counted: usize = dropped.len();
     if pass >= MOST_PASSES {
         return Err(crate::worktree_copy_error::failure_with_cause(
@@ -230,14 +233,14 @@ fn next_pass(pass: usize, dropped: &[String]) -> Result<usize, WorktreeCopyError
 fn copy_again(
     entries: &mut [WorktreeCopyEntry],
     stamps: &mut [Option<FileStamp>],
-    changed: &[String],
+    changed: &[Vec<u8>],
     source_root: &Path,
     stage_root: &Path,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<(), WorktreeCopyError> {
     for path in changed {
-        let Some(index) = index_of_path(entries, path.as_str()) else { continue };
-        let stage_path: PathBuf = filesystem_path(stage_root, path.as_str())?;
+        let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
+        let stage_path: PathBuf = filesystem_path(stage_root, path.as_slice())?;
         remove_the_staged_copy(stage_path.as_path())?;
         let entry: WorktreeCopyEntry = entries[index].clone();
         let copied: CopiedLeaf = copy_one_leaf(source_root, stage_path.as_path(), &entry, clone)?;
@@ -268,13 +271,13 @@ fn copy_again(
 fn leave_out(
     entries: &mut Vec<WorktreeCopyEntry>,
     stamps: &mut Vec<Option<FileStamp>>,
-    paths: &[String],
+    paths: &[Vec<u8>],
     stage_root: &Path,
 ) -> Result<(), WorktreeCopyError> {
     for path in paths {
-        let stage_path: PathBuf = filesystem_path(stage_root, path.as_str())?;
+        let stage_path: PathBuf = filesystem_path(stage_root, path.as_slice())?;
         remove_the_staged_copy(stage_path.as_path())?;
-        let Some(index) = index_of_path(entries, path.as_str()) else { continue };
+        let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
         entries.remove(index);
         stamps.remove(index);
     }
@@ -293,7 +296,7 @@ fn leave_out(
 /// ```ts
 /// const indexOfPath = (entries, path) => entries.findIndex((entry) => entry.relativePath === path);
 /// ```
-fn index_of_path(entries: &[WorktreeCopyEntry], path: &str) -> Option<usize> {
+fn index_of_path(entries: &[WorktreeCopyEntry], path: &[u8]) -> Option<usize> {
     for (index, entry) in entries.iter().enumerate() {
         if entry.relative_path == path {
             return Some(index);

@@ -241,24 +241,39 @@ fn an_intent_to_add_entry_equal_to_the_base_keeps_its_path_in_the_commit() {
 /// an index whose only marks are intent-to-add entries seeds it too,
 /// copied as it is;
 /// an assume-unchanged entry sends the build to the base,
-/// and an absent file seeds nothing.
+/// and bytes this crate cannot read seed nothing.
 #[test]
 fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     let root: PathBuf = fixture("commit-index-seeds");
-    let (repo, indexes, _base) = committed_repository(root.as_path());
+    let (repo, _indexes, _base) = committed_repository(root.as_path());
     let real: PathBuf = repo.join(".git").join("index");
-    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Copy);
+    assert_eq!(seed_of_index_bytes(&index_bytes_of(real.as_path())), PrivateIndexSeed::Copy);
     std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
     git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
     assert_eq!(
-        private_index_seed(real.as_path()),
+        seed_of_index_bytes(&index_bytes_of(real.as_path())),
         PrivateIndexSeed::CopyWithIntentToAdd(vec![b"added.txt".to_vec()]),
         "an intent-to-add entry keeps the copy"
     );
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
-    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Base);
-    assert_eq!(private_index_seed(indexes.commit_index.as_path()), PrivateIndexSeed::Base);
+    assert_eq!(seed_of_index_bytes(&index_bytes_of(real.as_path())), PrivateIndexSeed::Base);
+    assert_eq!(seed_of_index_bytes(b"not an index"), PrivateIndexSeed::Base, "bytes this crate cannot read seed nothing");
     remove(root.as_path());
+}
+
+/// What:
+///  The bytes of one file,
+///  read the way a control hands an index's state to the seed decision.
+/// Why:
+///  The controls below ask the seed decision about the bytes the real index holds,
+///  so they must read that file rather than name it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const indexBytes = (path: string) => readFileSync(path);
+/// ```
+fn index_bytes_of(index: &Path) -> Vec<u8> {
+    return std::fs::read(index).expect("the index's bytes");
 }
 
 //region The stat data of an index the move to another disk left stale

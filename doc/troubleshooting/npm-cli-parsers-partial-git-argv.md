@@ -1,5 +1,8 @@
 # Jackspeak 4.2.3, type-flag 4.5.0, and Argue 3.1.0 lose partial Git argv semantics
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/parser/argv.unit.test.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 A cli-git parser declares only policy-relevant Git options.
