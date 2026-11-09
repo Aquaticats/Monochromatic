@@ -149,7 +149,8 @@ fn a_plan_file_of_an_earlier_release_is_removed_with_its_branch() {
 ///   That key was built from the text of the path,
 /// and the text of a name that holds a byte which is not text shows the replacement character,
 /// so a directory named with that character itself and one named with the byte get one key;
-/// saving a plan for one must not delete the other's, whose push is neither done nor cancelled.
+/// saving a plan for one must not delete the other's,
+/// whose push is neither done nor cancelled.
 #[test]
 fn a_legacy_key_does_not_remove_another_directorys_plan() {
     use std::ffi::OsStr;

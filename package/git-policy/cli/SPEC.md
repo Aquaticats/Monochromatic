@@ -2315,7 +2315,8 @@ branch,
 because that key was built from the text,
 and the text of a name that holds a byte which is not text shows the replacement character:
 a directory named with that character itself has the same text,
-and its plan is neither done nor cancelled, so it stays.
+and its plan is neither done nor cancelled,
+so it stays.
 The person must act for a conflict,
 for a login the service does not have,
 and for a hook on the server that declined the push
@@ -8177,7 +8178,9 @@ the compiled-rules warm-up after a landing.
 A request whose line would not fit `MAX_LINE_BYTES` is not sent.
 The wrapper measures the line the client would write (`commit_request_fits` in
 `src/native/service/service_protocol_encode_messages_to_lines.rs`)
-and, when it does not fit, builds the commit itself and sends it whole,
+and,
+when it does not fit,
+builds the commit itself and sends it whole,
 which is the route such a commit took before a changed path carried its bytes
 (`service_commit.rs`).
 Nothing is printed about the choice:

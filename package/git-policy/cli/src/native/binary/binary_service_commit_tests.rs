@@ -216,7 +216,8 @@ fn fields(fixture: &Fixture, repo: &Path, revision: &str) -> (String, String, St
 /// so a request of the most changes at the path length the line ceiling was measured for is longer than the line the
 ///  service reads;
 /// before a changed path carried its bytes such a commit took the route where the wrapper builds it,
-/// and it must again, with no word the person did not get from that route before.
+/// and it must again,
+/// with no word the person did not get from that route before.
 #[test]
 fn a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway() {
     use git_policy_cli::service_protocol::{MAX_CHANGES, P99_CHANGED_PATH_CHARACTERS};

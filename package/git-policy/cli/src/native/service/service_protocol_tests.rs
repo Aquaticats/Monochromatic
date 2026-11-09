@@ -72,14 +72,15 @@ fn a_change_path_that_is_not_text_round_trips() {
 /// Why:
 ///   A service built before the bytes travelled ignores `pathHex` and commits the readable spelling of the name,
 /// so the version both sides compare is what keeps such a service from ever being handed the request:
-/// the release text alone cannot, because two builds of one crate version name the same release.
+/// the release text alone cannot,
+/// because two builds of one crate version name the same release.
 #[test]
 fn a_commit_request_carries_the_version_that_knows_a_changed_paths_bytes() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
     let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
     assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
-    assert!(PROTOCOL_VERSION > 7, "the version that knows `pathHex` is the first after the one that does not");
+    // The version of the build that ignores `pathHex`: a request in it is served, so this release must not speak it.
     value["version"] = serde_json::Value::from(7);
     assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
 }
@@ -436,7 +437,8 @@ fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_li
 /// Why:
 ///   This is the size the preparation measures before it decides whether the service can carry the request
 /// (`commit_request_fits`):
-/// a request that does not fit is one the wrapper builds itself, so the boundary is the one a person's commit obeys.
+/// a request that does not fit is one the wrapper builds itself,
+/// so the boundary is the one a person's commit obeys.
 #[test]
 fn the_most_changes_fit_one_line_only_while_their_names_are_text() {
     use std::ffi::OsStr;

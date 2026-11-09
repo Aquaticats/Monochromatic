@@ -965,14 +965,18 @@ fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
 }
 
 /// The protocol version of the build before a changed path carried its bytes.
-/// The release text cannot name that build apart from this one, because both name one crate version.
+/// The release text cannot name that build apart from this one,
+/// because both name one crate version.
 const PROTOCOL_BEFORE_CHANGED_PATH_BYTES: u32 = 7;
 
 /// What:
-///  A service of the protocol that ignores `pathHex`, even one that names this release, is asked to retire and is never
+///  A service of the protocol that ignores `pathHex`,
+/// even one that names this release,
+/// is asked to retire and is never
 ///  given a commit.
 /// Why:
-///   Such a service takes the readable spelling of a name that is not text and commits it, and reports success,
+///   Such a service takes the readable spelling of a name that is not text and commits it,
+/// and reports success,
 /// which is another file from the one the person staged;
 /// the version both sides compare is the only thing that keeps the request from being handed to it.
 #[test]
@@ -1012,7 +1016,7 @@ fn a_service_that_ignores_changed_path_bytes_is_retired_and_never_given_a_commit
                         already: false,
                     });
                     answer.push('\n');
-                    let _sent = (&stream).write_all(answer.as_bytes());
+                    let _answered = (&stream).write_all(answer.as_bytes());
                 }
                 asked.push(line.trim_end().to_string());
                 held.push(stream);
