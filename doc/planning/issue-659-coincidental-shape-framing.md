@@ -80,14 +80,23 @@ Sibling issue bodies,
 Source spot-checks:
 
 - `package/git-policy/cli/src/trust/typescript-source-capture.ts:54-63`
+  (deleted on 2026-10-13 in `642b6d72cb`;
+  the trust registry it served is retired with no native successor)
 - `package/rolldown-plugin/import-attributes/src/patterns.ts:82-93`
 - `package/cli/markdown-lint/src/fix.ts:55-66`
+  (deleted on 2026-10-06 in `5bc05682ec`;
+  now `package/linter/monochromatic-lint/src/edits.rs:273-318`)
 - `package/fs-path/core/src/root-filesystem.neutral.ts:47-53`
 - `package/fs-path/core/src/memory-root-filesystem.ts:245-250`
 - `package/oxlint-plugin/test-support/src/index.ts:188-272`
 - `package/ssg/aquati.cat/src/lib/jsx-to-html.ts:59-77`
 - `package/git-policy/cli/src/hook-dispatch/hook-dispatch-plan.ts:131-145`
+  (deleted on 2026-10-13 in `642b6d72cb`;
+  the wrapper now starts real Git with every hook switched off,
+  in `package/git-policy/cli/src/native/invocation/hooks_off.rs`)
 - `package/git-policy/cli/src/shadow-repository/shadow-config.ts:63-78`
+  (deleted on 2026-10-13 in `642b6d72cb`;
+  now `package/git-policy/cli/src/native/shadow/shadow_config.rs:67-79`)
 - `package/hyperscript/core/src/css/values.constructors.ts:297-314,346-365,462-464,482-484`
 
 ## What the issue gets right

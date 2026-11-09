@@ -116,6 +116,18 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.worktree_dirty(scope);
     }
 
+    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+        return self.inner.ignored_files_the_tree_tracks(revision);
+    }
+
+    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+        return self.inner.clean_would_delete(arguments);
+    }
+
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        return self.inner.repository_holds_a_stash();
+    }
+
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         return self.inner.sequencer_state();
     }
@@ -157,6 +169,18 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         return (**self).worktree_dirty(scope);
+    }
+
+    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+        return (**self).ignored_files_the_tree_tracks(revision);
+    }
+
+    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+        return (**self).clean_would_delete(arguments);
+    }
+
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        return (**self).repository_holds_a_stash();
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

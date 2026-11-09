@@ -204,6 +204,46 @@ impl Refs {
         return self.packed_named(false);
     }
 
+    /// What:
+    ///  How many refs `packed-refs` names,
+    /// without their values,
+    /// so a caller can tell how long a listing would be before it reads one.
+    /// Why:
+    ///  The count is read before the listing is built,
+    /// and a file holding more refs than the caller answers in process must make it decline without
+    ///  walking `refs/` or checking one object.
+    /// A line with no space names no ref and makes the file unsure;
+    /// a comment is allowed only first,
+    /// and a peeled line belongs to the ref above it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// countPackedRefs(directory): number | undefined;
+    /// ```
+    pub fn packed_ref_count(&self) -> Option<usize> {
+        let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
+            Ok(bytes) => bytes,
+            Err(crate::private_storage::ReadRefusal::Missing) => return Some(0),
+            Err(_) => return None,
+        };
+        let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
+        let mut count: usize = 0;
+        for (position, line) in text.lines().enumerate() {
+            if line.starts_with('#') {
+                if position != 0 {
+                    return None;
+                }
+                continue;
+            }
+            if line.starts_with('^') {
+                continue;
+            }
+            line.split_once(' ')?;
+            count += 1;
+        }
+        return Some(count);
+    }
+
     /// The packed lines as `(name, object name)`.
     /// With `skip_unplain` set,
     /// a well-formed line whose name Git itself would refuse,

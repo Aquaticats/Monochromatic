@@ -1618,11 +1618,36 @@ The rule is:
    clean or not.
 - In a linked worktree it is rejected while the worktree holds uncommitted tracked changes
    (for `git clean`,
-  also untracked files),
+  also untracked files,
+  and for `git clean -x` or `-X`,
+  ignored files),
    and runs when the worktree is clean.
+- An ignored file counts where the command can delete or replace it:
+  `git clean -x` is rejected while any tracked,
+  untracked or ignored file exists,
+  and `git clean -X` while any ignored file does.
+  A `git clean -fd`,
+  which keeps the ignored files,
+  is unaffected.
+  `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
+  A `git clean -X` that names its own exclusions (`-e`,
+  `--exclude`) is measured by Git's own dry run of that clean,
+  because those patterns decide what it deletes and a status cannot see them.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
+- A `git checkout` or `git switch` that changes any file is forwarded with `--no-overwrite-ignore`,
+  so Git itself refuses a switch that would replace an ignored file the target branch tracks,
+  and names the file instead.
+  Nothing is lost when nothing would be replaced,
+  and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
+- A forced `git checkout -f`,
+  a forced `git switch -f` and a `git reset --hard` (`--merge`,
+  `--keep`) override that token,
+  so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
+  write tracks,
+  and the rejection names both.
+  The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
    Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`,
@@ -1635,6 +1660,12 @@ The rule is:
    and `git checkout -f`,
   `git reset --hard` and the other forms that overwrite stay rejected.
 - A status Git cannot read stops the command instead of reading as clean.
+- `git stash drop` and `git stash clear` delete entries of `refs/stash`,
+  the one stash every worktree of the repository shares,
+  so they are rejected in a linked worktree while the repository holds an entry,
+  whatever that worktree's own status says.
+  `git stash list` and `git stash show` read the stash,
+  and `git stash branch <branch>` moves an entry into its own branch and keeps the work.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -1643,6 +1674,40 @@ The rule is:
   else `XDG_DATA_HOME/mise`,
    else `~/.local/share/mise`),
   where mise keeps its plugin clones and updates them with a forced checkout.
+  The exemption is chosen by the environment of the command itself,
+  so the wrapper says on standard error which variable exempted the repository and which directory it named,
+  because a variable that happens to name a repository turns the guard off for it.
+
+The guard reads the command Git will run,
+not the word on the command line:
+an ordinary Git alias is expanded as Git expands it,
+the decision is taken on the expansion,
+and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
+A shell alias (`!...`) is a shell command,
+which no reading of its text can judge,
+and Git runs it with its own `git-core` directory first on `PATH`,
+so the `git` inside it is real Git rather than this wrapper.
+
+Two commands are never rejected and always leave one audit line (outcome `logged`,
+with `writtenBeforeGitRuns` `true`,
+because the line is written before Git runs and cannot say whether Git ran the deletion or refused it),
+by the owner's decision,
+also when `--no-enforce-worktree` is given:
+
+- `git worktree remove`,
+  because agents are as likely to run `rm -rf`;
+  the line names the worktree,
+  whether `--force` was given,
+  the `HEAD` it was on,
+  and how many tracked paths differed from it
+  (and says that it counted tracked changes only).
+- `git branch -d`,
+  `git branch -D` and `git branch --delete` from the main worktree;
+  one line per branch names the branch,
+  the reference it took (`refs/heads/<name>`,
+  or `refs/remotes/<name>` with `-r`/`--remotes`),
+  its commit and whether it was already merged,
+  so `git update-ref <reference> <commit>` brings it back.
 
 Every rejection names the form,
  what it would destroy,
@@ -2927,13 +2992,15 @@ Each line names what the command waits for,
    and says when the step is stopped.
    When the message came with the command (`-m`,
   `-F`,
-  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (3,006 ms,
-  three times the slowest of the 14 `git commit` step records,
-  1,002 ms;
+  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (16,332 ms,
+  three times the slowest
+  `git commit` step record that is not one of the three over 26 s,
+  5,444 ms,
+  over 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5;
   owner,
   2026-11-08,
-  "About 3 s now",
-  after "limit unless editor" on 2026-11-07;
+  "About 16 seconds",
+  after "About 3 s now" on the same day and "limit unless editor" on 2026-11-07;
   `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds):
    everything below the command is ended,
    nothing is committed,
@@ -2942,6 +3009,10 @@ Each line names what the command waits for,
    The owner chose this knowing that on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s;
    those builds were a retry index without stat data,
    which is fixed.
+   On the log of 2026-11-08 it still refuses three commits,
+   whose steps ran 26,256,
+   36,651 and 171,383 ms,
+   and the owner asked for each of them to be investigated.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
@@ -3063,7 +3134,9 @@ replace refs,
 shallow or grafted history,
 split or sparse indexes,
 an index extension other than the ones Git reads without a word,
+an index offset table that does not name the entries the reader parsed,
 a ref name Git's own rule for a ref name would refuse,
+a ref listing past the 256 refs the listing reader answers,
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,
