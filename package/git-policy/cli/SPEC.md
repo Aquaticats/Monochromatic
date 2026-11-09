@@ -3225,7 +3225,8 @@ on the commit path:
   and another command can switch the worktree to a branch that names the same commit between that read and the install,
   so the merge's files and index land in a checkout that now belongs to the other branch.
   The read is made once more immediately before the branch moves,
-  and a `HEAD` that differs keeps the record, moves nothing and says which branch the merge is for;
+  and a `HEAD` that differs keeps the record,
+  moves nothing and says which branch the merge is for;
   a switch that lands after that second read is not covered.
   An edit made meanwhile to one of the merge's own paths is never overwritten:
   the finish stops and names the file.

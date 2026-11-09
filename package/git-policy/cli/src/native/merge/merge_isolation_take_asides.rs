@@ -505,7 +505,12 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// ```
 fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
     // The scan comes first and the bytes second, and that order is the guarantee: a writer that still holds the file is
-    //  seen by the scan, and a writer that let go has already written, so the bytes then show it.
+    //  seen by the scan, and a writer that let go has already written, so the bytes then show it. The identity is read
+    //  beside the bytes because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
+    //  object as it was and the size changed.
+    if file_identity(entry.aside.as_path()) != Some(entry.taken) {
+        return false;
+    }
     let scanned: HolderEvidence = scan_platform_holders_bounded(entry.aside.as_path(), entry.taken.device, entry.taken.inode);
     if !scanned.holders.is_empty() {
         return false;

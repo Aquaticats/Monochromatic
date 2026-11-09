@@ -1604,3 +1604,147 @@ fn a_taken_file_whose_bytes_changed_is_kept_and_named() {
     assert_eq!(std::fs::read(aside.as_path()).expect("the writer's edit"), b"f.txt EDIT\n", "the edit is not lost");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A saved merge whose index and files are installed stops the command when a file is foreign,
+///  instead of letting the command read the merge as ordinary staged work.
+/// Why:
+///  The foreign-content refusal was wrapped as one that wrote nothing,
+/// so the saved merge's catch let the command
+///  go on although the index already held the merge beside the old branch
+/// (a cross-vendor review of the fourth round,
+/// the brief's item 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged, { updateWorktree: true }); const record = deferredRecord(); write('f.txt', foreign); await expect(recover(...)).rejects.toMatch(/f.txt/);
+/// ```
+#[test]
+fn a_saved_merge_whose_installed_state_meets_a_foreign_file_stops_the_command() {
+    let world: World = world("merge-recovery-installed-foreign");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = deferred_record_of(&world, "27272727-0000-4000-8000-000000000027", "refs/cli-git/kept/27");
+    // An editor saves something else into a path the merge changes.
+    std::fs::write(world.repo.join("f.txt"), b"an editor's own save\n").expect("the editor's file");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a begun merge stops the command");
+    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    assert!(record.exists(), "the record is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A saved merge that is partly installed keeps its record when the branch advances,
+///  and the command is told.
+/// Why:
+///  The branch-moved branch dropped the record because a side ref existed,
+/// without looking at what was installed,
+/// so a
+///  file under its private name and the merge's staged entry were left with nothing that would ever recover them
+///  (a cross-vendor review of the fourth round,
+/// the brief's item 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged); deferredRecord(); commitUnrelated(); await expect(recover(...)).rejects.toMatch(/partly installed/); expect(exists(record)).toBe(true);
+/// ```
+#[test]
+fn a_saved_merge_that_is_partly_installed_and_whose_branch_advanced_keeps_its_record() {
+    let world: World = world("merge-recovery-advanced-partly-installed");
+    // The merge's index is installed and its files are not: the command that installed them was killed here.
+    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = deferred_record_of(&world, "28282828-0000-4000-8000-000000000028", "refs/cli-git/kept/28");
+    std::fs::write(world.repo.join("z.txt"), b"committed meanwhile\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "z.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a partly installed merge stops the command");
+    assert!(refused.0.contains("partly installed"), "it says the merge is partly installed: {}", refused.0);
+    assert!(refused.0.contains(record.to_string_lossy().as_ref()), "the record is named: {}", refused.0);
+    assert!(record.exists(), "the record is kept, so the install can still be settled");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the installed entry is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A take whose content read fails after the rename puts the file back and reports nothing installed.
+/// Why:
+///  The rename had already happened when the read failed,
+/// so returning an error without restoring the file left it under
+///  its private name while recovery said nothing of the merge was in the checkout
+///  (a cross-vendor review of the fourth round,
+/// the brief's item 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitattributes('f.txt filter=broken'); const (changes, judged) = judge(world); gitConfig('filter.broken.clean', "exit 1"); gitConfig('filter.broken.required', 'true'); await expect(installEntries(...)).rejects; expect(read('f.txt')).toEqual(old); expect(asides()).toEqual([]);
+/// ```
+#[test]
+fn a_take_whose_read_fails_after_the_rename_puts_the_file_back() {
+    let world: World = world("merge-recovery-take-read-fails");
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=broken\n").expect("the attribute file");
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let old: Vec<u8> = std::fs::read(world.repo.join("f.txt")).expect("the old content");
+    // From here the clean filter is required and fails, so the read after the rename cannot run.
+    git(world.repo.as_path(), &["config", "filter.broken.clean", "false"]);
+    git(world.repo.as_path(), &["config", "filter.broken.required", "true"]);
+    let mut said: Vec<u8> = Vec::new();
+    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("a read that fails after the rename stops the merge");
+    assert!(!failed.began, "nothing of the merge was installed");
+    assert!(!failed.error.0.is_empty(), "the failure is named");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file is back"), old, "the file the take moved is put back");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A taken file whose appended bytes a clean filter drops is kept rather than removed.
+/// Why:
+///  `may_remove` compared only the filtered hash,
+/// so a write a clean filter hides left that hash as it was,
+/// and the
+///  file that held the person's bytes was deleted with its private name
+/// (a cross-vendor review of the fourth round,
+/// the brief's item 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cleanFilter('strip', 'sed /^NOTE:/d'); const take = takeAside(file); append(take.aside, 'NOTE: locally saved data\n'); finishAsides([take], sink); expect(exists(take.aside)).toBe(true);
+/// ```
+#[test]
+fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
+    let world: World = world("merge-recovery-filtered-append");
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n").expect("the attribute file");
+    git(world.repo.as_path(), &["config", "filter.strip.clean", "sed /^NOTE:/d"]);
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
+    let expected: String = judged.content.clone().expect("the object the judgement read");
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = stranded_name(location.as_path());
+    std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
+    let taken = file_identity(aside.as_path()).expect("the identity the take checked");
+    // A writer that kept its descriptor appends a line the clean filter drops.
+    use std::io::Write;
+    let mut file: std::fs::File = std::fs::File::options().append(true).open(aside.as_path()).expect("the writer's descriptor");
+    file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
+    drop(file);
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
+        location: location.clone(),
+        path: b"f.txt".to_vec(),
+        aside: aside.clone(),
+        taken,
+        expected,
+    }];
+    let mut said: Vec<u8> = Vec::new();
+    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said).expect("the asides are finished");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(aside.exists(), "a file whose bytes changed behind a filter is kept");
+    assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
+    assert!(std::fs::read(aside.as_path()).expect("the aside").ends_with(b"NOTE: locally saved data\n"), "the appended bytes are kept");
+    remove(world.parent.as_path());
+}
