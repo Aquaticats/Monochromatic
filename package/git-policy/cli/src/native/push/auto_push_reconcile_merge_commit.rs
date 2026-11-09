@@ -18,6 +18,7 @@ use crate::auto_push_single_flight::{
 };
 use crate::bounded_push::MAX_PUSH_OUTPUT;
 use crate::bounded_query::QueryOutput;
+use crate::push_deadline_and_patience_settings::{Patience, merge_ceiling};
 use crate::merge_second_pass::{GitReply, GitRunner, LARGEST_STAGE_BYTES, Merged, conflicts_of_merge_tree};
 use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables, report, resolve_tree};
 use crate::path_bytes::path_message_text;
@@ -86,7 +87,9 @@ impl GitRunner for PushRunner<'_> {
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
         let shown: String = arguments.join(" ");
         let cap: u64 = answer_cap(arguments, input);
-        let output: QueryOutput = match run_query_with_input(self.git, &argv(arguments), input.map(<[u8]>::to_vec), index_file, cap) {
+        // A merge step gets a total ceiling: a driver that keeps rewriting a file shows progress for ever, so the stall window can never end it.
+        let patience: Patience = Patience::Fixed(merge_ceiling(self.git.environment.as_slice()));
+        let output: QueryOutput = match run_query_with_input(self.git, &argv(arguments), input.map(<[u8]>::to_vec), index_file, patience, cap) {
             Ok(output) => output,
             Err(refusal) => return Err(format!("git {shown} could not be run: {refusal}")),
         };

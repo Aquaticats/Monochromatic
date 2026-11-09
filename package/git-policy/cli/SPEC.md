@@ -8365,7 +8365,23 @@ Every Git command of the reconcile merge's second pass (`merge-tree`,
 `hash-object`,
 the scratch index's `read-tree`,
 `update-index` and `write-tree`)
-runs under the bound a push query has:
+runs under a total ceiling,
+300 seconds by default and settable with `CLI_GIT_PUSH_MERGE_CEILING_SECONDS`,
+and not under the push's stall window:
+a merge driver that rewrites a scratch file for ever shows progress in every sample,
+so only a ceiling on the whole command ends it.
+The measured cost of the step is 396 ms and 403 ms for a merge of one 7 MiB file the pass resolves
+(load average 66 to 75 on 8 CPUs),
+and the pass takes no file past 8 MiB,
+so the ceiling is hundreds of times the measured work.
+When it fires,
+the merge is not made and nothing was written:
+the commit is kept,
+no reference moved and the worktree was not touched,
+the failure says so in those words,
+and the service retries the push on its own,
+naming that text in the notice on the person's next command.
+The rest of the bound is the one a push query has:
 the push's stall window,
 the service's stop and the grace a stopped query gets,
 with its request on the standard input and an answer ceiling of one stage per name it asks for

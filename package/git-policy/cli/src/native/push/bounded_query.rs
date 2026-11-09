@@ -136,7 +136,7 @@ pub fn run_bounded_query(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git(command, arguments, window, grace, environment, None, MAX_PUSH_OUTPUT);
+    return run_bounded_git(command, arguments, Patience::Progress { stall: window }, grace, environment, None, MAX_PUSH_OUTPUT);
 }
 
 /// What:
@@ -152,13 +152,13 @@ pub fn run_bounded_query(
 pub fn run_bounded_git(
     command: Command,
     arguments: &str,
-    window: Duration,
+    patience: Patience,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, grace, environment, input, cap)) {
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, patience, grace, environment, input, cap)) {
         Ok(output) => output,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -185,7 +185,7 @@ pub async fn run_bounded_query_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git_awaiting(command, arguments, window, grace, environment, None, MAX_PUSH_OUTPUT).await;
+    return run_bounded_git_awaiting(command, arguments, Patience::Progress { stall: window }, grace, environment, None, MAX_PUSH_OUTPUT).await;
 }
 
 /// What:
@@ -212,7 +212,7 @@ pub async fn run_bounded_query_awaiting(
 pub async fn run_bounded_git_awaiting(
     mut command: Command,
     arguments: &str,
-    window: Duration,
+    patience: Patience,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
@@ -246,7 +246,7 @@ pub async fn run_bounded_git_awaiting(
     let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
     let ended: Result<ExitStatus, StopCause> =
-        wait_until_done_up_to(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, cap, &mut quiet, stop.as_ref()).await?;
+        wait_until_done_up_to(&mut child, &[&stdout, &stderr], patience, cap, &mut quiet, stop.as_ref()).await?;
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
@@ -261,9 +261,16 @@ pub async fn run_bounded_git_awaiting(
             stop_push(child, grace, locks).await;
             Err(match cause {
                 // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.
-                StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
-                    arguments: arguments.to_owned(),
-                    seconds: window.as_secs(),
+                StopCause::Deadline | StopCause::Stalled(_) => match patience {
+                    // A ceiling is a limit on how long the command may run in all, not a claim that it was idle.
+                    Patience::Fixed(ceiling) => SingleFlightError::Ceiling {
+                        arguments: arguments.to_owned(),
+                        seconds: ceiling.as_secs(),
+                    },
+                    Patience::Progress { stall } => SingleFlightError::TimedOut {
+                        arguments: arguments.to_owned(),
+                        seconds: stall.as_secs(),
+                    },
                 },
                 StopCause::ServiceStopped => SingleFlightError::Start(ended_by_the_stop(step.as_str())),
                 StopCause::Flood => SingleFlightError::Git {

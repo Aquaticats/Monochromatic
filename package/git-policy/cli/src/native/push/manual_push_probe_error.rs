@@ -102,7 +102,7 @@ pub(crate) fn probe_error(cause: ManualPushCause, message: String) -> ManualPush
 pub(crate) fn cause_of_query(error: &SingleFlightError) -> ManualPushCause {
     return match error {
         SingleFlightError::Start(_) => ManualPushCause::GitNotStarted,
-        SingleFlightError::TimedOut { .. } => ManualPushCause::SelfExplained,
+        SingleFlightError::TimedOut { .. } | SingleFlightError::Ceiling { .. } => ManualPushCause::SelfExplained,
         SingleFlightError::Git { .. } | SingleFlightError::Io(_) => ManualPushCause::GitSilent,
     };
 }

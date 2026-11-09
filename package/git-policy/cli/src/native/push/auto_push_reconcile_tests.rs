@@ -790,6 +790,50 @@ fn unrelated_histories_are_merged() {
 }
 
 /// What:
+///  A merge driver that never returns but keeps writing is stopped at the merge step's total ceiling.
+/// Why:
+///   The stall window cannot bound it:
+/// the driver rewrites a scratch file for ever,
+/// so every sample of the process tree shows bytes moved,
+/// and the wait would never end
+/// (cross-vendor review round 2, finding 3).
+/// A ceiling on the whole command ends it,
+/// and the words say what was not changed.
+#[test]
+fn a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling() {
+    let s = scenario("ar-driver-busy");
+    let scratch: PathBuf = s.root.join("driver-scratch");
+    std::fs::write(s.local.join(".gitattributes"), "driver.txt merge=stall\n").expect("the rule");
+    std::fs::write(s.local.join("driver.txt"), "base\n").expect("the file");
+    git(&s.local, &["add", "--", ".gitattributes", "driver.txt"]);
+    git(&s.local, &["commit", "--quiet", "-m", "a rule that names a driver and the file it owns"]);
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    // The driver writes for ever, which is progress the stall window can never call a stall.
+    let driver: String = format!("sh -c 'while :; do printf x > {}; sleep 0.05; done'", scratch.display());
+    git(&s.local, &["config", "merge.stall.driver", driver.as_str()]);
+    advance_remote(&s, "driver.txt", "remote\n");
+    let island: String = commit_local(&s, "driver.txt", "local\n");
+    git(&s.local, &["fetch", "--quiet", "origin"]);
+    let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
+    let mut git_under_test: PushGit = push_git(&s.local);
+    git_under_test.environment.push((OsString::from(crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE), OsString::from("2")));
+    let started: std::time::Instant = std::time::Instant::now();
+    let answer = commit_merge(&git_under_test, &island, &main, "message");
+    let waited: std::time::Duration = started.elapsed();
+    let said: String = match &answer {
+        Err(error) => format!("{error}"),
+        Ok(_) => String::from("the merge was made"),
+    };
+    assert!(said.contains("was still running at its 2-second ceiling"), "the ceiling that stopped it is named: {said}");
+    assert!(said.contains("Nothing was changed"), "the words say what was not touched: {said}");
+    assert!(waited < std::time::Duration::from_secs(60), "the wait ends at the ceiling and its grace, not never: {waited:?}");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), island, "the commit is kept and nothing was committed");
+    assert_eq!(std::fs::read(s.local.join("driver.txt")).expect("the file"), b"local\n".to_vec(), "the worktree was not touched");
+    remove(&s.root);
+}
+
+/// What:
 ///  A merge driver that never returns ends the reconcile merge,
 /// and the failure names the wait that stopped it.
 /// Why:

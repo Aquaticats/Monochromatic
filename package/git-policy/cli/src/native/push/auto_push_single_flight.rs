@@ -19,6 +19,7 @@
 use crate::bounded_push::STOP_GRACE;
 use crate::push_deadline_advice::limit_clause;
 use crate::bounded_query::{QueryOutput, query_window, run_bounded_git, run_bounded_query};
+use crate::push_deadline_and_patience_settings::Patience;
 use crate::js_text::trim_javascript;
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
@@ -64,6 +65,15 @@ pub enum SingleFlightError {
         /// in whole seconds.
         seconds: u64,
     },
+    /// A command of a merge step was still running at its total ceiling and was stopped.
+    Ceiling {
+        /// Arguments of the command,
+        /// for the diagnostic.
+        arguments: String,
+        /// The ceiling it passed,
+        /// in whole seconds.
+        seconds: u64,
+    },
 }
 
 impl std::fmt::Display for SingleFlightError {
@@ -85,6 +95,14 @@ impl std::fmt::Display for SingleFlightError {
                 formatter,
                 "git {arguments} showed no sign of work for {seconds} seconds and was stopped; {}",
                 limit_clause()
+            ),
+            Self::Ceiling { arguments, seconds } => write!(
+                formatter,
+                "git {arguments} was still running at its {seconds}-second ceiling and was stopped: one command of a merge step may \
+                 not run for ever, so the merge it was computing is not made. Nothing was changed: the commit is kept, no reference \
+                 moved and the worktree was not touched. Hint: a merge driver that keeps working without returning does this; make \
+                 it return, or set {} higher",
+                crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE
             ),
         };
     }
@@ -266,21 +284,14 @@ pub fn run_query_with_input(
     arguments: &[OsString],
     input: Option<Vec<u8>>,
     index_file: Option<&Path>,
+    patience: Patience,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
     let mut command: Command = git_command(git, arguments);
     if let Some(index) = index_file {
         command.env("GIT_INDEX_FILE", index);
     }
-    return run_bounded_git(
-        command,
-        describe_arguments(arguments).as_str(),
-        query_window(&git.environment),
-        STOP_GRACE,
-        git.environment.as_slice(),
-        input,
-        cap,
-    );
+    return run_bounded_git(command, describe_arguments(arguments).as_str(), patience, STOP_GRACE, git.environment.as_slice(), input, cap);
 }
 
 /// Query behavior is controlled in the test module.
