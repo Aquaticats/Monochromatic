@@ -160,6 +160,43 @@ Sub-path reads (`tomlGetValue` / `tomlHas`) project pending edits through the pa
  after `tomlDelete({ path: ['arr', 1] })` on `arr = [10, 20, 30]`,
  `tomlGetValue({ path: ['arr', 1] })` returns `30` (the new array's index 1).
 
+### Tagged value wrappers
+
+A bare JS value cannot distinguish a TOML integer from a float,
+ or the three local datetime kinds from an offset date-time.
+The wrapper factories tag the intended kind:
+
+- `tomlInteger(value)`:
+   a `bigint`,
+   or a `number` that is a safe integer.
+- `tomlFloat(value)`:
+   a `number`,
+   including `NaN`,
+  `Infinity`,
+  and `-Infinity`.
+- `tomlLocalDate(value)`:
+   a `YYYY-MM-DD` string naming a real day.
+- `tomlLocalDateTime(value)`:
+   a date,
+  then `T`,
+  `t`,
+  or a space,
+  then a time with no offset.
+- `tomlLocalTime(value)`:
+   `HH:MM` or `HH:MM:SS` with an optional fraction,
+   and no date or offset.
+
+A wrapper payload is written as bare TOML text,
+ so it is checked against its kind before any of it reaches the document.
+A payload the kind cannot represent
+(a string passed to `tomlInteger`,
+`Infinity` passed to `tomlFloat`,
+ `2026-01-01 # x` passed to `tomlLocalDate`)
+ throws `TomlTypeError` naming the kind and the payload
+ instead of being interpolated.
+An object counts as a wrapper only when it carries both `tomlKind` and `value`,
+ so a table whose only key is named `tomlKind` still encodes as an inline table.
+
 ### v1 limitation: canonical mode on a parsed source
 
 In v1,
