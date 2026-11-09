@@ -69,6 +69,24 @@ pub struct StageClaim {
 
 impl StageClaim {
     /// What:
+    ///  The random name this claim was made under,
+    /// which no other command of this process shares.
+    /// Why:
+    ///   The registration one command created is told apart from another command's
+    /// by this name,
+    /// because two commands
+    ///  of one process have one process token between them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// claim.identifier(); // the file stem, e.g. '0247e85a-...'
+    /// ```
+    pub fn identifier(&self) -> String {
+        let Some(stem) = self.path.file_stem() else { return String::new() };
+        return stem.to_string_lossy().into_owned();
+    }
+
+    /// What:
     ///  The stage container this claim names.
     /// Why:
     ///   Staging creates exactly this directory,
@@ -180,6 +198,22 @@ impl StageClaim {
     }
 
     /// What:
+    ///  Removes the claim and its records,
+    /// telling recovery first that the add the claim covers is complete.
+    /// Why:
+    ///   A command that ends its copy without filling the destination still made a whole worktree,
+    /// so a kill between the two removals must not leave a record that reads as an interrupted add.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.settle();
+    /// ```
+    pub fn settle(self) -> Result<(), WorktreeCopyError> {
+        self.mark_complete()?;
+        return self.release();
+    }
+
+    /// What:
     ///  Removes the claim file and makes the removal durable.
     /// Why:
     ///   Once a journal names the stage,
@@ -259,6 +293,30 @@ pub fn claim_stage_for(
 }
 
 pub(crate) const DESTINATION_SUFFIX: &str = ".add";
+
+/// What:
+///  Claims the stage name of a creating command and records the destination it is about to make,
+/// or claims nothing when that command will not copy into it.
+/// Why:
+///   The record comes before real Git runs,
+/// so a command killed after Git returned still leaves the destination and the stage name it chose,
+/// and the next command names the worktree to the person.
+/// Without the record,
+/// a worktree registered by a killed add is in every later command's
+/// before-set and is never filled and never reported.
+/// A command that copies nothing (a bare repository,
+/// a main checkout with nothing to hand over,
+/// a line whose destination is not read) records nothing,
+/// so no record is left that nothing will settle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = copies && destination ? await claimStageForAdd({ commonDir, destinationRoot }) : undefined;
+/// ```
+pub fn claim_stage_for_creation(common_dir: &Path, destination: Option<&Path>, copies: bool) -> Result<Option<StageClaim>, WorktreeCopyError> {
+    let (true, Some(destination_root)) = (copies, destination) else { return Ok(None) };
+    return claim_stage_for_add(common_dir, destination_root).map(Some);
+}
 
 /// The suffix of the marker that says the worktree add the claim covers is complete.
 pub(crate) const COMPLETE_SUFFIX: &str = ".done";

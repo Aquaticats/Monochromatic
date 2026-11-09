@@ -566,6 +566,15 @@ Each job the settlement lock used to do is done without one:
   and its registration is found by following the pointer in its `.git` file to the administrative directory that names
   the destination back,
   so a worktree another add registers at the same time is never taken for this one's.
+- A command that may copy records the destination and the stage name before real Git runs,
+  in the claim the cheap-worktree rungs reuse,
+  so a process killed after Git registered the worktree leaves a record the next command reports by name,
+  with the commands that finish or remove it.
+- The registration real Git made is bound when Git returns,
+  carried beside the staged payload before the journal names the stage,
+  and checked before staging and again before the first entry is written,
+  by the creating command and by a recovery alike,
+  so a worktree removed and replaced at the same path receives nothing.
   The administrative directory of no other worktree is read for this.
 - Every item of a copy transaction (journal,
   stage claim,
@@ -584,6 +593,28 @@ Each job the settlement lock used to do is done without one:
   so none can go stale.
 - A command that creates a worktree and every other forwarded command in a linked worktree or bare repository recover
   dead owners' items first and never wait for a live owner's.
+- Two windows stay open,
+  and neither is closed without a lock or a wider change.
+  A destination created by Git after a reservation that could not be made (its parent did not exist) has no identity
+  recorded before real Git runs,
+  so a command that registers a worktree there and one that replaces it in the same instant cannot be told apart:
+  the copy can be written into the replacement worktree.
+  A destination that is replaced after the identity check and before the installation opens it can receive the copy
+  the same way:
+  the installer resolves every entry by path,
+  so a check closer to the call narrows that window without
+  closing it,
+  and closing it needs the destination held open and every entry created through that handle.
+  Both need a second program to move or replace a worktree inside a window measured in microseconds while this command
+  runs,
+  and the person sees a copy written into a worktree the notice does not name;
+  `git worktree list` shows which worktree stands where.
+  A destination this command reserved is never removed again:
+  its identity was read one call after the creation,
+  so
+  another command may own the directory at that name by then,
+  and an empty directory left after a refused add is
+  harmless because Git accepts it and a later add fills it.
 - Every other forwarded command,
 including every commit preparation,
 runs without any of this,
@@ -5378,6 +5409,36 @@ but any final error still blocks real Git.
 Engine failures always stop immediately.
 The wrapper recognizes its flag only before Git's `--` separator and removes it before forwarding.
 
+### Bulk staging
+
+`add-explicit` decides from the arguments alone and starts no process.
+It rejects `-A`,
+`--all`,
+`-u`
+and `--update`
+with the option spellings Git accepts,
+and it rejects a positional pathspec equal to one of nine fixed spellings that Git resolves to
+the whole worktree
+(or,
+for `.` and `./`,
+to every changed path below the working directory):
+`.`,
+`./`,
+`*`,
+`:/`,
+`:/*`,
+`:/**`,
+`:(top)`,
+`**`
+and `:(glob)**`.
+The list is a fixed enumeration in `command/command_add.rs` and is therefore incomplete by nature:
+pathspec magic and globs can select the same set in further spellings.
+`:(top)/*` is not in it because Git 2.56.0 fails in its own pathspec preparation
+(`fatal: oops in prep_exclude`),
+so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
+The rejection names every matched token as the caller wrote it and offers
+`--no-enforce-bulk-add` for one invocation.
+
 ## Whole-sequence fixing
 
 A pass begins with one exact candidate state.
@@ -7391,6 +7452,16 @@ What a hook checked belongs in a monochromatic-git-policy-cli policy.
 
 ### Policy evaluation during preparation
 
+The candidate listing reads its pathspecs with magic whatever global pathspec mode the caller set:
+a commit's paths are listed as `:(top,literal)<path>`,
+and `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs` would make each of those names match nothing.
+Every listing therefore runs real Git with `--no-literal-pathspecs` after the caller's global options,
+so no content policy can be given an empty candidate list by a global mode.
+Three further private Git starts carry the same switch:
+the whole-index staging `commit -a` does in the private index (`:/`),
+the staging of each unmerged worktree copy that finishes a merge,
+and the settled-entry lookup that installs a landed correction into the worktree copy.
+Only the replay of a caller's `git add` keeps the caller's own mode.
 Preparation constructs candidate facts from the private index,
 writes each policy's corrections into the private index,
 and restarts the whole ordered policy sequence after exact candidate changes.
