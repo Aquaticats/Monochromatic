@@ -109,6 +109,7 @@ pub(super) fn stopped(action: Action) -> String {
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
     }
 }
 
@@ -237,6 +238,7 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
         }
     }
     remove(root.as_path());
@@ -286,6 +288,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
             assert_eq!(code, 2);
             assert_eq!(stdout, "");
         }
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
         Action::Forward { .. } => panic!("the management namespace is never forwarded"),
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
@@ -319,6 +322,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
     }
     remove(root.as_path());
 }

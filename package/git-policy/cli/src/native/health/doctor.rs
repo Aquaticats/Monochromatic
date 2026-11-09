@@ -383,22 +383,66 @@ pub fn find_traditional_hooks(directories: &[PathBuf]) -> std::io::Result<Vec<Pa
 
 /// What:
 ///  The report:
-/// one hook path per line.
+/// one hook pathname per line,
+/// as the bytes the pathname is made of.
+///  `Vec<u8>` is the whole report,
+/// so the caller can write it as it stands.
 /// Why:
 ///   The output is for people and scripts alike,
-/// so it carries nothing but the paths.
+/// so it carries nothing but the pathnames.
+///  A pathname is a byte string:
+/// `Path::display()` replaces each byte that is not UTF-8 with U+FFFD,
+/// and a directory
+///  whose name is exactly that replacement is a different directory,
+/// so a text report named a hook the command
+///  never inspected,
+/// and a person who deleted what it named would delete somebody else's script.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// hooks.map((hook) => `${hook}\n`).join('')
+/// Buffer.concat(hooks.map((hook) => Buffer.concat([Buffer.from(hook), Buffer.from('\n')])));
 /// ```
-pub fn render_hooks(hooks: &[PathBuf]) -> String {
-    let mut text: String = String::new();
+pub fn render_hooks(hooks: &[PathBuf]) -> Vec<u8> {
+    let mut text: Vec<u8> = Vec::new();
     for hook in hooks {
-        text.push_str(hook.display().to_string().as_str());
-        text.push('\n');
+        text.extend_from_slice(path_bytes(hook.as_path()));
+        text.push(b'\n');
     }
     return text;
+}
+
+/// What:
+///  The bytes a pathname is made of.
+/// Why:
+///   A pathname is a byte string,
+/// and both the report and the paths written into records are read from these bytes
+///  (`foundation/path_bytes_in_records.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(path); // Node pathnames are byte strings
+/// ```
+#[cfg(unix)]
+fn path_bytes(path: &Path) -> &[u8] {
+    use std::os::unix::ffi::OsStrExt;
+    return path.as_os_str().as_bytes();
+}
+
+/// What:
+///  The bytes a pathname is made of,
+/// on a platform that spells pathnames in text.
+/// Why:
+///   Without byte pathnames the platform's text is the best answer,
+/// and naming a pathname approximately is better
+///  than not naming it at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(path, 'utf8');
+/// ```
+#[cfg(not(unix))]
+fn path_bytes(path: &Path) -> Vec<u8> {
+    return path.to_string_lossy().into_owned().into_bytes();
 }
 
 /// What:
@@ -734,9 +778,12 @@ pub async fn doctor_action_with_section(
         };
     }
     let explanation: &str = if hooks.is_empty() { "" } else { FOUND_EXPLANATION };
-    return Action::Exit {
+    // The hook pathnames are bytes and the configured hooks are text, so the report is one byte stream.
+    let mut report: Vec<u8> = render_hooks(hooks.as_slice());
+    report.extend_from_slice(render_hook_lines(&findings).as_bytes());
+    return Action::ExitBytes {
         code: HOOKS_FOUND_EXIT_CODE,
-        stdout: format!("{}{}", render_hooks(hooks.as_slice()), render_hook_lines(&findings)),
+        stdout: report,
         stderr: format!("{explanation}{shim_report}{notes}{discarded}{section}"),
     };
 }

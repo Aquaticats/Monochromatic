@@ -16,12 +16,20 @@ fn names(paths: &[PathBuf]) -> Vec<String> {
 }
 
 /// Unpack the exit status,
-/// standard output and standard error of an exit action.
-fn exit_parts(action: Action) -> (i32, String, String) {
-    let Action::Exit { code, stdout, stderr } = action else {
-        panic!("doctor must end in an exit action");
+/// standard output as bytes and standard error of an exit action.
+fn exit_bytes_parts(action: Action) -> (i32, Vec<u8>, String) {
+    return match action {
+        Action::Exit { code, stdout, stderr } => (code, stdout.into_bytes(), stderr),
+        Action::ExitBytes { code, stdout, stderr } => (code, stdout, stderr),
+        other => panic!("doctor must end in an exit action, not {other:?}"),
     };
-    return (code, stdout, stderr);
+}
+
+/// Unpack the exit status,
+/// standard output and standard error of an exit action that reports text.
+fn exit_parts(action: Action) -> (i32, String, String) {
+    let (code, stdout, stderr) = exit_bytes_parts(action);
+    return (code, String::from_utf8(stdout).expect("a report of text paths"), stderr);
 }
 
 /// The hooks location of `cwd`,
@@ -133,13 +141,14 @@ fn directories_are_the_default_then_the_configured_one_once() {
     remove(root.as_path());
 }
 
-/// The report is one path per line and nothing else.
+/// The report is one pathname per line and nothing else,
+/// as bytes.
 #[test]
 fn the_report_is_one_path_per_line() {
-    assert_eq!(render_hooks(&[]), "");
+    assert_eq!(render_hooks(&[]), Vec::<u8>::new());
     assert_eq!(
         render_hooks(&[PathBuf::from("/a/hooks/pre-commit"), PathBuf::from("/b/update")]),
-        "/a/hooks/pre-commit\n/b/update\n"
+        b"/a/hooks/pre-commit\n/b/update\n".to_vec()
     );
 }
 
@@ -503,9 +512,11 @@ fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
     git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), hooks.as_os_str()]);
     let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
     assert_eq!(location.configured, Some(hooks.clone()));
-    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
-    assert_eq!(code, 1, "the hook is found: {stdout}");
-    assert!(stdout.ends_with("pre-commit\n"), "{stdout}");
+    let (code, stdout, _stderr) = exit_bytes_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hook is found: {:?}", String::from_utf8_lossy(stdout.as_slice()));
+    // The report names the inspected pathname by its own bytes, which is the whole of this control: the lossy spelling
+    //  names a directory that does not exist here.
+    assert_eq!(stdout, [hooks.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat());
     remove(root.as_path());
 }
 
@@ -743,5 +754,44 @@ fn the_doctor_reports_the_saved_copies_of_both_folders() {
         "the kept save is named: {stderr}"
     );
     assert!(save.join("copy.txt").exists(), "the copy stays where it is");
+    remove(root.as_path());
+}
+
+/// What:
+///  A hook whose pathname is not UTF-8 is named by its own bytes,
+/// never by the pathname its lossy spelling names.
+/// Why:
+///  `Path::display()` replaces each byte that is not UTF-8 with U+FFFD,
+/// and a directory whose name is exactly that
+///  replacement is a different directory:
+/// the report named a hook in an unrelated folder,
+/// and a person who
+///  deleted what it named would delete somebody else's script.
+#[cfg(unix)]
+#[test]
+fn a_hook_whose_path_is_not_utf8_is_named_by_its_bytes() {
+    use std::ffi::{OsStr, OsString};
+    use std::os::unix::ffi::OsStrExt as _;
+    let root: PathBuf = fixture("doctor-non-utf8-exact");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let inspected: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xff")));
+    let replacement: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xef\xbf\xbd")));
+    for directory in [inspected.as_path(), replacement.as_path()] {
+        std::fs::create_dir_all(directory).expect("hooks directory");
+        executable(directory.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    }
+    git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), inspected.as_os_str()]);
+    let (code, stdout, _stderr) = exit_bytes_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1);
+    assert_eq!(
+        stdout,
+        [inspected.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat(),
+        "the inspected hook is named by its own bytes"
+    );
+    assert_ne!(
+        stdout,
+        [replacement.as_os_str().as_bytes(), b"/pre-commit\n".as_slice()].concat(),
+        "the lossy spelling names another directory"
+    );
     remove(root.as_path());
 }

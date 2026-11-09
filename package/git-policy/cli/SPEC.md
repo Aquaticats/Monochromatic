@@ -485,9 +485,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   a link,
   a file that differs by one byte and a shim under another hook's name do not.
   The comparison reads at most 1024 bytes of those four names and nothing else.
-- It prints one path per line on stdout for every hook that is not a Git LFS shim,
+- It prints one pathname per line on stdout for every hook that is not a Git LFS shim,
   the default directory first and each directory in name order,
   and nothing else on stdout.
+  Each pathname is printed as its own bytes,
+  because a pathname is a byte string:
+  its text spelling with replacement characters names a different directory,
+  so a text report could name a hook the command never inspected.
   When it finds any it also explains on stderr that traditional hooks are unsupported.
 - Git LFS shims are reported on stderr only,
   apart from the other hooks,
