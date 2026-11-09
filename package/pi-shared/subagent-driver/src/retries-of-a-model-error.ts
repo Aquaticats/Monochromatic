@@ -207,13 +207,16 @@ const WAIT_KEYS: readonly string[] = [
 ];
 
 /**
- What may stand between a wait's key and its number, besides spaces: quotes, a colon and an equals sign.
+ What may stand between a wait's key and its number: whitespace of any kind, quotes, a colon and an equals sign. A body
+ pretty-printed over several lines puts a line break between the key and its number, which is still the wait it asks for.
  */
 const WAIT_SEPARATORS: ReadonlySet<string> = new Set([
   '"',
   '\'',
   ' ',
   '\t',
+  '\n',
+  '\r',
   ':',
   '=',
 ]);
