@@ -82,20 +82,20 @@ fn later_line_paragraphs_copy_only_their_own_line_prefix() {
                 prefixes.push(continuation_prefix(&context, *id));
             }
         }
-        assert_eq!(prefixes, ["", ""], "{source:?}");
+        assert_eq!(prefixes, ["", "> "], "{source:?}");
         // The inserted break follows the incumbent's choice: CRLF only when the source already uses it.
         let inserted: &str = if newline == "\r\n" { "\r\n" } else { "\n" };
         assert_eq!(
             fixed(source.as_str()),
-            format!("intro words{newline}{newline}> first,{inserted}second word.{newline}"),
+            format!("intro words{newline}{newline}> first,{inserted}> second word.{newline}"),
             "{source:?}"
         );
     }
 }
 
-/// Nested containers on a later line drop the quote marker and replace the list marker with a space.
+/// Nested containers on a later line keep the quote marker and replace the list marker with a space.
 #[test]
-fn nested_later_line_containers_drop_markers_and_blank_list_bullets() {
+fn nested_later_line_containers_keep_markers_and_blank_list_bullets() {
     let source: &str = "intro words\n\n- > first, second here.\n";
     let context: MarkdownSource = parse(source, false);
     // The fixture's last paragraph is the nested one; every earlier line must stay out of its prefix.
@@ -107,9 +107,12 @@ fn nested_later_line_containers_drop_markers_and_blank_list_bullets() {
     }
     assert_eq!(
         continuation_prefix(&context, nested.expect("nested paragraph")),
-        "  "
+        "  > "
     );
-    assert_eq!(fixed(source), "intro words\n\n- > first,\n  second here.\n");
+    assert_eq!(
+        fixed(source),
+        "intro words\n\n- > first,\n  > second here.\n"
+    );
 }
 
 /// Authored tabs stay tabs in the copied prefix;
@@ -128,7 +131,11 @@ fn tab_indentation_survives_in_the_continuation_prefix() {
     let quote: MarkdownSource = parse(">\tfirst, second word.\n", false);
     assert_eq!(
         continuation_prefix(&quote, first(&quote, MdastNodeType::Paragraph)),
-        ""
+        ">\t"
+    );
+    assert_eq!(
+        fixed(">\tfirst, second word.\n"),
+        ">\tfirst,\n>\tsecond word.\n"
     );
 }
 
