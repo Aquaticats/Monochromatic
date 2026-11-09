@@ -142,7 +142,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   `3de639be89` the wrapper-issue branch,
   `ee8a1db87c` the health branch,
   `3149b8baae` the literal-pathspec branch,
-  and `82dff2e79a` the intent-to-add branch.
+  `82dff2e79a` the intent-to-add branch,
+  `f6716da242` the commit-ceiling branch,
+  and `78ca211085` the worktree-copy branch's follow-up.
   The first clause of that merge's message names a change it does not contain;
   commit comment 209008614 on it says so.
 - Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
@@ -191,9 +193,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   and inherited pathspec modes can fail a commit's completion step),
   `intent-to-add-round-4-prompt.md` for `intent-to-add-keeps-stat-data` as run 6
   (a hook restaging an unrelated file can make a retry delete a tracked file nobody named),
-  and `commit-ceiling-follow-ups-round-4-prompt.md` for `commit-ceiling-and-private-index-follow-ups` as run 4
+  `commit-ceiling-follow-ups-round-4-prompt.md` for `commit-ceiling-and-private-index-follow-ups` as run 4
   (a successful exit reported as a ceiling kill,
-  and a signing program it could not stop going unrecorded).
+  and a signing program it could not stop going unrecorded),
+  and `worktree-copy-round-5-prompt.md` for `worktree-copy-records-keep-path-bytes` as run 5
+  (recovery reads the `.git` pointer and not the registration,
+  so a pointer cut short or missing during a rewrite can discard a pending copy).
   Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
