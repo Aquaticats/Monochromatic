@@ -16,7 +16,7 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 ///  with no separator.
 ///
 /// What:
-///      `fn bytes_as_lowercase_hex(bytes: &[u8]) -> String`.
+///      `pub fn bytes_as_lowercase_hex(bytes: &[u8]) -> String`.
 /// Why:
 ///       Every caller uses the result as one path component,
 ///  so the spelling must be injective over bytes,
