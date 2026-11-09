@@ -14,6 +14,34 @@ import {
  */
 const ERROR_EVENT_GRACE_MS = 100;
 
+/**
+ Records the uncaught exceptions that arrive while the returned binding lives, and stops recording when it is disposed.
+
+ @returns the exceptions recorded so far, read through the binding
+
+ @example
+ ```ts
+ using capture = captureUncaughtExceptions();
+ await new Promise((resolve) => setTimeout(resolve, ERROR_EVENT_GRACE_MS));
+ expect(capture.seen).toHaveLength(0);
+ ```
+ */
+function captureUncaughtExceptions(): Readonly<{ seen: unknown[]; }> & Disposable {
+  /** Exceptions the process reported while the binding lived. */
+  const seen: unknown[] = [];
+  /** Records one exception instead of letting it end the process. */
+  const record = (error: unknown,): void => {
+    seen.push(error,);
+  };
+  process.on('uncaughtException', record,);
+  return {
+    seen,
+    [Symbol.dispose](): void {
+      process.off('uncaughtException', record,);
+    },
+  };
+}
+
 await describe({
   name: startProcess.name,
   children: [
@@ -27,24 +55,15 @@ await describe({
           env: {},
         },),).toThrow(FixtureCommandError,);
         // An unhandled `error` event on the child arrives on a later tick as an uncaught exception,
-        // so this window is the failure signal; the listener records one instead of letting it end the process.
-        const uncaught: unknown[] = [];
-        const recordUncaught = (error: unknown,): void => {
-          uncaught.push(error,);
-        };
-        process.on('uncaughtException', recordUncaught,);
-        try {
-          await new Promise<void>((resolve,) => {
-            setTimeout(
-              resolve,
-              ERROR_EVENT_GRACE_MS,
-            );
-          },);
-        }
-        finally {
-          process.off('uncaughtException', recordUncaught,);
-        }
-        expect(uncaught,).toHaveLength(0);
+        // so this window is the failure signal: the capture records one rather than letting it end the process.
+        using capture = captureUncaughtExceptions();
+        await new Promise<void>((resolve,) => {
+          setTimeout(
+            resolve,
+            ERROR_EVENT_GRACE_MS,
+          );
+        },);
+        expect(capture.seen,).toHaveLength(0);
       },
     },),
   ],
