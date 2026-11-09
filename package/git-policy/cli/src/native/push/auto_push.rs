@@ -104,10 +104,16 @@ pub struct AutoPushResult {
 /// What:
 ///  Select the output a push shows:
 /// only `remote:` lines after a clean push,
-/// everything after a failure.
+/// everything after a failure,
+/// and the refusal of a reference lock in either case.
 /// Why:
 ///   A rejection,
 /// a hook refusal or an offline error stays diagnosable only when the full output shows.
+///   A push whose remote-tracking reference Git could not update exits `0` because the commits were delivered,
+/// so the refusal
+///  is the only sign the local view is stale:
+/// without it `git status` says the branch is ahead of a remote that already has the commits,
+/// and nothing says why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,8 +124,10 @@ pub fn filter_push_output(output: &str, exit_code: i64) -> String {
         return output.to_owned();
     }
     let mut kept: Vec<&str> = Vec::new();
+    let refused: bool = output.contains(REFERENCE_LOCK_REFUSAL);
     for line in output.split('\n') {
-        if line.starts_with(REMOTE_LINE_PREFIX) || line.starts_with(RECONCILE_LINE_PREFIX) {
+        let about_the_refusal: bool = refused && line.contains(REFERENCE_LOCK_REFUSAL);
+        if line.starts_with(REMOTE_LINE_PREFIX) || line.starts_with(RECONCILE_LINE_PREFIX) || about_the_refusal {
             kept.push(line);
         }
     }

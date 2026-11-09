@@ -125,28 +125,64 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Queue after the discarding-commands landing (2026-11-09T08:01:21-05:00)
+#### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
-- `67e8cf0808` landed the discarding-commands branch.
-  The review `~/temp/agent/reviews/discarding-commands-round-2-sol.txt` is a source review and names further cases,
-  none reproduced yet.
-  Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
-  previous-branch and audit cases,
+- `421ab69c3e` landed the landing branch,
+  `2522a13f4f` the literal-pathspec branch,
+  `2b309f8f25` the test-coverage branch,
+  and `87f5771748` the index offset guard.
+- Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
+  previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
+- Follow-up runs started:
+  landing run 12,
+  worktree-removal run 6,
+  worktree-add run 4,
+  child-process run 5
+  and merge run 8.
+  Worktree-add and child-process open with a merge of main in conflict,
+  which their briefs tell them to resolve first,
+  so neither branch has landed.
+- Deferred until a slot frees,
+  because the practical limit of agents was reached when each was written,
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `resume-after-wall-clock-prompt.md` for `wrapper-issue-defects-and-linear-scans`,
+  which reached its time limit in a full test run,
+  `shadow-and-replay-round-2-prompt.md`,
+  `push-route-round-5-prompt.md`,
+  and `literal-pathspec-round-3-prompt.md`.
+- The shadow branch has passed its tests on top of main and waits for its round 2:
+  `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that loses its value,
+  and a long value that stops the scratch commit from starting.
+- The merge branch passed 320 of 320 on top of main.
+  Under the coordinator's decision to converge,
+  its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,
+  and documents in `SPEC.md` the three findings that need another process to act inside a few instructions.
+- The tokio landing-round agent converted nothing,
+  and measured why:
+  a Git step reads its child through the runtime,
+  so inside a blocking job of the pool every step refuses as nested.
+  Its branch keeps the corrected wording for a refused thread.
+- Open from the test-coverage report,
+  not yet given to an agent:
+  the kill sweeps list calls a flow never makes,
+  so those names add no positions and nothing says so.
+- `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` failed once in a suite and passes alone on the branch and on main.
 - The worktree-copy branch does not land yet.
   `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
   a `containerHex=` line inside an older release's unescaped path can direct recursive deletion,
   and a `.git` pointer ending in a carriage return reads as unregistered and loses a pending copy.
   Run 2 of `worktree-copy-records-keep-path-bytes` is on them.
-- Deferred until a slot frees,
-  next in line:
-  the hook branch's third round,
-  brief `~/temp/agent/pi-runs/hook-route-round-3-prompt.md`.
-  The practical limit of agents was reached when it was written.
-  The delivery proof exists only on that branch (`ea3f3fd3fd`),
-  and `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen,
-  so the coordinator's decision is to remove it:
-  a stopped push says what is known and its retry settles the question.
+- Run 3 of `hook-route-findings-fixed` removes the delivery proof,
+  which exists only on that branch (`ea3f3fd3fd`):
+  `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen.
+  The coordinator's decision is that a stopped push says what is known and its retry settles the question.
+- `858fc0a751` (entry and service) and `0b6f191324` (push) landed with their last reviews' findings open,
+  because each finding is no worse than main.
+  Those reviews read source only,
+  so the follow-ups reproduce each finding first.
 - Fail alone on main,
   so no branch caused them,
   and they are with `wrapper-tests-that-fail-only-in-a-suite`:
@@ -158,13 +194,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   `a_writer_saving_during_a_pass_loses_no_copy` (235 s alone against a 300 s limit),
   `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
   and `a_landing_over_an_unheld_lock_removes_it_and_goes_on`.
-- Checks on top of main running:
-  the child-process branch and the literal-pathspec branch.
-  Cross-vendor reviews running:
-  entry-and-service round 4,
-  worktree-add round 3,
-  push round 4,
-  and landing round 11.
 - The owner,
   2026-11-09:
   "Always Size turn limits to the task based on past data."

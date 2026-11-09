@@ -230,13 +230,15 @@ fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWor
     if claimed.the_reporter_takes_it() {
         held.give_it_back();
         return match failed {
-            BlockingJobError::NoThreadToStart => BlockingJobError::NoThreadToStart,
+            // The runner's own refusal promises nothing about the closure the pool queued; the claim this call has just
+            //  taken is what makes this answer sure.
+            BlockingJobError::MayStillRunAfterItsThreadWasRefused => BlockingJobError::NoThreadToStart,
             other => other,
         };
     }
     // The job took the claim, so it runs or has run, and this answer says only what is known.
     return match failed {
-        BlockingJobError::NoThreadToStart => BlockingJobError::StartedAfterItsThreadWasRefused,
+        BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused => BlockingJobError::StartedAfterItsThreadWasRefused,
         other => other,
     };
 }

@@ -121,6 +121,54 @@ const ENVIRONMENT_INLINE_OPTIONS: &[&[u8]] = &[
 ];
 
 /// What:
+///  Whether Git reads this token as a global option that consumes the token after it.
+/// Why:
+///   Two readings need the same answer:
+///  the boundary scan below skips such a value,
+///  and `option_tokens` leaves it out of the options.
+///  A second list of the value-taking globals could disagree with this one,
+///  and a rule reading a value as an option lets a command through that Git reads differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const takesValue = (token: string) => VALUE_OPTIONS.includes(token);
+/// ```
+fn takes_value(token: &[u8]) -> bool {
+    return VALUE_OPTIONS.contains(&token);
+}
+
+/// What:
+///  The tokens of a global prefix that Git reads as options,
+///  in the order the caller wrote them,
+///  with every value a separated-value option consumes left out.
+/// Why:
+///   A global option's value is not an option:
+///  `git -C --literal-pathspecs add -- '**'` changes into the directory of that name,
+///  so Git sets no pathspec mode and expands the pattern over the whole worktree,
+///  and a rule that read the value as a mode would permit what Git does.
+///  The values are the ones the boundary scan skips,
+///  so both readings consume the same tokens.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const optionTokens = (prefix: string[]) => prefix.filter((token, index) => !(index > 0 && takesValue(prefix[index - 1])));
+/// ```
+pub fn option_tokens(global_prefix: &[OsString]) -> Vec<&OsString> {
+    let mut options: Vec<&OsString> = Vec::new();
+    // True while the token being visited is the value of the separated-value option before it.
+    let mut is_value: bool = false;
+    for token in global_prefix {
+        if is_value {
+            is_value = false;
+            continue;
+        }
+        options.push(token);
+        is_value = takes_value(token.as_encoded_bytes());
+    }
+    return options;
+}
+
+/// What:
 ///  Where Git's command boundary is,
 ///  and whether a global before it changed a variable of the environment.
 /// Why:
@@ -205,7 +253,7 @@ fn scan_globals(arguments: &[OsString]) -> GlobalScan {
             // `--exec-path=` rewrites the path Git starts commands from, not an environment variable.
             continue;
         }
-        if VALUE_OPTIONS.contains(&argument) {
+        if takes_value(argument) {
             if index + 1 == arguments.len() {
                 return GlobalScan {
                     prefix_len: index,
