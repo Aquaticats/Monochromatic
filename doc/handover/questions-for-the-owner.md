@@ -26,6 +26,35 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### Should the Pi limit go above 20?
+
+The owner found that `GET https://api.neuralwatt.com/v1/rate_limits` reports the account's limits.
+At 2026-11-09T06:19:41Z,
+`deepseek-ai/DeepSeek-V4.1-Flash` read `effective_concurrency` 20,
+`floor` 15,
+`flex_floor` 22,
+`burst_ceiling` 20 and `burst_active` true,
+on tier `max`.
+No published description of those fields was found,
+so what they mean is read from their names.
+
+That limit is on requests in flight,
+and an agent spends much of its time running tools.
+Over the first 28 minutes of the trial,
+with up to twenty agents running,
+the open model calls were a median of 7,
+a 99th percentile of 13 and a highest of 15.
+They reached 15 for 0.12% of that time and never reached 20
+(`${HOME}/temp/agent/pi-runs/measure-model-calls-in-flight.ts`).
+Scaling those figures,
+which is an estimate,
+about 26 to 30 agents would reach 20 open calls.
+Anything else using this key counts against the same limit,
+and the host may run short before the provider does.
+
+The trial at twenty is still running and decides the raise to 20 by itself.
+Say if you want a further trial above 20 after it.
+
 ### Are the three findings left on the stat-data landing worth another round?
 
 The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
