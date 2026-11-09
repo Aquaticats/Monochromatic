@@ -12,6 +12,9 @@
 //!  and what it spent and what became of it go to the command's timing record.
 //!  A caller that collects the trees of killed commands uses the same ceiling
 //!  (`landing/service_scratch_abandonment.rs`).
+//!  The threads such a removal leaves behind are bounded:
+//!  every removal that has not finished holds one of the process's places for blocking work,
+//!  and a removal that finds none leaves its entry to a later sweep instead of waiting.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,6 +31,9 @@ use crate::time_spent_outside_the_phases::note_scratch_removal;
 /// A path,
 /// a span of time and a moment.
 use std::path::{Path, PathBuf};
+/// The counter of the removals that are still running,
+/// shared by the threads of one process.
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 /// The tag of this module's diagnostics.
@@ -68,6 +74,74 @@ impl Removal {
     }
 }
 
+/// How many removals are running without having finished.
+///
+///  Every one of them holds a thread that the process cannot end,
+///  so the number is held to the places the process has for blocking work
+///  (`blocking_jobs_within_the_budget.rs`):
+///  a removal is blocking work nobody waits for,
+///  and a stalled removal may never give its thread back.
+static UNFINISHED_REMOVALS: AtomicUsize = AtomicUsize::new(0);
+
+/// What:
+///  The place one removal that outlasted its ceiling took,
+///  given back when its thread ends.
+/// Why:
+///   The caller stops waiting at the ceiling and its budget slot goes back,
+///  so without this place the threads of stalled removals would gather with nothing bounding them
+///  until the process cannot start a thread at all.
+struct ThePlaceOfARunningRemoval(());
+
+impl Drop for ThePlaceOfARunningRemoval {
+    /// Gives the place back,
+    /// whatever the removal came to.
+    fn drop(&mut self) {
+        let _given_back: usize = UNFINISHED_REMOVALS.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// What:
+///  Takes a place for one more removal that has not finished,
+///  or answers nothing when every place is held.
+/// Why:
+///   A caller that cannot have a place does not wait for one:
+///  it leaves the entry to a later sweep and goes on,
+///  so work that stalls can never make a command wait.
+///  The bound is the process's budget for blocking work,
+///  the same places its Git children and its other blocking jobs draw on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = takeAPlace(); // undefined when every place is held
+/// ```
+fn take_a_place() -> Option<ThePlaceOfARunningRemoval> {
+    let cap: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs().max(1);
+    loop {
+        let running: usize = UNFINISHED_REMOVALS.load(Ordering::SeqCst);
+        if running >= cap {
+            return None;
+        }
+        if UNFINISHED_REMOVALS.compare_exchange(running, running + 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+            return Some(ThePlaceOfARunningRemoval(()));
+        }
+    }
+}
+
+/// What:
+///  How many removals are running without having finished,
+///  which is at most the places the process has for them.
+/// Why:
+///   A control needs the figure to see a place come back,
+///  and a diagnostic that says a removal found no place names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// print(`unfinished removals: ${unfinishedRemovals()}`);
+/// ```
+pub fn unfinished_removals() -> usize {
+    return UNFINISHED_REMOVALS.load(Ordering::SeqCst);
+}
+
 /// What:
 ///  Removes one scratch entry,
 ///  a directory with its contents or a single name,
@@ -88,9 +162,22 @@ impl Removal {
 pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     let began: Instant = Instant::now();
     let target: PathBuf = path.to_path_buf();
+    // A removal that outlasted its ceiling keeps its thread, so a place is taken before one is started, and a caller that finds
+    //  none leaves the entry to a later sweep instead of waiting for one.
+    let Some(place) = take_a_place() else {
+        let running: usize = unfinished_removals();
+        debug(
+            TAG,
+            format!("the scratch entry {} is left to a later sweep: {running} removals that have not finished hold every place", path.display()).as_str(),
+        );
+        note_scratch_removal(Duration::ZERO, false);
+        return Removal::Unfinished;
+    };
     // What the thread ended with; a thread that outlives the ceiling sends into a channel nobody reads, which is no error.
     let (ended, waited) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let started = std::thread::Builder::new().name(String::from("scratch-removal")).spawn(move || {
+        // The place travels with the thread, so it is given back when the removal ends, never when the caller stops waiting.
+        let _place = place;
         let _sent = ended.send(remove_entry(&target));
     });
     let removal: Removal = match started {
