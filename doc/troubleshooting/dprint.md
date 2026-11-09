@@ -874,6 +874,29 @@ so editing it would weaken the parity evidence it exists for.
   so no existing manifest changes;
   a formatting pass over the manifests is still needed once.
 
+### Gotcha: `fmt --diff` is not a dry run
+
+`dprint fmt --help` says `fmt` "formats the source files and writes the result to the file system",
+and `--diff` only "outputs a check-like diff of every formatted file",
+so no flag previews a format without applying it.
+An agent that reads `--diff` as a preview rewrites every file it names,
+which on this tree is the whole formatting wave above.
+
+Measured in a throwaway directory
+ (`lineWidth` 40,
+ the pinned `toml-0.7.0` plugin)
+with two identical copies of one file whose array exceeds that width:
+
+```sh
+dprint check --list-different long1.toml   # lists it, exit 20, hash unchanged
+dprint fmt --diff long1.toml               # exit 0, prints a 10-line diff, file rewritten
+dprint fmt long2.toml                      # exit 0, same new content, no diff printed
+```
+
+Both `fmt` forms moved the file's SHA-256 from `f3bf328c…` to `59e55a2d…`.
+A read-only list is `dprint check --list-different -- <paths>`;
+`dprint fmt --stdin <file> < <file>` prints one file's formatted text and leaves the file alone.
+
 ### Upstream filing decision
 
 Nothing filed and nothing drafted.
