@@ -36,18 +36,6 @@ use std::ffi::OsString;
 /// Imports the file-system module for the symlink resolution and the stdin check.
 use std::fs;
 
-/// What:
-/// `use std::os::unix::fs::FileTypeExt;` imports a trait that adds `.is_fifo()` and `.is_socket()` to file types.
-/// Why:
-/// A pipe on stdin is a FIFO,
-/// and the check needs to tell it from `/dev/null`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // stats.isFIFO() and stats.isSocket() are always available in Node.
-/// ```
-use std::os::unix::fs::FileTypeExt;
-
 /// Imports the owned path type.
 use std::path::PathBuf;
 
@@ -62,6 +50,9 @@ use crate::launch::replace_process;
 
 /// Imports the record every policy reads and the function that asks the policies for a refusal.
 use crate::policy::{Invocation, refusal_for};
+
+/// Imports the kind of standard input a tool would read.
+use crate::stdin_kind::StdinKind;
 
 /// Imports the arrival stop:
 /// the marker a shadow leaves for the program it starts,
@@ -107,30 +98,29 @@ fn own_real_path() -> PathBuf {
 }
 
 /// What:
-/// `fn stdin_has_data() -> bool` declares a private function returning true or false.
+/// `fn stdin_kind() -> StdinKind` declares a private function returning which kind of thing standard input is
+/// attached to.
 /// Why:
-/// With piped input and no path,
-/// ripgrep reads the input and walks nothing,
-/// so the policy must not refuse.
+/// The policies decide on it: with a pipe and no path a search reads the input and walks nothing,
+/// and with a pipe and a named path ripgrep ignores the input.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stdinHasData(): boolean { const s = fs.fstatSync(0); return s.isFile() || s.isFIFO() || s.isSocket(); }
+/// function stdinKind(): StdinKind { return StdinKind.of(fs.statSync('/proc/self/fd/0').fileType); }
 /// ```
-fn stdin_has_data() -> bool {
+fn stdin_kind() -> StdinKind {
     // What:     `/proc/self/fd/0` is a Linux path that stands for whatever file descriptor 0 (stdin) is attached to;
     // `fs::metadata` follows it to the real object. `if let Ok(metadata)` runs the block on success.
-    // Why:      Reading the type avoids touching the stream. A closed stdin simply fails and counts as "no data".
+    // Why:      Reading the type avoids touching the stream. A closed stdin simply fails and counts as "no input".
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const s = fs.statSync('/proc/self/fd/0', { throwIfNoEntry: false });
     // ```
     if let Ok(metadata) = fs::metadata("/proc/self/fd/0") {
-        let file_type: fs::FileType = metadata.file_type();
-        return file_type.is_file() || file_type.is_fifo() || file_type.is_socket();
+        return StdinKind::of(&metadata.file_type());
     }
-    return false;
+    return StdinKind::None;
 }
 
 /// What:
@@ -182,13 +172,13 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const invocation = { name, arguments: readableArguments, allowWide, stdinHasData: stdinHasData(), workingDirectory: process.cwd(), home: process.env.HOME ?? '' };
+    // const invocation = { name, arguments: readableArguments, allowWide, stdin: stdinKind(), workingDirectory: process.cwd(), home: process.env.HOME ?? '' };
     // ```
     let invocation: Invocation = Invocation {
         name: name.to_string(),
         arguments: readable_arguments,
         allow_wide: env::var(ALLOW_WIDE_VARIABLE).unwrap_or_default() == "1",
-        stdin_has_data: stdin_has_data(),
+        stdin: stdin_kind(),
         working_directory: env::current_dir().unwrap_or_default(),
         home: PathBuf::from(env::var("HOME").unwrap_or_default()),
     };

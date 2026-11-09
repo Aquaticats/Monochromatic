@@ -36,6 +36,9 @@ use crate::policy_find::find_refusal;
 /// Imports the refusal rule for the `grep` family.
 use crate::policy_grep::grep_refusal;
 
+/// Imports the kind of standard input a tool would read.
+use crate::stdin_kind::StdinKind;
+
 /// What:
 /// `const WIDE_LONG_FLAGS: &[&str] = &[...]` is a private constant list of ripgrep's long flags that widen a
 /// walk to hidden or ignored files.
@@ -351,14 +354,14 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function rgRefusal(name, args, allowWide, inRepositoryRoot, stdinHasData, workingDirectory): string | undefined
+/// export function rgRefusal(name, args, allowWide, inRepositoryRoot, stdinKind, workingDirectory): string | undefined
 /// ```
 pub fn rg_refusal(
     name: &str,
     arguments: &[String],
     allow_wide: bool,
     in_repository_root: bool,
-    stdin_has_data: bool,
+    stdin: StdinKind,
     working_directory: &str,
 ) -> Option<String> {
     // Only ripgrep is policed for now; grep and find are only slowed down.
@@ -385,8 +388,8 @@ pub fn rg_refusal(
     if !in_repository_root {
         return None;
     }
-    // With piped input and no path, ripgrep reads the input and walks nothing.
-    if stdin_has_data {
+    // With input to read and no path, ripgrep reads the input and walks nothing.
+    if stdin.reads_input() {
         return None;
     }
 
@@ -431,7 +434,7 @@ pub fn rg_refusal(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Invocation = { name: string; args: string[]; allowWide: boolean; stdinHasData: boolean; workingDirectory: string; home: string };
+/// type Invocation = { name: string; args: string[]; allowWide: boolean; stdin: StdinKind; workingDirectory: string; home: string };
 /// ```
 pub struct Invocation {
     /// The tool name the binary was started under (`rg` / `grep` / `find` and so on).
@@ -440,9 +443,12 @@ pub struct Invocation {
     pub arguments: Vec<String>,
     /// Whether the escape-hatch variable is set to `1`.
     pub allow_wide: bool,
-    /// Whether standard input is a pipe,
-    /// file or socket (so a search may read it and walk nothing).
-    pub stdin_has_data: bool,
+    /// What standard input is attached to:
+    /// nothing,
+    /// a file,
+    /// a pipe,
+    /// or a socket.
+    pub stdin: StdinKind,
     /// The directory the tool will run in.
     pub working_directory: PathBuf,
     /// The user's home directory.
@@ -474,7 +480,7 @@ pub fn refusal_for(invocation: &Invocation) -> Option<String> {
             &invocation.arguments,
             invocation.allow_wide,
             in_repository_root,
-            invocation.stdin_has_data,
+            invocation.stdin,
             &directory_text,
         );
     }
