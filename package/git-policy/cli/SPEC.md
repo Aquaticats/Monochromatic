@@ -1235,6 +1235,19 @@ A work item of kind `trash` that an earlier release wrote is still emptied by th
 (`empty_trash`),
 with the same checks and the same identities,
 so a repository that ran one keeps its promise.
+The service settles a trash item it cannot empty as failed,
+so it never tries it again.
+Every command later run in that worktree,
+unless its output is read by a program,
+therefore names every directory
+in the worktree's trash parent that nothing will empty,
+on standard error,
+with its path:
+a trash whose emptying failed has no record at all,
+and one a failed record names has no record that will be tried again,
+while a directory nothing recorded cannot be proven to be one the leave-out moved;
+nothing there is deleted,
+and a worktree with no trash parent costs the command one lookup.
 The race with other processes is a risk the person accepts by using the command:
 a directory of the new worktree that another
 process replaces,
@@ -1681,7 +1694,65 @@ A rerun completes an unfinished conversion in place whatever phase it stopped at
 including a stop between the exchange and
 its journal line;
 `--abandon` destroys only the subvolume whose identity the journal recorded,
-and only before the exchange.
+only before the exchange,
+and only while no process has a working directory or an open file inside that stage,
+which it reports by
+process number,
+as the removal phase of the same conversion does.
+The scan is taken twice,
+the second immediately before the kernel call,
+so the window between the
+check and the destroy is one check wide;
+it cannot be closed without a lock that excludes every process from
+the stage,
+and a process that changes its working directory into the stage inside that window loses it:
+its
+shell reads `(deleted)` and its writes there fail with `ENOENT`.
+A position a person can be in
+it is a shell that runs `cd` into the copy while the command destroys it;
+the command cannot tell,
+and it
+reports the abandonment it made.
+A worktree removed after its conversion stopped past the swap leaves the original tree at
+`<path>.cli-git-converting`,
+a full copy nobody can name once the registration and its journal are gone,
+so `--abandon` reaches a path without a registration too:
+a subvolume root at `<path>.cli-git-converting` is destroyed and any other directory there is removed as a tree,
+which is the original directory a stop after the swap leaves.
+The name proves nothing by itself,
+so the two identities a conversion may leave there (the original worktree directory and
+the subvolume it created)
+are recorded beside the worktree in `.cli-git-convert-<name>.leftover-stage.json`,
+and the abandon destroys only an object whose identity is one of them:
+a directory put at that name instead is kept and named,
+and so is a stage whose conversion left no record.
+It says what it found before it destroys it,
+and refuses while a process is inside that directory.
+That identity is read again in the step immediately before the destroy,
+so a directory another program renames into that name in that interval is destroyed as if it were the stage.
+Binding it needs a
+destroy that takes a descriptor,
+which the platform does not offer,
+so the window stays one check wide.
+The person sees the directory they put there gone,
+and the stage they moved aside still where they moved it,
+under a name
+no record names.
+The rollback's two directories are read the same way,
+immediately before and immediately after its exchange,
+and a pair that did not exchange is exchanged back and reported,
+so nothing is deleted;
+a directory renamed into
+the checkout's name inside the last interval is exchanged with the original tree and is back at the old tree's name when
+the read after the exchange refuses,
+and a kill between the exchange and that read leaves the original tree at the checkout's
+name and the person's directory at `<root>.before-subvolume`,
+where the next `--rollback` reports the pair it did not
+expect and changes nothing.
+Both windows need a second program to rename a directory inside a window measured in
+microseconds,
+which is the accepted risk of other processes changing files,
+and neither is a defect of this command alone.
 
 Other processes:
 nothing in the command or the program excludes another process from changing the worktree while a command
@@ -1762,12 +1833,16 @@ in milliseconds after the epoch,
 so the removal can tell a file changed after the proof from one the copy already carried;
 a journal written by an earlier release has no such field.
 A rollback deletes the new subvolume only while the name holds a subvolume root,
-which is what the migration created there:
-a directory that replaced it is refused with both paths and nothing is deleted,
-because the removal's fallback would otherwise delete it and whatever it holds.
+which is what the migration created there,
+and only while that object is the checkout the journal recorded installing:
+the recorded identity is compared before the deletion on every path that reaches it,
+including a run resumed after the exchange was recorded,
+which skips the swap and with it the pair check that guards the exchange.
+A directory that replaced it is refused with both paths and nothing is deleted,
+because the removal's fallback would otherwise delete it and whatever it holds,
+and a subvolume that replaced it is refused with both identities.
 One window stays open and is written here rather than closed:
-the journal records no identity for the stage,
-so another process that creates a subvolume at that name in the moment between the check and the
+another process that puts a subvolume at that name in the moment between the identity check and the
 destruction has that subvolume destroyed;
 a person sees the rollback finish and the directory they made gone,
 and nothing names it,
@@ -1796,9 +1871,11 @@ exiting with status 1 when any stands;
 only a mode whose refusals are all clear says what it would do.
 So `--dry-run --remove-old` on a checkout with no finished migration refuses with the lines the
 real run gives instead of promising a deletion the real run refuses.
-The one refusal a preview cannot reach is the one a later read of the old tree adds while the
-carry-back copies it,
-because finding it writes files.
+The refusals a preview cannot reach are the ones a later read of the tree adds while the
+carry copies it:
+a file that turns out unreadable,
+and an entry the carry-back keeps because the destination holds another kind of entry at its path,
+because finding either writes files.
 Before this release
 the migration had no such guard:
 a second run resumed the first one's journal with the first one's token.
@@ -1815,6 +1892,105 @@ that reason is written beside the code in
 The rewrite of the index stat fields that runs by
 itself (the worktree add's index,
 a rollback) takes `index.lock` for one index from the read to the rename.
+The identity of the installed subvolume is recorded with the `exchange` step itself,
+when the tree is renamed into the
+checkout's place,
+and the first record wins:
+every step between the exchange and the verification is then protected by it,
+and a directory that
+took the checkout's place later is never blessed with its own identity.
+The migration records the identity of the subvolume it installed at the checkout (device and inode,
+in the journal's `values`
+under `installed-root`,
+written with the `verify` step),
+and `--remove-old` and `--rollback` refuse while the
+directory at the checkout path has another identity:
+a checkout moved or replaced by hand since the migration is one
+the migration never recorded,
+and the carry would write into it and the rollback would exchange it.
+A journal written by an earlier release records no identity,
+and a command that has none does not refuse on a guess.
+A window stays open between the exchange and that record,
+and is written here rather than closed:
+a kill after the exchange or the rename and before `record_installed` and the `exchange` mark
+leaves a journal that records `exchange` as started and holds no `installed-root`,
+so the next command has nothing to compare.
+If the person then moves the installed subvolume aside and puts another checkout,
+also a subvolume,
+at the checkout's path,
+with a version of a file whose modification time is older than the original tree's copy,
+`--rollback` reads the journal as a run with only its bookkeeping left:
+it marks the exchange done,
+carries the replacement's files into the original tree,
+keeping the original tree's newer copy of that file,
+exchanges the two directories,
+and deletes what stands at the new subvolume's name,
+which is the replacement,
+so the replacement's version of that file is gone.
+A kill alone reaches the state;
+a second process replacing the checkout in that moment is what turns it into a loss.
+Recording the identity of `<root>.subvol-new` before the exchange would name the same object the exchange installs,
+because an exchange moves names and not the object;
+that change is not made in this round,
+so the window is recorded here as a known limit.
+A rollback resumed after its exchange renames what the old tree's name holds to the new subvolume's name and then deletes
+it,
+so that object's identity is compared with the recorded installed checkout before anything is renamed,
+and so is the
+object at the new subvolume's name once the rename has happened:
+an object that is
+not the recorded one is reported with both identities and nothing is renamed or deleted,
+whichever of the two names holds it,
+a name with nothing at it is not
+a refusal (there is nothing to rename or delete),
+and a journal with no recorded installed identity has nothing to compare.
+A kill
+between the exchange and the rename is enough to reach that state;
+no second process is needed.
+`--remove-old` opens the checkout below its parent without following a link,
+compares the identity it reads on that
+descriptor with the recorded one,
+and carries the old tree's newer files through the descriptor,
+so a checkout moved aside
+after the check receives nothing;
+the name is compared with the held identity again before the old tree is deleted,
+and a
+difference keeps the old tree,
+names both identities and changes nothing.
+`--remove-old` carries into the checkout what was written to the old tree after the catch-up,
+and that carry leaves out an entry the checkout lacks whose modification time is older than the catch-up,
+because that is also the shape of a file the person deleted from the checkout on purpose.
+A path where the checkout holds another kind of entry than the old tree does is not carried either:
+the pass keeps
+the checkout's entry as the newer one and records the path,
+so the old tree's directory there,
+and the only copy of what it holds,
+holds back the deletion the same way,
+and the refusal names it.
+The command counts those entries,
+writes their relative paths to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout
+(through a sibling created exclusively and renamed over the name,
+so a link planted there is replaced rather than followed;
+the unreadable-file list is written the same way),
+and deletes nothing while the list is not empty:
+the refusal names the entries of both kinds (up to ten each,
+then how many more)
+and stops with exit status 1 until the person passes `--discard-left-out`
+beside `--remove-old`,
+or deletes the old tree themselves.
+The flag applies to both deleting modes.
+A rollback's carry-back leaves the same kind of entry out when the original tree holds another kind of entry at its
+path,
+and the new subvolume's directory there,
+and the only copy of what it holds,
+would go with the subvolume the rollback deletes;
+the rollback therefore counts those entries,
+names them,
+and deletes nothing until the person passes `--discard-left-out` beside `--rollback`,
+or deletes the new subvolume themselves.
+A rollback writes no list file for them:
+the paths are relative to the new subvolume,
+and the run refuses before it exchanges anything.
 The mutation campaign's evidence directories and the host-wide gate slots (`package/mutation-test/cli-cargo-mutants`) are owned
 by claim files:
 a second run on a directory is refused,
@@ -2120,6 +2296,125 @@ directory.
 These narrow the window to a few system calls;
 they do not close it.
 
+The remedy the refusal names depends on how far that conversion got:
+a copy whose journal is at or past the exchange is finished
+by the conversion itself (which resumes,
+rewrites the index,
+removes the copy and drops the journal),
+and `--abandon`
+cannot help there because it refuses every conversion at or past its exchange;
+a copy whose journal is earlier may be finished
+or discarded with `--abandon`,
+and a copy with no journal at all is the one `--abandon` discards.
+A worktree that has a conversion's copy beside it is not removed when a conversion's record beside the worktree
+(`.cli-git-convert-<name>.leftover-stage.json`) proves the copy is a conversion's;
+a directory at that name that no record
+names is the person's own,
+and the removal goes on and leaves it where it is,
+because refusing on the suffix alone would block a
+legitimate removal with neither command able to clear it.
+The record must also still be true:
+the object at the stage's name is
+compared with the identities the record holds,
+so a record whose stage is gone,
+or whose name holds another object,
+does not stop
+the removal,
+because the record says what a conversion may have left and not what is there now,
+and nothing clears a
+record a killed `--abandon` left behind.
+The report of the refusal:
+the wrapper refuses with
+exit status 1 and one report that names the copy,
+says nothing was removed,
+and gives both commands
+(`convert-worktree-to-subvolume <path>` to finish the conversion,
+`convert-worktree-to-subvolume --abandon <path>` to
+discard the copy),
+because the removal deletes the registration and the journal in it is what names that copy.
+`git worktree remove --force` and `git worktree prune` are not seen by the wrapper,
+so they still remove the
+worktree and leave the copy behind;
+`--abandon` reaches such a copy at its recorded identity,
+and a copy whose
+conversion left no record is kept and named.
+The destroy is recorded before the kernel call,
+in `<common>/monochromatic-git-policy-cli/recorded-destroys/<id>`,
+holding the identity of the registration and
+the path of the worktree;
+the record is dropped by a removal that finished and by a destroy that failed,
+so a command killed in the window
+between the destroy and the removal of the registration leaves one decidable state.
+The record is marked once the kernel call returned,
+and only that mark proves the files are gone.
+The mark is a line of
+its own at the very start of the record,
+so the pathname's bytes,
+which are the person's and may hold anything,
+can never be read as
+one;
+a record written by an earlier build starts with the identity instead and is read as one whose kernel call is
+not proven,
+which leaves the registration alone and is reported.
+an absent pathname is not proof,
+because a person can move an intact worktree,
+and emptying its registration would
+leave its `.git` file pointing at nothing.
+Both writers of that record replace it the way the migration's lists are written:
+a sibling created exclusively under a
+name of its own,
+then one rename,
+so a link planted at a temporary name is never written through.
+A directory entry in that
+folder that is not a plain file is left alone:
+the folder is read on every wrapped command,
+so a
+named pipe,
+a device or a link there would otherwise make a commit wait for a writer that never comes.
+A record names the process that wrote it,
+with the identity that tells it from a later process of the same number,
+and an
+unmarked record whose owner may still be running is left untouched:
+that owner destroys the tree and marks the record,
+and a
+second command that read it in that time and forgot it would take away the only place the first can mark its success.
+A
+marked record is finished even while its owner lives,
+because the kernel call it names has returned.
+Before a registration is emptied,
+its `gitdir` is compared with the path the record holds:
+a registration a repair
+has pointed at a restored checkout names that checkout,
+so it is kept (with its index,
+reflog and per-worktree refs) and
+the record is dropped,
+and the person is told both paths.
+A `gitdir` that cannot be read is treated the same way,
+because
+nothing then proves the registration is this record's,
+and a registration whose directory is writable can be emptied through it even while the file cannot be read;
+the report names the registration and `git worktree prune`.
+A `gitdir` that is not there at all is not:
+a registration no back-pointer points at is the state this command's own removal leaves when it empties a registration
+and then cannot remove its directory,
+so finishing it discards nothing.
+Every wrapped command then finishes a marked record:
+the registration is emptied and
+removed through descriptors opened below `worktrees`,
+only while it is the identity the record names and only when
+nothing below it is a nested subvolume or a mount point,
+and only after the records it holds are copied into the removal
+snapshot the rescue route settles,
+so an unshown push failure in it is shown rather than destroyed with it.
+A record whose worktree
+directory is still there is dropped with nothing changed,
+because the destroy did not happen,
+and an unmarked record whose
+pathname is empty is reported once and dropped with the registration untouched,
+naming `git worktree repair <new path>`
+for a worktree that was moved and `git worktree prune` for one that is gone.
+What still fails is reported with its path and with `git worktree prune` as the way forward.
+
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory,
 a registration
 replaced meanwhile),
@@ -2137,6 +2432,43 @@ Git behaves alike (it carries on after the files and exits nonzero),
 and removes the empty `worktrees` directory when the
 last registration goes,
 as the wrapper does.
+
+The unshown push-failure notices and the unfinished push records of a linked worktree live in its own Git directory,
+which the removal deletes,
+so before `git worktree remove` or `git worktree prune` runs,
+the wrapper copies them into a snapshot under `<common>/monochromatic-git-policy-cli/removal-snapshots/<instance>`,
+last writing the Git directory it was taken from and first recording the process that took it
+(`src/native/worktree/worktree_removal_rescue.rs`).
+Every wrapped command settles each snapshot once the command that took it has ended:
+a Git directory that is gone,
+and one that is still registered while its checkout is gone,
+promote the records to the notices every worktree shows,
+because a worktree without a directory can run no command that would show them;
+a checkout that is intact is a removal Git refused,
+and the snapshot is discarded;
+a command that may still be removing keeps the snapshot,
+and so does evidence that cannot be read.
+The registration of a worktree whose checkout is gone is left to the person,
+which `git worktree prune` removes.
+That settle cannot tell a checkout a person moved aside from one a removal destroyed,
+because a removal that was cut short
+leaves the same two things:
+a registration and no checkout.
+A removal of one worktree snapshots every worktree that has records,
+so a
+worktree whose checkout is absent while another worktree's removal runs is settled as removed on the next command:
+its
+records are promoted and its snapshot deleted.
+Nothing the person wrote is lost (the snapshot is a copy,
+and the registration keeps
+its own records),
+and the person sees two things:
+after `git worktree repair` the same notice appears again,
+because the
+registration still holds it,
+and an unfinished push is reported as one that may not have finished even though the worktree
+still exists and the service still runs it.
+Repairing a worktree before another removal runs avoids both.
 
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
