@@ -442,6 +442,17 @@ Two controls hold the other side:
 `a_reftable_copy_keeps_the_record_and_its_flush`
 and `reftable_pseudorefs_are_deleted_through_git`.
 
+Three tests outside those modules had built "a cleanup that cannot be done"
+out of a copies directory with no record in it,
+which now names nothing:
+`a_merge_in_progress_is_copied_to_the_shadow` in `shadow_create_tests.rs`,
+`a_late_switch_keeps_the_batch_open_while_its_cleanup_is_pending` in `service_land_head_tests.rs`,
+and the two `service_land_tests.rs` scenes
+`a_cleanup_that_fails_does_not_make_the_index_update_replayable`
+and `a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending`.
+Each now writes a record that is not JSON,
+which is damage in every backend and keeps the subject it was written for.
+
 Measured in a throwaway repository of this tree's shape,
 alternating arms,
 three commits per arm through `strace -f -T -e trace=%file,%desc,fsync`:
@@ -470,6 +481,63 @@ three commits per arm through `strace -f -T -e trace=%file,%desc,fsync`:
   The spread of one arm on unchanged input is wider than the change,
   so this record claims no whole-commit improvement from it:
   what it removes is one flush whose own cost was measured directly.
+
+## The scratch commit's ceiling, which turns a wait into a refusal
+
+`package/git-policy/cli/src/native/commit/commit_preparation.rs` runs the scratch `git commit`
+under a notice whose ceiling is `SCRATCH_COMMIT_STEP_CEILING`,
+3006 ms (`wait_ceilings.rs`:
+"3 x 1,002 ms",
+the owner's answer of 2026-11-08,
+"About 3 s now"),
+and ends the step and its descendants at that ceiling
+when the message came with the command.
+That is a wait limit on the commit's own path,
+and it can turn a slow wait into a refusal,
+which the owner's "Commits should never fail."
+rules against;
+the ceiling was chosen with that price stated.
+
+In this window the refusal appears 8 times:
+8 commits of the 866 (0.9 percent) carry `outcome=stopped`,
+exit 1,
+and a scratch `git commit` step of 3024,
+3027,
+3029,
+3050,
+3074,
+4169,
+4259 and 4359 ms
+(the ceiling plus the time to end the process tree),
+all of them on release 0.6.1-alpha.4.
+One more commit stopped on an older release after a 171 383 ms step,
+before the 3006 ms ceiling existed.
+The 287 records of the installed release 0.6.1-alpha.5 hold none,
+and their slowest scratch commit is 1748 ms.
+
+What that step was doing is build and signature in the scratch repository,
+in one process with no sub-step figure:
+`commit.gpgsign` is true here with `gpg.format=ssh`,
+so `git commit` starts the SSH signing program,
+and the stop's own words name it
+("The commit signs the commit because `commit.gpgsign` or `-S` asks for it,
+so the signing program is the first thing to check").
+The step is cheap when nothing competes:
+median 42 ms over the window,
+39 ms and a p90 of 151 ms on the installed release,
+and my own `strace` run of a shaped commit stopped the same step at the same ceiling
+while the signing program ran.
+The same window also holds a commit that landed after a 36 651 ms scratch commit,
+so the ceiling does not end every slow one:
+the notice answers "the step ended on its own" when its look for descendants finds none,
+and that commit's 36.6 s says the look can find none while the step is still running.
+
+Two things follow for the owner:
+a ceiling of 3006 ms on a step whose tail is contention on this host refuses commits
+that would have landed,
+and
+the check that arms it is not the same for every commit,
+which is why one instance of that tail refused a commit and another did not.
 
 ## What remains
 
