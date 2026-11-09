@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:16:51-05:00)
+#### Reviews and landings in progress (2026-11-09T04:29:17-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -157,15 +157,24 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
   its agent reports the lint,
   the two failing tests and the two missing controls settled.
-  The review (`${HOME}/temp/agent/reviews/landing-route-round-5-sol.txt`) names five serious defects and one misleading remedy,
-  among them a `git commit --all` that loses the person's edit when another command touches the live index,
-  and a commit whose checks blocked it being pushed by a later recovery.
-  Not ready to merge.
-  Run 7 of its agent is on them,
-  and is asked first to write down the rule the repair enforces,
-  since each review has found new defects in the same code.
-  On top of main 1245 of 1249 selected tests pass.
-  The four failures are all in `landing::service_work::push_retry_tests`,
+  Run 7 wrote down the rule the repair enforces and fixed the fifth review's findings.
+  The sixth review (`${HOME}/temp/agent/reviews/landing-route-round-6-sol.txt`) names more,
+  most of them in what earlier rounds added,
+  so the branch is not converging by adding fixes.
+  Run 8 removes instead:
+  nothing releases a held push by judging whether a process is alive,
+  the repair does nothing unless the worktree has an owed record,
+  and an unreadable file is no longer taken for an absent one.
+  That reverses the session's earlier pick,
+  recorded in `questions-for-the-owner.md` as open to veto.
+  Run 8 also reproduces,
+  without fixing,
+  whether a later commit's push carries a commit its checks blocked:
+  a queued push sends the whole branch (`push/auto_push.rs:230-245`) and `SPEC.md:4637` says no push runs a `pre-push` hook.
+  If it does,
+  that goes to the owner.
+  On top of main 1254 of 1255 selected tests pass.
+  The one failure is in `landing::service_work::push_retry_tests`,
   a module whose failures the push branch traces to a patience shorter than a contended push,
   which is a fit and not yet a proof.
   `fix/git-policy-cli-tests-that-fail-only-in-a-suite`,
@@ -205,6 +214,26 @@ The old tree kept for the rollback stays until the owner deletes it.
   After that round it lands.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`:
   its agent fixes what the audit `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md` found.
+  Its first run reached the three-hour limit,
+  and run 2 continues it.
+- `fix/git-policy-cli-discarding-commands-see-ignored-files-and-aliases`:
+  its agent reports the audit `doc/planning/cli-git-discarding-commands-route-findings-on-main.md` fixed,
+  with the owner's "Log only" for `git worktree remove` and "Allow,
+  add audit line" for `git branch -D`.
+  On top of main 678 of 678 selected tests and 15 of 15 `discard::` binary tests pass,
+  and the review `discarding-commands-round-1` is running.
+  One visible change:
+  `git clean -fdx` is refused in a linked worktree that has ignored files,
+  such as one with `node_modules`.
+  The owner questions on forced checkouts and on that refusal are in `questions-for-the-owner.md`.
+  Its report names 83 `service run` processes alive from other worktrees,
+  and `fault_trace::slow_flushes_delay_a_commit_and_change_nothing_else` failing before its changes because its `strace` injection never matched.
+  Both went to the inbox of `wrapper-tests-that-fail-only-in-a-suite`.
+- An agent's probe left a `fuse-overlayfs` mount with a stopped server in the shared mount table,
+  under `${HOME}/temp/agent/fuse-probe/mnt`,
+  which held the probe and another agent's `find` in the kernel.
+  The session aborted that one connection and detached the mount,
+  and `shared-rules-for-pi-briefs.md` now requires a private mount namespace for any probe that mounts.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
   its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
   On top of main 661 of 664 selected tests pass:
@@ -248,10 +277,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   a signal turned into a normal exit on the plain child route,
   and a new test that can wait forever.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `entry-and-service-findings-fixed` as run 3,
-  with `entry-and-service-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  Run 3 of its agent is on them.
   The review's fifth finding,
   the bound of 32 on a finite alias chain,
   stays as it is.
@@ -340,14 +366,11 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 4 of its agent is on them.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
-  654 of 654 selected tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/commit-checks-round-2-sol.txt`) names further ways a saved file is lost,
-  most of them in the journal and the recovery the last round added.
-  Not ready to merge.
-  Its next brief suggests removing the step that loses data instead of adding another check:
-  when anything is uncertain,
-  the file stays and is named.
-  Run 3 of its agent is on them.
+  Run 3 took the suggestion to remove the step that loses data:
+  recovery no longer exchanges anything,
+  and a journal that may hold a person's bytes stays and is named on every later `fix`.
+  174 of 174 selected tests pass on top of main,
+  and the review of that round alone (`commit-checks-round-3`) is running.
   Before it lands,
   `questions-for-the-owner.md` gets the choice that `fix` refuses a worktree whose Git directory is on another file system,
   if that refusal is still there.
@@ -358,17 +381,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   The test `a_running_renewal_renews_the_held_claims_until_it_is_dropped` compares against a snapshot taken before the drop,
   which went to the inbox of `controls-witness-their-race-by-ordering`.
 - `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
-  The agent `repo-read-findings-fixed` is on them.
+  The branch `fix/git-policy-cli-readers-match-git-on-extensions-and-ref-names` fixes both and bounds an interrupted read.
+  459 of 459 selected tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/repo-read-round-1-sol.txt`) names one difference,
+  which it did not run:
+  a hand-altered `IEOT` version where Git prints an error and the reader stays silent.
+  The agent measured a cost:
+  answering the ref listing in process takes a median of 12.8 ms on this repository (1433 refs) against 3.9 ms for starting Git,
+  and 0.34 ms against 3.9 ms on a small one.
+  A follow-up makes the listing cheaper or leaves large repositories to Git,
+  and closes the `IEOT` difference.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
   Its fix landed on main as `3d53f1f46a`,
   with 544 of 544 selected tests passing on top of main.
   The review (`${HOME}/temp/agent/reviews/policy-and-candidate-round-1-sol.txt`) and the agent's report name smaller gaps in other routes.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  start the run `literal-pathspec-remaining-starts` from main,
-  on `fix/git-policy-cli-literal-pathspec-remaining-starts`,
-  with `literal-pathspec-remaining-starts-prompt.md`.
+  The agent `literal-pathspec-remaining-starts` is on them,
+  on `fix/git-policy-cli-literal-pathspec-remaining-starts`.
 - `doc/planning/cli-git-hook-route-findings-on-main.md` names four defects,
   among them a stopped push that kills a local remote's `post-receive` after the branch has landed and then reports failure.
   The agent `hook-route-findings-fixed` is on them.
