@@ -2728,8 +2728,10 @@ counted with `strace` over ten commits on 2026-11-07),
 rounded up to a power of two.
 The commit Git builds in the scratch repository runs with the terminal attached and no watch,
 so its entry (`git commit`) is the
-only record of its time,
-signing included.
+only record of the time Git itself took,
+signing and the work Git does included,
+and the notice's own time and the time a program below the step ran are in `scratchSteps` beside it,
+never inside it.
 The gateway call's total deadline is `ureq`'s `global` timeout,
 set to `REVIEW_CALL_CEILING`;
 the transport's other timeouts
@@ -2764,10 +2766,72 @@ the signing program,
 and when the step is stopped:
 a commit whose message came with the command (`-m`,
 `-F`,
-`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
-everything below the command ended with `SIGKILL`,
-the command failing with a message that says nothing was committed and to run the same command again;
+`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`,
+16,332 ms:
+three times the slowest `git commit` step record that is not one of the three over 26 s,
+5,444 ms,
+in the 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5 read on 2026-11-09;
+owner,
+2026-11-08,
+"About 16 seconds"),
+that `git commit` and the processes it started ended with `SIGKILL` and no other child of the command touched
+(the notice holds the pidfd the step was given the moment it started and signals through it and nothing else,
+reads the programs below the step first and asks that descriptor afterwards whether the step is still there,
+so a walk taken while the step was alive is discarded when it ended in the meantime,
+and signals the step whatever that walk came to,
+recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
+so one of them may still be running),
+a stop recorded only when a signal was really taken for the step,
+only `ESRCH` from the descriptor's signal read as the step being gone,
+with every other refusal,
+and a look that could not be made,
+leaving the ceiling armed rather than standing down,
+and the command failing with a message that says nothing was committed and to run the same command again;
+a step whose start the kernel refused a descriptor for is taken again at the ceiling,
+and only one proof is accepted before anything is sent:
+the step's record must say the number is a living child of this process that has not been reaped,
+which is the one moment the kernel cannot have given that number to another process
+(a child that exits in the instant before the signal becomes a zombie that still holds the number and discards it);
+with that proof a descriptor is made then,
+or the signal goes to the proved number,
+a record that names another parent means the child was reaped and the step ended,
+so nothing is sent,
+and a record that cannot be read leaves the ceiling armed;
+its lines are written by a thread of their own,
+handed over a queue of one line,
+so a reader that stopped reading holds that thread and never the ceiling,
+a line that cannot be handed over is dropped and counted (`linesDropped`),
+`finish` waits for the notice's answer and for the line already handed over no longer than `NOTICE_BOUND`
+(twice `LOOK_INTERVAL`),
+and a command that ended prints nothing more:
+the writer stops at its next line,
+so at most the one line already inside a write can still reach the reader after the command is over,
+and the writer ends there rather than living on beside a reader that stopped reading;
+a member the kernel refuses a pidfd for is never signalled by its number,
+and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
+
+##### The one wait the ceiling cannot end
+
+A step whose start the kernel refused a descriptor for is ended at the ceiling by the proof above.
+The one state in which no ceiling can end it is both failures at once:
+the start made no descriptor,
+and `/proc` cannot be read at the ceiling,
+so the step's number cannot be proven to be this process's own unreaped child.
+Then nothing is sent,
+the ceiling stays armed,
+and the notice keeps printing what it knows at its cadence until `/proc` reads again,
+at which point the ceiling fires,
+or until the step ends by itself.
+The person sees the usual waiting lines,
+the last of which promises the stop at the ceiling,
+and a commit that lasts longer than the ceiling says so every cadence;
+`run_native_commit_within` reaches its stop only when the ceiling does.
+This is named here rather than bounded because no honest bound exists:
+the wrapper may not signal a number it cannot prove,
+and the owner's rule against killing another command's process stands.
+The uninterruptible wait after a delivered signal is the separate owner question in
+`doc/handover/questions-for-the-owner.md`.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -3321,6 +3385,27 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  After a commit was prepared,
+  that failure reads the branch once (`git merge-base --is-ancestor <prepared> <reference>`)
+  and states what it shows:
+  that the branch holds the commit this command prepared,
+  at its tip or under a later commit,
+  so the commit was made and the command returns the landed commit with exit 0,
+  reporting the landing and handing the after-commit work over as the answer that landed does,
+  through the one function both paths share,
+  so that a refusal from the work after a landed commit is a warning in either
+  path and never the command's failure;
+  that it does not hold it,
+  so the commit was not made by this command,
+  though the service may still land it;
+  or that the branch could not be read,
+  which keeps the words "not known whether the commit was made".
+  The read waits for nothing,
+  and a commit the service builds itself from the request leaves the third answer,
+  because the wrapper has no commit to compare the branch with (2026-11-09T07:44:20Z:
+  a message said the commit was
+  not known to have been made,
+  and the service landed it 73 seconds later).
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -5509,7 +5594,8 @@ The built-in order is
 then `final-newline`.
 The transform order is atomic push,
 commit only,
-then status hints off.
+status hints off,
+then ignored files kept.
 
 Without `--cli-git-keep-going`,
 the first unpatched error stops the pass.
@@ -6170,6 +6256,14 @@ which records it once the index and the branch are read together.
 A link is compared by what Git stores for a link,
 the hash of its target text with mode `120000`,
 never by hashing through it.
+That comparison cannot tell a restoration the person staged from one they made without staging it:
+a dangling link whose target text was put back leaves the same index entry either way,
+and nothing is lost in either case,
+because the entry the repair compares is the one the person's own index holds.
+The repair leaves such a path out when the index still holds the text the landing replaced and the
+worktree holds different text,
+and the notice names it,
+so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
 where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
@@ -8493,6 +8587,30 @@ and `statDataKept` says whether that build started from a copy of the real index
 keeping the cached stat data of every entry its tree shares with it;
 a build from the base or the tree alone holds none,
 and the scratch commit then hashes every file of the work tree),
+`scratchSteps`
+(one entry per build of the scratch `git commit`,
+empty for a commit that ran none,
+in the order the builds ended:
+`ceilingMs` the ceiling that build ran under,
+`null` for a commit that may open an editor,
+`armed` whether a notice thread ran to enforce it,
+`stoppedAfterMs` how long the step had lasted when the notice ended it,
+recorded only when a signal was really taken for the step,
+`noticeMs` how long the notice's own end took after the step ended,
+`wroteMs` how long the writer spent on the lines it finished,
+`linesDropped` how many lines it dropped because a reader stopped taking them,
+`looks` and `looksFound` how many looks it made for the step and how many found it,
+`below` one entry per program that ran below the step with the milliseconds the same process number,
+start time and name were seen at the look interval,
+kept with a zero bound when a look saw it only once,
+`belowCpuMs` the processor time everything below the step had used at the last look,
+`belowUnlisted` whether the programs below the step could not be listed when it was ended,
+so one of them may still be running,
+`blindLooks` how many looks could not be made at all because `/proc` refused the read,
+and `blockedLooks` how many looks found one of them in uninterruptible sleep;
+an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;
+the record's own `git commit` step figure is the child alone,
+so `noticeMs` and `below` are never inside it),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,
@@ -8774,11 +8892,26 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   Git prints `ignoring <signature> extension` on standard error and answers,
   so the reader declines instead of answering in silence.
   `TREE`,
-  `UNTR`,
-  `EOIE` and `IEOT` are read without a word on any body they are handed,
+  `UNTR` and `EOIE` are read without a word on any body they are handed,
   so those answer,
-  and `REUC` and `FSMN` answer only when their bodies read the way Git reads them,
-  because Git words a body it cannot read for those two.
+  and `REUC`,
+  `FSMN` and `IEOT` answer only when their bodies read the way Git reads them,
+  because Git words a body it cannot read for those three.
+  An `IEOT` table is read when `index.threads` turns threaded loading on and a valid
+  end-of-entries (`EOIE`) extension is present:
+  `read_ieot_extension` (`read-cache.c`,
+  Git 2.56.0) prints `error: invalid IEOT version <n>`
+  for a version other than 1,
+  and it then seeks each block by the table's own byte offsets,
+  so a table naming other bytes is a different listing or none at all
+  (measured on Git 2.56.0,
+  a first block one byte off ends Git without a word,
+  and a first block pointing into the header prints `fatal: unknown index entry format 0xc0110000`).
+  The reader therefore answers an `IEOT` body only when it is version 1,
+  names at least one block,
+  and every block begins where this reader parsed an entry and together they cover all of them;
+  any other body is a decline,
+  so Git answers it.
   An unknown lower-case signature is a required extension,
   which Git stops on and the reader already declined.
 - A ref name Git itself would refuse.
@@ -8803,6 +8936,33 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   because the reader cannot prove Git's bytes for them.
   A listing that holds a name Git refuses declines whole:
   Git words such a name on standard error (`ignoring ref with broken name`) and prints the other refs without it.
+
+#### A ref listing past a measured count is left to Git
+
+`for-each-ref` is the one in-process answer whose cost grows with the repository rather than
+sitting in a Git start:
+every ref it prints is checked against the object database,
+because Git drops a ref whose object is missing (`warning: ignoring broken ref`)
+and the answer must drop it too.
+Measured on 2026-11-09 (release profile,
+arms alternating in one binary,
+this repository with 1442 refs and four packs of 514k objects):
+the answer took 13.7 ms at the median against 3.8 ms for `git for-each-ref`,
+and 10.8 ms of it was that check.
+Of those 10.8 ms,
+6.6 ms were the loose path lookup for every packed object;
+the packs are asked before the loose paths now,
+which leaves 4.3 ms for the check and 7.1 ms for the answer.
+The layout read and the ref walk alone take 1.8 ms,
+and with the measured 3.5 us per ref the answer meets the Git start near 490 refs and loses
+above them.
+`REF_LISTING_LIMIT` (256) is set well below that meeting point,
+because a larger object database makes each check dearer while the Git start stays a constant.
+A repository above the limit declines before the object database is opened or `refs/` is walked,
+and pays the layout read (0.5 ms) and the count of `packed-refs` before Git answers,
+which is the price of the capability rather than of the answer.
+Below the limit the answer is kept:
+a two-ref repository answers in 0.30 ms against 3.8 ms for the Git start.
 
 ### Verification
 
@@ -8856,6 +9016,10 @@ Unsafe warn configuration emits a `configuration-warning` JSONL event but still 
 remain.
 Generic `--no-enforce-<policy-id>` escapes and the legacy safeguard aliases skip the complete policy lifecycle and are
 stripped before real Git.
+A guarded form that runs under the hatch leaves one `hatch` line instead,
+and a form that is only recorded (`git worktree remove`,
+`git branch -d`/`-D`) leaves the same `logged` line it leaves without the hatch,
+because the owner asked for that line and the hatch skips the policy that writes it.
 Escape-looking option values and pathspecs remain ordinary Git arguments.
 The legacy fixed-rule implementations no longer participate in dispatch.
 
@@ -8894,17 +9058,233 @@ and the abort forms of `merge`,
 `rebase`,
 `cherry-pick`,
 `revert` and `am`.
+The word this reading reads is the word Git will run.
+An ordinary alias (`alias.<name>`,
+either spelling) is expanded the way Git expands it,
+up to 16 expansions,
+and the guard decides on the expansion,
+which is also the argument list the wrapper forwards and the audit record names.
+A built-in word is decided without reading any configuration,
+so no process is started for it.
+The expansion is resolved once per invocation and read by all three of them:
+the guard,
+the fixed argument transforms and the argument list forwarded to Git,
+so the tokens a transform adds land on the command Git runs
+(`git go` with `alias.go=checkout tracks` is guarded and transformed as `git checkout tracks`,
+and the wrapper forwards that expansion).
+A built-in word is decided without reading any configuration,
+so no process is started for it.
+A shell alias (`!...`) and an undefined name are forwarded as they are:
+a shell command cannot be judged by reading it,
+and Git runs it with its own `git-core` directory first on `PATH`,
+so a `git` inside it is real Git and not this wrapper.
+`git by the word Git will run` is the boundary of this guard.
+
 A form is rejected in the main worktree and outside any worktree always,
-and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty
-(`clean` also counts untracked files).
+and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
+A `clean` counts untracked files as well,
+and a `clean` that deletes ignored files counts what it deletes:
+`git clean -x` counts tracked,
+untracked and ignored files,
+and `git clean -X` counts ignored files only.
+A `git clean -X` that carries its own exclusion patterns (`-e`,
+`--exclude`,
+in every spelling Git's table accepts,
+clustered and abbreviated included) is measured by Git itself instead:
+Git adds those patterns to the ignore rules the clean applies,
+so a file the status reports as untracked is one this clean deletes and the status cannot say so.
+The question is `git clean --dry-run` over the same facts,
+rebuilt from them and never edited from the typed region
+(`-n`,
+`-f` as often as written and at least once,
+`-d` when written,
+the `-X` or `-x` mode,
+each `-e` pattern,
+then `--` and the paths),
+because an edited region would carry `-i`,
+whose dry run reads the terminal,
+or `-q`,
+which would silence it;
+a dry run that prints nothing deletes nothing,
+and one Git refuses is a `fact-unavailable` finding.
+A `-x` clean needs no such reading:
+it deletes every untracked file whether a pattern calls it ignored or not,
+and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
+which the status measurement over-reports rather than under-reports.
+The forms are `Clean`,
+`CleanIgnored` and `CleanIgnoredOnly`,
+so a rejection says which files that spelling deletes.
 A `HEAD`-moving form is rejected only while tracked changes exist.
+`git stash drop` and `git stash clear` are measured against the repository instead:
+they delete entries of `refs/stash`,
+which every worktree of the repository shares,
+so a clean linked worktree does not make them safe.
+The query is `git rev-parse --verify --quiet refs/stash`,
+which reads no worktree,
+and the record's `dirty` field says whether that query found an entry.
+A `drop` or `clear` runs where the repository holds no entry,
+because then it deletes nothing.
+A `checkout` or `switch` that changes any file is also forwarded with `--no-overwrite-ignore`,
+directly after the subcommand,
+so Git itself refuses a switch that would replace an ignored file the target tree tracks,
+naming the file.
+Git decides that inside the process that changes the files,
+so no measurement window exists for it.
+The token is not added where the region changes no file,
+where the caller already answered with `--overwrite-ignore` or `--no-overwrite-ignore`,
+or where Git refuses the region;
+a caller's own `--overwrite-ignore` after it still wins,
+because Git applies the last spelling.
+A forced `checkout -f` or `reset --hard` overrides the token,
+so the ignored file it would replace inside the process is decided before the command runs:
+for a forced `checkout`,
+a forced `switch` and a hard `reset` (`--hard`,
+`--merge`,
+`--keep`),
+the guard reads the paths of the tree that form writes (`git ls-tree -r -z --name-only <revision>`,
+`HEAD` when the form names no tree)
+and asks Git which of them the worktree holds as ignored files,
+then refuses,
+naming the paths,
+while any path is both.
+Only these three forms are read that way,
+and only in a linked worktree;
+the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
+so no query walks the worktree's ignored files
+(measured on this repository's worktree at 1,860 tracked paths:
+`git ls-tree` 4 to 6 ms and `git ls-files` 9 to 77 ms per start,
+the spread being host load).
+Every path is named with `:(top,literal)` magic,
+anchored at the top of the worktree and read as itself,
+and the query turns off a caller's `--literal-pathspecs`,
+which would otherwise make the magic a path.
+A tree or an answer Git cannot read is a `fact-unavailable` finding,
+never a clean worktree,
+and a revision Git cannot resolve is read as `HEAD`,
+because every form that names no tree writes `HEAD`'s content.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
+The list is chosen by the invocation's own environment:
+uv's cache (`UV_CACHE_DIR`,
+else `XDG_CACHE_HOME/uv`,
+else `HOME/.cache/uv`) and mise's data directory (`MISE_DATA_DIR`,
+else `XDG_DATA_HOME/mise`,
+else `HOME/.local/share/mise`).
+A repository whose Git directory lies inside one of them is exempt,
+and the wrapper says so on standard error before Git runs,
+naming the variable and the directory it points at,
+so a variable that happens to name a repository is visible to the person:
+"this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
+which contains its Git directory".
+The record carries the same name in `facts.exemptedBy`
+and the outcome `exempt`.
 The rejection names the form,
 what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
+
+#### The window between the measurement and the command
+
+The rule above is a statement about the state the wrapper measured,
+not about the state at the instant Git changes
+files.
+The measurement is one `git status` in a child process;
+the wrapper then replaces its own process with real Git,
+which does the discarding.
+Between the status leaving and Git starting there is,
+on the allowed path,
+the audit append (one `write`,
+never synced),
+the notices on standard error,
+and the in-process decisions of the fixed transforms and of the forwarding plan:
+no second Git start,
+no lock,
+no sync,
+no wait.
+A write that lands inside that window is not seen,
+and nothing in the wrapper can close it:
+only the process that changes files can decide,
+against the state it is about to change.
+
+Where Git itself has such a check,
+the wrapper hands the decision to Git instead of measuring,
+and then there is no window:
+a `checkout` or `switch` that changes files is forwarded with `--no-overwrite-ignore`,
+so Git names the ignored file it would replace and refuses
+(see "A `HEAD`-moving form" above).
+Git's own refusal of a switch or checkout that would overwrite a tracked modification covers the same ground for
+tracked files.
+`reset --hard`,
+`restore`,
+`clean` and the other forms have no equivalent option,
+so their guard is a measurement and keeps this window.
+
+A person who needs the stronger promise runs the discard in a disposable worktree
+(`git worktree add <path> <commit>`),
+where the work being discarded is not theirs.
+
+#### The two forms that are recorded and never refused
+
+Two commands run exactly as Git runs them,
+by the owner's decision,
+and leave one audit line each
+(outcome `logged`):
+
+- `git worktree remove` in any worktree.
+  The owner's words:
+  "This one is pretty intentional because agents are just as likely to run a rm rf,
+  so preventing git worktree remove buys us nothing."
+  The line's `facts` hold `worktree` (the path as typed),
+  `force` (whether `-f` or `--force` was given),
+  `head` (the removed worktree's `HEAD` ref,
+  read from its own Git directory),
+  `changed` (how many tracked paths differed from that `HEAD`,
+  from one `git status --untracked-files=no` in the target),
+  and `counted`,
+  which says `tracked changes only`.
+  Untracked and ignored files are deliberately not counted:
+  walking them is what would make a removal of a large worktree slow,
+  and the record says what it counted rather than claiming the worktree was clean.
+  The line is written whether or not `--no-enforce-worktree` was given:
+  the hatch skips the policy that writes it,
+  and the line is the owner's own requirement,
+  so it is written where a guarded form's hatch line would be.
+  Both files are read only when they are regular files,
+  and each is opened without waiting (`O_NONBLOCK`) and read up to 4,096 bytes:
+  a FIFO named `.git` with no writer,
+  or one whose writer never writes,
+  would otherwise hold the removal for ever,
+  and a record that cannot be completed is left out rather than waited for.
+  A relative `gitdir:` pointer is resolved against the worktree that holds it,
+  as Git resolves it,
+  so the `HEAD` named is that worktree's,
+  and a pointer Git would refuse names no `HEAD` at all.
+- `git branch -d`,
+  `git branch -D` and `git branch --delete` from the main worktree.
+  The owner's choice is "Allow,
+  add audit line".
+  One line per branch that exists,
+  with `facts` holding `branch` (the name as typed),
+  `reference` (the full reference the deletion took:
+  `refs/heads/<name>`,
+  or `refs/remotes/<name>` when `-r` or `--remotes` was given),
+  `commit` (the full object name that reference pointed at,
+  so `git update-ref <reference> <commit>` restores it) and `merged`
+  (whether that commit is an ancestor of the command's `HEAD`,
+  which is what Git's own `-d` means).
+  The namespace is read from the command,
+  because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
+  and a record that read the local branch would name the wrong commit to restore.
+  A short cluster is read letter by letter,
+  except after `-u`,
+  whose value takes the rest of the token (`-ur` sets the upstream of `r` and selects nothing).
+  A name with no local branch writes no line:
+  it deletes nothing and Git's own error is the answer.
+  `--delete-merged` is not read,
+  because it deletes only branches a merged branch already contains.
+  An abbreviation of `--delete` is not read either:
+  every one of them is ambiguous with `--delete-merged` in Git 2.56.0.
 
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 
@@ -9198,6 +9578,22 @@ with `schemaVersion`,
 `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
+A `logged` line also has `writtenBeforeGitRuns` set to `true`,
+and no other outcome has the field.
+The wrapper appends that line before it replaces itself with Git,
+so the line cannot know whether Git ran the deletion or refused it:
+`git branch -d` of a branch nothing else contains is refused,
+`git worktree remove` of a dirty worktree without `--force` is refused,
+and each leaves the same line as the deletion that ran.
+The field says that in words a reader cannot take for the result,
+where `outcome` alone said `logged` for both.
+A `rejected` line of a forced `checkout`,
+a forced `switch` or a hard `reset` whose tree tracks a path the worktree ignores also has
+`ignoredAndTracked`,
+the paths it read,
+and its `dirty` is `false` because the tracked state of the worktree was clean:
+the refusal is about the ignored files,
+and the paths are named so a reader sees which of them the command would have replaced.
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory,
