@@ -301,19 +301,73 @@ pub fn member_of(_pid: i32) -> Option<TreeMember> {
     return None;
 }
 
+/// What:
+///  The start time the kernel recorded for `pid` and whether it holds it as a zombie,
+///  or nothing when the number names no process
+///  (or no readable one).
+/// Why:
+///   Every answer to "is this still the process that was found" comes from here,
+/// and a signal's identity check and its send must read the same fact,
+/// so a control that puts a number's reuse between two reads has one place to stand in
+/// (`reused_after_the_next_read`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identityOf = (pid: number): { started: number; zombie: boolean } | undefined;
+/// ```
+#[cfg(target_os = "linux")]
+fn identity_of(pid: i32) -> Option<(u64, bool)> {
+    #[cfg(test)]
+    if let Some(claimed) = claim_a_reuse_for(pid) {
+        return Some((claimed, false));
+    }
+    let text: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (_parent, started, zombie) = parse_stat(text.as_str())?;
+    return Some((started, zombie));
+}
+
+/// What:
+///  The reuse a control has put behind the next identity read of one number:
+/// that number and the start time the read answers with.
+/// Why:
+///   A process number cannot be reused on demand,
+/// so the interval between reading a process's identity and signalling it is reachable only by injection.
+///  A control of this process's own thread:
+/// the notice's own thread reads identities too.
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    /// The armed reuse,
+    /// taken by the first identity read of the number it names.
+    static REUSED_AFTER_THE_NEXT_READ: std::cell::Cell<Option<(i32, u64)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Put a reuse of `pid` behind its next identity read:
+/// the read answers `started`,
+/// and every read after it finds whatever the number names then.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn reused_after_the_next_read(pid: i32, started: u64) {
+    REUSED_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((pid, started))); });
+}
+
+/// The control's answer for `pid`, when one is armed for that number.
+#[cfg(all(test, target_os = "linux"))]
+fn claim_a_reuse_for(pid: i32) -> Option<u64> {
+    let armed: Option<(i32, u64)> = REUSED_AFTER_THE_NEXT_READ.with(std::cell::Cell::get);
+    let (armed_pid, started) = armed?;
+    if armed_pid != pid {
+        return None;
+    }
+    REUSED_AFTER_THE_NEXT_READ.with(|slot| { slot.set(None); });
+    return Some(started);
+}
+
 /// Whether the process is still the one that was found:
 /// it exists,
 /// is not a zombie,
 /// and has the recorded start time.
 #[cfg(target_os = "linux")]
 pub fn still_running(member: &TreeMember) -> bool {
-    let Ok(text) = std::fs::read_to_string(format!("/proc/{}/stat", member.pid)) else {
-        return false;
-    };
-    let Some((_parent, started, zombie)) = parse_stat(text.as_str()) else {
-        return false;
-    };
-    return started == member.started && !zombie;
+    return identity_of(member.pid) == Some((member.started, false));
 }
 
 /// What:
