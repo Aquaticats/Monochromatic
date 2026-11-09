@@ -16,6 +16,9 @@
 //! content that could not be read is `content-unavailable`;
 //!      content that was read but that the planner cannot use is `policy-incomplete`.
 //!
+//! `dependent-version-bump-policy.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // interface WorkspaceContent { trackedPaths(): TrackedPath[]; candidateBytes(path): Uint8Array; baseBytes(path): Uint8Array | undefined }

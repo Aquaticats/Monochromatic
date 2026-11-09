@@ -46,6 +46,62 @@ pub fn be32(bytes: &[u8], at: usize) -> Option<u32> {
     return Some(u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]));
 }
 
+/// What:
+///  The date of the index file being written,
+/// to the nanosecond,
+/// as Git compares an entry's times with it.
+/// Why:
+///  Git decides that an entry is racily clean by comparing its modification time with the index file's own
+/// (`is_racy_stat` in `read-cache.c`),
+/// and a file system that stores nanoseconds makes an entry written in the same second as the
+///  index older or newer within that second.
+/// A comparison in whole seconds refuses entries Git would trust,
+/// and a
+///  comparison without the rule trusts entries Git would hash.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IndexStamp = { seconds: number; nanoseconds: number }; // the index file's own modification time
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IndexStamp {
+    /// The index file's modification time,
+    /// seconds.
+    pub seconds: u32,
+    /// The index file's modification time,
+    /// nanoseconds.
+    pub nanoseconds: u32,
+}
+
+impl IndexStamp {
+    /// A stamp no entry can be as new as,
+    /// for a caller that has no index file time.
+    pub const NONE: IndexStamp = IndexStamp { seconds: u32::MAX, nanoseconds: 0 };
+
+    /// What:
+    ///  Whether an entry whose stat data is `recorded` is racily clean against this stamp,
+    /// as Git's `is_racy_stat` with
+    ///  nanosecond times decides.
+    /// Why:
+    ///   A racily clean entry proves nothing by its stat data:
+    /// Git hashes the file,
+    /// and so does the refresh this wrapper asks Git for,
+    /// so nothing may trust the
+    ///  record as proof of the file's content.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const racy = (stamp, recorded) => stamp.seconds !== 0 && (stamp.seconds < recorded.mtimeSec
+    ///   || (stamp.seconds === recorded.mtimeSec && stamp.nanoseconds <= recorded.mtimeNsec));
+    /// ```
+    pub fn is_racy(&self, recorded: &StatData) -> bool {
+        if self.seconds == u32::MAX {
+            return false;
+        }
+        return self.seconds < recorded.mtime_sec || (self.seconds == recorded.mtime_sec && self.nanoseconds <= recorded.mtime_nsec);
+    }
+}
+
 impl StatData {
     /// The fields in the order the untracked cache stores them (36 bytes),
     /// as `stat_data_to_disk`.
