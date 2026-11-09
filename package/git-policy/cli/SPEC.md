@@ -8081,6 +8081,37 @@ the tree goes into the worktree's Git directory,
 where nothing sweeps it,
 and the debug log says so.
 
+##### What a scratch announcement can name
+
+The service removes whatever a scratch announcement names when the announcing connection closes,
+so the decoder accepts only the wrapper's own directory names:
+the prefix and an identity of letters,
+digits and dashes,
+directly inside the repository scratch directory of the announced Git directory,
+or directly inside that Git directory as releases before this one made it,
+with no relative part that could lead elsewhere
+(`is_scratch_path`,
+`service_protocol_messages_and_name_checks.rs`).
+
+Two linked worktrees of one repository share that repository scratch directory,
+so a client that announces **another worktree's** tree under it is accepted,
+and the tree is removed when the announcing connection closes,
+even though the worktree that owns it still runs.
+The wrapper never sends such an announcement:
+each one names the tree the command itself made,
+whose name carries that command's identity,
+and the watch that holds it lives exactly as long as that command.
+A client that sent one anyway,
+by a defect or on purpose,
+would take another worktree's private index and typed message with it,
+and the service cannot tell the two apart:
+the announced Git directory is the one the client says it serves,
+and the tree's name is one the wrapper makes.
+Nothing on the service side guards this,
+because the removal a release starts removes what was announced
+(`service_scratch_release_removal.rs`);
+the guard is that no other message of this kind exists.
+
 A cleanup a request carries,
 which names the directory of a commit built elsewhere,
 is refused at the decoder unless it is exactly one of those two places,
