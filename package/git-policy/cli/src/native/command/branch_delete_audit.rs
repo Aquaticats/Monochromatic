@@ -21,6 +21,8 @@
 
 use crate::discard_audit_facts::AuditFact;
 use crate::git_metadata::{MetadataOutput, run_metadata_git};
+/// The bytes of a name as the record keeps them beside their text.
+use crate::path_bytes_in_records::hex_of_bytes;
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes,
 ///  `&OsStr` its borrowed form and `Path` a borrowed path.
@@ -311,7 +313,11 @@ pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr, r
     let commit: String = commit_of(context, root, reference.as_os_str())?;
     let mut facts: Vec<AuditFact> = vec![
         AuditFact::Text("branch", branch),
+        // The text field is the display name, and `referenceHex` is the identity, byte for byte, the way the
+        //  record's own `gitDirHex`, `cwdHex` and `argumentsHex` keep theirs: a name that is not UTF-8 would
+        //  otherwise restore a branch spelled with replacement characters.
         AuditFact::Text("reference", reference.to_string_lossy().into_owned()),
+        AuditFact::Text("referenceHex", hex_of_bytes(reference.as_encoded_bytes())),
         AuditFact::Text("commit", commit.clone()),
     ];
     if let Some(merged) = merged_into_head(context, root, commit.as_str()) {

@@ -1442,8 +1442,17 @@ fn a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit() {
         .expect("one audit line for the deletion");
     assert!(line.contains("\"form\":\"BranchDelete\""), "{line}");
     assert!(line.contains(format!("\"commit\":\"{commit}\"").as_str()), "{line}");
-    // The reference keeps the name it deleted, rendered as JSON can hold it.
-    assert!(line.contains("\"reference\":\"refs/heads/lost-"), "{line}");
+    // The line names the whole reference it deleted, byte for byte, so `git update-ref` restores that branch
+    //  and not a second one spelled with replacement characters.
+    let mut reference_bytes: Vec<u8> = b"refs/heads/".to_vec();
+    reference_bytes.extend_from_slice(name.as_encoded_bytes());
+    let exact: String = format!(
+        "\"referenceHex\":\"{}\"",
+        git_policy_cli::path_bytes_in_records::hex_of_bytes(reference_bytes.as_slice())
+    );
+    assert!(line.contains(exact.as_str()), "{exact} missing from {line}");
+    // The text field beside it is the display name, which holds replacement characters and restores nothing.
+    assert!(line.contains("\"reference\":\"refs/heads/lost-\u{fffd}\""), "{line}");
     remove(&fixture);
 }
 

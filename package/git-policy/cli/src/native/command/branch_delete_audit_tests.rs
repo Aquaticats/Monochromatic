@@ -146,7 +146,15 @@ fn real_git_records_a_branch_name_that_is_not_utf8() {
     let reading: GitContext = context(repo.as_path());
     let facts = deletion_facts(&reading, Some(repo.as_path()), name.as_os_str(), false).expect("the branch exists");
     assert_eq!(value(&facts, "commit"), commit);
-    assert!(value(&facts, "reference").starts_with("refs/heads/lost-"), "{facts:?}");
+    // The whole identity, byte for byte: `refs/heads/lost-` and the byte 0xff.
+    let mut reference_bytes: Vec<u8> = b"refs/heads/".to_vec();
+    reference_bytes.extend_from_slice(b"lost-\xff");
+    assert_eq!(
+        value(&facts, "referenceHex"),
+        crate::path_bytes_in_records::hex_of_bytes(reference_bytes.as_slice())
+    );
+    // The text field beside it holds replacement characters, so it is no name to restore from.
+    assert_eq!(value(&facts, "reference"), "refs/heads/lost-\u{fffd}");
     // The control: the same reference spelled as bytes is the branch Git holds.
     let listed: String = String::from_utf8_lossy(
         git(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/heads"]).stdout.as_slice(),
