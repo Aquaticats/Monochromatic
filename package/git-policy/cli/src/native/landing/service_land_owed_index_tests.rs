@@ -666,7 +666,7 @@ fn keep_one_record(world: &World) {
         reference: String::from("refs/heads/main"),
         old: commit.clone(),
         new: commit,
-        paths: vec![b"elsewhere.txt".to_vec()],
+        paths: vec![b"one.txt".to_vec()],
         derived: false,
     };
     crate::owed_index_update::write(&owed).expect("an unrelated record");
@@ -1086,5 +1086,92 @@ fn a_record_keeps_the_bytes_of_every_path_of_a_non_utf8_worktree() {
     assert_eq!(records[0].git_dir.as_os_str().as_encoded_bytes(), git_dir.as_os_str().as_encoded_bytes(), "the Git directory keeps its bytes");
     assert_eq!(records[0].index.as_os_str().as_encoded_bytes(), index.as_os_str().as_encoded_bytes(), "the index keeps its bytes");
     assert_eq!(records[0].paths, vec![b"caf\xe9.txt".to_vec()], "the batch's path keeps its bytes");
+    remove(root.as_path());
+}
+
+/// An unrelated owed record does not let a concurrent staging change what `--all` selected:
+/// the repair changes only a path a record names.
+#[test]
+fn an_unrelated_record_never_changes_what_all_selected() {
+    let world: World = world("service-land-owed-unrelated-all");
+    std::fs::write(world.repo.join("f"), "A\n").expect("write");
+    std::fs::write(world.repo.join("g"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "f", "g"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    // A record for a path of no interest, so the repair has work to do at all.
+    let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 7,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        index: real_index_of(&world),
+        reference: String::from("refs/heads/main"),
+        old: commit.clone(),
+        new: commit,
+        paths: vec![b"h".to_vec()],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("an unrelated record");
+    // `git commit --all`: the copy is taken first, then both edits are staged into the command's index.
+    let capture: PathBuf = world.root.join("capture.index");
+    std::fs::copy(real_index_of(&world), capture.as_path()).expect("the copy a commit makes");
+    let commit_index: PathBuf = commit_index_of(&world);
+    std::fs::write(world.repo.join("f"), "C\n").expect("write");
+    std::fs::write(world.repo.join("g"), "D\n").expect("write");
+    index_run(&world, commit_index.as_path(), &["add", "--", "f", "g"]);
+    // Another command stages the same content of f into the live index.
+    git(world.repo.as_path(), &["add", "f"]);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(capture.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect("the repair has nothing to say about a path no record names");
+    assert!(!left.contains(&String::from("f")), "f is not reported as moved: {left:?}");
+    let blob: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "f"]), format!("100644 {blob} 0\tf"), "the commit keeps what --all selected");
+    remove(world.root.as_path());
+}
+
+/// An obligation whose landing died before its intent on an unborn branch does not stop the initial commit:
+/// there is no head to hold an entry,
+/// so nothing is owed there.
+#[test]
+fn an_unborn_branch_with_an_orphaned_record_still_commits() {
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-unborn");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir_all(repo.as_path()).expect("repo");
+    git(repo.as_path(), &["init", "--quiet", "-b", "main"]);
+    std::fs::write(repo.join("first.txt"), "first\n").expect("write");
+    git(repo.as_path(), &["add", "first.txt"]);
+    let git_dir: PathBuf = repo.join(".git");
+    let index: PathBuf = git_dir.join("index");
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 1,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        index: index.clone(),
+        reference: String::from("refs/heads/main"),
+        old: "0".repeat(40),
+        new: "0".repeat(40),
+        paths: vec![b"first.txt".to_vec()],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("the record a kill left");
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &crate::test_support::git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        index.as_path(),
+        None,
+        None,
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect("an unborn branch has no head, and the commit is not stopped for it");
+    assert!(left.is_empty(), "nothing is left out on an unborn branch: {left:?}");
     remove(root.as_path());
 }

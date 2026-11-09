@@ -225,6 +225,14 @@ pub fn exclude_what_a_landed_commit_left(
     if let (Some(index), Some(copy), Ok(now)) = (commit_index, captured_index, crate::service_land_start::witness_of(live_index))
         && now != *captured
     {
+        // Only a path a record names may be changed: a move another command made to a path no record names is that command's own
+        //  staging, and the commit keeps what it selected for it.
+        let mut named: Vec<Vec<u8>> = Vec::new();
+        for owed in &owed_records {
+            if let Ok(names) = names_of(git, repository, owed) {
+                named.extend(names);
+            }
+        }
         let moved: Vec<Vec<u8>> = match moved_since(git, repository, live_index, copy) {
             Ok(moved) => moved,
             Err(_unwritable) => match moved_since_listing(git, repository, live_index, copy) {
@@ -232,6 +240,8 @@ pub fn exclude_what_a_landed_commit_left(
                 Err(code) => return Err(format!("the entries the index moved since this commit copied it cannot be read ({code:?})")),
             },
         };
+        let kept: Vec<Vec<u8>> = moved.into_iter().filter(|path| { return named.contains(path); }).collect();
+        let moved: Vec<Vec<u8>> = kept;
         if !moved.is_empty() {
             if let Err(code) = set_to_head_paths(git, repository, index, moved.as_slice()) {
                 return Err(format!("the entries the index moved since this commit copied it cannot be set to the head ({code:?})"));
