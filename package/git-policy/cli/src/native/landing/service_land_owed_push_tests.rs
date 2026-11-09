@@ -34,7 +34,7 @@ fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
     let mut seq: u64 = 0;
     let mut landed: HashMap<String, String> = HashMap::new();
     let mut captures: CaptureMemory = CaptureMemory::default();
-    let _kept: Vec<String> = land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures, crate::wait_ceilings::WAITING_NOTICE_AFTER);
+    let _kept: Vec<String> = land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures, crate::wait_ceilings::WAITING_NOTICE_AFTER, &mut std::collections::HashSet::new());
     let Some(ServiceMessage::Landed { commit, already, .. }) = messages.try_recv().ok() else {
         panic!("the client is answered that the commit landed");
     };

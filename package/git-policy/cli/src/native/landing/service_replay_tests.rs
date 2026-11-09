@@ -56,7 +56,7 @@ fn captured(world: &World, edits: &[(usize, &str)]) -> Captured {
     land(world, edits, "mine");
     let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
+    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new(), conclusion: None };
 }
 
 fn merge(world: &World, captured: &Captured) -> Merged {
@@ -163,7 +163,7 @@ fn a_conflict_on_one_name_keeps_the_other_names_landed_edit() {
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::create_dir(root.join("scratch")).expect("scratch");
     let world: World = World { root, repo, context: git_context(), base };
-    let mine: Captured = Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
+    let mine: Captured = Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new(), conclusion: None };
     let merged_tree: String = match merge(&world, &mine) {
         Merged::Tree(merged) | Merged::Combined { tree: merged, .. } => merged,
         Merged::Conflict(paths) => panic!("the captured bytes contain the landed edit of the conflicting name: {paths:?}"),
@@ -348,7 +348,7 @@ fn corpus_sides(world: &World, input: &str, path: &str) -> Captured {
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(world.repo.join(path), corpus(input, "ours")).expect("landed text");
     git(world.repo.as_path(), &["commit", "--quiet", "--all", "--message=landed"]);
-    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
+    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new(), conclusion: None };
 }
 
 /// An edit and an insertion right after it,

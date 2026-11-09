@@ -449,7 +449,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         }
         for (_, queued_group) in groups.drain(..) {
             // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
-            //  landing that reads it, and which the service removes once that landing is over and answered the commit landed.
+            //  landing that reads it, and which the service removes once that landing is over.
+            //  A request the service did not land keeps its tree in its client's hands instead (see `remove_the_trees`).
             let mut trees: Vec<(String, std::path::PathBuf)> = Vec::new();
             for queued in &queued_group {
                 if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
@@ -490,15 +491,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             let group: Vec<Queued> = admitted;
             if group.is_empty() {
                 board.end_group(ids.as_slice());
-                remove_the_trees(trees.as_slice(), &[]);
+                remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
                 continue;
             }
-            let kept: Vec<String> = land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after);
+            let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
-            //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`). A tree whose client was sent
-            //  back to capture its change from the private index stays until that client removes it.
-            remove_the_trees(trees.as_slice(), kept.as_slice());
+            //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
+            remove_the_trees(trees.as_slice(), &handed_back);
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {
@@ -519,23 +520,31 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 /// What:
 ///  Starts the removal of the scratch trees of the requests a group has just finished with,
 ///  beside the loop,
-///  except those whose client was sent back to read the private index of the attempt it captured.
+///  except those the service handed back to their clients.
 /// Why:
 ///   The tree holds the private index and the conclusion copies a landing reads,
 ///   so only the landing that named it may decide that it is done with it.
 ///  A tree whose client is gone waits for that landing instead of for its connection to close,
 ///  which is what makes a killed client's queued commit land on the tree it made.
-///  A tree a client is sent back to read is no longer the landing's:
-///  the client captures the change from its private index before it prepares again,
-///  so the removal waits for that client (`service_commit_tree_ownership.rs`).
+///  A request the service did not land (a commit sent back to be prepared again,
+/// a branch that moved) has no landing
+///  that read its tree:
+/// its client reads the change it prepared from that tree to make the commit again,
+/// so the client
+///  releases it beside its own command.
+///  Removing it here took that read from under every rebuild,
+/// which failed with a missing private index
+///  (2026-11-09,
+///  `service_prepare.rs`,
+///  `retry_of`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// trees.filter(([id]) => !kept.includes(id)).forEach(([, path]) => startTheRemovalBesideTheLoop(path));
+/// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
 /// ```
-fn remove_the_trees(trees: &[(String, std::path::PathBuf)], kept: &[String]) {
+fn remove_the_trees(trees: &[(String, std::path::PathBuf)], handed_back: &std::collections::HashSet<String>) {
     for (id, tree) in trees {
-        if kept.contains(id) {
+        if handed_back.contains(id) {
             continue;
         }
         crate::service_scratch_release_removal::start(tree.clone());

@@ -132,7 +132,17 @@ Read-only commands,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
-  Concurrent commits from several worktrees or sessions therefore never overwrite each other.
+  The commit that concludes a merge,
+   a cherry-pick or a revert is made again the same way on the branch as it is now,
+   with the parents its state names,
+   and an amend whose branch moved becomes a new commit on top of the branch,
+  with the amended message and authorship,
+   leaving the commit it named and the commit that moved the branch as they are,
+  and a line says what it became
+   (`SPEC.md`,
+  "Retry after a moved branch").
+  Concurrent commits from several worktrees or sessions therefore never overwrite each other,
+   and none waits for another.
   The wrapper takes no lock of its own:
   a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
