@@ -96,17 +96,56 @@ fn booleans_convert_as_git_converts_them() {
         (Some(&b"0"[..]), Some(false)),
         (Some(&b"1"[..]), Some(true)),
         (Some(&b"42"[..]), Some(true)),
-        (Some(&b"1k"[..]), None),
-        (Some(&b"-1"[..]), None),
-        (Some(&b"007"[..]), None),
-        (Some(&b"0x10"[..]), None),
-        (Some(&b" 1"[..]), None),
+        (Some(&b"1k"[..]), Some(true)),
+        (Some(&b"-1"[..]), Some(true)),
+        (Some(&b"007"[..]), Some(true)),
+        (Some(&b"0x10"[..]), Some(true)),
+        (Some(&b" 1"[..]), Some(true)),
+        (Some(&b"00"[..]), Some(false)),
+        (Some(&b"0x0"[..]), Some(false)),
+        (Some(&b"-0"[..]), Some(false)),
+        (Some(&b"+0"[..]), Some(false)),
+        (Some(&b"0k"[..]), Some(false)),
+        (Some(&b" 0"[..]), Some(false)),
+        (Some(&b"08"[..]), None),
+        (Some(&b"1 "[..]), None),
+        (Some(&b"0 k"[..]), None),
+        (Some(&b"99999999999999999999999"[..]), None),
         (Some(&b"maybe"[..]), None),
         (Some(&b"\xff"[..]), None),
-        (Some(&b"1234567890"[..]), None),
+        (Some(&b"1234567890"[..]), Some(true)),
     ] {
         assert_eq!(canonical_bool(value), expected, "{value:?}");
     }
+}
+
+/// What:
+///  Every boolean spelling converts as real Git converts it,
+/// the oracle being `git config --type=bool`.
+/// Why:
+///  The lookup answers only when it reproduces Git exactly;
+/// a value it models wrongly says fsmonitor is on when Git
+///  reads it as off,
+/// and keeps a hook the person already disabled.
+#[test]
+fn every_boolean_spelling_agrees_with_real_git() {
+    let root: PathBuf = fixture("config-bool-oracle");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    for written in [
+        "true", "TRUE", "yes", "on", "false", "No", "OFF", "", "0", "1", "42", "1k", "-1", "007", "0x10", " 1", "00",
+        "0x0", "-0", "+0", "0k", " 0", "08", "1 ", "0 k", "1234567890", "maybe",
+    ] {
+        git(repo.as_path(), &["config", "core.fsmonitor", written]);
+        let pressed = crate::test_support::git_output(repo.as_path(), &["config", "--type=bool", "--get", "core.fsmonitor"]);
+        let ours: Option<bool> = canonical_bool(Some(written.as_bytes()));
+        if pressed.status.success() {
+            let git_reads_it_as: bool = String::from_utf8_lossy(pressed.stdout.as_slice()).trim() == "true";
+            assert_eq!(ours, Some(git_reads_it_as), "{written:?}: Git reads {git_reads_it_as}");
+        } else {
+            assert_eq!(ours, None, "{written:?}: Git refuses it and the lookup must leave it to Git");
+        }
+    }
+    remove(root.as_path());
 }
 
 /// The bool-or-int text is a word,

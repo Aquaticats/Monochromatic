@@ -446,15 +446,24 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 
 - It asks real Git,
   with the caller's global options,
-  for the common Git directory
-  (`git rev-parse --path-format=absolute --git-common-dir`) and for `core.hooksPath`
+  for the common Git directory,
+  for the Git directory itself
+  (`git rev-parse --path-format=absolute --git-common-dir` and `--absolute-git-dir`),
+  and for `core.hooksPath`
   (`git config --type=path --get core.hooksPath`).
+  Each pathname is asked for on its own,
+  and each answer is read as bytes with only its one terminating line feed removed,
+  so a pathname that holds a line feed or bytes that are not UTF-8 is read exactly as Git printed it.
 - It scans `<git-common-dir>/hooks` and,
   when `core.hooksPath` is set,
   the directory it names.
   A relative value resolves against the worktree root,
   or against the Git directory of a repository without a worktree.
-  A directory that two spellings name is scanned once.
+  Each directory is scanned under the spelling Git was given,
+  and a directory that two spellings name is scanned once,
+  judged by the identity the file system gives it:
+  a symbol link in the way decides what `..` means,
+  so a lexical rewrite of the path would scan a directory Git runs no hook in.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
@@ -502,7 +511,12 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   When it is false (`false`,
   `no`,
   `off`,
-  `0` or empty) or there is no entry,
+  empty,
+  or any text Git's own boolean reader reads as zero,
+  which it does as a word or as an integer in `strtoimax` spellings such as `0`,
+  `00`,
+  `0x0`,
+  `-0` or `0k`) or there is no entry,
   one line says that Git's fsmonitor is off by the owner's decision of 2026-11-03,
   with the file and scope of the deciding entry (or "not set"),
   the reason in one sentence,
@@ -527,6 +541,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 - It does not load configuration,
   recover transactions or take a lock,
   and it changes nothing.
+  Each file system read of it (the hook directories,
+  the shim files and the host facts of the filesystem section)
+  is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
+  so a mount that stops answering cannot hold the command:
+  a read that gives no answer makes the command say which read it was and carries on,
+  with status `2` for a hooks directory and one line of standard error for the host facts.
+  The filesystem section describes the checkout Git reports for where the command runs
+  (`git rev-parse --path-format=absolute --show-toplevel`),
+  and says nothing about a file system when Git reports none,
+  which is the case in a bare repository.
+  A directory name is not a layout proof:
+  the directory above the common Git directory is a metadata directory when the Git directory lives elsewhere.
+  The conversion command it prints follows the layout Git reports:
+  `migrate-to-subvolume` in the repository's main worktree and `convert-worktree-to-subvolume` in a linked one.
 
 ## Lifecycle
 
@@ -2307,12 +2335,26 @@ Every pending transaction then reaches an end:
   never touches the destination path,
   and writes one notice line.
   The `.git` pointer is read as bytes,
+  as a plain file without blocking and without following a link,
+  and never past `GIT_FILE_LIMIT`,
   with every trailing line feed and carriage return stripped as Git's `read_gitfile_raw` strips them,
   so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds.
+  A named pipe at that name would stop its reader until a writer comes,
+  and the pending check runs before every forwarded command,
+  so one worktree's pipe could stick a command in an unrelated worktree.
 - A destination whose pointer cannot be followed,
-  because the file names no directory or the directory it names is not there,
+  because the file names no directory,
+  the directory it names is not there,
+  or the file is empty,
+  half written,
+  a link,
+  a named pipe,
+  a device,
+  a directory or past the bound,
   is not evidence either way:
-  recovery keeps the stage and the journal,
+  a command killed while it rewrote the pointer leaves the file cut off in just that way,
+  and the worktree and its registration under the common directory are still there.
+  Recovery keeps the stage and the journal,
   writes one notice line saying that whether the worktree is still registered is unknown,
   and names the commands that show and settle it.
 - A transaction whose private stage is gone is discarded the same way,
@@ -2338,6 +2380,51 @@ removes it with its read-only subdirectories,
 writes one notice line naming it,
 and removes the claim.
 A claim whose container was never created is removed without a notice.
+
+Two sites remove a stage container by the path a record names:
+finishing a transaction (`remove_pending_journal`,
+`worktree_copy_journal_removal.rs`)
+and reaping an abandoned copy's stage (`reap_judged_stages`,
+`worktree_copy_stage_claim_reaping.rs`).
+Both check the recorded path before the removal:
+the transaction's stage was validated as a private directory owned by the user with its payload present,
+and the abandoned stage is put through `assert_private_path` immediately before `remove_stage`.
+Neither check establishes that the directory at that path is the one the copy created.
+Another process that renames the original stage elsewhere and puts a private directory of its own at the same path
+inside that window makes recovery delete its data,
+while the original stage survives at its new location,
+and neither ownership nor private permissions tell the two apart.
+
+No cheap identity check exists at either site today.
+The journal records the container's path,
+its payload path,
+the destination,
+the source,
+and the identities of the entries it installed there (`created_entries`),
+and a claim records the container's path alone,
+written before the container exists;
+nothing records the container's device and inode,
+which is the identity `worktree_copy_rollback.rs` compares for entries the install log holds.
+Recording it would need a new journal field,
+read only by this release onward,
+and for a claim a second durable record written after the container is created,
+because the claim precedes it;
+and even a recorded identity would narrow rather than close the window,
+because the removal resolves the recorded path again after any check.
+The removal is therefore left as it is,
+and the window is recorded here as a known limit.
+
+A removal that closed the window would take the directory from a descriptor instead:
+opened once with `O_DIRECTORY` and `O_NOFOLLOW`,
+its entries deleted through that descriptor,
+and the container removed last by name,
+where a directory another process put there makes that last step fail
+instead of deleting anything inside it.
+That is a redesign of `remove_stage`,
+of the btrfs subvolume removal it uses,
+and of the two callers,
+not a check beside them,
+and it is not done in this round.
 
 Malformed or unsafe journal,
 install-log,
@@ -3317,16 +3404,12 @@ with every other refusal,
 and a look that could not be made,
 leaving the ceiling armed rather than standing down,
 and the command failing with a message that says nothing was committed and to run the same command again;
-a step whose start the kernel refused a descriptor for is taken again at the ceiling,
-and only one proof is accepted before anything is sent:
-the step's record must say the number is a living child of this process that has not been reaped,
-which is the one moment the kernel cannot have given that number to another process
-(a child that exits in the instant before the signal becomes a zombie that still holds the number and discards it);
-with that proof a descriptor is made then,
-or the signal goes to the proved number,
-a record that names another parent means the child was reaped and the step ended,
-so nothing is sent,
-and a record that cannot be read leaves the ceiling armed;
+and a step whose start the kernel refused a descriptor for is not signalled by the notice at all:
+finding a number and opening a descriptor for it are two operations,
+so a step that ended and was reaped between them leaves a number another process holds,
+and nothing here reads a number
+(the wait that owns the step ends it instead,
+below);
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
@@ -3341,27 +3424,39 @@ a member the kernel refuses a pidfd for is never signalled by its number,
 and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
 
-##### The one wait the ceiling cannot end
+##### The wait that owns the step enforces the ceiling
 
-A step whose start the kernel refused a descriptor for is ended at the ceiling by the proof above.
-The one state in which no ceiling can end it is both failures at once:
-the start made no descriptor,
-and `/proc` cannot be read at the ceiling,
-so the step's number cannot be proven to be this process's own unreaped child.
-Then nothing is sent,
-the ceiling stays armed,
-and the notice keeps printing what it knows at its cadence until `/proc` reads again,
-at which point the ceiling fires,
-or until the step ends by itself.
-The person sees the usual waiting lines,
-the last of which promises the stop at the ceiling,
-and a commit that lasts longer than the ceiling says so every cadence;
-`run_native_commit_within` reaches its stop only when the ceiling does.
-This is named here rather than bounded because no honest bound exists:
-the wrapper may not signal a number it cannot prove,
-and the owner's rule against killing another command's process stands.
-The uninterruptible wait after a delivered signal is the separate owner question in
-`doc/handover/questions-for-the-owner.md`.
+One ceiling has two enforcers,
+and the second needs no thread and no name a reuse can reach.
+
+The notice thread ends the step through the pidfd its start gave it,
+which names that step for good,
+and that is where the waiting lines come from.
+The wait that owns the child ends it too
+(`src/native/process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`):
+the ceiling is counted from the step's own start,
+which is that wait's own moment,
+so no look that ran late can lose it;
+the step is killed through the child that wait owns and has not reaped,
+whose number the kernel keeps until it is reaped,
+so no process that took the number can be reached;
+the programs below it are read before the signal,
+while the step still holds its number,
+and ended through descriptors pinned the same way;
+and the child is reaped there,
+a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
+so the kernel's release of it never holds the command.
+
+That second enforcer is why the ceiling survives both failures the notice cannot:
+a system that refuses its thread,
+and a start that gave no descriptor to signal through.
+A refused thread leaves no waiting lines,
+so the person sees nothing during the wait and the stop's words after it,
+which name the signer when the commit was signed and say nothing was committed.
+A stop is written once,
+by whichever enforcer ended the step first,
+and the wait's own record sets `armed` for a step whose notice thread never ran.
+There is no state in which a commit under a ceiling waits with nothing to end its step.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -4385,6 +4480,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
+  Its message reads `Merge <remote>/<tracked ref> into <branch>`,
+  naming the branch whose tip is that first parent,
+  the way `git merge` names the branch it is on,
+  measured on this host at 2026-11-09T09:33:10-05:00 with native Git 2.56.0
+  (`feature` tracking `origin/main` wrote
+  `Merge remote-tracking branch 'origin/main' into feature`),
+  and a branch whose name differs from the tracked ref's short name also gets
+  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  as a further line of its body,
+  because the commit lands on a branch its subject does not name.
+  A detached `HEAD` has no branch to name and keeps the tracked ref's short name
+  (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
@@ -6227,6 +6334,38 @@ disk in the journal the message names.
 A rollback has no such window of its own:
 it decides nothing by reading the destination.
 
+##### What the person sees when that window is hit
+
+The window needs a second process writing inside a few instructions.
+The comparison of the displaced file and the removal of its journal are two system calls,
+and a write has to land between them through a descriptor opened before the exchange,
+which is what an editor holds when it saves a buffer for a file it opened before the fix ran.
+The person then sees this:
+
+- their editor still shows what they typed,
+  because the buffer is the editor's and not the file's;
+- the fix ends with no notice for that file,
+  and says nothing about a journal,
+  because the comparison it made succeeded and the journal was removed with the write inside it;
+- the file on disk holds the corrected bytes,
+  or,
+  after a rollback,
+  the bytes the fix found,
+  so a look at it shows anything but their save;
+- nothing of the file's earlier state is lost,
+  and no journal is left behind,
+  so there is nothing on disk to recover the write from.
+
+A caught write is the recognisable case:
+it is named with the journal that holds it,
+and this one is not named at all,
+which is how a person tells the two apart.
+The only copy of the lost text is then the editor's buffer,
+and the fix can be run again for the file.
+No mechanism removes this window:
+closing it needs the comparison and the removal to be one operation over a file another process may hold open,
+which no file system offers.
+
 Git loses that same write on its own file replacement,
 so this is not a cost the wrapper adds.
 Read in `git/git` at `master` on 2026-11-09:
@@ -6547,9 +6686,18 @@ The trigger is the configuration snapshot the commit reads once for its other ne
 the commit starts no process and makes no file system call for this warning,
 so a repository without the setting pays nothing,
 and the hooks directory is not scanned on the commit path.
+The line is delivered on a thread of its own and awaited for at most the `WARNING_WRITE_CEILING` of
+`service/wait_ceilings.rs`,
+so a standard error whose reader has stopped draining cannot hold the commit:
+a line still waiting at that ceiling is abandoned and logged.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
+An override is recognized only as a `command` scope value
+(the only place the wrapper's overrides come from)
+that names `<git-common-dir>/<data folder>/shadow/<transaction>/no-hooks`,
+where the data folder is `monochromatic-git-policy-cli` or its earlier spelling:
+a path that merely ends the same way belongs to whoever made it and still warns.
 
 ### Core finding event
 
@@ -8702,7 +8850,36 @@ from the paths that differ between the old branch and the new commit.
 
 For injected commit-only semantics:
 
-1.  Build a commit index from the preparation base.
+1.  Build a commit index from the preparation base:
+    copy the real index captured at invocation and reset the copy to the base,
+    so every entry the base shares with the real index keeps its cached stat data
+    and the scratch `git commit` does not read and hash the whole work tree
+    (measured:
+    233,618,538 bytes of LFS content cleaned and 3.6 s for an index built from the base alone,
+    against 0.1 s for a copy).
+    Intent-to-add entries stay in the copy,
+    because they carry no cached stat data and copy as they are:
+    the reset to the base then leaves a mark whose mode and object name match the entry the base holds,
+    replaces one that differs,
+    and drops one the base does not hold,
+    exactly as native Git's own reset does.
+    The selected additions are carried afterwards
+    (`git diff-index --cached --diff-filter=A` against the base,
+    step 2),
+    and that step is never skipped for an index holding such a mark:
+    a force-added ignored file the real index holds as intent-to-add is an addition the selection names,
+    and native Git records it with its worktree content (measured against Git 2.56.0).
+    A tracked file whose intent-to-add entry equals the base's entry stays in the commit's tree,
+    where native Git leaves that path out:
+    the scratch `git commit` builds its tree from the base for every path the command does not name,
+    and the wrapper never records a removal the person did not make.
+    An index that holds an assume-unchanged or skip-worktree entry,
+    or one the in-process readers do not understand,
+    is built from the base alone instead:
+    a copied mark makes `git add --all` skip or refuse a file the commit named,
+    where native Git stages it.
+    A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
+    with the same answers.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
@@ -9403,8 +9580,11 @@ empty for a commit that ran none,
 in the order the builds ended:
 `ceilingMs` the ceiling that build ran under,
 `null` for a commit that may open an editor,
-`armed` whether a notice thread ran to enforce it,
-`stoppedAfterMs` how long the step had lasted when the notice ended it,
+`armed` whether anything enforced it,
+which is a notice thread that ran,
+the wait that owns the step when no thread could name it,
+and false for a commit that may open an editor,
+`stoppedAfterMs` how long the step had lasted when the ceiling ended it,
 recorded only when a signal was really taken for the step,
 `noticeMs` how long the notice's own end took after the step ended,
 `wroteMs` how long the writer spent on the lines it finished,
@@ -10433,6 +10613,14 @@ with `schemaVersion`,
 `hatch` or `saved-conflict`),
 `dirty`,
 `cwd` and `arguments`.
+Each path and argument this line names is written beside its text as its bytes
+(`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+the two-field form every other record of a path takes (`path_bytes_in_records.rs`),
+so a command whose working directory or argument is not UTF-8 is still the command the line names:
+the line exists to attribute a loss to it.
+The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
