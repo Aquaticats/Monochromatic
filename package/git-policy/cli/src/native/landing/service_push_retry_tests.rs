@@ -288,6 +288,14 @@ fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers
 /// The plan is not the person's failure
 ///  record,
 /// which the next wrapper command shows and removes.
+/// The wait is for the delivery, never for a number of seconds:
+/// measured on 2026-11-09 while the host ran at a load average of 70 to 100,
+/// the restarted service delivered the commit
+///  2.2 s, 10.7 s and 12.3 s after it started,
+/// and every round of its work is real Git whose starts took 0.9 to 2.8 s
+/// there.
+/// A control that allowed a stated number of seconds failed at whichever delivery was slower than it, though the service
+///  retried every time.
 #[test]
 fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     assert_eq!(STALL_SECONDS, STALL_SECONDS_NUMBER.to_string(), "the two spellings of the stall window agree");
@@ -774,6 +782,13 @@ const FAR_PLAN_PAUSE: Duration = Duration::from_secs(600);
 /// the plan is the push's
 ///  own schedule and must not hide the claim of a dead holder,
 /// which runs out its lease long before.
+/// The claim has two seconds of its lease left,
+/// and the control waits for the delivery on the run's work:
+/// measured on 2026-11-09,
+/// the claim landed 3.2 to 3.9 s after the service started,
+/// while the control's own fixture took 3.0 to 7.2 s
+/// of real Git on the same host,
+/// so a fixed patience shorter than the delivery would fail a service that behaved.
 #[test]
 fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     let stage: Stage = stage("push-claim-plan-later");
