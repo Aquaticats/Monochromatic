@@ -188,15 +188,24 @@ const TRANSIENT_PHRASES: readonly string[] = [
 const FIRST_ERROR_STATUS = 400;
 
 /**
- The server status codes of a failure another attempt can fix, read only where the failure text starts with one: that is where a
- response writes its status, before the body that explains it.
+ The status codes of a failure another attempt can fix, read only where the failure text starts with one: that is where a response
+ writes its status, before the body that explains it.
+
+ Each says the same thing in its own way: the provider was too busy, the request took too long, the connection to the origin did
+ not come up, or the answer did not arrive in time. A `429` is a rate limit rather than a server failure, so it is read as
+ `THROTTLE_CODE` and not repeated here.
  */
 const TRANSIENT_CODES: readonly string[] = [
+  '408',
+  '425',
   '500',
   '502',
   '503',
   '504',
   '520',
+  '521',
+  '522',
+  '523',
   '524',
   '529',
 ];
