@@ -1681,6 +1681,12 @@ and keeps the record,
 the marker and the claim while the worktree is
 not proven whole and while that stage still stands:
 so every later command that runs the recovery prints the same report again,
+on standard error at the ordinary level
+(no `MONOCHROMATIC_VERBOSE` is needed,
+and `--quiet` does not suppress it),
+and the recovery runs before every command that takes the linked-worktree lifecycle:
+any command in a linked worktree or a bare repository,
+and a creating or served `git worktree` command in the main checkout,
 and the records go in the command that finds the worktree whole or gone.
 The proof is what the two directories say,
 without running Git:
