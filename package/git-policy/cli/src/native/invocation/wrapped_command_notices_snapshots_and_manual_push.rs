@@ -119,12 +119,6 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
-    // Nothing failed: two directory checks, and no question to Git.
-    let own: bool = notice_directory(git_dir.as_path()).is_dir();
-    let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
-    if !own && !orphaned {
-        return;
-    }
     let context = checks.facts.transaction_context();
     let cwd: PathBuf = match std::env::current_dir() {
         Ok(directory) => directory,
@@ -133,15 +127,42 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
-    // A push whose command stopped before it was released is not released by anything, and the next push of its branch carries it:
-    //  every command says which commit that is, through the same notice, once.
-    crate::service_handoff::record_held_push_notices(git_dir.as_path());
-    let mut texts: Vec<String> = take_push_failures_for(git_dir.as_path(), None, &abbreviate);
-    texts.extend(take_orphaned_failures(common_dir.as_path(), &abbreviate));
-    for text in texts {
+    for text in push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{text}");
     }
+}
+
+/// What:
+///  What this command says about the worktree's pushes:
+/// the ones that are held,
+/// and the failures the service recorded since one was last shown.
+/// Why:
+///   A held push is said whether or not a notice directory exists yet,
+/// because the recording is what creates
+///  the directory the check below reads;
+/// asking the directories first would hide exactly the case the line exists
+///  for,
+/// a push held by a command that never released it.
+/// When nothing failed and nothing is held the check is two
+///  directory reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pushNoticesFor(gitDir, commonDir) // record held pushes, then take the notices
+/// ```
+pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
+    // A held push is not released by anything, and the next push of its branch carries it: every command says which commit that
+    //  is, through the same notice, once.
+    crate::service_handoff::record_held_push_notices(git_dir);
+    let own: bool = notice_directory(git_dir).is_dir();
+    let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
+    if !own && !orphaned {
+        return Vec::new();
+    }
+    let mut texts: Vec<String> = take_push_failures_for(git_dir, None, abbreviate);
+    texts.extend(take_orphaned_failures(common_dir, abbreviate));
+    return texts;
 }
 
 /// What:

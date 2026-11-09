@@ -178,8 +178,10 @@ pub fn record_held_push_notices(git_dir: &Path) {
             Some(item) => item,
             None => continue,
         };
+        // What is known is that the push is held and that the next push of its branch carries it. Whether the command that held
+        //  it has stopped cannot be told from the record, so the line does not claim it.
         let said: String = format!(
-            "the commit {commit} is held: its command stopped before its push was released, and it goes out with the next push from {}",
+            "the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {}",
             item.branch_ref
         );
         if let Err(reason) = crate::push_failure_notice::record_push_skip(git_dir, item.branch_ref.as_str(), commit, said.as_str()) {
@@ -213,8 +215,8 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
 fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
-        repository: handoff.repository.display().to_string(),
-        git_dir: handoff.git_dir.display().to_string(),
+        repository: handoff.repository.clone(),
+        git_dir: handoff.git_dir.clone(),
         branch_ref: handoff.reference.clone(),
         oid: landed.to_string(),
         parent: handoff.parent.clone(),

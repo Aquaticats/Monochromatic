@@ -101,6 +101,13 @@ pub struct Owed {
 /// owedOf(intent)
 /// ```
 pub fn of_intent(intent: &Intent) -> Owed {
+    // A path whose bytes are not text cannot be named in this record, which writes text: the repair then reads the paths from the
+    //  two commits themselves, which the derived form already does in the repository's own bytes.
+    let named: Option<Vec<String>> = intent.paths.iter().map(|path| { return String::from_utf8(path.clone()).ok(); }).collect();
+    let (paths, derived): (Vec<String>, bool) = match named {
+        Some(paths) => (paths, intent.derived),
+        None => (Vec::new(), true),
+    };
     return Owed {
         seq: intent.seq,
         repository: intent.repository.clone(),
@@ -109,8 +116,8 @@ pub fn of_intent(intent: &Intent) -> Owed {
         reference: intent.reference.clone(),
         old: intent.old.clone(),
         new: intent.new.clone(),
-        paths: intent.paths.clone(),
-        derived: intent.derived,
+        paths,
+        derived,
     };
 }
 

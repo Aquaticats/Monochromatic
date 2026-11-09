@@ -873,7 +873,7 @@ fn a_landed_mode_change_is_left_out() {
     git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
     std::fs::set_permissions(world.repo.join("f"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("mode");
     let mut landed: CommitRequest = request(&world, "landed", "f", "X\n");
-    landed.changes = vec![crate::service_protocol::Change { path: String::from("f"), mode: 0o100755, blob: Some(git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"])) }];
+    landed.changes = vec![crate::service_protocol::Change { path: PathBuf::from("f"), mode: 0o100755, blob: Some(git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"])) }];
     land_with_failed_index(&world, 1, &[landed]);
     let commit_index: PathBuf = commit_index_of(&world);
     assert_eq!(exclude(&world, Some(commit_index.as_path())), vec![String::from("f")], "the stale mode is left out");
@@ -980,7 +980,7 @@ fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
     let target: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]);
     let _ = target;
     landed.changes.push(crate::service_protocol::Change {
-        path: String::from("link"),
+        path: PathBuf::from("link"),
         mode: 0o120000,
         blob: Some(crate::test_support::git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]).clone()),
     });
@@ -999,7 +999,7 @@ fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
         let output: std::process::Output = child.wait_with_output().expect("git ends");
         String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()
     };
-    landed.changes = vec![crate::service_protocol::Change { path: String::from("link"), mode: 0o120000, blob: Some(blob) }];
+    landed.changes = vec![crate::service_protocol::Change { path: PathBuf::from("link"), mode: 0o120000, blob: Some(blob) }];
     land_with_failed_index(&world, 1, &[landed]);
     // The person deliberately restores the old target text and stages it.
     std::fs::remove_file(link.as_path()).expect("the link goes");
