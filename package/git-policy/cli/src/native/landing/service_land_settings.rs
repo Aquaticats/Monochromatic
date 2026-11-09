@@ -1,6 +1,7 @@
 //! What:
 //!  What a landing starts with:
-//!  how many times its batch may be built again, and what it reads once before the first build.
+//!  how many times its batch may be built again,
+//! and what it reads once before the first build.
 //! Why:
 //!  The body rebuilds a batch whose branch moved under it,
 //!  so the count and the settings it reads belong beside each other rather than in the entry points.

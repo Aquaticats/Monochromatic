@@ -1,6 +1,7 @@
 //! What:
 //!  The landing itself:
-//! one batch of prepared commits written, journaled and moved onto a branch.
+//! one batch of prepared commits written,
+//! journaled and moved onto a branch.
 //! Why:
 //!  The entry points decide what is told to the clients and what a step ended at its ceiling records;
 //!  the order of the durable writes and the branch move is the body's own,
