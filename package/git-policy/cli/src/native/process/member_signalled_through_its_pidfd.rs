@@ -243,6 +243,22 @@ impl PinnedMember {
         }
     }
 
+    /// What:
+    ///  Whether the process this pin names has ended.
+    /// Why:
+    ///   A stop must not read the tree of a root that is gone,
+    /// nor report a step that already ended as ended at its
+    ///  ceiling (the fourth review's findings 1 and 2),
+    /// and the descriptor answers that without a signal.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pin.hasEnded(); // poll(descriptor, POLLIN, 0)
+    /// ```
+    pub fn has_ended(&self) -> bool {
+        return has_ended(&self.descriptor);
+    }
+
     /// Send `signal` to the pinned process,
     /// and to no other.
     pub fn signal(&self, signal: i32) -> Delivered {
@@ -382,6 +398,31 @@ pub fn terminate_members(_members: &[TreeMember]) -> Vec<Delivered> {
 #[cfg(unix)]
 pub fn kill_members(members: &[TreeMember]) -> Vec<Delivered> {
     return signal_members(members, libc::SIGKILL);
+}
+
+/// What:
+///  How many of the signals reported were not delivered to a program that was found:
+///  one the kernel refused a descriptor for,
+///  or one it refused the signal to.
+/// Why:
+///  A caller that ends what a step started must record what it could not end,
+///  so the person is told a program may still be running
+///  (round six of the review).
+///  The others are left out:
+///  a program that already ended is not one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unendedIn = (reported) => reported.filter((delivered) => delivered === 'unproven').length;
+/// ```
+pub fn unended_in(reported: &[Delivered]) -> u32 {
+    let mut unended: u32 = 0;
+    for delivered in reported {
+        if *delivered == Delivered::Unproven {
+            unended = unended.saturating_add(1);
+        }
+    }
+    return unended;
 }
 
 /// Platforms without signals stop only the root.

@@ -146,7 +146,7 @@ impl LinuxPlatform {
     /// on the thread that calls this.
     /// Why:
     ///  Learning where the system configuration file and the system attributes file are starts Git,
-    /// and the bridge that starts one (`captured_child_run_to_its_end::output_of_blocking`)
+    /// and the bridge that starts one (`captured_child_run_to_its_end::output_of_within_bound`)
     /// refuses a call from inside the process's runtime,
     /// where waiting for it would never end.
     ///  A conversion is a job of the process's blocking pool,

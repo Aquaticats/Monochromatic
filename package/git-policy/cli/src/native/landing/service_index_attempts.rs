@@ -131,7 +131,11 @@ fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bo
             };
             Looked { blocker: blocker_words(&evidence), proved: Proved::Alive, line: Some(format!("{line}{way_out}")), who: Some(holder_words(pid, command.as_deref())), open, way_out: Some(way_out) }
         }
-        Verdict::EvidenceFree => Looked {
+        // A PID file naming a number this process table does not have is no proof of a dead owner: a live Git of another
+        // PID namespace writes a number this table has never had, and holds the lock through its editor with no descriptor
+        // open, so the commit waits for it within its ceiling as it does for an owner nothing proves alive
+        // (cross-vendor review of 2026-11-09, finding 2). Only a command that may clear the lock acts on that verdict.
+        Verdict::Dead(_) | Verdict::EvidenceFree => Looked {
             blocker: blocker_words(&evidence),
             proved: Proved::Nothing,
             line: Some(unproven_wait_line(evidence.lock_path.as_path(), Some(&evidence), end)),

@@ -298,8 +298,8 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
                 return Err(code);
             }
             match wait_for_index_release_within(index, "commit", left, Cadence::from_environment(), &mut std::io::stderr()) {
-                // The ceiling's line, which names the blocker, is already written.
-                IndexWait::GaveUp(_) => return Err(code),
+                // The diagnostic of a wait that ended on an owner this table's numbers do not describe is already written.
+                IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
                 // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well, under the
                 //  same deadline.
                 IndexWait::Released(_) => {

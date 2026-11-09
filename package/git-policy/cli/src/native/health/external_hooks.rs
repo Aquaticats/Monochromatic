@@ -89,7 +89,55 @@ fn lossy(value: Option<&Vec<u8>>) -> String {
 }
 
 /// What:
-///  Every configured hook that is not switched off by its own `hook.<name>.enabled`,
+///  Whether the configuration the person wrote switches every hook of `event` off.
+/// Why:
+///   `hook.<event>.enabled=false` is Git's own switch for the whole event
+/// (`git hook list` reports such a hook
+///  as `event-disabled`),
+/// so a hook whose events are all off asks for nothing.
+///   Only the configuration files are read:
+/// every real-Git start of the wrapper carries the same switch for every
+///  event,
+/// and a child of one inherits those values in the `command` scope,
+/// so reading them here would let the
+///  wrapper's own suppression hide a hook the person configured.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// snapshot.boolValueFromFiles(`hook.${event}.enabled`) === false
+/// ```
+fn event_is_off(snapshot: &ConfigSnapshot, event: &str) -> bool {
+    return matches!(snapshot.bool_value_from_files(format!("hook.{event}.enabled").as_str()), Lookup::Found(false));
+}
+
+/// What:
+///  Whether the configuration switches this hook off at the event level,
+/// when it asks for at least one event.
+/// Why:
+///   A hook with no event is not this switch's business:
+/// it asks for nothing whatever the events are set to,
+/// and the
+///  report already says so by naming it without an event.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hook.events.length > 0 && hook.events.every((event) => eventIsOff(snapshot, event))
+/// ```
+fn every_event_is_off(snapshot: &ConfigSnapshot, hook: &ConfiguredHook) -> bool {
+    if hook.events.is_empty() {
+        return false;
+    }
+    for event in &hook.events {
+        if !event_is_off(snapshot, event) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Every configured hook that is not switched off,
+/// by its own `hook.<name>.enabled` or by every event it asks for being off,
 /// in the order the snapshot lists
 ///  them.
 /// Why:
@@ -142,12 +190,20 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
             hooks[position].has_command = true;
         }
     }
-    // A hook the author switched off by its own `hook.<name>.enabled` is dropped; the others keep their order.
+    // A hook the author switched off by its own `hook.<name>.enabled`, and one whose every event is switched off, are
+    //  dropped; the others keep their order. The two switches are read differently on purpose: the wrapper supplies
+    //  `hook.<event>.enabled=false` for every event on every Git it starts, so the event switch is read from the
+    //  files, while it writes no `hook.<name>.enabled` at all: that switch is read the way Git reads it, where the
+    //  command scope comes last and wins and a caller's `-c` is their own choice.
     let mut enabled: Vec<ConfiguredHook> = Vec::new();
     for hook in hooks {
-        if !matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
-            enabled.push(hook);
+        if matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
+            continue;
         }
+        if every_event_is_off(snapshot, &hook) {
+            continue;
+        }
+        enabled.push(hook);
     }
     return enabled;
 }

@@ -305,6 +305,71 @@ fn a_configuration_option_on_the_command_line_names_the_tree() {
 }
 
 /// What:
+///  `--config-env=attr.tree=NAME` names the attribute tree,
+/// in both of its forms,
+/// so the merge's own tree is not named over it.
+/// Why:
+///   Git reads `--config-env` as a configuration value above every file,
+/// taking the value from the variable it names
+///  (`config.c`,
+/// `git_config_from_parameters`),
+/// and the pass read only separate `-c` arguments:
+/// the choice came out `Free`,
+/// the tree the
+///  merge produced was named,
+/// and `check-attr --source=` overrode what the person asked for
+/// (cross-vendor review round 3,
+/// finding 3).
+/// A variable the environment does not hold makes Git stop before it reads anything,
+/// so no tree may be named
+///  over it either.
+#[test]
+fn a_configuration_environment_option_names_the_tree() {
+    let (root, repo) = probed_repository("second-pass-attr-config-env");
+    let given = |prefix: &[&str]| -> Vec<OsString> { return prefix.iter().map(|token| { return OsString::from(*token); }).collect() };
+    let tip: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("tip123"))];
+    let holding = |name: &str, value: &str| -> Vec<(OsString, OsString)> {
+        let mut variables: Vec<(OsString, OsString)> = hermetic_variables(root.as_path());
+        variables.push((OsString::from(name), OsString::from(value)));
+        return variables;
+    };
+    let none: Vec<(OsString, OsString)> = hermetic_variables(root.as_path());
+    assert!(
+        tip_variables(repo.as_path(), given(&["--config-env=attr.tree=RULE_TREE"]).as_slice(), holding("RULE_TREE", "HEAD").as_slice()).is_empty(),
+        "the attached form names the tree, whose value is the variable's"
+    );
+    assert!(
+        tip_variables(repo.as_path(), given(&["--config-env", "attr.tree=RULE_TREE"]).as_slice(), holding("RULE_TREE", "HEAD").as_slice()).is_empty(),
+        "the separate form names it too"
+    );
+    assert!(
+        tip_variables(repo.as_path(), given(&["--config-env=attr.tree=RULE_TREE"]).as_slice(), none.as_slice()).is_empty(),
+        "the environment holds no such variable, so Git stops on it and no tree is named over the person's choice"
+    );
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["--config-env=attr.tree=RULE_TREE"]).as_slice(), holding("RULE_TREE", "no-such-tree").as_slice()),
+        tip,
+        "a value no tree resolves to is ignored, as a configured one is"
+    );
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["--config-env=attr.tree=RULE_TREE"]).as_slice(), holding("RULE_TREE", "").as_slice()),
+        tip,
+        "an empty value is no value, which Git ignores"
+    );
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["--config-env=core.autocrlf=RULE_TREE"]).as_slice(), holding("RULE_TREE", "HEAD").as_slice()),
+        tip,
+        "a configuration entry for another key names no attribute tree"
+    );
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["--config-env=attr.tree=x=RULE_TREE"]).as_slice(), holding("RULE_TREE", "HEAD").as_slice()),
+        tip,
+        "`--config-env` splits at its last `=`, so this sets the key `attr.tree=x`"
+    );
+    remove(root.as_path());
+}
+
+/// What:
 ///  `-c Attr.Tree=<spec>` names the attribute tree,
 /// because a Git configuration key's letters are not significant.
 /// Why:

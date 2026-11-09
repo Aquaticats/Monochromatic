@@ -230,7 +230,7 @@ fn an_absent_lock_is_not_an_error() {
 
 /// A proven live owner by descriptor beats every PID file;
 ///  then a PID file naming a running Git proves a live owner;
-///  and a number this table does not have proves nothing.
+///  then one holding a number this process table does not have is read as such.
 #[test]
 fn classification_prefers_a_descriptor_then_the_pid_file() {
     let holder: HolderEvidence = HolderEvidence {
@@ -266,8 +266,8 @@ fn classification_prefers_a_descriptor_then_the_pid_file() {
     );
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(empty.clone()))),
-        Verdict::EvidenceFree,
-        "a number this table does not have proves nothing: its writer may be in another PID namespace"
+        Verdict::Dead(42),
+        "a number this table does not have is the verdict a merge acts on, and a commit only waits for"
     );
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Absent, Some(empty))),
@@ -309,29 +309,33 @@ fn a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start() {
     }
 }
 
-/// A number that this process table does not have is no proof that the lock's owner is gone.
-/// Why:
-///  Git writes its own number into the lock's PID file and no PID namespace,
-///  and a number means a process only inside the namespace that wrote it:
-///  a live Git in another PID namespace (a container with this repository mounted in)
-///  writes a number this table has never had,
-///  and through its editor it holds the lock with no descriptor open.
-///  Reading that absence as a dead owner ended the queued commit at once with `IndexInUse`,
-///  where a live holder is waited for (cross-vendor review of 2026-11-09,
+/// A PID file that holds a number this process table does not have is read as that and no more,
+/// and its words say so:
+/// Git writes its own number into the lock's PID file and no PID namespace,
+/// and a number means a process only inside the namespace that wrote it,
+/// so a live Git in another PID namespace (a container with this repository mounted in)
+/// writes a number this table has never had and holds the lock through its editor with no descriptor open.
+/// The verdict is what a merge may act on,
+/// with the empty lock and the complete scan as the rest of its proof;
+/// a committing service only waits for the owner, within its ceiling
+/// (cross-vendor review of 2026-11-09,
 /// finding 2).
 #[test]
-fn a_pid_file_number_this_table_does_not_have_is_no_proof_of_a_dead_owner() {
+fn a_pid_file_number_this_table_does_not_have_is_named_for_what_it_is() {
     let lock: &Path = Path::new("/repo/index.lock");
+    let evidence: Evidence = evidence_with(PidFile::Owner(42, start_missing(42)), Some(no_holders(lock, 0, 0)));
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(no_holders(lock, 0, 0)))),
-        Verdict::EvidenceFree,
-        "a holder of another PID namespace has no process here, and it may be alive"
+        classify_index_lock(&evidence),
+        Verdict::Dead(42),
+        "the number is this table's evidence about a number, and its owner may be alive elsewhere"
     );
-    assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), None)),
-        Verdict::EvidenceFree,
-        "a number this table does not have proves nothing even without a descriptor scan"
-    );
+    let blocker: String = blocker_words(&evidence);
+    assert!(blocker.contains("PID 42"), "{blocker}");
+    assert!(blocker.contains("a number this process table does not have"), "the verdict claims no death: {blocker}");
+    let diagnostic: String = dead_owner_diagnostic(lock, 42, "this commit was not made", DEAD_OWNER_LOCK_LEFT);
+    assert!(diagnostic.contains("PID number 42"), "{diagnostic}");
+    assert!(diagnostic.contains("another PID namespace"), "why this table does not have it is said: {diagnostic}");
+    assert!(!diagnostic.contains("no longer runs"), "the diagnostic claims no death: {diagnostic}");
     // The same evidence with a live Git in the PID file is the holder, and nothing here read it as gone.
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_before(42)), Some(no_holders(lock, 0, 0)))),
@@ -359,7 +363,7 @@ fn a_skipped_scan_leaves_only_the_pid_file() {
     );
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), None)),
-        Verdict::EvidenceFree
+        Verdict::Dead(42)
     );
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Malformed(String::from("x")), None)),
@@ -495,22 +499,22 @@ fn one_unresolvable(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
     };
 }
 
-/// A PID file naming a number this table does not have is no proof that the owner is dead,
-/// whether or not the scan could identify every descriptor that names the lock:
-/// the holder may be alive in another PID namespace,
+/// A PID file naming a number this table does not have is no proof that the owner is dead while the scan could not
+/// identify a descriptor that names the lock:
+/// the holder may be alive,
 /// so the verdict is evidence-free and the commit waits within its ceiling as it does for a live holder
 /// (cross-vendor review of 2026-11-09,
-/// findings 2 and 4).
+/// finding 4).
 #[test]
-fn an_unidentified_holder_and_an_absent_number_both_leave_the_owner_unproven() {
+fn an_unidentified_holder_keeps_a_pid_file_from_naming_the_number_as_absent() {
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(one_unresolvable(Path::new(""), 0, 0)))),
         Verdict::EvidenceFree,
         "a live holder the scan could not identify is not dead because its number is absent here"
     );
+    // The same evidence without that descriptor is the verdict a merge may act on, whose words claim no death.
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(no_holders(Path::new(""), 0, 0)))),
-        Verdict::EvidenceFree,
-        "a number this table does not have is no proof of death, whatever the scan saw"
+        Verdict::Dead(42)
     );
 }

@@ -124,21 +124,22 @@ const LONG_HOLD: Duration = Duration::from_millis(2500);
 /// however long the host stalls.
 const NO_CEILING: Duration = Duration::ZERO;
 
-/// A PID file that names a number this process table does not have is no proof that the lock's owner is gone,
-/// so it is waited for within the ceiling exactly as a holder proven alive is,
-/// and the wait's own words say which number it read and that the writer may be another PID namespace's.
-/// Why:
-///  Git writes a number and no namespace,
-///  and a live Git of another PID namespace writes a number this table has never had while it holds the lock
-///  with no descriptor open through its editor;
-///  ending the wait there failed a queued commit that only had to keep waiting (cross-vendor review of
-///  2026-11-09,
+/// A PID file that holds a number this process table does not have ends the wait at once,
+/// because no process here will release that lock;
+/// the
+///  diagnostic names the number,
+/// says that a Git of another PID namespace writes one this table has never had,
+/// and says what the command that reads it does about the lock.
+/// A merge then clears the lock on its own proof of disuse or leaves it where it is
+/// (`service_index_unheld_removal.rs`),
+/// so no commit is failed by this ending
+/// (cross-vendor review of 2026-11-09,
 /// finding 2).
 /// The ceiling is already out when the wait begins,
-/// so the wait ends in the ceiling's words,
+/// so a number waited for like a live holder's ends in the ceiling's words instead,
 /// at once and without a stopwatch to read.
 #[test]
-fn a_pid_file_number_this_table_does_not_have_is_waited_for_within_the_ceiling() {
+fn a_number_this_table_does_not_have_ends_the_wait_at_once_with_the_number_named() {
     let root: std::path::PathBuf = fixture("holder-wait-dead");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
@@ -147,11 +148,12 @@ fn a_pid_file_number_this_table_does_not_have_is_waited_for_within_the_ceiling()
     std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
     let sink: SharedSink = SharedSink::default();
     let outcome: IndexWait = wait_for_index_release_within(index.as_path(), "merge", NO_CEILING, quick(), &mut sink.clone());
-    assert!(matches!(outcome, IndexWait::GaveUp(_)), "an owner nothing proves gone ends in the ceiling's words: {outcome:?}");
+    assert!(matches!(outcome, IndexWait::OwnerGone(_)), "{outcome:?}");
     let text: String = sink.text();
-    assert!(text.contains(format!("PID {gone}").as_str()), "the number the PID file holds is said: {text}");
-    assert!(text.contains("another PID namespace"), "the line says why the number proves nothing: {text}");
-    assert!(text.contains("still held after"), "the ceiling's words end the wait: {text}");
+    assert!(text.contains(format!("PID number {gone}").as_str()), "the number the PID file holds is said: {text}");
+    assert!(text.contains("which this process table does not have"), "the number is said for what it is: {text}");
+    assert!(text.contains("another PID namespace"), "why this table does not have it is said: {text}");
+    assert!(!text.contains("still held after"), "such an owner is not waited for: {text}");
     assert!(lock.exists(), "the wait removes no lock");
     remove(root.as_path());
 }

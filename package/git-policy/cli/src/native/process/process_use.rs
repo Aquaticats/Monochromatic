@@ -43,6 +43,18 @@ pub enum UseTarget<'a> {
         /// Inode number of the file on that device.
         inode: u64,
     },
+    /// An open descriptor on a file reached through this mount,
+    /// named as `/proc/<pid>/fdinfo` names it.
+    /// Why:
+    ///   A pipe and another anonymous file have no device a descriptor could be read for through the gate that
+    ///   keeps a stalled server out (`open_file_of_a_descriptor.rs`),
+    ///   and the mount number and the inode in the descriptor's own record name the open file without resolving it.
+    Mounted {
+        /// The mount number the kernel gives the mount the file is reached through.
+        mount: u64,
+        /// The file's inode on that mount.
+        inode: u64,
+    },
 }
 
 /// One process found using the target.
@@ -244,6 +256,57 @@ pub fn descriptor_is_file_with(
 }
 
 /// What:
+///  The mount number the kernel gives the mount a path is reached through.
+/// Why:
+///   `/proc/<pid>/fdinfo` names a descriptor's mount by that number and its file by the inode,
+/// so a descriptor of another process is recognised without resolving it on its own file system,
+/// which waits there as long as that file system does
+/// (`open_file_of_a_descriptor.rs`).
+/// Zero is "not known",
+/// and matches no descriptor.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mount = statx(path, { mask: STATX_MNT_ID }).stx_mnt_id ?? 0;
+/// ```
+pub fn mount_of(path: &Path) -> u64 {
+    let Ok(found) = rustix::fs::statx(rustix::fs::CWD, path, rustix::fs::AtFlags::SYMLINK_NOFOLLOW, rustix::fs::StatxFlags::MNT_ID) else {
+        return 0;
+    };
+    return found.stx_mnt_id;
+}
+
+/// What:
+///  Whether the descriptor `fd` of the process whose table directory is `process` is the file with this inode on this
+///  mount,
+///  as the descriptor's own record names it.
+/// Why:
+///   The mount number and the inode are both in the text the kernel writes for the descriptor,
+///  so this asks no file system anything,
+///  and it answers for a pipe or another anonymous file that the gate refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { mnt_id, ino } = parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8')); ino === inode && mnt_id === mount;
+/// ```
+pub fn mounted_descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, mount: u64, inode: u64) -> Result<bool, Unread> {
+    let text: String = match std::fs::read_to_string(process.join("fdinfo").join(fd)) {
+        Ok(text) => text,
+        Err(error) => return Err(Unread::Process(format!("{error}"))),
+    };
+    let mut reached: Option<u64> = None;
+    let mut held: Option<u64> = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix("mnt_id:") {
+            reached = value.trim().parse::<u64>().ok();
+        } else if let Some(value) = line.strip_prefix("ino:") {
+            held = value.trim().parse::<u64>().ok();
+        }
+    }
+    return Ok(held == Some(inode) && reached == Some(mount) && mount != 0);
+}
+
+/// What:
 ///  The same on a platform that has no `/proc` to read a descriptor's record from.
 /// Why:
 ///   The scan of another process's descriptors is Linux's,
@@ -280,6 +343,13 @@ enum Prepared<'a> {
         /// The device number of the file system that holds it.
         device: u64,
         /// The file's inode on that device.
+        inode: u64,
+    },
+    /// A file's mount number and inode.
+    Mounted {
+        /// The mount number the file is reached through.
+        mount: u64,
+        /// The file's inode on that mount.
         inode: u64,
     },
 }
@@ -345,6 +415,10 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, 
                 let name: std::ffi::OsString = item.file_name();
                 named_unread(pid, name.as_os_str(), descriptor_is_file(process.as_path(), name.as_os_str(), *device, *inode))
             }
+            Prepared::Mounted { mount, inode } => {
+                let name: std::ffi::OsString = item.file_name();
+                named_unread(pid, name.as_os_str(), mounted_descriptor_is_file(process.as_path(), name.as_os_str(), *mount, *inode))
+            }
         };
         match answer {
             Ok(true) => uses = true,
@@ -401,6 +475,7 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
     let prepared: Prepared<'_> = match target {
         UseTarget::Inside(directory) => Prepared::Inside(directory),
         UseTarget::File { device, inode } => Prepared::File { device: *device, inode: *inode },
+        UseTarget::Mounted { mount, inode } => Prepared::Mounted { mount: *mount, inode: *inode },
     };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,

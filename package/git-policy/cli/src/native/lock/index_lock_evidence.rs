@@ -222,6 +222,16 @@ pub enum Verdict {
         /// Owner command name when readable.
         command: Option<String>,
     },
+    /// The PID file names a number this process table does not have,
+    ///  which is what a Git that was killed leaves and what a live Git of another PID namespace leaves too.
+    ///  A service that commits waits for it,
+    ///  and a merge may clear the lock only where its own proof of disuse holds
+    ///  (`landing/service_index_unheld_removal.rs`,
+    /// `Disuse`).
+    Dead(
+        /// The PID of the number this table does not have.
+        i64,
+    ),
     /// Nothing proves a live owner or a dead one.
     EvidenceFree,
 }
@@ -380,10 +390,14 @@ pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -
 ///  an open holder first,
 ///  then a descriptor the scan could not identify,
 ///  then a PID file naming a running Git,
+///  then one naming a number this table does not have,
 ///  and anything else is evidence-free.
-///  A PID file naming a number this table does not have is evidence-free too:
+///  That last verdict says what the table holds and no more:
 ///  a Git of another PID namespace writes a number this table has never had,
-///  and holds the lock through its editor with no descriptor open.
+///  and holds the lock through its editor with no descriptor open,
+///  so a command that may not clear the lock waits for it instead
+///  (cross-vendor review of 2026-11-09,
+/// finding 2).
 ///  The command name decides and the clock never does:
 ///  a Git writes its own number into the PID file,
 ///  so a running process named like Git is the holder whatever the wall clock says about its start,
@@ -415,9 +429,13 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
                 command: process.command.clone(),
             };
         }
-        // A number this table does not have is no proof of a dead owner: Git records no PID namespace, so the writer
-        // may be a live Git of another one holding the lock through its editor with no descriptor open
-        // (cross-vendor review of 2026-11-09, finding 2). Such an owner is waited for like a live holder.
+        // A number this table does not have is read as dead only where the scan identified every descriptor that names
+        // the lock: Git records no PID namespace, so the writer may be a live Git of another one holding the lock through
+        // its editor with no descriptor open (cross-vendor review of 2026-11-09, findings 2 and 4). A committing service
+        // waits for such an owner instead of acting on this verdict.
+        PidFile::Owner(pid, process) if process.gone() && !evidence.holders.as_ref().is_some_and(HolderEvidence::unresolved) => {
+            return Verdict::Dead(*pid);
+        }
         _ => return Verdict::EvidenceFree,
     }
 }
@@ -697,8 +715,40 @@ pub fn blocker_words(evidence: &Evidence) -> String {
             let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
             format!("{} (proven by {proof})", holder_name(pid, command.as_deref()))
         }
+        Verdict::Dead(pid) => format!("{} (a number this process table does not have)", holder_name(pid, None)),
         Verdict::EvidenceFree => format!("an owner nothing proves alive ({})", evidence_words(evidence)),
     };
+}
+
+/// The sentence that ends a dead owner's line when the lock is left where it is,
+/// which is what every command but a merge does.
+pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was left in place. If no other program is using this repository, removing the file lets the command run";
+
+/// What:
+///  The diagnostic for a lock whose Git lock PID file names a number this process table does not have,
+///  ending in what the command does about it.
+/// Why:
+///   That owner can never let go,
+/// so there is nothing to wait for;
+/// a commit service and a merge each say what they do
+///  instead,
+/// and a removal that only some commands attempt must not be promised by the others.
+///  The number is said for what it is:
+///  a Git of another PID namespace writes one this table has never had,
+///  so the diagnostic claims no proof that the owner is gone
+///  (cross-vendor review of 2026-11-09,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deadOwnerDiagnostic({ lockPath, pid, consequence, ending }): string;
+/// ```
+pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str, ending: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: {lock} holds the PID number {pid}, which this process table does not have (a Git of another PID namespace writes a number this table \
+         has never had), so no process here will release it. {consequence}; {ending}.\n",
+        lock = lock_path.display()
+    );
 }
 
 /// Evidence controls stay out of the release executable.

@@ -43,6 +43,15 @@
 //! because no system call unlinks a name only if it still names a given file
 //! (`service_index_reclaim.rs`,
 //! `doc/planning/cli-git-one-reclaimer-per-index.md`).
+//!  A merge whose wait met a Git lock PID file naming a number this process table does not have removes that
+//!  very lock here too,
+//!  on the same proof and with the one requirement on the PID file changed (`Disuse`,
+//!  `remove_if_the_owner_is_gone`),
+//!  so a merge repairs what a commit repairs
+//!  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+//!  finding 3).
+//!  Only an empty lock is removed,
+//!  so a live Git's editor-phase lock (the whole index written into it) is out of reach of both.
 //! A lock that carries a marker of the service is not judged here:
 //! `service_index_reclaim.rs` removes a dead service's lock and waits for a live one's.
 //!
@@ -68,6 +77,11 @@ use std::path::{Path, PathBuf};
 pub struct Proof {
     /// The lock that was removed.
     pub lock: PathBuf,
+    /// The evidence of disuse the removal acted on.
+    pub disuse: Disuse,
+    /// The process a Git lock PID file named,
+    /// when the removal acted on one that this table does not have.
+    pub gone_pid: Option<i64>,
     /// The device of the file that was opened.
     pub device: u64,
     /// The inode of the file that was opened.
@@ -160,6 +174,56 @@ fn own_descriptors_of(device: u64, inode: u64) -> usize {
 }
 
 /// What:
+///  Which evidence of disuse a removal acts on.
+/// Why:
+///   The service removes a lock no PID file stands behind,
+/// while a merge that waited on a PID file naming a number this table does not have removes that very lock;
+/// both are the owner's,
+/// from 2026-11-07 ("Service removes it") and from the answer for a held `index.lock`,
+/// and only the requirement on the PID file differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Disuse = 'no-pid-file' | 'pid-file-of-a-gone-process';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Disuse {
+    /// No Git lock PID file exists at all.
+    NoPidFile,
+    /// The Git lock PID file names a number this process table does not have,
+    /// which is what a Git that was killed leaves.
+    PidFileOfAGoneProcess,
+}
+
+/// What:
+///  The removal a merge makes: the empty `index.lock` of `index` whose PID file names a number this process table
+///  does not have,
+///  on the same proof as the service's removal,
+///  saying what it acted on.
+/// Why:
+///   A Git killed under `core.lockfilePid` leaves exactly that,
+/// and a merge that waited on it once repeated its wait and then refused with advice that could not work
+/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3);
+/// the commit service repaired what a merge refused.
+/// A lock with content,
+/// one carrying the service's marker,
+/// a PID file naming a process this table has,
+/// a holder the scan saw,
+/// a scan that did not finish,
+/// and a lock that is not a plain file all leave it where it is.
+///  Only Linux can scan every process,
+/// so elsewhere nothing is proven and nothing is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeIfTheOwnerIsGone(platform, index, scan) // 'removed' | 'changed' | 'kept'
+/// ```
+pub fn remove_if_the_owner_is_gone(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence) -> Unheld {
+    return remove_when(platform, index, scan, Disuse::PidFileOfAGoneProcess);
+}
+
+/// What:
 ///  Removes the empty `index.lock` of `index` when nothing proves a program uses it,
 /// on the proof the owner named,
 /// and says what it acted on.
@@ -183,6 +247,21 @@ fn own_descriptors_of(device: u64, inode: u64) -> usize {
 /// removeIfUnheld(platform, index, scan) // 'removed' | 'changed' | 'kept'
 /// ```
 pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence) -> Unheld {
+    return remove_when(platform, index, scan, Disuse::NoPidFile);
+}
+
+/// What:
+///  `remove_if_unheld` with the evidence of disuse given.
+/// Why:
+///   One body judges and removes,
+/// so the identity that was opened,
+/// scanned and removed is the same in both callers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeWhen(platform, index, scan, disuse): Unheld;
+/// ```
+fn remove_when(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence, disuse: Disuse) -> Unheld {
     if !cfg!(target_os = "linux") {
         return Unheld::Kept;
     }
@@ -200,8 +279,17 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
         return Unheld::Kept;
     }
     let identity: LockMetadata = LockMetadata { device: opened.dev(), inode: opened.ino(), ctime_ms: opened.ctime() * 1000 + opened.ctime_nsec() / 1_000_000 };
-    // "There is no Git PID file" is no file at all: a damaged one, or one naming a gone process, is evidence this removal does not judge.
-    if read_pid_file_evidence(lock_pid_path(index).as_path(), host_pid_process) != PidFile::Absent {
+    // A damaged PID file, a file naming a process this table has, and (for the service) any PID file at all are evidence
+    //  this removal does not act on.
+    let pid_file: PidFile = read_pid_file_evidence(lock_pid_path(index).as_path(), host_pid_process);
+    let disuse_proved: bool = match disuse {
+        Disuse::NoPidFile => pid_file == PidFile::Absent,
+        // A number this table does not have may also be a live Git's of another PID namespace; the empty lock and the
+        //  complete scan that finds no holder are the rest of the proof, and only an empty lock is reached here
+        //  (cross-vendor review of 2026-11-09, findings 1 and 2).
+        Disuse::PidFileOfAGoneProcess => matches!(&pid_file, PidFile::Owner(_, owner) if owner.gone()),
+    };
+    if !disuse_proved {
         return Unheld::Kept;
     }
     let scanned: HolderEvidence = scan(lock.as_path(), identity.device, identity.inode);
@@ -246,7 +334,11 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
             return Unheld::Kept;
         }
     }
-    let proof: Proof = Proof { lock: lock.clone(), device: identity.device, inode: identity.inode, size: opened.len(), unreadable };
+    let gone_pid: Option<i64> = match (&pid_file, disuse) {
+        (PidFile::Owner(pid, owner), Disuse::PidFileOfAGoneProcess) if owner.gone() => Some(*pid),
+        _ => None,
+    };
+    let proof: Proof = Proof { lock: lock.clone(), disuse, gone_pid, device: identity.device, inode: identity.inode, size: opened.len(), unreadable };
     // The proof is journaled before the removal, so a removal that is then cut short still has its reason on record.
     crate::service_warn!("{}", journal_words(&proof));
     return match (platform.unlink)(lock.as_path()) {
@@ -274,14 +366,34 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
 /// ```
 pub fn journal_words(proof: &Proof) -> String {
     return format!(
-        "removing the empty index lock {} (device {}, inode {}, {} bytes): it carries no marker of the service, there is no Git lock PID file beside it, and the scan of every process \
+        "removing the empty index lock {} (device {}, inode {}, {} bytes): it carries no marker of the service, {} and the scan of every process \
          this service could read found no process with it open (unreadable processes: {}); the owner chose this removal on 2026-11-07 (\"Service removes it\")",
         proof.lock.display(),
         proof.device,
         proof.inode,
         proof.size,
+        disuse_words(proof),
         proof.unreadable
     );
+}
+
+/// What:
+///  The clause that names the evidence of disuse a removal acted on,
+/// for the journal.
+/// Why:
+///   The two removals act on different evidence,
+/// and a journal line that named the wrong one would hide which policy removed a lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// disuse === 'no-pid-file' ? 'there is no Git lock PID file beside it,' : 'its Git lock PID file names PID N, which this table does not have,';
+/// ```
+fn disuse_words(proof: &Proof) -> String {
+    return match (proof.disuse, proof.gone_pid) {
+        (Disuse::NoPidFile, _) => String::from("there is no Git lock PID file beside it,"),
+        (Disuse::PidFileOfAGoneProcess, Some(pid)) => format!("its Git lock PID file names PID {pid}, which this process table does not have,"),
+        (Disuse::PidFileOfAGoneProcess, None) => String::from("its Git lock PID file names a process this process table does not have,"),
+    };
 }
 
 /// What:
@@ -299,11 +411,30 @@ pub fn journal_words(proof: &Proof) -> String {
 /// ```
 pub fn told_words(proof: &Proof) -> String {
     return format!(
-        "monochromatic-git-policy-cli: removed the empty index lock {}, because no process this service could read had it open and no Git lock PID file stood beside it, \
-         so nothing proved a program was still using it; the commit goes on. The scan cannot see a process in another user namespace or one it may not read; \
+        "monochromatic-git-policy-cli: removed the empty index lock {}, because no process this service could read had it open and {}, \
+         so nothing proved a program was still using it; the command goes on. The scan cannot see a process in another user namespace or one it may not read; \
          if a Git there was starting a command in this repository, run its command again.\n",
-        proof.lock.display()
+        proof.lock.display(),
+        told_disuse_words(proof)
     );
+}
+
+/// What:
+///  The clause that tells the person which evidence of disuse removed the lock.
+/// Why:
+///   The person must be able to tell a lock no PID file stood behind from one a Git left,
+/// because the second can be removed while a Git of another PID namespace still holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// disuse === 'no-pid-file' ? 'no Git lock PID file stood beside it' : `its Git lock PID file named PID ${pid}, which this table does not have`;
+/// ```
+fn told_disuse_words(proof: &Proof) -> String {
+    return match (proof.disuse, proof.gone_pid) {
+        (Disuse::NoPidFile, _) => String::from("no Git lock PID file stood beside it"),
+        (Disuse::PidFileOfAGoneProcess, Some(pid)) => format!("its Git lock PID file named PID {pid}, which this process table does not have"),
+        (Disuse::PidFileOfAGoneProcess, None) => String::from("its Git lock PID file named a process this table does not have"),
+    };
 }
 
 /// The pieces of the proof are controlled in the test module.

@@ -102,7 +102,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "identification only: the path is excluded from the search for the real Git, and nothing is started from it",
     },
     Allowed {
-        file: "health/doctor.rs",
+        file: "health/lfs_shims.rs",
         rule: "shell-text",
         why: "the text git-lfs itself writes as its hook shim, held only to recognise that shim; the wrapper never writes it",
     },

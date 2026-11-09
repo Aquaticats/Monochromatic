@@ -12,6 +12,7 @@ use crate::candidate_prediction::{CandidateRequest, PushedScope, prepare_candida
 use crate::manual_push_probe::PushUpdate;
 use crate::test_support::{fixture, git, remove};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// Environment of every Git child of these fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
@@ -125,6 +126,44 @@ fn prior_destination_values_join_the_published_tips() {
     let tips = published_tips(&[update(Some(&base), Some(&base))], &prior, &tracking);
     assert_eq!(tips.get("origin"), Some(&vec![base.clone()]));
     remove(repo.parent().expect("root"));
+}
+
+/// What:
+///  Collecting the published tips looks at one collected name per update.
+/// Why:
+///  `AGENTS.md` `RG2`:
+///  the updates of one push have no cap,
+///  and asking the accumulated list whether it already holds each prior commit is
+///  quadratic in that list,
+///  which an input of distinct prior commits reaches.
+///  The seam counts the collected names a question looked at,
+///  which is one per update when a set answers and every earlier name when a scan does
+///  (`foundation/collected_elements_looked_at_tests.rs` proves the count separates the two).
+#[test]
+fn collecting_the_published_tips_looks_at_each_name_once() {
+    let count: usize = 4096;
+    let mut prior: BTreeMap<String, String> = BTreeMap::new();
+    let mut updates: Vec<PushUpdate> = Vec::new();
+    let mut expected: Vec<String> = Vec::new();
+    for number in 0..count {
+        // Each update names a different prior value, and each prior value is a different commit.
+        let prior_value: String = format!("{number:040x}");
+        let commit: String = format!("{:040x}", number + count);
+        prior.insert(prior_value.clone(), commit.clone());
+        updates.push(update(Some(&commit), Some(&prior_value)));
+        expected.push(commit);
+    }
+    let tracking: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let tips: BTreeMap<String, Vec<String>> = published_tips(updates.as_slice(), &prior, &tracking);
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert_eq!(tips.get("origin"), Some(&expected), "every distinct prior commit once, in the order the updates came");
+    assert_eq!(
+        looked,
+        updates.len() as u64,
+        "{looked} collected names looked at for {} updates; one per update is linear",
+        updates.len()
+    );
 }
 
 /// A commit whose base is published scans only the commits the remote lacks.
@@ -265,4 +304,179 @@ fn the_range_error_displays_its_message() {
         cause: ManualPushCause::SelfExplained,
     };
     assert_eq!(error.to_string(), "the range query failed");
+}
+
+/// What:
+///  A request list larger than a pipe is written while the answers are read,
+/// so the query returns.
+/// Why:
+///   Git reads its requests and answers in one loop.
+/// The wrapper wrote the whole list before it read anything,
+/// so a
+///  reply pipe that filled stopped Git reading the list,
+/// and the write waited for the reply for good
+/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 9).
+/// The stand-in fills its reply pipe and only then reads its requests,
+/// which is what a Git answering a large batch
+///  does;
+/// the list is larger than a pipe,
+/// and the wait is bounded,
+/// so a deadlock is reported rather than hanging the run.
+#[test]
+fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
+    let root: PathBuf = fixture("manual-push-range-pipes");
+    let program: PathBuf = root.join("stand-in-git");
+    // The stand-in answers more than a pipe holds before it reads a request; it then reads the whole list and answers once. The
+    //  read is bounded by a count larger than the list, so the stand-in ends by itself whatever happens: a control that killed it
+    //  by a number it read from a file would kill an unrelated process once the stand-in had been reaped and its number reused.
+    std::fs::write(
+        &program,
+        "#!/bin/sh\nprintf '%300000s' ''\nhead -c 200000 > /dev/null\nprintf 'answered\\n'\n",
+    )
+    .expect("the stand-in");
+    let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(&program, mode).expect("the stand-in runs");
+    let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
+    // One line per destination, far more than a pipe of 64 KiB holds.
+    let requests: String = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n".repeat(2000);
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, ManualPushRangeError>>();
+    // The query runs on a thread of its own, so a deadlock is reported by this control rather than hanging it.
+    let querying = {
+        let for_the_query: PushGit = git.clone();
+        let list: String = requests;
+        std::thread::Builder::new()
+            .name(String::from("manual-push-range-control"))
+            .spawn(move || {
+                let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
+                let _abandoned = sender.send(run_git_bytes(&for_the_query, arguments.as_slice(), Some(list.as_str())));
+            })
+            .expect("the control's thread")
+    };
+    let answer: Result<Result<Vec<u8>, ManualPushRangeError>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(20));
+    remove(root.as_path());
+    // The answer is asserted before the join: the thread sends it and then ends, so the join is bounded once it arrived, while a
+    //  query that never answered is reported here instead of hanging the run.
+    let returned = answer.expect("the query returned; a full request pipe deadlocked it");
+    let _joined = querying.join();
+    let bytes: Vec<u8> = returned.expect("the query answers");
+    // The stand-in's answer is what it wrote before it read the list, and the line it wrote after it.
+    assert_eq!(bytes.len(), 300_000 + "answered\n".len(), "the query read every byte the stand-in wrote");
+    assert!(bytes.ends_with(b"answered\n"), "the query read the answer that came after the request list: {} bytes", bytes.len());
+}
+
+/// What:
+///  A query whose request list a program holds without reading it is not waited for,
+/// and its partial answer is not returned as an answer.
+/// Why:
+///  The request list goes in from a thread of its own;
+/// a helper that inherited the query's input and never reads it keeps
+///  that thread in its write for as long as it lives,
+/// so waiting for the write after the answer arrived would outlast
+///  `RANGE_QUERY_CEILING`.
+/// What Git answered covers only the part of the list that went in,
+/// so the query fails and
+///  says the list was cut short (the fourth review's finding 7),
+/// rather than answering with the replies to part of it.
+/// The helper ends by itself (`sleep 8`),
+/// so the control kills nothing.
+#[test]
+fn a_query_whose_request_list_a_program_holds_is_not_answered() {
+    let root: PathBuf = fixture("manual-push-range-held-input");
+    let program: PathBuf = root.join("stand-in-git");
+    // The helper holds a copy of the query's input and reads none of it. A plain background job of a non-interactive shell
+    //  gets `/dev/null` as its input (measured: writing 200 KB to one returned at once, and to this form after the helper's
+    //  three seconds), so the input is duplicated to another number first and the helper takes that copy.
+    std::fs::write(&program, "#!/bin/sh\nexec 9<&0\nsleep 8 <&9 9<&- >/dev/null 2>&1 &\nprintf 'answered\\n'\n").expect("the stand-in");
+    let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(&program, mode).expect("the stand-in runs");
+    let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
+    let requests: String = "0123456789abcdef\n".repeat(8000);
+    let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, ManualPushRangeError>>();
+    let querying = {
+        let for_the_query: PushGit = git.clone();
+        let list: String = requests;
+        std::thread::Builder::new()
+            .name(String::from("manual-push-held-input-control"))
+            .spawn(move || {
+                let _abandoned = sender.send(run_git_bytes(&for_the_query, arguments.as_slice(), Some(list.as_str())));
+            })
+            .expect("the control's thread")
+    };
+    let began: Instant = Instant::now();
+    let answer: Result<Result<Vec<u8>, ManualPushRangeError>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(15));
+    let waited: Duration = began.elapsed();
+    remove(root.as_path());
+    let returned: Result<Vec<u8>, ManualPushRangeError> = answer.expect("the query returned; a helper that never reads its input held it up");
+    let _joined = querying.join();
+    let failure: ManualPushRangeError = returned.expect_err("a list that was cut short is not this query's answer");
+    assert!(failure.message.contains("request list this command wrote was cut short"), "{}", failure.message);
+    assert!(waited < Duration::from_secs(3), "the answer was held up for {waited:?} by a helper that never reads the input");
+}
+
+
+/// What:
+///  No control of this module signals a process by a number,
+/// and none reads a process number from a file in order to signal it.
+/// Why:
+///  A number names a process only until that process is reaped,
+/// and a control that ended a stand-in by the number the stand-in wrote to a file
+///  killed whatever process held that number by then;
+/// that cleanup ran on the successful path of the control as well,
+///  not only when a stand-in stayed blocked.
+/// The stand-ins end by themselves instead:
+/// a bounded read,
+/// a bounded `sleep`.
+#[test]
+fn no_control_of_the_range_signals_a_process_by_its_number() {
+    let code: String = include_str!("manual_push_range_tests.rs")
+        .lines()
+        .filter(|line| { return !line.trim_start().starts_with("//"); })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    // The needle is built at run time, so this control's own text does not contain it.
+    let kill: String = format!("libc::{}", "kill");
+    let recorded: String = format!("pid{}", "file");
+    assert!(!code.contains(kill.as_str()), "a control of the range still signals a process by its number");
+    assert!(!code.contains(recorded.as_str()), "a control of the range still reads a process number to signal it");
+}
+
+/// What:
+///  A write whose reader never reads ends at its own deadline,
+/// and says that not all of it went.
+/// Why:
+///  The request list of a batch query goes in on a thread of its own,
+/// and a program the query started can
+///  hold the read end of that input without ever reading it:
+/// one `write_all` then outlived the query by as long as that
+///  program lived,
+/// and the handle was dropped with the write still blocked in the kernel.
+/// The deadline is the query's own
+///  ceiling,
+/// so the thread ends with the query it serves.
+/// The write runs on a thread of its own and is taken with a deadline,
+/// so a write that never ends is reported
+///  here rather than hanging the run.
+#[test]
+fn a_write_no_one_reads_ends_at_its_deadline() {
+    let (reading, mut writing) = std::io::pipe().expect("a pipe");
+    let (sender, receiver) = std::sync::mpsc::channel::<bool>();
+    let began: Instant = Instant::now();
+    let writing_thread = std::thread::Builder::new()
+        .name(String::from("manual-push-write-control"))
+        .spawn(move || {
+            let _abandoned = sender.send(write_within(&mut writing, &[b'x'; 1_000_000], Duration::from_millis(200)));
+        })
+        .expect("the control's thread");
+    let answer: Result<bool, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(5));
+    let waited: Duration = began.elapsed();
+    // Closing the read end releases the write whatever happened, so the control leaves nothing blocked behind it.
+    drop(reading);
+    let _joined = writing_thread.join();
+    let wrote_all: bool = answer.expect("the write returned; a write nothing read blocked for good");
+    assert!(!wrote_all, "a write nothing read was reported as complete");
+    assert!(waited < Duration::from_secs(3), "the write outlasted its deadline by {waited:?}");
 }
