@@ -19,7 +19,10 @@ export default {
   'lint:scope': {
     description: 'Lint the dependency-free scope entry and its subprocess regression tests',
     run: [
-      { shell: 'node --input-type=module-typescript -e', run: 'ensureOxlintConfig()', },
+      {
+        shell: 'node --input-type=module-typescript -e',
+        run: 'ensureOxlintConfig()',
+      },
       {
         shell: 'node --input-type=module-typescript -e',
         run: 'runWorkspaceNode(\'package/monorepo-task/core-exec\', \'oxlint-wrapper\', [\'src/ci-scope.ts\', \'src/ci-scope-git.ts\', \'src/ci-scope-error.ts\', \'src/ci-scope.unit.test.ts\'])',

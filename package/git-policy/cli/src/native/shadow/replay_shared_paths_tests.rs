@@ -135,3 +135,36 @@ fn shared_paths_list_the_paths_both_sides_changed() {
     assert!(shared[1].prepared.is_some());
     remove(root.as_path());
 }
+
+/// Two sides that changed different paths share none,
+/// so the listing is empty and the replay has no path to decide.
+#[test]
+fn sides_that_changed_different_paths_share_none() {
+    let root: PathBuf = fixture("replay-shared-paths-none");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("base.txt"), "base\n").expect("base");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "prepared"]);
+    std::fs::write(repo.join("mine.txt"), "mine\n").expect("mine");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=prepared"]);
+    let prepared: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::write(repo.join("theirs.txt"), "theirs\n").expect("theirs");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=landed"]);
+    let current: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let shared: Vec<SharedPath> = list_shared_paths(
+        &git_context(),
+        repo.join(".git").as_path(),
+        repo.as_path(),
+        base.as_str(),
+        current.as_str(),
+        prepared.as_str(),
+    )
+    .expect("shared paths");
+    assert!(shared.is_empty(), "no path was changed on both sides: {shared:?}");
+    remove(root.as_path());
+}

@@ -34,6 +34,8 @@ use crate::dependent_version_manifest::{ManifestFacts, read_manifest_facts, stri
 /// Which tracked paths are manifests,
 /// and their package directories.
 use crate::dependent_version_paths::{is_workspace_manifest_path, package_directory};
+/// The name-to-first-owner table the duplicate check reads.
+use std::collections::HashMap;
 
 /// What:
 /// One workspace manifest with what the plan needs from it.
@@ -195,22 +197,18 @@ pub fn bumped_names(states: &[ManifestState]) -> Vec<String> {
 /// function duplicateName(states: ManifestState[]): PolicyIncomplete | undefined;
 /// ```
 pub fn duplicate_name(states: &[ManifestState]) -> Option<PolicyIncomplete> {
-    for (index, later) in states.iter().enumerate() {
-        // `&states[..index]` borrows every state before this one.
-        let mut first_owner: Option<&ManifestState> = None;
-        for state in &states[..index] {
-            if state.facts.name == later.facts.name {
-                first_owner = Some(state);
-                break;
-            }
-        }
-        if let Some(earlier) = first_owner {
+    // `HashMap` remembers the first state that declared each name, so one manifest costs one lookup.
+    let mut first_owner: HashMap<&str, &ManifestState> = HashMap::with_capacity(states.len());
+    for later in states {
+        // A name already in the table was declared by an earlier state; the entry is never replaced.
+        if let Some(earlier) = first_owner.get(later.facts.name.as_str()) {
             return Some(PolicyIncomplete::DuplicateName {
                 name: later.facts.name.clone(),
                 first: earlier.path.clone(),
                 second: later.path.clone(),
             });
         }
+        first_owner.insert(later.facts.name.as_str(), later);
     }
     return None;
 }

@@ -112,7 +112,10 @@ const decimalIntegerArbitrary: Arbitrary<ValueSample> = tuple(
     false,
   ),
 )
-  .map(function build([value, grouped,],) {
+  .map(function build([value, grouped,]: readonly [
+    number,
+    boolean
+  ],) {
   /**
    Sign prefix kept separate so underscores only land between magnitude digits.
    */
@@ -142,7 +145,10 @@ const radixIntegerArbitrary: Arbitrary<ValueSample> = tuple(
   .map(function build([value, {
     radix,
     prefix,
-  },],) {
+  },]: readonly [
+    number,
+    RadixSpec
+  ],) {
     return {
       text: `${prefix}${value.toString(radix,)}`,
       value,
@@ -204,7 +210,11 @@ const finiteFloatArbitrary: Arbitrary<ValueSample> = tuple(
     'E+2',
   ),
 )
-  .map(function build([intPart, frac, exponent,],) {
+  .map(function build([intPart, frac, exponent,]: readonly [
+    number,
+    number,
+    string
+  ],) {
   /**
    Sign and magnitude split so the fractional dot always sits after a digit.
    */
