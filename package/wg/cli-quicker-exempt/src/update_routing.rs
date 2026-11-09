@@ -10,8 +10,9 @@
 //! A failed move is retried with a growing wait,
 //! never forgotten and never repeated in a tight loop.
 
-/// Slice and cgroup names.
-use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
+/// Slice and cgroup names,
+/// and the cgroups that carry the mark themselves.
+use crate::application_targets::{is_socket_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
@@ -265,6 +266,12 @@ impl UpdateRouting {
                 };
             }
             _ => {}
+        }
+        // A cgroup the watcher attaches the mark to itself needs no move,
+        // which is how a service's main process, and every Pi process in its unit, is covered.
+        if is_socket_marked_cgroup(&info.cgroup, self.setup.uid) {
+            self.handled.insert(key);
+            return Outcome::Covered { pid };
         }
         if let Err(why) = adoptable_cgroup(&info.cgroup, self.setup.uid) {
             self.handled.insert(key);
