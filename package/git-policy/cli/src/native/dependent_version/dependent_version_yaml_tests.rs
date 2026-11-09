@@ -111,6 +111,9 @@ fn reads_the_generated_configuration() {
         "      workloads:\n",
         "        - identity:\n",
         "            subject: 'repo:example/main'\n",
+        "            username: pnpr-publish-ci\n",
+        "            claims:\n",
+        "              repository_id: '710240121'\n",
         "          registry: monochromatic-dev\n",
         "          packages:\n",
         "            - '@s/a'\n",
@@ -142,6 +145,14 @@ fn reads_the_generated_configuration() {
             .and_then(|identity: &YamlNode| return identity.entry("subject"))
             .and_then(YamlNode::text),
         Some("repo:example/main")
+    );
+    assert_eq!(
+        workload
+            .entry("identity")
+            .and_then(|identity: &YamlNode| return identity.entry("claims"))
+            .and_then(|claims: &YamlNode| return claims.entry("repository_id"))
+            .and_then(YamlNode::text),
+        Some("710240121")
     );
     assert_eq!(
         read.entry("registries")

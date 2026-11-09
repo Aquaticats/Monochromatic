@@ -1720,14 +1720,25 @@ that would need the vetting the `choosing-technology` skill requires.
   `thread 'main' has overflowed its stack`,
   `fatal runtime error: stack overflow, aborting`,
   exit 134.
-  No line may now sit deeper than twelve spaces,
-  the depth of the template's `claims` children and `packages` items
+  No line may now sit deeper than fourteen spaces,
+  the depth of the template's `claims` children
   (`GENERATED_MAX_INDENT`),
   so the block recursion is bounded by that indentation and runs on constant
   stack;
   the first over-deep line is refused before any block is read,
   and `dependent_version_yaml_tests.rs::refuses_indentation_deeper_than_the_generated_configuration`
   pins the bound.
+
+The first bound written was twelve spaces,
+from a reading of the template that missed the `claims` children,
+and it refused the repository's own generated file at `repository_id`
+(fourteen spaces).
+`dependent_version_yaml_tests.rs::reads_the_generated_configuration` now
+carries that deepest shape,
+and the reader returns all 169 names of the checked-in
+`package/config/pnpr/config.yaml`,
+which has no line deeper than fourteen spaces and no dash followed by more
+than one.
 
 The mapping whose entries held a repeated-key scan is now a set
 (`dependent_version_yaml.rs`,

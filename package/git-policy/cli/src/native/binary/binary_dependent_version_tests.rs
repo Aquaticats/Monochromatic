@@ -17,6 +17,9 @@
 //! // expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'fix', '--all']).stdout).toContain('fix-summary');
 //! ```
 
+/// The deepest indentation the generated configuration writes,
+/// which the chain below must pass.
+use git_policy_cli::dependent_version_yaml_lines::GENERATED_MAX_INDENT;
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::{git_text, run_commit};
 use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
@@ -539,7 +542,7 @@ fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
     let repo: PathBuf = app_workspace(&fixture);
     let mut text: String = publish_set(&["@s/base", "app"]);
     text.push_str("deeper:\n");
-    for level in 1..=13 {
+    for level in 1..=GENERATED_MAX_INDENT + 1 {
         text.push_str(&" ".repeat(level));
         text.push_str("a:\n");
     }
@@ -561,7 +564,7 @@ fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
     assert!(
         events.contains(
             format!(
-                "is indented deeper than the generated configuration's deepest key, which sits 12 spaces in on line {deepest}"
+                "is indented deeper than the generated configuration's deepest key, which sits {GENERATED_MAX_INDENT} spaces in on line {deepest}"
             )
             .as_str()
         ),

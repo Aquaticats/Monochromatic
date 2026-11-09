@@ -107,21 +107,23 @@ pub const GENERATED_ITEM_GAP: usize = 1;
 /// What:
 /// The deepest indentation the generated configuration writes.
 /// Why:
-///  The template nests six blocks,
+///  The template nests seven blocks,
 /// and its deepest keys,
-/// the `claims` children and the
-///       `packages` items,
-/// sit twelve spaces in.
+/// the `claims` children
+///       `repository_id`,
+/// `repository_owner_id` and `workflow_ref`,
+/// sit fourteen
+///       spaces in.
 /// No line may be deeper,
-/// which bounds the block
-///       recursion of the document reader,
+/// which bounds the block recursion of the
+///       document reader,
 /// so no input can grow the stack.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const GENERATED_MAX_INDENT = 12;
+/// const GENERATED_MAX_INDENT = 14;
 /// ```
-pub const GENERATED_MAX_INDENT: usize = 12;
+pub const GENERATED_MAX_INDENT: usize = 14;
 
 /// What:
 /// The spaces a sequence dash is followed by,

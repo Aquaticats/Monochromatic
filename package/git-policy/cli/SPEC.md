@@ -8555,8 +8555,8 @@ a comment line beginning `#`,
 and a sequence item whose dash is followed by exactly one space.
 Indentation counts spaces,
 never a tab,
-and reaches twelve spaces at most,
-the depth of the template's `claims` children and `packages` items.
+and reaches fourteen spaces at most,
+the depth of the template's `claims` children.
 A line beginning `---` that is not exactly `---` is refused,
 because a document marker belongs alone on its line and this reader reads one document.
 A tag,
