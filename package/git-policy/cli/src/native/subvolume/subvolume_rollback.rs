@@ -443,16 +443,18 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
         let _count: usize = refreshed?;
         run.journal.mark("rollback-indexes", "done")?;
     }
-    // The stage is the subvolume the migration created; a directory that replaced it is somebody else's, and the removal's
-    // fallback would delete it with whatever it holds.
-    if let Some(refusal) = stage_is_not_a_subvolume(run) {
-        return Ok(Some(vec![refusal]));
-    }
     // The subvolume this deletes is the one the migration installed, compared at every path that reaches the deletion: a
-    // run resumed after the exchange was recorded skips the swap, and with it the pair check that guards the exchange.
+    // run resumed after the exchange was recorded skips the swap, and with it the pair check that guards the exchange. This
+    // check comes first because a name that holds something other than the installed checkout says so more exactly than a
+    // stage identity that no longer answers.
     if new_path.exists()
         && let Some(refusal) = installed_identity_refusal(run, new_path.as_path())
     {
+        return Ok(Some(vec![refusal]));
+    }
+    // The stage is the subvolume the migration created; a directory that replaced it is somebody else's, and the removal's
+    // fallback would delete it with whatever it holds.
+    if let Some(refusal) = stage_is_not_a_subvolume(run) {
         return Ok(Some(vec![refusal]));
     }
     if new_path.exists() {
