@@ -10,6 +10,7 @@ import {
 } from './json-rpc.ts';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { DEFAULT_CACHE_HINT, } from './protocol.ts';
 
@@ -44,6 +45,16 @@ import {
   MissingProtocolVersionError,
   UnsupportedProtocolVersionError,
 } from './server-protocol-error.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const serverLogger = tagged({ tag: 'mcp-stdio-server', },);
+
+//endregion Logging
 
 //region createMcpServer: builds an immutable server from config and tool entries
 
@@ -272,10 +283,11 @@ export function createMcpServer(
       },);
     }
     catch (error: unknown) {
-      console.error(
-        `[mcp-stdio] resource read failed for "${uri}":`,
-        error,
-      );
+      tagged({
+        tag: routeRequest.name,
+        l: serverLogger,
+      },)
+        .error(`resource read failed for "${uri}": ${caughtValueText(error,)}`,);
       return respondError({
         id,
         code: JSON_RPC_INVALID_PARAMS,
@@ -306,7 +318,11 @@ export function createMcpServer(
     }
     catch (error: unknown) {
       if (error instanceof UnsupportedProtocolVersionError) {
-        console.error(`[mcp-stdio] refused request: ${error.message}`,);
+        tagged({
+          tag: handleRequest.name,
+          l: serverLogger,
+        },)
+          .warn(`refused request: ${error.message}`,);
         return Promise.resolve(
           respondUnsupportedProtocolVersion({
             id: request.id,
@@ -316,7 +332,11 @@ export function createMcpServer(
         );
       }
       if (error instanceof MissingProtocolVersionError) {
-        console.error(`[mcp-stdio] refused request: ${error.message}`,);
+        tagged({
+          tag: handleRequest.name,
+          l: serverLogger,
+        },)
+          .warn(`refused request: ${error.message}`,);
         return Promise.resolve(
           respondMissingProtocolVersion({
             id: request.id,

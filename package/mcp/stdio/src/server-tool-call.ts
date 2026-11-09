@@ -1,6 +1,7 @@
 // Dispatches tools/call requests to registered tool handlers.
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   JSON_RPC_INVALID_PARAMS,
@@ -22,6 +23,16 @@ import {
   TOOL_ARGUMENTS_VALID,
   validateToolArguments,
 } from './tool-schema.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const toolCallLogger = tagged({ tag: 'mcp-stdio-tool-call', },);
+
+//endregion Logging
 
 /**
  Dispatches a `tools/call` request to the registered handler.
@@ -150,10 +161,11 @@ export async function handleToolCall(
      Human-readable error text; falls back to `String(error)` when the thrown value is not an `Error`.
      */
     const message = caughtValueText(error,);
-    console.error(
-      `[mcp-stdio] tool "${toolName}" threw:`,
-      error,
-    );
+    tagged({
+      tag: handleToolCall.name,
+      l: toolCallLogger,
+    },)
+      .error(`tool "${toolName}" threw: ${message}`,);
     return respondSuccess({
       id,
       result: buildToolCallResult({

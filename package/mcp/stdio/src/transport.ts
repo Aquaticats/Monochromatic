@@ -4,6 +4,7 @@ import { once, } from 'node:events';
 import type { Writable, } from 'node:stream';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   isJsonRpcMessage,
@@ -27,6 +28,18 @@ import {
   type SerialRequestQueue,
   UNCANCELLABLE,
 } from './transport-queue.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+
+ Nothing here reaches stdout: stdout carries the JSON-RPC frames themselves.
+ */
+const transportLogger = tagged({ tag: 'mcp-stdio-transport', },);
+
+//endregion Logging
 
 //region Output writer abstraction: supports both Bun FileSink and standard WritableStream
 
@@ -153,7 +166,14 @@ export async function serve(
    */
   const queue = createSerialRequestQueue({
     async write(frame: string,): Promise<void> {
-      console.error(`[mcp-stdio] -> ${frame}`,);
+      // Frames are the protocol itself, so this trace is reported only when
+      // logging is asked to be verbose; writing them unconditionally buried the
+      // diagnostics below in stderr traffic.
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .debug(`writing frame: ${frame}`,);
       await writeSerializedMessage({
         writer: output,
         encoder,
@@ -191,10 +211,13 @@ export async function serve(
       parsed = JSON.parse(line,);
     }
     catch (error: unknown) {
-      console.error(
-        '[mcp-stdio] failed to parse JSON from stdin:',
-        error,
-      );
+      // The peer sent bytes this server cannot read, so the reply carries the
+      // parse error and the log names the failure that produced it.
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .warn(`stdin frame is not JSON: ${caughtValueText(error,)}`,);
       /**
        Parse-error response returned with `id: null` because the original id cannot be recovered.
        */
@@ -216,10 +239,11 @@ export async function serve(
     // Validate step: ensure the parsed value is a valid JSON-RPC 2.0 message
     // before dispatching. Catches non-object values, missing jsonrpc field, etc.
     if (!isJsonRpcMessage(parsed,)) {
-      console.error(
-        '[mcp-stdio] received invalid JSON-RPC message (missing jsonrpc or method):',
-        parsed,
-      );
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .warn(`stdin frame is not a JSON-RPC message: ${JSON.stringify(parsed,)}`,);
       /**
        Shape-error response when the message parsed as JSON but is not a JSON-RPC message.
        Uses invalid-request rather than parse-error: the text was valid JSON, so `JSON.parse`
@@ -242,7 +266,11 @@ export async function serve(
       continue;
     }
 
-    console.error(`[mcp-stdio] <- ${line}`,);
+    tagged({
+      tag: serve.name,
+      l: transportLogger,
+    },)
+      .debug(`reading frame: ${line}`,);
 
     /**
      Request this message cancels, when it is a well-formed cancellation.
@@ -252,7 +280,11 @@ export async function serve(
     // since the request it names is what would be holding the queue.
     if (cancelling !== NOT_A_CANCELLATION) {
       if (!queue.cancel({ id: cancelling, },))
-        console.error(`[mcp-stdio] cancellation names no live request: ${String(cancelling,)}`,);
+        tagged({
+          tag: serve.name,
+          l: transportLogger,
+        },)
+          .warn(`cancellation names no live request: ${String(cancelling,)}`,);
       continue;
     }
 
@@ -279,10 +311,11 @@ export async function serve(
           },);
         }
         catch (error: unknown) {
-          console.error(
-            '[mcp-stdio] dispatch failed:',
-            error,
-          );
+          tagged({
+            tag: serve.name,
+            l: transportLogger,
+          },)
+            .error(`dispatch failed: ${caughtValueText(error,)}`,);
           if (replyId === null)
             return NO_FRAME;
           return serializeResponse({
@@ -421,10 +454,11 @@ function serializeResponse(
     return JSON.stringify(response,);
   }
   catch (error: unknown) {
-    console.error(
-      '[mcp-stdio] failed to serialize response:',
-      error,
-    );
+    tagged({
+      tag: serializeResponse.name,
+      l: transportLogger,
+    },)
+      .error(`response could not be serialized: ${caughtValueText(error,)}`,);
     /**
      Replacement frame reporting that a well-formed result could not be encoded.
      */
