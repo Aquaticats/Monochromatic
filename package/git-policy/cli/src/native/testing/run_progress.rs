@@ -68,7 +68,9 @@ use std::time::{Duration, Instant};
 ///  (a control arms one beside the fixture's)
 /// would otherwise count the other's reads at every look,
 /// so two of them would
-///  keep each other, and the run they watch, alive for ever.
+///  keep each other,
+/// and the run they watch,
+/// alive for ever.
 static WATCHING_THREADS: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
 
 /// Add `thread` to the watchers a look leaves out.

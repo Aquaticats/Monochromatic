@@ -38,7 +38,8 @@ use std::path::Path;
 thread_local! {
     /// Whether this thread's writes are kept in the page cache.
     /// Only a call on a platform that says it does not flush sets it,
-    /// and the call puts the switch back when it ends, so no other test of the same process inherits it
+    /// and the call puts the switch back when it ends,
+    /// so no other test of the same process inherits it
     ///  and a call on a platform that flushes inside such a call turns the flushes back on.
     static KEEPING_WRITES_IN_MEMORY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }

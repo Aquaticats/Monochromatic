@@ -95,7 +95,8 @@ fn a_write_that_keeps_its_bytes_in_memory_writes_all_of_them() {
 ///   A regular file reads back from the page cache whether or not its flush ran,
 /// so the bytes alone never say which
 ///  branch of the write step was taken;
-/// this handle answers differently to the two, which is what tells them apart.
+/// this handle answers differently to the two,
+/// which is what tells them apart.
 fn handle_that_cannot_be_flushed() -> Option<std::fs::File> {
     let handle: std::fs::File = std::fs::OpenOptions::new().write(true).open("/dev/null").ok()?;
     // Where a flush is allowed there is nothing to tell the two branches apart.
@@ -132,7 +133,9 @@ fn the_switch_decides_whether_a_write_is_flushed() {
 ///   The switch belongs to the calling thread,
 /// so a nested call on a platform that flushes has to turn the flushes back on;
 /// the
-///  platform records what a flush of `procfs`, which refuses one, answered there.
+///  platform records what a flush of `procfs`,
+/// which refuses one,
+/// answered there.
 fn flushing(procfs: &'static Path, flushed: Rc<Cell<Option<bool>>>) -> Flushing {
     return Flushing {
         inner: PlainPlatform::new(),
