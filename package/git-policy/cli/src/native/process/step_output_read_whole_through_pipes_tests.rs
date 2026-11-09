@@ -56,3 +56,48 @@ fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
     assert_eq!(failures, 0, "a read whose end of file was ready reported the output as held open {failures} times");
     assert_eq!(read.len(), 6 * 64, "every answer of every read came back whole");
 }
+
+/// What:
+///  A query whose ceiling came, and whose child the kernel would not let end, is reported as left running.
+/// Why:
+///  The sentence of that ending was built from the text the wait carried,
+/// so the structured answer never reached the caller:
+/// the
+///  wrapper said the query was ended though it had been left running
+///  (the fifth review's finding 6).
+///  The kernel cannot be made to hold a process here,
+/// so the signal of the ceiling is what a control refuses:
+/// a child that is
+///  not signalled and does not end is the same state from this wait's side.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_ceiling_of_a_query_that_could_not_be_ended_says_it_was_left_running() {
+    let runtime: tokio::runtime::Runtime =
+        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this control");
+    let (failure, pid): (std::io::Error, u32) = runtime.block_on(async {
+        let mut command: Command = Command::new("sleep");
+        command.arg("600").stdin(Stdio::null());
+        let pipes: StepPipes = attach_pipes_awaiting(&mut command).await.expect("the pipes of the query");
+        let child: Child = command.spawn().expect("the query starts");
+        release_write_ends(&mut command);
+        let pid: u32 = child.id();
+        // The signal of the ceiling is refused, and the child ends by itself after this control has read the answer.
+        crate::child_waited_for_within_a_ceiling::a_control_refuses_the_next_kill();
+        let carried: CarriedCeiling = carried_by(Duration::from_millis(100), CeilingWhy::TheQueryIsBounded);
+        let failure: std::io::Error = read_until_the_child_ends_awaiting(pipes, child, "a query", Some(carried))
+            .await
+            .expect_err("the ceiling ended the wait for the query");
+        return (failure, pid);
+    });
+    // The child could not be ended, so this control ends it; the thread that watches it collects its end.
+    if crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&failure) {
+        // SAFETY: `kill` takes two integers and touches no memory; the number is the query this control started.
+        let _ended = unsafe { libc::kill(i32::try_from(pid).expect("a process number"), libc::SIGKILL) };
+    }
+    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
+    assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "the ceiling is what ended the wait: {failure}");
+    assert!(
+        crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&failure),
+        "a query the kernel would not let end was reported as one that was ended: {failure}"
+    );
+}

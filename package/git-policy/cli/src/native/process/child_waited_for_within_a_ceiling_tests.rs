@@ -16,12 +16,6 @@ fn quiet(line: &str) -> Child {
     return command.spawn().expect("the stand-in starts");
 }
 
-/// A ceiling that refuses the next kill,
-/// which is how a child the kernel will not let end looks from this wait's side.
-fn refuse_the_next_kill() {
-    A_KILL_IS_REFUSED.with(|refused| { refused.set(true); });
-}
-
 /// Whether the record of `pid` is in the process table,
 /// which a zombie still has until it is reaped.
 fn recorded(pid: u32) -> bool {
@@ -80,7 +74,7 @@ fn a_child_that_cannot_be_ended_is_left_running_and_says_so() {
     // The child lives a little past the grace and then ends by itself, so the reaper collects a child no control had to kill.
     let child: Child = quiet("sleep 6");
     let pid: u32 = child.id();
-    refuse_the_next_kill();
+    a_control_refuses_the_next_kill();
     let began: Instant = Instant::now();
     let failure: std::io::Error = wait_within(child, Duration::from_millis(200)).expect_err("the ceiling ends the wait");
     let waited: Duration = began.elapsed();

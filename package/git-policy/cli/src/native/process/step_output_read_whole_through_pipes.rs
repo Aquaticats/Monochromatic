@@ -345,8 +345,16 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
                     //  programs the step started end with it and can neither hold its streams nor write after it was reported
                     //  ended (the fifth review's finding 2).
                     ended.send_replace(Some(Instant::now()));
-                    owned.end_with_the_processes_it_started();
-                    Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, carried)))
+                    // Whether the whole tree could be ended is part of the ending: a step the kernel would not let go is left
+                    //  running, and the sentence the caller prints must not say it ended (the fifth review's finding 6).
+                    let left_running: bool = owned.end_with_the_processes_it_started();
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        crate::child_waited_for_within_a_ceiling::AtTheCeiling {
+                            left_running,
+                            sentence: Some(waiting_carried_the_ceiling(waiting_for, carried, left_running)),
+                        },
+                    ))
                 }
             },
             None => owned.wait().await,
@@ -639,25 +647,30 @@ pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${waitingFor} ran for ${limit} seconds and was ended; no watch could announce it: ${why}`
+/// `${waitingFor} ran for ${limit} seconds and was ${leftRunning ? 'left running' : 'ended'}; no watch could announce it: ${why}`
 /// ```
-fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling) -> String {
+fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling, left_running: bool) -> String {
     let why: &str = match carried.why {
         CeilingWhy::NoWatcher => {
-            "though nothing could watch it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit \
-             -u`) and the control group's `pids.max`, free some, and run the command again"
+            "Nothing could watch it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit -u`) \
+             and the control group's `pids.max`, free some, and run the command again."
         }
         CeilingWhy::TheWatchCouldNotEndIt => {
-            "though its watch could not end it: nothing proved which process to stop. Hint: check with `ps` what the step waits \
-             for, and run the command again"
+            "Its watch could not end it: nothing proved which process to stop. Hint: check with `ps` what the step waits for, \
+             and run the command again."
         }
         CeilingWhy::TheQueryIsBounded => {
-            "and it was ended. Such a query changes nothing of the repository. Hint: check with `ps` what that program waits for, \
-             and run the command again"
+            "Such a query changes nothing of the repository. Hint: check with `ps` what that program waits for, and run the \
+             command again."
         }
     };
+    let ending: &str = if left_running {
+        "and could not be ended, so it was left running, and the system collects it when its call returns"
+    } else {
+        "and was ended"
+    };
     return format!(
-        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended, {why}.",
+        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}. {why}",
         carried.limit.as_secs()
     );
 }

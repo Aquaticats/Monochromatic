@@ -39,9 +39,16 @@ thread_local! {
     static A_KILL_IS_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// Refuse the next kill of a child,
+/// which is how a child the kernel will not let end looks from a wait's side.
+#[cfg(test)]
+pub(crate) fn a_control_refuses_the_next_kill() {
+    A_KILL_IS_REFUSED.with(|refused| { refused.set(true); });
+}
+
 /// Ask a child to end,
 /// unless a control refuses the signal.
-fn kill(child: &mut Child) -> std::io::Result<()> {
+pub(crate) fn kill(child: &mut Child) -> std::io::Result<()> {
     #[cfg(test)]
     if A_KILL_IS_REFUSED.with(|refused| { return refused.replace(false); }) {
         return Ok(());
@@ -72,11 +79,14 @@ pub const LOOK_INTERVAL: Duration = Duration::from_millis(10);
 pub struct AtTheCeiling {
     /// Whether the child could not be ended and was left running.
     pub left_running: bool,
+    /// The sentence a wait with words of its own for the step ended this way,
+    /// or nothing for the wait that keeps no sentence.
+    pub sentence: Option<String>,
 }
 
 impl std::fmt::Display for AtTheCeiling {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str("the child did not answer within its ceiling");
+        return formatter.write_str(self.sentence.as_deref().unwrap_or("the child did not answer within its ceiling"));
     }
 }
 
@@ -168,13 +178,13 @@ pub fn wait_within(mut child: Child, ceiling: Duration) -> std::io::Result<ExitS
     let grace: Instant = Instant::now();
     loop {
         if let Some(_status) = child.try_wait()? {
-            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: false }));
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: false, sentence: None }));
         }
         if grace.elapsed() >= STOP_GRACE {
             // Nothing here can end it: it is in a call the kernel has not returned from. A thread of this command reaps it when
             //  the kernel lets it go, and keeps it if the system refuses that thread, so the child is never lost.
             crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
-            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: true }));
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: true, sentence: None }));
         }
         std::thread::sleep(LOOK_INTERVAL);
     }
