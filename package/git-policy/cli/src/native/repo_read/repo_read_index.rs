@@ -117,15 +117,18 @@ pub struct ParsedIndex {
 ///   So the version must be 1,
 /// the table must name at least one block,
 /// and every block must begin where
-///  this reader parsed its first entry and cover every entry between them.
+///  this reader parsed its first entry and cover every entry between them,
+///  and a version-4 block must begin an entry that strips every byte of the name before it,
+///  because Git reads a block with no preceding entry (measured on Git 2.56.0,
+/// `index.threads=3` lists `z` where `index.threads=1` lists `a/z`).
 ///   A file with no `IEOT` extension is unaffected,
 ///  and a table read this way answers the entries this reader already has.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function offsetTableIsSilent(body: Uint8Array, starts: number[]): boolean;
+/// function offsetTableIsSilent(body: Uint8Array, starts: number[], wholePaths: boolean[]): boolean;
 /// ```
-fn offset_table_is_silent(body: &[u8], starts: &[u32]) -> Option<()> {
+fn offset_table_is_silent(body: &[u8], starts: &[u32], whole_paths: &[bool]) -> Option<()> {
     if be32(body, 0)? != 1 {
         return None;
     }
@@ -138,6 +141,10 @@ fn offset_table_is_silent(body: &[u8], starts: &[u32]) -> Option<()> {
         let begins: usize = usize::try_from(be32(body, 4 + block * 8)?).ok()?;
         let held: usize = usize::try_from(be32(body, 8 + block * 8)?).ok()?;
         if held == 0 || usize::try_from(*starts.get(next)?).ok()? != begins {
+            return None;
+        }
+        // Git reads a block with no preceding entry, so the block's first path must stand alone.
+        if !*whole_paths.get(next)? {
             return None;
         }
         next = next.checked_add(held)?;
@@ -175,6 +182,10 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
     // Where each entry begins, which is what an offset table (`IEOT`) names.
     //  Kept for every file, because which extensions follow the entries is known only after they are read.
     let mut starts: Vec<u32> = Vec::with_capacity(count.min(1 << 20));
+    // Which entries state their whole path:
+    //  every entry of a version 2 or 3 file,
+    // and a version 4 entry that strips every byte of the name before it.
+    let mut whole_paths: Vec<bool> = Vec::with_capacity(count.min(1 << 20));
     let mut at: usize = HEADER_LENGTH;
     let mut previous: Vec<u8> = Vec::new();
     for _ in 0..count {
@@ -195,6 +206,8 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
         }
         let name_start: usize = at.checked_add(head)?;
         let path: Vec<u8>;
+        // Whether this path reads the same with no entry before it, as a version-4 block boundary needs.
+        let mut whole_path: bool = true;
         if version == 4 {
             let mut cursor: usize = name_start;
             let mut byte: u8 = *bytes.get(cursor)?;
@@ -206,6 +219,7 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
                 strip = strip.checked_add(1)?.checked_shl(7)? | usize::from(byte & 0x7f);
             }
             let keep: usize = previous.len().checked_sub(strip)?;
+            whole_path = keep == 0;
             let terminator: usize = first_index_of_byte(bytes.get(cursor..end)?, 0)?;
             let mut joined: Vec<u8> = previous[..keep].to_vec();
             joined.extend_from_slice(&bytes[cursor..cursor + terminator]);
@@ -223,6 +237,7 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
             return None;
         }
         previous.clone_from(&path);
+        whole_paths.push(whole_path);
         let stage: u8 = ((flags >> 12) & 3) as u8;
         entries.push(IndexEntry { path, mode, id, stage, extended });
     }
@@ -261,7 +276,7 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
             // Git reads the entries through this table when threaded loading is on,
             //  so only a table naming exactly the entries read here is answered.
             b"IEOT" => {
-                offset_table_is_silent(body?, starts.as_slice())?;
+                offset_table_is_silent(body?, starts.as_slice(), whole_paths.as_slice())?;
             }
             // An extension this reader does not know is one Git words (`ignoring <signature> extension`) or dies on.
             _ => return None,
