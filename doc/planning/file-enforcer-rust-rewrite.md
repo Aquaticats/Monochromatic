@@ -1403,6 +1403,11 @@ the user asked for an outside review before confirming.
   as already designed in `doc/decision/monorepo-manager-all-rust.md` ("Consequences").
 - The root `mise.toml` stays generated from `mise.no-env.toml` until Mise is removed,
   as `doc/decision/monorepo-manager-all-rust.md` already decides.
+  Superseded by the re-asked decision in the section
+  "mise.toml:
+  committed conf.d files",
+  where the user chose the conf.d layout:
+  `mise.no-env.toml` becomes the hand-written `mise.toml`.
 - Long fixed text (the `CLAUDE.md` preamble,
   the `mise.toml` `[env]` block) lives in content files the config names,
   never inline in the config.
