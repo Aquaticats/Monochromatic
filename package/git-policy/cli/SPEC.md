@@ -3378,8 +3378,18 @@ on the commit path:
   so the merge's files and index land in a checkout that now belongs to the other branch.
   The read is made once more immediately before the branch moves,
   and a `HEAD` that differs keeps the record,
-  moves nothing and says which branch the merge is for;
-  a switch that lands after that second read is not covered.
+  moves nothing and says which branch the merge is for.
+  The branch write verifies the branch and not `HEAD`,
+  so a switch that lands in the instant between that look and the write is met by one more read straight after it:
+  a `HEAD` that differs then puts the branch back where it was by compare-and-swap against the merge commit,
+  keeps the record,
+  and says which branch the worktree has,
+  so nothing of the merge stays staged in another branch's checkout.
+  A switch that lands after that third read is not covered,
+  and closing it would need the write itself to check `HEAD`,
+  which `git update-ref` cannot do:
+  a `symref-verify HEAD` in the same transaction as the update of the branch `HEAD` names is refused as two updates of
+  `HEAD`.
   Closing that one needs another command to switch inside the same window,
   and the person would see the merge's staged content in the `git status` of the branch they had switched to,
   that branch's files otherwise unchanged,

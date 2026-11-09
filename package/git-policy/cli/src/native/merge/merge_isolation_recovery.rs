@@ -377,7 +377,7 @@ pub fn settle_failed_merge(
     }
     // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
     //  same merge (the recovery is idempotent).
-    if complete(place, root, intent, &changes, &judgements, began, out)? == Installed::IndexHeld {
+    if complete(place, root, record, intent, &changes, &judgements, began, out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     drop_record_and_side_ref(place, root, record, intent).map_err(partly_installed)?;
@@ -401,6 +401,7 @@ pub fn settle_failed_merge(
 fn complete(
     place: &RecoveryPlace,
     root: &Path,
+    record: &Path,
     intent: &MergeIntent,
     changes: &[Change],
     judgements: &[Judged],
@@ -423,17 +424,48 @@ fn complete(
             intent.target_ref.as_deref().unwrap_or("a detached HEAD")
         ))));
     }
+    // A control reaches this instant to switch the worktree as another command would, between the last look and the write.
+    crate::service_fault::reach("before-the-branch-write");
+    let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
     let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by monochromatic-git-policy-cli recovery)");
     let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
     if intent.target_ref.is_none() {
         arguments.push("--no-deref");
     }
-    arguments.push(intent.target_ref.as_deref().unwrap_or("HEAD"));
+    arguments.push(target);
     arguments.push(intent.new_oid.as_str());
     arguments.push(intent.old_oid.as_str());
     if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
         // The index and every file of the merge are in place and the branch did not move.
         return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true });
+    }
+    // The move is checked once more, because another command can switch the worktree in the instant between the last look and
+    //  the write. A worktree that now belongs to another branch gets the branch put back and keeps the record, so nothing of
+    //  this merge stays staged in a checkout it is not for.
+    let after: Option<String> = symbolic_ref(place, root).map_err(partly_installed)?;
+    if after != intent.target_ref {
+        let mut undo: Vec<&str> = vec!["update-ref"];
+        if intent.target_ref.is_none() {
+            undo.push("--no-deref");
+        }
+        undo.push(target);
+        undo.push(intent.old_oid.as_str());
+        undo.push(intent.new_oid.as_str());
+        if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &undo)) {
+            debug(
+                "settleFailedMerge",
+                format!("the branch move of a merge whose worktree switched could not be put back: {error}").as_str(),
+            );
+        }
+        return Err(partly_installed(RecoveryError(format!(
+            "A merge of {target} in {} was installed here and {target} was moved onto it, but this worktree now has {} checked \
+             out: another command switched it in the instant between the last look and the branch move. The branch was put back \
+             where it was and the record {} was kept, so nothing of this merge stays staged in another branch's checkout. Check \
+             out {target} here and run any git command again.",
+            root.display(),
+            after.as_deref().unwrap_or("a detached HEAD"),
+            record.display()
+        ))));
     }
     return Ok(Installed::Written);
 }

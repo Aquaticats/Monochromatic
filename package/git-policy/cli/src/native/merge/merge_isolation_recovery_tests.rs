@@ -1956,3 +1956,43 @@ fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A worktree that switches branch in the instant before the branch move keeps the record,
+///  and the branch is put back.
+/// Why:
+///  The branch write verifies the branch and not the worktree's `HEAD`,
+/// so a switch that lands after the last look moved `main`
+///  while `other` owned the checkout,
+/// and recovery then removed the only record of it
+///  (a cross-vendor review of the sixth round,
+/// its first finding).
+/// The seam is the instant between the last look and the write,
+/// which no other test can reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = deferredRecord(); await git(['branch', 'other']); hooks.set('before-the-branch-write', () => git(['symbolic-ref', 'HEAD', 'refs/heads/other'])); await expect(recover(...)).rejects; expect(await revParse('main')).toEqual(oldOid); expect(exists(record)).toBe(true);
+/// ```
+#[test]
+fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_branch() {
+    let world: World = world("merge-recovery-switch-before-write");
+    let record: PathBuf = deferred_record_of(&world, "34343434-0000-4000-8000-000000000034", "refs/cli-git/kept/34");
+    git(world.repo.as_path(), &["branch", "--quiet", "other"]);
+    let repository: PathBuf = world.repo.clone();
+    crate::service_fault::hooks::set(
+        "before-the-branch-write",
+        std::rc::Rc::new(move || {
+            git(repository.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+        }),
+    );
+    let mut said: Vec<u8> = Vec::new();
+    let attempted = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said);
+    crate::service_fault::hooks::clear();
+    let refused = attempted.expect_err("a switched worktree stops the command");
+    assert!(refused.0.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused.0);
+    assert!(record.exists(), "the record is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
+    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
+    remove(world.parent.as_path());
+}
