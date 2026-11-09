@@ -200,7 +200,8 @@ fn every_index_of_the_checkout_is_refreshed_and_reported() {
     std::fs::write(copy.join(".git/worktrees/wt/gitdir"), format!("{}\n", copy.join("wt/.git").display())).expect("gitdir");
     std::fs::write(copy.join("wt/.git"), format!("gitdir: {}\n", copy.join(".git/worktrees/wt").display())).expect("gitfile");
     let mut lines: Vec<String> = Vec::new();
-    let count: usize = refresh_all_indexes(copy.as_path(), IndexLock::Acquire, &[], &mut |text: &str| { lines.push(text.to_string()); }).expect("the indexes were refreshed");
+    let count: usize = refresh_all_indexes(copy.as_path(), IndexLock::Acquire, &[], false, &mut |text: &str| { lines.push(text.to_string()); })
+        .expect("the indexes were refreshed");
     assert_eq!(count, 2);
     assert_eq!(lines.len(), 2);
     assert!(lines[0].starts_with(format!("index {}:", copy.join(".git/index").display()).as_str()), "{lines:?}");

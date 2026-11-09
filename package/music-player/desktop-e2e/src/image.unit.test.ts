@@ -5,8 +5,7 @@
  */
 
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
@@ -207,7 +206,8 @@ await describe({
     it({
       name: 'decodes a PNG made by ImageMagick into its size and RGB bytes, and removes its scratch file',
       fn: async ({ expect, }) => {
-        const dir = await mkdtemp(join(scratchRoot(), 'e2e-image-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-image-',),);
+        const dir = scratchDirectory.path;
         const png = join(dir, 'red.png',);
         const made = await runCommand({ command: 'magick', args: ['-size', '4x3', 'xc:#FF0000', png,], },);
         expect(made.status,).toBe(0,);
@@ -218,7 +218,6 @@ await describe({
         expect([...image.data.subarray(0, 3,),],).toEqual([255, 0, 0,],);
         const listing = await runCommand({ command: 'ls', args: [dir,], },);
         expect(listing.stdout,).toBe('red.png',);
-        await rm(dir, { recursive: true, force: true, },);
       },
       timeout: 30_000,
     },),

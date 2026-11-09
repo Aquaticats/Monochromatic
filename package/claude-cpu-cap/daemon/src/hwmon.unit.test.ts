@@ -23,7 +23,8 @@ await describe({
         /**
          Disposable host with eight hwmon entries.
          */
-        const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+        await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+        const { paths, } = host;
         /**
          Entries read from the fixture.
          */
@@ -41,7 +42,8 @@ await describe({
         /**
          Disposable host.
          */
-        const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+        await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+        const { paths, } = host;
         /**
          Sensors found in the fixture.
          */
@@ -63,7 +65,8 @@ await describe({
         /**
          Disposable host.
          */
-        const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+        await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+        const { paths, } = host;
         await Promise.all(['hwmon0', 'hwmon1', 'hwmon5', 'hwmon6', 'hwmon7',].map(async function removeEntry(entry,) {
           await rm(join(paths.hwmonRoot, entry,), { recursive: true, },);
         },),);

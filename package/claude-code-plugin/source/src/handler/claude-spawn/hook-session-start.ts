@@ -163,13 +163,37 @@ async function handleSessionStart({
 }
 
 /**
+ Error codes that answer "nothing here can be executed".
+
+ `ENOENT` and `ENOTDIR` say no entry stands at the path, and `EACCES` says the
+ entry exists but this process may not execute or search it. Both are answers
+ about the path itself, so the caller may go on looking elsewhere.
+ */
+const NOT_EXECUTABLE_ERROR_CODES: ReadonlySet<string> = new Set([
+  'EACCES',
+  'ENOENT',
+  'ENOTDIR',
+],);
+
+/**
  Tests whether a path points to an executable file.
+ 
+ A failure that says nothing about the path itself, such as an I/O error,
+ reaches the caller: claiming "not installed" from it would rewrite the user's
+ `~/.local/bin/spawn-claude` symlink over an answer nobody established.
  
  @param path - candidate executable path
  
  @returns true when the process can execute the path
+ 
+ @throws The probe's own failure when executability cannot be decided
+ 
+ @example
+ ```ts
+ if (await isExecutablePath(join(dir, 'spawn-claude'))) skipSetup();
+ ```
  */
-async function isExecutablePath(path: string,): Promise<boolean> {
+export async function isExecutablePath(path: string,): Promise<boolean> {
   try {
     await access(
       path,
@@ -177,8 +201,13 @@ async function isExecutablePath(path: string,): Promise<boolean> {
     );
     return true;
   }
-  catch (_error: unknown) {
-    return false;
+  catch (error) {
+    if ((Error.isError(error,))
+      && ('code' in error)
+      && ((typeof error.code) === 'string')
+      && NOT_EXECUTABLE_ERROR_CODES.has(error.code))
+      return false;
+    throw error;
   }
 }
 

@@ -71,6 +71,29 @@ impl<Answer: FnMut(&[&str]) -> Result<String, String>> GitQuery for Answer {
 /// A borrowed query that the plan functions share.
 pub type Query<'a> = &'a mut dyn GitQuery;
 
+/// What:
+///  A read-only Git query awaited by a caller that is itself a task of the runtime,
+/// with the answer the synchronous `GitQuery` gives.
+/// Why:
+///   The landing round's push runs as a task,
+/// and the synchronous queries enter the runtime and are refused from there;
+/// a trait with an `async` method cannot become a `dyn` value,
+/// so the question is
+///  handed back as a boxed future,
+/// as the ordered runner's awaited work is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface GitQueryAwaiting { ask(args: string[]): Promise<string>; } // rejects with string
+/// ```
+pub trait GitQueryAwaiting {
+    /// Ask Git one question and await its answer.
+    fn ask<'a>(&'a mut self, arguments: &'a [&'a str]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>>;
+}
+
+/// A borrowed awaited query that the plan functions share.
+pub type QueryAwaiting<'a> = &'a mut dyn GitQueryAwaiting;
+
 /// Configuration entries the plan reads:
 /// `(key, value)` with Git's normalised key.
 pub type Settings = Vec<(String, String)>;
@@ -165,13 +188,48 @@ pub fn read_settings(query: Query<'_>) -> Result<Settings, PlanError> {
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git config --get-regexp: {why}"))),
     };
+    return Ok(settings_of(listing.as_str()));
+}
+
+/// What:
+///  The same read,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push plans its upload as a task,
+/// and the synchronous read enters the runtime and is refused from there.
+/// The question and the reading of its answer are the synchronous face's,
+/// so the two cannot plan from different settings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['config', '--get-regexp', SETTINGS_REGEXP])
+/// ```
+pub async fn read_settings_awaiting(query: QueryAwaiting<'_>) -> Result<Settings, PlanError> {
+    let listing: String = match query.ask(&["config", "--get-regexp", SETTINGS_REGEXP]).await {
+        Ok(text) => text,
+        Err(why) => return Err(PlanError(format!("git config --get-regexp: {why}"))),
+    };
+    return Ok(settings_of(listing.as_str()));
+}
+
+/// What:
+///  The settings one finished listing answers.
+/// Why:
+///   Both faces of the read parse the same listing here,
+/// so a key either face reads is read the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listing.split('\n').map((line) => line.split(/ (.*)/))
+/// ```
+fn settings_of(listing: &str) -> Settings {
     let mut settings: Settings = Vec::new();
     for line in listing.lines() {
         // A key written without a value is listed alone.
         let (key, value) = line.split_once(' ').unwrap_or((line, ""));
         settings.push((key.to_owned(), value.trim().to_owned()));
     }
-    return Ok(settings);
+    return settings;
 }
 
 /// The last value of a setting,
@@ -204,7 +262,40 @@ pub(crate) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanErr
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git symbolic-ref HEAD: {why}"))),
     };
-    return Ok(full.strip_prefix("refs/heads/").map(str::to_owned));
+    return Ok(branch_of(full.as_str()));
+}
+
+/// What:
+///  The same answer,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push reads the branch `HEAD` names as a task.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['symbolic-ref', '--quiet', 'HEAD'])
+/// ```
+pub(crate) async fn current_branch_awaiting(query: QueryAwaiting<'_>) -> Result<Option<String>, PlanError> {
+    let full: String = match query.ask(&["symbolic-ref", "--quiet", "HEAD"]).await {
+        Ok(text) => text,
+        Err(why) => return Err(PlanError(format!("git symbolic-ref HEAD: {why}"))),
+    };
+    return Ok(branch_of(full.as_str()));
+}
+
+/// What:
+///  The branch a full reference names,
+/// or nothing for a `HEAD` that names no branch.
+/// Why:
+///   Both faces of `current_branch` read one answer here,
+/// so a tag of the same name cannot change either answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// full.startsWith('refs/heads/') ? full.slice('refs/heads/'.length) : undefined;
+/// ```
+fn branch_of(full: &str) -> Option<String> {
+    return full.strip_prefix("refs/heads/").map(str::to_owned);
 }
 
 /// The value of one `branch.<name>.<variable>` setting of the current branch;

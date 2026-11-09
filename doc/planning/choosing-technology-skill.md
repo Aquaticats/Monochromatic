@@ -1428,6 +1428,10 @@ and validation document against this plan and the troubleshooting-doc benchmark.
 
 - Edit task source in `mise.no-env.toml`,
   not generated `mise.toml`.
+  `mise.no-env.toml` was deleted on 2026-10-31,
+   in `7bbe5719d5`,
+   so task source is edited in the hand-written `mise.toml` directly,
+   and the static environment lives in `.config/mise/conf.d/20-env.toml`.
 - Extend `mirrorSkills` to maintain
   `.claude/skills/.agents-mirror-manifest.json` and `.factory/skills/.agents-mirror-manifest.json`.
 - Each manifest maps every canonical repo-relative Markdown path to its SHA-256 and contains no destination-only path.

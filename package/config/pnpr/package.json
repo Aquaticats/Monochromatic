@@ -11,6 +11,7 @@
     "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "nano-spawn": "catalog:",
+    "string-dedent": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {

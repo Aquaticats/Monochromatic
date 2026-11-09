@@ -35,7 +35,7 @@ fn an_index_rewrite_reported_as_never_started_does_not_run_afterwards() {
     });
     let gave_no_result: Arc<RewritesThatGaveNoResult> = Arc::new(RewritesThatGaveNoResult::default());
     let item: RewriteEachIndex =
-        RewriteEachIndex { rewrite, lock: IndexLock::Acquire, hash_length: Some(20), gave_no_result: Arc::clone(&gave_no_result) };
+        RewriteEachIndex { rewrite, lock: IndexLock::Acquire, hash_length: Some(20), flushes_to_disk: false, gave_no_result: Arc::clone(&gave_no_result) };
     let target: IndexTarget = IndexTarget { index: PathBuf::from("/no/such/index"), tree: PathBuf::from("/no/such/tree"), references: Vec::new() };
     let (sender, _receiver) = tokio::sync::mpsc::unbounded_channel::<crate::parallel_runner::Message<String>>();
     let line: String = crate::lazy_runtime::run_on_runtime(async { return item.run(0, &target, LinesToTheConsumer::new(&sender, 0)).await; })

@@ -21,7 +21,10 @@ and `src/truncate-parity.unit.test.ts` proves the port matches pi across a behav
 
 - `truncateHead(content, options?)` keeps whole lines from the start of content
   and reports which ceiling stopped it.
-- `formatSize(bytes)` renders byte counts the way tool descriptions quote truncation limits.
+- `formatSize(bytes)` renders byte counts the way tool descriptions quote truncation limits,
+  using Pi's decimal labels (`KB`, `MB`) over binary divisors because the output must match Pi byte for byte.
+  Where Pi parity is not the contract, `\@monochromatic-dev/numeric-format-core`'s `formatBytes`
+  labels the same divisors `KiB`, `MiB` and `GiB`.
 - `DEFAULT_MAX_LINES`,
   `DEFAULT_MAX_BYTES` hold the shared ceilings.
 

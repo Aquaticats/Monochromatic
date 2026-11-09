@@ -11,12 +11,9 @@ import { execFileSync, } from 'node:child_process';
 import {
   chmod,
   mkdir,
-  mkdtemp,
   readFile,
-  rm,
   writeFile,
 } from 'node:fs/promises';
-import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 
 import {
@@ -62,7 +59,8 @@ await describe({
         /**
          Local value for fixture.
          */
-        const fixture = await createIdentityFixture();
+        await using disposableFixture = await createIdentityFixture();
+        const fixture = disposableFixture;
         /**
          Local value for home.
          */
@@ -148,7 +146,6 @@ await describe({
         expect(output,).not.toContain(VALUES.LINKUP_API_KEY,);
         expect(output,).toContain('migration:');
 
-        await rm(fixture.root, { recursive: true, force: true, },);
       },
     },),
     it({
@@ -157,7 +154,8 @@ await describe({
         /**
          Local value for fixture.
          */
-        const fixture = await createIdentityFixture();
+        await using disposableFixture = await createIdentityFixture();
+        const fixture = disposableFixture;
         /**
          Local value for home.
          */
@@ -225,7 +223,6 @@ await describe({
 
         expect(stored.LINKUP_API_KEY,).toBe(VALUES.LINKUP_API_KEY,);
         expect((legacyRead as NodeJS.ErrnoException).code,).toBe('ENOENT',);
-        await rm(fixture.root, { recursive: true, force: true, },);
       },
     },),
   ],
