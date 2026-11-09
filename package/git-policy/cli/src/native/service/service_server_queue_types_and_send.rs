@@ -77,11 +77,6 @@ pub(crate) enum Job {
     /// After-commit work was announced;
     /// it only restarts the idle clock.
     Activity,
-    /// A client that held a commit's scratch directory is gone;
-    /// the directory is removed between batches,
-    /// never during a
-    ///  landing that may read it.
-    Release(std::path::PathBuf),
 }
 
 /// Writes `message` and a newline to `stream`;

@@ -330,6 +330,76 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
 }
 
 /// What:
+///  Whether a task of this process's runtime runs on a worker thread of its own.
+/// Why:
+///  A watcher runs beside a thread that is blocked in a read or a wait,
+/// so it needs a worker that runs without a caller driving
+///  it;
+/// a current-thread runtime runs tasks only while some thread calls `block_on`,
+/// so nothing watches there,
+///  and the caller is told that by this answer.
+/// `spawn_on_runtime` asks it,
+/// and so does every caller that must say why nothing will watch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tasksRun = runtime.workerCount > 0;
+/// ```
+pub fn tasks_can_run() -> bool {
+    #[cfg(test)]
+    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
+        return false;
+    }
+    return match RUNTIME.get_or_init(build_for_this_process) {
+        Ok(built) => matches!(built.flavor, BuiltFlavor::MultiThread { .. }) || LATE_RUNTIME.get().is_some(),
+        Err(_no_runtime) => LATE_RUNTIME.get().is_some(),
+    };
+}
+
+/// What:
+///  Whether a control stands in for a system that refuses every thread,
+/// so `tasks_can_run` answers false.
+/// Why:
+///  A control cannot exhaust this process's threads;
+/// the flag is the seam,
+/// and nextest gives every
+///  control its own process,
+/// so it cannot reach another.
+#[cfg(test)]
+static REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What:
+///  Makes `tasks_can_run` answer false until the returned value is dropped,
+/// standing in for a system that refused a thread.
+/// Why:
+///  The seam of the control above;
+/// the flag is cleared however the control ends,
+/// a panic included.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = refuseTasks(); // tasksCanRun() === false until refused.release()
+/// ```
+#[cfg(test)]
+pub fn a_control_refuses_every_task() -> RefusalForTheControl {
+    REFUSED.store(true, std::sync::atomic::Ordering::SeqCst);
+    return RefusalForTheControl;
+}
+
+/// The stand-in of `a_control_refuses_every_task`,
+/// cleared when it is dropped.
+#[cfg(test)]
+pub struct RefusalForTheControl;
+
+/// Clears the control's stand-in.
+#[cfg(test)]
+impl Drop for RefusalForTheControl {
+    fn drop(&mut self) {
+        REFUSED.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// What:
 ///  Starts `future` as a task of the process's runtime,
 /// building the runtime on the first call,
 /// and returns nothing where that
@@ -339,9 +409,7 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
 ///  A watcher runs beside a thread that is blocked in a read or a wait,
 /// so it needs a worker that runs without a caller driving
 ///  it;
-/// a current-thread runtime runs tasks only while some thread calls `block_on`,
-/// so a task spawned there would not run while
-///  the caller is blocked,
+/// `tasks_can_run` is that question,
 /// and `None` tells the caller that nothing watches.
 /// Callable from any context,
 /// the runtime itself
@@ -356,6 +424,9 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
+    if !tasks_can_run() {
+        return None;
+    }
     return match RUNTIME.get_or_init(build_for_this_process) {
         Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
         // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
@@ -396,6 +467,39 @@ pub(crate) fn late_build_arrived() -> bool {
 }
 
 /// What:
+///  Whether a control stands in for a build that missed its deadline and arrived after it.
+/// Why:
+///   That state asks a caller to tell a process with no worker of its own from one whose workers arrived late,
+///   and it cannot be produced on demand here:
+///   the runtime is built once,
+///   and only a build the helper thread finished after `BUILD_DEADLINE` reaches it.
+///  The flag makes `built_flavor` answer the stand-in,
+/// while `tasks_can_run` and `spawn_on_runtime` keep answering for the runtime this process really has,
+///  which is the whole shape of that state.
+#[cfg(test)]
+static THE_BUILD_WAS_LATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Makes `built_flavor` answer the stand-in of a build that missed its deadline until the returned value is dropped.
+#[cfg(test)]
+pub fn a_control_stands_in_for_a_late_runtime() -> LateRuntimeForTheControl {
+    THE_BUILD_WAS_LATE.store(true, std::sync::atomic::Ordering::SeqCst);
+    return LateRuntimeForTheControl;
+}
+
+/// The stand-in of `a_control_stands_in_for_a_late_runtime`,
+/// cleared when it is dropped.
+#[cfg(test)]
+pub struct LateRuntimeForTheControl;
+
+/// Clears the control's stand-in.
+#[cfg(test)]
+impl Drop for LateRuntimeForTheControl {
+    fn drop(&mut self) {
+        THE_BUILD_WAS_LATE.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// What:
 ///  Runs `future` to its end on the process's runtime,
 /// building the runtime on the first call.
 /// Why:
@@ -422,6 +526,10 @@ pub fn run_on_runtime<F: std::future::Future>(future: F) -> Result<F::Output, Ru
 /// How the process's runtime was built,
 /// or nothing before the first need.
 pub fn built_flavor() -> Option<BuiltFlavor> {
+    #[cfg(test)]
+    if THE_BUILD_WAS_LATE.load(std::sync::atomic::Ordering::SeqCst) {
+        return Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    }
     let built: &BuiltRuntime = RUNTIME.get()?.as_ref().ok()?;
     return Some(built.flavor);
 }

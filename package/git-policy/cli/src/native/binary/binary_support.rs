@@ -28,6 +28,7 @@ pub use crate::support_fixture_service_readiness::*;
 pub use crate::support_observation::*;
 pub use crate::support_program_names_and_time_bound::*;
 pub use crate::support_resource_limits::*;
+pub use crate::support_scratch_left_behind::*;
 
 
 

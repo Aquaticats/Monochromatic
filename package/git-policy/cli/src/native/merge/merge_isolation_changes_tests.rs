@@ -45,7 +45,7 @@ fn a_worktree_path_is_hashed_the_way_git_records_it() {
     let expected_file: String = git_text(repo.as_path(), &["hash-object", "file.txt"]);
     assert_eq!(
         worktree_state(&context, repo.as_path(), b"file.txt").expect("file state"),
-        WorktreeState::Content(expected_file)
+        WorktreeState::Content { object: expected_file, mode: String::from("100644") }
     );
     let target_blob: String = {
         let mut command = std::process::Command::new("/usr/bin/git");
@@ -57,7 +57,7 @@ fn a_worktree_path_is_hashed_the_way_git_records_it() {
     };
     assert_eq!(
         worktree_state(&context, repo.as_path(), b"link").expect("link state"),
-        WorktreeState::Content(target_blob),
+        WorktreeState::Content { object: target_blob, mode: String::from("120000") },
         "a link is hashed from its target text, never from the file it points at"
     );
     assert_eq!(worktree_state(&context, repo.as_path(), b"dir").expect("directory"), WorktreeState::Other);
@@ -81,7 +81,59 @@ fn a_conversion_rule_applies_to_the_hash() {
     let staged: String = git_text(repo.as_path(), &["ls-files", "--format=%(objectname)", "--", "crlf.txt"]);
     assert_eq!(
         worktree_state(&git_context(), repo.as_path(), b"crlf.txt").expect("state"),
-        WorktreeState::Content(staged)
+        WorktreeState::Content { object: staged, mode: String::from("100644") }
     );
+    remove(parent.as_path());
+}
+
+/// What:
+///  An executable file's state carries the mode Git records for it,
+///  so a judgement can tell it from the same bytes without the bit.
+/// Why:
+///  The state carried the object alone,
+/// so a file whose bytes were the branch's and whose executable bit was a person's was
+///  read as untouched and replaced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('run.sh', 0o755); expect(await worktreeState('run.sh')).toEqual({ kind: 'content', oid: hash('run.sh'), mode: '100755' });
+/// ```
+#[cfg(unix)]
+#[test]
+fn an_executable_file_is_read_with_the_mode_git_records() {
+    use std::os::unix::fs::PermissionsExt;
+    let parent: PathBuf = fixture("merge-changes-executable");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("run.sh"), b"#!/bin/sh\n").expect("file");
+    std::fs::set_permissions(repo.join("run.sh"), std::fs::Permissions::from_mode(0o755)).expect("the executable bit");
+    let state: WorktreeState = worktree_state(&git_context(), repo.as_path(), b"run.sh").expect("state");
+    let mode: String = match state {
+        WorktreeState::Content { mode, .. } => mode,
+        other => panic!("an executable file is content, not {other:?}"),
+    };
+    assert_eq!(mode, "100755");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A repository that ignores file modes says so,
+///  and one whose key is unset is read as Git's default.
+/// Why:
+///  A mode difference must not stop a merge where the filesystem cannot keep the bit,
+/// and the strict answer is
+///  the one for a repository that says nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(theRepositoryRecordsFileModes(repo)).toBe(true); gitConfig('core.filemode', 'false'); expect(theRepositoryRecordsFileModes(repo)).toBe(false);
+/// ```
+#[test]
+fn a_repository_that_ignores_file_modes_is_read_that_way() {
+    let parent: PathBuf = fixture("merge-changes-filemode");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    let context = git_context();
+    assert!(the_repository_records_file_modes(&context, repo.as_path()), "an unset key is Git's default, which records the bit");
+    git(repo.as_path(), &["config", "core.filemode", "false"]);
+    assert!(!the_repository_records_file_modes(&context, repo.as_path()), "the repository says it ignores the bit");
     remove(parent.as_path());
 }

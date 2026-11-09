@@ -100,6 +100,7 @@ fn request() -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/nowhere/.git/index"),
+        scratch: PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-heartbeat-control-0"),
         captured: 0,
     };
 }
@@ -382,7 +383,7 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
         std::thread::sleep(FAKE_BEAT);
     }
     // The sweep runs while the command still waits.
-    let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER);
+    let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER, git_policy_cli::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
     let commit: String = "f".repeat(40);
     if let Err(error) = (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })) {
         // The client is the one that closed the connection, so what it ended with says why the answer had nowhere to go.

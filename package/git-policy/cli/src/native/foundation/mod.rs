@@ -18,10 +18,18 @@
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
 
+/// How one scratch entry is removed within its ceiling,
+/// and which commit scratch trees a later command takes for abandoned.
+pub mod scratch_entry_removal;
+
 /// Where short-lived private files live:
 ///  the per-user scratch directory and the repository scratch directory,
 ///  never the system temporary directory.
 pub mod scratch_location;
+
+/// The common Git directory a worktree's own Git directory belongs to,
+/// read from its `commondir` file.
+pub mod common_directory_of_a_git_directory;
 
 /// Compact JSON records read and written with the incumbent's `JSON` semantics.
 pub mod json_record;
@@ -34,6 +42,10 @@ pub mod js_text;
 
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
+
+/// The two costs a command pays outside the phases of its timing record,
+/// and the writer that measures what it prints.
+pub mod time_spent_outside_the_phases;
 
 /// UTC timestamps in the exact form of JavaScript's `toISOString`.
 pub mod iso_time;
@@ -180,3 +192,7 @@ pub mod collected_elements_looked_at;
 /// awaited no longer than a ceiling,
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;
+
+/// The process's own standard error descriptor,
+/// written without the lock the standard library's shared handle takes.
+pub mod standard_error_descriptor;

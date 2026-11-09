@@ -24,7 +24,7 @@ fn shared_in(name: &str) -> (ConnectionShared, UnboundedReceiver<Job>) {
     let (queue, jobs) = unbounded_channel::<Job>();
     let (work, _wakes) = unbounded_channel::<Wake>();
     let board: Arc<LandingBoard> = LandingBoard::new(journal, Duration::from_secs(60));
-    let shared: ConnectionShared = ConnectionShared { queue, work, busy: Arc::new(AtomicUsize::new(0)), board, release: String::from("test"), instance: Some(String::from(INSTANCE)) };
+    let shared: ConnectionShared = ConnectionShared { queue, work, board, release: String::from("test"), instance: Some(String::from(INSTANCE)) };
     return (shared, jobs);
 }
 
@@ -46,8 +46,8 @@ fn where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavail
     let (shared, _jobs) = shared_in("connection-no-thread-instance");
     let line: String = encode_client(&ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") });
     let ((), _ticks) = with_a_ticker_beside(async {
-        let (mut read_half, mut write_half, mut client) = connection();
-        answer_request(line.as_str(), &mut read_half, &mut write_half, &shared, Instant::now()).await;
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
         let mut answer: String = String::new();
         client.read_line(&mut answer).await.expect("an answer arrives");
@@ -63,8 +63,8 @@ fn with_threads_the_same_message_about_another_instance_is_rejected() {
     let (shared, _jobs) = shared_in("connection-threads-instance");
     let line: String = encode_client(&ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") });
     let ((), _ticks) = with_a_ticker_beside(async {
-        let (mut read_half, mut write_half, mut client) = connection();
-        answer_request(line.as_str(), &mut read_half, &mut write_half, &shared, Instant::now()).await;
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
         let mut answer: String = String::new();
         client.read_line(&mut answer).await.expect("an answer arrives");
@@ -83,10 +83,10 @@ fn where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread() {
     let (shared, mut jobs) = shared_in("connection-no-thread-withdraw");
     let line: String = encode_client(&ClientMessage::Withdraw { id: String::from("a-request") });
     let ((), _ticks) = with_a_ticker_beside(async {
-        let (mut read_half, mut write_half, _client) = connection();
+        let (_read_half, mut write_half, _client) = connection();
         // The connection waits for the landing's answer,
         // so it runs beside this body, which plays the landing thread.
-        let waiting = answer_request(line.as_str(), &mut read_half, &mut write_half, &shared, Instant::now());
+        let waiting = answer_request(line.as_str(), &mut write_half, &shared, Instant::now());
         let landing = async {
             loop {
                 if let Ok(job) = jobs.try_recv() {

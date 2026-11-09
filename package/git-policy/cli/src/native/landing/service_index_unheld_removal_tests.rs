@@ -10,7 +10,7 @@
 //! and the acquisition that goes on to land over it.
 
 use super::*;
-use crate::index_lock_holders::{ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
+use crate::index_lock_holders::{Holder, ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
 use crate::service_fault::hooks;
 use crate::service_index_lock::{Announce, LockFailure, acquire_on, acquire_within, lock_path_of};
 use crate::service_index_marker::{marker_text, own_identity};
@@ -73,7 +73,7 @@ fn an_empty_unheld_lock_with_no_pid_file_is_removed_and_the_proof_names_the_file
     let before: std::fs::Metadata = std::fs::metadata(&lock).expect("lock");
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
     let Unheld::Removed(proof) = outcome else { panic!("an unheld lock was not removed: {outcome:?}") };
-    assert_eq!(proof, Proof { lock: lock.clone(), device: before.dev(), inode: before.ino(), size: before.len(), unreadable: 0 });
+    assert_eq!(proof, Proof { lock: lock.clone(), disuse: Disuse::NoPidFile, gone_pid: None, device: before.dev(), inode: before.ino(), size: before.len(), unreadable: 0 });
     assert!(!lock.exists());
     remove(root.as_path());
 }
@@ -306,7 +306,7 @@ fn a_link_named_as_the_lock_is_left_and_its_target_is_untouched() {
 /// and the person's words add what the scan cannot see and what to do about it.
 #[test]
 fn the_journal_and_the_person_are_given_the_proof_and_its_limit() {
-    let proof: Proof = Proof { lock: PathBuf::from("/repo/.git/index.lock"), device: 2049, inode: 9183, size: 0, unreadable: 3 };
+    let proof: Proof = Proof { lock: PathBuf::from("/repo/.git/index.lock"), disuse: Disuse::NoPidFile, gone_pid: None, device: 2049, inode: 9183, size: 0, unreadable: 3 };
     let journal: String = journal_words(&proof);
     for part in ["/repo/.git/index.lock", "device 2049", "inode 9183", "0 bytes", "no Git lock PID file", "unreadable processes: 3"] {
         assert!(journal.contains(part), "{part}: {journal}");
@@ -378,5 +378,110 @@ fn a_landing_never_removes_a_lock_whose_pid_file_names_a_live_process() {
     let refused: Result<_, LockFailure> = acquire_within(&SYSTEM, &index, 5, Duration::from_millis(1500), &|_| {});
     assert_eq!(refused.expect_err("refused").code, FailureCode::IndexInUse);
     assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), "");
+    remove(root.as_path());
+}
+
+/// What:
+///  An empty lock whose Git lock PID file names a process that is gone is removed,
+///  and the same lock with a PID file naming a process that runs is left where it is.
+/// Why:
+///  A merge that waited on the first kind used to refuse after twenty rounds with advice that could not work,
+/// so the
+///  merge clears it on this proof
+/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3):
+/// the same body the
+///  service's removal uses,
+/// with the PID file of a gone process as its evidence of disuse instead of no PID file at
+///  all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePidFile(index, deadPid()); expect(removeIfTheOwnerIsGone(SYSTEM, index, completeAndEmpty)).toEqual({ kind: 'removed' }); writePidFile(index, process.pid); expect(removeIfTheOwnerIsGone(...)).toEqual({ kind: 'kept' });
+/// ```
+#[test]
+fn a_lock_a_gone_process_left_is_removed_and_one_a_live_process_left_is_kept() {
+    let (root, index) = index_in("unheld-gone-owner");
+    let lock: PathBuf = lock_path_of(&index);
+    let pid_file: PathBuf = crate::recovery_files::lock_pid_path(&index);
+    std::fs::write(&lock, "").expect("the dead Git's lock");
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid())).expect("the PID file of a process that is gone");
+    let outcome: Unheld = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty);
+    assert!(matches!(outcome, Unheld::Removed(_)), "a lock a gone process left is removed: {outcome:?}");
+    assert!(!lock.exists());
+    // The same again, with a PID file naming a process that runs: nothing proves it is done with the index.
+    std::fs::write(&lock, "").expect("a live Git's lock");
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", std::process::id())).expect("the PID file of this process, which runs");
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert!(lock.exists(), "a live owner's lock is left where it is");
+    remove(root.as_path());
+}
+
+/// A lock with content,
+/// a lock carrying the service's marker,
+/// and a lock a scan saw a holder of are all left where they are,
+/// whatever the PID file says:
+/// only an empty lock nothing holds and nothing stands behind is removed.
+#[test]
+fn a_dead_owners_lock_is_kept_when_anything_may_still_use_it() {
+    let (root, index) = index_in("unheld-gone-owner-kept");
+    let lock: PathBuf = lock_path_of(&index);
+    let pid_file: PathBuf = crate::recovery_files::lock_pid_path(&index);
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid())).expect("the PID file of a process that is gone");
+    // A Git's editor-phase lock holds the whole index; removing it would make that commit fail when the editor closes.
+    std::fs::write(&lock, "a written index").expect("a lock with content");
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert!(lock.exists(), "a lock with content is never removed");
+    // The service's own marker is the service's to judge, not a merge's.
+    std::fs::write(&lock, marker_text(1, &own_identity).expect("the marker's text")).expect("the service's marker");
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert!(lock.exists(), "the service's lock is not a merge's to remove");
+    // A process that has the lock open is a holder, whatever the PID file says.
+    std::fs::write(&lock, "").expect("an empty lock");
+    let child: std::process::Child = holder_of(&lock);
+    let scanned = |_lock: &Path, _device: u64, _inode: u64| -> HolderEvidence {
+        return HolderEvidence {
+            method: "proc-fd",
+            holders: vec![Holder { pid: i64::from(child.id()), command: None }],
+            partial: Vec::new(),
+        };
+    };
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &scanned), Unheld::Kept);
+    assert!(lock.exists(), "a held lock is never removed");
+    release(child);
+    remove(root.as_path());
+}
+
+/// What:
+///  The journal line and the person's line of a removal that acted on a gone owner's PID file say so,
+///  and never claim there was no PID file.
+/// Why:
+///  The two removals act on different evidence,
+/// and the words of the first were reused by the second,
+/// so a removal
+///  that acted on a PID file recorded the opposite
+/// (a cross-vendor review's finding on the round-one removal).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const proof = removed(removeIfTheOwnerIsGone(index)); expect(journalWords(proof)).toMatch(/PID .* no longer runs/); expect(journalWords(proof)).not.toMatch(/no Git lock PID file/);
+/// ```
+#[test]
+fn the_words_of_a_gone_owners_removal_name_the_evidence_it_acted_on() {
+    let (root, index) = index_in("unheld-gone-owner-words");
+    let lock: PathBuf = lock_path_of(&index);
+    let pid: i64 = dead_pid();
+    std::fs::write(&lock, "").expect("the dead Git's lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {pid}\n")).expect("the PID file of a process that is gone");
+    let Unheld::Removed(proof) = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty) else {
+        panic!("a lock a gone process left is removed");
+    };
+    let journal: String = journal_words(&proof);
+    let told: String = told_words(&proof);
+    assert!(journal.contains(&format!("PID file")) || journal.contains("named by its PID file"), "the evidence is named: {journal}");
+    assert!(journal.contains(format!("{pid}").as_str()), "the process is named: {journal}");
+    assert!(!journal.contains("there is no Git lock PID file"), "it does not claim there was none: {journal}");
+    assert!(!told.contains("no Git lock PID file stood beside it"), "the person is told what was judged: {told}");
+    assert!(told.contains(format!("{pid}").as_str()), "the process is named: {told}");
     remove(root.as_path());
 }

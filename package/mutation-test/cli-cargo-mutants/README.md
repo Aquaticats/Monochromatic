@@ -842,7 +842,8 @@ limits defaults and manifest:
   product's scopes hold every mutant.
 
 The adapters are `package/git-policy/cli/bin/mutate-native-container.ts`,
-`package/linter/monochromatic-lint/bin/mutate-container.ts` and `bin/mutate-processors.ts`,
+`package/linter/monochromatic-lint/bin/mutate-container.ts` and
+`package/linter/monochromatic-lint/bin/mutate-processors.ts`,
 and
 `package/forbidden-strings/core/bin/mutate-container.ts`.
 The scanner keeps its own snapshot flow and uses the exclusion constant.

@@ -23,6 +23,11 @@ mod support;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
+/// The names a wrapped command left behind in a repository's two scratch places,
+/// waited for within a bound.
+#[path = "binary_support_scratch_left_behind.rs"]
+mod support_scratch_left_behind;
+
 /// The limits a control puts on a fixture service process,
 /// and how it applies them.
 #[path = "binary_support_resource_limits.rs"]

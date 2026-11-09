@@ -380,8 +380,12 @@ A direct probe then left
 
 The same generic branch affects other bare imports.
 For example,
-`valibot` is a packed runtime dependency at
-`package/git-policy/cli/package.json:49-55`:
+`valibot` was a packed runtime dependency at
+`package/git-policy/cli/package.json:49-55` at pre-fix commit `0db4382c1`
+(the manifest moved to the native wrapper's verification harness:
+the working-tree `package/git-policy/cli/package.json` ends at line 27,
+carries no `dependencies` block,
+and the TypeScript trust tree under `package/git-policy/cli/src/trust/` was removed with it):
 
 ```jsonc
 "dependencies": {
@@ -400,7 +404,8 @@ The complete package-resolution design must cover artifact-provided runtime
 packages as well as cli-git's own specifiers.
 
 The pre-fix packed package already contained the needed source export at
-`package/git-policy/cli/package.json:10-16` and included its source tree at `:20-22`:
+`package/git-policy/cli/package.json:10-16` and included its source tree at `:20-22`
+at pre-fix commit `0db4382c1`:
 
 ```jsonc
 "exports": {

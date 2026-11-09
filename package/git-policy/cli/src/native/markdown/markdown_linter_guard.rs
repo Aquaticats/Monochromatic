@@ -232,6 +232,36 @@ fn write_on_a_thread(
 }
 
 /// What:
+///  Take back the sink of a notice write that is still in the air,
+///  so a later notice can use it.
+/// Why:
+///  A job can answer while its notice is being written on another thread,
+///  and the sink comes back on a channel this wait owns;
+///  returning without collecting it would drop the channel,
+///  and the sink with it,
+///  so every later candidate of the same linter would print no notice at all.
+///  The wait lasts one poll and no longer:
+///  a stream that never takes the line must not hold the answer the
+///       person asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const collectReturnedSink = (writing, notices) => { const answer = writing?.take()?.recvTimeout(NOTICE_POLL); if (answer) notices.value = answer; };
+/// ```
+fn collect_returned_sink(
+    writing: &mut Option<Receiver<Box<dyn Write + Send>>>,
+    notices: &mut NoticeSink,
+) {
+    let Some(finished) = writing.take() else {
+        let _ = notices;
+        return;
+    };
+    if let Ok(returned) = finished.recv_timeout(NOTICE_POLL) {
+        *notices = Some(returned);
+    }
+}
+
+/// What:
 ///  Wait for the job's thread to report,
 ///  printing notices at the cadence,
 ///  until the thread has shown no sign of work for the window or the ceiling is reached.
@@ -289,12 +319,14 @@ fn wait_for<T>(
             let quiet: bool = watching.quiet();
             longest = watching.longest_quiet();
             if quiet {
+                collect_returned_sink(&mut writing, notices);
                 return (Err(GuardFailure::Quiet(window)), longest);
             }
         }
         // The ceiling abandons a job that keeps showing work, as the window abandons one that shows none (owner, 2026-11-04,
         // "Silence plus a ceiling (Recommended)").
         if began.elapsed() >= limits.ceiling {
+            collect_returned_sink(&mut writing, notices);
             return (Err(GuardFailure::Ceiling(limits.ceiling)), longest);
         }
         // What: A notice that is due goes out now that no deadline says to stop, on a thread of its own.
@@ -312,11 +344,29 @@ fn wait_for<T>(
                 writing = write_on_a_thread(sink, line);
             }
         }
-        match receiver.recv_timeout(NOTICE_POLL) {
-            Ok(Ok(value)) => return (Ok(value), longest),
-            Ok(Err(reason)) => return (Err(GuardFailure::Panicked(reason)), longest),
+        // What: The job answers while its notice may still be in the air, so the sink is taken back before the
+        //       answer leaves.
+        // Why:  Dropping the channel here would drop the sink the notice thread returns, and the linter's later
+        //       candidates would print no notice.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const answered = receiver.recvTimeout(NOTICE_POLL); collectReturnedSink(writing, notices); if (answered) return answered;
+        // ```
+        let answered: Result<Result<T, String>, RecvTimeoutError> = receiver.recv_timeout(NOTICE_POLL);
+        match answered {
+            Ok(value) => {
+                collect_returned_sink(&mut writing, notices);
+                return match value {
+                    Ok(done) => (Ok(done), longest),
+                    Err(reason) => (Err(GuardFailure::Panicked(reason)), longest),
+                };
+            }
             Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return (Err(GuardFailure::Vanished), longest),
+            Err(RecvTimeoutError::Disconnected) => {
+                collect_returned_sink(&mut writing, notices);
+                return (Err(GuardFailure::Vanished), longest);
+            }
         }
     }
 }
