@@ -88,6 +88,12 @@ export {
 } from './pnpm-output-filter.ts';
 export { buildTscArgs, } from './tsc-args.ts';
 export {
+  type CapturedSubprocessFailure,
+  isCapturedSubprocessFailure,
+  ToolKilledBySignalError,
+  ToolNotStartedError,
+} from './tool-failure.ts';
+export {
   filterTscOutput,
   isContinuationLine,
   isDiagnosticLine,

@@ -307,6 +307,7 @@ const checks: [string, boolean][] = [
   ['no process the compositor started outlived it', results.every(item => item.leftovers?.length === 0)],
 ];
 for (const [check, passed] of checks) console.log((passed ? 'PASS ' : 'FAIL ') + check);
-writeFileSync(join(artifact, 'results.json'), JSON.stringify({ load: readFileSync('/proc/loadavg', 'utf8').trim(), results, checks }, null, 2));
-console.log('Log stall check ' + (checks.every(([, passed]) => passed) ? 'passed' : 'FAILED') + ': ' + join(artifact, 'results.json'));
-if (!checks.every(([, passed]) => passed)) process.exitCode = 1;
+const resultsPath = join(artifact, 'results.json');
+writeFileSync(resultsPath, JSON.stringify({ load: readFileSync('/proc/loadavg', 'utf8').trim(), results, checks }, null, 2));
+if (!checks.every(([, passed]) => passed)) throw new Error('Log stall check FAILED: ' + resultsPath);
+console.log('Log stall check passed: ' + resultsPath);
