@@ -170,6 +170,7 @@ fn a_query_that_floods_and_ends_is_not_a_success() {
 #[cfg(unix)]
 #[test]
 fn a_query_whose_input_cannot_be_given_is_stopped_within_its_grace() {
+    use std::os::unix::process::CommandExt as _;
     let grace: Duration = Duration::from_millis(400);
     let root: std::path::PathBuf = crate::test_support::fixture("query-input-thread-refused");
     let shim: std::path::PathBuf = root.join("git-that-ignores-the-polite-stop");
@@ -178,10 +179,23 @@ fn a_query_whose_input_cannot_be_given_is_stopped_within_its_grace() {
         use std::os::unix::fs::PermissionsExt as _;
         std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
     }
+    // The stop signals the command as soon as it is started, and a shell that has not reached its own `trap` yet dies of
+    //  the signal (measured on a loaded container: a stop within a millisecond of the start kills it, one after five
+    //  milliseconds does not). The disposition is therefore set before the program is executed, so what this control
+    //  measures is the grace and not how far the shell had got.
+    let mut program: Command = Command::new(shim.as_path());
+    // SAFETY: the closure runs in the child between `fork` and `exec`, where only async-signal-safe work is allowed and
+    //  where `signal` is; it touches no memory of this process.
+    unsafe {
+        program.pre_exec(|| {
+            let _previous = libc::signal(libc::SIGTERM, libc::SIG_IGN);
+            return Ok(());
+        });
+    }
     let _refused = crate::scoped_start::RefusedStarts::here();
     let began: std::time::Instant = std::time::Instant::now();
     let failure: SingleFlightError = run_bounded_git(
-        Command::new(shim.as_path()),
+        program,
         "hash-object --stdin",
         Duration::from_secs(60),
         None,

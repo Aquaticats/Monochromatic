@@ -16,7 +16,6 @@
 import { promisify } from 'node:util';
 
 import { sessionBus } from '@homebridge/dbus-native';
-import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   DBUS_PATH,
@@ -114,13 +113,5 @@ async function main(): Promise<void> {
   }));
 }
 
-try {
-  await main();
-} catch (error) {
-  /**
-   Stack or message for a fatal startup failure.
-   */
-  const message = caughtValueStack(error,);
-  console.error(`[key-helper] fatal: ${message}`);
-  process.exitCode = 1;
-}
+// A startup failure ends the process through the throw, so Node prints the message and the stack, and the status is one.
+await main();

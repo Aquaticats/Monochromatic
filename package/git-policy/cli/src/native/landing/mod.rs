@@ -81,6 +81,20 @@ pub mod earlier_service_unsure_program;
 pub mod service_land_context;
 
 /// Takes the index lock for a batch that is ready to land.
+/// What became of one request of a batch,
+/// and the announcement a landing makes when nobody is told.
+/// What a landing starts with:
+/// how many times its batch may be built again,
+/// and what it reads once.
+pub mod service_land_settings;
+
+/// The landing itself:
+/// one batch written,
+/// journaled and moved onto a branch.
+pub mod service_land_batch_body;
+
+pub mod service_land_outcomes;
+
 pub mod service_land_take_index_lock;
 
 /// The Git steps of a landing,
@@ -175,6 +189,9 @@ pub mod service_index_watch;
 pub mod preparation_notice;
 
 pub mod service_prepare;
+
+/// The staging start that puts every unmerged file's working copy into the commit's own index.
+pub mod service_prepare_unmerged_staging;
 
 /// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
 pub mod service_scratch_renewal;

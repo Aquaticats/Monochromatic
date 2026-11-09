@@ -16,12 +16,10 @@ import {
 
 import {
   runMigrations,
-  tryEnableFts,
-} from './db-migrations.ts';
-import {
   SQL_SEARCH_FTS,
   SQL_SEARCH_LIKE,
-} from './db/tasks-sql.ts';
+  tryEnableFts,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Column values for a single seeded task row; `created_at` mirrors `updatedAt`.

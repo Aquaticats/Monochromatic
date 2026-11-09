@@ -151,7 +151,8 @@ await describe({
             /**
              Host whose cgroup offers both weight files at the kernel default of 100.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             /**
              Recorder for the logged lines.
              */
@@ -174,7 +175,8 @@ await describe({
             /**
              Host whose kernel offers no BFQ weight file.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await rm(paths.ioBfqWeightFile,);
             /**
              Recorder for the logged lines.
@@ -195,7 +197,8 @@ await describe({
             /**
              Host whose kernel offers no iocost weight file.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await rm(paths.ioWeightFile,);
             /**
              Recorder for the logged lines.
@@ -216,7 +219,8 @@ await describe({
             /**
              Host with both weight files.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             /**
              Recorder for the first call.
              */
@@ -259,7 +263,8 @@ await describe({
             /**
              Host whose cgroup already holds the weight next to a per-device override in both files.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await writeFile(paths.ioWeightFile, 'default 10\n259:0 50\n',);
             await writeFile(paths.ioBfqWeightFile, 'default 10\n259:0 50\n',);
             /**
@@ -277,7 +282,8 @@ await describe({
             /**
              Host whose weight files have no default line.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await writeFile(paths.ioWeightFile, '259:0 50\n',);
             await writeFile(paths.ioBfqWeightFile, '259:0 50\n',);
             expect(await reconcileIoWeight({ ...paths, weight: 10, l: recordingLogger(), },),).toBe(true,);
@@ -290,7 +296,8 @@ await describe({
             /**
              Host with a cgroup path that does not exist.
              */
-            const { root, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { root, } = host;
             /**
              Recorder for the logged lines.
              */
@@ -311,7 +318,8 @@ await describe({
             /**
              Host whose cgroup directory exists without either weight file (io controller off).
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await rm(paths.ioWeightFile,);
             await rm(paths.ioBfqWeightFile,);
             /**
@@ -333,7 +341,8 @@ await describe({
             /**
              Host whose io.bfq.weight is read-only.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await chmod(paths.ioBfqWeightFile, 0o444,);
             // Positive control: the file really refuses writes, so the rejection of the reconcile call comes from the write.
             expect(await rejectionOf(async function probeWrite() {
@@ -365,7 +374,8 @@ await describe({
             /**
              Host whose io.bfq.weight is a directory, so reading it fails with EISDIR.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await rm(paths.ioBfqWeightFile,);
             await mkdir(paths.ioBfqWeightFile,);
             /**
@@ -391,7 +401,8 @@ await describe({
             /**
              Host with both weight files.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             /**
              Recorder for the logged lines.
              */
@@ -408,7 +419,8 @@ await describe({
             /**
              Host whose cgroup directory exists without either weight file.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await rm(paths.ioWeightFile,);
             await rm(paths.ioBfqWeightFile,);
             /**
@@ -429,7 +441,8 @@ await describe({
             /**
              Host whose io.weight is a directory, so reading it fails with EISDIR.
              */
-            const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { paths, } = host;
             await rm(paths.ioWeightFile,);
             await mkdir(paths.ioWeightFile,);
             /**
@@ -450,7 +463,8 @@ await describe({
             /**
              Host whose cgroup does not exist, so the absent-cgroup debug line is the only logging.
              */
-            const { root, } = await makeHost({ threads: '28', cpuPressure: 0, },);
+            await using host = await makeHost({ threads: '28', cpuPressure: 0, },);
+            const { root, } = host;
             /**
              Logger whose debug method fails, standing in for any unexpected error inside the call.
              */

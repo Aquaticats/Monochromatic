@@ -215,3 +215,30 @@ pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> St
         named.join(", ")
     );
 }
+
+/// What:
+///  The one notice line for ignored entries that kept changing under the copy and were left where they are.
+/// Why:
+///   The new worktree does not hold them,
+/// and their only copy is the source's own file,
+/// which is
+///  untouched;
+/// the person sees how many and which first ones,
+/// and knows why they are missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: left out ${count} ignored ${noun} that kept changing while they were copied, from ${source}: ${first.join(', ')}${more}. They stay in the source worktree, unchanged.\n`
+/// ```
+pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[String]) -> String {
+    let named: Vec<String> = unsettled.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
+    let rest: usize = unsettled.len().saturating_sub(NOTICE_PATHS);
+    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
+    let noun: &str = if unsettled.len() == 1 { "entry" } else { "entries" };
+    return format!(
+        "monochromatic-git-policy-cli: left {} ignored {noun} out of the new worktree because they kept changing while they were copied, from {}: {}{more}; they stay in that worktree, unchanged.\n",
+        unsettled.len(),
+        quote(source_root.to_string_lossy().as_ref()),
+        named.join(", ")
+    );
+}

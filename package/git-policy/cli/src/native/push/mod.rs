@@ -57,6 +57,11 @@ pub mod wait_progress;
 /// notices at the cadence and the child stopped at the bound.
 pub mod child_watch;
 
+/// The task a watch runs,
+/// the bound its end is given,
+/// and the refusal a control arms.
+pub mod child_watch_running_task;
+
 /// The classes of Git step a commit starts for itself,
 /// with the bound and the notice grace of each.
 pub mod child_class;
@@ -178,6 +183,11 @@ pub mod manual_push_probe;
 /// Published-set and range computation for manual-push scans:
 /// which pushed commits a remote does not have.
 pub mod manual_push_range;
+
+/// What a remote has already published:
+/// the commits a prior destination value names,
+/// and the tracking refs Git keeps.
+pub mod manual_push_range_published_tips;
 
 /// An explicit push that lost a race:
 /// run as a child,

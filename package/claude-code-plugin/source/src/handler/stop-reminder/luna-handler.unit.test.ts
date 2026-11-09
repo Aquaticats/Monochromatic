@@ -5,7 +5,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   writeFile,
 } from 'node:fs/promises';
@@ -34,9 +34,13 @@ import { MESSAGE_TAIL_CHARS, } from './verdict-log.ts';
 const KEY = 'fixture-key-7f3a91';
 
 /**
- Scratch directory holding transcripts and verdict logs, one file per case.
+ Scratch directory holding transcripts and verdict logs, one file per case,
+ removed when this module's scope unwinds.
  */
-const SCRATCH = await mkdtemp(join(scratchRoot(), 'stop-reminder-luna-',),);
+await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'stop-reminder-luna-',),);
+
+/** Fixture root this suite shares; `scratchDirectory` owns its removal. */
+const SCRATCH = scratchDirectory.path;
 
 /**
  Transcript line for a turn the user typed, which closes the counting window.

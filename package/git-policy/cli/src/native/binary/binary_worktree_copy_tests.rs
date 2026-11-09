@@ -317,7 +317,14 @@ fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {
     );
     assert_eq!(refused.code, Some(255), "{}", stderr_of(&refused));
     assert!(!stderr_of(&refused).contains("monochromatic-git-policy-cli: copied"));
-    assert!(!fixture.root.join("again").exists());
+    // Nothing was copied into the destination Git refused. What may stand there is the wrapper's own reservation of it:
+    //  an empty subvolume Git's failure leaves to the ladder to remove on btrfs, and an empty directory elsewhere, which
+    //  Git fills when the same add is asked for again.
+    let again: PathBuf = fixture.root.join("again");
+    match std::fs::read_dir(&again) {
+        Ok(listing) => assert_eq!(listing.count(), 0, "the destination holds nothing but the wrapper's empty reservation"),
+        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "the destination is absent or empty: {error}"),
+    }
     remove(&fixture);
 }
 
@@ -453,10 +460,12 @@ fn a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself() {
     assert_eq!(std::fs::read(fixture.root.join("filter-ran")).expect("the filter ran"), b"ran");
     assert!(fixture.root.join("nested/.git").exists(), "the nested creation ran");
     assert!(fixture.root.join("one").join(RULES_FILE).exists(), "the outer copy finished");
-    // The outer add copies into its own worktree only; the nested add took its own source's state (the half-made `one`,
-    //  which has no ignored state yet), so it has no rules file, and each add wrote a summary of one worktree.
+    // The outer add copies into its own worktree only; the nested add's source is the half-made `one`, which the outer add
+    //  is still filling, so the nested add copies nothing, says why, and writes no summary, while the outer add wrote one.
     assert!(!fixture.root.join("nested").join(RULES_FILE).exists());
-    assert_eq!(stderr_of(&created).matches(" into 1 new worktree.\n").count(), 2, "{}", stderr_of(&created));
+    let said: String = stderr_of(&created);
+    assert!(said.contains("was made, but it received no ignored-state copy") && said.contains("is itself being filled by another `git worktree add`"), "the nested add says why it copied nothing: {said}");
+    assert_eq!(said.matches(" into 1 new worktree.\n").count(), 1, "{said}");
     remove(&fixture);
 }
 
