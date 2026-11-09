@@ -558,3 +558,71 @@ fn an_unlinked_lock_fails_the_install_closed() {
     assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"theirs");
     remove(root.as_path());
 }
+
+/// What:
+///  A named pipe where the index belongs leaves the index skipped at once,
+///  with the reason,
+/// instead of
+///  waiting for a writer that never comes.
+/// Why:
+///   Seeing another command write the index is the one thing this read must never do by waiting.
+#[test]
+fn a_named_pipe_where_the_index_belongs_is_skipped_at_once() {
+    let parent: PathBuf = fixture("index-files-fifo");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let index: PathBuf = root.join(".git/index");
+    std::fs::remove_file(index.as_path()).expect("remove the index");
+    crate::subvolume_sync_attrs::make_fifo(index.as_path(), 0o600).expect("named pipe");
+    let tree: PathBuf = root.clone();
+    let read = crate::test_support::finished_within(move || { return refresh_index_file(index.as_path(), tree.as_path()); });
+    let Some(line) = read else { panic!("reading the index did not finish within five seconds") };
+    assert!(line.starts_with("skipped (cannot read it:") && line.contains("not a plain file"), "{line}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A named pipe where the repository's configuration belongs reads as no configuration at once,
+/// instead of
+///  waiting for a writer that never comes.
+/// Why:
+///   The configuration names the object format,
+/// and a read that waits for it holds the command that owns a checkout.
+#[test]
+fn a_named_pipe_where_the_configuration_belongs_reads_as_none_at_once() {
+    let parent: PathBuf = fixture("index-files-config-fifo");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let config: PathBuf = root.join(".git/config");
+    std::fs::remove_file(config.as_path()).expect("remove the configuration");
+    crate::subvolume_sync_attrs::make_fifo(config.as_path(), 0o600).expect("named pipe");
+    let git_directory: PathBuf = root.join(".git");
+    let read = crate::test_support::finished_within(move || { return repository_hash_length(git_directory.as_path()); });
+    let Some(length) = read else { panic!("reading the configuration did not finish within five seconds") };
+    assert_eq!(length, None);
+    remove(parent.as_path());
+}
+
+/// What:
+///  A named pipe where a registration's `gitdir` belongs is left out at once,
+///  with the reason,
+/// instead of
+///  waiting for a writer that never comes.
+/// Why:
+///   The registrations are read before anything is copied,
+/// so a read that waits stops the command before its first step.
+#[test]
+fn a_named_pipe_where_a_registration_gitdir_belongs_is_left_out_at_once() {
+    let parent: PathBuf = fixture("index-files-gitdir-fifo");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "wt"]);
+    let recorded: PathBuf = root.join(".git/worktrees/wt/gitdir");
+    std::fs::remove_file(recorded.as_path()).expect("remove the gitdir file");
+    crate::subvolume_sync_attrs::make_fifo(recorded.as_path(), 0o600).expect("named pipe");
+    let scanned: PathBuf = root.clone();
+    let read = crate::test_support::finished_within(move || { return scan_linked_worktrees(scanned.as_path()); });
+    let Some(found) = read else { panic!("reading the registration did not finish within five seconds") };
+    let scan: LinkedWorktreeScan = found.expect("the scan finishes");
+    assert_eq!(scan.inside.len(), 0, "no registration is a worktree: {scan:?}");
+    assert_eq!(scan.left_out.len(), 1, "{scan:?}");
+    assert!(scan.left_out[0].reason.contains("not a plain file"), "{:?}", scan.left_out[0].reason);
+    remove(parent.as_path());
+}

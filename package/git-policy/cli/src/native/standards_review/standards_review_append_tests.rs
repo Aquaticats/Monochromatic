@@ -6,6 +6,7 @@
 //! concurrent appenders.
 
 use super::*;
+use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::test_support::{fixture, remove};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -27,9 +28,11 @@ fn sha(tag: &str) -> String {
     return format!("{tag:0<40}");
 }
 
-/// An entry text that names the commit and ends with the blank line that separates entries.
+/// An entry text that names the commit and ends with its receipt line and one line feed,
+/// as the renderer writes it;
+/// the delivery supplies the line feed that separates it from the entry before it.
 fn entry(tag: &str) -> String {
-    return format!("- Date:\n  D\n  Subject:\n  {} `s`\n\n", token(sha(tag).as_str()));
+    return format!("- Date:\n  D\n  Subject:\n  {} `s`\n  reviewed: {}\n", &sha(tag)[..SHORT_SHA_LENGTH], sha(tag));
 }
 
 /// A log path inside a fixture directory that does not exist yet,
@@ -40,7 +43,9 @@ fn absent_log(root: &Path) -> PathBuf {
 
 /// An entry is added after what the log holds,
 /// whatever its ending,
-/// and nothing already there changes.
+/// and nothing already there changes:
+/// a last line without its line feed is finished with one,
+/// so the entry starts on a line of its own.
 #[test]
 fn an_entry_goes_after_the_existing_content() {
     let root: PathBuf = fixture("append-after");
@@ -48,7 +53,8 @@ fn an_entry_goes_after_the_existing_content() {
     std::fs::write(log.as_path(), "# Log\nlast line without newline").expect("log");
     assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
     let text: String = std::fs::read_to_string(log.as_path()).expect("log");
-    assert_eq!(text, format!("# Log\nlast line without newline{}", entry("aaa")));
+    assert_eq!(text, format!("# Log\nlast line without newline\n{}", entry("aaa")), "the entry's write begins with the line feed that finishes the unfinished line");
+    assert!(text.starts_with("# Log\nlast line without newline"), "what was there is left as it was");
     remove(root.as_path());
 }
 
@@ -61,7 +67,7 @@ fn a_missing_log_and_its_directory_are_created() {
     assert!(!log.parent().expect("parent").exists());
     assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
     assert_eq!(deliver(log.as_path(), sha("bbb").as_str(), entry("bbb").as_str()), Ok(Delivery::Appended));
-    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{}{}", entry("aaa"), entry("bbb")));
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("\n{}\n{}", entry("aaa"), entry("bbb")));
     remove(root.as_path());
 }
 
@@ -114,7 +120,7 @@ fn an_unreadable_log_is_reported_and_left_alone() {
 fn concurrent_entry(thread: usize, index: usize) -> (String, String) {
     let tag: String = format!("{thread:06}{index:06}");
     let lines: String = (0..LINES_PER_ENTRY).map(|line| return format!("  {tag} line {line}\n")).collect::<String>();
-    return (tag.clone(), format!("- Entry {tag}:\n{lines}\n"));
+    return (tag.clone(), format!("- Entry {tag}:\n{lines}"));
 }
 
 /// Several threads deliver at once to one log that does not exist yet,
@@ -124,7 +130,8 @@ fn concurrent_entry(thread: usize, index: usize) -> (String, String) {
 /// once,
 /// with no lock:
 /// no entry has another entry's lines inside it,
-/// and none is missing or repeated.
+/// none is missing or repeated,
+/// and every write begins with the line feed that keeps it clear of the write before it.
 #[test]
 fn concurrent_appends_land_whole() {
     let root: PathBuf = fixture("append-concurrent");
@@ -152,14 +159,97 @@ fn concurrent_appends_land_whole() {
             expected.insert(tag, text);
         }
     }
-    // The log is the entries back to back; cutting it at each entry's header must give each entry exactly.
-    let mut found: BTreeMap<String, String> = BTreeMap::new();
-    for chunk in written.split_inclusive("\n\n") {
-        let tag: String = chunk.lines().next().unwrap_or_default().trim_start_matches("- Entry ").trim_end_matches(':').to_string();
-        assert!(found.insert(tag.clone(), chunk.to_string()).is_none(), "entry {tag} appears twice");
+    // The log must be a line feed and one whole expected entry, again and again: every entry exactly once, and no byte of its own outside it.
+    let mut remaining: BTreeMap<String, String> = expected.clone();
+    let mut rest: &str = written.as_str();
+    while !rest.is_empty() {
+        let Some(after_feed) = rest.strip_prefix('\n') else {
+            panic!("a write begins without a line feed of its own: {:?}", &rest[..rest.len().min(40)]);
+        };
+        let found: Option<(String, String)> = remaining.iter().find(|(_tag, text)| return after_feed.starts_with(text.as_str())).map(|(tag, text)| return (tag.clone(), text.clone()));
+        let Some((tag, text)) = found else {
+            panic!("no expected entry starts here: {:?}", &after_feed[..after_feed.len().min(40)]);
+        };
+        remaining.remove(&tag);
+        rest = &after_feed[text.len()..];
     }
-    assert_eq!(found.len(), expected.len());
-    assert_eq!(found, expected);
-    assert_eq!(written.len(), expected.values().map(String::len).sum::<usize>(), "no byte outside an expected entry");
+    assert!(remaining.is_empty(), "entries missing from the log: {:?}", remaining.keys().collect::<Vec<&String>>());
+    remove(root.as_path());
+}
+
+/// The name a remote answer can spell:
+/// a commit's own name inside another entry's verdict text.
+#[test]
+fn a_commit_name_inside_another_entry_is_not_a_receipt() {
+    let root: PathBuf = fixture("append-inside-text");
+    let log: PathBuf = root.join("log.md");
+    let named: String = sha("bbb");
+    std::fs::write(log.as_path(), format!("- Date:\n  D\n  Subject:\n  {} `s`\n  cost_verdict: no ({named} 0.9)\n\n", &sha("aaa")[..SHORT_SHA_LENGTH])).expect("log");
+    assert!(!names_commit(log.as_path(), named.as_str()), "text inside another entry is not this commit's receipt");
+    assert_eq!(deliver(log.as_path(), named.as_str(), entry("bbb").as_str()), Ok(Delivery::Appended), "so the review of the named commit still runs");
+    remove(root.as_path());
+}
+
+/// An entry the operating system cut short before its receipt is not a finished review:
+/// the retry appends the whole entry after the fragment,
+/// keeps the fragment,
+/// and finishes the fragment's unfinished line with a line feed of the entry's own.
+#[test]
+fn a_fragment_before_the_receipt_is_not_a_finished_review() {
+    let root: PathBuf = fixture("append-fragment");
+    let log: PathBuf = root.join("log.md");
+    let whole: String = entry("aaa");
+    let short: &str = &sha("aaa")[..SHORT_SHA_LENGTH];
+    let cut: usize = whole.find(short).expect("the entry names the commit") + short.len();
+    let fragment: &str = &whole[..cut];
+    std::fs::write(log.as_path(), fragment).expect("seed the fragment");
+    assert!(!names_commit(log.as_path(), sha("aaa").as_str()), "a fragment is not a receipt");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), whole.as_str()), Ok(Delivery::Appended));
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{fragment}\n{whole}"), "the fragment keeps its line and the whole entry follows it");
+    remove(root.as_path());
+}
+
+/// The first byte of the two a subject's `é` is written as,
+/// left behind by a write the operating system cut short.
+const TORN_UTF8_FRAGMENT: [u8; 1] = [0xc3];
+
+/// A torn UTF-8 tail is one cut-short write,
+/// never a reason to stop logging:
+/// a later review still appends its entry,
+/// the torn bytes are kept,
+/// and an intact receipt before them still counts.
+#[test]
+fn a_torn_utf8_tail_does_not_stop_later_deliveries() {
+    let root: PathBuf = fixture("append-torn-utf8");
+    let log: PathBuf = root.join("log.md");
+    let mut seeded: Vec<u8> = entry("aaa").into_bytes();
+    seeded.extend_from_slice(&TORN_UTF8_FRAGMENT);
+    std::fs::write(log.as_path(), seeded.as_slice()).expect("seed the log");
+    assert_eq!(deliver(log.as_path(), sha("bbb").as_str(), entry("bbb").as_str()), Ok(Delivery::Appended), "a later review is still logged");
+    assert!(names_commit(log.as_path(), sha("aaa").as_str()), "the complete entry before the torn bytes still counts");
+    let written: Vec<u8> = std::fs::read(log.as_path()).expect("log");
+    assert!(written.starts_with(seeded.as_slice()), "the torn bytes are kept as they were");
+    remove(root.as_path());
+}
+
+/// A receipt the cut-short write never gave a line feed is not a receipt:
+/// the commit is reviewed again,
+/// the fragment keeps a line of its own,
+/// and a later entry cannot join it and destroy the evidence.
+#[test]
+fn an_unterminated_receipt_is_not_a_receipt_and_keeps_its_line() {
+    let root: PathBuf = fixture("append-unterminated-receipt");
+    let log: PathBuf = root.join("log.md");
+    let whole: String = entry("aaa");
+    let receipt: String = receipt_line(sha("aaa").as_str());
+    let cut: usize = whole.find(receipt.as_str()).expect("the entry carries its receipt") + receipt.len();
+    let fragment: &str = &whole[..cut];
+    std::fs::write(log.as_path(), fragment).expect("seed the fragment");
+    assert!(!names_commit(log.as_path(), sha("aaa").as_str()), "a receipt without its line feed is not a receipt");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), whole.as_str()), Ok(Delivery::Appended), "so the commit is reviewed again");
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{fragment}\n{whole}"), "the fragment keeps its line and the whole entry follows it");
+    assert_eq!(deliver(log.as_path(), sha("bbb").as_str(), entry("bbb").as_str()), Ok(Delivery::Appended));
+    let after: String = std::fs::read_to_string(log.as_path()).expect("log");
+    assert!(after.lines().any(|line| return line == receipt), "a later entry leaves the first receipt a whole line: {after}");
     remove(root.as_path());
 }

@@ -133,7 +133,41 @@ The old tree kept for the rollback stays until the owner deletes it.
   `87f5771748` the index offset guard,
   `cc6ebc3a07` the wording for a refused blocking thread,
   `dea0f5d24e` the landing branch's follow-up on a failed head probe,
-  and `8026d49827` the alias branch.
+  `8026d49827` the alias branch,
+  `8d210d933a` the standards-review branch,
+  `b28c5cca6f` the entry-and-service branch,
+  `b3210c70ae` the worktree-copy branch,
+  `147f5badc3` the conversion branch,
+  `30a87b27fd` the push branch's last round,
+  `3de639be89` the wrapper-issue branch,
+  `ee8a1db87c` the health branch,
+  `3149b8baae` the literal-pathspec branch,
+  `82dff2e79a` the intent-to-add branch,
+  `f6716da242` the commit-ceiling branch,
+  `78ca211085` the worktree-copy branch's follow-up,
+  `6e098552e2` the discarding-commands branch,
+  and `fc85e075d8` the suite-failures branch.
+  The first clause of that merge's message names a change it does not contain;
+  commit comment 209008614 on it says so.
+- Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
+  though `push-route-findings-fixed` run 1 reported it fixed:
+  a second branch reaching a commit is answered `Known` and never pushed.
+  `landing/work_item.rs:89-91` keys a record by kind and commit alone,
+  and `git log main --first-parent -m -S'branch_digest'` is empty.
+  `c3c6a50098` added the branch key,
+  and `24bb297e9a` on another branch deleted it on the belief that main had gone back to the plain id.
+  Push run 7 restores it and rechecks that agent's other fixes against main.
+- `~/temp/agent/pi-runs/find-functions-lost-in-merges.ts` over commits since 2026-11-05:
+  of the functions and tests added,
+  134 are gone from main,
+  none of them lost in a merge,
+  and each was removed by a named non-merge commit.
+  Of those commits,
+  only `24bb297e9a` gives "main's version" as its reason,
+  by their subjects.
+  It reads names only,
+  so a fix that changed lines inside a function that still exists is not covered.
+  A note warning against this went to the running agents.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -156,28 +190,51 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `wrapper-tests-that-fail-only-in-a-suite-round-3-prompt.md`.
-  That branch's merge of main is open in its worktree on two conflicts,
-  in `landing/service_push_retry_tests.rs` and `testing/test_support.rs`,
-  and the brief also answers its two questions:
-  split the two long controls per case,
-  and fix `every_call_runs_on_the_same_runtime`.
+  `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  (an audit line can name a non-UTF-8 branch wrongly,
+  and `git branch -D HEAD` can record a branch nothing deleted),
+  and `wrapper-tests-suite-round-4-prompt.md` for `wrapper-tests-that-fail-only-in-a-suite` as run 4
+  (a late runtime can be lost between a timeout and dropping its receiver,
+  and a control lost its ability to fail).
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
+  Start each with `start-pi-run-if-a-slot-is-free.ts`,
+  which counts launchers as well as units and refuses at the limit.
+- The provider ended several runs with `terminated`:
+  `commit-ceiling-and-private-index-follow-ups` run 1,
+  `intent-to-add-keeps-stat-data` runs 3 and 4,
+  `invocation-route-findings-fixed` run 2,
+  `tokio-repair-threads-on-the-runtime` run 1
+  and `worktree-add-findings-fixed` run 4.
+  All have been resumed.
+- `merge-route-round-8-sol.txt` names defects in code new on that branch,
+  among them a clean filter that hides bytes recovery then deletes,
+  so the branch is not to land until its run 9 reports.
+- `discarding-commands-round-3-sol.txt` names a regression:
+  an ignored file inside a directory the target replaces with a file is deleted unguarded,
+  so that branch is not to land until its run 4 reports.
 - Started:
-  alias run 2 on the review `invocation-route-round-1-sol.txt`,
-  and hook run 4,
-  because hook run 3 reached its time limit while writing wording tests.
-- The intent-to-add branch passed 660 of 661 on top of main.
-  `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on it and passed 6 of 6 on it and on main,
-  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note;
-  the branch's review is running.
-- The conversion branch finished seven findings and its check is running.
+  discarding-commands run 4,
+  alias run 2,
+  hook run 4,
+  intent-to-add run 3 on two regressions its review named,
+  suite-failures run 3,
+  `kill-sweeps-reach-the-calls-they-name`,
+  `commit-queue-position-reaches-the-person`
+  and `tokio-repair-threads-on-the-runtime`.
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on the intent-to-add branch
+  and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note.
+- The conversion branch passed 397 of 402 on top of main.
+  The three migration timeouts not yet named on main passed alone on it in 12 to 34 s,
+  and its review is running.
+  Those tests failed in seconds when two checkouts ran them at the same moment,
+  which went to `wrapper-tests-that-fail-only-in-a-suite` by inbox note.
+- The conflict-resolution branch's merge of main stopped on three files under `push/`,
+  and its run 4 is resolving them.
+  The push branch is being tested on top of main.
 - `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
   of which index 57.8 s and journal 20.6 s,
   and said a real commit makes the same writes and flushes.
-- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
-  The branch is not to be merged or landed until that run reports,
-  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
-  That merge left the four files alone.
 - The locks branch passed 379 of 379 on top of main.
   `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
   and a pid file declaring an owner dead while a holder could not be resolved.
@@ -599,23 +656,44 @@ The old tree kept for the rollback stays until the owner deletes it.
   The session aborted that one connection and detached the mount,
   and `shared-rules-for-pi-briefs.md` now requires a private mount namespace for any probe that mounts.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
-  its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
-  On top of main 661 of 664 selected tests pass:
-  two snapshot tests fail in about 0.2 seconds beside what it changed,
-  and the third is the tokio branch's order control.
-  The review (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`) names a snapshot of a linked worktree that still carries another command's credentials,
-  and a ceiling that also kills the person's own command.
-  By its own report,
-  the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
-  Run 2 of its agent reports six findings handled,
-  674 of 674 selected tests pass on top of main,
-  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) names another command's stage carried into the new worktree as unignored trash,
-  a lock-removal instruction quoted for JSON and not for a shell,
-  a helper reported as ended when only Git was reaped,
-  and a checkout filter that reads the terminal stopped by the new process group.
-  Not ready to merge.
-  Run 3 of its agent is on them.
-  The container gate has not run.
+  run 4 settled all five findings of the third review (`${HOME}/temp/agent/reviews/worktree-add-round-3-sol.txt`),
+  after merging main `421ab69c3e`
+  (conflicts in `forwarding.rs`,
+  `forwarding_tests.rs` and `worktree_trash_dispose.rs`):
+  an earlier add's trash is moved into this add's and emptied with it,
+  a stage container is removed before the worktree is installed (measured:
+  460 ms to remove 20,000 one-kilobyte files against 0.1 ms to rename),
+  the `gitdir:` pointer is read on bytes as Git's `read_gitfile_gently` does,
+  the ceiling's line says a helper keeps a caller's stream open,
+  and the partially restored checkout the finished-check cannot judge is written into `SPEC.md` with no mechanism added.
+  985 of 985 selected tests pass (`worktree::`,
+  `worktree_copying::`,
+  `invocation::`),
+  clippy passes,
+  and `monochromatic-lint` passes on every file this branch changed;
+  the package-wide run stops on `src/native/testing/test_support.rs`,
+  which is 315 code lines against the limit of 300 in main itself (`0b6f191324`),
+  a file this branch never touched.
+  The merge resolution removed the trash hand-over (`hand_over`,
+  `Reach`,
+  `Router`,
+  `Provisioner` and the `units_record_dir` line main added inside it),
+  which this branch had already deleted on purpose in `285267a6f2` for the second review's finding 2;
+  `units_record_dir_of` itself and its two other uses are untouched.
+  Open:
+  the interrupted-add remedy the report prints still cannot run as printed,
+  because `git -C <destination> reset --hard` is refused by the `linked-worktree-only` policy
+  ("this worktree has uncommitted changes to tracked files",
+  exit 1),
+  so the report and the policy need the owner's choice between allowing it for a destination the wrapper recorded
+  and printing `--no-enforce-worktree` with the reason;
+  a linked worktree's snapshot sets another command's stage aside silently,
+  while the main checkout's snapshot names the categories it left out;
+  and `worktree_copy_recovery.rs:108` still reads the same pointer as text,
+  so its fix can point at `worktree_add_binding::pointer_target` when it lands.
+  The container gate has not run on this round.
+  Not ready to merge;
+  merge after the gate run and the owner's answer on the remedy.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,

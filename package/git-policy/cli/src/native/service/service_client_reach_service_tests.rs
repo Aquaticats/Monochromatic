@@ -65,12 +65,15 @@ struct StandIn {
     /// What the client asked for,
     /// in order.
     asked: Vec<String>,
+    /// Whether the unit the manager holds names an executable an upgrade removed,
+    /// so no start can bring it back until the manager reads the units again.
+    unit_executable_gone: bool,
 }
 
 impl StandIn {
     /// A manager that holds nothing and answers nothing.
     const fn empty() -> Self {
-        return Self { socket: None, state: None, release: None, asked: Vec::new() };
+        return Self { socket: None, state: None, release: None, asked: Vec::new(), unit_executable_gone: false };
     }
 }
 
@@ -106,6 +109,10 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
     let name: String = {
         let mut manager = MANAGER.lock().expect("lock");
         manager.asked.push(format!("start {unit}"));
+        // A unit whose executable is gone starts nothing until the manager reads the units again.
+        if manager.unit_executable_gone {
+            return false;
+        }
         match manager.socket.clone() {
             Some(name) => name,
             None => return false,
@@ -152,6 +159,17 @@ fn listen_at(name: &str) -> std::io::Result<UnixListener> {
     return UnixListener::bind_addr(&SocketAddr::from_abstract_name(name.as_bytes())?);
 }
 
+/// The reload the client asks for,
+/// recorded and answered from the stand-in:
+/// the manager reads its units again,
+/// which replaces a unit whose executable is gone.
+fn stand_in_reload(_bus: &Path) -> bool {
+    let mut manager = MANAGER.lock().expect("lock");
+    manager.asked.push(String::from("reload"));
+    manager.unit_executable_gone = false;
+    return true;
+}
+
 /// What the client asked of the stand-in,
 /// in order.
 fn asked() -> Vec<String> {
@@ -184,6 +202,7 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
             state: stand_in_state,
             start: stand_in_start,
             reset: stand_in_reset,
+            reload: stand_in_reload,
         }),
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -380,6 +399,67 @@ fn a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_th
         "the record is dropped when the other release answers, whatever the wait then finds"
     );
     serving.join().expect("the service's thread");
+    crate::test_support::remove(runtime.as_path());
+}
+
+
+/// What:
+///  A service that never greets because the manager's unit names an executable an upgrade removed is
+///  repaired by one reload of the units.
+/// Why:
+///  Two kills during a version switch leave the files and the record of what the manager was told
+/// agreeing while
+///  the manager holds the other release's unit;
+/// its executable is gone,
+/// so no reset and no start brings a
+///  greeting and the command ends with "The commit service did not start" however often it is run
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the
+///  round-4 review).
+/// Reading the units again is the one step that replaces the program the unit names,
+/// so the client asks for
+///  it once,
+/// drops the record,
+/// and gives the wait one more ceiling;
+/// a service that still does not greet ends the command
+///  in bounded time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reach(configWithAGoneUnit)).toBeDefined(); expect(asked).toContain('reload'); expect(recordExists()).toBe(false);
+/// ```
+#[test]
+fn a_service_that_never_greets_because_the_units_program_is_gone_is_repaired_by_one_reload() {
+    let socket: String = address("client-reach-gone-unit");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.socket = Some(socket.clone());
+        manager.state = Some(String::from("inactive"));
+        manager.unit_executable_gone = true;
+        manager.asked.clear();
+    }
+    let runtime: PathBuf = crate::test_support::fixture("client-reach-gone-unit-runtime");
+    let texts: [(&'static str, String); 1] = [("a.service", String::from("what the manager was told"))];
+    crate::service_provision_loaded_unit_texts::record(runtime.as_path(), texts.as_slice()).expect("the record is written");
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    settings.start_wait = Duration::from_millis(100);
+    settings.start_ceiling = Duration::from_millis(600);
+    settings.units_record_dir = Some(runtime.clone());
+    let mut announced: bool = false;
+    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let asked_of_the_manager: Vec<String> = asked();
+    let (_reader, version, _release) = reached.unwrap_or_else(|failure| {
+        panic!("the reload of the units must make the service startable: {failure:?} after {asked_of_the_manager:?}")
+    });
+    assert_eq!(version, PROTOCOL_VERSION);
+    assert_eq!(asked_of_the_manager.iter().filter(|call| { return *call == "reload"; }).count(), 1, "one reload, and one only: {asked_of_the_manager:?}");
+    assert!(
+        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
+        "the record is dropped, so the next command provisions again"
+    );
+    MANAGER.lock().expect("lock").unit_executable_gone = false;
     crate::test_support::remove(runtime.as_path());
 }
 

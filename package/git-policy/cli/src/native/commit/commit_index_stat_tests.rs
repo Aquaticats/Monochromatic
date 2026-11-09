@@ -7,7 +7,7 @@ use super::*;
 use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
 use crate::commit_preparation::{PreparationError, PreparationRequest, run_native_commit_within};
 use crate::shadow_create::create_shadow_repository;
-use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, remove, renew_inode, repository};
+use crate::test_support::{REAL_GIT, age, executable, fixture, git, git_context, git_text, remove, renew_inode, repository};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -199,11 +199,16 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
     remove(root.as_path());
 }
 
-/// A tracked empty file that the real index holds as intent-to-add stays in the tree the private index produces when the
-///  commit names another path:
-/// the seeded copy kept the entry and a tree built from it leaves intent-to-add entries out.
+/// A tracked empty file that the real index holds as intent-to-add leaves the tree the private index produces when the
+/// commit names another path:
+/// the entry's mode and object name equal the base's,
+/// so the reset leaves the mark as Git's own reset does,
+/// and a tree built from an index that holds it leaves that path out.
+/// Native Git commits the same tree for the same fixture
+/// (`an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark`,
+/// `binary_commit_tests.rs`).
 #[test]
-fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
+fn an_intent_to_add_entry_equal_to_the_base_leaves_its_path_out_of_the_commit() {
     let root: PathBuf = fixture("commit-index-intent-empty");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     std::fs::write(repo.join("empty"), "").expect("empty file");
@@ -222,24 +227,33 @@ fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
     )
     .expect("tree");
     let names: String = git_text(repo.as_path(), &["ls-tree", "--name-only", tree.as_str()]);
-    assert!(names.lines().any(|name| { return name == "empty"; }), "the tree must still hold the empty file: {names}");
+    assert!(!names.lines().any(|name| { return name == "empty"; }), "the tree leaves the marked path out, as Git's tree does: {names}");
     assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
     remove(root.as_path());
 }
 
-/// An index no mark touches still seeds the private index,
-/// so the safeguard costs nothing for it:
-///  the copy is used exactly when the reader found the index plain,
+/// An index no mark touches seeds the private index as a plain copy,
+/// so the safeguard costs nothing for it;
+/// an index whose only marks are intent-to-add entries seeds it too,
+/// copied as it is;
+/// an assume-unchanged entry sends the build to the base,
 /// and an absent file seeds nothing.
 #[test]
-fn only_a_plain_index_seeds_the_private_index() {
+fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     let root: PathBuf = fixture("commit-index-seeds");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     let real: PathBuf = repo.join(".git").join("index");
-    assert!(seeds_private_index(real.as_path()));
+    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Copy);
+    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    assert_eq!(
+        private_index_seed(real.as_path()),
+        PrivateIndexSeed::CopyWithIntentToAdd,
+        "an intent-to-add entry keeps the copy"
+    );
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
-    assert!(!seeds_private_index(real.as_path()));
-    assert!(!seeds_private_index(indexes.commit_index.as_path()));
+    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Base);
+    assert_eq!(private_index_seed(indexes.commit_index.as_path()), PrivateIndexSeed::Base);
     remove(root.as_path());
 }
 
@@ -405,6 +419,413 @@ fn an_index_another_program_holds_is_refreshed_in_the_private_copy() {
     match commit_stale(&stale) {
         Ok(code) => assert_eq!(code, 0, "the scratch commit exited {code}"),
         Err(error) => panic!("the commit over a stale index another program locked did not finish: {error}"),
+    }
+    remove(root.as_path());
+}
+
+//endregion
+
+//region An intent-to-add entry and the files a commit is not asked to read
+
+/// The clean filter of the fixture:
+/// it writes down every path Git cleans and passes the content through,
+/// the way `git-lfs` answers the clean filter of every file it is asked about.
+const CLEAN_FILTER: &str = "#!/bin/sh\nprintf '%s\\n' \"$1\" >> \"$0.log\"\ncat\n";
+
+/// How many filtered files the fixture tracks.
+const FILTERED_FILES: usize = 8;
+
+/// A repository whose tracked files pass through a clean filter that records every run of it,
+/// with one intent-to-add entry in its index and a shadow ready to prepare the commit of a named path.
+struct Filtered {
+    /// Repository the commit selects.
+    repo: PathBuf,
+    /// Shadow repository of the commit.
+    shadow: PathBuf,
+    /// Invocation capture.
+    capture: InvocationCapture,
+    /// Private indexes and object store.
+    indexes: CaptureIndexes,
+    /// Recorded base.
+    base: String,
+    /// The clean filter script,
+    /// whose `.log` beside it holds the paths it cleaned.
+    filter: PathBuf,
+}
+
+/// The file the fixture's clean filter writes each path it cleans to.
+fn clean_log(filter: &Path) -> PathBuf {
+    let mut name: std::ffi::OsString = filter.as_os_str().to_os_string();
+    name.push(".log");
+    return PathBuf::from(name);
+}
+
+/// What:
+///  Builds the fixture:
+///  `FILTERED_FILES` filtered files the commit does not name,
+///  `other.txt` changed in the worktree,
+///  and `ita.txt` added with `git add --intent-to-add`.
+/// Why:
+///   The intent-to-add entry is what made the private index be built from the base alone,
+///  and only the clean filter can show whether a build asked Git to read a file.
+fn filtered_fixture(root: &Path) -> Filtered {
+    let repo: PathBuf = repository(root, "repo");
+    let filter: PathBuf = root.join("clean-filter.sh");
+    executable(filter.as_path(), CLEAN_FILTER.as_bytes());
+    git(repo.as_path(), &["config", "filter.counter.clean", format!("'{}' %f", filter.display()).as_str()]);
+    git(repo.as_path(), &["config", "filter.counter.required", "true"]);
+    std::fs::write(repo.join(".gitattributes"), "*.dat filter=counter\n").expect("attributes");
+    for number in 1..=FILTERED_FILES {
+        std::fs::write(repo.join(format!("f{number}.dat")), format!("filtered {number}\n")).expect("a filtered file");
+        // A file as new as the index file would be hashed by Git whatever its recorded stat data says.
+        age(repo.join(format!("f{number}.dat")).as_path());
+    }
+    std::fs::write(repo.join("other.txt"), "other base\n").expect("other");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("ita.txt"), "intent content\n").expect("the added file");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "ita.txt"]);
+    std::fs::write(repo.join("other.txt"), "other changed\n").expect("the change the commit names");
+    let context = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let transaction: PathBuf = root.join(format!("transaction-{TRANSACTION}"));
+    std::fs::create_dir_all(transaction.as_path()).expect("transaction");
+    let shadow: PathBuf =
+        create_shadow_repository(&context, repo.as_path(), &capture, TRANSACTION, transaction.as_path()).expect("shadow");
+    // The real object store, as the preparation of a commit names it: the trees and objects the private index makes are
+    // read back by the controls below, as they are read back by the policies of a commit.
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: transaction.join("captured.index"),
+        commit_index: transaction.join("commit.index"),
+        object_directory: capture.layout.object_directory.clone(),
+    };
+    return Filtered { repo, shadow, capture, indexes, base, filter };
+}
+
+/// The paths the clean filter wrote down,
+/// in the order it cleaned them.
+fn cleaned(filter: &Path) -> Vec<String> {
+    return match std::fs::read_to_string(clean_log(filter)) {
+        Ok(text) => text.lines().map(String::from).collect(),
+        Err(_) => Vec::new(),
+    };
+}
+
+/// Forgets every path the clean filter wrote down,
+/// so a control sees only what one step cleaned.
+fn forget_cleaned(filter: &Path) {
+    match std::fs::remove_file(clean_log(filter)) {
+        Ok(()) => {}
+        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "clear the clean filter log"),
+    }
+}
+
+/// Prepares the private index of the commit of `paths` and runs its scratch commit.
+fn prepare_and_commit(filtered: &Filtered, paths: &[OsString]) -> Result<i32, PreparationError> {
+    let selection: IndexSelection = IndexSelection {
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: paths,
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        base_revision: filtered.base.as_str(),
+    };
+    let real: PathBuf = filtered.repo.join(".git").join("index");
+    initialize_commit_index(&git_context(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
+        .expect("private index");
+    let commit_args: Vec<String> = vec![String::from("--quiet"), String::from("--message=filtered")];
+    let request: PreparationRequest<'_> = PreparationRequest {
+        capture: &filtered.capture,
+        shadow: filtered.shadow.as_path(),
+        commit_index: filtered.indexes.commit_index.as_path(),
+        global_args: &[],
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    return run_native_commit_within(&git_context(), filtered.repo.as_path(), &request, SCRATCH_CEILING);
+}
+
+/// How long the scratch commit of a control may take:
+/// long enough that no file of the fixture is a slow read,
+/// and short enough that a control which hangs fails instead of waiting.
+const SCRATCH_CEILING: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The scratch commit reads nothing the commit did not name,
+/// even though the real index holds an intent-to-add entry:
+///  the private index keeps the real index's stat data,
+/// and the clean filter of the other tracked files never runs.
+#[test]
+fn an_intent_to_add_entry_does_not_cost_the_commit_a_read_of_unnamed_files() {
+    let root: PathBuf = fixture("commit-index-stat-intent-filter");
+    let filtered: Filtered = filtered_fixture(root.as_path());
+    forget_cleaned(filtered.filter.as_path());
+    let code: i32 = prepare_and_commit(&filtered, &[OsString::from("other.txt")]).expect("the scratch commit finished");
+    assert_eq!(code, 0, "the scratch commit exited {code}");
+    let cleaned: Vec<String> = cleaned(filtered.filter.as_path());
+    assert!(cleaned.is_empty(), "the scratch commit cleaned files it did not name: {cleaned:?}");
+    remove(root.as_path());
+}
+
+/// Runs real Git in the fixture against `index`,
+/// as the private-index steps of a commit do,
+/// and requires success.
+fn git_on_index(repo: &Path, index: &Path, arguments: &[&str]) {
+    let output: Output = Command::new(REAL_GIT)
+        .current_dir(repo)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_INDEX_FILE", index)
+        .args(arguments)
+        .output()
+        .expect("real Git on the private index");
+    assert!(
+        output.status.success(),
+        "git {arguments:?} failed: {}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+}
+
+/// The same fixture over an index built from the base alone,
+/// the way an index that cannot seed is built,
+/// cleans every filtered file:
+/// so the control above can fail,
+/// and the entry that stops the copy is the intent-to-add one.
+#[test]
+fn an_index_built_from_the_base_alone_cleans_every_filtered_file() {
+    let root: PathBuf = fixture("commit-index-stat-intent-filter-control");
+    let filtered: Filtered = filtered_fixture(root.as_path());
+    git_on_index(
+        filtered.repo.as_path(),
+        filtered.indexes.commit_index.as_path(),
+        &["read-tree", filtered.base.as_str()],
+    );
+    git_on_index(
+        filtered.repo.as_path(),
+        filtered.indexes.commit_index.as_path(),
+        &["add", "--all", "--", "other.txt"],
+    );
+    forget_cleaned(filtered.filter.as_path());
+    let commit_args: Vec<String> = vec![String::from("--quiet"), String::from("--message=control")];
+    let request: PreparationRequest<'_> = PreparationRequest {
+        capture: &filtered.capture,
+        shadow: filtered.shadow.as_path(),
+        commit_index: filtered.indexes.commit_index.as_path(),
+        global_args: &[],
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    run_native_commit_within(&git_context(), filtered.repo.as_path(), &request, SCRATCH_CEILING).expect("the scratch commit finished");
+    let cleaned: Vec<String> = cleaned(filtered.filter.as_path());
+    assert_eq!(cleaned.len(), FILTERED_FILES, "the base-alone index must clean every filtered file: {cleaned:?}");
+    remove(root.as_path());
+}
+
+/// A tracked file the real index holds as intent-to-add keeps the base's content in the tree of a commit that names
+/// another path,
+/// and is not a path the commit changes:
+///  the private index carries no intent-to-add entry,
+/// and a tree built from one leaves that path out.
+#[test]
+fn an_intent_to_add_tracked_file_is_not_changed_by_a_commit_that_names_another_path() {
+    let root: PathBuf = fixture("commit-index-stat-intent-tracked");
+    let filtered: Filtered = filtered_fixture(root.as_path());
+    std::fs::write(filtered.repo.join("tracked.txt"), "tracked base\n").expect("a tracked file");
+    git(filtered.repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(filtered.repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    let base: String = git_text(filtered.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(filtered.repo.as_path(), &["rm", "--cached", "--quiet", "--", "tracked.txt"]);
+    git(filtered.repo.as_path(), &["add", "--intent-to-add", "--", "tracked.txt"]);
+    std::fs::write(filtered.repo.join("tracked.txt"), "tracked changed\n").expect("content the commit does not take");
+    let selection: IndexSelection = IndexSelection {
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: &[OsString::from("other.txt")],
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        base_revision: base.as_str(),
+    };
+    let real: PathBuf = filtered.repo.join(".git").join("index");
+    initialize_commit_index(&git_context(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
+        .expect("private index");
+    let tree: String = write_private_tree(
+        &git_context(),
+        filtered.repo.as_path(),
+        filtered.indexes.commit_index.as_path(),
+        filtered.indexes.object_directory.as_path(),
+    )
+    .expect("tree");
+    let content: String = git_text(filtered.repo.as_path(), &["show", format!("{tree}:tracked.txt").as_str()]);
+    assert_eq!(content, "tracked base", "the commit keeps the base's content of a path it does not name");
+    let changed: Vec<Vec<u8>> = list_changed_index_paths(
+        &git_context(),
+        filtered.repo.as_path(),
+        filtered.indexes.commit_index.as_path(),
+        base.as_str(),
+        filtered.indexes.object_directory.as_path(),
+    )
+    .expect("the changed paths of the private index");
+    assert_eq!(changed, vec![b"other.txt".to_vec()], "only the named path is changed by the commit");
+    remove(root.as_path());
+}
+
+//endregion
+
+//region Every selection against real Git
+
+/// One way of committing,
+/// as the wrapper prepares it and as real Git is given it.
+struct CommitCase {
+    /// Directory name of this case's fixtures.
+    name: &'static str,
+    /// The private index selection the wrapper prepares.
+    mode: TransactionMode,
+    /// The paths the command names.
+    pathspecs: &'static [&'static str],
+    /// Whether an index commit stages the named paths.
+    stage_into_index: bool,
+    /// Whether an index commit stages every tracked change.
+    stage_tracked_changes: bool,
+    /// Real Git's arguments after the message.
+    arguments: &'static [&'static str],
+}
+
+/// The five ways of committing the same fixture is compared in:
+/// a named path the person changed,
+/// a named path held as intent-to-add,
+/// `-a`,
+/// `--include`,
+/// and a plain commit.
+const COMMIT_CASES: [CommitCase; 5] = [
+    CommitCase {
+        name: "named",
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: &["a.txt"],
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        arguments: &["--", "a.txt"],
+    },
+    CommitCase {
+        name: "named-intent",
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: &["ita.txt"],
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        arguments: &["--", "ita.txt"],
+    },
+    CommitCase {
+        name: "all",
+        mode: TransactionMode::Index,
+        pathspecs: &[],
+        stage_into_index: false,
+        stage_tracked_changes: true,
+        arguments: &["--all"],
+    },
+    CommitCase {
+        name: "include",
+        mode: TransactionMode::Index,
+        pathspecs: &["a.txt"],
+        stage_into_index: true,
+        stage_tracked_changes: false,
+        arguments: &["--include", "--", "a.txt"],
+    },
+    CommitCase {
+        name: "plain",
+        mode: TransactionMode::Index,
+        pathspecs: &[],
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        arguments: &[],
+    },
+];
+
+/// What:
+///  The fixture every case commits:
+///  a tracked file the person removed from the index and added with intent,
+///  a new file added with intent,
+///  one changed file the cases name,
+///  and one staged change a plain commit carries.
+/// Why:
+///   The same repository is built twice per case,
+/// once for the wrapper and once for real Git,
+///  so the two trees are comparable object for object.
+fn compared_fixture(root: &Path) -> (PathBuf, CaptureIndexes, String) {
+    let repo: PathBuf = repository(root, "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    std::fs::write(repo.join("b.txt"), "b\n").expect("b");
+    std::fs::write(repo.join("tracked.txt"), "tracked base\n").expect("the tracked file");
+    std::fs::write(repo.join("empty"), "").expect("the tracked empty file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "--", "tracked.txt"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "tracked.txt"]);
+    std::fs::write(repo.join("ita.txt"), "intent content\n").expect("the file added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "ita.txt"]);
+    std::fs::write(repo.join("tracked.txt"), "tracked changed\n").expect("the change no case named");
+    std::fs::write(repo.join("a.txt"), "changed a\n").expect("the change the named cases take");
+    std::fs::write(repo.join("b.txt"), "staged b\n").expect("the change the index holds");
+    git(repo.as_path(), &["add", "--", "b.txt"]);
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: repo.join(".git").join("captured.index"),
+        commit_index: repo.join(".git").join("commit.index"),
+        object_directory: repo.join(".git").join("objects"),
+    };
+    return (repo, indexes, base);
+}
+
+/// The tree the wrapper's private index produces for `case`.
+fn wrapper_tree(root: &Path, case: &CommitCase) -> String {
+    let (repo, indexes, base): (PathBuf, CaptureIndexes, String) = compared_fixture(root);
+    let named: Vec<OsString> = case.pathspecs.iter().map(|spec| { return OsString::from(spec); }).collect();
+    let selection: IndexSelection = IndexSelection {
+        mode: case.mode,
+        pathspecs: named.as_slice(),
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: case.stage_into_index,
+        stage_tracked_changes: case.stage_tracked_changes,
+        base_revision: base.as_str(),
+    };
+    let real: PathBuf = repo.join(".git").join("index");
+    initialize_commit_index(&git_context(), repo.as_path(), real.as_path(), &indexes, &selection).expect("private index");
+    return write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path())
+        .expect("tree");
+}
+
+/// The tree real Git commits for `case` in the same fixture.
+fn real_git_tree(root: &Path, case: &CommitCase) -> String {
+    let (repo, _indexes, _base): (PathBuf, CaptureIndexes, String) = compared_fixture(root);
+    let mut arguments: Vec<&str> = vec!["commit", "--quiet", "--message=case"];
+    arguments.extend(case.arguments.iter().copied());
+    git(repo.as_path(), arguments.as_slice());
+    return git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+}
+
+/// Every selection commits the same tree as real Git,
+/// with an intent-to-add entry on a tracked file and on a new file in the index:
+///  the wrapper's private index is the intended tree,
+///  so this compares what each side would commit,
+/// not the real index a partial commit also updates.
+#[test]
+fn every_selection_commits_the_real_gits_tree_when_the_index_holds_intent_to_add_entries() {
+    let root: PathBuf = fixture("commit-index-stat-intent-compare");
+    for case in &COMMIT_CASES {
+        let wrapper_root: PathBuf = root.join(format!("wrapper-{}", case.name));
+        std::fs::create_dir(wrapper_root.as_path()).expect("wrapper fixture");
+        let real_root: PathBuf = root.join(format!("real-{}", case.name));
+        std::fs::create_dir(real_root.as_path()).expect("real fixture");
+        let wrapper: String = wrapper_tree(wrapper_root.as_path(), case);
+        let real: String = real_git_tree(real_root.as_path(), case);
+        // The fixture's own HEAD is unchanged by a preparation, so its tree is what the comparison must see changed.
+        let base: String = git_text(wrapper_root.join("repo").as_path(), &["rev-parse", "HEAD^{tree}"]);
+        assert_ne!(wrapper, base, "the {} commit must change the tree, or this comparison proves nothing", case.name);
+        assert_eq!(wrapper, real, "the {} selection must commit real Git's tree", case.name);
     }
     remove(root.as_path());
 }

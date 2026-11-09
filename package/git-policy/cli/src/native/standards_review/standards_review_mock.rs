@@ -81,6 +81,16 @@ pub(crate) enum Answer {
     ///  or for this long at most.
     Silent(Duration),
     /// Read the request,
+    /// then answer `200` with `body` in chunks of `chunk` bytes,
+    /// framed with a chunked transfer encoding,
+    ///  so the client sees several frames of one body and the mock names no length.
+    Chunked {
+        /// The whole body.
+        body: Vec<u8>,
+        /// How many body bytes each chunk carries.
+        chunk: usize,
+    },
+    /// Read the request,
     /// then answer `200` with a body of this many bytes sent one at a time,
     /// a pause after each,
     ///  so the reply keeps arriving for as long as `pause * (bytes - 1)` and no longer idle than `pause` at any moment.
@@ -219,6 +229,26 @@ fn write_answer(stream: &mut TcpStream, answer: Answer) -> AnswerEnded {
     return match answer {
         Answer::Bytes(bytes) => {
             if stream.write_all(bytes.as_slice()).is_ok() { AnswerEnded::Whole } else { AnswerEnded::CallerLeft { unsent: bytes.len() } }
+        }
+        Answer::Chunked { body, chunk } => {
+            let head: String = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n");
+            if stream.write_all(head.as_bytes()).is_err() {
+                return AnswerEnded::CallerLeft { unsent: body.len() };
+            }
+            let mut offset: usize = 0;
+            while offset < body.len() {
+                let end: usize = (offset + chunk.max(1)).min(body.len());
+                let piece: &[u8] = &body[offset..end];
+                let size: String = format!("{:x}\r\n", piece.len());
+                if stream.write_all(size.as_bytes()).is_err() || stream.write_all(piece).is_err() || stream.write_all(b"\r\n").is_err() {
+                    return AnswerEnded::CallerLeft { unsent: body.len() - offset };
+                }
+                offset = end;
+            }
+            if stream.write_all(b"0\r\n\r\n").is_err() {
+                return AnswerEnded::CallerLeft { unsent: 0 };
+            }
+            AnswerEnded::Whole
         }
         Answer::Trickle { bytes, pause } => {
             let head: String = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {bytes}\r\nconnection: close\r\n\r\n");

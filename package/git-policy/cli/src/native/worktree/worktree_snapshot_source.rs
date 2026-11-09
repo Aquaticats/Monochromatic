@@ -68,10 +68,9 @@ pub struct SnapshotSource {
     /// The configuration the checks read,
     /// which names the abbreviation length of the line Git's checkout prints.
     pub config: ConfigSnapshot,
-    /// Whether Git ignores the place a snapshot of the main checkout sets its left-out directories aside;
-    /// false for a linked
-    ///  worktree,
-    /// which sets nothing aside.
+    /// Whether Git ignores the place a snapshot sets its left-out directories aside;
+    /// false when it does not,
+    ///  and then the leave-out removes in the foreground.
     pub trash_ignored: bool,
     /// The uncommitted changes of a source that is not clean,
     /// when it is snapshotted anyway and restored to its `HEAD`;
@@ -411,12 +410,23 @@ fn read_configuration_timed((context, root): (&GitContext, &Path)) -> Option<Con
     return read;
 }
 
-/// Whether the place left-out directories are set aside is ignored,
-/// for a main checkout only,
-/// timed as the work `trashIgnored`.
-fn trash_location_ignored_timed((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
+/// What:
+///  Whether the place left-out directories are set aside is ignored in this source,
+/// for every kind of source,
+///  timed as the work `trashIgnored`.
+/// Why:
+///   The answer decides whether another command's stage container is renamed into a trash in one step
+/// or removed in the
+///  foreground,
+/// and a linked worktree has the same ignore rules as the checkout it was made from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork(); const ignored = trashLocationIsIgnored(context, root); endWork('trashIgnored', began);
+/// ```
+fn trash_location_ignored_timed((context, root, _git_dir, _common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
     let began: std::time::Instant = begin_work();
-    let ignored: bool = git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root);
+    let ignored: bool = crate::worktree_trash::trash_location_is_ignored(context, root);
     end_work("trashIgnored", began);
     return ignored;
 }

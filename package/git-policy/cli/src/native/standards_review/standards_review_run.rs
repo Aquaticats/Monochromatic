@@ -35,7 +35,7 @@ use crate::iso_time::format_iso_milliseconds;
 use crate::standards_review_client::{Gateway, Reply, SCRIPT_QUIET_WINDOW, post_decision};
 use crate::standards_review_append::{deliver, names_commit};
 use crate::standards_review_entry::{ReviewEntry, render_review, render_skipped};
-use crate::standards_review_input::{LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
+use crate::standards_review_input::{ChangedPath, LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
 use crate::standards_review_request::{ENDPOINT, Judged, read_answer, request_body};
 use crate::standards_review_text::seconds_with_tenth;
 use std::path::{Path, PathBuf};
@@ -124,11 +124,11 @@ pub trait EnvironmentVariables {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface LandedCommitReader { read(files: string[]): LandedCommit } // throws a reason
+/// interface LandedCommitReader { read(files: ChangedPath[]): LandedCommit } // throws a reason
 /// ```
 pub trait LandedCommitReader {
     /// Read the commit as far as `files` (its code files) are concerned.
-    fn read(&self, files: &[String]) -> Result<LandedCommit, String>;
+    fn read(&self, files: &[ChangedPath]) -> Result<LandedCommit, String>;
 }
 
 /// What:
@@ -269,14 +269,14 @@ fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
 /// async function reviewLanded({ names, sha, subject, read, options, nowMillis }): Promise<ReviewOutcome>;
 /// ```
 pub fn review_landed(
-    names: &[String],
+    names: &[ChangedPath],
     sha: &str,
     subject: &str,
     read: &dyn LandedCommitReader,
     options: &ReviewOptions,
     now_millis: &dyn Fn() -> u64,
 ) -> ReviewOutcome {
-    let code_files: Vec<String> = match plan_for(names) {
+    let code_files: Vec<ChangedPath> = match plan_for(names) {
         Plan::Silent => return ReviewOutcome::NoEntry,
         Plan::NoCode => {
             return match deliver(options.log_path.as_path(), sha, render_skipped(sha, subject).as_str()) {
@@ -554,3 +554,10 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
 #[cfg(test)]
 #[path = "standards_review_run_tests.rs"]
 mod tests;
+
+/// Controls of what may leave the machine when this run builds a review,
+/// against real Git and the loopback mock;
+/// never in the release executable.
+#[cfg(test)]
+#[path = "standards_review_run_request_provenance_tests.rs"]
+mod request_provenance_tests;

@@ -431,6 +431,19 @@ fn a_save_to_a_corrected_path_before_a_rollback_is_kept() {
             && notices[0].contains("/content"),
         "{notices:?}"
     );
+    // What: The message says where the save is, which is the journal it names, and never that the file holds it.
+    // Why:  The file was just put back to the bytes the fix found, so a person who read "the file itself holds what the
+    //       other writer put there" would look at a file holding the opposite. Finding of the fifth review.
+    assert!(
+        !notices[0].contains("the file itself holds"),
+        "the notice says the file holds the other writer's save, and the file holds what the fix found: {}",
+        notices[0]
+    );
+    assert!(
+        notices[0].contains("in that journal"),
+        "the notice does not say the save is in the journal: {}",
+        notices[0]
+    );
     let kept: Vec<PathBuf> = journals(&fixture_tree.root);
     assert_eq!(kept.len(), 1, "one journal stays");
     assert_eq!(

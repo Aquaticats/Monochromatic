@@ -205,7 +205,10 @@ pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyE
 /// temporaryPath('/j/abc.stage', owner, 'u1') === `/j/abc.stage.${owner.token()}.u1.tmp`;
 /// ```
 pub fn temporary_path(path: &Path, owner: &CopyOwner, unique: &str) -> PathBuf {
-    return PathBuf::from(format!("{}.{}.{unique}{TEMPORARY_SUFFIX}", path.to_string_lossy(), owner.token()));
+    // The suffix is appended to the path's own bytes, so a name that is not text keeps every byte of itself.
+    let mut temporary: std::ffi::OsString = path.as_os_str().to_owned();
+    temporary.push(format!(".{}.{unique}{TEMPORARY_SUFFIX}", owner.token()));
+    return PathBuf::from(temporary);
 }
 
 /// What:
@@ -363,12 +366,12 @@ pub fn create_journal_for(
     let journal: Journal = Journal {
         created_entries: Vec::new(),
         intended_entries: Vec::new(),
-        destination_root: destination_root.to_string_lossy().into_owned(),
+        destination_root: destination_root.to_path_buf(),
         phase: Phase::Staged,
         selected_roots: snapshot.selected_roots.clone(),
-        source_root: snapshot.source_root.to_string_lossy().into_owned(),
-        stage_container: snapshot.stage_container.to_string_lossy().into_owned(),
-        stage_root: snapshot.stage_root.to_string_lossy().into_owned(),
+        source_root: snapshot.source_root.clone(),
+        stage_container: snapshot.stage_container.clone(),
+        stage_root: snapshot.stage_root.clone(),
     };
     write_journal(path.as_path(), &journal)?;
     return Ok(PendingJournal { path, journal });
@@ -564,7 +567,15 @@ fn read_journal_text(path: &Path) -> Result<String, WorktreeCopyError> {
             return Err(failure_with_cause(message.as_str(), Some(&error)));
         }
     };
-    return Ok(String::from_utf8_lossy(bytes.as_slice()).into_owned());
+    // A journal is text this wrapper wrote; bytes that are not UTF-8 are damage, and no path is read from them.
+    let Ok(text) = String::from_utf8(bytes) else {
+        let message: String = format!(
+            "monochromatic-git-policy-cli: could not read worktree-copy journal {}: it is not text.",
+            quote(path.to_string_lossy().as_ref())
+        );
+        return Err(failure_with_cause(message.as_str(), None));
+    };
+    return Ok(text);
 }
 
 /// Journal controls stay out of the release executable.

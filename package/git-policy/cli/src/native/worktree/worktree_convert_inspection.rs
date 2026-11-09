@@ -23,7 +23,7 @@ use crate::process_use::{UseTarget, processes_using};
 use crate::single_owner_claim::live_owner_of;
 use crate::subvolume_platform::Platform;
 use crate::worktree_clean::check_clean_tracked_by_content;
-use crate::worktree_convert_journal::{read_plain_file, read_plain_text};
+use crate::plain_file::{read_plain_file, read_plain_text};
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};

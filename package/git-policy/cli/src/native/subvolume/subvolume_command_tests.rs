@@ -53,6 +53,48 @@ fn starts_without_a_main_checkout_are_refused_with_the_reason() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A `.git` that is a named pipe with no writer ends discovery at once with a reason.
+/// Why:
+///   Discovery used a blocking read,
+/// so a FIFO at `.git` waited for a writer that never comes,
+/// with
+///  nothing said and no end.
+#[test]
+fn a_named_pipe_where_the_gitfile_belongs_is_refused_at_once() {
+    let parent: PathBuf = fixture("command-gitfile-pipe");
+    let start: PathBuf = parent.join("checkout");
+    std::fs::create_dir_all(start.as_path()).expect("directory");
+    crate::subvolume_sync_attrs::make_fifo(start.join(".git").as_path(), 0o600).expect("named pipe");
+    let discovery = crate::test_support::finished_within(move || { return main_checkout_root(start.as_path()); });
+    let Some(outcome) = discovery else { panic!("discovery did not finish within five seconds") };
+    let reason: String = outcome.expect_err("refused");
+    assert!(reason.contains("not a plain file") && reason.contains(".git"), "{reason}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A `commondir` that is a named pipe with no writer ends discovery at once with a reason.
+/// Why:
+///   A linked worktree's discovery reads its administrative directory's `commondir`,
+/// and a blocking read there
+///  waits with nothing said and no end.
+#[test]
+fn a_named_pipe_where_the_commondir_belongs_is_refused_at_once() {
+    let parent: PathBuf = fixture("command-commondir-pipe");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "../linked"]);
+    let common: PathBuf = root.join(".git/worktrees/linked/commondir");
+    std::fs::remove_file(common.as_path()).expect("remove the commondir file");
+    crate::subvolume_sync_attrs::make_fifo(common.as_path(), 0o600).expect("named pipe");
+    let start: PathBuf = parent.join("linked");
+    let discovery = crate::test_support::finished_within(move || { return main_checkout_root(start.as_path()); });
+    let Some(outcome) = discovery else { panic!("discovery did not finish within five seconds") };
+    let reason: String = outcome.expect_err("refused");
+    assert!(reason.contains("not a plain file") && reason.contains("commondir"), "{reason}");
+    remove(parent.as_path());
+}
+
 /// A `.git` file that is not a gitfile,
 /// one whose administrative directory has no `commondir`,
 /// and one that cannot be
@@ -150,4 +192,55 @@ fn every_refusal_is_printed_with_its_remedy_and_one_closing_line() {
     assert_eq!(lines.iter().filter(|line: &&String| { return line.trim_start().starts_with("What to do:"); }).count(), 2);
     assert_eq!(lines.last().map(String::as_str), Some("Nothing was changed."));
     remove(parent.as_path());
+}
+
+/// What:
+///  A preview runs the refusals of the mode it previews.
+/// Why:
+///   `--dry-run --remove-old` on a checkout with no journal said the command "would delete the
+/// original tree" while the same invocation without `--dry-run` refused,
+/// because the preview
+/// returned before the refusals were looked at;
+/// a preview that promises what the real run refuses
+/// answers a question nobody asked it to check.
+#[test]
+fn a_preview_refuses_what_the_real_run_would_refuse() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let parent: PathBuf = fixture("command-preview-refusals");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    for (mode, arguments) in [
+        (MigrateMode::Rollback, MigrateArguments { mode: MigrateMode::Rollback, dry_run: true, ..migrate_arguments() }),
+        (MigrateMode::RemoveOld, MigrateArguments { mode: MigrateMode::RemoveOld, dry_run: true, ..migrate_arguments() }),
+    ] {
+        let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
+        let said: String = lines.join("\n");
+        assert_eq!(code, REFUSED_EXIT_CODE, "{mode:?}: {said}");
+        let expected: &str = if mode == MigrateMode::Rollback { "no migration journal" } else { "not recorded as finished" };
+        assert!(said.contains("refused") && said.contains(expected), "{mode:?}: {said}");
+        assert!(!said.contains("dry run:"), "{mode:?}: a preview promises nothing the run refuses: {said}");
+        // The real run of the same mode refuses with the same lines, which is what the preview promises.
+        let (real_code, real_lines) = run_command(&platform, &MigrateArguments { dry_run: false, ..arguments.clone() }, root.as_path(), &Interrupt::never());
+        assert_eq!(real_code, REFUSED_EXIT_CODE, "{mode:?}: {real_lines:#?}");
+        assert_eq!(refusals_said(&lines), refusals_said(&real_lines), "{mode:?}");
+    }
+    // The positive control: a finished migration is previewed as the deletion the real run makes.
+    let (migrated, migration_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(migrated, 0, "{migration_lines:#?}");
+    let preview: MigrateArguments = MigrateArguments { mode: MigrateMode::RemoveOld, dry_run: true, ..migrate_arguments() };
+    let (code, lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(code, 0, "{lines:#?}");
+    assert!(lines.join("\n").contains("would delete"), "{lines:#?}");
+    remove(parent.as_path());
+}
+
+/// The refusal lines of a run,
+/// which are the ones a preview must match.
+fn refusals_said(lines: &[String]) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for line in lines {
+        if line.contains("refused:") || line.starts_with("  What to do:") {
+            found.push(line.clone());
+        }
+    }
+    return found;
 }

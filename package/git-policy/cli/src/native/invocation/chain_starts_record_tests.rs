@@ -171,7 +171,7 @@ fn a_record_never_takes_the_descriptor_a_child_reads_as_standard_input() {
         std::mem::forget(record);
         return;
     }
-    let output: std::process::Output = crate::test_support::child_this_test(
+    let output: std::process::Output = crate::test_support::child_test_process::run(
         DESCRIPTOR_CHILD_VARIABLE,
         "invocation::chain_starts_record::tests::a_record_never_takes_the_descriptor_a_child_reads_as_standard_input",
     );

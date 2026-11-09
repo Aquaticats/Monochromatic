@@ -20,9 +20,89 @@
 //! const plan = classify(names); const input = buildReviewInput({ commit });
 //! ```
 
-use crate::standards_review_patch::{NewSpan, new_spans};
+use crate::standards_review_patch::{NewSpan, is_line_feed_byte, new_spans};
 use crate::standards_review_text::{utf16_length, utf16_prefix};
 use std::collections::BTreeMap;
+
+/// What:
+///  One changed path exactly as Git reported it:
+/// its bytes,
+/// never text decoded from them.
+/// Why:
+///  A path on Linux is a byte string,
+/// and a name that does not decode must not be read as one that does:
+/// Git would then
+///  answer with another file's object,
+/// whose content would leave the machine as this file's excerpt.
+/// Text appears only
+///  where a person or the model reads a label,
+/// through its `Display`,
+/// never where an object is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ChangedPath { constructor(readonly bytes: Uint8Array) {} toString() { return decodeLossily(this.bytes) } }
+/// ```
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ChangedPath {
+    /// The path's bytes,
+    /// as `git diff-tree -z` prints them.
+    bytes: Vec<u8>,
+}
+
+impl ChangedPath {
+    /// A path from the bytes Git printed for it.
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        return Self { bytes };
+    }
+
+    /// The bytes Git printed for it,
+    /// which name its object and nothing else.
+    pub fn as_bytes(&self) -> &[u8] {
+        return self.bytes.as_slice();
+    }
+
+    /// Whether the path ends with `suffix`,
+    /// as the code-name test asks.
+    pub fn ends_with(&self, suffix: &str) -> bool {
+        return self.bytes.ends_with(suffix.as_bytes());
+    }
+
+    /// What:
+    ///  Whether the path names exactly `other`,
+    /// as the tracked log's own name is compared.
+    /// Why:
+    ///   `==` on bytes,
+    /// never on text,
+    /// so two names that decode alike stay apart.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// equals(other: ChangedPath) { return bytesEqual(this.bytes, other.bytes) }
+    /// ```
+    pub fn is(&self, other: &str) -> bool {
+        return self.bytes.as_slice() == other.as_bytes();
+    }
+}
+
+/// What:
+///  The path as text for a label,
+/// with a name that is not text replaced.
+/// Why:
+///   A label is read by a person;
+/// the object it labels was already read by the path's own bytes,
+/// so the replacement here
+///  cannot reach another file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new TextDecoder().decode(this.bytes) // lossy
+/// ```
+impl std::fmt::Display for ChangedPath {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(String::from_utf8_lossy(self.bytes.as_slice()).as_ref());
+    }
+}
 
 /// The tracked log's repository-relative path:
 /// the repository's switch for the review,
@@ -107,7 +187,7 @@ pub const CODE_SUFFIXES: [&str; 6] = [".ts", ".tsx", ".rs", ".js", ".mjs", ".cjs
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Plan = { kind: 'silent' } | { kind: 'no-code' } | { kind: 'review'; codeFiles: string[] };
+/// type Plan = { kind: 'silent' } | { kind: 'no-code' } | { kind: 'review'; codeFiles: ChangedPath[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Plan {
@@ -117,11 +197,11 @@ pub enum Plan {
     NoCode,
     /// A review of these code files,
     /// in name order.
-    Review(Vec<String>),
+    Review(Vec<ChangedPath>),
 }
 
 /// What:
-///  The plan for the names `git diff-tree --name-only -r` prints for the landed commit.
+///  The plan for the names `git diff-tree --name-only -r -z` prints for the landed commit.
 /// Why:
 ///   It is the script's first three branches,
 /// in order.
@@ -130,10 +210,10 @@ pub enum Plan {
 /// ```ts
 /// if (names.every((name) => name === logRelative)) return silent; if (codeFiles.length === 0) return noCode;
 /// ```
-pub fn plan_for(names: &[String]) -> Plan {
+pub fn plan_for(names: &[ChangedPath]) -> Plan {
     let mut only_the_log: bool = true;
     for name in names {
-        if name != TRACKED_LOG_RELATIVE {
+        if !name.is(TRACKED_LOG_RELATIVE) {
             only_the_log = false;
             break;
         }
@@ -141,7 +221,7 @@ pub fn plan_for(names: &[String]) -> Plan {
     if only_the_log {
         return Plan::Silent;
     }
-    let mut code_files: Vec<String> = Vec::new();
+    let mut code_files: Vec<ChangedPath> = Vec::new();
     for name in names {
         let mut is_code: bool = false;
         for suffix in CODE_SUFFIXES {
@@ -172,7 +252,7 @@ pub fn plan_for(names: &[String]) -> Plan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LandedCommit = { sha: string; subject: string; patch: string; contents: Map<string, string> };
+/// type LandedCommit = { sha: string; subject: string; patch: Uint8Array; contents: Map<ChangedPath, string> };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LandedCommit {
@@ -181,10 +261,11 @@ pub struct LandedCommit {
     /// Subject line,
     /// trimmed.
     pub subject: String,
-    /// `git show --format= --patch` text.
-    pub patch: String,
-    /// New-side text by path.
-    pub contents: BTreeMap<String, String>,
+    /// `git show --format= --patch` bytes,
+    /// as Git wrote them.
+    pub patch: Vec<u8>,
+    /// New-side text by the path's own bytes.
+    pub contents: BTreeMap<ChangedPath, String>,
 }
 
 /// What:
@@ -236,7 +317,7 @@ pub struct ReviewInput {
 /// ```ts
 /// excerptParts.push(`// candidate excerpt of ${name}, lines ${from} to ${to} of ${fileLines.length}`);
 /// ```
-fn excerpt(name: &str, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
+fn excerpt(name: &ChangedPath, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
     let file_lines: Vec<&str> = content.split('\n').collect();
     let total: i64 = i64::try_from(file_lines.len()).unwrap_or(i64::MAX);
     let mut first_changed: Option<i64> = None;
@@ -277,9 +358,9 @@ fn excerpt(name: &str, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
 /// ```ts
 /// const lunaInput = (lines.slice(0, capLines).join('\n') + '\n\n' + excerptParts.join('\n\n')).slice(0, 24000);
 /// ```
-pub fn build_input(commit: &LandedCommit, code_files: &[String]) -> ReviewInput {
-    let lines: Vec<&str> = commit.patch.split('\n').collect();
-    let kept: &[&str] = &lines[..lines.len().min(CAP_LINES)];
+pub fn build_input(commit: &LandedCommit, code_files: &[ChangedPath]) -> ReviewInput {
+    let lines: Vec<&[u8]> = commit.patch.split(is_line_feed_byte).collect();
+    let kept: &[&[u8]] = &lines[..lines.len().min(CAP_LINES)];
     let mut parts: Vec<String> = Vec::new();
     let mut excerpt_lines: i64 = 0;
     for name in code_files.iter().take(MAX_EXCERPT_FILES) {
@@ -289,12 +370,21 @@ pub fn build_input(commit: &LandedCommit, code_files: &[String]) -> ReviewInput 
         let Some(content) = commit.contents.get(name) else {
             continue;
         };
-        let spans: Vec<NewSpan> = new_spans(lines.as_slice(), name);
+        let spans: Vec<NewSpan> = new_spans(lines.as_slice(), name.as_bytes());
         let (pieces, covered) = excerpt(name, content, spans.as_slice());
         parts.extend(pieces);
         excerpt_lines += covered;
     }
-    let full: String = format!("{}\n\n{}", kept.join("\n"), parts.join("\n\n"));
+    // The patch enters the model input as text; the section match above used its bytes.
+    let mut patch_bytes: Vec<u8> = Vec::new();
+    for (index, line) in kept.iter().enumerate() {
+        if index > 0 {
+            patch_bytes.push(b'\n');
+        }
+        patch_bytes.extend_from_slice(line);
+    }
+    let patch_text: String = String::from_utf8_lossy(patch_bytes.as_slice()).into_owned();
+    let full: String = format!("{patch_text}\n\n{}", parts.join("\n\n"));
     let units: usize = utf16_length(full.as_str()).min(INPUT_UNIT_CAP);
     return ReviewInput {
         code_file_count: code_files.len(),

@@ -32,6 +32,9 @@
 //!  "Silence plus a ceiling (Recommended)";
 //! `wait_ceilings.rs`,
 //! `REVIEW_CALL_CEILING`).
+//! A response body is read against `MAX_RESPONSE_BYTES`,
+//! so an answer is never held whole
+//!  in memory and a server cannot spend the service's memory by sending.
 //! The longest quiet gap of every
 //!  call is measured beside the call and kept in the ledger (`quiet_ledger.rs`,
 //! `thread_quiet.rs`).
@@ -55,6 +58,26 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
+
+/// What:
+///  The most answer bytes one call reads:
+/// four times `INPUT_UNIT_CAP`,
+/// the UTF-8 worst case of the request the answer replies to.
+/// Why:
+///   An answer to a question is not longer than the question,
+/// and the request's own cap is the only bound this route already has.
+///  A body past it is refused while it arrives,
+/// so no answer is ever held in memory whole;
+/// the
+///  display excerpt of a failure message is separate and much smaller.
+///  Citation:
+/// none,
+/// and **unmeasured as an answer size**:
+/// the Decisions API publishes no answer bound and no answer's size was
+///  logged,
+/// so if a measured answer ever approaches this figure,
+/// the relation to `INPUT_UNIT_CAP` has to be revisited.
+pub const MAX_RESPONSE_BYTES: usize = crate::standards_review_input::INPUT_UNIT_CAP * 4;
 
 /// How long a call may stay silent before it is ended,
 /// when the caller sets nothing else (the script's own figure,
@@ -351,7 +374,6 @@ fn error_chain(error: &dyn std::error::Error) -> String {
 /// const response = await fetch(url, { method: 'POST', headers, body, redirect: 'error' });
 /// ```
 async fn exchange(gateway: &Gateway<'_>, body: &str, progress: Arc<Progress>) -> Result<Reply, String> {
-    use http_body_util::BodyExt as _;
     let tls: rustls::ClientConfig = client_config(gateway.trusted_pem)?;
     let mut http = hyper_util::client::legacy::connect::HttpConnector::new_with_resolver(PoolResolver);
     http.enforce_http(false);
@@ -370,9 +392,43 @@ async fn exchange(gateway: &Gateway<'_>, body: &str, progress: Arc<Progress>) ->
         .map_err(fetch_failed)?;
     let response = client.request(request).await.map_err(fetch_failed_with_causes)?;
     let status: u16 = response.status().as_u16();
-    let collected = response.into_body().collect().await.map_err(fetch_failed_with_causes)?;
-    let text: String = String::from_utf8(collected.to_bytes().to_vec()).map_err(fetch_failed)?;
+    let text: String = read_body(response.into_body()).await?;
     return Ok(Reply { status, body: text });
+}
+
+/// What:
+///  Read a response body frame by frame into text,
+/// refusing it while it arrives once it would pass `MAX_RESPONSE_BYTES`.
+/// Why:
+///   A status says nothing about how much body arrives,
+/// so an error answer can be as large as a success one;
+/// collecting it first
+///  would hold every byte of it in memory and cost the service's process what a remote answer chose to send.
+/// A refused
+///  body ends with the call,
+/// and the review records the refusal in its entry,
+/// as it records any failed call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for await (const chunk of response.body) { if (bytes.length + chunk.length > MAX) throw new Error(...); bytes.push(...chunk) }
+/// ```
+async fn read_body(mut body: hyper::body::Incoming) -> Result<String, String> {
+    use http_body_util::BodyExt as _;
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(next) = body.frame().await {
+        let frame = next.map_err(fetch_failed_with_causes)?;
+        let Some(chunk) = frame.data_ref() else {
+            continue;
+        };
+        if chunk.len() > MAX_RESPONSE_BYTES.saturating_sub(bytes.len()) {
+            return Err(format!(
+                "the decisions endpoint answered more than {MAX_RESPONSE_BYTES} bytes, the most one answer may carry, and the answer was not read"
+            ));
+        }
+        bytes.extend_from_slice(chunk);
+    }
+    return String::from_utf8(bytes).map_err(fetch_failed);
 }
 
 /// How a call that was raced against the silence ended.

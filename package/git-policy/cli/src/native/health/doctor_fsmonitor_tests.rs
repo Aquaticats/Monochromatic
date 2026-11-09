@@ -274,3 +274,58 @@ fn a_listing_that_cannot_be_read_is_said_plainly() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A `core.fsmonitor` of `00` is off,
+/// as Git reads it,
+/// and the line names the spelling as written.
+/// Why:
+///  Git parses this value as an integer first (`strtoimax` with base 0),
+/// and only a value that integer reader
+///  refuses is a hook path;
+/// the section called unmodelled text a hook and reported an owner's-decision violation
+///  that does not exist.
+#[test]
+fn a_false_spelled_as_a_number_is_off() {
+    for written in ["00", "0x0", "-0", "+0", "0k"] {
+        let entries: Vec<FsmonitorEntry> =
+            vec![FsmonitorEntry { scope: "local".into(), origin: "file:.git/config".into(), value: Some(written.as_bytes().to_vec()) }];
+        assert_eq!(
+            render_fsmonitor(entries.as_slice()),
+            off_line(format!("core.fsmonitor is {written} (Git reads it as false) in file:.git/config, local scope").as_str()),
+            "{written}"
+        );
+    }
+}
+
+/// A hook path is still a hook path:
+/// the integer reader refuses it and Git starts it.
+#[test]
+fn a_value_the_integer_reader_refuses_is_still_a_hook() {
+    let entries: Vec<FsmonitorEntry> =
+        vec![FsmonitorEntry { scope: "local".into(), origin: "file:.git/config".into(), value: Some(b"08".to_vec()) }];
+    assert!(
+        render_fsmonitor(entries.as_slice()).contains("core.fsmonitor names the hook 08 in file:.git/config, local scope"),
+        "{}",
+        render_fsmonitor(entries.as_slice())
+    );
+}
+
+/// What:
+///  The doctor says fsmonitor is off for a repository whose value Git reads as false through an integer spelling.
+/// Why:
+///  This is the whole defect at its own boundary:
+/// real Git,
+/// a real repository,
+/// and the report the person reads.
+#[test]
+fn doctor_says_fsmonitor_is_off_for_a_numeric_false() {
+    let root: PathBuf = fixture("doctor-fsmonitor-numeric-false");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["config", "core.fsmonitor", "00"]);
+    assert_eq!(
+        doctor_stderr(&git_context(), repo.as_path(), 0),
+        off_line("core.fsmonitor is 00 (Git reads it as false) in file:.git/config, local scope")
+    );
+    remove(root.as_path());
+}

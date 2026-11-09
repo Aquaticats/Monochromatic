@@ -18,14 +18,17 @@
 
 use crate::line_sink::LineSink;
 use crate::fs_beneath::{ObjectId, identity_at, open_root};
+use crate::plain_file::read_plain_file;
 use crate::process_use::{UseTarget, processes_using};
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_index_files::{IndexLock, RefreshOptions, RefreshStatus, refresh_index_file_report, repository_hash_length};
 use crate::subvolume_lock::{acquire, is_ours};
+use crate::subvolume_pass_report::what_a_pass_could_not_carry;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
+use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
-use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object, read_plain_file};
+use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::path::{Path, PathBuf};
 
@@ -53,6 +56,11 @@ impl Job<'_> {
     /// Record a phase durably.
     pub fn reach(&mut self, phase: Phase) -> Result<(), MigrateError> {
         self.journal.phase = phase;
+        if phase == Phase::Synced {
+            // The proving pass just finished, so from this instant on a file that changes is one the removal compares by
+            // contents; on a resume before the swap the pass runs again and the instant moves with it.
+            self.journal.synced_ms = Some(crate::worktree_convert_journal::now_milliseconds());
+        }
         return self.journal.save(self.candidate.admin.as_path());
     }
 
@@ -161,8 +169,29 @@ pub fn pass_changed(stats: &SyncStats) -> bool {
     return stats.files_copied > 0 || stats.deleted > 0 || stats.vanished > 0 || stats.symlinks > 0 || stats.fifos > 0;
 }
 
-/// Fail with the unreadable files a pass could not copy,
-/// because a copy that leaves them out would lose them at the swap.
+/// What:
+///  Fail with what a pass could not carry into the stage,
+///  because a copy that leaves it out would lose it at the swap:
+/// a file
+///  this user cannot read,
+/// or a socket or a device node the copy never recreates.
+/// Why:
+///   The comparison before the removal names an entry the installed tree lacks,
+/// but by then the swap has happened,
+///  `--abandon` refuses,
+/// and the only way out is deleting an entry below a name only this command uses.
+/// Refusing here stops the conversion while the stage is a copy,
+/// so nothing has been swapped,
+///  `--abandon` works,
+/// and a person who stops whatever holds the socket and deletes it,
+/// or unlocks the
+///  file,
+/// finishes by running the command again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// requireComplete(stats, path); // throws when the copy would lose an entry
+/// ```
 pub fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateError> {
     if let Some(first) = stats.unreadable.first() {
         return Err(MigrateError::Journal(format!(
@@ -170,6 +199,19 @@ pub fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateErr
             path.display(),
             stats.unreadable.len(),
             first.display()
+        )));
+    }
+    if !stats.special_skipped.is_empty() {
+        let mut named: Vec<String> = Vec::new();
+        for entry in stats.special_skipped.iter().take(SAMPLE_SIZE) {
+            named.push(entry.display().to_string());
+        }
+        return Err(MigrateError::Journal(format!(
+            "{} holds {} socket(s) or device node(s) that this copy does not recreate ({}), so the conversion stops here and nothing was swapped: stop whatever holds each one (a socket is recreated by the program that made it), delete it from {}, and run the command again",
+            path.display(),
+            stats.special_skipped.len(),
+            named.join(", "),
+            path.display()
         )));
     }
     return Ok(());
@@ -220,13 +262,19 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     ensure_stage(platform, job, interrupt)?;
     interrupt.check("created")?;
     let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None }, interrupt)?;
-    require_complete(&first, job.candidate.path.as_path())?;
     say.say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
+    for text in what_a_pass_could_not_carry("  copy", &first) {
+        say.say(text.as_str());
+    }
+    require_complete(&first, job.candidate.path.as_path())?;
     // Git's `index.lock` is taken only now: the long first copy ran without it, and the lock covers the span in which a Git
     // writer could invalidate the proof, the swap or the index rewrite.
     hold_index_lock(job)?;
     // The proof: a second pass that must find nothing to copy or delete, so the copy equals the original at this instant.
     let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None }, interrupt)?;
+    for text in what_a_pass_could_not_carry("  proving copy", &second) {
+        say.say(text.as_str());
+    }
     if let Err(error) = require_complete(&second, job.candidate.path.as_path()) {
         release_index_lock(job)?;
         return Err(error);
@@ -431,7 +479,7 @@ pub fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Int
     if !holders.is_empty() {
         return Err(MigrateError::Journal(format!("the old tree at {} is kept because {}; stop that and run the command again", job.converting.display(), holders.join("; "))));
     }
-    match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path())? {
+    match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path(), job.journal.synced_ms)? {
         Removal::Removed | Removal::Absent => {}
         Removal::Kept(why) => {
             return Err(MigrateError::Journal(format!("the old tree was not removed: {why}; the journal is kept, so put things right and run the command again")));

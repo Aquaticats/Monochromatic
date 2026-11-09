@@ -144,3 +144,24 @@ fn unsafe_intent_is_refused() {
     );
     remove(root.as_path());
 }
+
+/// A complete line whose bytes are not text fails closed:
+/// reading it with replacement characters would claim a path the writer never named.
+#[test]
+fn a_line_that_is_not_text_fails_closed() {
+    let root: PathBuf = fixture("install-log-not-text");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir(stage.as_path()).expect("stage");
+    let path: PathBuf = stage.join(INSTALL_LOG_NAME);
+    write_private_file(path.as_path(), b"{\"intended\":[\"cache/\xff\"]}\n").expect("log");
+    let failure: WorktreeCopyError = open_install_log(stage.as_path()).expect_err("not text");
+    assert_eq!(
+        failure.0,
+        format!(
+            "monochromatic-git-policy-cli: worktree-copy install log is corrupt: {}.",
+            quote(path.to_string_lossy().as_ref())
+        )
+    );
+    assert!(path.exists(), "a log that cannot be read is kept");
+    remove(root.as_path());
+}

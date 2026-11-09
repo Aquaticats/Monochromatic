@@ -1,17 +1,20 @@
 //! What:
 //!  A read of the per-entry flags of an index file that decide whether the index may seed an explicit-path commit:
-//!  whether any entry is marked assume-unchanged,
-//! skip-worktree or intent-to-add.
+//!  whether any entry is marked assume-unchanged or skip-worktree,
+//!  and which entries are marked intent-to-add.
 //! Why:
 //!  A private index copied from the real index and reset to the base keeps those marks,
 //! and `git add --all -- <path>`
 //!  then skips a marked file the commit named (assume-unchanged) or refuses it (skip-worktree),
 //! where Git's own partial
-//!  commit and the previous flow staged it;
-//! an intent-to-add entry of a tracked empty file survives the reset and is then
-//!  left out of the tree,
-//! so the commit loses that file.
-//! Finding a mark needs the whole file,
+//!  commit and the previous flow staged it.
+//!  An intent-to-add entry stops nothing:
+//!  it holds the empty blob's name and no stat data at all,
+//!  so a copy that leaves it out loses nothing a commit needs,
+//!  and a tree Git builds from an index that holds one leaves that path out,
+//!  so the entry has to be left out rather than copied.
+//!  Reporting the paths lets the caller leave exactly those entries out.
+//!  Finding a mark needs the whole file,
 //! and a Git start for it would add a
 //!  process to every commit,
 //! so the entries are read here;
@@ -27,10 +30,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const flags = readIndexFlags(await readFile(indexPath)); // 'plain' | 'marked' | 'unreadable'
+//! const flags = readIndexFlags(await readFile(indexPath)); // 'plain' | { intentToAdd: paths } | 'marked' | 'unreadable'
 //! ```
 
+/// The byte search the extension walk uses.
 use crate::index_byte_search::first_index_of_byte;
+/// Git's varint,
+/// which a version 4 entry writes its strip count in.
+use crate::index_stat::decode_varint;
 
 /// Bit of the 16-bit entry flags that marks assume-unchanged.
 const ASSUME_VALID: u16 = 0x8000;
@@ -43,8 +50,8 @@ const SKIP_WORKTREE: u16 = 0x4000;
 
 /// Bit of the extended flags that marks intent-to-add.
 /// Such an entry keeps the empty blob's name and is left out of any tree built from the index,
-/// so a copy that a one-tree
-///  `read-tree --reset` leaves in place drops a tracked empty file from the commit.
+/// so a copy that carries one
+///  drops a tracked file from the commit it seeds.
 const INTENT_TO_ADD: u16 = 0x2000;
 
 /// Bytes of the index header:
@@ -65,13 +72,17 @@ const OBJECT_NAME_LENGTHS: [usize; 2] = [20, 32];
 const SPLIT_INDEX_EXTENSION: &[u8; 4] = b"link";
 
 /// What a read of an index file found.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IndexFlags {
     /// Every entry was read and none is marked assume-unchanged,
     /// skip-worktree or intent-to-add.
     Plain,
-    /// At least one entry is marked assume-unchanged,
-    /// skip-worktree or intent-to-add.
+    /// Every entry was read,
+    /// and the only entries marked are these intent-to-add ones,
+    /// whose paths are given in index order.
+    IntentToAdd(Vec<Vec<u8>>),
+    /// At least one entry is marked assume-unchanged or skip-worktree,
+    /// which a copy may not carry.
     Marked,
     /// The file is not an index this reader fully understands (an unknown version,
     /// a split index,
@@ -79,6 +90,15 @@ pub enum IndexFlags {
     /// not add up),
     /// so nothing is known about its marks.
     Unreadable,
+}
+
+/// What a scan of every entry of one index file found.
+struct Marks {
+    /// Whether an entry is marked assume-unchanged or skip-worktree.
+    hidden: bool,
+    /// The paths whose entry is marked intent-to-add,
+    /// in the order the index holds them.
+    intent_to_add: Vec<Vec<u8>>,
 }
 
 /// Big-endian 16-bit value at `at`.
@@ -94,6 +114,29 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 }
 
 /// What:
+///  A version 4 entry's name,
+///  which stores only the part that differs from the entry before it,
+///  and the bytes the entry after it starts at.
+/// Why:
+///  Only this layout hides a name behind a strip count,
+/// and the path of an intent-to-add entry is the one thing the caller needs from the entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// compressedName(bytesAfterFlags, earlier) // [name, bytesUsed] | undefined
+/// ```
+fn compressed_name(bytes_after_flags: &[u8], earlier: &[u8]) -> Option<(Vec<u8>, usize)> {
+    let (strip_count, rest) = decode_varint(bytes_after_flags)?;
+    let strip: usize = usize::try_from(strip_count).ok()?;
+    let terminator: usize = first_index_of_byte(rest, 0)?;
+    let kept: usize = earlier.len().checked_sub(strip)?;
+    let mut name: Vec<u8> = earlier.get(..kept)?.to_vec();
+    name.extend_from_slice(rest.get(..terminator)?);
+    let used: usize = bytes_after_flags.len().checked_sub(rest.len())?.checked_add(terminator)?.checked_add(1)?;
+    return Some((name, used));
+}
+
+/// What:
 ///  Reads every entry and extension of an index whose object names are `name_length` bytes long.
 /// Why:
 ///   A wrong name length misplaces the entries,
@@ -102,9 +145,9 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// scanEntries(bytes, nameLength) // true when any entry is marked; undefined when the layout is not understood
+/// scanEntries(bytes, nameLength) // marks, or undefined when the layout is not understood
 /// ```
-fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
+fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
     let end: usize = bytes.len().checked_sub(name_length)?;
     if bytes.get(..4)? != b"DIRC" {
         return None;
@@ -114,35 +157,44 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
         return None;
     }
     let count: u32 = be32(bytes, 8)?;
-    let mut marked: bool = false;
+    let mut marks: Marks = Marks { hidden: false, intent_to_add: Vec::new() };
     let mut at: usize = HEADER_LENGTH;
+    // The name of the entry before, which a version 4 entry is written against.
+    let mut earlier: Vec<u8> = Vec::new();
     for _entry in 0..count {
         let flags: u16 = be16(bytes, at.checked_add(STAT_LENGTH)?.checked_add(name_length)?)?;
+        // The bytes of the entry before its name: the stat fields, the object name, the 16-bit flags and, when it
+        // carries them, the extended flags. The padding below is counted from the entry's own start, so every one of
+        // those bytes is part of it.
         let mut head: usize = STAT_LENGTH + name_length + 2;
         if flags & ASSUME_VALID != 0 {
-            marked = true;
+            marks.hidden = true;
         }
+        let mut extended: u16 = 0;
         if flags & EXTENDED != 0 {
             if version < 3 {
                 return None;
             }
-            if be16(bytes, at.checked_add(head)?)? & (SKIP_WORKTREE | INTENT_TO_ADD) != 0 {
-                marked = true;
+            extended = be16(bytes, at.checked_add(head)?)?;
+            if extended & SKIP_WORKTREE != 0 {
+                marks.hidden = true;
             }
             head += 2;
         }
+        let wants_name: bool = extended & INTENT_TO_ADD != 0;
         let name_start: usize = at.checked_add(head)?;
         if version == 4 {
-            // The strip count is a varint; its last byte has no continuation bit.
-            let mut cursor: usize = name_start;
-            while bytes.get(cursor)? & 0x80 != 0 {
-                cursor += 1;
+            let (name, used): (Vec<u8>, usize) = compressed_name(bytes.get(name_start..end)?, earlier.as_slice())?;
+            at = name_start.checked_add(used)?;
+            if wants_name {
+                marks.intent_to_add.push(name.clone());
             }
-            cursor += 1;
-            let terminator: usize = first_index_of_byte(bytes.get(cursor..end)?, 0)?;
-            at = cursor + terminator + 1;
+            earlier = name;
         } else {
             let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
+            if wants_name {
+                marks.intent_to_add.push(bytes.get(name_start..name_start.checked_add(terminator)?)?.to_vec());
+            }
             // An entry is padded with one to eight NULs to a multiple of eight bytes from its own start.
             at = at.checked_add((head + terminator + 8) & !7)?;
         }
@@ -161,11 +213,13 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
     if at != end {
         return None;
     }
-    return Some(marked);
+    return Some(marks);
 }
 
 /// What:
-///  Whether an index file has an entry marked assume-unchanged or skip-worktree.
+///  The marks an index file carries:
+/// whether an entry is assume-unchanged or skip-worktree,
+/// and which entries are intent-to-add.
 /// Why:
 ///   Both object name lengths are tried because the reader is not told the repository's object format;
 ///  a layout that adds up for neither is unreadable,
@@ -178,8 +232,10 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
 pub fn read_index_flags(bytes: &[u8]) -> IndexFlags {
     for name_length in OBJECT_NAME_LENGTHS {
         match scan_entries(bytes, name_length) {
-            Some(true) => return IndexFlags::Marked,
-            Some(false) => return IndexFlags::Plain,
+            // A hidden entry sends the whole commit to the slower build, so its paths are not needed.
+            Some(marks) if marks.hidden => return IndexFlags::Marked,
+            Some(marks) if !marks.intent_to_add.is_empty() => return IndexFlags::IntentToAdd(marks.intent_to_add),
+            Some(_) => return IndexFlags::Plain,
             None => {}
         }
     }
