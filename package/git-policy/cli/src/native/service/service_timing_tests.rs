@@ -88,6 +88,7 @@ fn landing() -> LandTiming {
         hold: Duration::from_millis(HOLD_MS),
         attempts: 2,
         reads_split: super::ReadSplit::default(),
+        syncs: Vec::new(),
         lock_notes: WaitNotes {
             holder: Some(String::from("Process 4242 (git)")),
             found: Some(String::from("foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]")),
@@ -228,6 +229,54 @@ fn the_answered_line_names_each_read_of_the_landing() {
         .sum();
     assert!(named <= READS_MS, "the named reads add up to no more than the residual: {named} of {READS_MS}");
     assert_eq!(found["reads_ms"], READS_MS.to_string(), "the residual still states its whole");
+}
+
+/// Milliseconds each sync of the control's landing is given:
+/// two the landing waited for,
+/// and two it handed to the background.
+const SYNC_BUILT_INDEX_MS: u64 = 41;
+const SYNC_LOCK_MARKER_MS: u64 = 43;
+
+/// A landing that made two syncs and handed two to the background.
+fn landing_with_syncs() -> LandTiming {
+    let mut timed: LandTiming = landing();
+    timed.syncs = vec![
+        crate::service_durable_syncs::SyncFigure { what: "built-index", waited: true, took: Duration::from_millis(SYNC_BUILT_INDEX_MS) },
+        crate::service_durable_syncs::SyncFigure { what: "intent-file", waited: false, took: Duration::ZERO },
+        crate::service_durable_syncs::SyncFigure { what: "lock-marker", waited: true, took: Duration::from_millis(SYNC_LOCK_MARKER_MS) },
+        crate::service_durable_syncs::SyncFigure { what: "intent-dir", waited: false, took: Duration::ZERO },
+    ];
+    return timed;
+}
+
+/// What:
+///  The answered line states every sync the landing made,
+///  what each was for and how long it took,
+///  and how many it handed to the background.
+/// Why:
+///   A landing that made more syncs and a landing whose syncs met a stalling device
+///  looked alike in the phases;
+///  the report of one landing in an fsync test spent 107.9 s,
+///  and nothing said how many syncs made it.
+#[test]
+fn the_answered_line_states_each_sync_of_the_landing_with_its_time() {
+    let line: String = line_for("req-syncs", "refs/heads/main", &landing_with_syncs());
+    let found: HashMap<String, String> = fields(line.as_str());
+    assert_eq!(found["syncs_waited"], "2");
+    assert_eq!(found["syncs_queued"], "2");
+    assert_eq!(found["sync_held_ms"], (SYNC_BUILT_INDEX_MS + SYNC_LOCK_MARKER_MS).to_string());
+    assert_eq!(found["syncs"], "built-index=41;intent-file=queued;lock-marker=43;intent-dir=queued");
+}
+
+/// A landing that made no sync says so in numbers and in an empty list,
+/// so a reader never has to tell a missing field from a landing that made none.
+#[test]
+fn a_landing_that_made_no_sync_states_none() {
+    let found: HashMap<String, String> = fields(line_for("req-nosyncs", "refs/heads/main", &landing()).as_str());
+    assert_eq!(found["syncs_waited"], "0");
+    assert_eq!(found["syncs_queued"], "0");
+    assert_eq!(found["sync_held_ms"], "0");
+    assert_eq!(found["syncs"], "");
 }
 
 /// A landing that waited for nobody names no holder.

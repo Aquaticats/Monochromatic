@@ -173,6 +173,8 @@ pub fn land_batch_timed(
         Err(_failure) => false,
     };
     deferral.settle(published);
+    // Every sync the landing made or handed to the background, with the time of each: the last thing the answer states about it.
+    timing.syncs = crate::service_durable::take_syncs();
     return result;
 }
 

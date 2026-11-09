@@ -258,6 +258,12 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let read_names: [&str; 9] = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"];
     let named_reads: u64 = read_names.iter().map(|key| { return ms_of(line, key); }).sum();
     assert!(named_reads <= ms_of(line, "reads_ms"), "the named reads are parts of the residual ({} of {}): {line}", named_reads, ms_of(line, "reads_ms"));
+    // Every sync of the landing is stated with what it was for: one handed to the background says `queued`, and the landing
+    //  says how many it waited for and how long that took.
+    assert!(ms_of(line, "syncs_queued") >= 1, "the records of the landing are flushed after the answer: {line}");
+    assert!(line.contains("lock-marker=queued"), "the flush of the lock marker is named: {line}");
+    assert_eq!(ms_of(line, "syncs_waited"), 0, "an unset `core.fsync` waits for no sync: {line}");
+    assert_eq!(ms_of(line, "sync_held_ms"), 0, "nothing was waited for, so nothing was held: {line}");
     assert!(!line.contains("lock_holder"), "nobody held the index: {line}");
     let everything: String = std::fs::read_to_string(&places.log).expect("log") + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
     assert!(!everything.contains(MESSAGE), "the commit's text is in a log");

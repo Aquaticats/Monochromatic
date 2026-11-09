@@ -23,6 +23,7 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
+use crate::service_durable_syncs::{SyncFigure, syncs_held, syncs_waited_count, syncs_word};
 use crate::service_index_found::WaitNotes;
 use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
 use crate::lfs_output_mask::mask_userinfo_text;
@@ -98,6 +99,9 @@ pub struct LandTiming {
     /// named one by one;
     /// their sum is never more than `reads`.
     pub reads_split: ReadSplit,
+    /// Every sync this landing made or handed to the background,
+    /// in the order it asked for them.
+    pub syncs: Vec<SyncFigure>,
 }
 
 impl LandTiming {
@@ -377,6 +381,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
          reads_config_ms={} reads_branch_ms={} reads_parents_ms={} reads_changed_ms={} reads_content_ms={} \
          reads_witness_ms={} reads_conclusion_ms={} reads_owed_ms={} reads_follow_ms={} \
+         syncs_waited={} syncs_queued={} sync_held_ms={} syncs={:?} \
          answer_ms={} total_ms={} quiet_ms={} quiet_steps={:?} steps={:?} steps_dropped={}",
         answered.request,
         answered.reference,
@@ -405,6 +410,10 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.landing.reads_split.conclusion.as_millis(),
         answered.landing.reads_split.owed.as_millis(),
         answered.landing.reads_split.follow.as_millis(),
+        syncs_waited_count(answered.landing.syncs.as_slice()),
+        answered.landing.syncs.len() - syncs_waited_count(answered.landing.syncs.as_slice()),
+        syncs_held(answered.landing.syncs.as_slice()).as_millis(),
+        syncs_word(answered.landing.syncs.as_slice()),
         answered.answer.as_millis(),
         answered.total.as_millis(),
         longest_healthy(answered.quiet),

@@ -289,6 +289,11 @@ pub mod service_pruned;
 /// made before return otherwise.
 pub mod service_durable;
 
+/// The syncs one landing made,
+/// what each was for and how long it took,
+/// and the words its answer gives for them.
+pub mod service_durable_syncs;
+
 pub mod service_land_finish;
 
 /// The removal of a stale index lock,
