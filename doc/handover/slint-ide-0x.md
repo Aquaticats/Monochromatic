@@ -11539,7 +11539,7 @@ IDE 0.1.3 released,
 commit `d1477a13ba`,
 run 40836615403,
 all jobs succeeded):
-- `ide-v0.1.3` was blocked before it could be released:
+- The `ide-v0.1.3` release was blocked before it could be published:
   the rust-catalog migration (`fd0bd03540`,
   #1800) made cargo refuse `default-features = false` on a `workspace = true` dependency.
   Session `monochromatic-fb` fixed the generator in `d1477a13ba` (each crate's generated `[workspace.dependencies]` entry now carries `default-features = false`);
