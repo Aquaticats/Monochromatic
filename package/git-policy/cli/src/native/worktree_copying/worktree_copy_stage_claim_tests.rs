@@ -217,6 +217,56 @@ fn a_claim_naming_another_directory_is_refused() {
     remove(root.as_path());
 }
 
+/// An earlier release wrote a container path verbatim,
+/// so a destination parent that holds line breaks puts lines of its own inside the claim.
+/// A line of bytes inside such a path is not where this release writes one,
+/// so the claim is refused and the private directory those bytes name survives.
+#[test]
+fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_survives() {
+    let (root, common, destination) = scene("claim-path-lines");
+    let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
+    create_private_directory(target.as_path()).expect("a private directory with the stage naming");
+    std::fs::write(target.join("keep"), b"user data").expect("user data");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim: PathBuf = journals.join("injected.stage");
+    // The record the earlier release wrote for the destination parent `/w/p\ncontainerHex=<bytes>\nq`.
+    let text: String = format!(
+        "/w/p\n{CONTAINER_HEX_PREFIX}{}\nq\n{OWNER_LINE_PREFIX}{}\n",
+        hex_of_path(target.as_path()),
+        dead_copy_owner().token()
+    );
+    crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
+    reap_abandoned_stages(common.as_path()).expect_err("a claim of a shape this release does not write is refused");
+    assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
+    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    remove(root.as_path());
+}
+
+/// A claim this release writes names one path on its line of text and on its line of bytes.
+/// Two lines that name different paths are refused,
+/// and the directory the bytes name survives.
+#[test]
+fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
+    let (root, common, destination) = scene("claim-text-bytes-disagree");
+    let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
+    create_private_directory(target.as_path()).expect("a private directory with the stage naming");
+    std::fs::write(target.join("keep"), b"user data").expect("user data");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim: PathBuf = journals.join("disagreeing.stage");
+    let named_elsewhere: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}other"));
+    let text: String = format!(
+        "{}\n{CONTAINER_HEX_PREFIX}{}\n{OWNER_LINE_PREFIX}{}\n",
+        named_elsewhere.to_string_lossy(),
+        hex_of_path(target.as_path()),
+        dead_copy_owner().token()
+    );
+    crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
+    reap_abandoned_stages(common.as_path()).expect_err("a claim whose two lines name two paths is refused");
+    assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
+    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    remove(root.as_path());
+}
+
 /// A claim that names a relative path is refused even when its last component looks like a stage.
 #[test]
 fn a_claim_naming_a_relative_path_is_refused() {
