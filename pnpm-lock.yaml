@@ -2911,6 +2911,9 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
       '@monochromatic-dev/mcp-stdio':
         specifier: workspace:*
         version: link:../stdio
