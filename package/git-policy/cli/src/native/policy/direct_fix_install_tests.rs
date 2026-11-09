@@ -1604,8 +1604,11 @@ fn a_replacement_keeps_the_group_the_file_had() {
     let other: Option<u32> = groups[..usize::try_from(counted).expect("a count")].iter().map(|id| return *id).find(|id| return *id != own);
     let Some(other_gid) = other else {
         // Positive control: without a second group this control cannot run, and says so.
+        eprintln!(
+            "GROUP CONTROL NOT RUN: this process belongs to one group only, so a set-group-ID directory cannot hand out another"
+        );
         remove(root.as_path());
-        panic!("this process belongs to one group only, so a set-group-ID directory cannot hand out another");
+        return;
     };
     let mut shared_for_chgrp: std::process::Command = std::process::Command::new("chgrp");
     let changed: std::process::Output = shared_for_chgrp
