@@ -86,6 +86,40 @@ fn a_same_size_edit_with_the_time_put_back_is_a_difference() {
 }
 
 /// What:
+///  A mode change of the old root directory itself is a difference.
+/// Why:
+///   The old root's own metadata supplied only the device number,
+/// so a `chmod` of the old tree's top
+///  directory was never compared and the tree that held it was deleted.
+#[test]
+fn a_mode_change_of_the_old_root_is_a_difference() {
+    let (root, old, installed) = twin_trees("compare-root-mode");
+    std::fs::set_permissions(old.as_path(), std::fs::Permissions::from_mode(0o700)).expect("a narrowed old root");
+    let difference: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(difference.contains("the old tree itself") && difference.contains("permission bits"), "{difference}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A mode change of a named pipe is a difference.
+/// Why:
+///   A FIFO enters none of the directory,
+/// link and regular-file branches,
+/// so its mode,
+/// owner,
+/// group
+///  and carried attributes were never compared and its distinct permissions were lost with the old tree.
+#[test]
+fn a_mode_change_of_a_named_pipe_is_a_difference() {
+    let (root, old, installed) = twin_trees("compare-fifo-mode");
+    crate::subvolume_sync_attrs::make_fifo(old.join("queue").as_path(), 0o600).expect("the old queue");
+    crate::subvolume_sync_attrs::make_fifo(installed.join("queue").as_path(), 0o644).expect("the installed queue");
+    let difference: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(difference.contains("queue") && difference.contains("permission bits"), "{difference}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  Give `path` the user attribute `user.cli-git-control`,
 ///  and answer whether the filesystem took it.
 /// Why:
