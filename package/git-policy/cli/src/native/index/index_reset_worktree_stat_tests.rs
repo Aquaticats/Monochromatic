@@ -456,3 +456,57 @@ fn an_attributes_file_only_the_index_holds_refuses_the_record() {
     assert_eq!(recorded_with_indexed(&[Vec::new()], root.as_path(), b"a", blob.as_slice(), 0o100_644), None, "the index's copy applies where the worktree's is gone");
     remove(root.as_path());
 }
+
+/// What:
+///  A repository whose worktree `.gitattributes` is `bytes` long and names no converting attribute,
+/// with one aged file that holds a blob.
+/// Why:
+///   A control for the attribute reads' cost needs an attribute file of a known size that changes nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attributesOf = (root, bytes) => writeFile(`${root}/.gitattributes`, 'a -text\n' + '#'.repeat(bytes - 7) + '\n');
+/// ```
+fn attributes_of(root: &Path, bytes: usize) {
+    let mut text: Vec<u8> = b"a -text\n".to_vec();
+    text.extend(std::iter::repeat_n(b'#', bytes.saturating_sub(text.len() + 1)));
+    text.push(b'\n');
+    std::fs::write(root.join(".gitattributes"), text).expect("attributes");
+}
+
+/// An attribute file that does not fit in the room the landing has left refuses the record,
+/// while the same file fits and records when the room is whole.
+#[test]
+fn an_attribute_read_that_does_not_fit_the_room_refuses_the_record() {
+    let root: PathBuf = fixture_root("index-worktree-stat-attribute-room");
+    attributes_of(root.as_path(), 4096);
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
+    let spent: StdCell<u64> = StdCell::new(crate::worktree_clean_content::CONTENT_LIMIT - 16);
+    let tight: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &spent);
+    assert_eq!(recorded_stat(&tight), None, "an attribute file of four kibibytes does not fit in sixteen bytes of room");
+    assert_eq!(spent.get(), crate::worktree_clean_content::CONTENT_LIMIT - 16, "and nothing is charged for it");
+    let whole: StdCell<u64> = StdCell::new(0);
+    let roomy: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &whole);
+    assert!(recorded_stat(&roomy).is_some(), "with the whole bound the same file records");
+    remove(root.as_path());
+}
+
+/// The attribute files a landing reads are charged to its content bound,
+/// so the bytes it reads under the index lock are the bytes it accounts for.
+#[test]
+fn the_attribute_files_a_landing_reads_are_charged() {
+    let root: PathBuf = fixture_root("index-worktree-stat-attribute-charged");
+    attributes_of(root.as_path(), 4096);
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
+    let hashed: StdCell<u64> = StdCell::new(0);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    assert!(recorded_stat(&request).is_some(), "the file records");
+    assert!(hashed.get() >= 4096 + 2, "the attribute file and the file itself are charged, and the landing has {}", hashed.get());
+    remove(root.as_path());
+}

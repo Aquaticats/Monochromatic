@@ -319,6 +319,25 @@ fn mode_agrees(entry_mode: u32, metadata: &std::fs::Metadata) -> bool {
 }
 
 /// What:
+///  The content decision's judge for a landing,
+/// with its attribute reads charged to the landing's bound.
+/// Why:
+///   The attributes a path's bytes are judged against are read under the landing's index lock,
+/// so those bytes are part of
+///  what the landing bounds,
+/// and a file that does not fit is refused (a refresh) rather than read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const judge = new ContentJudge({ root, gitDir, commonDir, environment, format }); judge.chargeAttributesTo(hashed);
+/// ```
+fn charged_judge<'a>(root: &'a std::fs::File, target: &ContentTarget<'a>, hashed: &'a Cell<u64>) -> ContentJudge<'a> {
+    let mut judge: ContentJudge<'a> = ContentJudge::new(root, target.git_dir, target.common_dir, target.environment, target.format);
+    judge.charge_attributes_to(hashed);
+    return judge;
+}
+
+/// What:
 ///  The held directory out of the cached entry.
 /// Why:
 ///   The cache holds the names it was opened for beside the handle,
@@ -376,7 +395,7 @@ impl<'a> LandingStat<'a> {
     pub fn new(root: &'a std::fs::File, target: &ContentTarget<'a>, stamp: IndexStamp, hashed: &'a Cell<u64>, indexed_attributes: &'a [Vec<u8>]) -> LandingStat<'a> {
         return LandingStat {
             root,
-            judge: RefCell::new(ContentJudge::new(root, target.git_dir, target.common_dir, target.environment, target.format)),
+            judge: RefCell::new(charged_judge(root, target, hashed)),
             directory: RefCell::new(None),
             format: target.format,
             stamp,
