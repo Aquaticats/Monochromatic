@@ -25,8 +25,6 @@ use crate::diagnostic_log::debug;
 use crate::git_builtins::is_git_builtin;
 /// The global-option layout.
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-/// Trimming with the incumbent's `.trim()` semantics.
-use crate::js_text::trim_javascript;
 /// Running real Git.
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// `OsString` is owned operating-system text of raw bytes.
@@ -205,61 +203,38 @@ pub fn split_alias_command(value: &[u8]) -> Option<Vec<Vec<u8>>> {
 }
 
 /// What:
-///  An alias value with surrounding whitespace removed,
-///  as JavaScript's `.trim()` does for
-///       text;
-///  a value that is not UTF-8 loses only ASCII whitespace.
+///  An alias value with exactly one trailing NUL removed,
+///  the terminator `git config --null` adds to a value.
 /// Why:
-///   The incumbent trims `git config --get` output,
-///  newline included,
-///  before splitting.
+///   Git splits the value its configuration reader produced,
+///  so no whitespace at either end may be
+///       dropped here:
+///  a leading space is Git's own empty first word (`git.c:414`),
+///  the one that makes
+///  `git -c 'alias.audit= reset --hard' audit` fail instead of resetting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// value.trim()
+/// value.endsWith('\0') ? value.slice(0, -1) : value
 /// ```
-pub fn trim_alias_value(value: &[u8]) -> Vec<u8> {
-    if let Ok(text) = std::str::from_utf8(value) {
-        return trim_javascript(text).as_bytes().to_vec();
-    }
-    let start: usize = value.iter().position(is_not_ascii_space).unwrap_or(value.len());
-    let end: usize = value.iter().rposition(is_not_ascii_space).map_or(start, next_index);
-    return value[start..end].to_vec();
+pub fn alias_value_of(output: &[u8]) -> Vec<u8> {
+    return match output.split_last() {
+        Some((b'\0', rest)) => rest.to_vec(),
+        _ => output.to_vec(),
+    };
 }
 
 /// What:
-///  Whether a byte is not ASCII whitespace.
-/// Why:
-///   A named predicate keeps the trimming free of closures.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => !isspace(byte)
-/// ```
-fn is_not_ascii_space(byte: &u8) -> bool {
-    return !is_space(*byte);
-}
-
-/// What:
-///  The index after `index`.
-/// Why:
-///   A named function keeps `map_or` free of closures.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (index: number) => index + 1
-/// ```
-fn next_index(index: usize) -> usize {
-    return index + 1;
-}
-
-/// What:
-///  The value of one config key through `git config --get`,
+///  The value of one config key through `git config --null --get`,
 ///  or nothing when Git reports
 ///       none or cannot be asked.
 /// Why:
 ///   `readAliasKey`:
 ///  every failure of the lookup is "no alias".
+///  `--null` ends the value with a NUL instead of a newline,
+/// which is the one terminator this
+///       removes,
+///  so a value that ends with a newline or a space keeps it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,12 +243,13 @@ fn next_index(index: usize) -> usize {
 fn read_config_value(context: &GitContext, global: &[OsString], key: &OsString) -> Option<Vec<u8>> {
     let mut arguments: Vec<OsString> = global.to_vec();
     arguments.push(OsString::from("config"));
+    arguments.push(OsString::from("--null"));
     arguments.push(OsString::from("--get"));
     arguments.push(key.clone());
     let mut request: GitRequest = GitRequest::new(Path::new("."), arguments.as_slice());
     request.without_prefix = true;
     match run_git(context, &request) {
-        Ok(output) if output.succeeded() => return Some(output.stdout),
+        Ok(output) if output.succeeded() => return Some(alias_value_of(output.stdout.as_slice())),
         Ok(_) | Err(_) => {
             debug(
                 "readAliasKey",
@@ -393,11 +369,11 @@ pub fn resolve_forwarded_command(context: &GitContext, arguments: &[OsString]) -
         let Some(value) = lookup_alias(context, global, &name) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         };
-        let trimmed: Vec<u8> = trim_alias_value(value.as_slice());
-        if trimmed.first() == Some(&b'!') {
+        // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.
+        if value.first() == Some(&b'!') {
             return resolved(current.as_slice(), &layout, Route::ShellAlias);
         }
-        let Some(words) = split_alias_command(trimmed.as_slice()) else {
+        let Some(words) = split_alias_command(value.as_slice()) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         };
         if words.is_empty() {
