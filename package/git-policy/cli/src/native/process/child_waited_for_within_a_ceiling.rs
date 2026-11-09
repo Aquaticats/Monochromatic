@@ -166,9 +166,9 @@ fn start_reader(
     child: &mut Child,
 ) -> std::io::Result<std::thread::JoinHandle<()>> {
     let started = std::thread::Builder::new().name(format!("cli-git-query-{name}")).spawn(move || {
-        let mut pipe = pipe;
+        let mut reading = pipe;
         let mut bytes: Vec<u8> = Vec::new();
-        let failed: Option<std::io::Error> = pipe.read_to_end(&mut bytes).err();
+        let failed: Option<std::io::Error> = reading.read_to_end(&mut bytes).err();
         // Nobody reads this when the wait has gone; the bytes it read are lost with it.
         let _abandoned = reporting.send(OneStream { bytes, failed });
     });
@@ -187,7 +187,8 @@ fn start_reader(
 struct OneStream {
     /// The bytes read before the stream ended.
     bytes: Vec<u8>,
-    /// Why the read stopped, when it did not stop at the end of the stream.
+    /// Why the read stopped,
+    /// when it did not stop at the end of the stream.
     failed: Option<std::io::Error>,
 }
 

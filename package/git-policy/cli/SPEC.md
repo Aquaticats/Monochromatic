@@ -2805,9 +2805,24 @@ because a refused root is no
 member of that tree.
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
-The stop reads its root's record at the signal itself,
-never across an awaited step such as the lock claim,
-because the thread that waits for the step reaps it as soon as it ends.
+Every wait of the stop is bounded:
+the wait after the kill ends with a grace of its own,
+extended only while a member is in uninterruptible sleep and up to the
+stop's ceiling,
+so a root whose record cannot be read is waited for no longer than that rather than for
+as long as the process lives
+(`the_wait_after_the_kill`).
+The stop pins its root once,
+from the record it read
+before any wait,
+and both of its signals go through that pin (`pin_of_the_root`,
+`send_to_the_root`).
+Reading the record again at the signal would establish only which process holds the number
+*then*:
+the root can have ended and been reaped during the grace,
+and an unrelated process that received
+its number would be the one signalled
+(the third review's finding 1).
 
 A signal is sent through a descriptor that names the process,
 never to a number read a moment earlier.
@@ -2822,40 +2837,48 @@ and the signal goes through the descriptor with `pidfd_send_signal`.
 This is the pattern `binary/binary_supervisor_pin.rs` already uses for the hang guard of the binary
 tests,
 in production form.
-Where the kernel gives no pidfd the start time is read again right before the number is signalled,
-and the window that remains is the pidfd's to close
-(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-finding 7).
-Two signals stay by number on purpose:
-the number-then-start-time path for a host whose kernel gives no pidfd (`PinnedProcess::signal`),
-and the whole process group of the repair tool,
+A pin always is its descriptor,
+and a host that gives none has no pin at all:
+nothing is signalled there,
+and the sentence says what was not done.
+The fallback that read the start time again right before the number was signalled is gone,
+because the window between that read and the call is exactly the one a descriptor closes
+(the third review's finding 3).
+One signal stays by number on purpose:
+the whole process group of the repair tool,
 whose leader is unreaped at that moment,
-so the kernel cannot have given its number to anything else.
+so the kernel cannot have given its number to anything else,
+and a group is not a thing a descriptor can name.
 The rule is one decision everywhere:
 a number is a safe address only while its process is this process's own unreaped child,
 and anything else goes through a descriptor taken while that identity was proven.
-A second look at a record that fails after the descriptor is open keeps the descriptor,
-because the descriptor already names the process and a refused record proves nothing about it;
-reading the refusal as an exit dropped a valid pin and sent nothing.
+A second look at a record that fails after the descriptor was opened holds nothing and signals
+nothing:
+between the two looks the process the first one found can have ended and been reaped,
+and the number can name an unrelated process,
+which the descriptor then names
+(the third review's finding 2).
 
-A one-shot query's ceiling takes its descriptor at the start.
+A read-only query's ceiling is a deadline kept by the thread that owns the child.
 `output_of_within_bound` (`src/native/process/captured_child_run_to_its_end.rs`) and the batch query
-of the manual push (`src/native/push/manual_push_range.rs`) hand the child to a thread that waits for
-it and reaps it,
-so the number the caller read may name another process by the time its deadline passes.
-The descriptor is taken straight after the start,
-while the number certainly names this process's own unreaped child
-(`pin_of_our_own_child`),
-and the ceiling signals through it.
-A host that gives no descriptor sends nothing and the sentence says the query was not ended.
+of the manual push (`src/native/push/manual_push_range.rs`) wait for their child with
+`wait_within` and read its streams with `output_within`
+(`src/native/process/child_waited_for_within_a_ceiling.rs`).
+While that thread waits it has not reaped the child,
+so the kill at the ceiling reaches the child and nothing else,
+and there is no state in which a child or its waiter outlives the caller:
+the pin a caller used to signal at its ceiling,
+and the fallbacks that went with it,
+are deleted rather than patched again
+(the second and third reviews' findings about signalling by a reused number).
+The caller no longer signals anything.
 
-Both threads of a batch query,
-and the thread that waits for a one-shot query,
-are started before
-the child.
-A refused thread start then costs the command its start,
-and no killed child is left unreaped in a resident process,
-which is the shortage of processes such a refusal comes from.
+A standard output a program the query started still holds open one drain after the query ended is
+not an answer,
+and the read fails with a sentence that names the stream;
+a standard error held that way comes back as what was read of it,
+with a line saying the read stopped there,
+because the answer itself was read whole.
 The thread that writes a batch query's request list is not joined:
 a program the query started can keep the read end of that list open without reading it,
 so the write lasts until the last read end closes (its next write then fails with `EPIPE`) or until
@@ -2952,10 +2975,13 @@ so ending it costs nothing
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 finding 5).
 A metadata answer has to be whole,
-though:
-a query whose output is longer than the `STEP_OUTPUT_LIMIT` bytes the capture keeps fails and says what
-was left out,
-because its bytes are parsed or compared and the last part of a cut answer is a wrong answer.
+though,
+and it is:
+a read bounded at its ceiling is drained through pipes,
+every byte of it
+(`an_answer_larger_than_the_capture_keeps_comes_back_whole`),
+so an answer larger than the `STEP_OUTPUT_LIMIT` bytes the captured run keeps comes back whole and no
+refusal of a cut one is needed on that route.
 A forwarded command (`src/native/invocation/forwarding.rs`,
 `status_retrying`) keeps no ceiling on purpose:
 there the person's Git owns the terminal,

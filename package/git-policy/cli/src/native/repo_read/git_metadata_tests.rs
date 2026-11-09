@@ -219,9 +219,11 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
 
 /// What:
 ///  An answer larger than the capture's `STEP_OUTPUT_LIMIT` comes back whole from a read its ceiling
-/// bounds, byte for byte.
+/// bounds,
+/// byte for byte.
 /// Why:
-///   A read bounded at its ceiling is drained through pipes, every byte of it
+///   A read bounded at its ceiling is drained through pipes,
+/// every byte of it
 /// (`src/native/process/step_output_read_whole_through_pipes.rs`),
 ///  and not from the anonymous files the captured
 ///  run keeps the last `STEP_OUTPUT_LIMIT` of.

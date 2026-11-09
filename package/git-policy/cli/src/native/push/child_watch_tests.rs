@@ -406,7 +406,8 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
 ///  A record that could not be read says nothing about which process holds the number,
 /// and a number that was not
 ///  pinned may name an unrelated process by now.
-/// The step is still waited for, and one line says it was not
+/// The step is still waited for,
+/// and one line says it was not
 ///  stopped;
 /// finding 1 of the third review was a signal sent to whatever held the root's number *after*
 ///  the root was reaped.
@@ -430,7 +431,8 @@ fn a_root_that_could_not_be_pinned_is_not_signalled() {
 /// so a member whose start time is not the process's own yields nothing,
 /// and a live one yields the pin its signal goes through.
 /// Why:
-///  The pin, and not a number read again at the signal,
+///  The pin,
+/// and not a number read again at the signal,
 /// is what keeps finding 1 of the third review closed:
 /// a
 ///  process that took the root's number is not the process that was read,
@@ -912,8 +914,10 @@ fn the_output_of_a_step_is_released_once_it_is_read() {
 /// so it stays in the wait;
 /// nothing else bounded that wait,
 ///  and the stop waited for as long as the process lived against a kill that was never sent.
-/// The wait inside the grace, the one past
-///  the grace with nothing in uninterruptible sleep, and the one past the stop's ceiling are the three
+/// The wait inside the grace,
+/// the one past
+///  the grace with nothing in uninterruptible sleep,
+/// and the one past the stop's ceiling are the three
 ///  answers this has to give.
 #[cfg(target_os = "linux")]
 #[test]

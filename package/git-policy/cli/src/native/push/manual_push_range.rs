@@ -34,8 +34,6 @@ use std::process::Child;
 use std::process::Stdio;
 /// How long a range query may run.
 use std::time::Duration;
-/// The descriptor that names the query for good.
-
 /// Remote-tracking ref namespace Git's default fetch refspec writes.
 const TRACKING_NAMESPACE: &str = "refs/remotes/";
 

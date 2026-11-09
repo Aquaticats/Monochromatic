@@ -124,12 +124,14 @@ fn a_member_whose_record_could_not_be_read_is_not_signalled() {
 ///  The descriptor was opened after the first look,
 /// and a second look that fails does not establish that the
 ///  number still named the process the first look found:
-/// between the two, that process can have ended and been
+/// between the two,
+/// that process can have ended and been
 ///  reaped,
 /// and the number can name an unrelated process,
 /// which the descriptor then names.
 /// The pin this branch kept for that case was a
-///  descriptor of the wrong process, and the signal ended it.
+///  descriptor of the wrong process,
+/// and the signal ended it.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_second_look_that_fails_holds_nothing_and_signals_nothing() {

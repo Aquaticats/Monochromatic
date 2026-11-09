@@ -1,4 +1,6 @@
-//! Controls for a child waited for, and ended, by the thread that owns it.
+//! Controls for a child waited for,
+//! and ended,
+//! by the thread that owns it.
 
 use super::*;
 use std::process::{Command, Stdio};
@@ -7,7 +9,8 @@ use std::time::{Duration, Instant};
 /// How long a control lets its own steps run before it reports that something was not ended.
 const CONTROL_BOUND: Duration = Duration::from_secs(10);
 
-/// A child of a shell command line, with both streams piped.
+/// A child of a shell command line,
+/// with both streams piped.
 fn piped(line: &str) -> Child {
     let mut command = Command::new("/bin/sh");
     command.arg("-c").arg(line).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());

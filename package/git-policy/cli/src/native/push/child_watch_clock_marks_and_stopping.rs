@@ -216,7 +216,7 @@ fn signal_name(signal: libc::c_int) -> &'static str {
 /// ```
 #[cfg(unix)]
 pub(crate) fn pin_of_the_root(at_start: &ProcessLook) -> Option<crate::pinned_member_signalled_through_a_pidfd::PinnedProcess> {
-    use crate::pinned_member_signalled_through_a_pidfd::{PinOutcome, PinnedProcess, pin_of};
+    use crate::pinned_member_signalled_through_a_pidfd::{PinOutcome, pin_of};
     let ProcessLook::Alive(found) = at_start else {
         return None;
     };
@@ -350,7 +350,8 @@ pub(crate) fn the_wait_after_the_kill(elapsed: Duration, tree: &[TreeMember], ra
 /// and the waiting thread reports the
 ///  bound.
 /// The processes the child started end with it.
-///  Its root is pinned once, from the look before any wait,
+///  Its root is pinned once,
+/// from the look before any wait,
 /// so a signal reaches that process and never one that took its
 ///  number afterwards,
 /// and every wait of the stop is bounded:
