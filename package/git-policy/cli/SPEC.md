@@ -9929,6 +9929,10 @@ and leave one audit line each
   The namespace is read from the command,
   because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
   and a record that read the local branch would name the wrong commit to restore.
+  A reference name is bytes and not text:
+  a branch name that is not UTF-8 is passed to `rev-parse` as it is written
+  and named in the line as JSON can hold it,
+  because a name converted to text would arrive empty and the deletion would leave no line.
   A name Git expands before deleting (`@{-1}`,
   the branch the worktree visited before the current one) is read through
   `git rev-parse --symbolic-full-name --verify`,

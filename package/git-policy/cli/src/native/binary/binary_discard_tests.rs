@@ -1396,3 +1396,53 @@ fn a_forced_form_keeps_an_ignored_directory_the_target_replaces_with_a_file() {
     );
     remove(&fixture);
 }
+
+/// A branch whose name holds bytes that are not UTF-8 keeps its deletion line,
+/// with the reference and the
+///  commit a reader restores from.
+#[cfg(unix)]
+#[test]
+fn a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit() {
+    use std::os::unix::ffi::OsStringExt;
+    let fixture: Fixture = fixture("audit-non-utf8-branch");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch name Git accepts and no text decoding can hold: `lost-` and the byte 0xff.
+    let name: std::ffi::OsString = std::ffi::OsString::from_vec(b"lost-\xff".to_vec());
+    git(&fixture, repo.as_path(), &[OsStr::new("checkout"), OsStr::new("--quiet"), OsStr::new("-b"), name.as_os_str()]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &[OsStr::new("commit"), OsStr::new("--quiet"), OsStr::new("--message=lost"), OsStr::new("--"), OsStr::new("tracked.txt")]);
+    let commit: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &[OsStr::new("rev-parse"), name.as_os_str()]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    git(&fixture, repo.as_path(), &[OsStr::new("checkout"), OsStr::new("--quiet"), OsStr::new("main")]);
+    // The wrapper deletes it under its own spelling.
+    let observed: Observed = observe(
+        wrapped(&fixture).current_dir(repo.as_path()).args([
+            std::ffi::OsString::from("branch"),
+            std::ffi::OsString::from("-D"),
+            std::ffi::OsString::from("--"),
+            name.clone(),
+        ]),
+        b"",
+    );
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    let listed: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &[OsStr::new("for-each-ref"), OsStr::new("--format=%(refname)"), OsStr::new("refs/heads")])
+            .stdout
+            .as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert!(!listed.contains("lost-"), "Git deleted the branch: {listed}");
+    let line: String = audit_lines_of(repo.as_path())
+        .last()
+        .cloned()
+        .expect("one audit line for the deletion");
+    assert!(line.contains("\"form\":\"BranchDelete\""), "{line}");
+    assert!(line.contains(format!("\"commit\":\"{commit}\"").as_str()), "{line}");
+    // The reference keeps the name it deleted, rendered as JSON can hold it.
+    assert!(line.contains("\"reference\":\"refs/heads/lost-"), "{line}");
+    remove(&fixture);
+}

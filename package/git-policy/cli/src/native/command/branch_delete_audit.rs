@@ -107,12 +107,33 @@ pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, re
 /// ```ts
 /// function rev_parse({ context, root, arguments }): MetadataOutput | undefined;
 /// ```
-fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[&str]) -> Option<MetadataOutput> {
+fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[OsString]) -> Option<MetadataOutput> {
     let mut spelled: Vec<OsString> = prefix_for(context, root);
-    for token in arguments {
-        spelled.push(OsString::from(token));
-    }
+    spelled.extend(arguments.iter().cloned());
     return run_metadata_git(context.real_git.as_path(), spelled.as_slice(), context.overlay.as_slice()).ok();
+}
+
+/// What:
+///  One Git word and a reference as the arguments of a query.
+///  `&[&str]` are the words;
+///  `&OsStr` is the reference,
+///  passed byte for byte.
+/// Why:
+///   A reference name is bytes and not text (Git accepts a branch name that is not UTF-8),
+///  so it reaches
+///  Git unchanged where a text conversion would empty it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const arguments = [...words.map(w => Buffer.from(w)), Buffer.from(reference)];
+/// ```
+fn query_arguments(words: &[&str], reference: &OsStr) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = Vec::<OsString>::with_capacity(words.len() + 1);
+    for word in words {
+        arguments.push(OsString::from(word));
+    }
+    arguments.push(reference.to_os_string());
+    return arguments;
 }
 
 /// What:
@@ -127,11 +148,8 @@ fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[&str]) -> O
 /// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
 /// ```
 fn commit_of(context: &GitContext, root: Option<&Path>, reference: &OsStr) -> Option<String> {
-    let output: MetadataOutput = rev_parse(
-        context,
-        root,
-        &["rev-parse", "--verify", "--quiet", reference.to_str().unwrap_or_default()],
-    )?;
+    let query: Vec<OsString> = query_arguments(&["rev-parse", "--verify", "--quiet"], reference);
+    let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
         return None;
     }
@@ -168,10 +186,10 @@ fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, re
     if commit_of(context, root, intended.as_os_str()).is_some() {
         return Some((intended, name.to_string_lossy().into_owned()));
     }
-    let symbolic: String = symbolic_reference(context, root, name)?;
-    let prefix: &str = if remotes { REMOTES } else { HEADS };
-    let short: String = symbolic.strip_prefix(prefix)?.to_owned();
-    return Some((OsString::from(symbolic), short));
+    let symbolic: OsString = symbolic_reference(context, root, name)?;
+    let prefix: &[u8] = if remotes { REMOTES.as_bytes() } else { HEADS.as_bytes() };
+    let short: String = String::from_utf8_lossy(symbolic.as_encoded_bytes().strip_prefix(prefix)?).into_owned();
+    return Some((symbolic, short));
 }
 
 /// What:
@@ -188,21 +206,58 @@ fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, re
 /// ```ts
 /// const output = await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name]);
 /// ```
-fn symbolic_reference(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<String> {
-    let spelled: &str = name.to_str()?;
-    let output: MetadataOutput = rev_parse(
-        context,
-        root,
-        &["rev-parse", "--symbolic-full-name", "--verify", "--quiet", spelled],
-    )?;
+fn symbolic_reference(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
+    let query: Vec<OsString> = query_arguments(
+        &["rev-parse", "--symbolic-full-name", "--verify", "--quiet"],
+        name,
+    );
+    let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
         return None;
     }
-    let reference: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    // A reference name holds no whitespace, so what Git ended with its line break is the name itself.
+    let first: &[u8] = output.stdout.split(is_line_break).next().unwrap_or_default();
+    let reference: &[u8] = first.trim_ascii();
     if reference.is_empty() {
         return None;
     }
-    return Some(reference);
+    return Some(os_string_of(reference));
+}
+
+/// What:
+///  Whether one byte ends the line a `rev-parse` answer prints.
+/// Why:
+///   A named function keeps the split of one answer free of a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0x0a || byte === 0x0d
+/// ```
+fn is_line_break(byte: &u8) -> bool {
+    return *byte == b'\n' || *byte == b'\r';
+}
+
+/// What:
+///  A reference's exact bytes as operating-system text.
+/// Why:
+///   A branch name is bytes,
+/// so a name that is not UTF-8 reaches the record as the name Git holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = Buffer.from(bytes);
+/// ```
+fn os_string_of(bytes: &[u8]) -> OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        return OsString::from_vec(bytes.to_vec());
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return OsString::from(String::from_utf8_lossy(bytes).into_owned());
+    }
 }
 
 /// What:
