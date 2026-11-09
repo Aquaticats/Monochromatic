@@ -370,14 +370,25 @@ fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std
     return set
 }
 
+/// The three generated rule sources,
+///  named relative to the repository root.
+/// Each is generated source containing literal copies of rule bodies,
+///  so each matches its own rules.
+const SELF_MATCH_SOURCES: [&str; 3] = [
+    "package/forbidden-strings/cli/data/betterleaks-default-config.toml",
+    "package/forbidden-strings/cli/data/builtin-rules.txt",
+    "package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts",
+];
+
 /// Implements `build_self_match_set`.
-// What:     `fn build_self_match_set() -> HashSet<PathBuf>` returns the
-//           CANONICAL absolute paths of the three generated rule-source
-//           files, resolved against the current directory.
-//           Each is generated source containing literal copies of rule
-//           bodies, so each matches its own rules. Pinned by their
-//           expected location so the matcher does not fire on unrelated
-//           files of the same name elsewhere in the tree.
+// What:     `fn build_self_match_set(repository_root: Option<&Path>)
+//           -> HashSet<PathBuf>` returns the CANONICAL absolute paths
+//           of the three generated rule-source files, resolved against
+//           the repository root. Each is generated source containing
+//           literal copies of rule bodies, so each matches its own
+//           rules. Pinned by their expected location so the matcher
+//           does not fire on unrelated files of the same name
+//           elsewhere in the tree.
 // Why:      The set applies in BOTH modes, `--all` walker output and
 //           explicit positional arguments, exactly as
 //           `is_config_file_at_cwd` does for the ruleset files at cwd.
@@ -387,32 +398,42 @@ fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std
 //           push (the validated-tree watermark only advances on a green
 //           run). `build_skip_set` stays `--all`-only: the user's own
 //           rules file, named positionally, is still scanned.
-//           If the binary is run from outside the monorepo or these
-//           files have been relocated, canonicalize fails and the entry
-//           is dropped -- still no false negative because the file does
-//           not exist at the expected location, so neither the walker nor
-//           a positional argument can name it.
+//           The anchor is the repository root, never the working
+//           directory: the `--all` walk starts at the working directory,
+//           so a run started inside `package/forbidden-strings/cli`
+//           reached the same three files by a path below it while a
+//           working-directory anchor resolved nothing, and the run
+//           reported its own rule bodies (issue 1233). A standalone run
+//           outside any repository keeps the working directory, the only
+//           place the sources could sit then. A path that does not
+//           resolve is dropped silently: the file is then absent from the
+//           walked tree and from any positional argument too.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// function buildSelfMatchSet(): Set<string> {
+// function buildSelfMatchSet(repositoryRoot: string | undefined): Set<string> {
 //   const set = new Set<string>();
-//   for (const k of CANONICAL_SELF_MATCH_PATHS) {
-//     try { set.add(fs.realpathSync(k)); } catch {}
+//   const anchor = repositoryRoot ?? process.cwd();
+//   for (const k of SELF_MATCH_SOURCES) {
+//     try { set.add(fs.realpathSync(path.join(anchor, k))); } catch {}
 //   }
 //   return set;
 // }
 // ```
-fn build_self_match_set() -> std::collections::HashSet<std::path::PathBuf> {
-    let canonical_self_match_paths = [
-        "package/forbidden-strings/cli/data/betterleaks-default-config.toml",
-        "package/forbidden-strings/cli/data/builtin-rules.txt",
-        "package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts",
-    ];
+fn build_self_match_set(
+    repository_root: Option<&std::path::Path>,
+) -> std::collections::HashSet<std::path::PathBuf> {
     let mut set: std::collections::HashSet<std::path::PathBuf> =
         std::collections::HashSet::new();
-    for k in canonical_self_match_paths {
-        if let Ok(p) = std::fs::canonicalize(k) {
+    let anchor: std::path::PathBuf = match repository_root {
+        Some(root) => root.to_path_buf(),
+        None => match std::env::current_dir() {
+            Ok(cwd) => cwd,
+            Err(_) => { return set },
+        },
+    };
+    for source in SELF_MATCH_SOURCES {
+        if let Ok(p) = std::fs::canonicalize(anchor.join(source)) {
             set.insert(p);
         }
     }
@@ -951,12 +972,6 @@ pub fn run_cli_from_env() -> Result<i32> {
     // const skipSet = buildSkipSet(rulesPath);
     // ```
     let skip_set = if all { build_skip_set(&rules_entries) } else { std::collections::HashSet::new() };
-    // What:     The generated rule-source paths, built once for BOTH modes.
-    // Why:      They hold literal copies of rule bodies and match their own
-    //           rules, so a positional argument naming one (CI's changed-file
-    //           list after a rename or edit) must be skipped the way the
-    //           walker skips it. See `build_self_match_set`.
-    let self_match_set = build_self_match_set();
 
     // What:     Canonical cwd, resolved once. `is_config_file_at_cwd`
     //           compares each candidate's canonical parent against this to
@@ -964,8 +979,15 @@ pub fn run_cli_from_env() -> Result<i32> {
     //           files at the repo root, in both --all and explicit-arg modes.
     // Why:      Resolve symlinks once here rather than per file.
     let cwd_canonical = std::fs::canonicalize(".").ok();
-    // A present `.git` at an ancestor identifies repository-relative name labels.
+    // A present `.git` at an ancestor identifies repository-relative name labels
+    // and anchors the generated rule-source paths, wherever the run starts.
     let repository_root = path_scan::repository_root();
+    // What:     The generated rule-source paths, built once for BOTH modes.
+    // Why:      They hold literal copies of rule bodies and match their own
+    //           rules, so a positional argument naming one (CI's changed-file
+    //           list after a rename or edit) must be skipped the way the
+    //           walker skips it. See `build_self_match_set`.
+    let self_match_set = build_self_match_set(repository_root.as_deref());
 
     let candidate_scan = CandidateFileScan {
         all,
