@@ -1485,3 +1485,35 @@ fn a_removal_counts_the_worktree_whose_path_holds_a_line_break() {
     }
     remove(&fixture);
 }
+
+/// A deletion whose name is no branch writes no line:
+/// `HEAD` is not a branch name to Git,
+///  so the record must not
+///  name the branch it resolves to.
+#[test]
+fn a_deletion_of_a_revision_that_is_no_branch_leaves_no_line() {
+    let fixture: Fixture = fixture("audit-branch-delete-head");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    // Git refuses this deletion: `HEAD` names no branch, so nothing is deleted.
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
+    assert_ne!(refused.code, Some(0), "Git refuses branch -D HEAD");
+    assert!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "main"]).stdout.as_slice())
+            .contains("main"),
+        "the control needs main to survive"
+    );
+    assert_eq!(
+        audit_lines_of(repo.as_path()).len(),
+        before,
+        "a deletion that deleted nothing wrote {:?}",
+        audit_lines_of(repo.as_path())
+    );
+    // A branch named `HEAD` is still deleted and recorded, because that name is a branch of its own.
+    git(&fixture, repo.as_path(), &["branch", "HEAD"]);
+    let deleted: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    assert!(line.contains("\"referenceHex\":\"726566732f68656164732f48454144\""), "{line}");
+    remove(&fixture);
+}
