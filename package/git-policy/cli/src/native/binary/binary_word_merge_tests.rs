@@ -458,18 +458,18 @@ fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass
 }
 
 /// What:
-///  `git -c attr.tree=<tree> merge` reads the `merge` attribute from the tree the person named on the command line.
+///  `git -c <key>=<tree> merge` reads the `merge` attribute from the tree the person named on the command line,
+/// in any letter case the key allows.
 /// Why:
 ///   Git puts a command-line configuration above every file,
 /// so a tree that excludes the file must govern the pass
-/// (cross-vendor review of this branch,
-/// finding 3).
+/// (cross-vendor review of this branch, finding 3;
+/// cross-vendor review round 2, finding 2 for the letters).
 /// The pass named the merge's own tree over it,
 /// and the merge was committed although a rule the
 ///  person asked for forbids it.
-#[test]
-fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge() {
-    let fixture: Fixture = fixture("word-merge-command-line-tree");
+fn a_command_line_tree_governs_the_isolated_merge(key: &str, name: &str) {
+    let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("data.lock"), b"port=1 host=a zone=z\n").expect("the base file");
     git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
@@ -491,14 +491,28 @@ fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merg
     std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
     git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
     let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["-c", "attr.tree=rules", "merge", "--no-edit", "topic"]);
+    let setting: String = format!("{key}=rules");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["-c", setting.as_str(), "merge", "--no-edit", "topic"]);
     let said: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(2), "the tree the person named forbids the merge: {said}");
+    assert_eq!(observed.code, Some(2), "the tree the person named forbids the merge ({key}): {said}");
     assert!(said.contains("data.lock"), "the refused path is named: {said}");
     assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
     assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "our file is untouched: {said}");
     remove(&fixture);
+}
+
+/// The tree the person names on the command line governs the isolated merge.
+#[test]
+fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge() {
+    a_command_line_tree_governs_the_isolated_merge("attr.tree", "word-merge-command-line-tree");
+}
+
+/// The same key in the letters the person typed,
+/// which Git reads as the same configuration key.
+#[test]
+fn a_configuration_option_in_any_letter_case_names_the_tree_of_an_isolated_merge() {
+    a_command_line_tree_governs_the_isolated_merge("Attr.Tree", "word-merge-command-line-tree-case");
 }
 
 /// How many files a control conflicts,

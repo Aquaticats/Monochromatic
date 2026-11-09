@@ -41,7 +41,7 @@
 use crate::diagnostic_log::debug;
 use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, INPUTS_HINT, Left, Merged, Verdict, is_attributes_path, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
 use crate::path_bytes::path_message_text;
-use crate::repo_read_config_list::list_config;
+use crate::repo_read_config_list::{canonical_key, list_config};
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_layout::read_layout_after_success_with;
 use crate::random_id::random_uuid;
@@ -98,7 +98,7 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
         // The last entry of the key is the value Git uses; empty text and bytes that are not text count as no value.
         let mut value: Option<String> = None;
         for item in entries.iter().rev() {
-            if item.entry.key == ATTRIBUTE_TREE_KEY {
+            if canonical_key(item.entry.key.as_str()).as_deref() == Some(ATTRIBUTE_TREE_KEY) {
                 if let Some(bytes) = item.entry.value.as_deref()
                     && let Ok(text) = std::str::from_utf8(bytes)
                     && !text.is_empty()
@@ -149,12 +149,16 @@ fn command_line_attribute_tree(prefix: &[OsString]) -> Option<Option<String>> {
         let Some(next) = tokens.next() else { continue };
         let Some(given) = next.to_str() else { continue };
         // `-c name=value` sets it, and `-c name` alone sets `true`, which no tree resolves to.
-        match given.split_once('=') {
-            Some((ATTRIBUTE_TREE_KEY, value)) if !value.is_empty() => named = Some(Some(value.to_owned())),
-            Some((ATTRIBUTE_TREE_KEY, _no_value)) => named = Some(None),
-            Some(_other_key) => {}
-            None if given == ATTRIBUTE_TREE_KEY => named = Some(None),
-            None => {}
+        let (key, value): (&str, Option<&str>) = match given.split_once('=') {
+            Some((key, value)) => (key, Some(value)),
+            None => (given, None),
+        };
+        if canonical_key(key).as_deref() != Some(ATTRIBUTE_TREE_KEY) {
+            continue;
+        }
+        match value {
+            Some(text) if !text.is_empty() => named = Some(Some(text.to_owned())),
+            _ => named = Some(None),
         }
     }
     return named;

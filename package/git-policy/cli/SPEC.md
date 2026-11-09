@@ -8316,7 +8316,9 @@ else `GIT_ATTR_SOURCE`,
 else the configuration `attr.tree`,
 and ignores an `attr.tree` that is no tree
 (`attr.c` lines 1202 to 1231).
-A `-c attr.tree=<spec>` on the command line is a configuration value Git takes above every file
+A `-c attr.tree=<spec>` on the command line is a configuration value Git takes above every file,
+in any letter case the key allows,
+because a Git configuration key's letters are not significant and `canonical_key` is the wrapper's one spelling of them
 (`git_config_from_parameters`),
 so a resolving one there is the person's choice even where a file sets the key,
 and one that is no tree is ignored as a configured one is;

@@ -303,3 +303,27 @@ fn a_configuration_option_on_the_command_line_names_the_tree() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  `-c Attr.Tree=<spec>` names the attribute tree,
+/// because a Git configuration key's letters are not significant.
+/// Why:
+///   Git reads `Attr.Tree` as `attr.tree` (`git config --get` and `check-attr` agree),
+/// so matching the exact lower-case spelling let the pass name its own source over the one the person
+///  asked for
+/// (cross-vendor review round 2, finding 2).
+#[test]
+fn a_configuration_option_in_any_letter_case_names_the_tree() {
+    let (root, repo) = probed_repository("second-pass-attr-any-case");
+    let none: Vec<(OsString, OsString)> = hermetic_variables(root.as_path());
+    let given = |prefix: &[&str]| -> Vec<OsString> { return prefix.iter().map(|token| { return OsString::from(*token); }).collect() };
+    let tip: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("tip123"))];
+    assert!(tip_variables(repo.as_path(), given(&["-c", "Attr.Tree=HEAD"]).as_slice(), none.as_slice()).is_empty(), "`-c Attr.Tree` names the tree");
+    assert!(tip_variables(repo.as_path(), given(&["-c", "ATTR.TREE=HEAD"]).as_slice(), none.as_slice()).is_empty(), "`-c ATTR.TREE` does too");
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["-c", "Attr.Tree=no-such-tree"]).as_slice(), none.as_slice()),
+        tip,
+        "a value no tree resolves to is ignored whatever the key's case"
+    );
+    remove(root.as_path());
+}
