@@ -7,8 +7,7 @@
 //!  The preparation (`service_prepare.rs`) decides it before anything is sent to the service;
 //! this module holds the finding's
 //!  identity and its message,
-//! so the words of the finding stay in one place
-//!  (`src/policy-engine/commit-transaction-no-change.ts`).
+//! so the words of the finding stay in one place.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
