@@ -106,9 +106,19 @@ fn a_reference_is_delivered_when_the_remote_holds_the_object_the_local_reference
         cwd: Some(repo.clone()),
         environment: crate::test_support::scratch_environment(),
     };
+    let sending: Vec<String> = crate::lazy_runtime::run_on_runtime(objects_the_push_will_send(
+        &asking,
+        &question,
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+    ))
+    .expect("the runtime")
+    .expect("the object the push is going to send");
+    assert_eq!(sending.len(), 1, "one object is recorded for the one reference");
     let before: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
         &asking,
         &question,
+        sending.as_slice(),
         Duration::from_secs(30),
         Duration::from_secs(2),
     ))
@@ -118,21 +128,42 @@ fn a_reference_is_delivered_when_the_remote_holds_the_object_the_local_reference
     let after: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
         &asking,
         &question,
+        sending.as_slice(),
         Duration::from_secs(30),
         Duration::from_secs(2),
     ))
     .expect("the runtime");
     assert_eq!(after, Some(vec![String::from("refs/heads/main")]), "the remote holds what the push sent");
-    // A remote reference at another object is not the delivered one.
+    // A local reference that moved after the recording does not change what was sent, so the answer stands.
     git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "-m", "two"]);
-    let ahead: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
+    let moved: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
+        &asking,
+        &question,
+        sending.as_slice(),
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+    ))
+    .expect("the runtime");
+    assert_eq!(moved, Some(vec![String::from("refs/heads/main")]), "the recorded objects still decide the answer");
+    // A remote reference at another object than the one a later push would send is not the delivered one.
+    let later: Vec<String> = crate::lazy_runtime::run_on_runtime(objects_the_push_will_send(
         &asking,
         &question,
         Duration::from_secs(30),
         Duration::from_secs(2),
     ))
+    .expect("the runtime")
+    .expect("the object the next push would send");
+    assert_ne!(later, sending, "the next push would send another object");
+    let ahead: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
+        &asking,
+        &question,
+        later.as_slice(),
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+    ))
     .expect("the runtime");
-    assert_eq!(ahead, None, "the local reference moved past what the remote holds");
+    assert_eq!(ahead, None, "the remote does not hold the object that push would send");
     assert_ne!(git_text(repo.as_path(), &["rev-parse", "refs/heads/main"]), String::new());
     remove(root.as_path());
 }

@@ -21,10 +21,17 @@
 //! so a remote that does not answer leaves the report as it was:
 //! the proof never turns into a wait.
 //!
+//! The objects compared are the ones the push was going to send,
+//! recorded before it started:
+//! a local reference that moves while the push runs
+//! names another object afterwards,
+//! and asking it then would compare the remote against something the push never sent.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const question = DeliveryQuestion.of(pushArguments); // undefined when the push names no comparable ref
-//! const delivered = question && await refsAlreadyDelivered(git, question); // undefined unless every ref matched
+//! const sending = question && await objectsThePushWillSend(git, question); // recorded before the push starts
+//! const delivered = sending && await refsAlreadyDelivered(git, question, sending); // undefined unless every ref matched
 //! ```
 
 /// A query of the push,
@@ -287,6 +294,33 @@ async fn remote_object(
 }
 
 /// What:
+///  The objects the push was going to send,
+/// one per reference it names,
+/// or nothing when the local repository names none of them.
+/// Why:
+///   The push chooses its objects when it starts,
+/// and a reference that moves while the push runs names another object
+///  afterwards;
+/// recorded now, they are the objects the remote must hold for the delivery to be done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// objectsThePushWillSend(git, question); // string[] | undefined
+/// ```
+pub async fn objects_the_push_will_send(
+    git: &AskingGit,
+    question: &DeliveryQuestion,
+    window: Duration,
+    grace: Duration,
+) -> Option<Vec<String>> {
+    let mut sending: Vec<String> = Vec::new();
+    for (source, _destination) in &question.refs {
+        sending.push(local_object(git, source.as_os_str(), window, grace).await?);
+    }
+    return Some(sending);
+}
+
+/// What:
 ///  The references the remote already holds at the objects the push was sending,
 /// or nothing unless every one of them does.
 /// Why:
@@ -294,22 +328,27 @@ async fn remote_object(
 /// the report says the push delivered what it was asked to deliver only when every
 ///  reference it named is on the remote,
 /// and any question that cannot be answered leaves the report as it was.
+///   `sending` is what was recorded before the push started,
+/// so a reference that moved afterwards cannot stand for what was sent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// refsAlreadyDelivered(git, question); // string[] | undefined
+/// refsAlreadyDelivered(git, question, sending); // string[] | undefined
 /// ```
 pub async fn refs_already_delivered(
     git: &AskingGit,
     question: &DeliveryQuestion,
+    sending: &[String],
     window: Duration,
     grace: Duration,
 ) -> Option<Vec<String>> {
+    if sending.len() != question.refs.len() {
+        return None;
+    }
     let mut delivered: Vec<String> = Vec::new();
-    for (source, destination) in &question.refs {
-        let local: String = local_object(git, source.as_os_str(), window, grace).await?;
+    for ((_source, destination), sent) in question.refs.iter().zip(sending) {
         let remote: String = remote_object(git, question.remote.as_os_str(), destination.as_os_str(), window, grace).await?;
-        if local != remote {
+        if &remote != sent {
             return None;
         }
         delivered.push(destination.to_string_lossy().into_owned());

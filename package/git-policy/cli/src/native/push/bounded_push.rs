@@ -57,7 +57,7 @@ use crate::lazy_runtime::run_on_runtime;
 /// and the pause between two looks at a running push.
 use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
 /// The question that proves a stopped push had already delivered its references.
-use crate::delivered_before_the_stop::{AskingGit, DeliveryQuestion, refs_already_delivered};
+use crate::delivered_before_the_stop::{AskingGit, DeliveryQuestion, objects_the_push_will_send, refs_already_delivered};
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
@@ -471,6 +471,17 @@ pub async fn run_bounded_push_awaiting(
     };
     let arguments: Vec<OsString> = command.get_args().map(OsString::from).collect();
     let question: Option<DeliveryQuestion> = DeliveryQuestion::of(arguments.as_slice());
+    // The objects the push is about to send are recorded before it starts: the reference they come from may name
+    //  another object by the time the push is stopped, and the remote must hold what was sent and not what the
+    //  reference says afterwards. The recording is bounded like every other query, so it cannot hold the push up.
+    let window: Duration = match patience {
+        Patience::Fixed(limit) => limit,
+        Patience::Progress { stall } => stall,
+    };
+    let sending: Option<Vec<String>> = match &question {
+        Some(asked) => objects_the_push_will_send(&asking, asked, window, grace).await,
+        None => None,
+    };
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
@@ -481,10 +492,11 @@ pub async fn run_bounded_push_awaiting(
     }
     // A stop that ended a push whose remote had already written the references is not a push that failed: the proof is
     //  taken after the stop, when the remote's own program can no longer be writing,
+    // it compares the remote against the objects recorded before the push started,
     // and it is answered in the time a killed
     //  child is given, so a remote that does not answer leaves the report as it was.
-    let delivered: Option<Vec<String>> = match (&ended, question) {
-        (Err(StopCause::Stalled(_)), Some(asked)) => refs_already_delivered(&asking, &asked, grace, grace).await,
+    let delivered: Option<Vec<String>> = match (&ended, question, sending) {
+        (Err(StopCause::Stalled(_)), Some(asked), Some(sent)) => refs_already_delivered(&asking, &asked, sent.as_slice(), grace, grace).await,
         _ => None,
     };
     let captured: String = read_output(&mut output)?;

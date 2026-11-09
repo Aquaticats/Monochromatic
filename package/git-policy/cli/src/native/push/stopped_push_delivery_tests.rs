@@ -114,3 +114,83 @@ fn a_stopped_push_whose_refs_landed_reports_the_delivery_and_the_hook_it_ended()
     );
     remove(root.as_path());
 }
+
+/// What:
+///  Give the bare remote at `remote` a `pre-receive` hook that records itself,
+/// moves the pushing repository's own branch back to the object the remote already holds,
+/// writes its own process number and then never works again.
+/// Why:
+///   The hook runs after the push has chosen the object it sends and before the remote writes the reference,
+/// so the local branch names another object by the time the push is stopped,
+/// and a proof that read the local branch afterwards would compare the wrong object.
+fn remote_whose_hook_moves_the_pushed_branch(root: &Path, remote: &Path, repo: &Path, held: &str) -> (PathBuf, PathBuf) {
+    git(remote, &["config", "core.fsync", "none"]);
+    let markers: PathBuf = root.join("markers.txt");
+    let pid_file: PathBuf = root.join("hook.pid");
+    let hook: PathBuf = remote.join("hooks").join("pre-receive");
+    std::fs::create_dir_all(remote.join("hooks")).expect("hooks directory");
+    std::fs::write(
+        hook.as_path(),
+        format!(
+            "#!/bin/sh\necho ran >> '{}'\necho $$ > '{}'\n/usr/bin/env -u GIT_DIR -u GIT_WORK_TREE -u GIT_QUARANTINE_PATH {} --git-dir='{}/.git' update-ref refs/heads/main {}\nexec sleep 600\n",
+            markers.display(),
+            pid_file.display(),
+            REAL_GIT,
+            repo.display(),
+            held
+        ),
+    )
+    .expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
+    return (markers, pid_file);
+}
+
+/// The object the proof compares against is the one the push was sending,
+/// recorded before it started:
+/// a local reference that moves while the push runs cannot make the remote's older reference look delivered.
+#[test]
+fn a_local_reference_that_moved_under_the_push_is_not_taken_for_what_the_push_sent() {
+    let root: PathBuf = fixture("stopped-push-moved-reference");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let held: String = crate::test_support::git_text(repo.as_path(), &["rev-parse", "refs/heads/main"]);
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--quiet", "--bare", remote.to_str().expect("UTF-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    git(repo.as_path(), &["push", "--quiet", "origin", "refs/heads/main:refs/heads/main"]);
+    // The object the push sends is the one above what the remote holds.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=two"]);
+    let sent: String = crate::test_support::git_text(repo.as_path(), &["rev-parse", "refs/heads/main"]);
+    assert_ne!(sent, held, "the push sends a new object");
+    let (markers, pid_file): (PathBuf, PathBuf) = remote_whose_hook_moves_the_pushed_branch(root.as_path(), remote.as_path(), repo.as_path(), held.as_str());
+    let pairs: Vec<(OsString, OsString)> = environment(root.as_path());
+    let attempt: PushAttempt = run_bounded_push(push_command(repo.as_path(), pairs.as_slice()), Patience::Progress { stall: STALL }, GRACE, pairs.as_slice())
+        .expect("the push runs");
+    let ran: String = std::fs::read_to_string(markers.as_path()).unwrap_or_default();
+    assert_eq!(ran.trim(), "ran", "the remote's pre-receive hook ran and then stopped working: {}", attempt.output);
+    assert_eq!(
+        crate::test_support::git_text(repo.as_path(), &["rev-parse", "refs/heads/main"]),
+        held,
+        "the local reference names the remote's object by now: {}",
+        attempt.output
+    );
+    assert_eq!(
+        crate::test_support::git_text(remote.as_path(), &["rev-parse", "refs/heads/main"]),
+        held,
+        "the remote still holds the object it had: {}",
+        attempt.output
+    );
+    assert!(
+        !attempt.output.contains(DELIVERED_BEFORE_THE_STOP),
+        "nothing is claimed as delivered for an object the remote does not hold: {}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.contains("made no progress"),
+        "the report is the plain stop of a push that delivered nothing: {}",
+        attempt.output
+    );
+    let hook_pid: String = std::fs::read_to_string(pid_file.as_path()).unwrap_or_default().trim().to_owned();
+    assert!(!hook_pid.is_empty(), "the hook wrote its process number: {}", attempt.output);
+    assert!(!Path::new(format!("/proc/{hook_pid}").as_str()).exists(), "the remote's hook was ended: process {hook_pid}");
+    remove(root.as_path());
+}
