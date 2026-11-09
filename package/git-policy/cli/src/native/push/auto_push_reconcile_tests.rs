@@ -830,6 +830,42 @@ fn a_merge_driver_that_never_returns_stops_the_reconcile_merge() {
     remove(&s.root);
 }
 
+/// What:
+///  A `merge` rule the remote introduces governs the reconcile merge's second pass,
+/// so the file it excludes keeps its conflict and nothing is committed.
+/// Why:
+///   The rule arrives with the side being merged,
+/// so only the tree the merge produced holds it
+/// (cross-vendor review of this branch, finding 2;
+/// the audit recorded this control as missing).
+/// Reading the first side's tip
+///  let the file be word-merged and published.
+#[test]
+fn a_rule_the_remote_introduces_keeps_the_reconcile_merge_from_merging_the_file() {
+    use crate::merge_second_pass::tests::corpus;
+    let s = scenario("ar-introduced-rule");
+    std::fs::write(s.local.join("data.txt"), corpus("md1b", "base")).expect("the base file");
+    git(&s.local, &["add", "--", "data.txt"]);
+    git(&s.local, &["commit", "--quiet", "-m", "the base file"]);
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    // The rule and the second side's bytes arrive from the remote in one commit.
+    git(&s.other, &["fetch", "--quiet", "origin"]);
+    git(&s.other, &["merge", "--quiet", "--ff-only", "origin/main"]);
+    std::fs::write(s.other.join(".gitattributes"), "data.txt merge=binary\n").expect("the rule");
+    std::fs::write(s.other.join("data.txt"), corpus("md1b", "theirs")).expect("their edit");
+    git(&s.other, &["add", "--", ".gitattributes", "data.txt"]);
+    git(&s.other, &["commit", "--quiet", "-m", "a rule and the edit it owns"]);
+    git(&s.other, &["push", "--quiet", "origin", "main"]);
+    let island: String = commit_local(&s, "data.txt", String::from_utf8_lossy(corpus("md1b", "ours").as_slice()).into_owned().as_str());
+    git(&s.local, &["fetch", "--quiet", "origin"]);
+    let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
+    let answer = commit_merge(&push_git(&s.local), &island, &main, "message").expect("git");
+    let Err(paths) = answer else { panic!("the rule the merge introduces excludes the file") };
+    assert_eq!(paths, vec![String::from("data.txt")], "the excluded path is the one reported");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    remove(&s.root);
+}
+
 /// Make the repository under test sign commits with a stand-in `gpg` that exits `status`:
 /// it reads the payload,
 /// answers the status line Git waits for and prints a placeholder signature,

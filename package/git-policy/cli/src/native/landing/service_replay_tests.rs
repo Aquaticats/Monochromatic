@@ -379,3 +379,45 @@ fn a_configured_attribute_tree_is_not_overridden() {
     remove(attributed_world.root.as_path());
 }
 //endregion
+
+/// What:
+///  The top of the worktree keeps every byte of a directory's name,
+/// including a space at its end.
+/// Why:
+///   A repository may sit in a directory whose name ends in a space,
+/// and trimming the line Git printed takes that space with it,
+/// so every command of the
+///  second pass then runs in a directory that does not exist and the commit is refused as an uncombinable change
+/// (cross-vendor review of this branch, finding 7).
+#[test]
+fn the_toplevel_keeps_a_trailing_space_in_a_directory_name() {
+    assert_eq!(toplevel_of(b"/tmp/a repository \n"), PathBuf::from("/tmp/a repository "), "the space a directory's name ends in is part of the path");
+    assert_eq!(toplevel_of(b"/tmp/repo\n"), PathBuf::from("/tmp/repo"), "the line break alone is removed");
+    assert_eq!(toplevel_of(b"/tmp/repo"), PathBuf::from("/tmp/repo"), "a line without a break is the path");
+}
+
+/// What:
+///  A `merge` rule the captured side introduces governs the replay's word pass,
+/// so the file it excludes keeps its conflict.
+/// Why:
+///   The rule arrives with the captured tree,
+/// so only the tree the replay's merge produced holds it,
+/// and reading the landed tip alone
+///  let the file be word-merged into a commit
+/// (cross-vendor review of this branch, finding 2;
+/// the audit recorded this control as missing for the replay).
+#[test]
+fn a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file() {
+    let world: World = corpus_world("replay-introduced-rule", "md1b", "data.txt");
+    let mine: Captured = corpus_sides(&world, "md1b", "data.txt");
+    git(world.repo.as_path(), &["checkout", "--quiet", "mine"]);
+    std::fs::write(world.repo.join(".gitattributes"), "data.txt merge=binary\n").expect("the rule");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=the rule"]);
+    let with_rule: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
+    let captured: Captured = Captured { tree: with_rule, ..mine };
+    let Merged::Conflict(paths) = merge(&world, &captured) else { panic!("the rule the merge introduces excludes the file from the word pass") };
+    assert_eq!(paths, vec![b"data.txt".to_vec()], "the excluded path is the one reported");
+    remove(world.root.as_path());
+}
