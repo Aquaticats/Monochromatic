@@ -14,7 +14,7 @@
 //! ```
 
 /// Import the pure reply reader and the values it produces.
-use crate::candidate_batch::{BatchReply, ObjectKind, read_batch_reply};
+use crate::candidate_batch::{BatchReply, ObjectKind, read_batch_reply_within};
 /// Import the layer's failure type and its closed list of causes.
 use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Starts that ride out a short shortage of processes.
@@ -136,6 +136,9 @@ pub struct ObjectReader {
     blobs: HashMap<ObjectId, Rc<[u8]>>,
     /// Announces a request that takes long and stops the process when one crosses the bound.
     watch: ChildWatch,
+    /// The most content bytes one reply may hold,
+    ///  which the controls shorten.
+    ceiling: usize,
 }
 
 /// What:
@@ -202,6 +205,35 @@ pub fn start_object_reader_with(
     overlay: &[(OsString, OsString)],
     terms: WatchTerms,
 ) -> Result<ObjectReader, CandidateError> {
+    return start_object_reader_within(
+        real_git,
+        global_prefix,
+        overlay,
+        terms,
+        crate::candidate_batch::CONTENT_CEILING,
+    );
+}
+
+/// What:
+///  `start_object_reader_with` with the content ceiling its replies obey,
+///  which the controls shorten.
+/// Why:
+///   A control cannot stage 32 MiB to prove what an oversized reply does,
+///  and the seam is the ceiling itself,
+///  never the size of a
+///       fixture object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startObjectReaderWithin(realGit, globalPrefix, overlay, terms, ceiling): ObjectReader;
+/// ```
+pub fn start_object_reader_within(
+    real_git: &Path,
+    global_prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+    terms: WatchTerms,
+    ceiling: usize,
+) -> Result<ObjectReader, CandidateError> {
     // `.to_vec()` copies the borrowed prefix into an owned, growable argument list.
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     arguments.push(OsString::from("cat-file"));
@@ -258,6 +290,7 @@ pub fn start_object_reader_with(
         }),
         blobs: HashMap::new(),
         watch,
+        ceiling,
     });
 }
 
@@ -335,7 +368,7 @@ impl ObjectReader {
                 format!("stopped accepting requests ({error})").as_str(),
             ));
         }
-        match read_batch_reply(&mut pipes.output, name) {
+        match read_batch_reply_within(&mut pipes.output, name, self.ceiling) {
             Ok(reply) => return Ok(reply),
             Err(error) => {
                 self.pipes = None;
@@ -434,8 +467,17 @@ impl ObjectReader {
     /// ```
     pub fn head_commit(&mut self) -> Result<Option<ObjectId>, CandidateError> {
         match self.request(b"HEAD")? {
-            // A commit that is larger than a content check reads is still a commit; only its bytes are refused.
-            BatchReply::Missing | BatchReply::TooLarge { .. } => return Ok(None),
+            BatchReply::Missing => return Ok(None),
+            // What: A commit whose object is larger than a check reads whole still names a commit: the type field is
+            //       all this answer needs, and the ceiling refused only the bytes.
+            // Why:  Answering "no HEAD" would make the baseline the empty tree, so every staged file would be listed
+            //       as an addition.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (reply.kind === 'too-large') return reply.object;
+            // ```
+            BatchReply::TooLarge { object, .. } => return Ok(Some(object)),
             BatchReply::Found { object, kind, .. } => {
                 if kind != ObjectKind::Commit {
                     return Err(CandidateError::new(
