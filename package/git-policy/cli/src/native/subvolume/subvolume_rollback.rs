@@ -213,7 +213,9 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
     }
     match mode {
         MigrateMode::Rollback => {
-            if !trees_are_already_swapped_back(run) && !run.layout.old_path.exists() {
+            // The real rollback reaches `swap_back` only when the journal records the exchange as done; before it there is
+            // no old tree yet, and that state is the one the rollback finishes by deleting the staged subvolume.
+            if run.journal.is_done("exchange") && !trees_are_already_swapped_back(run) && !run.layout.old_path.exists() {
                 found.push(old_tree_missing(run));
             }
         }
