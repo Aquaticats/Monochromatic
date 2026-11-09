@@ -27,6 +27,7 @@
 //! ```
 
 use crate::json_record::quote;
+use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_subvolume::Reservation;
 use std::path::Path;
 
@@ -146,4 +147,23 @@ pub(crate) fn nothing_but_a_reservation(destination: &Path) -> bool {
         Ok(mut entries) => entries.next().is_none(),
         Err(_absent) => true,
     };
+}
+
+/// What:
+///  The refusal of a copy whose destination is no longer the registration it was made for.
+/// Why:
+///   Nothing in a worktree is overwritten or removed,
+/// so the copy stops before the first entry,
+/// and the person gets both registrations and the commands that show one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new WorktreeCopyError(`monochromatic-git-policy-cli: the ignored state for ${destination} was not copied: ${reason}. ...`)
+/// ```
+pub(crate) fn registration_changed(destination: &Path, reason: &str) -> WorktreeCopyError {
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let message: String = format!(
+        "monochromatic-git-policy-cli: the ignored state for {shown} was not copied: {reason}. Nothing in that worktree was changed; `git worktree list` shows what is registered there now, and a `git worktree add` into the same path copies the ignored state afresh."
+    );
+    return crate::worktree_copy_error::failure_with_cause(message.as_str(), None);
 }

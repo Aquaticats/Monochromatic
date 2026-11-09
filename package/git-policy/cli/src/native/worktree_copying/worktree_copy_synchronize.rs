@@ -24,7 +24,7 @@ use crate::diagnostic_log::debug;
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of};
+use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registration_changed};
 use crate::worktree_subvolume::Reservation;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_journal::create_journal;
@@ -91,24 +91,6 @@ fn claim_for_the_copy(recorded: Option<StageClaim>, common_dir: &Path, destinati
     };
 }
 
-/// What:
-///  The refusal of a copy whose destination is no longer the registration it was made for.
-/// Why:
-///   Nothing in a worktree is overwritten or removed,
-/// so the copy stops before the first entry,
-/// and the person gets both registrations and the commands that show one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new WorktreeCopyError(`monochromatic-git-policy-cli: the ignored state for ${destination} was not copied: ${reason}. ...`)
-/// ```
-fn registration_changed(destination: &Path, reason: &str) -> WorktreeCopyError {
-    let shown: String = quote(destination.to_string_lossy().as_ref());
-    let message: String = format!(
-        "monochromatic-git-policy-cli: the ignored state for {shown} was not copied: {reason}. Nothing in that worktree was changed; `git worktree list` shows what is registered there now, and a `git worktree add` into the same path copies the ignored state afresh."
-    );
-    return crate::worktree_copy_error::failure_with_cause(message.as_str(), None);
-}
 
 /// What:
 ///  Stages,
