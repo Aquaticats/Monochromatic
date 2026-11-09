@@ -95,11 +95,16 @@ Each record is cited so the context is one read away.
   Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
   which is gitignored and is the owner's file;
   that reservation is the last unmet line of issue 1720.
-- The umbrella list (`225a3b6318`) left open points:
-  how to split its Windows and release-gate entries,
-  whether its release-artifact gate meant a packaged-tarball gate,
+- The umbrella list (`225a3b6318`) has two open points left:
   which of its disagreeing maintenance mutation records is right,
   and whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees.
+  Its Windows and release-gate entries are split,
+  and its release-artifact gate is `native:perf`,
+  not a packaged-tarball gate:
+  that task's description states the gate's limits,
+  and the release records of `doc/planning/one-release-each-batch-2026-11.md` hold its figures.
+  A search of `doc/` and `.github/workflows` on 2026-11-08 for `release-artifact`,
+  `release performance` and `perf` found no other definition.
 - The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
   which ask what each shipped limit should cite.
 - Does "never discard user data" cover the audit history?
