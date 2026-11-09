@@ -220,6 +220,11 @@ fn refuses_what_it_cannot_place() {
         problem("a: 1\nno key\n"),
         YamlProblem::new(2, "holds no key and colon")
     );
+    // A colon inside a comment names no key of the line that holds it.
+    assert_eq!(
+        problem("a:\n  b # c: d\n"),
+        YamlProblem::new(2, "holds no key and colon")
+    );
     assert_eq!(
         problem("a: 1\nb: 2\na: 3\n"),
         YamlProblem::new(3, "names the key \"a\" a second time")
