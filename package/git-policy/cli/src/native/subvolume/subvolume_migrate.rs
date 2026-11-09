@@ -143,6 +143,13 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
         if !run.layout.new_path.exists() {
             run.platform.create_subvolume(run.layout.new_path.as_path())?;
         }
+        // The identity of the stage this step made or adopted rides with the step's mark, so one write carries both: a journal
+        // that says the step finished also names the subvolume, and the preflight lets through only an empty subvolume when
+        // the identity is not recorded yet.
+        let Some(identity) = crate::worktree_convert_phases::identity_of_path(run.layout.new_path.as_path()) else {
+            return Err(MigrateError::Journal(format!("{} was not there after it was created", run.layout.new_path.display())));
+        };
+        run.journal.record_stage_identity(identity);
         run.journal.mark("create", "done")?;
     }
     run.checkpoint("after-create")?;

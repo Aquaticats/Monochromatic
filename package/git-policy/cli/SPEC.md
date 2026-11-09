@@ -1788,15 +1788,24 @@ owner and group,
 and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
-A regular file whose size and modification time agree is also compared by contents when its change time
-is at or after the instant the proving pass finished,
-which the journal records:
+A regular file whose size and modification time agree is also compared by contents when the change
+time of either side is at or after the instant the proving pass began,
+both sides being read because either can hold bytes the other does not,
+which the journal records,
+the instant being taken before the pass rather than after it,
+because an edit made while the pass runs carries a change time before the pass ends:
 an edit can keep the length and put the modification time back,
 and the change time cannot be put back by an ordinary user.
 A journal written by an earlier release records no such instant,
 and then every regular file's contents are compared.
 Only the files the change time flags are read,
 so a conversion nothing was changed in reads no contents at all.
+Both sides are opened by the plain-file reader,
+which waits for no writer and follows no link:
+a name
+  swapped for a named pipe or a link after the walk read its metadata ends the comparison with the
+file named
+  instead of holding the conversion's claim for ever.
 The measurement behind that choice,
 on this repository's largest worktree (28,569,216,018 bytes in 115,067 files,
 144,633 entries,
@@ -1966,14 +1975,29 @@ in milliseconds after the epoch,
 so the removal can tell a file changed after the proof from one the copy already carried;
 a journal written by an earlier release has no such field.
 A rollback deletes the new subvolume only while the name holds a subvolume root,
-which is what the migration created there,
-and only while that object is the checkout the journal recorded installing:
-the recorded identity is compared before the deletion on every path that reaches it,
+which is what the migration created there:
+a directory that replaced it is refused with both paths and nothing is deleted,
+because the removal's fallback would otherwise delete it and whatever it holds.
+The journal also records the identity of the subvolume the migration made at that name (device,
+inode and,
+where the filesystem gives one,
+birth time),
+in the same map of named values that holds the checkout's identity,
+before anything is copied into it,
+and the rollback deletes the stage only while that identity still answers for the directory it deletes:
+a subvolume another process put at that name in the meantime is refused with the path and the
+two identities,
+and nothing is deleted.
+A journal that records no identity for the stage names no subvolume to delete,
+so the rollback is refused there too,
+with the path and both ways out (delete the migration's own stage,
+or move a foreign one away and clear the journal),
+instead of deleting what it cannot name.
+The identity of the checkout the migration installed is compared as well,
+before the deletion on every path that reaches it,
 including a run resumed after the exchange was recorded,
-which skips the swap and with it the pair check that guards the exchange.
-A directory that replaced it is refused with both paths and nothing is deleted,
-because the removal's fallback would otherwise delete it and whatever it holds,
-and a subvolume that replaced it is refused with both identities.
+which skips the swap and with it the pair check that guards the exchange;
+a directory or a subvolume that replaced it is refused with both paths and both identities.
 One window stays open and is written here rather than closed:
 another process that puts a subvolume at that name in the moment between the identity check and the
 destruction has that subvolume destroyed;
