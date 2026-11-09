@@ -1,5 +1,5 @@
 //! Controls for reading `core.fsync`:
-//! every reading is checked against the flushes real Git makes with the same value,
+//! every value is checked against the flushes real Git makes with that value,
 //! counted
 //!  from Git's own trace2 `fsync` counters,
 //! so a reading that drifts from Git's fails here.
@@ -21,6 +21,41 @@ const VALUES: [&str; 22] = [
     "derived-metadata", "loose-object,none", "none,loose-object", "p", "reference,-reference", "bogus", "  pack ,\tnone", "-",
     "pack,-pack-metadata", "commit-graph,pack-metadata,none",
 ];
+
+/// What:
+///  The values of `VALUES` spelled by `spell`,
+///  each with the value it was spelled from and the reading that value has,
+/// and each resulting spelling asked once.
+/// Why:
+///   The string is the question:
+/// two values that spell the same string ask Git the same thing, and the second
+///  start of Git only repeats the answer (one start took 0.9 to 2.8 s while the suite ran on 2026-11-09).
+/// The grouping is never taken from a reading:
+/// a value whose reading drifts to another's still spells its own
+///  string and is still asked,
+/// so no drift hides behind another value's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const spellingsOf = (spell) => VALUES.reduce((kept, value) => {
+///     const spelled = spell(parse(value)).value();
+///     return kept.some(([, seen]) => seen === spelled) ? kept : [...kept, [value, spelled, parse(value)]];
+/// }, []);
+/// ```
+fn spellings_of(spell: fn(FsyncComponents) -> FsyncComponents) -> Vec<(&'static str, String, FsyncComponents)> {
+    let mut asked: Vec<String> = Vec::new();
+    let mut kept: Vec<(&'static str, String, FsyncComponents)> = Vec::new();
+    for value in VALUES {
+        let set: FsyncComponents = FsyncComponents::parse(value);
+        let spelled: String = spell(set).value();
+        if asked.contains(&spelled) {
+            continue;
+        }
+        asked.push(spelled.clone());
+        kept.push((value, spelled, set));
+    }
+    return kept;
+}
 
 /// How many flushes Git reports (trace2 `fsync` counters) for one start of `arguments` with `core.fsync` set to `value`,
 /// or
@@ -85,8 +120,12 @@ fn reference_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str)
     return flushes(repo, trace, value, &["update-ref", format!("refs/probe/{name}").as_str(), "HEAD"], None);
 }
 
-/// Each reading of a value agrees with Git:
+/// Each value agrees with Git:
 /// a component is named exactly when Git flushes its writes.
+/// The loop goes over the values of `VALUES` themselves:
+/// a value whose reading drifted to another
+///  reading's is exactly the value Git has to be asked about,
+/// so no value may be left out for reading like one already asked.
 #[test]
 fn a_value_names_the_components_git_flushes() {
     let root: PathBuf = fixture("config-fsync-reading");
@@ -134,9 +173,7 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    for (position, value) in VALUES.iter().enumerate() {
-        let set: FsyncComponents = FsyncComponents::parse(value);
-        let spelled: String = set.without_packs().value();
+    for (position, (value, spelled, set)) in spellings_of(FsyncComponents::without_packs).into_iter().enumerate() {
         let name: String = format!("w{position}");
         assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.without_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?} reads back the same, but for the mapping between hash algorithms that no word names alone");
         assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()), 0, "no pack flush under {spelled:?} (from {value:?})");
@@ -183,16 +220,15 @@ fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_compo
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    for (position, value) in VALUES.iter().enumerate() {
-        let set: FsyncComponents = FsyncComponents::parse(value);
-        let spelled: String = set.with_packs().value();
+    let packed_by_name: u64 = pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice());
+    for (position, (value, spelled, set)) in spellings_of(FsyncComponents::with_packs).into_iter().enumerate() {
         let name: String = format!("p{position}");
         assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.with_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?}");
         assert!(set.with_packs().names_pack_and_metadata());
         // The same flushes as a value that names the packs alone make (the pack, its index and what Git writes beside it).
         assert_eq!(
             pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()),
-            pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice()),
+            packed_by_name,
             "the pack and its index under {spelled:?} (from {value:?})"
         );
         assert_eq!(
