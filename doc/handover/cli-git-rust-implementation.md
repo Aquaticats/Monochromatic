@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:33:37-05:00)
+#### Reviews and landings in progress (2026-11-09T03:41:06-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -142,17 +142,32 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the next brief asks for a seam so they run at any quota.
   Run 5 of its agent is on them.
 - `fix/git-policy-cli-push-route-records-and-ceilings`:
-  its agent reports the nine findings of the first review fixed.
-  Its tests on top of main and the review `push-route-round-2` are running.
+  its agent reports the nine findings of the first review fixed,
+  760 of 760 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/push-route-round-2-sol.txt`) names eight more,
+  among them a retry plan lost to a kill after its notice promised it,
+  a rollback that rewrites the branch the person switched to,
+  and a deleted branch retried without end.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `push-route-findings-fixed` as run 3,
+  with `push-route-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  The session picked the fixture root on the disk over a per-run tmpfs,
+  because the package documents that a shared tmpfs fills up (issue 1809).
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
   with 22 of 22 selected tests passing on top of main.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
   its agent reports the lint,
   the two failing tests and the two missing controls settled.
-  Its tests on top of main and the review `landing-route-round-5` are running.
-  Three tests fail in a suite and pass alone,
-  and `a_landing_over_an_unheld_lock_removes_it_and_goes_on` fails alone against a wall-clock bound of 8 seconds,
-  on plain main as well.
+  The review `landing-route-round-5` is running.
+  On top of main 1245 of 1249 selected tests pass.
+  The four failures are all in `landing::service_work::push_retry_tests`,
+  a module whose failures the push branch traces to a patience shorter than a contended push,
+  which is a fit and not yet a proof.
+  `fix/git-policy-cli-tests-that-fail-only-in-a-suite`,
+  a new agent,
+  measures those and the other tests that fail only in a suite or against a wall-clock bound.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
   its agent reports the first review's findings fixed,
   317 of 317 selected tests pass on top of main,
@@ -185,11 +200,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   even run alone.
   Run 3 of its agent is on the three defects and judges the races.
   After that round it lands.
-- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`
-  and `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
-  their agents fix what these audits on main found:
-  `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`
-  and `doc/planning/cli-git-worktree-add-route-findings-on-main.md`.
+- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`:
+  its agent fixes what the audit `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md` found.
+- `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
+  its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
+  Its tests on top of main and the review `worktree-add-round-1` are running.
+  By its own report,
+  the repeated line about an interrupted add still reaches a person only with `MONOCHROMATIC_VERBOSE` set,
+  so the fix does not yet reach anyone who has not set it.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
@@ -253,7 +271,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   That takes another program changing the mode inside the add,
   and main keeps no such record at all,
   so the branch landed and the fix follows it.
-  Run 8 of its agent is on it.
+  Run 8 of its agent reports it fixed;
+  its tests on top of main and the review `copy-records-round-8` are running.
   The same review names a non-Linux build break in `other::Ladder::finish`,
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
