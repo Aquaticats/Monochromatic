@@ -97,7 +97,9 @@ fn the_indexes_are_rewritten_side_by_side() {
 fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
     // The checkout's own rewrite holds one place and waits for the others, so one more must be able to run; with room for
     //  all of them the wait below cannot depend on the CPUs this machine has.
-    let _room: usize = room_for("the_report_keeps_the_order_of_the_checkout_then_its_worktrees", LINKED + 1);
+    // The checkout's own rewrite waits inside its job for the others, so it holds a place while it waits: the room is one
+    //  place more than the indexes, and a run whose waiting item took the last place its peers need cannot happen.
+    let _room: usize = room_for("the_report_keeps_the_order_of_the_checkout_then_its_worktrees", LINKED + 2);
     let (parent, root) = checkout_with_linked("index-parallel-order");
     let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(LINKED, crate::parallel_test_support::PATIENCE));
     let main_index: PathBuf = root.join(".git").join("index");
@@ -312,7 +314,7 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
         "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
     );
     assert!(
-        promised_unchanged || said.contains("not known") || said.contains("had not started when that was reported"),
+        promised_unchanged || said.contains("not known") || said.contains("will not run"),
         "the report must say either that no rewrite could start or that the work it lost had not started: {said}"
     );
     remove(parent.as_path());

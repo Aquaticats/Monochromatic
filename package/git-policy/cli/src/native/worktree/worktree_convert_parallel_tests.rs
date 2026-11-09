@@ -185,7 +185,9 @@ fn worktrees_are_converted_side_by_side() {
 fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
     // The first worktree waits for the other three within `LAST_TO_FINISH_PATIENCE`, so all four must run at once, and
     //  the room this control takes makes that independent of the CPUs this machine has.
-    let _room: usize = room_for("the_report_keeps_input_order_whichever_worktree_finishes_first", WORKTREES);
+    // The first worktree waits inside its conversion for the other three, so it holds a place while it waits: the room is
+    //  one place more than the worktrees, and a run whose waiting worktree took the last place its peers need cannot happen.
+    let _room: usize = room_for("the_report_keeps_input_order_whichever_worktree_finishes_first", WORKTREES + 1);
     let (parent, root) = checkout_with_worktrees("convert-parallel-order", WORKTREES);
     let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(WORKTREES - 1, LAST_TO_FINISH_PATIENCE));
     let first_of_all: String = name_of(0);
