@@ -146,10 +146,6 @@ pub struct PendingTrash {
 /// await disposePendingTrash({ context, destination, gitDir, trash, notices }); // throws the reason the trash stays
 /// ```
 pub fn dispose_pending_trash(context: &GitContext, destination: &Path, git_dir: &Path, trash: Option<&TrashManifest>, notices: &mut dyn Write) -> Result<(), String> {
-    // Before this add's own trash is handed over, the trash of earlier additions to this worktree is tried again: a failed
-    // emptying is settled as failed by the service, so nothing else would ever try it, and the person is told about a trash
-    // that stays.
-    retry_given_up_trash(git_dir, destination, notices);
     let Some(manifest) = trash else { return Ok(()) };
     return dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, manifest, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
 }
@@ -211,6 +207,11 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
 /// retryGivenUpTrash(gitDir, worktree, notices);
 /// ```
 pub fn retry_given_up_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
+    // A worktree whose trash parent is gone has nothing to try or name, and that is the ordinary case.
+    let parent: PathBuf = worktree.join(TRASH_PARENT);
+    if std::fs::symlink_metadata(&parent).is_err() {
+        return;
+    }
     let work: PathBuf = work_directory(git_dir);
     let mut recorded: Vec<String> = Vec::new();
     for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
