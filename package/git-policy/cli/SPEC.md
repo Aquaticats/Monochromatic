@@ -10557,15 +10557,17 @@ For injected commit-only semantics:
     and only the paths native Git takes for the same pathspecs.
     A selected element that names one file of the worktree is an exact path:
     it carries no pathspec magic,
-    no pattern character of a mode in effect (`*`,
-    `?` and `[` are ordinary in a literal or a noglob mode;
-    a backslash is Git's escape and names the file whose pathname spells it),
-    and a file or a link is at the pathname it gives,
-    and it is staged with `git add -- <element>`,
+    no pattern character of the mode in effect (`*`,
+    `?` and `[`;
+    they are ordinary in a literal or a noglob mode),
+    and a file or a link is at the pathname it gives.
+    It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,
     and a path that an ignore rule matches and that no index stages is refused with the message that says
     to stage it with `git add --force` first.
+    A backslash is Git's escape and not a pattern character:
+    `a\b.txt` names the file whose pathname spells it when one is there.
     Every other element is a directory,
     a pattern or pathspec magic,
     and it stages the tracked paths the private index holds and the carried additions,
@@ -10574,8 +10576,13 @@ For injected commit-only semantics:
     native Git commits the tracked and staged paths a directory or a pattern matches,
     so a commit of `.`,
     `*` or a directory leaves every untracked file untracked.
-    A pathspec whose elements match no entry of the private index fails as native Git fails it,
-    and a pathspec file this wrapper cannot read is left to Git alone.
+    A pathspec whose elements match no entry of the private index fails as native Git fails it.
+    An empty pathspec file stages nothing,
+    as native Git commits nothing for one.
+    A pathspec file with more bytes than one command line may carry is passed as a file with
+    `git add --update`,
+    so the commit still takes the tracked paths it matches and only a file nothing staged stays out;
+    a pathspec file this wrapper cannot read is left to Git alone.
 4.  Apply policy patches to the commit index.
 5.  Remove pathspecs and internal `--only` before invoking native Git
     because the private index is the complete intended tree.
