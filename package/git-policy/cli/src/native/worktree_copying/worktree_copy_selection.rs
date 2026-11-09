@@ -53,8 +53,10 @@ pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
 /// Why:
 ///   A repository path is the bytes Git reported,
 /// so every rule about its components reads those bytes;
-/// a name with any other byte, and that includes a byte that is not
-///  text, stays one component.
+/// a name with any other byte,
+/// and that includes a byte that is not
+///  text,
+/// stays one component.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +90,8 @@ pub fn repository_path_within(candidate: &[u8], parent: &[u8]) -> bool {
 ///  The repository path of one entry below a directory's repository path.
 /// Why:
 ///   The walk and the checks build every child path from its parent and the name the
-/// filesystem listed, and that name keeps every byte it has.
+/// filesystem listed,
+/// and that name keeps every byte it has.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

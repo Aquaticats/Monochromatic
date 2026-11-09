@@ -241,54 +241,96 @@ Skipped or not yet run in this lane:
 Branch `fix/git-policy-cli-worktree-copy-ignored-names-keep-bytes`.
 
 The copy kept a repository path as text.
-The manifest walk read each name the filesystem listed with `to_string_lossy`, and the
-journal, the install log and the stage claim carried the result, so a name that is not
+The manifest walk read each name the filesystem listed with `to_string_lossy`,
+and the
+journal,
+the install log and the stage claim carried the result,
+so a name that is not
 UTF-8 became a name holding U+FFFD.
 
-Measured on the real binary (`target/debug`, real Git 2.56.0, a fixture whose ignored
-`heavy/` held `bad\xff.bin`, a name with a newline and a name with a tab, beside an
-ignored file `top\x80.log`): `git worktree add` ended with status 2 and the bare text
-`No such file or directory (os error 2)`, copied nothing, and left the worktree registered
+Measured on the real binary (`target/debug`,
+real Git 2.56.0,
+a fixture whose ignored
+`heavy/` held `bad\xff.bin`,
+a name with a newline and a name with a tab,
+beside an
+ignored file `top\x80.log`):
+`git worktree add` ended with status 2 and the bare text
+`No such file or directory (os error 2)`,
+copied nothing,
+and left the worktree registered
 but unfilled.
-A second fixture, holding `heavy/bad\xff.bin` next to a file whose name is exactly the
-lossy spelling, failed with `File exists (os error 17)` while staging.
-So no name was silently renamed: the copy refused, but it could not carry the ignored
+A second fixture,
+holding `heavy/bad\xff.bin` next to a file whose name is exactly the
+lossy spelling,
+failed with `File exists (os error 17)` while staging.
+So no name was silently renamed:
+the copy refused,
+but it could not carry the ignored
 state of such a repository at all.
 
-Every repository path is now the bytes the filesystem reported, from the selection through
-the manifest, the stage, install, rollback and the records; a diagnostic renders them with
+Every repository path is now the bytes the filesystem reported,
+from the selection through
+the manifest,
+the stage,
+install,
+rollback and the records;
+a diagnostic renders them with
 replacement characters only where a person reads one.
-The order of a manifest is the UTF-16 order of the path's text, then its bytes, so a name
+The order of a manifest is the UTF-16 order of the path's text,
+then its bytes,
+so a name
 that is text keeps the order the incumbent gave it and a name that is not text has a
 reproducible place.
 
-The record rule, in `foundation/path_bytes_in_records.rs`:
-the four stage roots keep the text field and the bytes field, always;
-a list (`selectedRoots`, `intendedEntries`, an install log's `intended`) and a single
-`relativePath` keep the text form only when the text spells every byte, and otherwise the
+The record rule,
+in `foundation/path_bytes_in_records.rs`:
+the four stage roots keep the text field and the bytes field,
+always;
+a list (`selectedRoots`,
+`intendedEntries`,
+an install log's `intended`) and a single
+`relativePath` keep the text form only when the text spells every byte,
+and otherwise the
 bytes form alone.
-A record the previous release wrote holds text only and is read as it is; a record this
-release writes for a name that is not text has no text field, so that release refuses it
+A record the previous release wrote holds text only and is read as it is;
+a record this
+release writes for a name that is not text has no text field,
+so that release refuses it
 (the same rule `root_fields` already used) instead of acting on a replacement spelling.
-Reason for the difference: an install log's created-entry lines dominate the record size,
+Reason for the difference:
+an install log's created-entry lines dominate the record size,
 so a name that is text costs nothing extra.
 
-Evidence, after the change:
+Evidence,
+after the change:
 
-- the same fixture copies every name exactly (`bad\xff.bin`, the newline name, the tab
-  name, `top\x80.log`, and an ignored directory whose own name is `dir\xfe`), and the
+- the same fixture copies every name exactly (`bad\xff.bin`,
+  the newline name,
+  the tab
+  name,
+  `top\x80.log`,
+  and an ignored directory whose own name is `dir\xfe`),
+  and the
   destination holds no replacement spelling;
 - four cuts killed the wrapper with `SIGKILL` on its own process group and let an ordinary
-  read-only command recover: on the staged journal (0 of 2,003 entries installed), after
-  the awkward names were installed, and after the whole install before the cleanup.
+  read-only command recover:
+  on the staged journal (0 of 2,003 entries installed),
+  after
+  the awkward names were installed,
+  and after the whole install before the cleanup.
   Each recovery reported `recovered ignored-state copies for 1 worktree transaction`,
-  finished with 2,003 entries, missed none of the four names and left no replacement
+  finished with 2,003 entries,
+  missed none of the four names and left no replacement
   spelling;
-- proof by removal: with the walk's bytes replaced by `to_string_lossy` again, the new
+- proof by removal:
+  with the walk's bytes replaced by `to_string_lossy` again,
+  the new
   manifest control fails with `manifest: WorktreeCopyError("No such file or directory
   (os error 2)")`.
 
-Controls added: `a_name_that_is_not_text_is_one_entry_with_its_own_bytes`,
+Controls added:
+`a_name_that_is_not_text_is_one_entry_with_its_own_bytes`,
 `an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte`,
 `a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes`,
 `a_repository_path_is_joined_from_its_parent_and_a_name`,
@@ -298,14 +340,21 @@ Controls added: `a_name_that_is_not_text_is_one_entry_with_its_own_bytes`,
 `a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_that_has_no_text`
 and `recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name`.
 
-Open, found while driving those cuts and not changed here:
-a kill in the middle of one destination file leaves that file partly written, because the
+Open,
+found while driving those cuts and not changed here:
+a kill in the middle of one destination file leaves that file partly written,
+because the
 install copies bytes when the destination worktree is its own btrfs subvolume (a hard link
-across subvolumes is `EXDEV`), and the resumed copy refuses it as a differing entry:
+across subvolumes is `EXDEV`),
+and the resumed copy refuses it as a differing entry:
 `ignored-state copy would overwrite differing destination entry "heavy/zzz-pad-01016.txt"`,
 measured 0 bytes at the destination against 13 in the source.
 The copy then ends without finishing and removes its stage.
-Nothing of the source is lost, and the person is told, but the worktree stays unfilled.
+Nothing of the source is lost,
+and the person is told,
+but the worktree stays unfilled.
 
-Commits: `87dbe215b0` (the bytes), `91ef3e7485` and `389919c65c` (the records' controls and
+Commits:
+`87dbe215b0` (the bytes),
+`91ef3e7485` and `389919c65c` (the records' controls and
 the corrected hexadecimal comparison).
