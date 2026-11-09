@@ -12,8 +12,9 @@
 //! The tasks take items from one queue,
 //! so no item waits for another and the results keep item order,
 //! and a panic costs only the item it happened in,
-//! because each item's work is awaited inside
-//!  `call_catching_panics_awaiting`.
+//! because both the build of an item's future and its awaited work are guarded.
+//! Each answer leaves its task as that item ends,
+//! so a task that stopped unexpectedly still leaves every finished item's result behind it.
 //! The runner is a file of its own so that `package_repair_cargo.rs` stays under the
 //!  file-size limit and the runner needs nothing from it.
 //!
@@ -22,17 +23,25 @@
 //! const results = await mapConcurrent(items, workers, label, async (item) => job(item)); // Array<{ ok: R } | { error: string }>
 //! ```
 
-/// The guarded await that turns a panic in one item's work into a result.
-use crate::call_catching_panics_awaiting::call_catching_panics_awaiting;
+/// The guarded await that turns a panic in one item's work into a result,
+/// and the words a panic said.
+use crate::call_catching_panics_awaiting::{call_catching_panics_awaiting, panic_words};
+/// The guarded call that turns a panic of a plain call into a value.
+use crate::panic_notice::while_panics_are_expected;
 /// The future an item's job hands back.
 use std::future::Future;
 /// The boxed form a job takes it in.
 use std::pin::Pin;
+/// The line an unexpected stop is recorded on.
+use crate::diagnostic_log::debug;
 /// Sharing of the items,
 /// the label and the queue with the tasks.
 use std::sync::Arc;
 /// The queue that hands each task the next item.
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "packageRepairCargoConcurrent";
 
 /// What:
 ///  The job a runner does for one item,
@@ -130,30 +139,64 @@ struct TheQueue<T, R> {
     next: Arc<AtomicUsize>,
 }
 
+/// Where an item's answer goes as soon as that item ends.
+type Answers<R> = tokio::sync::mpsc::UnboundedSender<(usize, Result<R, String>)>;
+
+/// What an item's job is for one item:
+/// the future it awaits.
+type AnItemFuture<'of, R> = Pin<Box<dyn Future<Output = R> + Send + 'of>>;
+
 /// What:
-///  Take items from the queue until none is left and do each inside the guard of its own panic.
+///  The future one item's job handed back,
+/// as the guarded call takes it.
+/// Why:
+///  `run` is called before the guard that awaits its future exists,
+/// and this gives that call the state and the function the guard needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const buildTheItemsWork = ([queue, item]: [TheQueue, unknown]) => queue.job.run(item);
+/// ```
+fn build_the_items_work<'of, T, R>(state: (&'of TheQueue<T, R>, &'of T)) -> AnItemFuture<'of, R> {
+    return state.0.job.run(state.1);
+}
+
+/// What:
+///  Take items from the queue until none is left and do each inside the guard of its own panic,
+///  handing each answer over as that item ends.
 /// Why:
 ///   Each task runs this loop,
 /// and the guard is how a panic becomes an error that names the item instead of ending the run,
 ///  as the scoped runner's `call_catching_panics` did.
+/// The build of an item's future is guarded too:
+/// it runs before the await can catch anything,
+/// and a panic there ended the task,
+/// taking the answers it had finished and every item it had not taken.
+/// Each answer travels as it ends rather than with this task's return value,
+/// so a task that stopped still leaves every finished item's result behind it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function takeItems(queue) { const done = []; for (let at = queue.next++; queue.items[at]; at = queue.next++) { done.push([at, await callCatchingPanicsAwaiting(queue.job.run(queue.items[at]))]); } return done; }
+/// async function takeItems(queue, report) { for (let at = queue.next++; queue.items[at]; at = queue.next++) { let answer; try { answer = ok(await queue.job.run(queue.items[at])); } catch (words) { answer = err(words); } report.send([at, answer]); } }
 /// ```
-async fn take_items<T: Send + Sync + 'static, R: Send + 'static>(queue: TheQueue<T, R>) -> Vec<(usize, Result<R, String>)> {
-    let mut done: Vec<(usize, Result<R, String>)> = Vec::new();
+async fn take_items<T: Send + Sync + 'static, R: Send + 'static>(queue: TheQueue<T, R>, report: Answers<R>) {
     loop {
         let at: usize = queue.next.fetch_add(1, Ordering::Relaxed);
         let Some(item) = queue.items.get(at) else { break };
-        let caught: Result<R, String> = call_catching_panics_awaiting(queue.job.run(item)).await;
+        let caught: Result<R, String> = match while_panics_are_expected((&queue, item), build_the_items_work::<T, R>) {
+            Ok(work) => call_catching_panics_awaiting(work).await,
+            // The job panicked while it built the item's future, so no future of that item ever existed.
+            Err(payload) => Err(panic_words(payload.as_ref())),
+        };
         let answer: Result<R, String> = match caught {
             Ok(value) => Ok(value),
             Err(words) => Err(format!("{} stopped because its worker panicked: {words}", queue.label.label(item))),
         };
-        done.push((at, answer));
+        // A closed channel is the run ending, and nothing is left that could read this answer.
+        if report.send((at, answer)).is_err() {
+            break;
+        }
     }
-    return done;
 }
 
 /// What:
@@ -165,8 +208,11 @@ async fn take_items<T: Send + Sync + 'static, R: Send + 'static>(queue: TheQueue
 /// Why:
 ///   The repairs of different workspaces share no state,
 /// so a queue of items keeps every task busy,
-///  and each item's work is guarded on its own,
+///  and each item's work is guarded on its own:
+/// the build of the item's future and every poll of it,
 /// so a panic costs that item and never the results its task had already produced or the items it had still to take.
+/// Each answer is handed over as the item ends,
+/// so nothing a task has finished is kept in a value a panic could drop.
 /// The items inside their work at once are never more than `workers`,
 /// because exactly that many tasks take from the queue.
 /// These are tasks and not lanes of `parallel_runner_on_the_runtime_awaiting.rs`:
@@ -189,22 +235,28 @@ pub async fn map_concurrent_awaiting<T: Send + Sync + 'static, R: Send + 'static
     let count: usize = items.len();
     let at_once: usize = workers.max(1).min(count.max(1));
     let next: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let mut started: tokio::task::JoinSet<Vec<(usize, Result<R, String>)>> = tokio::task::JoinSet::new();
+    let (report, mut reported): (Answers<R>, tokio::sync::mpsc::UnboundedReceiver<(usize, Result<R, String>)>) = tokio::sync::mpsc::unbounded_channel();
+    let mut started: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
     for _task in 0..at_once {
         let queue: TheQueue<T, R> =
             TheQueue { items: Arc::clone(&items), job: Arc::clone(&job), label: Arc::clone(&label), next: Arc::clone(&next) };
-        started.spawn(take_items(queue));
+        started.spawn(take_items(queue, report.clone()));
     }
+    // The answers come from the tasks, so this channel is the run's own; every task holds a copy and drops it as it ends.
+    drop(report);
     let mut answers: Vec<Option<Result<R, String>>> = std::iter::repeat_with(empty_answer).take(count).collect();
+    while let Some((at, answer)) = reported.recv().await {
+        answers[at] = Some(answer);
+    }
+    // Every task has ended by now, so this drains at once; a task that panicked outside an item's guard took no further
+    //  item and the answers below say which ones it left.
     while let Some(joined) = started.join_next().await {
-        match joined {
-            Ok(done) => {
-                for (at, answer) in done {
-                    answers[at] = Some(answer);
-                }
-            }
-            // A task that panicked outside the guard of an item took no further item, which the answers below say.
-            Err(_panicked) => {}
+        if let Err(panicked) = joined {
+            let said: String = match panicked.is_panic() {
+                true => panic_words(panicked.into_panic().as_ref()),
+                false => String::from("the task was cancelled"),
+            };
+            debug(TAG, format!("a worker of one job per item stopped: {said}").as_str());
         }
     }
     let mut ordered: Vec<Result<R, String>> = Vec::new();
