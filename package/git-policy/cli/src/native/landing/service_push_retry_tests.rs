@@ -426,6 +426,115 @@ fn a_push_of_a_commit_no_ref_holds_says_so() {
 }
 
 /// What:
+///  A failed push of a branch that still exists is retried,
+/// even when the program the push ran printed a line about a missing branch.
+/// Why:
+///   The words of a push's output can be any program's,
+/// and only the repository says whether this branch is there;
+/// settling a
+///  live branch as deleted would stop its retry for good and tell the person it was deleted.
+#[test]
+fn a_failed_push_of_a_branch_that_exists_is_not_settled_as_a_gone_branch() {
+    let root: PathBuf = fixture("push-live-branch-gone-words");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    // The program the push runs prints what a nested push of a missing branch prints, and refuses the push.
+    let refusing: PathBuf = root.join("receive-pack-that-names-another-branch");
+    std::fs::write(refusing.as_path(), "#!/bin/sh\necho 'error: src refspec refs/heads/helper does not match any' >&2\nexit 1\n").expect("the refusing program");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(refusing.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    git(repo.as_path(), &["config", "remote.origin.receivepack", refusing.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let git_dir: PathBuf = repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: landed.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-09T10:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work.as_path(), &item).expect("enqueue");
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert!(round_of(git_dir.as_path(), &handlers, &mut retries).is_some(), "the push is planned again, because main is still there");
+    assert!(names_in(work.as_path(), crate::work_item::DONE).is_empty(), "and it is not settled as done");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).map(|entries| { return entries.flatten().map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); }).collect::<String>(); }).unwrap_or_default();
+    assert!(!record.contains("no longer exists"), "the person is not told the branch was deleted: {record}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice about a deleted branch whose refs could not be read says that it could not tell,
+/// never that no ref holds the commit.
+/// Why:
+///   A failed query is not an empty answer,
+/// and the person would stop looking for a commit the repository still holds.
+#[test]
+fn a_notice_of_a_gone_branch_says_when_the_refs_could_not_be_read() {
+    let root: PathBuf = fixture("push-gone-branch-unreadable-refs");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    let git_dir: PathBuf = repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    // The branch is gone, and the commit the item names is no object of this repository, so the containment query fails.
+    let absent: String = String::from("1234567890abcdef1234567890abcdef12345678");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: String::from("refs/heads/feature"),
+        oid: absent.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-09T10:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work.as_path(), &item).expect("enqueue");
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "the branch is gone, so nothing is planned");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).map(|entries| { return entries.flatten().map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); }).collect::<String>(); }).unwrap_or_default();
+    assert!(record.contains("no longer exists"), "the branch is said to be gone: {record}");
+    assert!(record.contains("could not be told"), "and the notice says the refs could not be read: {record}");
+    assert!(!record.contains("no ref of this repository"), "it never says no ref holds it: {record}");
+    assert!(record.contains(absent.as_str()), "the commit is still named: {record}");
+    remove(root.as_path());
+}
+
+/// The names a state directory of a work directory holds,
+/// sorted.
+fn names_in(work: &Path, state: &str) -> Vec<String> {
+    let directory: PathBuf = crate::work_item::state_directory(work, state);
+    let mut names: Vec<String> = std::fs::read_dir(directory.as_path())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// What:
 ///  A repository with a commit on `feature`,
 /// pushed once,
 /// whose branch is then deleted.
