@@ -51,9 +51,10 @@ use std::path::{Path, PathBuf};
 /// The walk goes through held handles,
 /// opens nothing
 ///  through a link,
-/// and leaves a directory that holds a `.git` entry alone,
-/// because that is another checkout whose
-///  own files are moved whole and never entered here.
+/// and looks inside every directory it meets,
+/// `.git` included,
+/// because the directory it was
+///  handed is itself another checkout and a container can stand beside that marker.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,10 +66,6 @@ pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Pat
     for listed in path_failure(std::fs::read_dir(crate::fs_beneath::handle_path(&directory)), shown, "cannot be listed")? {
         let entry: std::fs::DirEntry = path_failure(listed, shown, "cannot be listed")?;
         children.push(entry.file_name());
-    }
-    // A directory holding `.git` is another checkout: the leave-out moves it whole and never walks into it.
-    if holds_checkout_marker(children.as_slice()) {
-        return Ok(());
     }
     for child in children {
         let path: PathBuf = shown.join(&child);
@@ -82,25 +79,6 @@ pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Pat
         remove_containers_beneath(&directory, child.as_os_str(), path.as_path())?;
     }
     return Ok(());
-}
-
-/// What:
-///  Whether a listed directory holds the entry that makes it a checkout.
-/// Why:
-///   The sweep never enters one:
-/// the leave-out moves such a directory whole and its own files are not the source's state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// names.includes('.git')
-/// ```
-fn holds_checkout_marker(children: &[OsString]) -> bool {
-    for child in children {
-        if child == OsStr::new(".git") {
-            return true;
-        }
-    }
-    return false;
 }
 
 /// What:

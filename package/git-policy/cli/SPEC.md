@@ -1168,10 +1168,11 @@ is removed with the directory's own files
 so nothing of another command's reaches the trash through that route either.
 The sweep walks the
  directory it is moving,
-reads no file,
-follows no link and does not enter a directory that holds `.git`,
-because
- that is another checkout and is moved whole.
+`.git` included,
+because that directory is itself another checkout and a container can stand
+ beside that marker,
+reads no file and
+follows no link.
 Everything else the leave-out sets aside,
 the caches,
 the other checkouts and the run
