@@ -44,7 +44,8 @@ Both failures were measured on 2026-11-09 at `main` `33562f4ff7`.
   which the root `lint` fanout reaches.
   Measured cost:
   5.2 s for the check and 13.1 s for Clippy when warm,
-  152 s from an empty `target/` on four CPUs.
+  and 152 s for the check from an empty `target/` on four CPUs,
+  where it first failed.
 - `//package/git-policy/cli.fuzz:lock:members` records moved versions again
   with `cargo update --offline --workspace`;
   `lock:subject` seeds the sidecar's lock from the wrapper's before that.
