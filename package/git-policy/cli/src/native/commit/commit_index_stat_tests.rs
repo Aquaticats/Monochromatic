@@ -285,7 +285,17 @@ const STALE_FILES: usize = 12;
 /// How long the clean filter of those files takes,
 /// in milliseconds,
 /// so a refresh that must read them costs a time the test can put a ceiling on.
-const CLEAN_FILTER_MILLISECONDS: u64 = 100;
+///  The sleep is what the ceiling is measured against,
+/// and a sleep does not grow when the host runs many controls at once,
+/// where the step under the ceiling does:
+/// in a selection of 96 controls the landing controls took 62 s against 4.6 s alone, 13.5 times,
+/// and the scratch step's own cost is about 0.1 s here,
+/// so a ceiling of 825 ms (eleven files at 100 ms, three quarters of the read)
+/// left room for only eight times that cost and ended the step instead.
+/// At 400 ms the same ceiling is 3,300 ms,
+/// which leaves the step 33 times its own cost before it is ended,
+/// and a commit that pays the reads inside the step still takes 4,400 ms or more.
+const CLEAN_FILTER_MILLISECONDS: u64 = 400;
 
 /// The fixed transaction ID of the shape the shadow's name takes.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
@@ -311,7 +321,7 @@ struct Stale {
 /// The ceiling of the scratch commit in these controls:
 /// three quarters of what reading every stale file costs,
 /// so a commit that pays the refresh in its own step is stopped and one that does not is not,
-/// with the rest of the room left for a loaded host.
+/// with the rest of the room left for a busy host (`CLEAN_FILTER_MILLISECONDS`).
 ///
 /// The commit names one path,
 /// and the preparation stages that path from the worktree before the commit runs,

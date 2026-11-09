@@ -95,11 +95,11 @@ fn a_landing_keeps_the_stat_data_of_a_stale_entry_it_does_not_change() {
 fn a_landing_whose_refresh_fails_still_installs_its_index() {
     let world: World = world("service-land-index-stat-refused");
     make_the_index_stale(&world);
-    let world: World = with_a_shimmed_git(world, "exit 128");
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("a refresh Git refused must not fail the landing");
+    let shimmed: World = with_a_shimmed_git(world, "exit 128");
+    let outcomes = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]).expect("a refresh Git refused must not fail the landing");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
-    remove(world.root.as_path());
+    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    remove(shimmed.root.as_path());
 }
 
 /// A refresh whose Git was killed is the same outcome reached the other way:
@@ -108,11 +108,11 @@ fn a_landing_whose_refresh_fails_still_installs_its_index() {
 fn a_landing_whose_refresh_is_killed_still_installs_its_index() {
     let world: World = world("service-land-index-stat-killed");
     make_the_index_stale(&world);
-    let world: World = with_a_shimmed_git(world, "kill -9 $$");
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("a refresh that was killed must not fail the landing");
+    let shimmed: World = with_a_shimmed_git(world, "kill -9 $$");
+    let outcomes = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]).expect("a refresh that was killed must not fail the landing");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
-    remove(world.root.as_path());
+    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    remove(shimmed.root.as_path());
 }
 
 /// A refresh the step's ceiling ends is a refresh that was not kept:
@@ -124,14 +124,14 @@ fn a_landing_whose_refresh_is_killed_still_installs_its_index() {
 fn a_landing_whose_refresh_is_ended_at_its_ceiling_still_installs_its_index() {
     let world: World = world("service-land-index-stat-ceiling");
     make_the_index_stale(&world);
-    let world: World = with_a_shimmed_git(world, "sleep 600");
+    let shimmed: World = with_a_shimmed_git(world, "sleep 600");
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(STEP_CEILING)); });
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]);
+    let answered = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]);
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    let outcomes = outcomes.expect("a refresh the ceiling ended must not fail the landing");
+    let outcomes = answered.expect("a refresh the ceiling ended must not fail the landing");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
-    remove(world.root.as_path());
+    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    remove(shimmed.root.as_path());
 }
 
 /// A refresh never records stat data for a path whose bytes the commit does not hold:
@@ -159,10 +159,10 @@ fn a_landing_over_an_index_that_describes_the_worktree_starts_no_refresh() {
     let world: World = world("service-land-index-stat-fresh");
     commit_into(&world, STALE_FILE, "stale\n");
     let asked: PathBuf = world.root.join("refresh-asked");
-    let world: World = with_a_shimmed_git(world, format!(": > '{}'", asked.display()).as_str());
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("landed");
+    let shimmed: World = with_a_shimmed_git(world, format!(": > '{}'", asked.display()).as_str());
+    let outcomes = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]).expect("landed");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
     assert!(!asked.exists(), "an index that describes the worktree must cost no Git start, but the refresh was asked for");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
-    remove(world.root.as_path());
+    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    remove(shimmed.root.as_path());
 }
