@@ -484,3 +484,85 @@ fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
     assert_eq!(while_running, CeilingCame::Stopped, "a step that was signalled is reported as stopped");
     assert!(ended.is_some(), "the step the ceiling signalled ended");
 }
+
+/// A sink that stops taking bytes until it is let go,
+/// standing for a standard error whose reader stopped reading:
+/// a pager a person stopped, or a terminal stopped with the flow control key.
+struct StoppedReaderSink {
+    /// Set once a write was entered,
+    /// so a control knows the line reached the sink.
+    entered: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Set by the control to let the write return.
+    released: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// What was written before the write returned.
+    written: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+}
+
+impl Write for StoppedReaderSink {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.entered.store(true, std::sync::atomic::Ordering::SeqCst);
+        while !self.released.load(std::sync::atomic::Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        self.written.lock().expect("written").extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// How long a control gives a commit to return after its step ended:
+///  longer than the notice's own bound,
+/// and far shorter than a reader that never reads again.
+const COMMIT_RETURN_BOUND: Duration = Duration::from_secs(2);
+
+/// What:
+///  A standard error whose reader stopped reading keeps neither the notice nor the commit.
+/// Why:
+///   Finding 3 of the process and child lifetime audit on main:
+/// the notice wrote its line on the thread that enforces the ceiling,
+/// and `finish` joined that thread with no bound,
+/// so a full standard error pipe held the commit after the commit itself had ended,
+/// with its index lock and its transaction still held.
+///  The sink here is the reader that stopped reading:
+/// it says when a write was entered and takes nothing until the control lets it go.
+#[test]
+fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
+    let entered: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+    let released: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+    let written: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::default();
+    let sink: StoppedReaderSink = StoppedReaderSink { entered: entered.clone(), released: released.clone(), written: written.clone() };
+    let cadence: Cadence = Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: Duration::from_secs(60),
+        sink: Box::new(sink),
+    });
+    // Bounded: the first line is due 100 ms after the start.
+    let writing_started: Instant = Instant::now() + Duration::from_secs(10);
+    while !entered.load(std::sync::atomic::Ordering::SeqCst) && Instant::now() < writing_started {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(entered.load(std::sync::atomic::Ordering::SeqCst), "the notice never wrote a line");
+    let (sent, told) = std::sync::mpsc::channel::<ScratchStepFacts>();
+    let began: Instant = Instant::now();
+    let finishing: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let facts: ScratchStepFacts = notice.finish();
+        let _told = sent.send(facts);
+    });
+    let heard: Option<ScratchStepFacts> = told.recv_timeout(COMMIT_RETURN_BOUND).ok();
+    let waited: Duration = began.elapsed();
+    // Let the line through, so a finish that is still waiting for it (the code this control exists for) returns and ends the test.
+    released.store(true, std::sync::atomic::Ordering::SeqCst);
+    let answered_in_time: bool = heard.is_some();
+    let facts: ScratchStepFacts = match heard {
+        Some(heard) => heard,
+        None => told.recv_timeout(Duration::from_secs(30)).expect("the finish returns once the reader takes the line"),
+    };
+    finishing.join().expect("the finishing thread");
+    assert!(answered_in_time, "the commit was still waiting for a reader that stopped reading {waited:?} after its step ended: {facts:?}");
+}
