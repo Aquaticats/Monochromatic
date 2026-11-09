@@ -148,6 +148,41 @@ impl Announcer for AnnounceToStreams<'_> {
     }
 }
 
+/// What:
+///  Holds the push record of a commit this service landed,
+/// where nothing runs it until the wrapper's post-commit gate approves it.
+/// Why:
+///   The wrapper writes its own record after the answer,
+/// so a wrapper killed between the two would lose the push
+///  (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+/// finding 3 of the first review).
+/// The service knows the commit landed,
+/// and a held record runs nothing:
+/// only the wrapper's promotion lets the queue see
+///  it,
+/// so a blocking gate still keeps the commit local.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await holdThePush(request, commit);
+/// ```
+pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: request.repository.display().to_string(),
+        git_dir: request.git_dir.display().to_string(),
+        branch_ref: request.reference.clone(),
+        oid: commit.to_string(),
+        parent: request.base.clone(),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
+        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
+    }
+}
+
 /// Lands one group of jobs that share a branch,
 /// and answers each client.
 pub(crate) fn land_group(
@@ -249,6 +284,9 @@ pub(crate) fn land_group(
                         // The compiled rules of the repository are warmed on the blocking pool, off this thread and off the answer's path.
                         let paths: Vec<String> = request.changes.iter().map(path_of_change).collect();
                         crate::service_rules_precompile::after_landing(context.journal.as_path(), request.repository.as_path(), paths.as_slice());
+                        // The push is held before the answer, so a client killed between the two cannot lose it, and the post-commit
+                        //  gate is what promotes it.
+                        hold_the_push(request, commit.as_str());
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"

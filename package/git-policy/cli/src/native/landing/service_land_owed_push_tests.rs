@@ -21,11 +21,11 @@ use tokio::sync::mpsc::unbounded_channel;
 /// after the answer,
 /// and only its verdict may let a landed commit be pushed:
 /// a blocked gate keeps the commit local.
-/// The service therefore leaves no push record of its own,
-/// so nothing it does can publish a commit whose gate blocks it,
-/// and the wrapper's own record is the one that outlives a killed client.
+/// The service therefore holds the push record and leaves it unrunnable,
+/// so no round can publish a commit whose gate blocks it,
+/// while a client killed between the answer and its own record loses nothing.
 #[test]
-fn a_landed_commit_leaves_no_push_record_of_the_services_own() {
+fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
     let world: World = world("service-land-owed-push");
     let asked: CommitRequest = request(&world, "pushed", "pushed.txt", "pushed\n");
     let (reply, mut messages) = Reply::new();
@@ -41,8 +41,19 @@ fn a_landed_commit_leaves_no_push_record_of_the_services_own() {
     assert!(!already);
     let git_dir: PathBuf = world.repo.join(".git");
     let work_dir: PathBuf = crate::service_work::work_directory(git_dir.as_path());
-    let record: PathBuf = state_directory(work_dir.as_path(), PENDING).join(format!("{}-{commit}", WorkKind::Push.name()));
-    assert!(!record.exists(), "the service left a push record at {}, which its gate never allowed", record.display());
+    let id: String = format!("{}-{commit}", WorkKind::Push.name());
+    assert!(
+        !state_directory(work_dir.as_path(), PENDING).join(id.as_str()).exists(),
+        "no runnable push record waits for a slot: another round cannot push the commit before its gate"
+    );
+    assert!(
+        state_directory(work_dir.as_path(), crate::work_item::HELD).join(id.as_str()).exists(),
+        "the push waits where nothing drains it, until the wrapper's gate promotes it"
+    );
+    // The producer's decision is one rename; a refused one unlinks the held record and leaves nothing runnable.
+    assert!(crate::work_item::promote(work_dir.as_path(), id.as_str()), "the gate's approval makes it runnable");
+    assert!(state_directory(work_dir.as_path(), PENDING).join(id.as_str()).exists());
+    crate::work_item::forget_held(work_dir.as_path(), id.as_str());
     assert!(wakes.try_recv().is_err(), "the service wakes no work of its own: the wrapper's hand-off is what asks for the push");
     let _ = &world;
     remove(world.root.as_path());

@@ -45,7 +45,7 @@ pub struct ServiceHandoff {
 }
 
 /// The kinds of work a landed commit leaves for the service.
-pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
+pub const HANDED_OVER: [WorkKind; 1] = [WorkKind::Maintenance];
 
 /// What:
 ///  The value of an environment variable,
@@ -119,8 +119,8 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 }
 
 /// What:
-///  Leaves the push record for a commit the service landed,
-/// before the post-commit gate decides whether the backup runs.
+///  Promotes the push record the service held for a commit it landed,
+/// once the post-commit gate approves the backup.
 /// Why:
 ///   The record must outlive a wrapper killed between the answer and the gate,
 /// and it must not run before the gate:
@@ -137,8 +137,12 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// # Errors
 ///
 /// The work queue's own words when the record cannot be written.
-pub fn leave_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
+pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = push_item(handoff, landed);
+    if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
+        return Ok(());
+    }
+    // Nothing was held for this commit: the record is written here instead, so the push is not lost.
     return match enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item) {
         Ok(_enqueued) => Ok(()),
         Err(reason) => Err(ClientFailure::WorkNotHandedOver(reason)),
@@ -159,8 +163,10 @@ pub fn leave_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Clie
 /// forgetThePush(handoff, landed) // unlink the pending record
 /// ```
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
-    let _removed: std::io::Result<()> =
-        std::fs::remove_file(state_directory(work_directory(handoff.git_dir.as_path()).as_path(), crate::work_item::PENDING).join(push_item(handoff, landed).id()));
+    let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let id: String = push_item(handoff, landed).id();
+    crate::work_item::forget_held(work_dir.as_path(), id.as_str());
+    let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id));
 }
 
 /// The push record of one landed commit of a worktree.
