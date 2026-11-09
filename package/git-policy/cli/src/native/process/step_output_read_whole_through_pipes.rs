@@ -548,7 +548,7 @@ fn pipe_identity(_descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)>
 /// The processes that have the pipe with this identity open,
 /// this one aside.
 fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
-    let scan: UseScan = crate::process_use::processes_using(&UseTarget::File { mount, inode });
+    let scan: UseScan = crate::process_use::processes_using(&UseTarget::Mounted { mount, inode });
     return scan.users;
 }
 

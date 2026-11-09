@@ -167,7 +167,7 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
             debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
         }
         // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
-        if let Err(error) = run_blocking_job(move || { locks.sweep(tree.as_slice()); }).await {
+        if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {
             debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
         }
     });
@@ -320,26 +320,17 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree.as_slice());
+/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep();
 /// ```
 pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger) {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
     let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
     let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
     tree.extend(below.iter().cloned());
-    // The locks the tree holds are claimed while their pid files still name the holders: the stop below can cut Git's cleanup
-    //  between the removal of a pid file and the removal of its lock, and the claim is then the only proof the sweep has.
-    //  The walk reads the repository's reference directories, so it runs on the blocking pool; where no thread can start it the stop goes on
-    //  without claims, as it did before.
-    let unclaimed: LockLedger = locks.clone();
-    let seen: Vec<TreeMember> = tree.clone();
-    let claimed_ledger: LockLedger = match run_blocking_job(move || { return locks.claiming(seen.as_slice()); }).await {
-        Ok(claimed) => claimed,
-        Err(error) => {
-            debug(TAG, &format!("the locks the stopped push holds were not claimed: {error}"));
-            unclaimed
-        }
-    };
+    // Nothing is claimed before the stop: a number in a pid file does not say which PID namespace wrote it, and a lock a member
+    //  of the tree was seen to hold is a lock another Git may hold at the same path (cross-vendor review of 2026-11-09,
+    //  finding 1). The sweep therefore removes a lock only on the judgement's own proof, and names the rest.
+    let claimed_ledger: LockLedger = locks.clone();
     ask_to_stop(child.id());
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
@@ -399,8 +390,7 @@ pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: Lo
         wait_for_tree(tree.as_slice(), grace).await;
         if !tree.iter().any(still_running) {
             // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
-            let sweeping: Vec<TreeMember> = tree.clone();
-            if let Err(error) = run_blocking_job(move || { locks.sweep(sweeping.as_slice()); }).await {
+            if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {
                 debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
             }
             return None;

@@ -61,11 +61,22 @@ pub struct PreparePart {
     pub took: Duration,
 }
 
-/// The stretches of this process since a record last took them,
-/// in the order they ended.
+/// Lock kept:
+///  the stretches of this process since a record last took them,
+///  in the order they ended.
+///  Each seam of a preparation pushes under it and the timing record takes under it,
+///  nothing else runs under it:
+///  no Git process,
+///  no file and no other lock,
+///  and the same pattern `commit/commit_index_builds.rs` keeps.
 static PARTS: Mutex<Vec<PreparePart>> = Mutex::new(Vec::new());
 
-/// How many stretches came after the list was full.
+/// Lock kept:
+///  how many stretches came after the list was full,
+///  counted under the same rule as `PARTS`:
+///  one number the seam adds to and the record takes,
+///  with no Git process,
+///  no file and no other lock under it.
 static DROPPED: Mutex<usize> = Mutex::new(0);
 
 /// What:
