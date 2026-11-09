@@ -28,7 +28,6 @@ import { sendNotification, } from './infra/notification.ts';
 import { isScreenLocked, } from './infra/screenlock.ts';
 import { log, } from './infra/syslog.ts';
 
-
 //region Decision tracking
 // The window of recent verdicts and the streak policy live in
 // `analyze/decision-window.ts` as pure functions; this module only keeps the
@@ -46,9 +45,10 @@ const state: { decisions: DecisionWindow; } = { decisions: initialDecisionWindow
  ({@link captureWebcam}), buffers the pair via {@link store} and reads the
  recent window back with {@link getRecent}, feeds them to the local vision
  LLM by bracketing {@link analyze} with {@link startLlama} and
- {@link stopLlama}, records the verdict via {@link parseVerdict}, and sends
- a desktop notification ({@link sendNotification}) when 5 consecutive
- cycles are unproductive.
+ {@link stopLlama}, records the verdict via {@link parseVerdict} and
+ {@link recordVerdict}, and sends a desktop notification
+ ({@link sendNotification}) when every verdict in the window is
+ unproductive.
  
  Skips the cycle when {@link isScreenLocked} reports the screen is locked
  or {@link isBlackFrame} reports the webcam cover is down.
