@@ -60,6 +60,9 @@ pub struct PreparationRequest<'request> {
     pub shadow: &'request Path,
     /// Private commit index.
     pub commit_index: &'request Path,
+    /// The commit's own scratch directory,
+    /// which holds the file the native-commit configuration travels in and is removed with the commit.
+    pub scratch: &'request Path,
     /// Kept global options of the invocation.
     pub global_args: &'request [String],
     /// Commit arguments without pathspecs or `--only`.
@@ -124,6 +127,7 @@ pub struct PreparedCommit {
 /// Why:
 ///   The kept global options come first,
 /// then the shadow,
+/// then the file the native-commit configuration travels in,
 /// then a hooks directory that cannot exist,
 /// which also beats a
 ///  `-c core.hooksPath` of the caller.
@@ -131,19 +135,44 @@ pub struct PreparedCommit {
 /// so no external program runs for a hook.
 ///  No `--work-tree` is passed:
 /// the shadow's own config names the work tree.
+///  Every configuration key native `git commit` reads travels in that file,
+/// because an `includeIf` condition that named the real Git directory no longer matches in the shadow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...globalArgs, `--git-dir=${shadowPath}`, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
+/// [...globalArgs, `--git-dir=${shadowPath}`, ...nativeConfiguration, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
 /// ```
-fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
-    let mut arguments: Vec<String> = request.global_args.to_vec();
-    arguments.push(format!("--git-dir={}", request.shadow.display()));
-    arguments.push(String::from("-c"));
-    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
-    arguments.push(String::from("commit"));
-    arguments.extend(request.commit_args.iter().cloned());
-    return arguments;
+///
+/// # Errors
+///
+/// The error of writing the file the configuration travels in.
+fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>, PreparationError> {
+    let mut arguments: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
+    arguments.push(OsString::from(format!("--git-dir={}", request.shadow.display())));
+    let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
+        request.capture.layout.config_snapshot.as_ref(),
+        request.scratch,
+    )
+    .map_err(configuration_write_failure)?;
+    arguments.extend(configuration);
+    arguments.push(OsString::from("-c"));
+    arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    arguments.push(OsString::from("commit"));
+    arguments.extend(request.commit_args.iter().map(OsString::from));
+    return Ok(arguments);
+}
+
+/// What:
+///  The preparation failure of a configuration file the native commit reads that could not be written.
+/// Why:
+///   A command that cannot be given the person's configuration must not run with it missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failure = (error: Error) => new GitFailedError(`writing the configuration the native commit reads failed: ${error}`);
+/// ```
+fn configuration_write_failure(error: std::io::Error) -> PreparationError {
+    return PreparationError::Git(GitFailure(format!("writing the configuration the native commit reads failed: {error}")));
 }
 
 /// What:
@@ -189,7 +218,7 @@ pub fn run_native_commit_within(
     request: &PreparationRequest,
     ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
-    let arguments: Vec<OsString> = native_commit_arguments(request).iter().map(OsString::from).collect();
+    let arguments: Vec<OsString> = native_commit_arguments(request)?;
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
     command
         .current_dir(cwd)

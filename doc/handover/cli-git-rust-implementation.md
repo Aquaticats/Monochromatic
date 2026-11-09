@@ -193,6 +193,51 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
+  `resume-after-wall-clock-prompt.md` for `wrapper-issue-defects-and-linear-scans`,
+  which reached its time limit in a full test run,
+  `shadow-and-replay-round-2-prompt.md`,
+  `push-route-round-5-prompt.md`,
+  and `literal-pathspec-round-3-prompt.md`.
+- The shadow branch's round 1 findings are fixed on the branch,
+  which is not merged into main,
+  and its round 2 waits for a slot:
+  `shadow-and-replay-round-1-sol.txt` named a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that lost its value,
+  and a long value that stopped the scratch commit from starting.
+  The branch now carries every native-commit entry of the invocation in one included
+  `native-commit.config` in the commit's scratch directory.
+  `resume-after-provider-error-prompt.md` for `worktree-add-findings-fixed`,
+  whose run 4 the provider ended mid-work,
+  `worktree-copy-round-4-prompt.md` for `worktree-copy-records-keep-path-bytes`
+  (an empty `.git` discards a pending copy,
+  and a FIFO at `.git` blocks recovery with no bound),
+  and `standards-review-round-2-prompt.md`,
+  whose run 2 was stopped at once because a miscount had started a twenty-first agent.
+  `commit-scratch-removal-round-4-prompt.md`
+  (a sweep or release can remove a tree a queued landing needs,
+  a slow cleanup fails a commit with `AlreadyExists`,
+  and the first sweep has no limit across entries).
+  `wrapper-issue-defects-round-3-prompt.md` for `wrapper-issue-defects-and-linear-scans` as run 3
+  (its branch landed as `3de639be89`;
+  a merge message can claim a false tracking relationship,
+  a conflict diagnostic names the wrong branch,
+  a repository path with a newline reads the wrong index,
+  and `published_tips` is quadratic).
+  Issue 6007 stays open until that round reports.
+  `merge-route-round-10-prompt.md` for `merge-route-findings-fixed` as run 10
+  (its merge of main is open in that worktree with four conflicts from the health branch,
+  and that branch is otherwise ready for its check and review),
+  `worktree-copy-round-5-prompt.md` for `worktree-copy-records-keep-path-bytes` as run 5
+  (recovery reads the `.git` pointer and not the registration,
+  so a pointer cut short or missing during a rewrite can discard a pending copy),
+  and `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  (an audit line can name a non-UTF-8 branch wrongly,
+  and `git branch -D HEAD` can record a branch nothing deleted),
+  and `wrapper-tests-suite-round-4-prompt.md` for `wrapper-tests-that-fail-only-in-a-suite` as run 4
+  (a late runtime can be lost between a timeout and dropping its receiver,
+  and a control lost its ability to fail).
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
   none at this moment,
   because every follow-up written so far has been started.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
