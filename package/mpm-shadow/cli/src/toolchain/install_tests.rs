@@ -554,22 +554,17 @@ fn the_android_sdk_unpacks_command_line_tools_into_a_versioned_directory_then_in
         "unzip",
         Box::new(|request| {
             let target = request.args.last().expect("unzip -d <dir>");
-            write_executable(&std::path::Path::new(target).join("cmdline-tools").join("bin").join("sdkmanager"));
+            write_executable(&std::path::Path::new(target).join("cmdline-tools").join("bin").join("android"));
         }),
     );
     install_tool(&rig.context(), &rig.tool("android-sdk")).expect("installed");
     let sdk_root = tool_install_dir(&rig.scope.toolchain_root, "android-sdk", "23.0").expect("a plain name");
-    let sdk_manager = sdk_root.join("cmdline-tools").join("23.0").join("bin").join("sdkmanager");
-    assert!(sdk_manager.is_file());
-    assert!(!sdk_root.join("cmdline-tools").join("23.0").join("bin").join("android").exists(), "the zip ships no `android` program");
+    let android = sdk_root.join("cmdline-tools").join("23.0").join("bin").join("android");
+    assert!(android.is_file());
     assert!(!sdk_root.join(".cmdline-tools-staging").exists(), "the staging directory is removed");
     let lines = rig.runner.lines();
     assert!(lines[0].starts_with("unzip -q -o "), "{lines:?}");
-    assert_eq!(
-        lines[1],
-        format!("sdkmanager --sdk_root={} platforms/android-37.0 platform-tools", sdk_root.display()),
-        "the packages are installed with `sdkmanager`, the command the zip ships"
-    );
+    assert_eq!(lines[1], "android sdk install platforms/android-37.0 platform-tools");
     let env = rig.runner.calls()[1].env.clone().expect("environment");
     assert_eq!(env.get("ANDROID_HOME").map(String::as_str), Some(sdk_root.to_str().expect("utf-8")));
     assert_eq!(env.get("ANDROID_SDK_ROOT").map(String::as_str), Some(sdk_root.to_str().expect("utf-8")));

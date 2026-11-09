@@ -2,7 +2,7 @@
 //! The `rustup-toolchain` route (`rustup toolchain install --no-self-update <channel>`,
 //! then components and
 //!           targets) and the `android-sdk` route (command-line tools from a verified zip,
-//! then `sdkmanager` packages).
+//! then `android sdk install` packages).
 //! Why:
 //! Rust channels install directly from the lock:
 //! mpm honours a rustup version only because the package id is
@@ -332,7 +332,7 @@ pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool, added: &mut Vec<St
 
 /// What:
 /// Installs the Android command-line tools from the locked zip into `<install dir>/cmdline-tools/<version>`
-///           and runs `sdkmanager --sdk_root=<install dir> <packages>` with `ANDROID_HOME` and `ANDROID_SDK_ROOT` set.
+///           and runs `android sdk install <packages>` with `ANDROID_HOME` and `ANDROID_SDK_ROOT` set.
 /// Why:
 /// The zip unpacks a top-level `cmdline-tools` directory;
 /// `sdkmanager` insists on finding itself at
@@ -367,20 +367,18 @@ pub fn install_android_sdk(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
         )));
     }
     let _ = fs::remove_dir_all(&staging);
-    // Google's command-line tools zip ships `sdkmanager`, not the retired `android` helper; `sdkmanager` needs
-    // `--sdk_root` because it finds itself under `cmdline-tools/<version>` rather than at the SDK root.
-    let sdk_manager: PathBuf = destination.join("bin").join("sdkmanager");
-    let mut args: Vec<String> = vec![format!("--sdk_root={}", sdk_root.to_string_lossy())];
+    let android_cli: PathBuf = destination.join("bin").join("android");
+    let mut args: Vec<String> = vec!["sdk".to_string(), "install".to_string()];
     args.extend(tool.declaration.options.android_packages.clone().unwrap_or_default());
     let mut env = ctx.path_env();
     env.insert("ANDROID_HOME".to_string(), sdk_root.to_string_lossy().to_string());
     env.insert("ANDROID_SDK_ROOT".to_string(), sdk_root.to_string_lossy().to_string());
     let request: RunRequest = RunRequest {
-        command: sdk_manager.to_string_lossy().to_string(),
+        command: android_cli.to_string_lossy().to_string(),
         args,
         env: Some(env),
         cwd: None,
     };
-    run_checked(ctx, &request, "sdkmanager", &tool.declaration.id)?;
+    run_checked(ctx, &request, "android sdk install", &tool.declaration.id)?;
     return Ok(());
 }
