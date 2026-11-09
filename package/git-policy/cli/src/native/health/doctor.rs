@@ -812,6 +812,10 @@ pub async fn doctor_action_with_section(
     let (checkout, layout): (Option<PathBuf>, CheckoutLayout) = checkout_of(context, cwd, &location).await;
     let viewpoint: CheckoutViewpoint<'_> = CheckoutViewpoint { checkout: checkout.as_deref(), layout, home };
     let section: String = filesystem_section(&viewpoint);
+    if hooks.is_empty() && findings.hooks.is_empty() && shims.is_empty() {
+        // No report names a pathname, so the explanation is text and the action keeps its text shape.
+        return Action::Exit { code: 0, stdout: String::new(), stderr: format!("{notes}{discarded}{section}") };
+    }
     if hooks.is_empty() && findings.hooks.is_empty() {
         // Nothing is listed on standard output, and what explains the shims names their pathnames by their bytes.
         let explaining: ExplainedReport<'_> = ExplainedReport { shims: shim_report, notes: notes.as_str(), discarded: discarded.as_str(), section: section.as_str() };
