@@ -167,14 +167,15 @@ fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
 /// is not there.
 /// Why:
 ///   A path that is absent answers a question about a registration,
-/// while a path that cannot be read for another reason is not an absence,
-/// and answering it as one discards a copy the registration still names.
+/// while a path that cannot be read for another reason is a fault to report and never an absence.
+/// What counts as an absence is decided in this one place,
+/// for the recorded path and for the destination alike.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const absentPath = (error) => error.code === 'ENOENT' || error.code === 'ENOTDIR'
 /// ```
-fn absent_path(error: &std::io::Error) -> bool {
+pub(crate) fn absent_path(error: &std::io::Error) -> bool {
     return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ENOTDIR);
 }
 

@@ -22,7 +22,7 @@ use crate::plain_file::read_plain_file;
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
-use crate::worktree_copy_registration_naming::{NamedRegistration, registration_naming};
+use crate::worktree_copy_registration_naming::{NamedRegistration, absent_path, registration_naming};
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_copy_stage_binding::{stage_binding, verify_stage_binding};
 use crate::worktree_copy_stage_claim_reaping::{judge_stage_owners, reap_judged_stages};
@@ -109,22 +109,6 @@ pub struct RecoveryReport {
 }
 
 /// What:
-///  Whether a failure says the path,
-/// or a part of it,
-/// is not there.
-/// Why:
-///   A path that is absent answers a question about the registration,
-/// while a path that cannot be read for another reason is a fault to report.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const notThere = (error) => error.code === 'ENOENT' || error.code === 'ENOTDIR'
-/// ```
-fn not_there(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ENOTDIR);
-}
-
-/// What:
 ///  The directory a `.git` pointer names,
 /// and nothing when the file is not a pointer at all.
 /// Why:
@@ -207,7 +191,7 @@ fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
     match std::fs::canonicalize(destination) {
         Ok(canonical) if canonical == destination => {}
         Ok(_) => return Registration::Unregistered,
-        Err(error) if not_there(&error) => return Registration::Unregistered,
+        Err(error) if absent_path(&error) => return Registration::Unregistered,
         Err(_unreadable) => return Registration::Unproven,
     }
     return match registration_naming(common_dir, destination) {
