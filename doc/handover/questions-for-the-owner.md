@@ -1382,6 +1382,22 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T05:12:19-05:00,
+  `monochromatic-git-policy-cli fix` refuses a worktree whose Git directory is on another file system,
+  before it writes anything,
+  because its crash-safe swap needs both names on one file system (`package/git-policy/cli/SPEC.md`,
+  on the branch `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`).
+  This session reads that branch's report as saying the refusal has not been exercised by a test.
+  Say "undo" to have `fix` fall back to a copy in that case,
+  which loses the guarantee that a kill cannot leave a half-written file.
+- 2026-11-09T05:12:19-05:00,
+  the publish-list reader in `dependent_version` accepts only the line forms `package/config/pnpr/src/generated-config-render.ts` writes and refuses every other line by name and number.
+  No YAML crate was added.
+  The agent found one viable crate,
+  `yaml_serde` 0.10.7,
+  and rejected it because a general parser accepts documents the generator never writes,
+  which is the class of silent miss three reviews kept finding.
+  Say "undo" to have the crate vetted instead.
 - 2026-11-09T04:26:58-05:00,
   a shell alias (`!`) stays unguarded.
   Git runs it with its own folder first on `PATH`,
