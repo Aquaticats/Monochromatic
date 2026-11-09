@@ -328,6 +328,19 @@ A name the driver records itself would say this more directly;
 until a run writes its own folder into its summary,
 the two names are all there is to go on.
 
+### What the watch cannot bound
+
+Every wait the command takes is bounded by `--deadline-seconds`:
+the wait between looks is cut to what the deadline leaves,
+so the command ends even when no run ever passes a limit.
+
+What no in-process bound reaches is a file system call on a folder that stops answering,
+here as in a run of the driver,
+and one look reads every finished feed.
+Run the command as a systemd unit with its own `RuntimeMaxSec` when that matters,
+or give it a smaller `--deadline-seconds`;
+the driver README says why a call that cannot be cancelled also cannot be waited out.
+
 ### What the tests reach
 
 `systemctl` and `ps` sit behind one seam,

@@ -1,7 +1,7 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pi-shared-subagent-driver",
-  "description": "Runs one Pi agent unattended over RPC: sends the prompt, declines dialogs, enforces its limits, records a feed and a summary, and delivers steering messages from an inbox folder.",
+  "description": "Runs one Pi agent unattended over RPC: sends the prompt, declines dialogs, enforces its limits, records a feed and a summary, and delivers steering messages from an inbox folder. Two more commands watch the runs folder for a run that should have come back, and describe one that has not.",
   "type": "module",
   "version": "0.0.1",
   "private": true,
