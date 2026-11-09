@@ -3233,7 +3233,11 @@ while the step still holds its number,
 and ended through descriptors pinned the same way;
 and the child is reaped there,
 a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
-so the kernel's release of it never holds the command.
+so the kernel's release of it never holds the command,
+and the status that reap collects decides what ended the step:
+a step that finished by itself between the ceiling and the signal is answered with its own exit and no stop,
+because a kill cannot turn an exit into a signal,
+and only a status that is the `SIGKILL` this wait sent is a ceiling stop.
 
 That second enforcer is why the ceiling survives both failures the notice cannot:
 a system that refuses its thread,

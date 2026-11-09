@@ -133,6 +133,7 @@ async fn a_control_holds_the_step_until_it_ended(owned: &OwnedChild) {
         }
         sleep(Duration::from_millis(1)).await;
     }
+    return;
 }
 
 /// What:
@@ -200,11 +201,48 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     let _below_ended = kill_members(walked.as_deref().unwrap_or_default());
     // A killed step is reaped here at once unless the kernel holds it in an uninterruptible call;
     // past the grace a task of the runtime collects it, so the kernel's release of it never holds the command.
-    match tokio::time::timeout(STOP_GRACE, owned.wait()).await {
-        Ok(_reaped) => {}
-        Err(_still_held) => hand_to_a_task_that_collects_it(owned),
+    let reaped: Option<std::process::ExitStatus> = match tokio::time::timeout(STOP_GRACE, owned.wait()).await {
+        Ok(collected) => Some(collected?),
+        Err(_still_held) => {
+            hand_to_a_task_that_collects_it(owned);
+            None
+        }
+    };
+    // A status the reap collected decides what ended the step: one that is not the signal this wait sent proves the
+    //  step finished by itself in the interval before the signal, and its exit is what the caller must answer.
+    if let Some(status) = reaped
+        && it_ended_by_itself(status)
+    {
+        return Ok((outcome_of(status), None));
     }
     return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some() })));
+}
+
+/// What:
+///  Whether a reaped status proves the step ended by itself,
+///  rather than by the signal this wait sent.
+/// Why:
+///   `SIGKILL` is the only signal sent here,
+///  so a status that is not it is the step's own end,
+///  and a status with a code is an exit that the kill could not change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const itEndedByItself = (status) => status.code !== null || status.signal !== 'SIGKILL';
+/// ```
+fn it_ended_by_itself(status: std::process::ExitStatus) -> bool {
+    // `if let Some(code) = ...` runs only when the child exited normally, and a kill cannot turn an exit into a code.
+    if status.code().is_some() {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        // The trait adds `.signal()` to exit statuses on Unix.
+        use std::os::unix::process::ExitStatusExt;
+        return status.signal() != Some(libc::SIGKILL);
+    }
+    #[cfg(not(unix))]
+    return false;
 }
 
 /// What:
