@@ -186,19 +186,28 @@ fn merge_forward(repo: &Path, after: &[&str]) -> CoordinatedForward {
     };
 }
 
-/// A merge that native Git would refuse only because another session left work staged is completed here:
-/// the dispatch reports the merge's own status instead of running Git,
-/// the two sides are both in the tree,
-/// and the staged work is still staged.
+/// A merge the wrapper refuses in isolation reports its own status and changes nothing:
+/// another session staged a change to a path the merge brings in,
+/// so the wrapper answers with its finding's status instead of running Git,
+/// whose own refusal reads differently.
 #[test]
-fn a_merge_completed_in_isolation_reports_its_own_status() {
-    let (root, repo): (PathBuf, PathBuf) = diverged_with_staged_work("forward-merge-isolated");
+fn a_merge_refused_in_isolation_reports_its_own_status() {
+    let (root, repo): (PathBuf, PathBuf) = diverged_with_staged_work("forward-merge-refused");
+    std::fs::write(repo.join("f.txt"), b"f.txt staged by another session\n").expect("file");
+    git(repo.as_path(), &["add", "--", "f.txt"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let forward: CoordinatedForward = merge_forward(repo.as_path(), &["--no-edit", "feature"]);
-    assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::Ran(0));
-    assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1", "the merge is a commit");
-    assert_eq!(git_text(repo.as_path(), &["diff", "--cached", "--name-only"]), "u.txt", "the staged work stays staged");
-    assert_eq!(std::fs::read_to_string(repo.join("f.txt")).expect("feature's file"), "f.txt feature\n");
-    assert_eq!(std::fs::read_to_string(repo.join("h.txt")).expect("main's file"), "h.txt main\n");
+    let ended: CoordinatedRun = run_coordinated_forward(&forward);
+    assert_eq!(ended, CoordinatedRun::Ran(2), "the finding's status, not the one native Git gives the same refusal");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
+    assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "0");
+    for staged in ["f.txt", "u.txt"] {
+        assert_eq!(
+            git_text(repo.as_path(), &["diff", "--cached", "--name-only", "--", staged]),
+            staged,
+            "{staged} stays staged"
+        );
+    }
     remove(root.as_path());
 }
 
