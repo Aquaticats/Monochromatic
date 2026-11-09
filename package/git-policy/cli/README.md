@@ -1556,6 +1556,9 @@ The rule is:
   which keeps the ignored files,
   is unaffected.
   `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
+  A `git clean -X` that names its own exclusions (`-e`,
+  `--exclude`) is measured by Git's own dry run of that clean,
+  because those patterns decide what it deletes and a status cannot see them.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.

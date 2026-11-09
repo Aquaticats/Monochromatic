@@ -144,7 +144,25 @@ fn each_form_asks_about_the_state_it_can_destroy() {
             GuardedCommand::StashDrop => DirtyQuestion::RepositoryStash,
             _ => DirtyQuestion::Worktree(DirtyScope::Tracked),
         };
-        assert_eq!(dirty_question(command), expected, "{command:?}");
+        // A clean that names its own exclusion patterns is asked of Git itself, because the status cannot see them.
+        let region: Vec<OsString> = match command {
+            GuardedCommand::CleanIgnoredOnly => os_arguments(&["-fdx", "--exclude=notes.txt"]),
+            _ => Vec::<OsString>::new(),
+        };
+        let plain: DirtyQuestion = match command {
+            GuardedCommand::CleanIgnoredOnly => DirtyQuestion::Worktree(DirtyScope::IgnoredOnly),
+            _ => expected,
+        };
+        if command == GuardedCommand::CleanIgnoredOnly {
+            assert_eq!(dirty_question(command, region.as_slice()), DirtyQuestion::CleanDryRun, "{command:?}");
+            assert_eq!(
+                dirty_question(command, os_arguments(&["-fdx"]).as_slice()),
+                plain,
+                "{command:?}"
+            );
+            continue;
+        }
+        assert_eq!(dirty_question(command, region.as_slice()), expected, "{command:?}");
     }
 }
 

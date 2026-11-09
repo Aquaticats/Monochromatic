@@ -742,3 +742,44 @@ fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
         );
     }
 }
+
+/// linked-worktree-only:
+///  a clean that carries its own exclusion patterns is measured by Git's own dry run of that clean,
+///  because the status cannot see those patterns,
+///  and a dry run Git cannot answer stops the command.
+#[test]
+fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
+    let command: GuardedCommand = GuardedCommand::CleanIgnoredOnly;
+    for values in [
+        vec!["clean", "-fdX", "--exclude=notes.txt"],
+        vec!["clean", "--force", "-X", "-e", "notes.txt"],
+    ] {
+        let mut deleting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        deleting.clean_deletes = Ok(true);
+        let (outcome, questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), deleting);
+        assert_eq!(outcome, one("linked-worktree-required", &dirty_worktree_message(command)), "{values:?}");
+        let question: &String = questions.last().expect("a last question");
+        assert!(question.starts_with("clean-would-delete:"), "{values:?}: {question}");
+        assert!(question.contains("-X"), "{values:?}: {question}");
+        assert!(question.contains("notes.txt"), "{values:?}: {question}");
+        // A dry run Git cannot answer is a failure, never "nothing to delete".
+        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unreadable.clean_deletes = Err(String::from("Git could not read what the clean would delete: fatal"));
+        assert!(
+            matches!(
+                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable).0,
+                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
+            ),
+            "{values:?} unreadable"
+        );
+        // A clean that would delete nothing runs.
+        let mut empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        empty.clean_deletes = Ok(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty).0,
+            clean(),
+            "{values:?} nothing to delete"
+        );
+    }
+}

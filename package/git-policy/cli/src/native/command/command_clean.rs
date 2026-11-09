@@ -15,7 +15,11 @@
 use crate::command_options::{
     Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
 };
-use crate::command_options_query::{WrapperFlags, is_enabled, split_wrapper_flags};
+/// The captured answer of a query Git ran.
+use crate::git_metadata::MetadataOutput;
+use crate::command_options_query::{
+    WrapperFlags, is_enabled, positional_tokens, split_wrapper_flags, value_bytes,
+};
 /// What:
 ///  Bring the shared hatch spelling,
 ///  the tokenizer,
@@ -44,6 +48,19 @@ pub const INCLUDE_IGNORED: u16 = 4;
 /// `-X`,
 ///  which makes the clean delete ignored files only.
 pub const IGNORED_ONLY: u16 = 8;
+/// `-e`,
+///  `--exclude`,
+///  whose value adds one pattern to the ignore rules the clean applies.
+pub const EXCLUDE: u16 = 16;
+/// `-f`,
+///  `--force`,
+///  which a clean that deletes needs unless `clean.requireForce` says otherwise;
+///  counted,
+///  because the second and third `-f` also remove a nested repository.
+pub const FORCE: u16 = 32;
+/// `-d`,
+///  which makes the clean descend into untracked directories instead of leaving them.
+pub const DIRECTORIES: u16 = 64;
 
 /// What:
 ///  Rows of `options[]` in `cmd_clean` (builtin/clean.c:936-948),
@@ -64,7 +81,7 @@ pub const IGNORED_ONLY: u16 = 8;
 pub const CLEAN_TABLE: &[OptionSpec] = &[
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
     row(DRY_RUN, Some(b'n'), Some("dry-run"), Arity::None, true),
-    row(UNREAD, Some(b'f'), Some("force"), Arity::None, true),
+    row(FORCE, Some(b'f'), Some("force"), Arity::None, true),
     row(
         INTERACTIVE,
         Some(b'i'),
@@ -72,8 +89,8 @@ pub const CLEAN_TABLE: &[OptionSpec] = &[
         Arity::None,
         true,
     ),
-    row(UNREAD, Some(b'd'), None, Arity::None, true),
-    row(UNREAD, Some(b'e'), Some("exclude"), Arity::Required, false),
+    row(DIRECTORIES, Some(b'd'), None, Arity::None, true),
+    row(EXCLUDE, Some(b'e'), Some("exclude"), Arity::Required, false),
     row(INCLUDE_IGNORED, Some(b'x'), None, Arity::None, true),
     row(IGNORED_ONLY, Some(b'X'), None, Arity::None, true),
 ];
@@ -101,6 +118,14 @@ pub struct CleanRegion {
     pub deletes_ignored: bool,
     /// The clean deletes ignored files and nothing else (`-X` without `-x`).
     pub ignored_only: bool,
+    /// The clean descends into untracked directories (`-d`).
+    pub descends: bool,
+    /// How many `-f`/`--force` were written;
+    ///  the second and third also remove a nested repository.
+    pub forces: usize,
+    /// The patterns `-e`/`--exclude` added to the ignore rules this clean applies,
+    ///  exactly as their bytes were written.
+    pub exclusions: Vec<Vec<u8>>,
     /// Wrapper-only flags in option position;
     ///  `escape` is `--no-enforce-worktree`.
     pub wrapper: WrapperFlags,
@@ -135,13 +160,148 @@ pub fn parse_clean_region(
     // measurement covers both.
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
     let ignored_only: bool = is_enabled(&parsed, IGNORED_ONLY);
+    let mut forces: usize = 0;
+    let mut exclusions: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for occurrence in &parsed.occurrences {
+        if occurrence.id == FORCE && !occurrence.negated {
+            forces += 1;
+        }
+        // `--exclude` is `PARSE_OPT_NONEG`, so a value is the pattern whichever spelling carried it.
+        if occurrence.id == EXCLUDE
+            && let Some(value) = occurrence.value
+        {
+            exclusions.push(value_bytes(region, value).to_vec());
+        }
+    }
     return Ok(CleanRegion {
         dry_run: is_enabled(&parsed, DRY_RUN),
         interactive: is_enabled(&parsed, INTERACTIVE),
         deletes_ignored: include_ignored || ignored_only,
         ignored_only: ignored_only && !include_ignored,
+        descends: is_enabled(&parsed, DIRECTORIES),
+        forces,
+        exclusions,
         wrapper: split_wrapper_flags(parsed.wrapper.as_slice()),
     });
+}
+
+/// What:
+///  The `git clean` arguments that make Git print exactly what this clean would delete,
+///  or nothing
+///  when Git would refuse the region.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+/// Why:
+///  `-e`/`--exclude` adds its patterns to the ignore rules the clean applies,
+/// and the worktree status
+///  cannot see them,
+///  so the only reading that is exactly what Git deletes is Git's own dry run of the
+///  same command.
+///  The region is rebuilt from the parsed facts rather than edited,
+///  because `-i`
+///  would make the dry run read the terminal and `-q` would silence it;
+///  `-f` is written as often as
+///  the caller wrote it (at least once),
+///  because the second and third also remove a nested repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
+/// ```
+pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    // The region Git refuses is nothing to ask about; the `?` is that refusal.
+    let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
+    let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
+    let ignored_only: bool = is_enabled(&parsed, IGNORED_ONLY);
+    let descends: bool = is_enabled(&parsed, DIRECTORIES);
+    let mut forces: usize = 0;
+    let mut exclusions: Vec<&[u8]> = Vec::<&[u8]>::new();
+    for occurrence in &parsed.occurrences {
+        if occurrence.id == FORCE && !occurrence.negated {
+            forces += 1;
+        }
+        if occurrence.id == EXCLUDE
+            && let Some(value) = occurrence.value
+        {
+            exclusions.push(value_bytes(region, value));
+        }
+    }
+    let mut arguments: Vec<OsString> = global_prefix.to_vec();
+    for token in ["--no-optional-locks", "clean", "-n"] {
+        arguments.push(OsString::from(token));
+    }
+    for _ in 0..forces.max(1) {
+        arguments.push(OsString::from("-f"));
+    }
+    if descends {
+        arguments.push(OsString::from("-d"));
+    }
+    // Only the two ignored modes need a mode token; a plain clean deletes non-ignored files and `-e` only removes
+    //  files from that set, which the status measurement over-reports rather than under-reports.
+    if ignored_only {
+        arguments.push(OsString::from("-X"));
+    } else if include_ignored {
+        arguments.push(OsString::from("-x"));
+    }
+    for pattern in exclusions {
+        arguments.push(OsString::from("-e"));
+        arguments.push(bytes_argument(pattern));
+    }
+    arguments.push(OsString::from("--"));
+    for index in positional_tokens(&parsed, region.len()) {
+        arguments.push(region[index].clone());
+    }
+    return Some(arguments);
+}
+
+/// What:
+///  Whether a `git clean --dry-run` answer lists files it would delete.
+///  `Result<bool, String>` is "the answer,
+/// or why Git could not give one".
+/// Why:
+///   A dry run prints one line per file it would remove and nothing at all when it would remove nothing,
+/// and a clean Git
+///  refuses says nothing either,
+///  so a failure is an error and never "nothing to delete".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanWouldDeleteFromAnswer(answer: MetadataOutput): boolean; // throws
+/// ```
+pub fn clean_would_delete_from_answer(answer: &MetadataOutput) -> Result<bool, String> {
+    if !answer.success {
+        let detail: String = String::from_utf8_lossy(&answer.stderr)
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        return Err(format!("Git could not read what the clean would delete: {detail}"));
+    }
+    return Ok(!answer.stdout.iter().all(|byte| return byte.is_ascii_whitespace()));
+}
+
+/// What:
+///  One pattern's exact bytes,
+/// as the system reads them.
+/// Why:
+///   A pattern is bytes and not text,
+/// so a pattern that is not UTF-8 reaches Git unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const argument = Buffer.from(pattern);
+/// ```
+fn bytes_argument(pattern: &[u8]) -> OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        return OsString::from_vec(pattern.to_vec());
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return OsString::from(String::from_utf8_lossy(pattern).into_owned());
+    }
 }
 
 /// What:

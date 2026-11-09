@@ -99,7 +99,7 @@ use crate::discard_audit_facts::AuditFact;
 /// for naming the exempted directory.
 use crate::worktree_identity::git_directory;
 /// Whether a Git directory has no index file yet.
-use crate::rule_worktree_dirty::index_file_is_absent;
+use crate::rule_worktree_dirty::{DirtyScope, index_file_is_absent};
 /// The require-root rule core.
 use crate::rule_require_root::{
     NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
@@ -107,6 +107,8 @@ use crate::rule_require_root::{
 };
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
+/// The clean's own dry run, which is the only reading of an `-e` pattern.
+use crate::command_clean::clean_dry_run_arguments;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might
@@ -473,15 +475,27 @@ fn check_linked_worktree(
         record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
         return clean();
     }
-    // The tracked state being clean is the question these forms ask; the tree they write is the second question.
-    let tree: Option<TargetTree> = match command_tokens(seen) {
-        Some((_word, region)) => target_tree(command, region),
-        None => None,
+    // The tokens after the subcommand, read once: which tree a forced form writes and which question a clean asks
+    //  both come from them.
+    let region: &[OsString] = match command_tokens(seen) {
+        Some((_word, tokens)) => tokens,
+        None => &[],
     };
+    // The tracked state being clean is the question these forms ask; the tree they write is the second question.
+    let tree: Option<TargetTree> = target_tree(command, region);
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
     //  nothing about it and the repository's own stash is asked instead.
-    let (measured, rejection): (Result<bool, String>, String) = match dirty_question(command) {
+    let (measured, rejection): (Result<bool, String>, String) = match dirty_question(command, region) {
         DirtyQuestion::Worktree(scope) => (facts.worktree_dirty(scope), dirty_worktree_message(command)),
+        // A clean that names its own exclusions is measured by what Git would delete, which is the one reading that
+        //  applies those patterns; a region Git refuses deletes nothing and stays with the status.
+        DirtyQuestion::CleanDryRun => (
+            match clean_dry_run_arguments(&facts.transaction_context().global_prefix, region) {
+                Some(query) => facts.clean_would_delete(query),
+                None => facts.worktree_dirty(DirtyScope::IgnoredOnly),
+            },
+            dirty_worktree_message(command),
+        ),
         DirtyQuestion::RepositoryStash => (facts.repository_holds_a_stash(), repository_stash_message(command)),
     };
     match measured {

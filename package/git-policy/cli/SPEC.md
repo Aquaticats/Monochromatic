@@ -8924,6 +8924,30 @@ and a `clean` that deletes ignored files counts what it deletes:
 `git clean -x` counts tracked,
 untracked and ignored files,
 and `git clean -X` counts ignored files only.
+A `git clean -X` that carries its own exclusion patterns (`-e`,
+`--exclude`,
+in every spelling Git's table accepts,
+clustered and abbreviated included) is measured by Git itself instead:
+Git adds those patterns to the ignore rules the clean applies,
+so a file the status reports as untracked is one this clean deletes and the status cannot say so.
+The question is `git clean --dry-run` over the same facts,
+rebuilt from them and never edited from the typed region
+(`-n`,
+`-f` as often as written and at least once,
+`-d` when written,
+the `-X` or `-x` mode,
+each `-e` pattern,
+then `--` and the paths),
+because an edited region would carry `-i`,
+whose dry run reads the terminal,
+or `-q`,
+which would silence it;
+a dry run that prints nothing deletes nothing,
+and one Git refuses is a `fact-unavailable` finding.
+A `-x` clean needs no such reading:
+it deletes every untracked file whether a pattern calls it ignored or not,
+and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
+which the status measurement over-reports rather than under-reports.
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.

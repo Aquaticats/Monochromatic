@@ -49,6 +49,8 @@ pub(crate) struct ScriptedFacts {
     pub(crate) dirty: Result<bool, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
+    /// The answer to `clean_would_delete`.
+    pub(crate) clean_deletes: Result<bool, String>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -88,6 +90,11 @@ impl RepositoryFacts for ScriptedFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         self.asked.push(format!("dirty:{scope:?}"));
         return self.dirty.clone();
+    }
+
+    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+        self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
+        return self.clean_deletes.clone();
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
@@ -210,6 +217,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         stash: Ok(false),
         remote_guess: Ok(false),
         ignored_and_tracked: Ok(Vec::<String>::new()),
+        clean_deletes: Ok(false),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

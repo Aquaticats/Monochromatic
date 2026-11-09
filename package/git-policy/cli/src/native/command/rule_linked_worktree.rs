@@ -227,6 +227,10 @@ pub enum LinkedWorktreeDecision {
 pub enum DirtyQuestion {
     /// Ask `git status` for the given scope.
     Worktree(DirtyScope),
+    /// Ask Git what this exact clean would delete (`git clean --dry-run`),
+    ///  because the clean carries
+    ///       `-e`/`--exclude` patterns that the status cannot see.
+    CleanDryRun,
     /// Ask whether the repository holds a stash entry.
     RepositoryStash,
 }
@@ -241,7 +245,7 @@ pub enum DirtyQuestion {
 /// ```ts
 /// function dirtyQuestion(command: GuardedCommand): DirtyQuestion;
 /// ```
-pub fn dirty_question(command: GuardedCommand) -> DirtyQuestion {
+pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> DirtyQuestion {
     match command {
         GuardedCommand::StashDrop => {
             return DirtyQuestion::RepositoryStash;
@@ -250,6 +254,15 @@ pub fn dirty_question(command: GuardedCommand) -> DirtyQuestion {
             return DirtyQuestion::Worktree(DirtyScope::Everything);
         }
         GuardedCommand::CleanIgnoredOnly => {
+            // `-e`/`--exclude` adds patterns to the ignore rules this clean applies, so a file the status calls
+            //  untracked is one this clean deletes; nothing in the status answer shows that, and Git's own dry run
+            //  does.
+            match parse_clean_region(region, &[]) {
+                Ok(facts) if !facts.exclusions.is_empty() => {
+                    return DirtyQuestion::CleanDryRun;
+                }
+                Ok(_) | Err(_) => {}
+            }
             return DirtyQuestion::Worktree(DirtyScope::IgnoredOnly);
         }
         GuardedCommand::Clean => {

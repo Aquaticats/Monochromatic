@@ -16,13 +16,17 @@
 /// The parser,
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
-use super::{CLEAN_TABLE, CleanRegion, clean_changes_worktree, parse_clean_region};
+use super::{
+    CLEAN_TABLE, CleanRegion, clean_changes_worktree, clean_dry_run_arguments,
+    clean_would_delete_from_answer, parse_clean_region,
+};
 use crate::command_options::OptionErrorKind;
 use crate::command_test_completion::{git_completion, render_completion};
 use crate::command_test_support::{
-    assert_table_invariants, git, git_with_input, os_arguments, remove,
+    assert_table_invariants, git, git_output, git_with_input, os_arguments, remove,
     repository_with_tracked_file,
 };
+use crate::git_metadata::MetadataOutput;
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::path::PathBuf;
 use std::process::Output;
@@ -182,5 +186,124 @@ fn table_and_dry_run_readings_match_git() {
     // `-n` as the value of `-e` is an exclude pattern, so this clean deletes.
     git(root.as_path(), &["clean", "-f", "-e", "-n"]);
     assert!(!stray.exists());
+    remove(directory.as_path());
+}
+
+/// The dry-run query is built from the facts and never from the spelled region,
+/// so no interactive menu and
+///  no quiet flag can reach it,
+///  and every exclusion spelling arrives as its own pattern.
+#[test]
+fn the_dry_run_query_carries_the_facts_and_no_menu() {
+    let prefix: Vec<std::ffi::OsString> = os_arguments(&["-C", "dir"]);
+    for spelling in [
+        vec!["-f", "-X", "--exclude=notes.txt"],
+        vec!["-f", "-X", "--exclude", "notes.txt"],
+        vec!["-f", "-X", "-e", "notes.txt"],
+        vec!["-f", "-X", "-enotes.txt"],
+        vec!["-fX", "--excl", "notes.txt"],
+    ] {
+        let region: Vec<std::ffi::OsString> = os_arguments(spelling.as_slice());
+        let query: Vec<std::ffi::OsString> =
+            clean_dry_run_arguments(prefix.as_slice(), region.as_slice()).expect("Git accepts the region");
+        assert_eq!(
+            query,
+            os_arguments(&[
+                "-C",
+                "dir",
+                "--no-optional-locks",
+                "clean",
+                "-n",
+                "-f",
+                "-X",
+                "-e",
+                "notes.txt",
+                "--"
+            ]),
+            "{spelling:?}"
+        );
+    }
+    // Everything that changes what Git deletes is carried: the directory descent, each force, and the paths.
+    let region: Vec<std::ffi::OsString> =
+        os_arguments(&["-ffdX", "-i", "-q", "-e", "one", "-e", "two", "--", "sub", "other"]);
+    assert_eq!(
+        clean_dry_run_arguments(&[], region.as_slice()),
+        Some(os_arguments(&[
+            "--no-optional-locks",
+            "clean",
+            "-n",
+            "-f",
+            "-f",
+            "-d",
+            "-X",
+            "-e",
+            "one",
+            "-e",
+            "two",
+            "--",
+            "sub",
+            "other"
+        ]))
+    );
+    // A clean that deletes untracked files as well keeps its own mode, and one that names neither has no mode.
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-fx"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-x", "--"]))
+    );
+    assert_eq!(
+        clean_dry_run_arguments(&[], os_arguments(&["-d"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "--"]))
+    );
+    // A region Git refuses is nothing to ask about.
+    assert_eq!(clean_dry_run_arguments(&[], os_arguments(&["--no-such-option"]).as_slice()), None);
+}
+
+/// A dry run that prints nothing would delete nothing,
+/// and one Git refuses is an error rather than that answer.
+#[test]
+fn a_silent_dry_run_deletes_nothing() {
+    let answer = |success: bool, stdout: &[u8], stderr: &[u8]| -> MetadataOutput {
+        return MetadataOutput {
+            success,
+            code: Some(if success { 0 } else { 128 }),
+            stdout: stdout.to_vec(),
+            stderr: stderr.to_vec(),
+        };
+    };
+    assert_eq!(clean_would_delete_from_answer(&answer(true, b"", b"")), Ok(false));
+    assert_eq!(clean_would_delete_from_answer(&answer(true, b"\n", b"")), Ok(false));
+    assert_eq!(
+        clean_would_delete_from_answer(&answer(true, b"Would remove notes.txt\n", b"")),
+        Ok(true)
+    );
+    assert_eq!(
+        clean_would_delete_from_answer(&answer(false, b"", b"fatal: clean.requireForce is true\n")),
+        Err(String::from(
+            "Git could not read what the clean would delete: fatal: clean.requireForce is true"
+        ))
+    );
+}
+
+/// Real Git: the dry run prints the file an `-e` pattern makes this clean delete,
+/// while the status calls
+///  the same file untracked and not ignored.
+#[test]
+fn the_dry_run_sees_the_exclusion_the_status_cannot() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("clean-exclude-dry-run");
+    std::fs::write(root.join("notes.txt"), b"the person notes\n").expect("write untracked file");
+    let status = git_output(root.as_path(), os_arguments(&["status", "--porcelain=v1", "-unormal"]).as_slice());
+    assert_eq!(String::from_utf8_lossy(status.stdout.as_slice()), "?? notes.txt\n");
+    let query: Vec<std::ffi::OsString> =
+        clean_dry_run_arguments(&[], os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice())
+            .expect("Git accepts the region");
+    let dry_run = git_output(root.as_path(), query.as_slice());
+    let answer = MetadataOutput {
+        success: dry_run.status.success(),
+        code: dry_run.status.code(),
+        stdout: dry_run.stdout.clone(),
+        stderr: dry_run.stderr.clone(),
+    };
+    assert_eq!(clean_would_delete_from_answer(&answer), Ok(true), "{}", String::from_utf8_lossy(dry_run.stderr.as_slice()));
+    assert!(root.join("notes.txt").exists());
     remove(directory.as_path());
 }

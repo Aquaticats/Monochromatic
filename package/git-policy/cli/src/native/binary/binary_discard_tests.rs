@@ -879,3 +879,51 @@ fn an_alias_reaches_the_transform_that_keeps_ignored_files() {
     );
     remove(&fixture);
 }
+
+/// A clean that deletes ignored files and carries its own exclusion patterns is measured with those patterns,
+/// because Git applies them to the set it deletes.
+#[test]
+fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
+    let fixture: Fixture = fixture("discard-clean-exclude");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("notes.txt"), b"the person notes\n").expect("untracked file");
+    // What real Git does with the same command, so the deletion the guard prevents is measured and not presumed.
+    let deleted: Observed = run_direct(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    assert!(
+        !linked.join("notes.txt").exists(),
+        "real Git kept the file, so this control proves nothing"
+    );
+    for exclusion in [
+        vec!["--exclude=notes.txt"],
+        vec!["--exclude", "notes.txt"],
+        vec!["-e", "notes.txt"],
+        vec!["-enotes.txt"],
+    ] {
+        std::fs::write(linked.join("notes.txt"), b"the person notes\n").expect("untracked file");
+        let mut arguments: Vec<&str> = vec!["clean", "--force", "-X"];
+        arguments.extend(exclusion.iter().copied());
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} deleted the file: {}",
+            stderr_of(&observed)
+        );
+        assert!(
+            linked.join("notes.txt").exists(),
+            "{arguments:?} deleted the excluded file anyway"
+        );
+    }
+    // Nothing to delete is nothing to refuse: the same spelling runs where the excluded path is absent.
+    std::fs::remove_file(linked.join("notes.txt")).expect("drop the untracked file");
+    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
+    assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
+    // The ignored work the clean really would delete is still measured.
+    keep_ignored_work(linked.as_path());
+    let deleting: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
+    assert!(rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
+    assert!(ignored_work_survives(linked.as_path()), "the ignored work went");
+    remove(&fixture);
+}

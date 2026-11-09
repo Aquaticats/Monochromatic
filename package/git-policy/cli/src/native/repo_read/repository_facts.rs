@@ -45,6 +45,7 @@ use crate::repository_location::{
 };
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
+use crate::command_clean::clean_would_delete_from_answer;
 use crate::rule_worktree_dirty::{
     DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
     ignored_paths_queries,
@@ -117,6 +118,10 @@ pub trait RepositoryFacts {
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
     fn repository_holds_a_stash(&mut self) -> Result<bool, String>;
+    /// Whether the given `git clean --dry-run` argument list would delete anything,
+    /// asked for a clean
+    ///  that carries its own `-e`/`--exclude` patterns.
+    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -411,6 +416,11 @@ impl RepositoryFacts for GitFacts {
         let arguments: Vec<OsString> = stash_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the repository stash")?;
         return stash_from_output(&output);
+    }
+
+    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+        let output: MetadataOutput = self.query(arguments, "what the clean would delete")?;
+        return clean_would_delete_from_answer(&output);
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
