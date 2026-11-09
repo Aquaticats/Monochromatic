@@ -1573,6 +1573,29 @@ fn a_branch_named_like_its_upstream_keeps_the_message_it_had() {
     remove(&s.root);
 }
 
+/// What:
+///  A conflict is reported against the branch the merge was into,
+///  the name the merge's subject uses.
+/// Why:
+///  The refusal named the destination ref,
+///  so an explicit `feature:main` push reported a merge into `main` that was into `feature`.
+#[test]
+fn a_conflict_is_reported_against_the_branch_the_merge_was_into() {
+    let s = scenario("ar-gh-conflict-target-name");
+    advance_remote(&s, "a.txt", "remote\n");
+    git(&s.local, &["switch", "--quiet", "-c", "feature"]);
+    let landed = commit_local(&s, "a.txt", "local\n");
+    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        panic!("a conflicting merge publishes nothing");
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    assert_ne!(attempt.exit_code, 0, "{attempt:?}");
+    assert!(attempt.output.contains("merging origin/main into feature"), "{}", attempt.output);
+    assert!(!attempt.output.contains("into main"), "{}", attempt.output);
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), text_of(&s.local, &["rev-parse", "origin/main"]), "nothing was published");
+    remove(&s.root);
+}
+
 /// Run the shared reconcile loop for the repository under test with a caller-supplied merge push.
 fn integrate(
     scenario: &Scenario,

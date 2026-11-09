@@ -340,7 +340,7 @@ pub fn integrate_and_push(
                     &previous,
                     rejected.exit_code,
                     &format!(
-                        "merging {}/{short} into {short}{CONFLICT_PHRASE}{}. Nothing was pushed and the worktree was not touched; \
+                        "merging {}/{short} into {merged_into}{CONFLICT_PHRASE}{}. Nothing was pushed and the worktree was not touched; \
                          merge {}/{short} in a separate worktree, resolve the conflicts and push.",
                         destination.remote,
                         paths.join(", "),

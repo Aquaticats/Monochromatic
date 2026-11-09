@@ -4191,7 +4191,9 @@ in-process reader can) gives every value of the multi-valued keys.
   (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
-  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
+  in a sentence that names the branch the merge was into,
+  the same name the merge's subject carries and never the destination ref.
   A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
   (the lines `word-level merge: <path>: part <n> of <m>: ...`),
   the same lines in the report after the push (each begins with `monochromatic-git-policy-cli: auto-push: `),
