@@ -258,6 +258,25 @@ pub fn settle_failed_merge(
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = intent.repository_root.as_path();
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
+    // The branch is resolved first, so a merge that already landed is settled from that alone: its leftover record is removed
+    //  without reading a worktree that may have become unreadable since
+    //  (a cross-vendor review of the eighth round, its seventh finding).
+    let current: Option<String> = match resolve_commit(place, root, target) {
+        Ok(found) => found,
+        // Nothing was read, so a refusal here cannot prove the checkout untouched.
+        Err(error) => return Err(MergeRefusal { error, began: true }),
+    };
+    match current.as_deref() {
+        Some(head) if head == intent.new_oid.as_str() => {
+            if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
+                // The branch already names this merge, so a refusal here reports it as installed.
+                return Err(MergeRefusal { error, began: true });
+            }
+            return Ok(MergeRecoveryAction::AlreadyLanded);
+        }
+        Some(_moved) => {}
+        None => return Err(MergeRefusal { error: no_commit_names_the_merges_parent(target, root, intent, record), began: true }),
+    }
     // A merge whose own commits cannot be read may still be half installed, so a command is not let past this: the refusal
     //  that follows says the merge is installed even where nothing was read, which is the safe answer.
     let changes: Vec<Change> = match merge_changes(place, root, intent) {
@@ -289,17 +308,6 @@ pub fn settle_failed_merge(
     let every_file_is_the_merges: bool = !judgements.is_empty() && judgements.iter().all(holds_the_merge);
     // Every path holding the merge is what an install leaves.
     let every_path_is_the_merges: bool = every_entry_is_the_merges || every_file_is_the_merges;
-    let current: Option<String> = match resolve_commit(place, root, target) {
-        Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error, began: every_path_is_the_merges }),
-    };
-    if current.as_deref() == Some(intent.new_oid.as_str()) {
-        if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
-            // The branch already names this merge, so a refusal here reports it as installed.
-            return Err(MergeRefusal { error, began: true });
-        }
-        return Ok(MergeRecoveryAction::AlreadyLanded);
-    }
     // Evidence of an install is a path the branch does not already hold the merge's content for and the checkout does:
     //  an independent commit of the same content gives the branch that content, while an install leaves the branch as it was,
     //  whatever another command does to the checkout afterwards.

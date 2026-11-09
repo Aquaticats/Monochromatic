@@ -2297,3 +2297,37 @@ fn a_directory_holding_an_untracked_file_refuses_before_anything_is_written() {
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A merge that already landed is settled without reading the worktree,
+///  so a file that cannot be read does not keep its leftover record alive.
+/// Why:
+///  The worktree was read before the branch was resolved,
+/// so a merge whose branch already named the merge commit
+///  and whose changed path had become unreadable stopped every command,
+/// and nothing could clear the record
+///  because the failure came before the check that would have removed it
+///  (a cross-vendor review of the eighth round,
+/// its seventh finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged, {updateWorktree: true}); await updateRef('main', merged, old); const record = recordOf(deadOwner); gitConfig('filter.broken.required', 'true'); const outcomes = await recover(...); expect(outcomes[0].action).toBe('already-landed'); expect(exists(record)).toBe(false);
+/// ```
+#[test]
+fn a_completed_merge_is_settled_without_reading_the_worktree() {
+    let world: World = world("merge-recovery-landed-unreadable");
+    // The merge landed: the checkout, the index and the branch all hold it, and only the record was left behind.
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", world.new_oid.as_str(), world.old_oid.as_str()]);
+    let record: PathBuf = record_of(&world, dead_owner("41414141-0000-4000-8000-000000000041"), Some("refs/heads/main"));
+    // A clean filter the path requires now fails, so any read of the worktree would stop the command.
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=broken\n").expect("the attribute file");
+    git(world.repo.as_path(), &["config", "filter.broken.clean", "false"]);
+    git(world.repo.as_path(), &["config", "filter.broken.required", "true"]);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("a landed merge needs no worktree read");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
+    assert!(!record.exists(), "the leftover record goes");
+    remove(world.parent.as_path());
+}

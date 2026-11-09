@@ -8990,7 +8990,10 @@ so a refusal stops the command and says the merge is partly installed in that wo
 that is decided by what the index and the checkout hold when the refusal is made,
 not by which step refused,
 so a foreign file or a staged entry met after the install began stops the command too.
-What they hold is read once,
+The branch is resolved before anything else,
+so a merge whose branch already names the merge commit is settled from that alone and its leftover record goes without a
+worktree read that may have become impossible.
+What they hold is otherwise read once,
 before anything can refuse,
 the index first and the worktree second:
 every refusal after that point reports from that one reading,
