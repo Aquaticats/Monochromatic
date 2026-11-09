@@ -18,6 +18,8 @@
 ///  the engine types it returns and the scripted facts.
 use super::{PassResult, policies_of_kind, run_policy_pass};
 use crate::candidate_prediction::CandidateRequest;
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::command_test_support::os_arguments;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
@@ -30,7 +32,6 @@ use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts, w
 use crate::policy_trigger::Trigger;
 use crate::rule_commit_only_message::ALL_FLAG_MESSAGE;
 use crate::wrapper_controls::{Controls, no_controls};
-use std::path::PathBuf;
 
 /// A request for `trigger` with default severities and the given controls.
 fn request(trigger: Trigger, controls: Controls) -> StageRequest {
@@ -66,7 +67,7 @@ fn pass(
         facts,
         os_arguments(values),
         candidates,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let result: PassResult = run_policy_pass(stage, &mut checks);
     // The pass never changes the arguments the checks read.
@@ -391,4 +392,31 @@ fn a_direct_check_applies_no_transform() {
     assert_eq!(unchanged.events, Vec::<PolicyEvent>::new());
     assert_eq!(unchanged.arguments, os_arguments(&["commit", "-a"]));
     assert_eq!(unchanged_asked, vec![String::from("location")]);
+}
+
+/// The transform sees the command Git will run,
+/// so an alias cannot carry a spelling the transform would rewrite
+///  into a command Git runs as the alias.
+#[test]
+fn an_alias_is_transformed_as_the_command_it_expands_to() {
+    let stage: StageRequest = request(Trigger::PreForward, no_controls());
+    // `status` always gets the hints turned off; the alias must get it too, because that is the command Git runs.
+    let (by_name, _asked) = pass(&stage, &["status"], scripted_facts(), LifecycleContent::None);
+    assert_eq!(
+        by_name.arguments,
+        os_arguments(&["-c", "advice.statusHints=false", "status"])
+    );
+    let (through_alias, alias_asked) = pass(
+        &stage,
+        &["-c", "alias.short=status", "short"],
+        scripted_facts(),
+        LifecycleContent::None,
+    );
+    // The wrapper forwards the expansion, global options included, which is the argument list the guard decided on.
+    assert_eq!(
+        through_alias.arguments,
+        os_arguments(&["-c", "alias.short=status", "-c", "advice.statusHints=false", "status"])
+    );
+    assert_eq!(through_alias.arguments[4..], by_name.arguments[2..]);
+    assert_eq!(alias_asked, vec![String::from("location")]);
 }

@@ -278,6 +278,9 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     ) {
         ForwardedRun::Ran(0) => return 0,
         ForwardedRun::Ran(code) => code,
+        // A push the person's Git was killed in failed: the stacking decision reads a status, and a shell reports the death as
+        //  128 + the signal.
+        ForwardedRun::Killed(signal) => crate::forwarding::SIGNAL_EXIT_BASE + signal,
         ForwardedRun::Failed { stderr, code } => {
             // Terminal output error: there is nowhere left to report a failure to write a diagnostic.
             let _written = std::io::stderr().write_all(stderr.as_bytes());

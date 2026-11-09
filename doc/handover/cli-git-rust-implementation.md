@@ -125,6 +125,106 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
+
+- `421ab69c3e` landed the landing branch,
+  `2522a13f4f` the literal-pathspec branch,
+  `2b309f8f25` the test-coverage branch,
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  and `8026d49827` the alias branch.
+- Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
+  previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
+  and `invocation-route-findings-fixed` has the alias cases by inbox note.
+- Follow-up runs started:
+  landing run 12,
+  worktree-removal run 6,
+  worktree-add run 4,
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
+  Worktree-add and child-process open with a merge of main in conflict,
+  which their briefs tell them to resolve first,
+  so neither branch has landed.
+- Deferred until a slot frees,
+  because the practical limit of agents was reached when each was written,
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `invocation-route-round-2-prompt.md` for the alias branch's review,
+  whose five findings are cases the guard on main also misses,
+  and `resume-after-wall-clock-prompt.md` for `hook-route-findings-fixed`,
+  whose run 3 reached its time limit while writing wording tests,
+  so that branch has no finished report.
+- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
+  The branch is not to be merged or landed until that run reports,
+  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
+  That merge left the four files alone.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- The intent-to-add branch is being tested on top of main.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
+  `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that loses its value,
+  and a long value that stops the scratch commit from starting.
+- The merge branch passed 320 of 320 on top of main.
+  Under the coordinator's decision to converge,
+  its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,
+  and documents in `SPEC.md` the three findings that need another process to act inside a few instructions.
+- The tokio landing-round agent converted nothing,
+  and measured why:
+  a Git step reads its child through the runtime,
+  so inside a blocking job of the pool every step refuses as nested.
+  Its branch keeps the corrected wording for a refused thread.
+- Open from the test-coverage report,
+  not yet given to an agent:
+  the kill sweeps list calls a flow never makes,
+  so those names add no positions and nothing says so.
+- `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` failed once in a suite and passes alone on the branch and on main.
+- The worktree-copy branch does not land yet.
+  `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
+  a `containerHex=` line inside an older release's unescaped path can direct recursive deletion,
+  and a `.git` pointer ending in a carriage return reads as unregistered and loses a pending copy.
+  Run 2 of `worktree-copy-records-keep-path-bytes` is on them.
+- Run 3 of `hook-route-findings-fixed` removes the delivery proof,
+  which exists only on that branch (`ea3f3fd3fd`):
+  `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen.
+  The coordinator's decision is that a stopped push says what is known and its retry settles the question.
+- `858fc0a751` (entry and service) and `0b6f191324` (push) landed with their last reviews' findings open,
+  because each finding is no worse than main.
+  Those reviews read source only,
+  so the follow-ups reproduce each finding first.
+- Fail alone on main,
+  so no branch caused them,
+  and they are with `wrapper-tests-that-fail-only-in-a-suite`:
+  `a_stopped_push_is_still_tried_again_after_the_service_restarts`,
+  `a_landing_waits_for_the_reclaimer_that_holds_a_claim`,
+  and `the_report_keeps_input_order_whichever_worktree_finishes_first`,
+  whose output says a blocking step panicked.
+  Pass alone and fail or time out in a suite:
+  `a_writer_saving_during_a_pass_loses_no_copy` (235 s alone against a 300 s limit),
+  `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
+  and `a_landing_over_an_unheld_lock_removes_it_and_goes_on`.
+- The owner,
+  2026-11-09:
+  "Always Size turn limits to the task based on past data."
+  The skill states it and the launcher sizes the cap from finished runs of the same kind.
+  Agents started before that change keep the cap they started with.
+- The 16 second signed scratch commit ceiling is on main (`e8f75c09e8`) and unreleased.
+  The installed wrapper still stops that step at 3006 ms.
+
 #### Main stopped building, and what landed after it (2026-11-09T06:35:43-05:00)
 
 - Main did not compile from `367c52c390` until `121100623c`.
@@ -150,16 +250,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `ad3731e420` (the audit `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`).
   The module-doc issues the docs agent reported fixed or no longer applicable are closed with evidence comments,
   and the commit messages of `78c5b5e245` and `42a8a1d544` carry corrective comments.
-  That agent reports issues 4519,
-  4526,
-  4587 and 2650 do not hold as filed.
-  They stay open until checked.
-  Issues 4245,
-  4408,
-  3258,
+  `d39dffb7b8` corrects the citations in `doc/planning/`,
+  and issues 4245,
   4853,
   4863,
-  4871 and 4872 wait for the `doc/` round.
+  4871 and 4872 are closed with evidence.
+  Issues 4408 and 3258 hold,
+  and their files are under `doc/decision/`,
+  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  The docs agent's report that 4519,
+  4526,
+  4587 and 2650 do not hold looked only at the filed paths.
+  `wrapper-doc-folder-citations` found each defect still present at its moved path
+  (`shadow/replay_subsumption.rs:255-270`,
+  `shadow/shadow_create.rs:61-65`,
+  `policy/event_hints.rs:12-17`,
+  `binary/binary_lfs_pre_push_tests.rs:11`),
+  so they stay open for a small comment fix.
 - The shadow audit reproduced three defects:
   a conflict on `é.txt` makes replay silently revert the distinct file `Ã©.txt`,
   signing set through an exact `gitdir` conditional include is lost in native shadow preparation,
@@ -202,8 +309,67 @@ The old tree kept for the rollback stays until the owner deletes it.
   and it passed in the same filter on main.
   No cause is measured yet (rule `SUF`).
   `wrapper-tests-that-fail-only-in-a-suite` run 2 with `wrapper-tests-suite-round-2-prompt.md` has every name.
-  All 20 agent slots were in use,
-  so it follows `mpm-shadow-open-issues` run 7 when a slot frees.
+  Its run 2 has started,
+  and it has the five findings of `wrapper-tests-suite-round-1-sol.txt` as well.
+- Landed:
+  `58ccfd1df5` (a held push says so where it is held) and `45f5c93e86` (the object check asks the packs first,
+  and a long ref listing is left to Git).
+  The review `landing-route-round-10-sol.txt` names three ways the held notice and the held record disagree.
+  The notice is no worse than main's,
+  which had none in that case.
+  `reader-ref-listing-cost-round-1-sol.txt` names a version-4 index whose offset table starts a block on a
+  compressed path.
+  Real Git never writes one,
+  main answered it the same way,
+  and a small guard is still owed.
+- Running on their reviews:
+  `landing-route-findings-fixed` run 11 (one source for the held notice,
+  path bytes in every field of the owed index record,
+  and the landing findings of `merge-route-round-6-sol.txt`),
+  `locks-and-transactions-findings-fixed` run 3,
+  `subvolume-conversion-findings-fixed` run 3,
+  `merge-route-findings-fixed` run 7,
+  `conflict-resolution-findings-fixed` run 3,
+  and the new agents `markdown-route-findings-fixed` and `standards-review-findings-fixed`
+  for the defects in the audits of those routes under `doc/planning/`.
+  The lock and conversion branches do not land before those runs:
+  their reviews (`locks-and-transactions-round-2-sol.txt`,
+  `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
+- Waiting for a free agent slot,
+  in this order:
+  `process-and-child-lifetime-findings-fixed` run 4 with `process-and-child-lifetime-merge-of-main-prompt.md`,
+  to finish the merge of main left open in its worktree,
+  whose conflicts come from `e8f75c09e8`;
+  a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`;
+  and a new agent `commit-ceiling-and-private-index-follow-ups` with `commit-ceiling-and-private-index-follow-ups-prompt.md`.
+- Finished their runs and are being checked on top of main:
+  `worktree-add-findings-fixed` and `discarding-commands-findings-fixed`,
+  whose last runs both ended at the wall clock during a final test run,
+  so those two checks stand in for it.
+  `push-route-findings-fixed` had its merge conflict in the notice code resolved by this session,
+  keeping the branch's rule that a notice leaves its record only once its words were written;
+  its check and the review of `56d3ab1f0f~1..bcd87c1f15` come next.
+- The commit-ceiling branch landed as `e8f75c09e8`,
+  with 495 of 495 selected tests on top of main.
+  Its last review (`scratch-commit-ceiling-round-5-sol.txt`) was started over a range that crossed a merge of main,
+  so it also read main's landing and `fix` code.
+  The findings on the owed index record went to the inbox of `landing-route-findings-fixed` run 11.
+  The rest are in the follow-up brief named in the queue:
+  a commit has no ceiling when its notice thread cannot start (main has the same gap),
+  a step started without a descriptor is signalled by number,
+  an `owner` FIFO blocks private index creation without a bound,
+  and a rollback notice says a file holds a save that is only in the journal.
+  The visible queue position can now start,
+  since it was held for this landing.
+- mpm-shadow landed as `9406b6e5b0` with 725 of 725 tests on top of main,
+  and 0.2.7-alpha.10 was released from it,
+  locked and installed (`mise exec -- mpm-shadow --version` reads that version;
+  the install reported no failures).
+  Its last review (`mpm-shadow-open-issues-round-7-sol.txt`) names limits left in `cargo_installs.rs`:
+  a prune that read `current` just before a concurrent install finished a newer version can move `current` back,
+  and two roots holding the same version name can make a prune repoint a link it need not touch.
+  Either leaves `current` on an older finished version that still runs.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
@@ -659,7 +825,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   already naming a finished newer version,
   then settles the link when the kept version had vanished,
   with the instant between each read and the write written down beside the code and in the package README.
-  723 of 723 tests and Clippy pass on top of main (`84e9497694`).
+  723 of 723 tests and Clippy passed on top of main (`84e9497694`).
+  Run 7 fixed the two findings of the sixth review
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-6-sol.txt`):
+  `59d4f10a6f` gives `point_current_at` the versions the caller deletes,
+  so the guard that leaves a newer link alone does not preserve a link naming a version the plan removes;
+  the link then ends on the finished version that survives instead of being unlinked;
+  `0b3b57c203` reports a repoint failure through `after_removing`,
+  so it names the links the same pass already removed.
+  725 of 725 tests and Clippy pass on top of main (`daa12c3c76`).
   Open:
   a row naming a bare `nightly` with a dated version text still reads `ok`,
   the tag characters `+`,
@@ -922,6 +1096,9 @@ The step is a form the cut experiment proved may be run twice,
 so the existing bulk-step ceiling (`OBJECT_STEP_CEILING`) bounds it,
 and a stop leaves the index as it was.
 The scratch step's 3,006 ms ceiling is unchanged.
+(It is 16,332 ms since 2026-11-08;
+see "The ceiling is about 16 s,
+and the three steps over it" below.)
 An index another program has locked is not written:
 the private index is refreshed instead,
 so the commit still finishes and the real index keeps its stat data until a later commit can write it.
@@ -7727,6 +7904,9 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
     Also answered 2026-11-08:
     "Empty locks only (Recommended)" for the unheld index lock,
     which is what is built.
+    The ceiling moved to 16,332 ms on 2026-11-08;
+    see "The ceiling is about 16 s,
+    and the three steps over it" below.
   - Editor detection is the existing `opens_editor` (`landing/service_commit_args_editor_opening.rs`):
     `-m`,
     `-F`,
@@ -7870,6 +8050,16 @@ though nothing conflicted.
   the first build of that commit took 171,383 ms,
   and a first preparation copies the real index too (stat data kept),
   so the retry path does not account for it.
+  Corrected 2026-11-09 (see "The ceiling is about 16 s,
+  and the three steps over it"):
+  the record's own offsets put that 171,383 ms step second,
+  not first.
+  The first build of the same commit took 33 ms,
+  before the `git add` of its preparation,
+  and the four builds after it took 171,383,
+  11,444,
+  32,395 and 5,742 ms,
+  each preceded by a `git read-tree` alone.
   The candidates are an index that could not seed (`seeds_private_index` false at that moment) and I/O contention
   (the scratch Git sat in `D` state on a full block queue at load average 38).
   Both ways of building the index wrote a debug line (`initializeCommitIndex`,
@@ -7922,6 +8112,363 @@ though nothing conflicted.
   `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
   The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
   `service_land.rs`) is unchanged.
+
+### The ceiling is about 16 s, and the three steps over it (2026-11-08)
+
+The owner was shown the scratch `git commit` steps of this repository's commit timing log
+(886 records that name the step,
+twelve of them past the 3,006 ms ceiling then in force),
+chose "About 16 seconds",
+three times the slowest ordinary step (5,444 ms),
+and added:
+"About 16s,
+and investigate what happened for those 3 commits.
+If we can't figure it out,
+then we have a defect and should log more."
+"Those 3 commits" are the steps that would still run past 16 s:
+26,256,
+36,651 and 171,383 ms.
+
+- The ceiling is `SCRATCH_COMMIT_STEP_CEILING`,
+  3 x `SLOWEST_MEASURED_COMMIT_STEP`,
+  and that figure moved from 1,002 to 5,444 ms,
+  so the ceiling is 16,332 ms.
+  Read again on 2026-11-09 over both generations of the timing log (958 records,
+  releases 0.6.1-alpha.2 to 0.6.1-alpha.5,
+  907 naming the step):
+  the same twelve run past 3,006 ms,
+  the three above run past 16,332 ms,
+  and the slowest of the rest is still 5,444 ms.
+  That 5,444 ms record is one the old ceiling stopped,
+  so it holds the stop's own cost (2.4 s of it),
+  and the next reading of an unstopped population may be larger.
+  The value and its figures are beside the constant and in `SPEC.md`.
+- The 171,383 ms step (2026-11-08T04:10:42Z,
+  release 0.6.1-alpha.3,
+  request `539a7563`,
+  `outcome: stopped`,
+  five builds,
+  270,232 ms in all) is the retry defect already fixed in this file ("Slow rebuilds and the moved-branch bound"):
+  the second build's index came from a plain `git read-tree` and held no stat data,
+  so `git commit` hashed the whole work tree and cleaned its LFS content.
+  Established from the record's own steps,
+  which is what the earlier reading lacked:
+  build one took 33 ms after its preparation's `git add`,
+  and builds two to five took 171,383,
+  11,444,
+  32,395 and 5,742 ms,
+  each preceded by a `git read-tree` of 21 to 29 ms and no `git add`,
+  which is the retry path.
+  The service journal shows the branch moving under every one of those builds:
+  five `answered` lines for that request,
+  all `outcome=branch-moved`.
+  The fix (`initialize_retry_index` copies the real index and runs `read-tree --reset`) landed as `0bafaea12d`
+  on 2026-11-07T23:24:08-05:00,
+  hours after this commit,
+  and is in 0.6.1-alpha.4 and later,
+  not in 0.6.1-alpha.3.
+- The 26,256 ms step (2026-11-08T05:49:59Z,
+  release 0.6.1-alpha.3,
+  request `4f54ca75`,
+  landed,
+  two builds) is the same defect on the same code:
+  build one took 33 ms after `git add`,
+  build two 26,256 ms after a `git read-tree` of 23 ms and no `git add`.
+  0.6.1-alpha.4 was published 51 s before this step began (05:48:29Z) and the record names the release it ran,
+  so the installed binary was still the earlier one.
+- The 36,651 ms step (2026-11-08T20:23:30Z,
+  release 0.6.1-alpha.4,
+  request `83235372`,
+  landed,
+  one build,
+  worktree `pi-fuzz-claim-decode-and-sidecar-locks`) is not the retry path:
+  one build,
+  and its index build ran `git update-index` 13 ms and `git add` 17 ms as a first preparation does.
+  What it was doing is not established.
+  Everything that could have said so is absent from the record of that time:
+  `indexBuilds` (whether the index kept the real index's stat data) was added ninety seconds after this commit landed (`db2ebe60`),
+  the step is one figure with Git and the signing program inside it,
+  the notice thread's own join is inside the same figure,
+  and the two debug lines that said which way an index was built appear only under `MONOCHROMATIC_VERBOSE`,
+  which nothing sets.
+  The commit was signed (`gpgsig` in the object),
+  so the signing program ran;
+  the host was busy with what other sessions keep up (the journal of that minute holds image work of a
+  container probe,
+  a `repository-move` measurement deleting btrfs subvolumes,
+  an `rsync` of `/var` and several test scopes),
+  and the same minute holds a `git commit` step of 50 ms in another worktree,
+  so the pressure alone is not the answer.
+  This is the defect the owner named.
+- What the record could not say is now in it:
+  `scratchSteps`,
+  one entry per build,
+  with `ceilingMs`,
+  `armed` (a commit that may open an editor keeps no ceiling,
+  and so does one whose notice thread the system refused),
+  `stoppedAfterMs`,
+  `noticeMs`,
+  `wroteMs`,
+  `looks`,
+  `looksFound`,
+  `below` (each program other than Git that ran below the step,
+  with the milliseconds it was seen),
+  `belowCpuMs` and `blockedLooks`.
+  The record's `git commit` step figure is the child alone,
+  so the join and the programs below the step are beside it and never inside it.
+  A control proves it end to end:
+  `a_slow_build_step_is_named_in_the_record_with_its_duration` runs a fixture whose stand-in Git sleeps 3 s before it execs Git,
+  and reads the stand-in's `sleep` named below the step.
+- The stop's check was wrong,
+  and is fixed:
+  the notice looked for the step only when the ceiling came,
+  and answered "the step ended on its own" when that look found nothing.
+  A start the host held up put the step below the command after that moment,
+  so the notice had ended and the step ran on with no ceiling at all,
+  which is one way a commit lands after a long step.
+  The notice now looks every 250 ms until it finds the step,
+  counts the ceiling from that look,
+  and treats an empty look as "the step ended by itself" only after it has seen it running.
+  The look reads the kernel's per-thread child lists and one `/proc/<pid>/stat` per descendant
+  (19.6 microseconds against 17.6 ms for the pass over `/proc` the kill still reads,
+  measured 2026-11-09 on 1,210 entries,
+  the load average 44 to 91 on 6 threads around the runs),
+  and a step that ends sooner than the first interval is ended by its own channel,
+  so an ordinary commit pays one look.
+  Controls:
+  `a_step_that_appeared_after_the_ceiling_look_is_still_stopped` fails on the code as it stood
+  ("a step that started after the ceiling's look ran on with no ceiling and was never stopped")
+  and passes now;
+  removing the look that arms the ceiling puts the same failure back.
+- What the record still cannot separate:
+  Git's own work from the signing program's inside the step.
+  `below` carries the time a program below the step was seen at the look interval,
+  so a signing program that runs and ends between two looks is not named,
+  and a named entry is a lower bound.
+  A step whose `below` holds no signing program may still have signed for less than the interval.
+
+### The second review of the scratch commit's ceiling (2026-11-09T08:33:00-05:00)
+
+A cross-vendor reviewer read the branch again
+(`scratch-commit-ceiling-round-2-sol.txt`).
+Five of its seven findings held and are fixed here,
+each as a failing control first:
+
+- The step's identity was read at the ceiling,
+  so a step that ended and had its number reused was signalled through the successor.
+  `ChildNumber::not_started_pinned` now keeps the pidfd the kernel makes the moment the step starts,
+  and the ceiling signals through it,
+  reading the step's children only while that descriptor says it is still that process.
+- The no-pidfd fallback proved a member and then signalled its number.
+  It is gone:
+  a member the kernel refuses a pidfd for is `Unproven`,
+  never signalled.
+  The path is reachable (a descriptor limit,
+  a sandbox),
+  and not at the kernel floor:
+  the crate requires glibc 2.39,
+  whose distributions ship pidfds.
+- The pin's identity read answered `None` both for a gone process and for a record that could not be read,
+  and `None` became `Gone`,
+  which means the step ended.
+  `member_read` keeps the three answers apart and an unreadable record keeps the ceiling armed.
+- A blocked writer outlived the command and printed a line after it.
+  `finish` now sets an abandonment flag,
+  so the writer stops at its next line.
+  It does not run in the long-lived service:
+  `build_with_git` has one caller (`landing/service_commit.rs`),
+  which has one caller (`commit/commit_command.rs`),
+  the command's own process;
+  the service only lands the commit the client prepared.
+- An `exec` kept a process's number and start time while its name changed,
+  so the record credited the new program with the interval before the `exec`.
+  The look-to-look match now requires the name as well.
+
+The reviewer's macOS compile finding is left alone (owner:
+"Ignore Win and mac until I say so"),
+and the uninterruptible-child wait stays a question for the owner
+(`doc/handover/questions-for-the-owner.md`).
+
+Built on top of that:
+the silence message reads the branch once before it prints
+(`landing/service_branch_shows.rs`),
+so it says whether the commit was made instead of always saying it is not known.
+A commit the service builds itself from the request keeps the "not known" words,
+because the wrapper has no commit to compare the branch with.
+The visible queue position is left for later.
+
+### Two commits told "not known whether the commit was made", one of which landed 73 s later (2026-11-09T07:44:20Z)
+
+Reported from `.claude/worktrees/pi-repo-read-and-index-route-findings-on-main`.
+Nothing was lost and nothing doubled;
+the person was told something untrue by omission while the service still held the commit.
+
+The records,
+all for that worktree:
+
+- The wrapper's timing log (`.git/monochromatic-git-policy-cli-commit-timing.jsonl`),
+  two `warn` entries,
+  each naming `outcome: "stopped"` and `sends: 6`:
+  `fdca390c` at 02:43:35 (total 62,307 ms,
+  `answerWaitMs` 31,066) and `b4a0ab9a` at 02:44:20 (total 32,403 ms,
+  `answerWaitMs` 31,124).
+  Both hold `positions: []`:
+  no queue position ever reached the person.
+- The service journal (`journalctl --user`),
+  six `answered` lines for `b4a0ab9a` at 02:44:48.608-609,
+  all `outcome=branch-moved`,
+  and one `landed` for `fdca390c` at 02:44:48.607 with `landing_ms=74`,
+  `queued_ms=104022`.
+- The reflog:
+  `1ad4ad25d7` at 02:44:48,
+  which is that landing.
+- A third run at 02:47:41 landed in 6,014 ms with one send.
+
+What `read_ms` measures is in `service/service_timing.rs`
+(`Arrival.read`):
+the time from the service accepting the connection to the whole request line being read.
+It is not a landing figure and not a figure about Git.
+It reached 78,085 ms on one of those connections because the service process read no request line between 02:43:30 and 02:44:48,
+not because the client was slow to send:
+six connections of two runs were accepted over that window and all were read within 60 ms of 02:44:48.
+`queued_ms` (88,471 to 116,478 ms on the same burst) is the other half:
+a request that was read at once and then waited for its batch.
+
+Why the service stopped for 105 s:
+the whole user journal has no line between 02:42:35 and 02:44:48,
+for every unit,
+not only the service,
+and every queued landing then ran in one burst.
+The service's own logging cannot explain it:
+its lines go through `send_without_waiting` (`service/journald_native.rs`),
+which is `MSG_DONTWAIT` on a socket and a polled page-sized write on a pipe,
+so a journal that stops drinking drops lines instead of blocking the service.
+The stall was the host's.
+This host's disk and scheduler pressure is `NHR`'s normal,
+and the wrapper cannot see it.
+
+What the wrapper does with it is right and what it says is not:
+`HEARTBEAT_SILENCE` is 5 s and `RECONNECTS` sends are tried
+(`service/service_client.rs`),
+so two runs each spent about 31 s on six sends and then printed
+`ClientFailure::ServiceSilent`:
+"so it is not known whether the commit was made".
+The service sends a `Heartbeat` every `HEARTBEAT_EVERY` and a `Position` when a batch starts
+(`service/service_reply.rs`,
+`service_server_land_group.rs`),
+so the client's silence bound is a bound on a *silent service*,
+not on a slow commit:
+extending it would be waiting without evidence,
+which the owner's "nothing should ever wait forever or indefinitely" rules out.
+
+The two honest improvements,
+neither built:
+
+1. Before printing the silence message,
+   read the branch once (a bounded `git rev-parse`) and say what it shows:
+   the branch is at the commit this command prepared,
+   or it is not.
+   That turns "not known whether the commit was made" into a fact in the common case,
+   costs one Git start,
+   and waits for nothing.
+   In this incident it would have told run A that its commit was made and run B that its prepared commit was not on the branch.
+2. Make a waiting person see the queue:
+   `Position` lines exist and `positions` stayed empty here,
+   so a request that waits minutes shows nothing at all.
+   A position notice is a heartbeat with meaning,
+   and it is what lets a bound on silence be tight without hiding a long queue.
+
+Not done here because both are the client's reach and message path (`service/client` and `landing/`),
+not the ceiling and notice this branch changes.
+
+### The scratch commit's ceiling, reviewed: what the review found and what is still open (2026-11-09T06:20:00-05:00)
+
+A cross-vendor reviewer read the branch that added the ceiling and its record
+(`scratch-commit-ceiling-round-1-sol.txt`),
+the owner's audit of every child the wrapper starts and ends landed on `main`
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`),
+and seven findings of the review and two of the audit met in this file.
+Each was a failing control first:
+
+- A process number reused between the identity read and the signal
+  (`process/process_tree.rs`,
+  `signal_members`).
+  The signal now travels through a pidfd opened while the number is proven to name the member
+  (start time read,
+  descriptor opened,
+  start time read again),
+  the same shape `binary/binary_supervisor_pin.rs` uses for the binary tests' hang guard.
+  A number cannot be reused on demand,
+  so the control injects the reuse behind one identity read
+  (`reused_after_the_next_read`).
+- A reader that stopped reading held the commit after its step ended
+  (audit finding 3).
+  The lines are written by a thread of their own,
+  the notice never writes,
+  and `finish` waits for the notice's answer and for the line it handed over no longer than `NOTICE_BOUND`
+  (twice `LOOK_INTERVAL`).
+  A line that cannot be handed over is dropped and counted (`linesDropped`).
+- A step's ceiling ended every child of the process,
+  another landing's Git among them (audit finding 1,
+  owner's answer "B:
+  let a branch write finish").
+  The step's own number is handed to the notice the moment it starts
+  (`run_child_telling_its_number`),
+  and every look and every stop is rooted at it.
+- A failed read of `/proc` was read as "the step ended".
+  A look that cannot be made now decides nothing,
+  the ceiling stays armed,
+  and `blindLooks` counts it.
+- A stop was recorded although no signal was taken,
+  so a commit that landed could be refused as stopped.
+  `member_read` tells a process that ended from a record that could not be read,
+  and the stop is recorded only when the step itself was signalled.
+- The record credited time to a name,
+  not to a process,
+  and dropped a program it saw only once.
+  It now credits only the same process number and start time at both looks,
+  and keeps a program seen once with a zero lower bound.
+
+Still open,
+and needing the owner:
+
+- A `git commit` that the kernel holds in uninterruptible sleep (`D`) cannot complete its end
+  when the ceiling's `SIGKILL` reaches it,
+  so the thread that waits for it (`commit_preparation.rs`,
+  through `SignalGuard::run_child`,
+  `process/signal_relay.rs:748-752`) waits for the kernel operation.
+  Nothing in the wrapper can make that operation finish.
+  `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md` records the fact.
+  The three honest answers,
+  none built:
+  1. Keep waiting and say so:
+     after the ceiling,
+     print that the stop was sent and the kernel has not released the step yet,
+     so the person knows the wait is the disk's.
+     A person's commit waits exactly as long as today;
+     only the words change.
+  2. Leave after a bound (the ceiling plus a grace):
+     the wrapper prints the stop's words and exits nonzero,
+     and a step that is already `SIGKILL`ed is reaped by init when the kernel releases it.
+     The commit returns in bounded time,
+     and the wrapper's exit no longer waits for what it killed;
+     the scratch directory may be removed while that process still holds it open,
+     which is safe for its files and leaves nothing of the person's.
+  3. Stop enforcing after the first look that fails,
+     which is what the code did before this round:
+     rejected,
+     because it is how a step ran on with no ceiling at all.
+- The audit's finding 4 (a `/proc` read that fails is read as "the process is gone",
+  so a watched step's root is never signalled,
+  `push/child_watch_clock_marks_and_stopping.rs:191-198`) is the same shape as the notice's,
+  and is not fixed here:
+  `member_read` is the shape that fix needs,
+  and the push path's callers were outside this branch's scope.
+
+What remains true of the record:
+within a look interval,
+which program was below the step is only known to the interval's resolution,
+and a signing program that starts and ends between two looks is not named.
 
 ### The lock ceiling and the three waits it fed, measured (2026-11-08T16:01:42-05:00)
 

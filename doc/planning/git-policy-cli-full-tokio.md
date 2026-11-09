@@ -6529,6 +6529,318 @@ Not taken as written:
 The list in the section "Cross-vendor review" is the record.
 Nothing the reviewer raised was left without a change or a stated reason.
 
+## Step T12, the landing round: what blocks it and what now pins it
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-landing-round-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-landing-round-on-the-runtime`,
+  from main at `baf3d03fe6`,
+  and main merged into it again at `5ffe9b2dcc` when it had moved to
+  `6232f281d7`.
+  Commits `02601dbb76`,
+  `8af808f1c0`,
+  `ba49929c1c` and the merge `5ffe9b2dcc`.
+  Not merged into main.
+- Done:
+  the wording of the raw runner's refusal (the finding of
+  `${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`),
+  and the controls the move of `landing/service_round.rs` has to keep.
+- Not done:
+  the move itself.
+  It is not a contained change and the reasons are below,
+  measured.
+
+### Why the round did not go onto the blocking runner
+
+The brief for this step named `run_ordered_on_the_runtime`
+(`foundation/parallel_runner_on_the_runtime.rs`).
+Its items are jobs of the blocking pool,
+and a job of the pool is inside the
+runtime:
+`tokio::runtime::Handle::try_current()` is `Ok` on a thread named
+`git-policy-worker`,
+which the three controls named `..._run_on_the_processs_runtime` record
+(`subvolume/subvolume_index_parallel_tests.rs:199`,
+`worktree/worktree_trash_entries_tests.rs:145` and
+`worktree/worktree_convert_parallel_tests.rs:454`),
+against `false` on a scoped thread.
+Every Git step the round runs reads its child through the runtime:
+
+- a step ended at a ceiling reads its pipes through
+  `read_until_the_child_ends`
+  (`process/step_output_read_whole_through_pipes.rs:145`:
+  `run_on_runtime`),
+  and
+- a push goes through `run_bounded_push_once`
+  (`push/bounded_push.rs:388`:
+  `run_on_runtime`),
+  which the auto-push,
+  the reconcile and `git-lfs`'s upload all use.
+
+Both refuse from inside the runtime with `RuntimeError::Nested`,
+so a round
+whose items were jobs would fail every push and every maintenance run,
+and
+`drain_pending`'s verdicts would requeue them for ever.
+The control that measures this:
+`landing::service_round::tests::a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused`.
+
+The form the round can use is
+`run_ordered_awaiting_on_the_runtime`
+(`foundation/parallel_runner_on_the_runtime_awaiting.rs`),
+whose module comment already says the round cannot use the blocking form.
+That form needs four things that do not exist yet:
+
+1. An awaited push chain.
+   `WorkHandlers::push` reaches `push_once` (`push/auto_push.rs:262`),
+   which reaches `run_query` (`push/auto_push_single_flight.rs:230`),
+   `plan_named_push` (`:216`,
+   through `read_destination` and `named_push` of
+   `push/auto_push_destination.rs`),
+   `run_push` (`lfs/lfs_bounded_push.rs:98`,
+   whose `GitQuery` trait and `read_settings`/`plan_upload` are synchronous)
+   and `reconcile_divergent_push` (`push/auto_push_reconcile.rs:75`,
+   with the `MergePusher` trait).
+   Awaiting twins must keep the synchronous faces,
+   because `manual_push_probe`
+   and `push_stacking` call the same functions from plain threads.
+   About a dozen functions in six files,
+   plus the two traits and their doubles.
+2. An awaited maintenance.
+   `read_maintenance_config` and `run_auto_maintenance_with`
+   (`landing/maintenance_run.rs:156` and `:227`)
+   run `git config` and `git maintenance run`,
+   both ended at a ceiling.
+   Two functions.
+3. A claim renewal whose stop does not wait for a task.
+   `drain_pending` starts one (`ClaimRenewal::start`,
+   `landing/service_claim_renewal_running.rs:275`)
+   and its `Drop` waits for the task up to `stop_ceiling`.
+   That is allowed on the service's work thread and forbidden on a worker:
+   the measured rule of the earlier step says a synchronous `Drop` that waits
+   for a task holds a worker,
+   and a drain that is a task would hold one.
+4. The claims,
+   the settles and the notices put on the blocking pool.
+   `drain_pending` (`landing/service_work_drain_pending_claims.rs`) interleaves
+   `claim_all_of`,
+   `settle_all`,
+   `record_push_failure`,
+   `clear_push_failures_before` and
+   `next_claim_expiry` with the handler calls,
+   and the plan's item 2 asks for each item's storage work inside
+   `run_blocking_job_within_the_budget`,
+   which needs the held claims owned by the job.
+
+Items 1 and 2 are the leaf-first conversion's own next folders.
+Items 3 and 4 are the landing loop's (T11's remainder).
+A step that did any one of them alone would leave the round where it is,
+and a
+step that did all four is the largest piece left in T12,
+on the path that
+pushes the person's backup.
+
+### What the controls pin, and the defects they catch
+
+`landing/service_round_tests.rs`:
+
+- `the_answer_of_a_round_is_the_one_a_drain_of_one_directory_after_another_gives`
+  compares the round's `RoundAnswer` with an oracle that runs the same item
+  work (`DrainEachDirectory::run`) serially on the calling thread,
+  over two fixtures with one claim another instance holds and one push that
+  could pass each.
+  The waits are compared by directory and within five seconds (two readings of
+  one lease),
+  the plan changes exactly.
+  Planted,
+  the consumer attributing a wait to the last directory instead of its own:
+  `left: ["wait 3", "wait 2", "wait 1", "wait 0", ...]`
+  against
+  `right: ["wait 0", "wait 1", "wait 2", "wait 3", ...]`.
+- `a_lane_drains_its_directories_in_the_order_they_were_named`
+  gives one repository a linked worktree and shows the lane drains the common
+  directory and then the linked one.
+  Planted,
+  the lane taking its items last first:
+  `left: [.../linked, .../common]` against `right: [.../common, .../linked]`.
+- `a_refused_thread_partway_through_a_round_leaves_no_directory_undrained`
+  refuses every scoped start on the calling thread
+  (`scoped_start::RefusedStarts`) and shows the answer and the order of the
+  pushes are the ones a round with every thread gives:
+  every lane runs on the
+  calling thread,
+  no directory is lost,
+  and the caller is told nothing.
+  Planted,
+  the runner dropping the lanes a refused thread would have run:
+  `left: []` against the whole answer.
+  What the converted round must say instead is `OrderedRunError`:
+  the items after the refused one in its lane do not run,
+  their claims are left
+  to the lease of their holder
+  (`service_work::CLAIM_LEASE`),
+  and the next round of the work loop finds them
+  again.
+  Nothing is lost,
+  and the caller is told the refresh did not finish.
+
+`a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused` has no plant:
+it measures a state of the code rather than guarding a behaviour,
+and the same read as a task of the runtime answers,
+which is the state its refutation would be.
+
+The wording of a refusal:
+
+- `a_refusal_from_this_runner_says_the_step_may_still_run_and_claims_no_state_of_it`
+  fails on the old sentence (quoted in the commit) and passes on
+  `MayStillRunAfterItsThreadWasRefused`.
+- `the_refusal_that_promises_no_change_names_the_claim_that_makes_it_sure`
+  pins the answer `run_blocking_job_within_the_budget` gives,
+  and that it names
+  the claim as what makes it sure.
+
+### Checks
+
+- `foundation::blocking_job`,
+  `foundation::blocking_jobs_within_the_budget`,
+  `foundation::parallel_runner` (the three runner forms) and
+  `foundation::scoped_start`:
+  35 of 35 and 3 of 3.
+- `landing::service_round`:
+  10 of 10.
+- `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings,
+  after `format:monochromatic-lint` wrote four line breaks it asked for.
+- The whole suites at the tip,
+  `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own
+  control group at `TasksMax=4000`:
+  `native:test:host` 5087 run,
+  5087 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 744 run,
+  736 passed (four slow),
+  8 failed,
+  3 skipped.
+  At the merged tip (`5ffe9b2dcc`) the same two suites were run again:
+  `native:test:host` 5164 run,
+  5164 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 757 run,
+  748 passed (three slow),
+  9 failed,
+  3 skipped,
+  the nine being the eight below and
+  `client_service::an_index_writer_waits_for_the_service_to_finish_landing_and_says_so`,
+  which fails alone and fails the same way with this branch's four production
+  files taken from `origin/main`,
+  so it came with the merge and not with the step.
+- The eight binary failures are not this branch's,
+  measured:
+  `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`,
+  `package_repair::pnpm_runs_after_the_snapshot_rung`,
+  `service_provision::the_service_pushes_after_the_commit_returned`,
+  `version_cache::a_commit_records_and_then_trusts_the_version_text`,
+  `worktree_copy::a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself`,
+  `worktree_dirty_snapshot::quiet_silences_the_note_about_left_out_changes`,
+  `worktree_snapshot::a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout`
+  and `worktree_snapshot::a_snapshot_of_main_sets_aside_what_the_rule_leaves_out`.
+  All eight fail alone as well as in the suite (8 run,
+  8 failed),
+  and all eight fail the same way with this branch's four production files
+  restored to `baf3d03fe6` (8 run,
+  8 failed),
+  which is the measurement that they predate the step.
+  The folders are `worktree_copying/`,
+  `version_cache`,
+  `package_repair`,
+  `service_provision` and `worktree_copy`,
+  none of which this branch reaches.
+  Two shapes are worth the next agent's look,
+  and neither is diagnosed here:
+  three of them fail on a sentence that says
+  "received no ignored-state copy:
+  the worktree this command registered is no
+  longer at that path",
+  and `version_cache::a_commit_records_and_then_trusts_the_version_text` found
+  two cache files where it expects one,
+  the second being `git-system-attributes-<hash>`,
+  which `LinuxPlatform::with_its_conversion_environment_settled` writes.
+- `native:perf`,
+  five arms on 2026-11-09 between 07:50 and 08:00,
+  with two binaries:
+  this tree at the tip,
+  and main's tree at `baf3d03fe6` (its four production files restored,
+  built,
+  and the tree restored,
+  whose rebuild produced a binary byte for byte the one this tree's arms
+  measured).
+  The arms alternate (main's,
+  this tree,
+  main's,
+  this tree,
+  this tree),
+  so the last two are the same-binary control for the spread.
+  The host carried a load average of 53 to 121 on six CPUs throughout.
+  Paired deltas against native Git,
+  commit and signed commit through the service:
+
+  - 07:50 main's:
+    commit median 2,568.8 ms,
+    maximum 27,094.7 ms;
+    signed median 1,503.8 ms,
+    maximum 16,886.2 ms.
+  - 07:52 this tree:
+    commit median 853.9 ms,
+    maximum 13,714.4 ms;
+    signed median 404.9 ms,
+    maximum 10,262.4 ms.
+  - 07:55 main's:
+    commit median 508.5 ms,
+    maximum 25,570.1 ms;
+    signed median 499.9 ms,
+    maximum 12,497.2 ms.
+  - 07:58 this tree:
+    commit median 57.6 ms,
+    maximum 480.7 ms;
+    signed median 189.1 ms,
+    maximum 17,658.5 ms.
+  - 07:59 this tree:
+    commit median 90.3 ms,
+    maximum 3,857.3 ms;
+    signed median 57.3 ms,
+    maximum 5,897.3 ms.
+
+  What that says:
+  the same binary's own commit medians ran from 57.6 to 853.9 ms (14.8 times)
+  and its signed medians from 57.3 to 404.9 ms (7.1 times),
+  which covers every difference between the two binaries,
+  and main's own arms ran 508.5 to 2,568.8 ms,
+  so the order of the arms is the load's,
+  not the binaries'.
+  Both binaries broke the 5,000 ms bar under this load:
+  main's at 25.6 s and 27.1 s (commit) and 12.5 s and 16.9 s (signed),
+  this tree's at 13.7 s (commit) and 10.3 s and 17.7 s (signed),
+  with the last arm's 5.9 s signed the only one near it,
+  and no file this step touches runs in a commit.
+  Forwarded commands,
+  the added medians of `rev-parse`,
+  `status`,
+  `log` and `diff-stat`,
+  stayed between 1.4 and 3.6 ms in every arm,
+  three orders of magnitude under the 2,000 ms bound.
+- Two controls of `landing::service_work::push_retry_tests` failed inside one
+  folder selection
+  (`a_push_plan_due_later_does_not_hide_the_startup_look` and
+  `a_stopped_push_is_still_tried_again_after_the_service_restarts`) and pass
+  alone:
+  measured with both arms of the change,
+  two runs each,
+  2 of 2 in four runs,
+  under a load average of 62 to 73 on six CPUs,
+  and the failing run's own push took 10.2 s against a patience of about 10 s.
+  Their shape is the recorded one:
+  a witness with a time window that a loaded host reaches.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;

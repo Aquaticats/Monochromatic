@@ -19,9 +19,11 @@
 
 use super::commit::run_commit;
 use super::support::{
-    Fixture, Observed, fixture, git, observe_raw, porcelain, remove, repository, run_wrapped, stderr_of,
-    stub_manual_viewer, wrapped,
+    Fixture, Observed, fixture, git, observe, observe_raw, porcelain, remove, repository, run_direct,
+    run_wrapped, stderr_of, stub_manual_viewer, wrapped,
 };
+use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
+use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
@@ -88,38 +90,58 @@ fn every_discarding_form_is_rejected_in_the_main_worktree() {
     remove(&fixture);
 }
 
-/// The hatch directly after the subcommand runs each form,
-/// and Git then does what it was asked.
+/// The invocations that carry the hatch for one guarded form,
+/// each written as the caller types it after `git`.
+/// A `match` must name every variant,
+/// so a new form stops compilation here until it has a hatch invocation.
+fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
+    return match command {
+        GuardedCommand::Stash => vec![vec!["stash", WORKTREE_ENFORCEMENT_ESCAPE_HATCH]],
+        GuardedCommand::StashDrop => vec![vec!["stash", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "drop"]],
+        GuardedCommand::Clean => vec![vec!["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-d"]],
+        GuardedCommand::CleanIgnored => vec![vec!["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-d", "-x"]],
+        GuardedCommand::CleanIgnoredOnly => vec![vec!["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-X"]],
+        GuardedCommand::ResetHard => vec![vec!["reset", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--hard"]],
+        GuardedCommand::ResetMixed => vec![vec!["reset", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--quiet"]],
+        GuardedCommand::RestoreStaged => vec![vec!["restore", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--staged", "tracked.txt"]],
+        GuardedCommand::RestoreWorktree => vec![vec!["restore", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--", "tracked.txt"]],
+        GuardedCommand::CheckoutPaths => vec![vec!["checkout", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--", "tracked.txt"]],
+        GuardedCommand::CheckoutMove => vec![vec!["checkout", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "topic"]],
+        GuardedCommand::SwitchForce => vec![vec!["switch", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--discard-changes", "topic"]],
+        GuardedCommand::SwitchMove => vec![vec!["switch", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "topic"]],
+        GuardedCommand::Remove => vec![vec!["rm", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "--quiet", "tracked.txt"]],
+        GuardedCommand::Move => vec![vec!["mv", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "missing.txt", "other.txt"]],
+        GuardedCommand::CheckoutIndex => vec![vec!["checkout-index", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-a"]],
+        GuardedCommand::ReadTree => vec![vec!["read-tree", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--reset", "HEAD"]],
+        GuardedCommand::AbortMerge => vec![vec!["merge", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::AbortRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::AbortPick => vec![vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"], vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::AbortAm => vec![vec!["am", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+    };
+}
+
+/// The hatch directly after the subcommand runs every guarded form the policy knows:
+/// the wrapper's own rejection is what each of them loses,
+/// and no form's hatch token reaches Git,
+/// which then answers for itself.
 #[test]
 fn the_hatch_after_the_subcommand_runs_each_form() {
     let fixture: Fixture = fixture("discard-hatch");
     let repo: PathBuf = dirty_repository(&fixture);
-    for arguments in [
-        vec!["restore", "--no-enforce-worktree", "--", "tracked.txt"],
-        vec!["checkout", "--no-enforce-worktree", "--", "tracked.txt"],
-        vec!["rm", "--no-enforce-worktree", "-f", "--quiet", "tracked.txt"],
-        vec!["read-tree", "--no-enforce-worktree", "--reset", "HEAD"],
-        vec!["checkout-index", "--no-enforce-worktree", "-f", "-a"],
-        vec!["merge", "--no-enforce-worktree", "--abort"],
-        vec!["rebase", "--no-enforce-worktree", "--abort"],
-        vec!["cherry-pick", "--no-enforce-worktree", "--abort"],
-        vec!["revert", "--no-enforce-worktree", "--abort"],
-        vec!["am", "--no-enforce-worktree", "--abort"],
-        vec!["mv", "--no-enforce-worktree", "-f", "missing.txt", "other.txt"],
-        vec!["switch", "--no-enforce-worktree", "topic"],
-        vec!["reset", "--no-enforce-worktree", "--quiet"],
-    ] {
-        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
-        assert!(
-            !rejected_by_policy(&observed),
-            "{arguments:?}: {}",
-            stderr_of(&observed)
-        );
-        assert!(
-            !stderr_of(&observed).contains("no-enforce-worktree"),
-            "{arguments:?} leaked the hatch to Git: {}",
-            stderr_of(&observed)
-        );
+    for command in GuardedCommand::ALL {
+        for arguments in hatch_invocations(command) {
+            let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+            assert!(
+                !rejected_by_policy(&observed),
+                "{command:?} {arguments:?}: {}",
+                stderr_of(&observed)
+            );
+            assert!(
+                !stderr_of(&observed).contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH),
+                "{command:?} {arguments:?} leaked the hatch to Git: {}",
+                stderr_of(&observed)
+            );
+        }
     }
     remove(&fixture);
 }
@@ -395,5 +417,710 @@ fn a_finding_carries_its_hint_beside_an_unchanged_message() {
         "{text}"
     );
     assert!(text.contains("git monochromatic-git-policy-cli fix -- <path>") || text.contains("exactly one newline"), "{text}");
+    remove(&fixture);
+}
+
+/// What:
+///  A repository whose `.gitignore` names the environment file and a directory,
+/// with both present and nothing tracked changed.
+/// Why:
+///  The ignored files are exactly what a `clean -x` deletes and the wrapper's own
+///  `--untracked-files=no` measurement cannot see.
+fn repository_with_ignored_work(fixture: &Fixture, name: &OsStr) -> PathBuf {
+    let repo: PathBuf = repository(fixture, name);
+    std::fs::write(repo.join(".gitignore"), b".env\nignored/\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    keep_ignored_work(repo.as_path());
+    return repo;
+}
+
+/// Write the ignored environment file and the ignored directory again.
+fn keep_ignored_work(repo: &std::path::Path) {
+    std::fs::write(repo.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    std::fs::create_dir_all(repo.join("ignored")).expect("ignored directory");
+    std::fs::write(repo.join("ignored/data.bin"), b"ignored work\n").expect("ignored work");
+}
+
+/// Whether the ignored work is still on disk.
+fn ignored_work_survives(repo: &std::path::Path) -> bool {
+    return repo.join(".env").exists() && repo.join("ignored/data.bin").exists();
+}
+
+/// A `clean` that deletes ignored files is rejected in a clean linked worktree,
+/// because a linked worktree that holds no tracked change can still hold the
+/// environment files the person depends on.
+#[test]
+fn a_clean_that_deletes_ignored_files_is_rejected_in_a_linked_worktree() {
+    let fixture: Fixture = fixture("discard-clean-ignored");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    keep_ignored_work(linked.as_path());
+    for arguments in [
+        vec!["clean", "-fdx"],
+        vec!["clean", "-fdX"],
+        vec!["clean", "--force", "-d", "-x"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} deleted ignored files: {}",
+            stderr_of(&observed)
+        );
+        assert!(
+            ignored_work_survives(linked.as_path()),
+            "{arguments:?} deleted the ignored work anyway"
+        );
+    }
+    // The same clean is allowed where the ignored files are not what it deletes.
+    let without_ignored: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fd"]);
+    assert!(!rejected_by_policy(&without_ignored), "{}", stderr_of(&without_ignored));
+    assert!(ignored_work_survives(linked.as_path()), "a plain clean deleted ignored work");
+    // And the documented way to clear build output still runs.
+    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
+    std::fs::remove_dir_all(linked.join("ignored")).expect("drop the ignored directory");
+    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fdx"]);
+    assert!(!rejected_by_policy(&empty), "{}", stderr_of(&empty));
+    assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
+    remove(&fixture);
+}
+
+/// Current branch name of a fixture repository.
+fn branch_of(fixture: &Fixture, repo: &std::path::Path) -> String {
+    let output: std::process::Output = git(fixture, repo, &["rev-parse", "--abbrev-ref", "HEAD"]);
+    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+}
+
+/// A `HEAD` move no longer replaces an ignored file that the branch it moves to tracks.
+/// Git refuses the switch itself,
+/// so nothing is replaced and nothing has to be measured.
+#[test]
+fn a_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
+    let fixture: Fixture = fixture("discard-ignored-head-move");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch that tracks the environment file the person keeps locally.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    keep_ignored_work(repo.as_path());
+    let person_value: &[u8] = b"SECRET=the person value\n";
+    for arguments in [
+        vec!["checkout", "tracks"],
+        vec!["switch", "tracks"],
+        vec!["checkout", "--no-overwrite-ignore", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert!(
+            !rejected_by_policy(&observed),
+            "{arguments:?} was rejected by the policy instead of by Git: {}",
+            stderr_of(&observed)
+        );
+        assert_ne!(observed.code, Some(0), "{arguments:?} replaced the ignored file");
+        assert_eq!(
+            std::fs::read(repo.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} replaced the ignored file"
+        );
+        assert_eq!(branch_of(&fixture, repo.as_path()), "main", "{arguments:?} switched anyway");
+        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // A branch that does not track the ignored file switches as it always did.
+    git(&fixture, repo.as_path(), &["branch", "free"]);
+    let free: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "free"]);
+    assert_eq!(free.code, Some(0), "{}", stderr_of(&free));
+    assert_eq!(branch_of(&fixture, repo.as_path()), "free");
+    assert_eq!(std::fs::read(repo.join(".env")).expect("ignored file"), person_value);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    // Nothing would be lost, so the person's own spelling keeps working.
+    std::fs::remove_file(repo.join(".env")).expect("drop the ignored file");
+    for arguments in [vec!["checkout", "tracks"], vec!["switch", "tracks"]] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(branch_of(&fixture, repo.as_path()), "tracks", "{arguments:?}");
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    }
+    // A person who says out loud that the ignored file may be replaced still replaces it.
+    keep_ignored_work(repo.as_path());
+    let explicit: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--overwrite-ignore", "tracks"]);
+    assert_eq!(explicit.code, Some(0), "{}", stderr_of(&explicit));
+    assert_eq!(branch_of(&fixture, repo.as_path()), "tracks");
+    assert_eq!(
+        std::fs::read(repo.join(".env")).expect("ignored file"),
+        b"the tracked version\n"
+    );
+    remove(&fixture);
+}
+
+/// A repository whose `tracks` branch holds the environment file the person also keeps locally,
+/// with a linked worktree on its own branch,
+/// where the local content is written again.
+fn repository_that_tracks_an_ignored_file(fixture: &Fixture) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository_with_ignored_work(fixture, OsStr::new("repo"));
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    keep_ignored_work(linked.as_path());
+    return (repo, linked);
+}
+
+/// A forced `checkout`,
+/// a forced `switch` and a hard `reset` replace an ignored file the target tree tracks,
+/// and the ignored file is where a person keeps their environment and their local secrets,
+/// so the guard reads the target tree and the ignored paths and refuses while they share a path.
+#[test]
+fn a_forced_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
+    let fixture: Fixture = fixture("discard-forced-ignored");
+    let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&fixture);
+    let person_value: &[u8] = b"SECRET=the person value\n";
+    // What real Git does with the same command, so the loss the guard prevents is measured and not presumed.
+    let replaced: Observed = run_direct(&fixture, linked.as_path(), &["checkout", "--force", "tracks"]);
+    assert_eq!(replaced.code, Some(0), "{}", stderr_of(&replaced));
+    assert_eq!(
+        std::fs::read(linked.join(".env")).expect("ignored file"),
+        b"the tracked version\n",
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    git(&fixture, linked.as_path(), &["checkout", "--force", "side"]);
+    keep_ignored_work(linked.as_path());
+    for arguments in [
+        vec!["checkout", "--force", "tracks"],
+        vec!["switch", "--force", "tracks"],
+        vec!["reset", "--hard", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} replaced the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} replaced the ignored file"
+        );
+        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // The line names what the refusal saw, so a reader knows which paths were at stake.
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let text: String = std::fs::read_to_string(&audit).expect("audit file");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"form\":\"ResetHard\""), "{last}");
+    assert!(last.contains("\"ignoredAndTracked\":\".env\""), "{last}");
+    // A target tree that tracks no ignored path leaves the worktree nothing to lose, so the form runs.
+    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
+    for arguments in [
+        vec!["reset", "--hard", "side"],
+        vec!["checkout", "--force", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    remove(&fixture);
+}
+
+/// A stash entry the repository holds,
+/// as the person reads it.
+fn stash_entries(fixture: &Fixture, repo: &std::path::Path) -> String {
+    let output: std::process::Output = git(fixture, repo, &["stash", "list"]);
+    return String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+}
+
+/// `stash drop` and `stash clear` from a clean linked worktree discard a stash the whole repository shares,
+/// so they are rejected while the repository holds one,
+/// and run when it holds none.
+#[test]
+fn a_stash_drop_that_would_discard_the_repository_stash_is_rejected() {
+    let fixture: Fixture = fixture("discard-stash-drop");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    // The person parks work in progress in the main worktree; the entry belongs to the repository.
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    git(&fixture, repo.as_path(), &["stash", "push", "--quiet", "--message", "the person work"]);
+    assert_eq!(stash_entries(&fixture, repo.as_path()).lines().count(), 1);
+    for arguments in [vec!["stash", "drop"], vec!["stash", "clear"]] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} in a clean linked worktree: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            stash_entries(&fixture, repo.as_path()).lines().count(),
+            1,
+            "{arguments:?} emptied the repository stash anyway"
+        );
+    }
+    // The deliberate override still drops it.
+    let hatch: Observed = run_wrapped(&fixture, linked.as_path(), &["stash", "--no-enforce-worktree", "drop"]);
+    assert_eq!(hatch.code, Some(0), "{}", stderr_of(&hatch));
+    assert_eq!(stash_entries(&fixture, repo.as_path()), "");
+    // With no entry left, the same command runs: there is nothing to lose.
+    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["stash", "drop"]);
+    assert!(!rejected_by_policy(&empty), "{}", stderr_of(&empty));
+    // Reading the stash stays available everywhere.
+    for arguments in [vec!["stash", "list"], vec!["stash", "show"]] {
+        let read: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(!rejected_by_policy(&read), "{arguments:?}: {}", stderr_of(&read));
+    }
+    remove(&fixture);
+}
+
+/// An alias reaches the guard of the command it expands to,
+/// so the word on the command line cannot hide a form the guard rejects.
+#[test]
+fn an_alias_reaches_the_guard_of_the_command_it_expands_to() {
+    let fixture: Fixture = fixture("discard-alias");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // An alias given on this command line, and one the repository configures.
+    for arguments in [
+        vec!["-c", "alias.wipe=reset --hard", "wipe"],
+        vec!["-c", "alias.sweep=clean -fdx", "sweep"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} reached no guard: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+            b"the person wrote this\n",
+            "{arguments:?} discarded the edit"
+        );
+        assert!(ignored_work_survives(repo.as_path()), "{arguments:?} deleted the ignored work");
+    }
+    git(&fixture, repo.as_path(), &["config", "alias.wipe", "reset --hard"]);
+    let configured: Observed = run_wrapped(&fixture, repo.as_path(), &["wipe"]);
+    assert!(rejected_by_policy(&configured), "{}", stderr_of(&configured));
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"the person wrote this\n"
+    );
+    // The audit line names what Git will run, not the alias the person typed.
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let text: String = std::fs::read_to_string(&audit).expect("audit file");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"arguments\":[\"reset\",\"--hard\"]"), "{last}");
+    // An alias to a command the guard allows still runs, and an unknown name is still Git's own error.
+    git(&fixture, repo.as_path(), &["config", "alias.short", "status --short"]);
+    let harmless: Observed = run_wrapped(&fixture, repo.as_path(), &["short"]);
+    assert_eq!(harmless.code, Some(0), "{}", stderr_of(&harmless));
+    assert!(String::from_utf8_lossy(harmless.stdout.as_slice()).contains("tracked.txt"));
+    let unknown: Observed = run_wrapped(&fixture, repo.as_path(), &["no-such-subcommand"]);
+    assert_ne!(unknown.code, Some(0));
+    assert!(!rejected_by_policy(&unknown), "{}", stderr_of(&unknown));
+    // A shell alias holds a shell command, which no reading of its text can judge. Git runs it with its own
+    //  directory first on `PATH`, so the `git` inside it is real Git and not this wrapper: the guard cannot see it,
+    //  and the wrapper forwards the alias as it always did. The control proves which `git` the shell finds, so the
+    //  limit is measured and not guessed.
+    git(&fixture, repo.as_path(), &["config", "alias.fixup", "!command -v git"]);
+    let shell: Observed = run_wrapped(&fixture, repo.as_path(), &["fixup"]);
+    assert_eq!(shell.code, Some(0), "{}", stderr_of(&shell));
+    assert!(!rejected_by_policy(&shell), "{}", stderr_of(&shell));
+    let found: String = String::from_utf8_lossy(shell.stdout.as_slice()).trim().to_owned();
+    assert!(found.ends_with("/git-core/git"), "the shell found {found}, not Git's own directory");
+    assert!(found != fixture.root.join("bin/git").display().to_string(), "the shell found this wrapper");
+    remove(&fixture);
+}
+
+/// The tool-cache exemption is chosen by the invocation's own environment,
+/// so a person sees the sentence that says which variable exempted the repository.
+#[test]
+fn an_exempted_repository_says_which_variable_exempted_it() {
+    let fixture: Fixture = fixture("discard-exemption-notice");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // The same command without the variable is rejected and changes nothing.
+    let guarded: Observed = run_wrapped(&fixture, repo.as_path(), &["reset", "--hard"]);
+    assert!(rejected_by_policy(&guarded), "{}", stderr_of(&guarded));
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"the person wrote this\n"
+    );
+    // A variable that names the repository exempts it, and the wrapper says so before Git runs.
+    let exempt: Observed = observe(
+        wrapped(&fixture)
+            .current_dir(repo.as_path())
+            .env("MISE_DATA_DIR", repo.as_os_str())
+            .args(["reset", "--hard"]),
+        b"",
+    );
+    assert_eq!(exempt.code, Some(0), "{}", stderr_of(&exempt));
+    let notice: String = stderr_of(&exempt);
+    assert!(notice.contains("exempt from the worktree guard"), "{notice}");
+    assert!(notice.contains("MISE_DATA_DIR"), "{notice}");
+    assert!(notice.contains(repo.to_str().expect("utf-8 fixture path")), "{notice}");
+    assert!(notice.contains("Hint: "), "{notice}");
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"one\n",
+        "the exemption still lets the command run"
+    );
+    // The audit line names why as well.
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let text: String = std::fs::read_to_string(&audit).expect("audit file");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"outcome\":\"exempt\""), "{last}");
+    assert!(last.contains("\"exemptedBy\":\"MISE_DATA_DIR\""), "{last}");
+    remove(&fixture);
+}
+
+/// The audit lines of a repository's common Git directory,
+/// newest last.
+fn audit_lines_of(repo: &std::path::Path) -> Vec<String> {
+    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl")).unwrap_or_default();
+    return text.lines().map(str::to_owned).collect();
+}
+
+/// `git worktree remove` runs as it always did,
+/// and one audit line says what the removal took.
+#[test]
+fn a_worktree_removal_records_the_worktree_force_and_what_it_took() {
+    let fixture: Fixture = fixture("audit-worktree-remove");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    keep_ignored_work(linked.as_path());
+    let removal: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "--force", linked.to_str().expect("utf-8 fixture path")],
+    );
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree");
+    let lines: Vec<String> = audit_lines_of(repo.as_path());
+    let last: &str = lines.last().expect("one audit line for the removal");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"outcome\":\"logged\"",
+        "\"worktree\":\"<the path>\"",
+        "\"force\":true",
+        // The whole ref, so the branch is restored by name without a second lookup.
+        "\"head\":\"refs/heads/side\"",
+        // A count is text, like every fact, so a reader never has to guess a JSON type per field.
+        "\"changed\":\"1\"",
+        "\"counted\":\"tracked changes only\"",
+    ] {
+        let rendered: String = field.replace("<the path>", linked.to_str().expect("utf-8 fixture path"));
+        assert!(last.contains(rendered.as_str()), "{rendered} missing from {last}");
+    }
+    remove(&fixture);
+}
+
+/// `git branch -D` runs as it always did,
+/// and one audit line names the branch,
+/// its commit and whether it was merged.
+#[test]
+fn a_branch_deletion_records_the_branch_its_commit_and_whether_it_was_merged() {
+    let fixture: Fixture = fixture("audit-branch-delete");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // One branch whose commit nothing else reaches, and one already merged into `main`.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "gone"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=gone", "--", "tracked.txt"]);
+    let commit: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &["rev-parse", "gone"]).stdout.as_slice(),
+    ).trim().to_owned();
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    git(&fixture, repo.as_path(), &["branch", "kept"]);
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "gone"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let last: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"outcome\":\"logged\"",
+        "\"branch\":\"gone\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+        "\"merged\":false",
+    ] {
+        assert!(last.contains(field), "{field} missing from {last}");
+    }
+    // A branch that `main` already contains says so, so a reader can tell the two apart.
+    let merged: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "kept"]);
+    assert_eq!(merged.code, Some(0), "{}", stderr_of(&merged));
+    let merged_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("a second audit line");
+    assert!(merged_line.contains("\"branch\":\"kept\""), "{merged_line}");
+    assert!(merged_line.contains("\"merged\":true"), "{merged_line}");
+    // Deleting nothing (a name that does not exist) writes no line and stays Git's own error.
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    let missing: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "no-such-branch"]);
+    assert_ne!(missing.code, Some(0));
+    assert_eq!(audit_lines_of(repo.as_path()).len(), before);
+    remove(&fixture);
+}
+
+/// An alias is forwarded as the command it expands to,
+/// so the transform that keeps an ignored file sees the
+///  same command the guard decided on.
+#[test]
+fn an_alias_reaches_the_transform_that_keeps_ignored_files() {
+    let fixture: Fixture = fixture("discard-alias-transform");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    keep_ignored_work(repo.as_path());
+    let person_value: &[u8] = b"SECRET=the person value\n";
+    // The same command by name, and through an alias configured in the repository.
+    for arguments in [vec!["checkout", "tracks"], vec!["go"]] {
+        if arguments[0] == "go" {
+            git(&fixture, repo.as_path(), &["config", "alias.go", "checkout tracks"]);
+        }
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert!(!rejected_by_policy(&observed), "{arguments:?} was rejected by the policy: {}", stderr_of(&observed));
+        assert_ne!(observed.code, Some(0), "{arguments:?} replaced the ignored file");
+        assert_eq!(
+            std::fs::read(repo.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} replaced the ignored file"
+        );
+        assert_eq!(branch_of(&fixture, repo.as_path()), "main", "{arguments:?} switched anyway");
+        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // The alias reaches the guard too, so a form the guard rejects is rejected through it.
+    git(&fixture, repo.as_path(), &["config", "alias.wipe", "reset --hard"]);
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    let wiped: Observed = run_wrapped(&fixture, repo.as_path(), &["wipe"]);
+    assert!(rejected_by_policy(&wiped), "{}", stderr_of(&wiped));
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"the person wrote this\n"
+    );
+    remove(&fixture);
+}
+
+/// A clean that deletes ignored files and carries its own exclusion patterns is measured with those patterns,
+/// because Git applies them to the set it deletes.
+#[test]
+fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
+    let fixture: Fixture = fixture("discard-clean-exclude");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("notes.txt"), b"the person notes\n").expect("untracked file");
+    // What real Git does with the same command, so the deletion the guard prevents is measured and not presumed.
+    let deleted: Observed = run_direct(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    assert!(
+        !linked.join("notes.txt").exists(),
+        "real Git kept the file, so this control proves nothing"
+    );
+    for exclusion in [
+        vec!["--exclude=notes.txt"],
+        vec!["--exclude", "notes.txt"],
+        vec!["-e", "notes.txt"],
+        vec!["-enotes.txt"],
+    ] {
+        std::fs::write(linked.join("notes.txt"), b"the person notes\n").expect("untracked file");
+        let mut arguments: Vec<&str> = vec!["clean", "--force", "-X"];
+        arguments.extend(exclusion.iter().copied());
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} deleted the file: {}",
+            stderr_of(&observed)
+        );
+        assert!(
+            linked.join("notes.txt").exists(),
+            "{arguments:?} deleted the excluded file anyway"
+        );
+    }
+    // Nothing to delete is nothing to refuse: the same spelling runs where the excluded path is absent.
+    std::fs::remove_file(linked.join("notes.txt")).expect("drop the untracked file");
+    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
+    assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
+    // The ignored work the clean really would delete is still measured.
+    keep_ignored_work(linked.as_path());
+    let deleting: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
+    assert!(rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
+    assert!(ignored_work_survives(linked.as_path()), "the ignored work went");
+    remove(&fixture);
+}
+
+/// The escape keeps the audit line of a form that is only recorded:
+/// the owner asked for the line,
+///  and the
+///  hatch skips the policy that would otherwise write it.
+#[test]
+fn an_escaped_recorded_form_still_leaves_its_audit_line() {
+    let fixture: Fixture = fixture("audit-escaped-recorded");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch whose commit nothing else reaches, deleted under the hatch.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "gone"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=gone", "--", "tracked.txt"]);
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "gone"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "--no-enforce-worktree", "-D", "gone"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let lines: Vec<String> = audit_lines_of(repo.as_path());
+    let last: &str = lines.last().expect("the deletion left a line");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"outcome\":\"logged\"",
+        "\"branch\":\"gone\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(last.contains(field), "{field} missing from {last}");
+    }
+    // The same for a removal under the hatch, which would otherwise leave nothing either.
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    let removal: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "--no-enforce-worktree", "remove", "--force", linked.to_str().expect("utf-8 fixture path")],
+    );
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree");
+    let after: Vec<String> = audit_lines_of(repo.as_path());
+    assert_eq!(after.len(), lines.len() + 1, "{after:?}");
+    let removal_line: &str = after.last().expect("the removal left a line");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"outcome\":\"logged\"",
+        "\"head\":\"refs/heads/side\"",
+    ] {
+        assert!(removal_line.contains(field), "{field} missing from {removal_line}");
+    }
+    remove(&fixture);
+}
+
+/// A record of a recorded form is written before Git runs,
+/// so it says that,
+///  and a reader cannot take it for the result:
+/// a deletion Git refused leaves the same line as one it ran.
+#[test]
+fn a_recorded_form_says_its_line_was_written_before_git_ran() {
+    let fixture: Fixture = fixture("audit-before-git");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch whose commit nothing else reaches and that no upstream has: `-d` refuses to delete it.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "gone"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=gone", "--", "tracked.txt"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-d", "gone"]);
+    assert_ne!(refused.code, Some(0), "Git refuses an unmerged branch");
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "gone"]).stdout.as_slice()),
+        "  gone\n",
+        "the branch is still there"
+    );
+    let refused_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a refused deletion");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"outcome\":\"logged\"",
+        "\"branch\":\"gone\"",
+        "\"writtenBeforeGitRuns\":true",
+    ] {
+        assert!(refused_line.contains(field), "{field} missing from {refused_line}");
+    }
+    // A deletion Git runs leaves the same statement, because the line still cannot know what Git did.
+    let deleted: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "gone"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    let deleted_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a run deletion");
+    assert!(deleted_line.contains("\"writtenBeforeGitRuns\":true"), "{deleted_line}");
+    // A removal Git refuses keeps the worktree and says the same about its line.
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    let kept: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", linked.to_str().expect("utf-8 fixture path")],
+    );
+    assert_ne!(kept.code, Some(0), "Git refuses a dirty worktree without --force");
+    assert!(linked.exists(), "the worktree is still there");
+    let kept_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a refused removal");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"writtenBeforeGitRuns\":true",
+        "\"head\":\"refs/heads/side\"",
+    ] {
+        assert!(kept_line.contains(field), "{field} missing from {kept_line}");
+    }
+    // A decision the policy makes carries no such field: it says what the wrapper did, before Git was asked to run.
+    git(&fixture, linked.as_path(), &["checkout", "--quiet", "--", "tracked.txt"]);
+    let allowed: Observed = run_wrapped(&fixture, linked.as_path(), &["restore", "--staged", "tracked.txt"]);
+    assert_eq!(allowed.code, Some(0), "{}", stderr_of(&allowed));
+    let allowed_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a decision");
+    assert!(allowed_line.contains("\"outcome\":\"allowed\""), "{allowed_line}");
+    assert!(!allowed_line.contains("writtenBeforeGitRuns"), "{allowed_line}");
+    remove(&fixture);
+}
+
+/// A deletion of a remote-tracking branch records that reference and its own commit,
+/// not the local branch of
+///  the same name.
+#[test]
+fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
+    let fixture: Fixture = fixture("audit-branch-delete-remotes");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A local branch named like the remote-tracking one, and a remote-tracking ref on another commit.
+    git(&fixture, repo.as_path(), &["branch", "origin/gone"]);
+    let local: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "origin/gone"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    std::fs::write(repo.join("tracked.txt"), b"the remote commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=remote", "--", "tracked.txt"]);
+    let remote: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    assert_ne!(local, remote, "the control needs two different commits");
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
+    for spelling in [vec!["branch", "--remotes", "-D", "origin/gone"], vec!["branch", "-rD", "origin/gone"]] {
+        // The remote-tracking ref is there again before each spelling, and the local branch never moves.
+        git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
+        let deletion: Observed = run_wrapped(&fixture, repo.as_path(), spelling.as_slice());
+        assert_eq!(deletion.code, Some(0), "{spelling:?}: {}", stderr_of(&deletion));
+        let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+        for field in [
+            "\"branch\":\"origin/gone\"",
+            "\"reference\":\"refs/remotes/origin/gone\"",
+            format!("\"commit\":\"{remote}\"").as_str(),
+        ] {
+            assert!(line.contains(field), "{spelling:?}: {field} missing from {line}");
+        }
+        assert!(!line.contains(local.as_str()), "{spelling:?}: the local commit is in {line}");
+        // Git deleted the remote-tracking ref and left the local branch where it was.
+        let listed: String = String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice(),
+        )
+        .trim()
+        .to_owned();
+        assert_eq!(listed, "", "{spelling:?} left a remote-tracking ref");
+        assert_eq!(
+            String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "refs/heads/origin/gone"]).stdout.as_slice())
+                .trim()
+                .to_owned(),
+            local,
+            "{spelling:?} moved the local branch"
+        );
+    }
+    // A remote-tracking name the local branch does not have still records the reference it deleted.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/other", remote.as_str()]);
+    let other: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "origin/other"]);
+    assert_eq!(other.code, Some(0), "{}", stderr_of(&other));
+    let other_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    assert!(other_line.contains("\"reference\":\"refs/remotes/origin/other\""), "{other_line}");
+    assert!(other_line.contains(remote.as_str()), "{other_line}");
     remove(&fixture);
 }
