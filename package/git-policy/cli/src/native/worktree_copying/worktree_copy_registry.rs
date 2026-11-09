@@ -24,7 +24,7 @@
 
 use crate::git_metadata::path_from_git_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::worktree_add_binding::bind_registration;
+use crate::worktree_add_binding::{Binding, bind_registration};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_identity::WorktreeIdentity;
@@ -60,16 +60,22 @@ pub struct WorktreeCopyObservation {
 /// What:
 ///  One linked worktree this command registered.
 /// Why:
-///   Its root is where the copy lands.
+///   Its root is where the copy lands,
+/// and the binding is the registration the copy verifies before every
+///  write,
+/// so a worktree that another command removed or replaced is never filled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CreatedWorktree = { root: string };
+/// type CreatedWorktree = { root: string; binding: Binding };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatedWorktree {
     /// Canonical created worktree root.
     pub root: PathBuf,
+    /// The registration Git made for it,
+    /// as it was when real Git returned.
+    pub binding: Binding,
 }
 
 /// What:
@@ -314,14 +320,23 @@ pub fn find_created_worktree(
     destination: &Path,
     registered_before: bool,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
-    if registered_before || !destination_is_registered(observation.common_dir.as_path(), destination) {
+    // The binding is proved here, when Git has returned, so the copy and a later recovery check the registration this
+    // command saw and not merely whatever stands at the path now.
+    let bound: Option<Binding> = match registered_before {
+        true => None,
+        false => match bind_registration(observation.common_dir.as_path(), destination) {
+            Ok(found) => Some(found.binding),
+            Err(_reason) => None,
+        },
+    };
+    let Some(binding) = bound else {
         return Ok(CreatedWorktrees {
             created: Vec::new(),
             registered_roots: Vec::new(),
         });
-    }
+    };
     return Ok(CreatedWorktrees {
-        created: vec![CreatedWorktree { root: destination.to_path_buf() }],
+        created: vec![CreatedWorktree { root: destination.to_path_buf(), binding }],
         registered_roots: read_registered_roots(context, observation)?,
     });
 }

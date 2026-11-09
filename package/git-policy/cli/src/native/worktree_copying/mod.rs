@@ -83,6 +83,11 @@ pub mod worktree_copy_stage_claim;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
 
+/// The registration one staged copy is bound to,
+/// recorded beside its payload and checked before every write into a worktree.
+#[cfg(unix)]
+pub mod worktree_copy_stage_binding;
+
 /// The append-only install log of one stage:
 /// per-batch intents and creations,
 /// with resumption.
@@ -90,10 +95,15 @@ pub mod worktree_copy_stage_claim_reaping;
 pub mod worktree_copy_install_log;
 
 /// One journaled installation to an end,
-/// resumption from the log,
-/// and synchronization of a created worktree.
+/// and resumption from the log.
 #[cfg(unix)]
 pub mod worktree_copy_transaction;
+
+/// The staging,
+/// journaling and installation of one created worktree's ignored state,
+/// bound to the registration real Git made.
+#[cfg(unix)]
+pub mod worktree_copy_synchronize;
 
 /// The process that owns one item of a copy transaction,
 /// written into the item's name,

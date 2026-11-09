@@ -43,14 +43,12 @@ use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as f
 use crate::diagnostic_log::warn;
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure_of};
+use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
-use crate::worktree_copy_registry::{
-    CreatedWorktrees, WorktreeCopyObservation, destination_is_registered, find_created_worktree, observe_copy_source,
-};
-use crate::worktree_copy_transaction::synchronize_created_worktree_noting;
+use crate::worktree_copy_registry::{WorktreeCopyObservation, destination_is_registered, observe_copy_source};
+use crate::worktree_copy_synchronize::synchronize_after;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
@@ -271,126 +269,6 @@ fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyE
     });
 }
 
-/// The line a successful `git worktree add` prints when its command line has a form whose destination is not read.
-const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
-
-/// What:
-///  The line for a destination Git made whose registration could not be confirmed.
-/// Why:
-///   A worktree that gets no copy must say so;
-/// here the pointer in its `.git` file and the registration it names do not
-///  name each other,
-/// so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: ${quote(destination)} was made by git worktree add, but ...`
-/// ```
-fn unconfirmed_destination_notice(destination: &Path) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
-        quote(destination.to_string_lossy().as_ref())
-    );
-}
-
-/// What:
-///  Synchronizes the worktree this command registered at its destination and writes the summary line for it;
-/// the root of
-///  the created worktree,
-/// a snapshot's included,
-/// comes back for the package-manager repair.
-/// Why:
-///   The destination is the one the command line named,
-/// so a worktree another add registered at the same time is never
-///  copied into here;
-/// a failure stops the copy with no summary written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const found = await findCreatedWorktree(...); const copied = await synchronizeCreatedWorktree(...); process.stderr.write(renderSummary(copied));
-/// ```
-fn synchronize_after(
-    invocation: &Invocation,
-    observation: &WorktreeCopyObservation,
-    registered_before: bool,
-    git_succeeded: bool,
-    carried: Option<&Path>,
-    recorded: &mut Option<StageClaim>,
-    stderr: &mut dyn Write,
-) -> Result<Vec<PathBuf>, WorktreeCopyError> {
-    // A main checkout that names no path hands over nothing: no stage, no journal and no summary line.
-    if matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty()) {
-        return Ok(carried.map(Path::to_path_buf).into_iter().collect());
-    }
-    let Some(destination) = invocation.destination.as_deref() else {
-        stderr
-            .write_all(UNKNOWN_DESTINATION_NOTICE.as_bytes())
-            .map_err(raw_failure_of)?;
-        return Ok(Vec::new());
-    };
-    let mut found: CreatedWorktrees =
-        find_created_worktree(&invocation.context, observation, destination, registered_before)?;
-    // A destination Git made but whose registration cannot be confirmed is told, not skipped without a word.
-    if found.created.is_empty()
-        && git_succeeded
-        && !registered_before
-        && std::fs::symlink_metadata(destination.join(".git")).is_ok()
-    {
-        let line: String = unconfirmed_destination_notice(destination);
-        stderr
-            .write_all(line.as_bytes())
-            .map_err(raw_failure_of)?;
-        return Ok(Vec::new());
-    }
-    let mut created_roots: Vec<PathBuf> = Vec::new();
-    for worktree in &found.created {
-        created_roots.push(worktree.root.clone());
-    }
-    // A destination that received the source's ignored state with a snapshot needs no copy.
-    let mut kept = Vec::new();
-    for worktree in found.created {
-        if carried != Some(worktree.root.as_path()) {
-            kept.push(worktree);
-        }
-    }
-    found.created = kept;
-    if found.created.is_empty() {
-        return Ok(created_roots);
-    }
-    let mut copied: usize = 0;
-    // The record made before real Git names the stage this copy fills, so the copy keeps the one record it has.
-    let mut held: Option<StageClaim> = recorded.take();
-    // `match` on the source: a bare repository has nothing to copy, so only a worktree source is copied.
-    match observation.source_root.as_ref() {
-        None => {}
-        Some(source) => {
-            for created in &found.created {
-                copied += synchronize_created_worktree_noting(
-                    &invocation.context,
-                    observation.common_dir.as_path(),
-                    source.as_path(),
-                    created.root.as_path(),
-                    found.registered_roots.as_slice(),
-                    &observation.selection,
-                    held.take(),
-                    stderr,
-                )?;
-            }
-        }
-    }
-    // A copy that did not happen leaves the record to the caller, which settles it.
-    *recorded = held;
-    let line: String = summary_line(
-        copied,
-        found.created.len(),
-        observation.source_root.as_deref(),
-    );
-    stderr
-        .write_all(line.as_bytes())
-        .map_err(raw_failure_of)?;
-    return Ok(created_roots);
-}
-
 /// What:
 ///  Runs one creating command:
 /// whether its destination was registered already,
@@ -471,9 +349,9 @@ fn settle_creation(
     // settled here: the add is whole, so the record says so before it goes.
     if let Some(unused) = held.take() {
         let release_unused_entered: bool = begin_step("releaseClaim");
-        let settled: Result<(), WorktreeCopyError> = unused.settle();
+        let released: Result<(), WorktreeCopyError> = unused.settle();
         end_step(release_unused_entered);
-        if let Err(error) = settled {
+        if let Err(error) = released {
             warn(TAG, format!("the record of the worktree add could not be removed ({})", error.0).as_str());
         }
     }

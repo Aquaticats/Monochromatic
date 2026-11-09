@@ -5,6 +5,7 @@
 //! the summary line and exit statuses.
 
 use super::*;
+use crate::worktree_copy_synchronize::UNKNOWN_DESTINATION_NOTICE;
 use crate::add_timing::{begin_work, end_work};
 use crate::side_by_side_threads::in_thread_scope;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
@@ -392,7 +393,8 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     remove(root.as_path());
 }
 
-/// The names the private journal root holds right now, sorted.
+/// The names the private journal root holds right now,
+/// sorted.
 fn recorded_names(common: &Path) -> Vec<String> {
     let root: PathBuf = journal_root(common);
     let listing = match std::fs::read_dir(root.as_path()) {

@@ -380,6 +380,36 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
     return Ok(());
 }
 
+/// What:
+///  Check that the registration an add was bound to is still the one at its destination now,
+/// by binding the destination again and comparing the two.
+/// Why:
+///   A copy that carries ignored state into a worktree,
+/// and a recovery that resumes one,
+/// hold only the record,
+/// not the
+///  open directories the creating command held;
+/// this proves the path still leads to the same pair before the first entry is
+///  written,
+/// and the reason names both registrations when it does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await bindingStillHolds(commonDir, binding); // throws a reason naming both registrations
+/// ```
+pub fn binding_still_holds(common_dir: &Path, binding: &Binding) -> Result<(), String> {
+    let found: Bound = bind_registration(common_dir, binding.destination.as_path())?;
+    if found.binding == *binding {
+        return Ok(());
+    }
+    return Err(format!(
+        "{} is registered by {} now, and not by {} any more",
+        binding.destination.display(),
+        found.binding.admin.display(),
+        binding.admin.display()
+    ));
+}
+
 /// Binding controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_add_binding_tests.rs"]

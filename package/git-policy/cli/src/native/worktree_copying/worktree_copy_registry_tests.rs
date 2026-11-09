@@ -192,7 +192,7 @@ fn added_worktree_is_found_with_its_root() {
     assert_eq!(topic_root, future);
     let found: CreatedWorktrees =
         find_created_worktree(&git_context(), &observation, topic_root.as_path(), registered_before).expect("found");
-    assert_eq!(found.created, vec![CreatedWorktree { root: topic_root.clone() }]);
+    assert_eq!(found.created, vec![CreatedWorktree { root: topic_root.clone(), binding: binding_of(common.as_path(), topic_root.as_path()) }]);
     assert!(found.registered_roots.contains(&topic_root));
     assert!(found.registered_roots.contains(&std::fs::canonicalize(main.as_path()).expect("main")));
     remove(root.as_path());
@@ -213,6 +213,12 @@ fn a_destination_registered_before_is_not_created() {
     remove(root.as_path());
 }
 
+/// The registration a worktree Git made is bound to,
+/// for the expectations of what a find returns.
+fn binding_of(common: &Path, destination: &Path) -> crate::worktree_add_binding::Binding {
+    return crate::worktree_add_binding::bind_registration(common, destination).expect("binding").binding;
+}
+
 /// Two worktrees registered around one command are told apart by their destinations:
 /// each find returns only its own,
 /// so a
@@ -227,8 +233,8 @@ fn concurrent_registrations_are_told_apart_by_destination() {
     let second: PathBuf = add_worktree(root.as_path(), main.as_path(), "second");
     let for_first: CreatedWorktrees = find_created_worktree(&git_context(), &observation, first.as_path(), false).expect("first");
     let for_second: CreatedWorktrees = find_created_worktree(&git_context(), &observation, second.as_path(), false).expect("second");
-    assert_eq!(for_first.created, vec![CreatedWorktree { root: first }]);
-    assert_eq!(for_second.created, vec![CreatedWorktree { root: second }]);
+    assert_eq!(for_first.created, vec![CreatedWorktree { root: first.clone(), binding: binding_of(common.as_path(), first.as_path()) }]);
+    assert_eq!(for_second.created, vec![CreatedWorktree { root: second.clone(), binding: binding_of(common.as_path(), second.as_path()) }]);
     remove(root.as_path());
 }
 
@@ -272,7 +278,7 @@ fn worktree_registered_before_failing_hook_is_found() {
     );
     assert!(!output.status.success(), "the hook must fail the command");
     let found: CreatedWorktrees = find_created_worktree(&git_context(), &observation, topic.as_path(), false).expect("found");
-    assert_eq!(found.created, vec![CreatedWorktree { root: topic }]);
+    assert_eq!(found.created, vec![CreatedWorktree { root: topic.clone(), binding: binding_of(common.as_path(), topic.as_path()) }]);
     remove(root.as_path());
 }
 
@@ -303,6 +309,6 @@ fn a_destination_registered_with_relative_paths_is_found() {
     assert!(destination_is_registered(common.as_path(), destination.as_path()));
     let found: CreatedWorktrees =
         find_created_worktree(&git_context(), &main_observation(main.as_path(), common.as_path()), destination.as_path(), false).expect("found");
-    assert_eq!(found.created, vec![CreatedWorktree { root: destination }]);
+    assert_eq!(found.created, vec![CreatedWorktree { root: destination.clone(), binding: binding_of(common.as_path(), destination.as_path()) }]);
     remove(root.as_path());
 }

@@ -283,7 +283,8 @@ pub(crate) const DESTINATION_SUFFIX: &str = ".add";
 ///   The record comes before real Git runs,
 /// so a command killed after Git returned still leaves the destination and the stage name it chose,
 /// and the next command names the worktree to the person.
-/// Without the record, a worktree registered by a killed add is in every later command's
+/// Without the record,
+/// a worktree registered by a killed add is in every later command's
 /// before-set and is never filled and never reported.
 /// A command that copies nothing (a bare repository,
 /// a main checkout with nothing to hand over,

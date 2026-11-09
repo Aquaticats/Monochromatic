@@ -61,7 +61,8 @@ mod other {
         return Ladder;
     }
 
-    /// Prepare nothing, and leave the caller's record to the copy.
+    /// Prepare nothing,
+    /// and leave the caller's record to the copy.
     pub fn begin_ladder_holding(_plan: Option<&AddPlan>, _held: &mut Option<StageClaim>, _context: &GitContext, _identity: &WorktreeIdentity) -> Ladder {
         return Ladder;
     }

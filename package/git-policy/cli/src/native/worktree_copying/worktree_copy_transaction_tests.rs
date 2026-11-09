@@ -4,9 +4,10 @@
 //! and resumption from the log.
 
 use super::*;
-use crate::worktree_copy_stage::new_stage_container;
-use crate::worktree_copy_stage_claim::stage_claims_exist;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::worktree_copy_journal::create_journal;
+use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+use crate::test_support::{fixture, git_context, remove, repository};
 use crate::worktree_copy_install_entry::capture_installed_path;
 use crate::worktree_copy_install_log::{INSTALL_LOG_NAME, open_install_log};
 use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
@@ -63,87 +64,6 @@ fn tree(root: &Path) -> Vec<String> {
     return found;
 }
 
-/// A complete synchronization installs the ignored state and leaves neither a journal nor a stage behind.
-#[cfg(unix)]
-#[test]
-fn completed_synchronization_leaves_no_journal_or_stage() {
-    let root: PathBuf = fixture("transaction-complete");
-    let (source, destination) = ignored_source(root.as_path());
-    git(
-        source.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "topic",
-            destination.to_str().expect("utf8"),
-        ],
-    );
-    let destination_canonical: PathBuf =
-        std::fs::canonicalize(&destination).expect("canonical destination");
-    let common: PathBuf = common_of(source.as_path());
-    let copied: usize = synchronize_created_worktree(
-        &git_context(),
-        common.as_path(),
-        source.as_path(),
-        destination_canonical.as_path(),
-        &[],
-        &CopySelection::Ignored,
-    )
-    .expect("synchronized");
-    assert_eq!(copied, 4);
-    assert_eq!(
-        std::fs::read(destination_canonical.join("cache/deep/data")).expect("data"),
-        b"payload"
-    );
-    assert!(
-        read_pending_journals(common.as_path())
-            .expect("pending")
-            .is_empty()
-    );
-    let leftovers: Vec<String> = std::fs::read_dir(destination_canonical.parent().expect("parent"))
-        .expect("list")
-        .map(|entry| {
-            return entry
-                .expect("entry")
-                .file_name()
-                .to_string_lossy()
-                .into_owned();
-        })
-        .filter(|name| return name.starts_with(".cli-git-worktree-copy-"))
-        .collect();
-    assert!(leftovers.is_empty(), "{leftovers:?}");
-    assert!(
-        !stage_claims_exist(common.as_path()).expect("claims"),
-        "a settled copy releases its stage claim"
-    );
-    remove(root.as_path());
-}
-
-/// A copy that fails while staging removes its stage and releases its claim,
-/// so nothing is left to reap.
-#[cfg(unix)]
-#[test]
-fn failed_staging_releases_its_claim() {
-    let root: PathBuf = fixture("transaction-staging-failure");
-    let (source, _destination) = ignored_source(root.as_path());
-    let common: PathBuf = common_of(source.as_path());
-    let destination: PathBuf = root.join("absent").join("topic");
-    let failure: WorktreeCopyError = synchronize_created_worktree(
-        &git_context(),
-        common.as_path(),
-        source.as_path(),
-        destination.as_path(),
-        &[],
-        &CopySelection::Ignored,
-    )
-    .expect_err("the stage parent is absent");
-    assert!(!failure.0.is_empty());
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the failed copy released its claim");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
-    remove(root.as_path());
-}
 
 /// Recording claims writes only the ones no earlier record holds.
 #[cfg(unix)]
