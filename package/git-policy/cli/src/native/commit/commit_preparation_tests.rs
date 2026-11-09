@@ -649,6 +649,9 @@ fn signing_from_an_exact_gitdir_include_reaches_the_shadow() {
     // The shadow's own native commit must sign for the same reason.
     let prepared: PreparedCommit = prepare(&fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
     assert!(prepared.signed, "the shadow must not turn the person's signing request into an unsigned commit");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A commit whose notice thread the system refused still has a ceiling,
 ///  because the wait that owns the step ends it.
