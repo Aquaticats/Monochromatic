@@ -7,11 +7,41 @@
 
 use crate::work_item_recovery::requeue_expired;
 use super::*;
-use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWAL_STOP_CEILING};
+use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWALS_MADE, RENEWAL_STOP_CEILING, TASKS_ENDED};
 use crate::service_work::MAX_TRIES;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};
 use std::path::Path;
+
+/// The bound that ends a control which waits for a renewal thread to run:
+/// a backstop for a thread that never runs, never a host that runs it slowly,
+/// because every interval of a control is milliseconds.
+const PASS_PATIENCE: Duration = Duration::from_secs(20);
+
+/// How many passes a control watches a renewal thread make.
+///
+/// The interval of every such control is milliseconds and a pass renames each held claim once,
+/// so one pass would be a single look; two show a loop that went round the claims twice.
+const PASSES_WATCHED: usize = 2;
+
+/// Waits until the renewal thread has made `count` more passes than `before`,
+/// which the renewal itself counts,
+/// and gives whether it did within `PASS_PATIENCE`.
+fn wait_for_passes(before: usize, count: usize) -> bool {
+    let began: std::time::Instant = std::time::Instant::now();
+    while RENEWALS_MADE.load(std::sync::atomic::Ordering::SeqCst) < before.saturating_add(count) {
+        if began.elapsed() >= PASS_PATIENCE {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    return true;
+}
+
+/// The number of renewal passes the running renewals of this process have made.
+fn passes_made() -> usize {
+    return RENEWALS_MADE.load(std::sync::atomic::Ordering::SeqCst);
+}
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
 const LEASE: Duration = Duration::from_secs(900);
@@ -142,7 +172,9 @@ fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_i
 }
 
 /// The renewal thread renames the held claims by itself,
-/// and is gone when the renewal is dropped.
+/// and is gone when the renewal is dropped:
+/// the drop waits for the task to end,
+/// so the task's own ending is the witness that nothing can rename afterwards.
 #[test]
 fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     let (root, work_dir, claimed) = claimed_item("renewal-thread", &clock());
@@ -150,31 +182,36 @@ fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     held.hold(&claimed);
     let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
     // The bound only ends a failing run: a passing run leaves the loop as soon as the thread has renewed the claim.
-    let bound: std::time::Instant = std::time::Instant::now() + Duration::from_secs(20);
+    let bound: std::time::Instant = std::time::Instant::now() + PASS_PATIENCE;
     while claimed_names(work_dir.as_path()) == vec![claimed.name.clone()] && std::time::Instant::now() < bound {
         std::thread::sleep(Duration::from_millis(5));
     }
     let renewed: Vec<String> = claimed_names(work_dir.as_path());
     assert_ne!(renewed, vec![claimed.name.clone()], "the thread renewed the held claim");
-    drop(renewal);
-    // Dropping joins the thread, so nothing can rename after this line.
-    let after_drop: Vec<String> = claimed_names(work_dir.as_path());
-    std::thread::sleep(Duration::from_millis(50));
-    assert_eq!(claimed_names(work_dir.as_path()), after_drop, "a dropped renewal renames nothing");
+    // The drop says whether it waited for the task or only for its ceiling, and the task says it returned, so no clock is
+    //  asked whether anything can rename after this line.
+    let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
+    let dropped = crate::service_timing::capture::entries_of(|| drop(renewal));
+    assert!(dropped.is_empty(), "the renewal's task ended with the drop, so nothing can rename after it: {dropped:?}");
+    assert_eq!(TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst), ended_before.saturating_add(1), "the task returned before the drop did");
+    assert_eq!(claimed_names(work_dir.as_path()), renewed, "a dropped renewal renames nothing");
     remove(root.as_path());
 }
 
 /// A claim the renewal does not hold is left to its lease,
 /// so a dead holder's claim still expires.
+/// The renewal's own count of its passes is what shows the thread ran;
+/// the claim's name is what shows it was left alone.
 #[test]
 fn a_claim_that_is_not_held_is_not_renewed() {
     let (root, work_dir, claimed) = claimed_item("renewal-not-held", &clock());
     let (held, renewer) = held_claims(work_dir.as_path());
+    let before: usize = passes_made();
     let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
-    // The held set names another claim; the thread runs for many intervals and must leave this one alone.
+    // The held set names another claim; the thread runs many intervals and must leave this one alone.
     let other: Claimed = Claimed { id: String::from("push-another-claim"), name: String::from("push-another-claim~00~x"), item: claimed.item.clone() };
     held.hold(&other);
-    std::thread::sleep(Duration::from_millis(50));
+    assert!(wait_for_passes(before, PASSES_WATCHED), "the renewal thread ran {PASSES_WATCHED} passes, so leaving the claim alone is its own doing");
     drop(renewal);
     assert_eq!(claimed_names(work_dir.as_path()), vec![claimed.name], "an unheld claim keeps its name");
     assert!(!held.is_held("push-another-claim"), "a held claim that is not in the directory is found gone");
@@ -317,6 +354,10 @@ const SHORT_STOP_CEILING: Duration = Duration::from_millis(300);
 /// so the renames wait for one) returns at the ceiling and not when the pool frees:
 /// the wait is bounded,
 /// and the claim is left to expire by its lease.
+/// What shows the pool had not freed is the count of its finished jobs,
+/// not a clock:
+/// the one time in it is the ceiling itself,
+/// which is the behaviour under test.
 #[test]
 fn dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
     let started: ClaimTime = clock();
@@ -330,26 +371,45 @@ fn dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
         Some(crate::lazy_runtime::BuiltFlavor::MultiThread { workers }) => workers,
         _ => 1,
     };
-    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
-        for _ in 0..workers * 2 + 2 {
-            drop(tokio::task::spawn_blocking(|| { std::thread::sleep(POOL_BUSY_FOR); }));
-        }
-    });
+    let jobs: usize = workers * 2 + 2;
+    let finished: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let busy = {
+        let counting = std::sync::Arc::clone(&finished);
+        crate::lazy_runtime::spawn_on_runtime(async move {
+            for _ in 0..jobs {
+                let counting = std::sync::Arc::clone(&counting);
+                drop(tokio::task::spawn_blocking(move || {
+                    std::thread::sleep(POOL_BUSY_FOR);
+                    counting.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }));
+            }
+        })
+    };
     assert!(busy.is_some(), "the runtime has workers");
     std::thread::sleep(Duration::from_millis(100));
     let _asked = renewal.control.send(Control::Renew(clock(), None));
     let began: std::time::Instant = std::time::Instant::now();
     drop(renewal);
     let waited: Duration = began.elapsed();
-    assert!(waited < POOL_BUSY_FOR / 2, "dropping waited {waited:?}, which is until the pool freed and not the ceiling");
+    let done: usize = finished.load(std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(done, 0, "dropping waited for the pool to free instead of for the ceiling: {done} of {jobs} jobs had finished after {waited:?}");
     assert!(waited >= SHORT_STOP_CEILING, "dropping did not wait for the task at all: {waited:?}");
     drop(held);
     remove(root.as_path());
 }
 
-/// A renewal of a claim takes far less than its ceiling:
-/// the rename is a few system calls.
+/// Measurement,
+/// not a control:
+/// what one renewal of one claim costs here.
+/// Why it is no control:
+///  its verdict would be the host's speed;
+/// the ceiling it compares against is derived from a measurement of a
+///  check and a rename (`worst_delay_seen_on_this_host.rs`),
+/// and a loaded host fails any wall bound short of that
+///  measurement.
+/// Run it by name with `--run-ignored all --no-capture`.
 #[test]
+#[ignore = "a measurement of the disk, not a control: its bar would be the host's speed"]
 fn a_renewal_takes_far_less_than_its_stop_ceiling() {
     let started: ClaimTime = clock();
     let (root, work_dir, claimed) = claimed_item("renewal-time", &started);

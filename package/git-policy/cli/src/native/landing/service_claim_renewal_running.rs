@@ -100,6 +100,25 @@ impl DrivenRenewal {
     }
 }
 
+/// How many times a running renewal has renewed its claims,
+/// for the controls;
+/// nothing in the release executable.
+/// Why:
+///   A control of "the claims this drain does not hold are left alone"
+/// otherwise sleeps for a few intervals and cannot tell a renewal thread that left them alone
+/// from one that never ran.
+#[cfg(test)]
+pub static RENEWALS_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many renewal tasks have ended,
+/// for the controls;
+/// nothing in the release executable.
+/// Why:
+///   A control of "the renewal is gone when it is dropped" otherwise waits and hopes,
+/// where the task itself can say it returned.
+#[cfg(test)]
+pub static TASKS_ENDED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// What:
 ///  A running renewal:
 /// a thread that stamps every held claim again each interval until this value is dropped.
@@ -156,7 +175,12 @@ async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<R
     })
     .await
     {
-        Ok(renewed) => Some(renewed),
+        Ok(renewed) => {
+            // A pass of the renewals has ended, which a control waits for instead of guessing at the host's speed.
+            #[cfg(test)]
+            RENEWALS_MADE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Some(renewed)
+        }
         Err(error) => {
             crate::service_error!("claims could not be renewed, so they expire with their lease: {error}");
             None
@@ -219,6 +243,9 @@ fn start_task(renewer: Renewer, requests: UnboundedReceiver<Control>, every: Opt
     let (ended_sender, ended) = channel::<()>();
     let started = spawn_on_runtime(async move {
         renew_until_stopped(renewer, requests, every).await;
+        // The task says it returned before it says so on the channel the drop waits on, so a control can read that it ended.
+        #[cfg(test)]
+        TASKS_ENDED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let _told = ended_sender.send(());
     });
     if started.is_none() {
