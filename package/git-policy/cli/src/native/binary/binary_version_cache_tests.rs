@@ -25,6 +25,19 @@ fn commit_edit(fixture: &Fixture, repo: &Path, content: &str) -> Observed {
     return run_commit(fixture, repo, &["commit", "--quiet", "--message=edit", "--", "a.txt"]);
 }
 
+/// The version records under the fixture's home.
+///  The cache directory holds one file per kind the wrapper learned for that Git,
+/// and a control about the version
+///  record names its kind rather than counting every other kind beside it:
+/// a host whose Git reports a system attributes file
+///  makes the wrapper record that too.
+fn version_records(fixture: &Fixture) -> Vec<PathBuf> {
+    return cache_files(fixture)
+        .into_iter()
+        .filter(|path: &PathBuf| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("git-version-"); }); })
+        .collect();
+}
+
 /// The cache files under the fixture's home.
 fn cache_files(fixture: &Fixture) -> Vec<PathBuf> {
     let directory: PathBuf = fixture.root.join("home/.cache/monochromatic-git-policy-cli");
@@ -47,7 +60,7 @@ fn a_commit_records_and_then_trusts_the_version_text() {
 
     let first: Observed = commit_edit(&fixture, repo.as_path(), "one\ntwo\n");
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
-    let files: Vec<PathBuf> = cache_files(&fixture);
+    let files: Vec<PathBuf> = version_records(&fixture);
     assert_eq!(files.len(), 1, "{files:?}");
     let mode: u32 = std::fs::metadata(&files[0]).expect("recorded").permissions().mode() & 0o777;
     assert_eq!(mode, 0o600);
@@ -68,6 +81,6 @@ fn a_commit_records_and_then_trusts_the_version_text() {
     std::fs::remove_dir_all(fixture.root.join("home/.cache")).expect("remove cache");
     let again: Observed = commit_edit(&fixture, repo.as_path(), "one\ntwo\nthree\nfour\n");
     assert_eq!(again.code, Some(0), "{}", stderr_of(&again));
-    assert_eq!(cache_files(&fixture).len(), 1);
+    assert_eq!(version_records(&fixture).len(), 1, "the record comes back once, whatever else the cache learned");
     remove(&fixture);
 }

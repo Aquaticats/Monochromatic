@@ -490,6 +490,8 @@ fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathB
 ///  An add killed before its binding was recorded deletes nothing,
 /// and its record stays while the worktree it
 ///  created is not proven whole.
+///  Once the checkout is whole,
+/// the copy that never finished is named once and the record goes.
 /// Why:
 ///   Real Git's `--no-checkout` registers the destination before the wrapper writes the binding,
 /// so the kill
@@ -500,11 +502,16 @@ fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathB
 /// so one report and a forgetting would leave
 ///  a registered,
 /// `.git`-only worktree that nothing ever mentions again.
+/// A checkout that is whole proves only Git's own work:
+/// the record exists because the source's ignored state was owed,
+/// and nothing about the worktree makes that copy appear later,
+/// so it is reported once and its record goes rather than naming a worktree that needs remaking on every command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const first = reap(common); expect(first.length).toBe(1); expect(reap(common)).toEqual(first);
-/// git(destination).resetHard(); expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(false);
+/// git(destination).resetHard(); const finished = reap(common); expect(finished.length).toBe(1);
+/// expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(false);
 /// ```
 #[test]
 fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() {
@@ -518,7 +525,14 @@ fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() 
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), first, "the next command says the same");
     // The person finishes the checkout the report names.
     crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported");
+    let finished: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing");
+    assert_eq!(finished.len(), 1, "{finished:?}");
+    assert!(
+        finished[0].contains("the copy of its source's ignored state never finished") && finished[0].contains(shown.as_str()),
+        "the worktree that is whole is named for the copy it never received: {}",
+        finished[0]
+    );
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("the command after that"), Vec::<String>::new(), "it is said once, since nothing on the worktree can make that copy appear");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and its record goes");
     remove(root.as_path());
 }
@@ -592,9 +606,13 @@ fn an_interrupted_add_is_named_by_every_recovery_until_it_is_finished_or_removed
     assert_eq!(first.len(), 1, "{first:?}");
     let second: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("the next command");
     assert_eq!(second, first, "the next command says the same about the same worktree");
-    // The person finishes the checkout the way the line tells them to.
+    // The person finishes the checkout the way the line tells them to; the copy that never recorded a completion is
+    //  named once, and then the worktree is not reported again.
     crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported");
+    let finished: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing");
+    assert_eq!(finished.len(), 1, "{finished:?}");
+    assert!(finished[0].contains("the copy of its source's ignored state never finished"), "{}", finished[0]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("the command after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported again");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records go once the worktree is whole");
     remove(root.as_path());
 }
@@ -649,7 +667,11 @@ fn a_leftover_index_lock_is_named_and_the_remedy_works() {
     // The remedy the report prints: the named file goes once no Git runs there, and then the checkout finishes.
     std::fs::remove_file(lock.as_path()).expect("the named lock");
     crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy finishes the add");
+    let remedy: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy");
+    // The checkout the remedy finishes is one the ignored-state copy never reached, and that is said once.
+    assert_eq!(remedy.len(), 1, "the remedy finishes the add: {remedy:?}");
+    assert!(remedy[0].contains("the copy of its source's ignored state never finished"), "{}", remedy[0]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("the command after the remedy"), Vec::<String>::new(), "and nothing is said again");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
     remove(root.as_path());
 }
@@ -865,8 +887,10 @@ fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed(
 
 /// What:
 ///  A worktree whose commit has an empty tree is whole once its checkout wrote the empty index,
-/// so the report
-///  stops and the records go.
+/// so the report of
+///  the unfinished checkout stops,
+/// the copy that never recorded its completion is named once,
+/// and the records go.
 /// Why:
 ///   Nothing beside Git's pointer is written by a checkout of an empty tree,
 /// so a proof that asked for a file
@@ -880,7 +904,7 @@ fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed(
 /// ```ts
 /// const claim = claimForAdd(common, destination); await git(repo, 'worktree add --no-checkout ...');
 /// expect(reap(common).length).toBe(1);
-/// git(destination).resetHard(); expect(reap(common)).toEqual([]);
+/// git(destination).resetHard(); const said = reap(common); expect(said.length).toBe(1); expect(reap(common)).toEqual([]);
 /// ```
 #[test]
 fn an_add_interrupted_in_a_worktree_of_an_empty_tree_settles_once_its_checkout_is_whole() {
@@ -900,7 +924,10 @@ fn an_add_interrupted_in_a_worktree_of_an_empty_tree_settles_once_its_checkout_i
     // The person finishes the checkout the report names: an empty tree writes nothing beside the pointer.
     crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
     assert_eq!(std::fs::read_dir(destination.as_path()).expect("listing").count(), 1, "the worktree holds only Git's pointer");
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy ends the report");
+    let remedy: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy");
+    assert_eq!(remedy.len(), 1, "the remedy ends the report of the unfinished checkout: {remedy:?}");
+    assert!(remedy[0].contains("the copy of its source's ignored state never finished"), "{}", remedy[0]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("the command after the remedy"), Vec::<String>::new(), "and nothing is said again");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
     remove(root.as_path());
 }
@@ -1099,7 +1126,8 @@ fn a_registration_named_across_a_newline_is_read_as_git_reads_it() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// git(destination, 'read-tree HEAD'); writeFileSync(join(destination, 'a.txt'), 'a');
-/// expect(reap(common)).toEqual([]); expect(existsSync(join(admin, 'index'))).toBe(true); expect(existsSync(join(destination, 'b.txt'))).toBe(false);
+/// const said = reap(common); expect(said.length).toBe(1); expect(said[0]).toMatch(/ignored state never finished/);
+/// expect(existsSync(join(admin, 'index'))).toBe(true); expect(existsSync(join(destination, 'b.txt'))).toBe(false);
 /// ```
 #[test]
 fn a_checkout_another_process_restored_partly_is_settled_as_whole() {
@@ -1123,7 +1151,10 @@ fn a_checkout_another_process_restored_partly_is_settled_as_whole() {
     crate::test_support::git(destination.as_path(), &["read-tree", "HEAD"]);
     std::fs::write(destination.join("a.txt"), b"a.txt\n").expect("one file only");
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert_eq!(notices, Vec::<String>::new(), "the proof reads an index and a file and settles: {notices:?}");
+    // The proof reads an index and a file and settles the checkout; the copy the record was made for never recorded a
+    //  completion, so the worktree is named for it once and its records go.
+    assert_eq!(notices.len(), 1, "the proof reads an index and a file and settles: {notices:?}");
+    assert!(notices[0].contains("the copy of its source's ignored state never finished"), "{}", notices[0]);
     assert!(!destination.join("b.txt").exists(), "the file the other process never copied is the one this limit is about");
     assert!(admin.join(INDEX).exists() && !admin.join(INDEX_LOCK).exists(), "an index with no lock is what the proof reads");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the record goes with the settlement");
