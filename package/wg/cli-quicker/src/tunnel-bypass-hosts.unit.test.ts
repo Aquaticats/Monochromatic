@@ -28,7 +28,7 @@ import {
   type HostRuleTools,
   type OwnedHostRule,
 } from '../dist/final/node/tunnel-bypass-hosts.mjs';
-import { UPDATE_HOSTS, } from '../dist/final/node/update-hosts.data.mjs';
+import { CLEARNET_HOSTS, } from '../dist/final/node/bypass-host-refresh.mjs';
 import {
   removeUpdateHostRules,
   syncUpdateHostRules,
@@ -325,7 +325,7 @@ await describe({
         expect(report.failures.join('|',),).toContain('pypi.org',);
         expect(report.nextRefreshSeconds,).toBe(45,);
         expect(hostSyncFailureText({ report, },),).toContain('POLICY NOT IN FORCE',);
-        expect(hostSyncFailureText({ report, },),).toContain('update hosts',);
+        expect(hostSyncFailureText({ report, },),).toContain('clearnet hosts',);
       },
     },),
     it({
@@ -596,14 +596,14 @@ await describe({
           preflightFailures: [noDnsFailure({ interfaceName: 'wg0', },),],
         },),),);
         for (const report of reports) {
-          expect(hostSyncFailureText({ report, },),).toContain('POLICY NOT IN FORCE: update hosts',);
+          expect(hostSyncFailureText({ report, },),).toContain('POLICY NOT IN FORCE: clearnet hosts',);
           expect(hostSyncFailureText({ report, },),).toContain('the tunnel wg0 sets no DNS server',);
-          expect(hostSyncFailureText({ report, },),).toContain('the process watch and the toolchain paths still run',);
+          expect(hostSyncFailureText({ report, },),).toContain('the process watch, the toolchain paths and the Pi coverage still run',);
         }
       },
     },),
     it({
-      name: 'asks the whole update-host list and refuses the tunnel\'s own addresses when DNS is set',
+      name: 'asks the whole clearnet-host list and refuses the tunnel\'s own addresses when DNS is set',
       fn: async () => {
         const { tools, operations, } = fakeTools();
         /**
@@ -628,7 +628,7 @@ await describe({
           tools,
           readDependencies: () => Promise.resolve({ dnsServers: ['9.9.9.9',], endpoints: [], },),
         },);
-        expect(asked.toSorted(),).toEqual(UPDATE_HOSTS.toSorted(),);
+        expect(asked.toSorted(),).toEqual(CLEARNET_HOSTS.toSorted(),);
         expect(operations.filter((operation,) => operation.startsWith('add',),),).toEqual(['add -4 185.199.108.133',],);
         expect(seconds,).toBe(90,);
       },
