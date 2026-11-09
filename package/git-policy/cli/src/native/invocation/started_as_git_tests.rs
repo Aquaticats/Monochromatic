@@ -376,3 +376,104 @@ fn marking_a_command_names_this_process_and_the_last_mark_wins() {
     assert_eq!(read.starts, 1);
     assert_eq!(command.get_envs().filter(|(name, _value)| { return *name == STARTED_AS_GIT_VARIABLE; }).count(), 1);
 }
+
+/// What:
+///  A record this very process wrote for its Git is read even when an older marker sits in the
+///  environment above.
+/// Why:
+///  A launcher that clears the environment and replaces itself with the wrapper leaves the marker
+/// of the re-entering start
+///  only in the chain record;
+/// the environment above still holds the chain's older marker,
+/// which names
+///  the outer start and matches nothing,
+/// and the guard returned there without reading the record,
+/// so the
+///  wrapper replaced itself with the launcher without end
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 1 of the
+///  round-3 review).
+/// The record names this process,
+///  so it is the process starting itself again whatever the marker above says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberMarker({ pid: process.pid, mode: 'replace' }); expect(refusalAmong([], [olderMarkerAbove])).toBeDefined();
+/// ```
+#[test]
+fn a_record_of_this_process_is_read_even_when_an_older_marker_sits_above() {
+    if std::env::var_os(RECORD_ABOVE_CHILD_VARIABLE).is_some() {
+        let identity: String = crate::process_identity::current_birth_identity().expect("this process has an identity");
+        // The record the start above left in the descriptor this process inherited: the launcher replaced this very
+        //  process with the wrapper again.
+        let inherited: i32 = crate::chain_starts_record::create_descriptor().expect("a record is made");
+        let written: String = marker_value(StartMode::Replace, std::process::id(), identity.as_str(), 2).to_string_lossy().into_owned();
+        assert!(crate::chain_starts_record::write_marker_for_controls(inherited, written.as_str()), "the record holds the start above");
+        // The chain's older marker names another process and matches nothing here.
+        let above: Vec<(OsString, OsString)> =
+            vec![(OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 4242, "linux:1", 1))];
+        let said: String = refusal_when_started_as_git_among(Vec::new().as_slice(), Path::new("/wrapper"), std::slice::from_ref(&above))
+            .expect("the record names this process, which started itself again");
+        assert!(said.contains("replaced with this program"), "{said}");
+        assert!(said.contains("/wrapper"), "{said}");
+        return;
+    }
+    // The record belongs to one process, so the body runs in a child and the parent asserts its report.
+    let output: std::process::Output = crate::test_support::child_this_test(
+        RECORD_ABOVE_CHILD_VARIABLE,
+        "invocation::started_as_git::tests::a_record_of_this_process_is_read_even_when_an_older_marker_sits_above",
+    );
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(output.status.success(), "the record of this process was not read:\n{said}");
+    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+}
+
+/// The variable that marks the child of the record control,
+/// whose record belongs to that child alone.
+const RECORD_ABOVE_CHILD_VARIABLE: &str = "CLI_GIT_RECORD_ABOVE_CHILD";
+
+/// What:
+///  A record whose start is a live process above this one continues the chain,
+///  however many relays stand
+///  between the two.
+/// Why:
+///  Two shells that only relay the invocation put two processes between the wrapper that wrote the
+/// record and the
+///  wrapper that reads it,
+/// and a rule that accepted only this process or its parent counted every such generation from
+///  one:
+/// the ceiling never applied and wrappers and relays accumulated
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the
+///  round-3 review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(recordContinues({ starterPid: grandparent }, [own, parent, grandparent])).toBe(true);
+/// expect(recordContinues({ starterPid: sibling }, [own, parent, grandparent])).toBe(false);
+/// ```
+#[test]
+fn a_record_of_a_live_process_above_continues_the_chain_through_relays() {
+    let identity: String = crate::process_identity::current_birth_identity().expect("this process has an identity");
+    let own: u32 = std::process::id();
+    let ancestors: [u32; 3] = [own, parent_pid(), own.wrapping_add(4_242)];
+    let of_this_process: StartMarker = StartMarker { starter_pid: own, starter_identity: identity.clone(), ..marker(own, StartMode::Replace) };
+    assert!(super::record_continues(&of_this_process, ancestors.as_slice()), "this process");
+    let of_a_relay: StartMarker = StartMarker { starter_pid: own.wrapping_add(4_242), starter_identity: identity.clone(), ..marker(0, StartMode::Replace) };
+    assert!(super::record_continues(&of_a_relay, ancestors.as_slice()), "a live process above, through its identity");
+    let of_a_sibling: StartMarker = StartMarker { starter_pid: 1, starter_identity: identity, ..marker(1, StartMode::Replace) };
+    assert!(!super::record_continues(&of_a_sibling, ancestors.as_slice()), "a process outside this chain");
+    // A read of the wrapper's own continues the chain from any process of it, as it does through a marker.
+    let read_above: StartMarker =
+        StartMarker { starter_pid: own.wrapping_add(4_242), starter_identity: String::from("linux:1"), ..marker(0, StartMode::Query) };
+    assert!(super::record_continues(&read_above, ancestors.as_slice()), "a read above is the wrapper leading back to itself");
+    let read_here: StartMarker = StartMarker { starter_pid: own, starter_identity: String::new(), ..marker(own, StartMode::Query) };
+    assert!(super::record_continues(&read_here, ancestors.as_slice()), "a read this process made, arriving again");
+}
+
+/// The number of this process's parent,
+/// for the controls above.
+fn parent_pid() -> u32 {
+    // SAFETY: `getppid` takes no argument, reads no memory of this process and cannot fail.
+    return u32::try_from(unsafe { libc::getppid() }).expect("a parent number");
+}

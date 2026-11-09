@@ -171,34 +171,11 @@ fn a_record_never_takes_the_descriptor_a_child_reads_as_standard_input() {
         std::mem::forget(record);
         return;
     }
-    let output: std::process::Output = child_this_test(
+    let output: std::process::Output = crate::test_support::child_this_test(
         DESCRIPTOR_CHILD_VARIABLE,
         "invocation::chain_starts_record::tests::a_record_never_takes_the_descriptor_a_child_reads_as_standard_input",
     );
     let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
     assert!(output.status.success(), "the record took the descriptor a child reads as its standard input:\n{said}");
     assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
-}
-
-/// What:
-///  This test binary started on one test,
-/// with `variable` set so the child knows it is the child.
-/// Why:
-///  A descriptor,
-///  a signal mask and a closed stream belong to one process,
-/// so each control of them runs its own body in a child and
-///  asserts what the parent sees.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
-/// ```
-fn child_this_test(variable: &str, name: &str) -> std::process::Output {
-    let binary: PathBuf = crate::test_support::this_test_binary().expect("the test binary");
-    return std::process::Command::new(binary)
-        .args(["--exact", name, "--nocapture", "--test-threads=1"])
-        .env(variable, "1")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
 }

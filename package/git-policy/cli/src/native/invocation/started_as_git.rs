@@ -259,18 +259,87 @@ fn record_marker() -> Option<StartMarker> {
 /// function continuesThisStart(marker) { const candidate = marker.starterPid === process.pid ? process.pid : (marker.starterPid === process.ppid ? process.ppid : undefined); return candidate !== undefined && identityAgrees(candidate, marker); }
 /// ```
 fn continues_this_start(marker: &StartMarker) -> bool {
-    let own: u32 = std::process::id();
-    let candidate: u32 = if marker.starter_pid == own {
-        own
-    } else if marker.starter_pid == parent_pid() {
-        parent_pid()
-    } else {
+    return record_continues(marker, chain_ancestors().as_slice());
+}
+
+/// What:
+///  How many processes above this one the chain record's start is looked for in.
+/// Why:
+///   A record names the start above this one,
+/// and a launcher can put processes between the two:
+/// a launcher shell,
+///  a relay shell it starts and one the relay starts.
+/// Four levels cover those shapes,
+/// and each costs one read of the kernel's
+///  process record,
+/// made only when a record exists.
+/// A record whose start is further above than that starts the count again,
+/// which is
+///  written down beside the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PROCESSES_ASKED_FOR_THE_RECORD = 4;
+/// ```
+const PROCESSES_ASKED_FOR_THE_RECORD: usize = 4;
+
+/// What:
+///  The processes a record may name:
+/// this one and the first few above it,
+/// nearest first.
+/// Why:
+///   A record of this process is the launcher that replaced itself with the wrapper;
+/// a record of a process above
+///  is the launcher that started this one and waits,
+/// however many relays it started between the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function chainAncestors() { const found = [process.pid]; let pid = process.ppid; for (let level = 0; level < N; level++) { found.push(pid); pid = parentOf(pid); } return found; }
+/// ```
+fn chain_ancestors() -> Vec<u32> {
+    // `mut` allows this process and its ancestors to be collected in order.
+    let mut found: Vec<u32> = vec![std::process::id()];
+    let mut pid: u32 = parent_pid();
+    for _level in 0..PROCESSES_ASKED_FOR_THE_RECORD {
+        if pid == 0 {
+            break;
+        }
+        found.push(pid);
+        let Some(parent) = parent_of(pid) else { break };
+        pid = parent;
+    }
+    return found;
+}
+
+/// What:
+///  Whether the record's start is this process,
+/// or one of the live processes named here above it.
+/// Why:
+///   The rule is the seam its controls need:
+/// a descriptor record names the start that wrote it,
+/// and only a
+///  process of this chain continues it,
+/// so a record of a command that has ended starts the count again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recordContinues(marker, processes) { return processes.includes(marker.starterPid) && identityAgrees(marker.starterPid, marker); }
+/// ```
+fn record_continues(marker: &StartMarker, processes: &[u32]) -> bool {
+    if !processes.contains(&marker.starter_pid) {
         return false;
-    };
+    }
+    // What: A read of the wrapper's own continues the chain from any process of it.
+    // Why:  A record of a query start says the start above began its Git to read the repository, with the output captured
+    //       and the input closed; a wrapper arriving anywhere under that start came from the file that Git is, which is
+    //       the wrapper leading back to itself, exactly as the marker path refuses it. Only accepting the reading process
+    //       left the branch a relay starts uncounted (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+    //       finding 2 of the round-3 review).
     if marker.starter_identity.is_empty() {
         return true;
     }
-    return match live_identity_of(candidate) {
+    return match live_identity_of(marker.starter_pid) {
         Some(found) => found == marker.starter_identity,
         None => true,
     };
@@ -581,19 +650,19 @@ pub fn refusal_when_started_as_git_among(
     ancestors: &[Vec<(OsString, OsString)>],
 ) -> Option<String> {
     let facts: ProcessFacts<'_> = ProcessFacts { own_pid: std::process::id(), parent_pid: parent_pid(), identity_of: &live_identity_of };
-    if let Some((marker, said_in)) = chain_marker_and_where(environment, ancestors) {
-        if !started_as_git(&marker, &facts) {
-            return None;
-        }
+    if let Some((marker, said_in)) = chain_marker_and_where(environment, ancestors)
+        && started_as_git(&marker, &facts)
+    {
         // The environment the marker was read from is the one that names the `git` that led back and the PATH that
         //  offered it; a chain's later levels have no marker of their own to read them from.
         return Some(refusal_text(&marker, own_executable, said_in));
     }
-    // What: With no marker anywhere, the marker the start above wrote into the chain record is the last trace left.
-    // Why:  A launcher that clears the environment and replaces itself with the wrapper leaves no second process and no
-    //       environment of its own, but the record keeps the marker of that start, so a wrapper that arrives in that
-    //       process is the launcher having started itself (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-    //       finding 1 of the round-2 review).
+    // What: The record is read whatever a marker above says, including one that matches nothing here.
+    // Why:  A launcher that clears the environment and replaces itself with the wrapper leaves the marker of that start
+    //       only in the record, while the environment above still holds the chain's older marker, which names the outer
+    //       start and matches nothing; returning there skipped the record and the wrapper replaced itself with the
+    //       launcher without end (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+    //       findings 1 and 2 of the round-3 review).
     let marker: StartMarker = record_marker()?;
     if !started_as_git(&marker, &facts) {
         return None;

@@ -29,6 +29,9 @@
 /// The shared fixtures,
 /// bounded runs and observation of what a run showed its caller.
 use super::support::{Fixture, Observed, REAL_GIT, bounded, copy_executable, executable, fixture, git, observe, remove, repository};
+/// The bound one chain of starts ends at,
+/// which the relay control reads its refusal against.
+use git_policy_cli::started_as_git::MOST_STARTS_IN_ONE_CHAIN;
 /// Operating-system text,
 /// for building the one `PATH` value of a run.
 use std::ffi::{OsStr, OsString};
@@ -527,6 +530,93 @@ fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
     assert_eq!(through.code, Some(0), "a finite chain of aliases is no recursion, whatever Git's exec path offers: {said}");
     assert_eq!(through.stdout, expected.stdout, "the answer is the one real Git gives: {said}");
     assert!(!said.contains("started as Git"), "{said}");
+    remove(&fixture);
+}
+
+
+/// What:
+///  Write a launcher named `git` that clears the environment and hands the invocation to two shells that only relay
+///  it,
+///  and a `relay` pair of scripts.
+/// Why:
+///  This is the shape a count of starts loses:
+/// the launcher replaces itself with `env`,
+/// which runs the first relay,
+///  which
+///  starts the second and waits,
+/// and the second starts the wrapper and waits,
+/// so two processes stand between the record the
+///  wrapper writes and the wrapper that reads it.
+/// Neither relay carries a marker,
+/// because the launcher cleared the environment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeExecutable(launcher, `#!/bin/sh\nexec env --ignore-environment HOME=... PATH=... /bin/sh '${relayParent}' "$@"`);
+/// writeExecutable(relayParent, `#!/bin/sh\n/bin/sh '${relayChild}' "$@"; echo relayed`);
+/// writeExecutable(relayChild, `#!/bin/sh\n'${wrapper}' "$@"; echo relayed`);
+/// ```
+fn relays_behind_a_launcher_that_clears_the_environment(scripts: &Path, path_variable: &OsStr, wrapper: &Path) {
+    let launcher: PathBuf = scripts.join("git");
+    let relay_parent: PathBuf = scripts.join("relay-parent");
+    let relay_child: PathBuf = scripts.join("relay-child");
+    // A read of the wrapper's own is answered by the real Git, so the forwarding below is the chain this control is about.
+    executable(
+        launcher.as_path(),
+        format!(
+            "#!/bin/sh\ncase \"${{CLI_GIT_STARTED_AS_GIT}}\" in\n*query*) exec {real_git} \"$@\" ;;\nesac\nexec /usr/bin/env --ignore-environment HOME=\"$HOME\" PATH='{path}' /bin/sh '{parent}' \"$@\"\n",
+            path = path_variable.to_string_lossy(),
+            parent = relay_parent.display(),
+            real_git = REAL_GIT
+        )
+        .as_bytes(),
+    );
+    executable(
+        relay_parent.as_path(),
+        format!("#!/bin/sh\n/bin/sh '{child}' \"$@\"\nstatus=$?\necho relayed >&2\nexit $status\n", child = relay_child.display()).as_bytes(),
+    );
+    executable(
+        relay_child.as_path(),
+        format!("#!/bin/sh\n'{wrapper}' \"$@\"\nstatus=$?\necho relayed >&2\nexit $status\n", wrapper = wrapper.display()).as_bytes(),
+    );
+}
+
+/// What:
+///  Two relays between the start that wrote the chain record and the wrapper that reads it still end the chain.
+/// Why:
+///  The rule that continued the record accepted only the reading process and the one that started it,
+/// so two relays
+///  reset the count to one at every generation,
+/// every wrapper wrote a first-start marker,
+/// and wrappers
+///  and relays accumulated until an outside limit stopped them
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-3
+///  review).
+/// A record of a live process above is one of this chain,
+/// however many relays it started between the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [bin, scripts] }).code).toBe(2); expect(deepestLevel(counter)).toBeLessThan(CHAIN_CAP);
+/// ```
+#[test]
+fn a_chain_of_relays_between_two_starts_still_ends() {
+    let fixture: Fixture = fixture("launcher-relays");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let scripts: PathBuf = directory(&fixture, "scripts");
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(scripts.as_os_str());
+    relays_behind_a_launcher_that_clears_the_environment(scripts.as_path(), path.as_os_str(), fixture.wrapper.as_path());
+    let observed: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        b"",
+    );
+    let text: String = words(&observed);
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, not a relay limit: {text}");
+    assert!(text.contains("started as Git"), "{text}");
+    assert!(text.contains(&format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1)), "it names the start that passed the bound: {text}");
     remove(&fixture);
 }
 

@@ -192,6 +192,23 @@ pub fn remember_marker(marker: &OsStr) {
 }
 
 /// What:
+///  Writes a marker into a record a control made,
+///  as the start above this one would have left it.
+/// Why:
+///  A record is inherited,
+/// so a control of what a start reads makes the record itself and hands the guard a process
+///  table that already holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMarkerForControls(fd, markerText) // what the wrapper does before it starts its Git
+/// ```
+#[cfg(test)]
+pub fn write_marker_for_controls(descriptor: i32, marker: &str) -> bool {
+    return write_part(descriptor, MARKER_OFFSET, MARKER_ROOM, OsStr::new(marker));
+}
+
+/// What:
 ///  Writes the file this start chose as Git into the chain record,
 /// beside the marker of this start.
 /// Why:
