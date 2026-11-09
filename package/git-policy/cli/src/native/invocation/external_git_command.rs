@@ -32,6 +32,8 @@
 use crate::diagnostic_log::debug;
 /// The environment overlay reader the wrapper uses for every variable it consults.
 use crate::child_environment::environment_value;
+/// The directory a `--exec-path=` global names, read from the caller's own options.
+use crate::global_arguments::exec_path_option;
 /// Running real Git,
 ///  for the exec path only Git knows.
 use crate::transaction_git::{GitContext, GitRequest, run_git};
@@ -144,22 +146,28 @@ fn search_directories(
         }
     }
     let exec_path: PathBuf = exec_path(context, environment, globals)?;
-    directories.push(exec_path);
+    // An empty answer adds no executables directory at all (`exec-cmd.c:325`), so the search keeps to `PATH`.
+    if !exec_path.as_os_str().is_empty() {
+        directories.push(exec_path);
+    }
     return Some(directories);
 }
 
 /// What:
 ///  The directory Git keeps its own commands in,
-///  read from the environment or from Git itself,
-///  or nothing
-///       when neither answers with a path this reading can use.
+///  read from the caller's `--exec-path` option,
+///  then from a nonempty `GIT_EXEC_PATH`,
+///  then from Git itself,
+///  or nothing when Git cannot be asked.
 /// Why:
-///  `git_exec_path` takes a nonempty `GIT_EXEC_PATH` and otherwise the path Git was built with
-///  (`exec-cmd.c:313` to `:323`),
-///  which only Git can name,
+///  `--exec-path=<dir>` sets the exec path
+///  (`git.c:178` to `git.c:181`),
+///  and `git_exec_path` answers with that setting before it reads the environment
+///  (`exec-cmd.c:313` to `exec-cmd.c:323`);
+///  only when neither is set does Git answer with the path it was built with,
+///  which only it can name,
 ///  so the answer comes from `git --exec-path` with the
-///  caller's globals,
-///  as `--exec-path` is read before the exec path is used (`git.c:181`).
+///  caller's globals.
 ///  A relative answer
 ///  is made absolute against the directory Git starts in,
 ///  which the caller's `-C` chain moves;
@@ -176,11 +184,38 @@ fn exec_path(
     environment: &[(OsString, OsString)],
     globals: &[OsString],
 ) -> Option<PathBuf> {
-    let value: OsString = match environment_value(environment, "GIT_EXEC_PATH") {
-        Some(configured) if !configured.is_empty() => configured,
-        Some(_) | None => printed_exec_path(context, globals)?,
-    };
-    let path: PathBuf = PathBuf::from(value);
+    if let Some(configured) = exec_path_option(globals) {
+        return usable_exec_path(configured);
+    }
+    // A caller that exported `GIT_EXEC_PATH` as an empty string names no setting, so Git answers with its own path.
+    if let Some(configured) = environment_value(environment, "GIT_EXEC_PATH")
+        && !configured.is_empty()
+    {
+        return usable_exec_path(configured);
+    }
+    return usable_exec_path(printed_exec_path(context, globals)?);
+}
+
+/// What:
+///  A configured exec path as a directory this reading can search,
+///  or nothing when it is relative.
+/// Why:
+///  An empty setting adds no executables directory at all
+///  (`exec-cmd.c:325`),
+///  and a relative one is relative to the directory Git runs in,
+///  which this reading does not know yet,
+///  so it stays
+///  uncertain instead of being guessed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const usableExecPath = (configured: string) => configured === '' ? '' : isAbsolute(configured) ? configured : undefined;
+/// ```
+fn usable_exec_path(configured: OsString) -> Option<PathBuf> {
+    let path: PathBuf = PathBuf::from(configured);
+    if path.as_os_str().is_empty() {
+        return Some(path);
+    }
     if !path.is_absolute() {
         return None;
     }

@@ -10,9 +10,10 @@
 //! The audit that found the divergences:
 //!  `doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md`.
 
-use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, bounded, direct, executable, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// The tracked file content a person has not committed.
 const USER_DATA: &[u8] = b"USER DATA\n";
@@ -33,6 +34,27 @@ fn repository_with_unstaged_work(fixture: &Fixture, name: &str) -> PathBuf {
 /// as it is on disk.
 fn tracked(repo: &Path) -> Vec<u8> {
     return std::fs::read(repo.join("tracked.txt")).expect("tracked file");
+}
+
+/// What:
+///  A command for the wrapper started by its own path,
+///  with real Git's directory first on `PATH`.
+/// Why:
+///  A plain alias is run as a child `git` that Git finds on `PATH` (`git.c:885`),
+///  so with the wrapper's own link first there that child is the wrapper,
+///  whose guard refuses the expansion before the reading under test is reached;
+///  a control must start a `git` that is real Git to see what Git does with the alias.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // spawn(fixture.wrapper, args, { env: { PATH: '/usr/bin:/bin', ... } })
+/// ```
+fn wrapper_program(fixture: &Fixture) -> Command {
+    return bounded(
+        fixture,
+        fixture.root.join("wrapper/monochromatic-git-policy-cli").as_path(),
+        OsStr::new("/usr/bin:/bin"),
+    );
 }
 
 /// What an alias that changes the directory must not do:
@@ -215,6 +237,72 @@ fn a_shell_alias_reads_the_aliases_the_caller_configured() {
 }
 
 /// What:
+///  The caller's `--exec-path` decides where Git looks for an installed command,
+///  over a `GIT_EXEC_PATH` the environment also names.
+/// Why:
+///   `--exec-path=<dir>` sets the exec path
+///  (`git.c:178` to `git.c:181`),
+///  and `git_exec_path` answers with that setting before it reads the environment
+///  (`exec-cmd.c:313` to `exec-cmd.c:323`);
+///  a reading that read `GIT_EXEC_PATH` first finds a program Git never runs and leaves the alias
+///       unguarded.
+///  The control starts the wrapper by its own path so that the `git` Git would run for the alias is real Git:
+///  the wrapper's link first on `PATH` makes that child the wrapper,
+///  whose guard refuses the expansion either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // git-wipe only in old-exec, GIT_EXEC_PATH=old-exec, --exec-path=<empty new-exec>
+/// // real Git: alias's reset runs; the wrapper: refused
+/// ```
+#[test]
+fn the_exec_path_option_decides_the_search_over_the_environment() {
+    let fixture: Fixture = fixture("alias-expansion-exec-path-option");
+    let control: PathBuf = repository_with_unstaged_work(&fixture, "control");
+    let refused: PathBuf = repository_with_unstaged_work(&fixture, "refused");
+    let old_exec: PathBuf = fixture.root.join("old-exec");
+    let new_exec: PathBuf = fixture.root.join("new-exec");
+    std::fs::create_dir(old_exec.as_path()).expect("old exec directory");
+    std::fs::create_dir(new_exec.as_path()).expect("new exec directory");
+    executable(
+        old_exec.join("git-wipe").as_path(),
+        b"#!/bin/sh\necho 'EXTERNAL: no mutation'\n",
+    );
+    let option: OsString = OsString::from(format!("--exec-path={}", new_exec.display()));
+    let arguments: Vec<OsString> = vec![
+        option,
+        OsString::from("-c"),
+        OsString::from("alias.wipe=reset --hard"),
+        OsString::from("wipe"),
+    ];
+    // The positive control: Git searches the empty directory the option names and the alias discards the work.
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(control.as_path())
+            .args(arguments.as_slice())
+            .env("GIT_EXEC_PATH", old_exec.as_os_str()),
+        b"",
+    );
+    let direct_stdout: String = String::from_utf8_lossy(&direct_run.stdout).into_owned();
+    assert!(
+        !direct_stdout.contains("EXTERNAL"),
+        "the positive control ran the program instead of the alias: {direct_stdout}"
+    );
+    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let observed: Observed = observe(
+        wrapper_program(&fixture)
+            .current_dir(refused.as_path())
+            .args(arguments.as_slice())
+            .env("GIT_EXEC_PATH", old_exec.as_os_str()),
+        b"",
+    );
+    let stdout: String = String::from_utf8_lossy(&observed.stdout).into_owned();
+    assert!(!stdout.contains("EXTERNAL"), "the wrapper ran a program Git does not run: {stdout}");
+    assert_ne!(observed.code, Some(0), "the wrapper ran the alias's reset: {}", stderr_of(&observed));
+    assert_eq!(tracked(refused.as_path()), USER_DATA, "the alias discarded the work");
+    remove(&fixture);
+}
+
 /// What:
 ///  The same refusal from a clean linked worktree,
 ///  where the guard of uncommitted work has nothing to reject and the copy of a

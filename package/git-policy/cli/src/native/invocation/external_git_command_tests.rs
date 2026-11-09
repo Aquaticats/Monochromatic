@@ -22,6 +22,11 @@ fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
     return environment;
 }
 
+/// Global options as the wrapper receives them.
+fn globals(words: &[&str]) -> Vec<OsString> {
+    return words.iter().map(OsString::from).collect();
+}
+
 /// The context a search runs in:
 ///  real Git,
 ///  and no configuration of its own.
@@ -53,6 +58,22 @@ fn program(path: &Path) -> PathBuf {
 /// gitOutput(directory, ['word']).stdout.includes('ran')
 /// ```
 fn git_runs_external(directory: &Path, pairs: &[(&str, &str)], word: &str) -> bool {
+    return git_runs_external_with_globals(directory, pairs, &[], word);
+}
+
+/// What:
+///  Whether real Git runs `git-<word>` for this environment and these global options,
+///  read from whether the printed marker appears.
+/// Why:
+///  A global such as `--exec-path=` decides the search as much as the environment does,
+///  so a control of that reading compares
+///  the same invocation Git receives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitOutput(directory, [...globals, word]).stdout.includes('ran')
+/// ```
+fn git_runs_external_with_globals(directory: &Path, pairs: &[(&str, &str)], globals: &[&str], word: &str) -> bool {
     let mut command: std::process::Command = std::process::Command::new(crate::test_support::REAL_GIT);
     command
         .current_dir(directory)
@@ -63,7 +84,11 @@ fn git_runs_external(directory: &Path, pairs: &[(&str, &str)], word: &str) -> bo
     for (name, value) in pairs {
         command.env(name, value);
     }
-    let output: std::process::Output = command.arg(word).output().expect("native Git fixture command");
+    let output: std::process::Output = command
+        .args(globals)
+        .arg(word)
+        .output()
+        .expect("native Git fixture command");
     return String::from_utf8_lossy(&output.stdout).contains("ran");
 }
 
@@ -85,6 +110,47 @@ fn a_program_on_the_path_is_the_command_git_runs() {
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
     assert!(answer, "the program on PATH was not found");
+    remove(root.as_path());
+}
+
+/// What:
+///  The caller's `--exec-path` decides the search,
+///  over a `GIT_EXEC_PATH` the environment also names.
+/// Why:
+///  `--exec-path=<dir>` sets Git's exec path
+///  (`git.c:178` to `git.c:181`),
+///  and `git_exec_path` answers with that setting before it reads the environment
+///  (`exec-cmd.c:313` to `exec-cmd.c:323`),
+///  so a reading that read the environment first would find a program Git never runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// dashedExternalSelected({ environment: { GIT_EXEC_PATH: old }, globals: [`--exec-path=${new}`], word: 'audit-external' })
+/// ```
+#[test]
+fn the_exec_path_option_decides_the_search_over_the_environment() {
+    let root: PathBuf = scratch("external-exec-path-option");
+    let old_exec: PathBuf = root.join("old-exec");
+    let new_exec: PathBuf = root.join("new-exec");
+    std::fs::create_dir(&old_exec).expect("old exec directory");
+    std::fs::create_dir(&new_exec).expect("new exec directory");
+    program(old_exec.join("git-audit-external").as_path());
+    let old_text: String = old_exec.display().to_string();
+    let new_text: String = new_exec.display().to_string();
+    let pairs: Vec<(&str, &str)> = vec![("GIT_EXEC_PATH", old_text.as_str()), ("PATH", "/usr/bin:/bin")];
+    let option: String = format!("--exec-path={new_text}");
+    let given: [&str; 1] = [option.as_str()];
+    let answer: bool = dashed_external_selected(
+        &context(),
+        environment(pairs.as_slice()).as_slice(),
+        globals(given.as_slice()).as_slice(),
+        OsStr::new("audit-external"),
+    );
+    assert_eq!(
+        answer,
+        git_runs_external_with_globals(root.as_path(), pairs.as_slice(), given.as_slice(), "audit-external")
+    );
+    assert!(!answer, "a program only the environment's exec path names was taken as the command");
     remove(root.as_path());
 }
 
