@@ -88,14 +88,20 @@ fn prepared_fixture(root: &Path) -> Fixture {
 /// the capture and the shadow of a repository,
 /// taken after everything the invocation would have read is in place.
 fn preparation_fixture(root: &Path, repo: PathBuf) -> Fixture {
-    let context = git_context();
+    let context: GitContext = git_context();
+    return preparation_fixture_with(&context, root, repo);
+}
+
+/// `preparation_fixture` in the configuration layers `context` names,
+/// so a control captures and prepares under the same global configuration real Git read.
+fn preparation_fixture_with(context: &GitContext, root: &Path, repo: PathBuf) -> Fixture {
     // The base is whatever the repository's branch holds now, which is the state the invocation saw.
     let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let layout = capture_invocation_layout(context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(context, repo.as_path(), layout).expect("capture");
     let transaction: PathBuf = root.join(format!("transaction-{TRANSACTION}"));
     std::fs::create_dir_all(&transaction).expect("transaction");
-    let shadow: PathBuf = create_shadow_repository(&context, repo.as_path(), &capture, TRANSACTION, transaction.as_path())
+    let shadow: PathBuf = create_shadow_repository(context, repo.as_path(), &capture, TRANSACTION, transaction.as_path())
         .expect("shadow");
     let indexes: CaptureIndexes = CaptureIndexes {
         captured_index: transaction.join("captured.index"),
@@ -112,10 +118,10 @@ fn preparation_fixture(root: &Path, repo: PathBuf) -> Fixture {
         stage_tracked_changes: false,
         base_revision: base.as_str(),
     };
-    initialize_commit_index(&context, repo.as_path(), capture.layout.real_index_path.as_path(), &indexes, &selection)
+    initialize_commit_index(context, repo.as_path(), capture.layout.real_index_path.as_path(), &indexes, &selection)
         .expect("private index");
     let intended_tree: String = write_private_tree(
-        &context,
+        context,
         repo.as_path(),
         indexes.commit_index.as_path(),
         indexes.object_directory.as_path(),
@@ -132,6 +138,12 @@ fn preparation_fixture(root: &Path, repo: PathBuf) -> Fixture {
 
 /// Runs the preparation of a fixture.
 fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
+    let context: GitContext = git_context();
+    return prepare_with(&context, fixture, commit_args);
+}
+
+/// `prepare` with the configuration layers `context` names.
+fn prepare_with(context: &GitContext, fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
     let commit_arguments: Vec<String> = commit_args.iter().map(|arg| { return String::from(*arg); }).collect();
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
@@ -141,11 +153,38 @@ fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, Pr
         commit_args: commit_arguments.as_slice(),
         object_directory: None,
     };
-    let code: i32 = run_native_commit(&git_context(), fixture.repo.as_path(), &request)?;
+    let code: i32 = run_native_commit(context, fixture.repo.as_path(), &request)?;
     if code != 0 {
         return Err(PreparationError::Git(GitFailure(format!("git commit exited {code}"))));
     }
-    return read_prepared_commit(&git_context(), fixture.shadow.as_path()).map_err(PreparationError::Git);
+    return read_prepared_commit(context, fixture.shadow.as_path()).map_err(PreparationError::Git);
+}
+
+/// The context of `git_context` with `GIT_CONFIG_GLOBAL` naming a file holding `text`,
+/// so the capture and the native commit read the same global layer real Git reads.
+fn context_with_global(root: &Path, text: &str) -> GitContext {
+    let global: PathBuf = root.join("global.config");
+    std::fs::write(global.as_path(), text).expect("global configuration");
+    let mut context: GitContext = git_context();
+    context.overlay.retain(|(name, _)| { return name != "GIT_CONFIG_GLOBAL"; });
+    context.overlay.push((std::ffi::OsString::from("GIT_CONFIG_GLOBAL"), global.into_os_string()));
+    return context;
+}
+
+/// Run real Git with the layers a context names,
+/// so a control sees the configuration the person's Git saw.
+fn git_in_layers(context: &GitContext, directory: &Path, arguments: &[&str]) -> std::process::Output {
+    let mut command = std::process::Command::new(REAL_GIT);
+    command.current_dir(directory).env_clear().env("PATH", "/usr/bin:/bin");
+    for (name, value) in context.overlay.iter() {
+        command.env(name, value);
+    }
+    return command.args(arguments).output().expect("native Git control");
+}
+
+/// How many times the stand-in signer of a fixture ran.
+fn signer_calls(calls: &Path) -> usize {
+    return std::fs::read_to_string(calls).map_or(0, |text| { return text.lines().count(); });
 }
 
 /// Preparation leaves the real refs,
@@ -444,6 +483,44 @@ fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     assert!(crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid")).is_empty(), "a process was left below the command");
     assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
     assert_eq!(std::fs::read(fixture.repo.join(".git").join("index")).expect("index"), index_before);
+    remove(root.as_path());
+}
+
+/// The repository's own `gpg.openpgp.program` beats a global legacy `gpg.program`,
+/// because both name the OpenPGP program and the repository's entry comes later,
+/// so the shadow's native commit must sign with the repository's program and never start the global one.
+#[test]
+fn the_repository_openpgp_program_beats_the_legacy_global_program() {
+    let root: PathBuf = fixture("commit-preparation-legacy-gpg-program");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let calls: PathBuf = root.join("signer-calls");
+    let signer: PathBuf = root.join("stand-in-gpg");
+    let script: String = format!(
+        "#!/bin/sh\ncat > /dev/null\necho call >> '{}'\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nstand-in\\n-----END PGP SIGNATURE-----\\n'\n",
+        calls.display()
+    );
+    crate::test_support::executable(signer.as_path(), script.as_bytes());
+    let context: GitContext = context_with_global(root.as_path(), "[gpg]\n\tprogram = /does-not-exist/cli-git-fixture\n");
+    for (setting, value) in [
+        ("gpg.openpgp.program", signer.to_str().expect("UTF-8")),
+        ("commit.gpgsign", "true"),
+        ("user.signingkey", "fixture"),
+    ] {
+        git(repo.as_path(), &["config", setting, value]);
+    }
+    // The positive control: real Git signs this repository's commit with its own program, and starts the global one never.
+    let control: std::process::Output = git_in_layers(&context, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
+    assert!(
+        git_text(repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "),
+        "the repository's program must sign the control, or this control proves nothing"
+    );
+    let after_control: usize = signer_calls(calls.as_path());
+    assert_eq!(after_control, 1, "real Git ran the repository's program once");
+    let fixture: Fixture = preparation_fixture_with(&context, root.as_path(), repo);
+    let prepared: PreparedCommit = prepare_with(&context, &fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
+    assert!(prepared.signed, "the repository's program must sign in the shadow too");
+    assert_eq!(signer_calls(calls.as_path()), after_control + 1, "the shadow ran the repository's program, not the global one");
     remove(root.as_path());
 }
 

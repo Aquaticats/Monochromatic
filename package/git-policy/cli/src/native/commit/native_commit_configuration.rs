@@ -38,12 +38,15 @@ use crate::path_bytes::os_from_path_bytes;
 ///  its format and programs,
 ///  and the message-shaping keys.
 ///  `trailer.*` keys are of this kind too and are matched by prefix.
+///  `gpg.program` is the legacy name of `gpg.openpgp.program`,
+///  so both are carried: the listing keeps the order Git resolved them in,
+///  and the later entry is the program Git signs with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const NATIVE_COMMIT_KEYS = ['commit.gpgsign', 'gpg.format', ...];
 /// ```
-const NATIVE_COMMIT_KEYS: [&str; 14] = [
+const NATIVE_COMMIT_KEYS: [&str; 15] = [
     "commit.gpgsign",
     "commit.signoff",
     "commit.template",
@@ -51,6 +54,7 @@ const NATIVE_COMMIT_KEYS: [&str; 14] = [
     "commit.verbose",
     "gpg.format",
     "gpg.program",
+    "gpg.openpgp.program",
     "gpg.ssh.program",
     "gpg.ssh.defaultkeycommand",
     "gpg.ssh.allowedsignersfile",

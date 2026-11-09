@@ -27,7 +27,7 @@ fn snapshot(records: &[(&str, &str, Option<&str>)]) -> ConfigSnapshot {
 /// and nothing else.
 #[test]
 fn the_keys_are_the_signing_and_message_keys_and_trailers() {
-    for key in ["commit.gpgsign", "user.signingkey", "gpg.format", "commit.template", "core.commentchar", "trailer.reviewed-by.value"] {
+    for key in ["commit.gpgsign", "user.signingkey", "gpg.format", "gpg.openpgp.program", "commit.template", "core.commentchar", "trailer.reviewed-by.value"] {
         assert!(is_native_commit_key(key), "{key}");
     }
     for key in ["core.filemode", "user.name", "commit.gpgsign2", "gpg.ssh.allowedsignersfile.bak"] {
