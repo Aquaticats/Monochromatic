@@ -24,6 +24,8 @@ use super::model_decode_support::{DecodeResult, as_nonempty_text, as_object, as_
 use super::observe::declared_package_name;
 /// Imports the checks that a name is one plain directory name.
 use super::segment::{check_bin_name, check_directory_name, check_tool_id, check_version};
+/// Imports the platform ids an artifact row may be keyed by.
+use super::update_resolve::LINUX_PLATFORMS;
 
 /// Imports the model types the decoders build.
 use super::model::{
@@ -293,6 +295,10 @@ fn decode_artifacts(value: &Value, path: &str) -> DecodeResult<Vec<(String, Arti
     let mut rows: Vec<(String, Artifact)> = Vec::new();
     for (platform, row) in map {
         let row_path: String = format!("{path}.{platform}");
+        // A row keyed by anything else can never match the running machine, so it is refused here, naming the row.
+        if !LINUX_PLATFORMS.contains(&platform.as_str()) {
+            return Err(format!("{row_path}: {platform:?} is not a platform id; the known ids are {}", LINUX_PLATFORMS.join(", ")));
+        }
         let row_map = as_object(row, &row_path)?;
         reject_unknown_keys(row_map, &["url", "sha256"], &row_path)?;
         let Some(url) = row_map.get("url") else {
