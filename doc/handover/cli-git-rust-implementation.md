@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:15:07-05:00)
+#### Reviews and landings in progress (2026-11-09T04:16:51-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -243,7 +243,18 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a launcher that clears its environment and so defeats both recursion guards.
   Run 2 of its agent reports all four fixed,
   677 of 677 selected tests pass on top of main,
-  and the review `entry-and-service-round-2` is running.
+  and the review (`${HOME}/temp/agent/reviews/entry-and-service-round-2-sol.txt`) names a launcher that clears the environment and still starts the wrapper without end,
+  a digest that certifies unit files the manager never loaded so a commit keeps ending on `OtherRelease`,
+  a signal turned into a normal exit on the plain child route,
+  and a new test that can wait forever.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `entry-and-service-findings-fixed` as run 3,
+  with `entry-and-service-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  The review's fifth finding,
+  the bound of 32 on a finite alias chain,
+  stays as it is.
   A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
   because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
