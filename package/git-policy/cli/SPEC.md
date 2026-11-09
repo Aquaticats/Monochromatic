@@ -1420,6 +1420,32 @@ runs a second pass that must find nothing to
 copy;
 `Synced` only records that this once held,
 so every resume before the swap copies and proves again.
+Each of those passes says what it could not carry into the stage,
+in the words the migration uses for its
+own passes (`subvolume_pass_report.rs`):
+every socket or device node it did not recreate,
+the owner,
+the
+permission bits,
+the times and the extended attributes the kernel refused,
+the destination entries it kept,
+and any
+file that changed while it was copied and was copied again.
+A pass that could not carry an entry refuses before the swap:
+a file this user cannot read,
+and a
+Unix socket or a device node,
+which the copy never recreates,
+each end the run with the entries named and
+"nothing was swapped".
+That is the state `--abandon` can still undo,
+and a person finishes by stopping
+whatever holds the socket,
+deleting it and running the command again;
+a socket that reaches the old tree after the swap is
+named with the file to delete rather than a version to choose,
+so no worktree is left in a state no
+command can finish.
 It exchanges the two directories (`RENAME_EXCHANGE`),
 checks that the path is a subvolume root,
 is the subvolume whose identity
@@ -1449,10 +1475,50 @@ Before it removes the old tree it reads the process table again for anything hol
 with the installed one without changing either:
 every entry of the old tree must be in the installed tree in the same kind,
 with
-the same size and modification time for a file and the same target for a link,
+the same size and modification time for a file,
+the same target for a link,
+and the same permission bits,
+owner,
+group and carried
+extended attributes (user attributes and POSIX ACLs) for every entry,
 and none may be on another device (a nested
 subvolume or a mount point,
 which is not deleted).
+The old tree's own top directory is compared like any entry,
+and so is a named pipe or a socket,
+whose kind decides only that nothing else about it is compared.
+The last four are compared because a change of one of them leaves the size and the
+modification time alone,
+so nothing else in this comparison can see it,
+and the tree that holds it is the one deleted.
+The permission bits,
+owner and group cost nothing over the walk:
+both sides' metadata is already read.
+The carried extended attributes cost two attribute listings per entry,
+measured on a 24,345-entry tree extracted from this repository's `HEAD` into a disposable
+directory:
+12.60 µs per entry for the walk as it was,
+12.70 with the permission bits,
+owner and group,
+and 38.02 with the attributes as well,
+which is 0.62 s more on that tree,
+paid once per conversion.
+A regular file whose size and modification time agree is also compared by contents when its change time
+is at or after the instant the proving pass finished,
+which the journal records:
+an edit can keep the length and put the modification time back,
+and the change time cannot be put back by an ordinary user.
+A journal written by an earlier release records no such instant,
+and then every regular file's contents are compared.
+Only the files the change time flags are read,
+so a conversion nothing was changed in reads no contents at all.
+The measurement behind that choice,
+on this repository's largest worktree (28,569,216,018 bytes in 115,067 files,
+144,633 entries,
+2026-11-09 under the host's build load):
+reading one side's contents took 125.7 s for 2.0 GiB at 5.46 ms a file,
+so reading both sides of that whole tree would take about 56 minutes,
+while the walk that reads no contents took 43.0 s.
 It copies nothing from the old tree to the installed one;
 a holder or a difference keeps the old tree,
 the journal stays,
@@ -1502,6 +1568,33 @@ a worktree moved while a conversion is unfinished is refused with both paths.
 A journal,
 a registration file or a `.git` that is a named pipe or any other file that is not plain ends the run with a reason
 instead of blocking while the lock is held.
+The same holds for every record either command reads:
+the migration reads its journal,
+its list of unreadable files,
+an index,
+the repository's configuration and every registration's `gitdir` through the one plain-file
+reader (`foundation/plain_file.rs`),
+which opens without waiting and without following a link and takes the type from the open
+handle,
+so a named pipe at any of them ends that run with the file named instead of waiting for a writer
+that never comes while the claim of the checkout is held.
+The same reader is what finds the main checkout before the claim is taken:
+a `.git` file and an administrative directory's `commondir` are read through it,
+so a named pipe at either ends discovery with a reason instead of waiting.
+An index is read up to a gigabyte,
+the largest index this repository held at 3,097,973 bytes (measured 2026-11-09) and the bound the
+merge pass uses;
+the record files the migration reads (its journal,
+a registration's `gitdir` and the repository's configuration) are read up to a mebibyte,
+and a longer one is refused with its path named
+rather than read whole;
+its list of unreadable files is read line by line from a handle opened the same way,
+so a list longer than any fixed bound is still read and the writer and the reader agree on what
+it can hold,
+because the paths the run keeps are what the read holds.
+The conversion reads a worktree's `.git` file and a registration's `gitdir` up to
+`GIT_FILE_LIMIT` (64 KiB),
+as it did before this work.
 A dry run reconciles an exchange the journal has not recorded in memory,
 as a real run does,
 and writes nothing.
@@ -1525,6 +1618,27 @@ the plain files beside the journal under the writer's own names (that fixed name
 which is safe because the numbered claim file `.cli-git-migrate-<name>.owner.<generation>` leaves one writer per checkout;
 a link,
 a directory or any other name stays.
+The conversion's journal also records when its proving pass finished,
+in milliseconds after the epoch,
+so the removal can tell a file changed after the proof from one the copy already carried;
+a journal written by an earlier release has no such field.
+A rollback deletes the new subvolume only while the name holds a subvolume root,
+which is what the migration created there:
+a directory that replaced it is refused with both paths and nothing is deleted,
+because the removal's fallback would otherwise delete it and whatever it holds.
+One window stays open and is written here rather than closed:
+the journal records no identity for the stage,
+so another process that creates a subvolume at that name in the moment between the check and the
+destruction has that subvolume destroyed;
+a person sees the rollback finish and the directory they made gone,
+and nothing names it,
+because the name is one only this command may hold while it runs.
+The migration's list of files this user may not read is published the same way:
+staged in a sibling created exclusively and mode owner-only,
+synchronized,
+renamed over the list and the directory synchronized,
+so a kill leaves either the earlier list or the complete new one,
+never an empty record that the next run would read as nothing recorded.
 
 Migrating the main checkout (`git monochromatic-git-policy-cli migrate-to-subvolume`) is owned the same way,
 in every mode (migrate,
@@ -1537,6 +1651,15 @@ exit status 1,
 the owner's process id and the file named,
 and nothing changed;
 a preview takes no claim.
+A preview runs the refusals of the mode it previews and prints them in the same words the real run
+uses (`refusals_of_the_mode` in `subvolume_rollback.rs`),
+exiting with status 1 when any stands;
+only a mode whose refusals are all clear says what it would do.
+So `--dry-run --remove-old` on a checkout with no finished migration refuses with the lines the
+real run gives instead of promising a deletion the real run refuses.
+The one refusal a preview cannot reach is the one a later read of the old tree adds while the
+carry-back copies it,
+because finding it writes files.
 Before this release
 the migration had no such guard:
 a second run resumed the first one's journal with the first one's token.
