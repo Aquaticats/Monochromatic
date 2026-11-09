@@ -287,7 +287,6 @@ struct SecondPassParts {
     unreadable: Vec<String>,
 }
 
-
 /// What:
 ///  Re-merge the conflicts this command created and write the files whose every part resolves,
 /// awaiting every Git start the pass makes.
