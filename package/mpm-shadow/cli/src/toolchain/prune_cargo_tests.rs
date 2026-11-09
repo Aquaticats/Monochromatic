@@ -171,7 +171,7 @@ fn an_explicit_lock_file_that_does_not_exist_refuses_the_prune_and_deletes_nothi
     finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
     fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
     let missing: PathBuf = rig._directory.path().join("clone").join("toolchain.lock.json");
-    let error = prune_toolchain(&rig.scope, &rig.runner, &[missing.clone()], false).expect_err("the named lock does not exist");
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&missing), false).expect_err("the named lock does not exist");
     assert!(error.message.contains(&missing.display().to_string()), "the message names the path: {error}");
     assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
 }

@@ -3,6 +3,8 @@
 //! (no previous lock row exists in any of these tests),
 //! against a table-driven fake network.
 
+use serde_json::Value;
+
 use super::fakes::{FakeHttp, Rig};
 use super::hash::sha256_hex;
 use super::model::{Artifact, Declaration, Request};
@@ -567,11 +569,11 @@ fn a_non_sha256_asset_digest_falls_back_to_hashing_the_download() {
     let rig = Rig::new();
     let url = "https://github.com/o/r/releases/download/v1/tool.tar.gz";
     rig.http.serve(url, b"the bytes");
-    let other = serde_json::json!({"name": "tool.tar.gz", "browser_download_url": url, "digest": "sha384:abcd"});
+    let other: Value = serde_json::from_str("{\"name\": \"tool.tar.gz\", \"digest\": \"sha384:abcd\"}").expect("a value");
     assert_eq!(asset_digest(&rig.context(), &other, url).expect("hashed"), sha256_hex(b"the bytes"));
-    let none = serde_json::json!({"name": "tool.tar.gz", "digest": ""});
+    let none: Value = serde_json::from_str("{\"name\": \"tool.tar.gz\", \"digest\": \"\"}").expect("a value");
     assert_eq!(asset_digest(&rig.context(), &none, url).expect("hashed"), sha256_hex(b"the bytes"));
-    let recorded = serde_json::json!({"name": "tool.tar.gz", "digest": "sha256:abc"});
+    let recorded: Value = serde_json::from_str("{\"name\": \"tool.tar.gz\", \"digest\": \"sha256:abc\"}").expect("a value");
     assert_eq!(asset_digest(&rig.context(), &recorded, url).expect("recorded"), "abc");
 }
 
