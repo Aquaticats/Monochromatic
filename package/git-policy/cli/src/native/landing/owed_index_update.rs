@@ -131,9 +131,10 @@ fn encode(owed: &Owed) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(OWED_VERSION));
     fields.insert(String::from("seq"), Value::from(owed.seq));
-    fields.insert(String::from("repository"), Value::from(owed.repository.display().to_string()));
-    fields.insert(String::from("gitDir"), Value::from(owed.git_dir.display().to_string()));
-    fields.insert(String::from("index"), Value::from(owed.index.display().to_string()));
+    // A path need not be text, so every path field holds the bytes beside the text the older records carry.
+    crate::path_bytes_in_records::write_field(&mut fields, "repository", owed.repository.as_path());
+    crate::path_bytes_in_records::write_field(&mut fields, "gitDir", owed.git_dir.as_path());
+    crate::path_bytes_in_records::write_field(&mut fields, "index", owed.index.as_path());
     fields.insert(String::from("ref"), Value::from(owed.reference.clone()));
     fields.insert(String::from("old"), Value::from(owed.old.clone()));
     fields.insert(String::from("new"), Value::from(owed.new.clone()));
@@ -163,9 +164,9 @@ fn decode(text: &str) -> Result<Owed, String> {
     let Some(new) = field_text(&value, "new") else {
         return Err(String::from("the record names no landed commit"));
     };
-    let Some(index) = field_text(&value, "index") else {
-        return Err(String::from("the record names no index file"));
-    };
+    let index: PathBuf = crate::path_bytes_in_records::read_field(&value, "index")?;
+    let repository: PathBuf = crate::path_bytes_in_records::read_field(&value, "repository")?;
+    let git_dir: PathBuf = crate::path_bytes_in_records::read_field(&value, "gitDir")?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for entry in value.get("pathsHex").and_then(Value::as_array).into_iter().flatten() {
         let Some(digits) = entry.as_str() else {
@@ -178,9 +179,9 @@ fn decode(text: &str) -> Result<Owed, String> {
     }
     return Ok(Owed {
         seq,
-        repository: PathBuf::from(field_text(&value, "repository").unwrap_or_default()),
-        git_dir: PathBuf::from(field_text(&value, "gitDir").unwrap_or_default()),
-        index: PathBuf::from(index),
+        repository,
+        git_dir,
+        index,
         reference: field_text(&value, "ref").unwrap_or_default(),
         old: field_text(&value, "old").unwrap_or_default(),
         new,
@@ -293,9 +294,28 @@ pub fn remove(git_dir: &Path, seq: u64) {
 /// recordsOf(gitDir)
 /// ```
 pub fn records_of(git_dir: &Path) -> Vec<Owed> {
+    return records_and_unreadable(git_dir).0;
+}
+
+/// What:
+///  The owed records of one worktree,
+/// and how many records are there that cannot be read.
+/// Why:
+///   A record that exists and cannot be read is still an obligation:
+/// a caller that took its absence from the
+///  list for "nothing is owed" would leave the entries it names unprotected.
+/// The count is how the caller says it could
+///  not tell instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordsAndUnreadable(gitDir) // [records, unreadable]
+/// ```
+pub fn records_and_unreadable(git_dir: &Path) -> (Vec<Owed>, usize) {
     let Ok(listing) = std::fs::read_dir(directory_of(git_dir)) else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
+    let mut unreadable: usize = 0;
     let mut found: Vec<Owed> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
@@ -310,12 +330,18 @@ pub fn records_of(git_dir: &Path) -> Vec<Owed> {
         }
         match std::fs::read_to_string(path.as_path()).map(decode_text) {
             Ok(Ok(owed)) => found.push(owed),
-            Ok(Err(reason)) => crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display()),
-            Err(error) => crate::service_error!("the record of an owed index update at {} cannot be read ({error}) and is kept", path.display()),
+            Ok(Err(reason)) => {
+                crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display());
+                unreadable += 1;
+            }
+            Err(error) => {
+                crate::service_error!("the record of an owed index update at {} cannot be read ({error}) and is kept", path.display());
+                unreadable += 1;
+            }
         }
     }
     found.sort_by_key(batch_number_of);
-    return found;
+    return (found, unreadable);
 }
 
 /// What:

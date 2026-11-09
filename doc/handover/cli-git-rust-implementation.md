@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Queue after the discarding-commands landing (2026-11-09T08:01:21-05:00)
+#### Queue after the push landing (2026-11-09T08:09:56-05:00)
 
 - `67e8cf0808` landed the discarding-commands branch.
   The review `~/temp/agent/reviews/discarding-commands-round-2-sol.txt` is a source review and names further cases,
@@ -138,15 +138,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   a `containerHex=` line inside an older release's unescaped path can direct recursive deletion,
   and a `.git` pointer ending in a carriage return reads as unregistered and loses a pending copy.
   Run 2 of `worktree-copy-records-keep-path-bytes` is on them.
+- Run 3 of `hook-route-findings-fixed` removes the delivery proof,
+  which exists only on that branch (`ea3f3fd3fd`):
+  `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen.
+  The coordinator's decision is that a stopped push says what is known and its retry settles the question.
+- `858fc0a751` (entry and service) and `0b6f191324` (push) landed with their last reviews' findings open,
+  because each finding is no worse than main.
+  Those reviews read source only,
+  so the follow-ups reproduce each finding first.
+  The landing branch and the worktree-add branch land next for the same reason.
 - Deferred until a slot frees,
-  next in line:
-  the hook branch's third round,
-  brief `~/temp/agent/pi-runs/hook-route-round-3-prompt.md`.
-  The practical limit of agents was reached when it was written.
-  The delivery proof exists only on that branch (`ea3f3fd3fd`),
-  and `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen,
-  so the coordinator's decision is to remove it:
-  a stopped push says what is known and its retry settles the question.
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `landing-route-round-12-prompt.md`,
+  `worktree-add-round-4-prompt.md`,
+  `entry-and-service-round-5-prompt.md`,
+  and `push-route-round-5-prompt.md`.
+  The practical limit of agents was reached when they were written.
 - Fail alone on main,
   so no branch caused them,
   and they are with `wrapper-tests-that-fail-only-in-a-suite`:
@@ -158,13 +166,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   `a_writer_saving_during_a_pass_loses_no_copy` (235 s alone against a 300 s limit),
   `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
   and `a_landing_over_an_unheld_lock_removes_it_and_goes_on`.
-- Checks on top of main running:
-  the child-process branch and the literal-pathspec branch.
+- Check on top of main running:
+  the worktree-removal branch.
   Cross-vendor reviews running:
-  entry-and-service round 4,
-  worktree-add round 3,
-  push round 4,
-  and landing round 11.
+  child-process round 3 and literal-pathspec round 2.
 - The owner,
   2026-11-09:
   "Always Size turn limits to the task based on past data."
