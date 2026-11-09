@@ -54,6 +54,38 @@ pub const REMEMBERED_FILE: &str = "rules-repository";
 /// a shipped limit cites its measurement).
 pub const WARM_ADDRESS_SPACE: u64 = 512 * 1024 * 1024;
 
+/// What:
+///  How many warm jobs have ended,
+/// and how many of them warmed the cache,
+/// so a control waits for the service's own answer instead of watching the clock.
+/// Why:
+///   A control of "a landing that changed no rules path warms nothing" otherwise sleeps and hopes the job ran,
+/// and one of "the first landing warms" otherwise polls for the artifact and reads a slow host as a warm
+///  that never came.
+/// Neither counter exists in the release executable.
+#[cfg(test)]
+pub static WARM_JOBS_ENDED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many of the warm jobs that ended did compile the rules,
+/// for the controls;
+/// nothing in the release executable.
+#[cfg(test)]
+pub static WARMS_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Records for the controls that a warm job ended,
+/// and whether it warmed the cache.
+#[cfg(test)]
+fn note_a_warm_job_ended(warmed: bool) {
+    if warmed {
+        WARMS_MADE.fetch_add(1, Ordering::SeqCst);
+    }
+    WARM_JOBS_ENDED.fetch_add(1, Ordering::SeqCst);
+}
+
+/// Does nothing in the release executable.
+#[cfg(not(test))]
+fn note_a_warm_job_ended(_warmed: bool) {}
+
 /// Whether the address space the service has left holds a warm.
 /// Why:
 ///  A failed allocation ends a Rust program with an abort,
@@ -179,15 +211,26 @@ fn changes_a_rules_file(repository_root: &Path, changed: &[String]) -> bool {
 
 /// The job of the blocking pool:
 /// warms when it is the first look at the repository or a rules file changed,
-/// and says how long it took.
+/// says how long it took,
+/// and leaves its answer for a control to read.
 fn warm_job(repository_root: &Path, first: bool, changed: &[String]) {
-    if !first && !changes_a_rules_file(repository_root, changed) {
-        return;
-    }
-    match precompile_rules(repository_root) {
-        Ok(elapsed) => crate::service_log!("rules warmed repository={:?} warm_ms={}", repository_root, elapsed.as_millis()),
-        Err(error) => crate::service_log!("rules not warmed repository={:?} reason={:?}", repository_root, error),
-    }
+    let warmed: bool = if !first && !changes_a_rules_file(repository_root, changed) { false } else { warm_and_say(repository_root) };
+    note_a_warm_job_ended(warmed);
+}
+
+/// Compiles the rules into the cache and writes what came of it,
+/// giving whether the cache was warmed.
+fn warm_and_say(repository_root: &Path) -> bool {
+    return match precompile_rules(repository_root) {
+        Ok(elapsed) => {
+            crate::service_log!("rules warmed repository={:?} warm_ms={}", repository_root, elapsed.as_millis());
+            true
+        }
+        Err(error) => {
+            crate::service_log!("rules not warmed repository={:?} reason={:?}", repository_root, error);
+            false
+        }
+    };
 }
 
 /// Starts the job on the blocking pool unless one runs;
