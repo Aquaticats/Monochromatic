@@ -5223,7 +5223,8 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone, reads no file and starts no process.
+`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone,
+reads no file and starts no process.
 It rejects `-A`,
 `--all`,
 `-u`

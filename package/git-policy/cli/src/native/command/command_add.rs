@@ -31,7 +31,8 @@ use crate::command_options::{
 use crate::command_options_query::{
     WrapperFlags, is_enabled, last_occurrence, positional_tokens, split_wrapper_flags,
 };
-/// `OsStr` is borrowed operating-system text of raw bytes, which an environment value is.
+/// `OsStr` is borrowed operating-system text of raw bytes,
+/// which an environment value is.
 use std::ffi::OsStr;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
@@ -202,7 +203,16 @@ pub fn literal_pathspecs_enabled(global_prefix: &[OsString], variable: Option<&O
     if let Some(literal) = from_options {
         return literal;
     }
-    return variable.is_some_and(|value| return crate::repo_read_config_text::parse_bool(Some(value.as_encoded_bytes())) == Some(true));
+    return variable.is_some_and(read_as_true);
+}
+
+/// What:
+///  Whether one variable value is one of Git's true boolean spellings,
+/// read by the configuration reader that already models that grammar.
+/// Why:
+///  A named function keeps the check out of a closure the linter cannot keep.
+fn read_as_true(value: &OsStr) -> bool {
+    return crate::repo_read_config_text::parse_bool(Some(value.as_encoded_bytes())) == Some(true);
 }
 
 /// What:
@@ -260,6 +270,28 @@ pub struct BulkMatch {
     pub kind: BulkKind,
     /// Region token index of the token that turned the meaning on.
     pub token: usize,
+}
+
+/// What:
+///  The bulk matches a caller's own pathspec mode leaves standing:
+/// every flag match,
+/// and a pathspec match only while its spelling still selects the whole worktree.
+/// Why:
+///  The policy rejects on this list,
+/// and what a spelling selects depends on the mode its caller set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bulkMatchesUnder = (region, matches, literal) => matches.filter((m) => m.kind !== 'pathspec' || stagesInBulk(region[m.token], literal));
+/// ```
+pub fn bulk_matches_under(region: &[OsString], matches: &[BulkMatch], literal: bool) -> Vec<BulkMatch> {
+    let mut kept: Vec<BulkMatch> = Vec::with_capacity(matches.len());
+    for found in matches {
+        if found.kind != BulkKind::Pathspec || stages_in_bulk(region[found.token].as_encoded_bytes(), literal) {
+            kept.push(*found);
+        }
+    }
+    return kept;
 }
 
 /// What:

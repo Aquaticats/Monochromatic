@@ -116,9 +116,15 @@ fn plain_path_text(path: &&[u8]) -> String {
 fn subcommand_word(arguments: &[OsString]) -> String {
     // `global_layout` is the crate's one reader of Git's global options, so no second list here can drift from it.
     let layout: crate::global_arguments::GlobalLayout = crate::global_arguments::global_layout(arguments);
-    return arguments
-        .get(layout.prefix_len)
-        .map_or_else(String::new, |word| return word.to_string_lossy().into_owned());
+    return arguments.get(layout.prefix_len).map_or_else(String::new, word_text);
+}
+
+/// What:
+///  One argument as the text a failure sentence shows.
+/// Why:
+///  A named function keeps the conversion out of a closure the linter cannot keep.
+fn word_text(word: &OsString) -> String {
+    return word.to_string_lossy().into_owned();
 }
 
 /// What:

@@ -33,7 +33,7 @@
 /// import { ADD_ESCAPE_HATCH, parseAddRegion } from './command_add.ts';
 /// ```
 use crate::command_add::{
-    ADD_ESCAPE_HATCH, AddRegion, BulkKind, LITERAL_VARIABLE, caller_global_prefix, literal_pathspecs_enabled, parse_add_region, stages_in_bulk,
+    ADD_ESCAPE_HATCH, AddRegion, LITERAL_VARIABLE, bulk_matches_under, caller_global_prefix, literal_pathspecs_enabled, parse_add_region,
 };
 use crate::command_options::OptionError;
 use crate::global_arguments::command_tokens;
@@ -106,10 +106,8 @@ pub fn decide_add_explicit(arguments: &[OsString]) -> Option<String> {
     // literal pathspec mode turns `**` and every `:` form into a plain file name,
     // so only a spelling that still names the working directory stages in bulk for that caller.
     let literal: bool = literal_pathspecs_enabled(caller_global_prefix(arguments), std::env::var_os(LITERAL_VARIABLE).as_deref());
-    // `.retain` keeps the matches the caller's mode leaves bulk: a flag in any mode, a pathspec only when it selects.
-    facts.bulk_matches.retain(|found| {
-        return found.kind != BulkKind::Pathspec || stages_in_bulk(region[found.token].as_encoded_bytes(), literal);
-    });
+    // A flag stays bulk in every mode, and a pathspec only while its spelling still selects.
+    facts.bulk_matches = bulk_matches_under(region, facts.bulk_matches.as_slice(), literal);
     if facts.bulk_matches.is_empty() {
         return None;
     }
