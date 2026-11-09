@@ -218,6 +218,15 @@ under rule `WGH`:
   and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
   `package/git-policy/cli/SPEC.md` says the person removes the stage,
   so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
+  Killing `migrate-to-subvolume` eight times during its copy phase lost nothing and every run resumed;
+  the swap and index-rewrite phases were not reached.
+  Two `worktree_copy` controls,
+  `a_creation_recovers_a_dead_journal_first` and `a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`,
+  timed out at 300 s in a 344-test run of the ignored-names branch and pass alone.
+  The first took 0.7 s to 27.3 s on a checkout without that branch and 1.4 s to 12.0 s with it,
+  so the branch did not add the time.
+  What the time goes to is unmeasured,
+  and under rule `SUF` it stays a contention defect until it is.
 - `merge-and-pull-never-fail`:
   a dead Git's `index.lock` makes every command exit 2,
   read-only commands wait 60 s over a saved merge,

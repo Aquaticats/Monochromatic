@@ -1,5 +1,7 @@
 //! `text/uri-list` payloads for dropped files (RFC 2483 lines of RFC 8089 `file:` URIs).
 
+/// The percent escape every answer format shares.
+use crate::percent_escape::percent_escape;
 /// Standard library items.
 use std::{ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
 
@@ -42,25 +44,40 @@ pub fn file_uri(path: &Path) -> String {
     return uri
 }
 
+/// Tells whether a byte passes through a `file:` URI unchanged.
+///
+/// What:
+///      `fn is_file_uri_safe(byte: u8) -> bool`.
+///  ASCII letters,
+///  digits,
+///  and the marks `-`,
+///  `.`,
+///  `_`,
+///  `~`,
+///  and the `/` separators.
+/// Why:
+///       A client that decodes the URI must give back the path bytes,
+///  so `%`,
+///  `#`,
+///  `?`,
+///  and every non-ASCII byte are escaped.
+fn is_file_uri_safe(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/')
+}
+
 /// Append the percent-encoded bytes of a path.
 ///
 /// What:
 ///      `fn encode_into(uri: &mut String, path: &OsStr)`.
 /// Why:
-///       Keeps the byte loop out of `file_uri`.
+///       Keeps the encoding call out of `file_uri`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function encodeInto(uri: { text: string }, path: Buffer): void { ... }
 /// ```
 fn encode_into(uri: &mut String, path: &OsStr) {
-    for byte in path.as_bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
-            uri.push(char::from(*byte));
-        } else {
-            uri.push_str(&format!("%{byte:02X}"));
-        }
-    }
+    uri.push_str(&percent_escape(path.as_bytes(), is_file_uri_safe));
 }
 
 /// Build the `text/uri-list` bytes for several files.
