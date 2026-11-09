@@ -853,3 +853,22 @@ fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_byte
     );
     remove(bytes_root.as_path());
 }
+
+/// A journal file whose bytes are not text is damage:
+/// reading it with replacement characters would name another directory,
+/// so it is refused by name and kept.
+#[test]
+fn a_journal_file_that_is_not_text_is_refused_and_kept() {
+    use crate::private_storage::write_private_file;
+    let root: PathBuf = fixture("journal-not-text");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let path: PathBuf = journals.join("id.json");
+    let record: &[u8] = b"{\"createdEntries\":[],\"intendedEntries\":[],\"destinationRoot\":\"/w/a\xffb\",\"phase\":\"staged\",\"selectedRoots\":[],\"sourceRoot\":\"/w/s\",\"stageContainer\":\"/w/.cli-git-worktree-copy-x\",\"stageRoot\":\"/w/.cli-git-worktree-copy-x/payload\",\"version\":1}\n";
+    write_private_file(path.as_path(), record).expect("journal");
+    let failure: WorktreeCopyError = read_pending_journals(common.as_path()).expect_err("not text");
+    assert!(failure.0.contains("it is not text"), "{}", failure.0);
+    assert!(path.exists(), "a journal that cannot be read is kept");
+    remove(root.as_path());
+}
