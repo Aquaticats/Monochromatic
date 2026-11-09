@@ -528,10 +528,16 @@ pub(crate) fn wait_until(done: &dyn Fn() -> bool) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function waitUntilFor({ window, done }: WaitingFor): boolean;
+/// function waitUntilFor({ window, done }: WaitingFor): boolean {
+///     using reading = Reading.begin(); // this thread's own looks are not the run's work
+///     ...
+/// }
 /// ```
 pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
     let WaitingFor { window, done } = waiting;
+    // This thread reads the run at every look, and those reads are its own work: registered for the whole wait, so a look
+    //  taken by another reader (a watcher, or a second control's wait) leaves them out.
+    let _reading: Option<crate::run_progress::Reading> = crate::run_progress::Reading::begin();
     let mut judge: crate::run_progress::Judge = crate::run_progress::Judge::new(window);
     let began: std::time::Instant = std::time::Instant::now();
     loop {
