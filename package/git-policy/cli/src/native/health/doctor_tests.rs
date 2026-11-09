@@ -472,3 +472,39 @@ fn a_nested_doctor_lists_the_persons_hooks_and_not_the_wrappers() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A hook that is gone between the listing and the look is not a hook now,
+///  and one vanished name does not cost the whole report.
+/// Why:
+///   The person deletes a hook in another terminal,
+/// a script reinstalls the hooks,
+/// or a `git-lfs` upgrade rewrites
+///  the directory,
+/// and `doctor` is the report a person reads after a commit warning:
+/// a scan that ended at the first vanished name
+///  would list none of the hooks it did look at.
+#[cfg(unix)]
+#[test]
+fn a_hook_that_vanished_between_the_listing_and_the_look_is_skipped() {
+    let root: PathBuf = fixture("doctor-vanished-hook");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = repo.join(".git/hooks");
+    executable(hooks.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    executable(hooks.join("update").as_path(), b"#!/bin/sh\n");
+    // The listing the scan works from, taken before the directory changes under it.
+    let listed: Vec<std::fs::DirEntry> = std::fs::read_dir(&hooks).expect("read the hooks directory").flatten().collect();
+    std::fs::remove_file(hooks.join("update")).expect("the other terminal deletes it");
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in &listed {
+        if is_hook_entry(entry).expect("a vanished entry is not a failure to examine the directory") {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    assert_eq!(names(found.as_slice()), vec!["pre-commit"]);
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hooks that are there are still listed: {stderr}");
+    assert_eq!(stdout, format!("{}\n", hooks.join("pre-commit").display()));
+    remove(root.as_path());
+}

@@ -136,6 +136,42 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 }
 
 /// What:
+///  Whether one entry of a hooks directory is a hook now,
+/// or nothing when it is not
+///  a hooks directory this scan can look at.
+/// Why:
+///   The entry was listed a moment before it is looked at,
+/// and the directory changes under the scan:
+/// the person deletes a
+///  hook in another terminal,
+/// a script reinstalls them,
+/// or a `git-lfs` upgrade rewrites the directory.
+///  An entry that is gone by the time it is looked at is not a hook now,
+/// which is the same answer a missing directory gets,
+/// and
+///  every other failure to look is still reported,
+/// because silence would pass a file the command could not examine.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stats = await lstat(entry.path()).catch((error) => (error.code === 'ENOENT' ? undefined : error));
+/// stats instanceof Error ? throw stats : isSymlink(stats) || (isFile(stats) && isExecutable(stats));
+/// ```
+pub fn is_hook_entry(found: &std::fs::DirEntry) -> std::io::Result<bool> {
+    if found.file_name().as_encoded_bytes().ends_with(SAMPLE_SUFFIX) {
+        return Ok(false);
+    }
+    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(found.path()) {
+        Ok(looked) => looked,
+        // Gone between the listing and the look: it is not a hook now, and one vanished name must not cost the whole listing.
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let kind: std::fs::FileType = metadata.file_type();
+    return Ok(kind.is_symlink() || (kind.is_file() && is_executable(&metadata)));
+}
+
+/// What:
 ///  The traditional hooks in one directory:
 /// executable regular files and symbolic links,
 /// except `*.sample`.
@@ -146,6 +182,8 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 ///  directory the command could not look at.
 ///  A link counts whatever it points at (a dangling link too),
 /// because Git follows it when it starts the hook.
+///  One entry that is gone by the time it is looked at is not a hook and does not end the listing
+/// (`is_hook_entry`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,12 +200,7 @@ pub fn scan_hooks_directory(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
     let mut hooks: Vec<PathBuf> = Vec::new();
     for entry in entries {
         let found = entry?;
-        if found.file_name().as_encoded_bytes().ends_with(SAMPLE_SUFFIX) {
-            continue;
-        }
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(found.path())?;
-        let kind: std::fs::FileType = metadata.file_type();
-        if kind.is_symlink() || (kind.is_file() && is_executable(&metadata)) {
+        if is_hook_entry(&found)? {
             hooks.push(found.path());
         }
     }
