@@ -5,6 +5,11 @@ This research read the configuration as forbidden from being Turing-complete;
 the user only removed the requirement,
 so G and H are disqualified only under that reading.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+Every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 Research date:
 2026-09-16.
 Scope:

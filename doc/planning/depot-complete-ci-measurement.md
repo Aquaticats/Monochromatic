@@ -76,6 +76,12 @@ and a successful no-op is not a validation result.
 
 The existing root owner is `mise.no-env.toml`;
 `mise.toml` is generated through file-enforcer.
+`mise.no-env.toml` was deleted on 2026-10-31,
+ in `7bbe5719d5`,
+ and `mise.toml` is hand-written since then:
+ the `fanout` variable is `mise.toml:74`
+ and `fanout_packages` is `mise.toml:105`,
+ so the measurement below was taken against the generated pair that no longer exists.
 Its `fanout_packages` enumerates task suffixes across active package task roots.
 It does not compute an affected-package graph.
 Its `fanout` enumerates immediate child tasks,
