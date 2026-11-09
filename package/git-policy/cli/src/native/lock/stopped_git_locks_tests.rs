@@ -310,7 +310,8 @@ fn in_a_container_view_a_pid_file_older_than_the_lock_vouches_for_nothing() {
 /// A lock that was there before the child started is not the child's,
 /// whatever its pid file says,
 /// and neither is one made during the child's life:
-/// the number is all there is, and it is not the wrapper's own proof.
+/// the number is all there is,
+/// and it is not the wrapper's own proof.
 #[test]
 fn in_a_container_view_a_lock_named_by_an_ended_member_stays() {
     let repo: Repo = repo("stopped-locks-container-older-lock");

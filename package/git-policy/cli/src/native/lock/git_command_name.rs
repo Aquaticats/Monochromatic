@@ -1,5 +1,6 @@
 //! What:
-//!  Whether a process's command name is Git's, or one of its helpers'.
+//!  Whether a process's command name is Git's,
+//!  or one of its helpers'.
 //! Why:
 //!  Two judgements ask the same question of `/proc/<pid>/comm`:
 //!  whether the process a lock's PID file names could be the program that wrote it,

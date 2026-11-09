@@ -290,7 +290,8 @@ impl Judge {
     }
 
     /// Why a pid file proves nothing when the process numbers read here are not known to be the machine's.
-    /// The writer wrote the number of its own PID namespace, and Git records no namespace,
+    /// The writer wrote the number of its own PID namespace,
+    /// and Git records no namespace,
     /// so a Git of a sibling namespace that shares the repository may have the same number.
     /// A lock born after a child this wrapper stopped had started is no more that child's than the sibling's:
     /// a matching number and a birth order do not say who wrote the file

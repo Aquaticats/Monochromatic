@@ -52,7 +52,8 @@ pub struct OpenedFile {
 /// What:
 ///  The process number a process directory of a process table names.
 /// Why:
-///   `pidfd_open(2)` takes the number, not the directory,
+///   `pidfd_open(2)` takes the number,
+///  not the directory,
 ///  and a table that holds other files (`uptime`) or a number that is not one is refused rather than guessed at.
 ///
 /// In TS you'd write (pseudocode):
@@ -100,7 +101,8 @@ fn descriptor_number(fd: &OsStr) -> std::io::Result<libc::c_int> {
 }
 
 /// What:
-///  A call's descriptor or zero, with the failure as an error.
+///  A descriptor a call returned,
+///  or the failure it set.
 /// Why:
 ///   Every call here returns a descriptor or `-1`,
 ///  which is the same shape as the helper the subvolume code uses.
@@ -122,7 +124,8 @@ fn checked_descriptor(opened: libc::c_long) -> std::io::Result<RawFd> {
 }
 
 /// What:
-///  A process descriptor of `pid`, owned by this process.
+///  A process descriptor of `pid`,
+///  owned by this process.
 /// Why:
 ///   `pidfd_getfd(2)` needs one,
 ///  and the call itself reads no file system.
@@ -145,8 +148,10 @@ fn pidfd_of(pid: libc::pid_t) -> std::io::Result<OwnedFd> {
 /// Why:
 ///   The copy names the same open file without walking any path,
 ///  so no file system is asked to revalidate anything.
-///  The kernel allows it for a process this one may trace (the same account, and not one that hid itself with
-///  `PR_SET_DUMPABLE`), which is the same permission the scan of `/proc/<pid>/fd` needs.
+///  The kernel allows it for a process this one may trace:
+///  the same account,
+///  and not a process that hid itself with `PR_SET_DUMPABLE`,
+///  which is the same permission the scan of `/proc/<pid>/fd` needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
