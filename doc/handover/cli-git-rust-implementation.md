@@ -150,16 +150,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `ad3731e420` (the audit `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`).
   The module-doc issues the docs agent reported fixed or no longer applicable are closed with evidence comments,
   and the commit messages of `78c5b5e245` and `42a8a1d544` carry corrective comments.
-  That agent reports issues 4519,
-  4526,
-  4587 and 2650 do not hold as filed.
-  They stay open until checked.
-  Issues 4245,
-  4408,
-  3258,
+  `d39dffb7b8` corrects the citations in `doc/planning/`,
+  and issues 4245,
   4853,
   4863,
-  4871 and 4872 wait for the `doc/` round.
+  4871 and 4872 are closed with evidence.
+  Issues 4408 and 3258 hold,
+  and their files are under `doc/decision/`,
+  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  The docs agent's report that 4519,
+  4526,
+  4587 and 2650 do not hold looked only at the filed paths.
+  `wrapper-doc-folder-citations` found each defect still present at its moved path
+  (`shadow/replay_subsumption.rs:255-270`,
+  `shadow/shadow_create.rs:61-65`,
+  `policy/event_hints.rs:12-17`,
+  `binary/binary_lfs_pre_push_tests.rs:11`),
+  so they stay open for a small comment fix.
 - The shadow audit reproduced three defects:
   a conflict on `é.txt` makes replay silently revert the distinct file `Ã©.txt`,
   signing set through an exact `gitdir` conditional include is lost in native shadow preparation,
@@ -178,7 +185,59 @@ The old tree kept for the rollback stays until the owner deletes it.
   the conversion branch,
   the suite-failures branch,
   the lock branch,
-  and the landing branch's run 10.
+  the landing branch's run 10,
+  and the ref-listing branch.
+- The review `mpm-shadow-open-issues-round-6-sol.txt` of what landed as `341f966762` names two findings:
+  prune removes `current` when the newer finished version it would have to skip is itself being deleted,
+  and a repointing failure leaves out links the same run already removed.
+  All 20 agent slots were in use when it returned,
+  so `mpm-shadow-open-issues` run 7 with `mpm-shadow-round-7-prompt.md` is next when one frees,
+  on the branch `fix/mpm-shadow-open-issues-batch`.
+  The next mpm-shadow release follows that run.
+- The checks of the conversion,
+  lock,
+  ref-listing and suite-failures branches on top of main each ended with tests timing out at the 300 s limit,
+  on different names,
+  while the host ran 20 agents and the audits.
+  Run alone,
+  the lock branch's named tests passed 4 of 4 and the ref-listing branch's 3 of 3.
+  On main,
+  `the_report_keeps_input_order_whichever_worktree_finishes_first` failed alone,
+  so that family is no defect of the conversion branch.
+  `the_conversions_take_places_of_the_processs_bound_on_blocking_jobs` failed alone on the conversion branch,
+  because `spawn_on_runtime` returned `None`,
+  and it passed in the same filter on main.
+  No cause is measured yet (rule `SUF`).
+  `wrapper-tests-that-fail-only-in-a-suite` run 2 with `wrapper-tests-suite-round-2-prompt.md` has every name.
+  Its run 2 has started,
+  and it has the five findings of `wrapper-tests-suite-round-1-sol.txt` as well.
+- Landed:
+  `58ccfd1df5` (a held push says so where it is held) and `45f5c93e86` (the object check asks the packs first,
+  and a long ref listing is left to Git).
+  The review `landing-route-round-10-sol.txt` names three ways the held notice and the held record disagree.
+  The notice is no worse than main's,
+  which had none in that case.
+  `reader-ref-listing-cost-round-1-sol.txt` names a version-4 index whose offset table starts a block on a
+  compressed path.
+  Real Git never writes one,
+  main answered it the same way,
+  and a small guard is still owed.
+- Running on their reviews:
+  `landing-route-findings-fixed` run 11 (one source for the held notice,
+  path bytes in every field of the owed index record,
+  and the landing findings of `merge-route-round-6-sol.txt`),
+  `locks-and-transactions-findings-fixed` run 3,
+  and `subvolume-conversion-findings-fixed` run 3.
+  The lock and conversion branches do not land before those runs:
+  their reviews (`locks-and-transactions-round-2-sol.txt`,
+  `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
+- Waiting for a free agent slot,
+  in this order:
+  `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
+  a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
+  for the six defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
+  and `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
+  for four of the five findings of `conflict-resolution-round-2-sol.txt`.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 

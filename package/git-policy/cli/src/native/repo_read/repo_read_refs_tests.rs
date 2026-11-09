@@ -186,3 +186,21 @@ fn scoped_and_plus_names_are_listed_as_git_lists_them() {
     assert_eq!(refs.lookup("refs/heads/missing"), Lookup::Unsure, "a damaged line still ends the read");
     remove(root.as_path());
 }
+
+/// The packed count is the number of refs `packed-refs` names:
+/// none for a repository Git has not packed,
+/// and Git's own listing after a pack that includes a peeled line.
+#[test]
+fn the_packed_ref_count_is_the_packed_refs_git_writes() {
+    let root = fixture("repo-read-refs-count");
+    let repo = repository(root.as_path(), "repo");
+    let refs = Refs::new(repo.join(".git").as_path(), 40);
+    assert_eq!(refs.packed_ref_count(), Some(0), "a repository Git has not packed has no packed refs");
+    git(repo.as_path(), &["tag", "-a", "-m", "m", "v1"]);
+    git(repo.as_path(), &["branch", "other"]);
+    git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+    let packed = std::fs::read_to_string(repo.join(".git/packed-refs")).expect("packed refs");
+    assert!(packed.lines().any(|line| { return line.starts_with('^'); }), "the annotated tag's peeled line is in the file");
+    assert_eq!(refs.packed_ref_count(), Some(git_list(repo.as_path()).len()), "the count is the listing Git prints");
+    remove(root.as_path());
+}
