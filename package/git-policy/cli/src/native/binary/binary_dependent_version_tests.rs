@@ -91,7 +91,7 @@ fn workspace(fixture: &Fixture) -> PathBuf {
     write(
         repo.as_path(),
         "package/config/pnpr/config.yaml",
-        "packages:\n  - '@s/a'\n  - '@s/b'\n  - '@s/c'\n",
+        &publish_set(&["@s/a", "@s/b", "@s/c"]),
     );
     write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
     git(fixture, repo.as_path(), &["add", "--all"]);
