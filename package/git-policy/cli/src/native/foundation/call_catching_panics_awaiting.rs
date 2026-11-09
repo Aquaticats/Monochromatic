@@ -81,7 +81,8 @@ fn poll_the_boxed<'of, 'context, T>((future, context): (&mut Pin<Box<dyn Future<
 /// ```
 pub struct CatchingPanics<'of, T> {
     /// The future whose polls are guarded.
-    /// Boxed, so that taking it by `&mut` in the poll needs no unsafe projection.
+    /// Boxed,
+    /// so that taking it by `&mut` in the poll needs no unsafe projection.
     work: Pin<Box<dyn Future<Output = T> + Send + 'of>>,
 }
 

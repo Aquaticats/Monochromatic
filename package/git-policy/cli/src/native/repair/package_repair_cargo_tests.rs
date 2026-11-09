@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::package_repair_cargo_workspaces::{distinct_workspaces, parse_metadata, read_workspace};
+use crate::package_repair_command::ToolLimits;
 use std::path::PathBuf;
 
 /// The `cargo metadata --no-deps` text of a workspace,

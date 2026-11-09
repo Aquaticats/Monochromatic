@@ -125,7 +125,8 @@ fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRe
     return PnpmRepair::Relink(Relink { program, command, manual, limits: environment.limits() });
 }
 
-/// The relink, awaited on the runtime the caller runs on.
+/// The relink,
+/// awaited on the runtime the caller runs on.
 async fn relink_awaiting(work: &Relink) -> ToolRun {
     return run_tool_awaiting(work.program.as_path(), &work.command, work.limits).await;
 }

@@ -13,7 +13,8 @@ fn runtime() -> tokio::runtime::Runtime {
     return tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
 }
 
-/// The words that name an item: `item 3`.
+/// The words that name an item,
+/// as `item 3`.
 fn item_label(item: &usize) -> String {
     return format!("item {item}");
 }

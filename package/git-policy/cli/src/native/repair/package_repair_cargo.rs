@@ -35,17 +35,20 @@ use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_request::RepairRequest;
-use crate::package_repair_cargo_concurrent::{ConcurrentAwaitingWork, ItemLabel, map_concurrent_awaiting};
+use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting};
 use crate::package_repair_cargo_lock::{read_lock, restore_lock};
 use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
-use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
+use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
+/// The jobs of one workspace and what their runs take,
+/// kept in a file of their own to stay under the file-size limit.
+#[path = "package_repair_cargo_jobs.rs"]
+mod jobs;
+use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
 use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
 use crate::package_repair_tree_clone::clone_tree_awaiting;
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
-use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -312,28 +315,6 @@ fn workspace_failed(manual: &str, reason: String) -> Done {
     return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual.to_owned() } });
 }
 
-/// What the Cargo program and the bounds every one of its runs takes:
-/// found once,
-/// and owned by the tasks that start it.
-/// Why:
-///   The repair's items are tasks of the runtime,
-/// which must own what they read;
-/// the program is one path and the two bounds are
-///  copied values,
-/// so each item holds them without a lock.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CargoTool = { program: string; limits: { windowMs: number; ceilingMs: number } };
-/// ```
-#[derive(Clone)]
-struct CargoTool {
-    /// The Cargo program found on the person's search path.
-    program: PathBuf,
-    /// The quiet window and the ceiling of one run.
-    limits: ToolLimits,
-}
-
 /// What:
 ///  Read one workspace with `cargo metadata`,
 /// timed as the step `name`.
@@ -413,96 +394,6 @@ impl ItemLabel<Workspace> for RepairLabel {
 }
 
 /// What:
-///  The job of reading the Cargo workspace of one directory,
-/// timed as the step `cargoMetadataWorktree`,
-/// as an item of the awaited runner.
-/// Why:
-///   The runner owns the work it starts,
-/// so the job owns the program and the bounds,
-/// and `cargo metadata` is a child the
-///  task awaits rather than a thread it blocks.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class ReadWorkspaceJob implements ConcurrentAwaitingWork<string, Workspace> { constructor(readonly tool: CargoTool) {} async run(directory) { return timedReadWorkspaceAwaiting('cargoMetadataWorktree', this.tool, directory) } }
-/// ```
-struct ReadWorkspaceJob {
-    /// The Cargo program and the bounds of its runs.
-    tool: CargoTool,
-}
-
-impl ConcurrentAwaitingWork<PathBuf, Result<Workspace, String>> for ReadWorkspaceJob {
-    fn run<'a>(&'a self, directory: &'a PathBuf) -> Pin<Box<dyn Future<Output = Result<Workspace, String>> + Send + 'a>> {
-        return Box::pin(async move {
-            return timed_read_workspace_awaiting("cargoMetadataWorktree", &self.tool, directory.as_path()).await;
-        });
-    }
-}
-
-/// What:
-///  The job of repairing one Cargo workspace,
-/// timed as the step `cargoRepairWorkspace`.
-/// Why:
-///   Same as `ReadWorkspaceJob`:
-/// what the repair reads is owned,
-/// so the task may outlive the caller's borrows.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class RepairWorkspaceJob implements ConcurrentAwaitingWork<Workspace, Done> {}
-/// ```
-struct RepairWorkspaceJob {
-    /// The Cargo program and the bounds of its runs.
-    tool: CargoTool,
-    /// The real path of the new worktree.
-    destination_root: PathBuf,
-    /// The checkout the build state is carried from.
-    source: PathBuf,
-    /// How many jobs one build-state clone may use.
-    clone_workers: usize,
-}
-
-impl ConcurrentAwaitingWork<Workspace, Done> for RepairWorkspaceJob {
-    fn run<'a>(&'a self, workspace: &'a Workspace) -> Pin<Box<dyn Future<Output = Done> + Send + 'a>> {
-        return Box::pin(async move {
-            let began: Instant = begin_work();
-            let done: Done = repair_workspace_awaiting(&self.tool, workspace, self.destination_root.as_path(), self.source.as_path(), self.clone_workers).await;
-            end_work("cargoRepairWorkspace", began);
-            return done;
-        });
-    }
-}
-
-/// What the preparation of a Cargo repair reads:
-/// the search path and the worktree.
-/// Why:
-///   The lookup and the resolve are one job of the pool,
-/// so they travel as one state and may be taken again where no
-///  thread can start.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ThePreparation = [string | undefined, string];
-/// ```
-type ThePreparation = (Option<OsString>, PathBuf);
-
-/// What:
-///  The Cargo program the search path resolves,
-/// and the worktree's real path.
-/// Why:
-///   Both faces of the repair need the program and the real path,
-/// and reading the search path and resolving a link are storage work,
-///  so they run as a job of the pool.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lookForTheProgram = ([searchPath, destination]) => [findProgram('cargo', searchPath), canonicalize(destination)];
-/// ```
-fn look_for_the_program((search_path, destination): ThePreparation) -> (Option<PathBuf>, Result<PathBuf, std::io::Error>) {
-    return (find_program(PROGRAM, search_path.as_deref()), std::fs::canonicalize(destination.as_path()));
-}
-
-/// What:
 ///  Repair every Cargo workspace of the new worktree on the runtime.
 /// Why:
 ///   Workspaces are independent (each has its own build directory),
@@ -564,7 +455,11 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
     }
     let workspaces: Arc<[Workspace]> = Arc::from(distinct_workspaces(found));
     // Real paths: Cargo names the workspace by its real path, and the worktree may be reached through a link.
-    let destination_root: PathBuf = real_destination.unwrap_or_else(|_error| { return request.destination.to_path_buf(); });
+    let destination_root: PathBuf = match &real_destination {
+        Ok(real) => real.clone(),
+        // A worktree whose real path cannot be read is used as the caller named it.
+        Err(_cannot_be_resolved) => request.destination.to_path_buf(),
+    };
     let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
     let repairer: RepairWorkspaceJob =
         RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), clone_workers };

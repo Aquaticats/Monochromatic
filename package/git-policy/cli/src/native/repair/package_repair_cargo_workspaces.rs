@@ -18,11 +18,13 @@
 /// The tool runner and its result words,
 /// for the face that awaits and the one that enters the runtime.
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, run_tool_awaiting};
-/// Entering the runtime, for the synchronous face beside each awaited one.
+/// Entering the runtime,
+/// for the synchronous face beside each awaited one.
 use crate::lazy_runtime::run_on_runtime;
 /// Git runs for the tracked manifest listing.
 use crate::transaction_git::{GitContext, GitRequest};
-/// The Git child awaited on the runtime, for the repair's tasks.
+/// The Git child awaited on the runtime,
+/// for the repair's tasks.
 use crate::transaction_git_awaiting::run_git_awaiting;
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;

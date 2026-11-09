@@ -254,7 +254,8 @@ fn prepare_install(destination: &Path, environment: &RepairEnvironment) -> Toolc
     return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"]), destination: PathBuf::from(destination), limits: environment.limits() });
 }
 
-/// The install, awaited on the runtime the caller runs on.
+/// The install,
+/// awaited on the runtime the caller runs on.
 async fn install_awaiting(work: &Install) -> ToolRun {
     return run_tool_awaiting(work.program.as_path(), &work.command, work.limits).await;
 }

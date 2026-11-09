@@ -7,8 +7,8 @@
 //! and each of them waits on a tool child
 //!  (`package_repair_command.rs`),
 //! which an awaited task may await where a blocked thread cannot:
-//! a job of the blocking pool is inside the runtime, so a bridge that
-//!  starts a child refuses there (`RuntimeError::Nested`).
+//! a job of the blocking pool is inside the runtime,
+//! so a bridge that starts a child refuses there (`RuntimeError::Nested`).
 //! The tasks take items from one queue,
 //! so no item waits for another and the results keep item order,
 //! and a panic costs only the item it happened in,
@@ -28,7 +28,8 @@ use crate::call_catching_panics_awaiting::call_catching_panics_awaiting;
 use std::future::Future;
 /// The boxed form a job takes it in.
 use std::pin::Pin;
-/// Sharing of the items, the label and the queue with the tasks.
+/// Sharing of the items,
+/// the label and the queue with the tasks.
 use std::sync::Arc;
 /// The queue that hands each task the next item.
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -88,6 +89,20 @@ impl<T, Namer: Fn(&T) -> String> ItemLabel<T> for Namer {
     fn label(&self, item: &T) -> String {
         return self(item);
     }
+}
+
+/// No answer yet:
+/// the value a slot of the report holds until its item ends.
+/// Why:
+///   A `Vec` of these is made without a closure over the items,
+/// and `None` of a result that is not `Clone` cannot be copied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const emptyAnswer = () => undefined;
+/// ```
+fn empty_answer<R>() -> Option<Result<R, String>> {
+    return None;
 }
 
 /// What one task of the run reads:
@@ -180,7 +195,7 @@ pub async fn map_concurrent_awaiting<T: Send + Sync + 'static, R: Send + 'static
             TheQueue { items: Arc::clone(&items), job: Arc::clone(&job), label: Arc::clone(&label), next: Arc::clone(&next) };
         started.spawn(take_items(queue));
     }
-    let mut answers: Vec<Option<Result<R, String>>> = (0..count).map(|_item| { return None; }).collect();
+    let mut answers: Vec<Option<Result<R, String>>> = std::iter::repeat_with(empty_answer).take(count).collect();
     while let Some(joined) = started.join_next().await {
         match joined {
             Ok(done) => {

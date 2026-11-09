@@ -312,12 +312,29 @@ struct ThePlacing {
     destination: PathBuf,
 }
 
+/// No answer yet:
+/// the value a slot of the report holds until its slice ends.
+/// Why:
+///   A `Vec` of these is made without a closure,
+/// as the concurrent runner's own is
+/// (`package_repair_cargo_concurrent.rs`,
+/// `empty_answer`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const emptyAnswer = () => undefined;
+/// ```
+fn empty_answer() -> Option<Result<Vec<PathBuf>, String>> {
+    return None;
+}
+
 /// What:
 ///  Place each slice of leaf entries as one job of the blocking pool,
 /// awaited on this task,
 ///  and give one answer per slice in slice order.
 /// Why:
-///   The entries, the source and the destination are shared with the jobs,
+///   The entries,
+/// the source and the destination are shared with the jobs,
 /// which own what they read,
 /// and the process's one bound
 ///  on blocking jobs covers every slice.
@@ -351,7 +368,7 @@ async fn place_slices_awaiting(placing: ThePlacing, slices: Vec<Vec<usize>>) -> 
             return (index, answer);
         });
     }
-    let mut answers: Vec<Option<Result<Vec<PathBuf>, String>>> = (0..count).map(|_slice| { return None; }).collect();
+    let mut answers: Vec<Option<Result<Vec<PathBuf>, String>>> = std::iter::repeat_with(empty_answer).take(count).collect();
     while let Some(joined) = started.join_next().await {
         match joined {
             Ok((index, answer)) => answers[index] = Some(answer),
