@@ -308,6 +308,38 @@ fn settle_exclusive_publish(
     return renamed;
 }
 
+#[cfg(test)]
+static SYNCING_IS_FAITHFUL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// What:
+///  Makes this process's durability syncs no-ops,
+/// for a control whose subject is not what a crash leaves.
+/// Why:
+///   A control that walks every step of a routine that syncs pays one filesystem commit per step,
+/// and a disk having a bad minute takes up to a second and a half for one of them,
+/// so the control's own durability work decides whether it finishes inside the run's own bound.
+/// The switch is the process's because the steps sync on threads the control did not make,
+/// and a separate test process is what makes that safe (nextest runs one test per process).
+/// The records of the syncs are still made,
+/// so their order stays observable.
+/// Nothing of the release executable.
+pub(crate) fn skip_the_durability_syncs_here() {
+    SYNCING_IS_FAITHFUL.store(false, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Whether this process's syncs must reach the disk;
+/// always, in the release executable.
+#[cfg(test)]
+pub(crate) fn syncing_is_faithful() -> bool {
+    return SYNCING_IS_FAITHFUL.load(std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Always, in the release executable.
+#[cfg(not(test))]
+pub(crate) fn syncing_is_faithful() -> bool {
+    return true;
+}
+
 /// What:
 ///  Flushes the staging file to disk when the write is durable,
 /// and does nothing otherwise.
@@ -328,6 +360,9 @@ fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result
     let _path_for_tests: &Path = path;
     #[cfg(test)]
     record_file_sync(path);
+    if !syncing_is_faithful() {
+        return Ok(());
+    }
     // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
     return file.sync_all();
 }
@@ -619,6 +654,9 @@ fn settle_directory_sync(path: &Path, outcome: std::io::Result<()>) -> std::io::
 pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     #[cfg(test)]
     record_directory_sync(path);
+    if !syncing_is_faithful() {
+        return Ok(());
+    }
     #[cfg(unix)]
     {
         // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
