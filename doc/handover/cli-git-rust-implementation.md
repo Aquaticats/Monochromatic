@@ -125,19 +125,26 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:14:38-05:00)
+#### Reviews and landings in progress (2026-11-09T03:18:20-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
   names a final wake that can be missed so a run waits for ever,
   index preparation that can block the runtime before its first await,
   and refused jobs that later run outside the blocking-job budget.
-  Its agent reports all three fixed.
-  Its tests on top of main and the review `tokio-pure-file-sites-round-4` are running.
-  Some overlap controls now pass without running on a host with too few CPUs for them,
-  naming themselves when they do,
-  and a test seam for the CPU bound would be stronger:
-  ask for that in its next round.
+  Its agent reports all three fixed,
+  but on top of main two order controls fail out of the 107 selected tests,
+  one at the 120 s watchdog.
+  The next review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-4-sol.txt`) names a queued job that still runs after its caller timed out,
+  and a path lookup that blocks the runtime before its first await.
+  Not ready to merge.
+  Some overlap controls pass without running on a host with too few CPUs for them,
+  and the next brief asks for a seam so they run at any quota.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  after the merge round:
+  resume the run `tokio-pure-file-sites-on-the-awaited-runner` as run 5,
+  with `tokio-pure-file-sites-round-5-prompt.md` and the session file named in run 4's `summary.json`.
 - `fix/git-policy-cli-push-route-records-and-ceilings`,
   at `5b0393dbf6`:
   its agent reports all eleven audit findings fixed,
@@ -250,7 +257,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
   Waits for a free agent slot,
-  since all twenty are taken:
+  since all twenty are taken,
+  after the merge and tokio rounds:
   resume the run `mpm-shadow-open-issues` as run 2,
   with `mpm-shadow-round-2-prompt.md` and the session file named in run 1's `summary.json`.
   That round also checks the fixes resting on claims about real tools against those tools.
@@ -272,7 +280,14 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
   its agent reports the five findings of the last review fixed and a saved merge no longer blocking unrelated commands.
   249 of 249 selected tests pass on top of main,
-  and the review `merge-route-round-3` is running.
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/merge-route-round-3-sol.txt`) names further losses of staged or saved work,
+  among them a read-only command installing a saved merge into a different checked-out branch.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  and goes first:
+  resume the run `merge-route-findings-fixed` as run 4,
+  with `merge-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   654 of 654 selected tests pass on top of main,
   and the cross-vendor review (`${HOME}/temp/agent/reviews/commit-checks-round-2-sol.txt`) names further ways a saved file is lost,
