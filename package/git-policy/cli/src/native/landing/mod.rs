@@ -41,6 +41,9 @@ pub mod work_item_state_directories_and_claim_names;
 
 pub mod work_item_recovery;
 
+/// The steps of a work item that waits for its producer's approval.
+pub mod work_item_holding;
+
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
 
