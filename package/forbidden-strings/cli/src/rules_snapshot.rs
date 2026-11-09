@@ -115,7 +115,8 @@ fn holds_what_was_read(entry: &ReadEntry) -> bool {
 /// ```
 #[cfg(unix)]
 fn read_rules_file(path: &Path) -> std::io::Result<Vec<u8>> {
-    /// `OpenOptionsExt` adds `custom_flags`, the open flags the standard library has no setting for.
+    /// `OpenOptionsExt` adds `custom_flags`,
+    /// the open flags the standard library has no setting for.
     use std::os::unix::fs::OpenOptionsExt as _;
     /// `Read` adds `read_to_end` to the opened file.
     use std::io::Read as _;
@@ -140,7 +141,9 @@ fn refused_for_not_being_plain() -> &'static str {
 ///  No target without `unix` has a named pipe a person can plant at a path,
 /// so a directory is the one shape
 ///  refused before the read.
-/// UNTESTED ON WINDOWS: no gate runs this branch (`README`, Requirements).
+/// UNTESTED ON WINDOWS:
+/// no gate runs this branch (`README`,
+/// Requirements).
 #[cfg(not(unix))]
 fn read_rules_file(path: &Path) -> std::io::Result<Vec<u8>> {
     if !std::fs::metadata(path)?.is_file() {

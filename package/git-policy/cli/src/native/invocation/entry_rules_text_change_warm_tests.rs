@@ -80,7 +80,8 @@ fn a_rules_file_behind_a_link_is_marked_and_a_link_to_a_named_pipe_is_refused_at
 /// and the sentence for the person names the path
 ///  and what follows.
 /// Why:
-///  Opening a named pipe for reading waits for a writer that may never come, so this mark held
+///  Opening a named pipe for reading waits for a writer that may never come,
+/// so this mark held
 /// `git checkout`,
 /// `git merge`,
 /// `git pull`,

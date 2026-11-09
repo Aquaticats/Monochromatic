@@ -149,7 +149,8 @@ fn holder_of(lock: &Path) -> Holder {
 /// The lock is opened by `open_plain_file`,
 /// which opens without blocking and refuses everything that is not a plain file:
 /// a named pipe this
-///  look would wait on for ever is a foreign program's at once, as a lock of any other shape it cannot read is
+///  look would wait on for ever is a foreign program's at once,
+/// as a lock of any other shape it cannot read is
 /// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
 fn holder_after_pauses(lock: &Path, pause: &dyn Fn()) -> Holder {
     for look in 0..EMPTY_LOOKS {

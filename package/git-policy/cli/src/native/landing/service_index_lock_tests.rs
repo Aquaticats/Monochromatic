@@ -1958,7 +1958,8 @@ fn the_landing_ceiling_follows_the_longest_measured_foreign_wait() {
 ///  A lock that is a named pipe names no marker at once,
 /// and is described as a foreign holder.
 /// Why:
-///  The service reads the lock's marker before it places its own, and opening a named pipe for
+///  The service reads the lock's marker before it places its own,
+/// and opening a named pipe for
 /// reading waits for a writer that may never come:
 /// a landing stopped there,
 /// so every commit behind it queued

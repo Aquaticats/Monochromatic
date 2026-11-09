@@ -451,9 +451,12 @@ fn a_hold_of_another_pid_namespace_is_neither_gone_nor_proven() {
 }
 
 /// What:
-///  A lock that holds a named pipe, or a link to one, is a foreign program's at once.
+///  A lock that holds a named pipe,
+/// or a link to one,
+/// is a foreign program's at once.
 /// Why:
-///  Opening a named pipe for reading waits for a writer that may never come, so this look held a
+///  Opening a named pipe for reading waits for a writer that may never come,
+/// so this look held a
 /// wrapped `git add` for ever and every commit behind it
 /// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
 #[test]
@@ -482,7 +485,8 @@ fn a_lock_that_is_not_a_plain_file_is_foreign_at_once() {
 /// the wait ends at once,
 /// saying nothing.
 /// Why:
-///  The look that tells the holders apart is the one that must not wait, so the wait itself is
+///  The look that tells the holders apart is the one that must not wait,
+/// so the wait itself is
 /// held to the same bound here.
 #[test]
 fn a_command_waits_for_no_hold_of_a_named_pipe() {

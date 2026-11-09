@@ -50,13 +50,28 @@ pub struct RulesTextMark {
     digest: u64,
 }
 
+/// What:
+///  The refusal a selection that cannot be made gives:
+/// nothing is marked,
+/// and the commit that needs the rules compiles them itself.
+/// Why:
+///   A configuration that cannot be read and a rules list that does not parse are the same answer to the caller,
+/// so one named function reads the same at both call sites.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unselectable = (_failure) => ({ kind: 'unselectable' });
+/// ```
+fn unselectable<Failure>(_failure: Failure) -> NoDigest {
+    return NoDigest::Unselectable;
+}
+
 /// A digest of the bytes of every rules file the configuration names,
 /// or why there is none.
 fn digest_of_rules_text(root: &Path) -> Result<u64, NoDigest> {
-    let loaded = load_repository_config(root).map_err(|_not_selected| { return NoDigest::Unselectable; })?;
+    let loaded = load_repository_config(root).map_err(unselectable)?;
     let options = &loaded.config.policies.forbidden_strings;
-    let rules = rules_source(options.rules_files.as_deref(), std::env::var_os("FORBIDDEN_STRINGS_RULES").as_deref(), root)
-        .map_err(|_not_selected| { return NoDigest::Unselectable; })?;
+    let rules = rules_source(options.rules_files.as_deref(), std::env::var_os("FORBIDDEN_STRINGS_RULES").as_deref(), root).map_err(unselectable)?;
     let mut hasher: DefaultHasher = DefaultHasher::new();
     for entry in &rules.entries {
         entry.path.hash(&mut hasher);
@@ -80,7 +95,8 @@ enum NoDigest {
     /// The selection cannot be made:
     /// no configuration,
     /// or a rules list that does not parse.
-    /// Nothing is marked, and the commit that needs the rules compiles them itself.
+    /// Nothing is marked,
+    /// and the commit that needs the rules compiles them itself.
     Unselectable,
     /// A rules file the selection names is not a plain file to read,
     /// so its text is unknown.

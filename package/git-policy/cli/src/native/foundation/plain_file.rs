@@ -67,16 +67,21 @@ const NOT_A_PLAIN_FILE: &str = "it is not a plain file (a named pipe, a device o
 /// where a bare flag would not.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Links {
-    /// The name is the file: a link is refused, so a name swapped for one cannot redirect the read.
+    /// The name is the file:
+    /// a link is refused,
+    /// so a name swapped for one cannot redirect the read.
     NotFollowed,
-    /// The name may hold a link to the file, which is read: a link of a person's own is the path a
+    /// The name may hold a link to the file,
+    /// which is read:
+    /// a link of a person's own is the path a
     /// configuration means.
     Followed,
 }
 
 /// What:
 ///  The file `path` names,
-///  opened without blocking, with `links` deciding whether a link is followed,
+///  opened without blocking,
+/// with `links` deciding whether a link is followed,
 ///  and refused when the open handle is not a plain file.
 /// Why:
 ///   One body decides what a plain file is,
@@ -120,7 +125,8 @@ pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 /// What:
 ///  The plain file `path` names,
 ///  opened without blocking and following a link,
-///  and refused when the open handle is a named pipe, a device or a directory.
+///  and refused when the open handle is a named pipe,
+/// a device or a directory.
 /// Why:
 ///   See `read_plain_file_through_links`.
 ///
