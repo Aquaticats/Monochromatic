@@ -46,6 +46,27 @@ pub fn live_watches_on_this_thread() -> usize {
     return LIVE_ON_THIS_THREAD.with(std::cell::Cell::get);
 }
 
+/// What:
+///  How many waits on a watch ended at the timer they asked for,
+/// for the controls;
+/// nothing in the release executable.
+/// Why:
+///   A control of "the lock's removal woke the wait, and not the reminder's timer" otherwise reads the host's
+/// speed,
+/// while the wait itself knows which of the two ended it.
+#[cfg(test)]
+pub static WAKES_BY_THE_TIMER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Records for the controls that a wait on a watch ended at its timer.
+#[cfg(test)]
+fn note_a_wake_at_the_timer() {
+    WAKES_BY_THE_TIMER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Does nothing in the release executable.
+#[cfg(not(test))]
+fn note_a_wake_at_the_timer() {}
+
 /// An inotify watch on the directory of the lock;
 /// nothing on platforms without inotify.
 pub struct Watch {
@@ -215,6 +236,7 @@ impl Watch {
         loop {
             let left: Duration = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
+                note_a_wake_at_the_timer();
                 return true;
             }
             let mut entry = libc::pollfd { fd: self.descriptor, events: libc::POLLIN, revents: 0 };
@@ -222,13 +244,18 @@ impl Watch {
             // SAFETY: `entry` is valid for the one descriptor named by the count.
             let ready: i32 = unsafe { libc::poll(&raw mut entry, 1, milliseconds) };
             if ready <= 0 {
+                note_a_wake_at_the_timer();
                 return true;
             }
             let mut buffer: [u8; 4096] = [0; 4096];
             // SAFETY: the buffer is valid for its length.
             let read: isize = unsafe { libc::read(self.descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
-            let Ok(count) = usize::try_from(read) else { return true };
+            let Ok(count) = usize::try_from(read) else {
+                note_a_wake_at_the_timer();
+                return true;
+            };
             if count == 0 {
+                note_a_wake_at_the_timer();
                 return true;
             }
             if events_name(&buffer[..count], name.as_bytes()) {
