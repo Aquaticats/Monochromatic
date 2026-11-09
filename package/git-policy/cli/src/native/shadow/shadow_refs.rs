@@ -248,6 +248,58 @@ fn ref_failure(error: std::io::Error) -> GitFailure {
     return GitFailure(format!("writing a shadow ref failed: {error}"));
 }
 
+/// How many symbolic refs the private target is followed through.
+///  Git's own limit for a chain of symbolic refs is five,
+/// and a chain that does not end within it is refused here as Git refuses it.
+pub const SYMBOLIC_REF_CHAIN_LIMIT: usize = 5;
+
+/// What:
+///  The target of a real symbolic ref,
+///  or `None` when that name is a direct ref.
+/// Why:
+///   The walk over a chain asks this once per step;
+/// a named function stands where a closure the linter refuses stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const symbolicTargetOf = (refs, name) => refs.find((e) => e.symref && e.name === name)?.symref;
+/// ```
+fn symbolic_target_of<'refs>(refs: &'refs [RefSnapshotEntry], name: &[u8]) -> Option<&'refs [u8]> {
+    for entry in refs {
+        if !entry.symref.is_empty() && entry.name.as_slice() == name {
+            return Some(entry.symref.as_slice());
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The name a loose ref write ends at,
+///  following the real repository's symbolic refs.
+/// Why:
+///   `git update-ref <ref> <oid>` follows a symbolic ref and writes the ref it names,
+/// and a branch can itself be a symbolic ref to another branch;
+/// a direct write at the first name would collapse that chain into a direct ref
+///  that a hook could tell apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const targetOf = (refs, name) => { for (let step = 0; step < LIMIT; step++) { const symref = symbolicTargetOf(refs, name); if (!symref) return name; name = symref; } throw new GitFailure(`symbolic ref chain ${name} is too long`); };
+/// ```
+fn end_of_symbolic_chain(refs: &[RefSnapshotEntry], name: &[u8]) -> Result<Vec<u8>, GitFailure> {
+    let mut current: Vec<u8> = name.to_vec();
+    for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
+        let Some(target) = symbolic_target_of(refs, current.as_slice()) else {
+            return Ok(current);
+        };
+        current = target.to_vec();
+    }
+    return Err(GitFailure(format!(
+        "the symbolic ref {} does not end within {SYMBOLIC_REF_CHAIN_LIMIT} steps, as Git refuses one that long",
+        String::from_utf8_lossy(name)
+    )));
+}
+
 /// What:
 ///  Writes the files backend's `HEAD`,
 ///  and the private target ref it names.
@@ -256,17 +308,25 @@ fn ref_failure(error: std::io::Error) -> GitFailure {
 /// and Git reads them directly;
 /// the reference update and the symbolic ref that wrote them were two Git starts
 ///  per commit for a few bytes each.
+///  The target is written where the chain of symbolic refs ends,
+///  as the `git update-ref` this replaces wrote it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeLooseRef(shadow, target, `${oid}\n`); await writeLooseRef(shadow, 'HEAD', `ref: ${target}\n`);
+/// await writeLooseRef(shadow, endOfChain(refs, target), `${oid}\n`); await writeLooseRef(shadow, 'HEAD', `ref: ${target}\n`);
 /// ```
-fn write_files_shadow_head(shadow: &Path, symbolic_head: &SymbolicHead, base: &Base) -> Result<(), GitFailure> {
+fn write_files_shadow_head(
+    shadow: &Path,
+    symbolic_head: &SymbolicHead,
+    base: &Base,
+    refs: &[RefSnapshotEntry],
+) -> Result<(), GitFailure> {
     let head: OsString = OsString::from("HEAD");
     match symbolic_head {
         SymbolicHead::Branch(reference) => {
             if let Base::Commit(oid) = base {
-                write_loose_ref(shadow, &os_from_path_bytes(reference.as_bytes()), direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
+                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.as_bytes())?;
+                write_loose_ref(shadow, &os_from_path_bytes(target.as_slice()), direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
             }
             write_loose_ref(shadow, &head, symbolic_ref_value(reference.as_bytes()).as_slice()).map_err(ref_failure)?;
             return Ok(());
@@ -410,7 +470,7 @@ pub fn write_shadow_refs(
         )?;
     }
     if files {
-        return write_files_shadow_head(shadow, symbolic_head, base);
+        return write_files_shadow_head(shadow, symbolic_head, base, &refs);
     }
     return write_shadow_head(context, shadow, symbolic_head, base);
 }

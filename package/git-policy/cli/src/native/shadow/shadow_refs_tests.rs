@@ -181,6 +181,37 @@ fn a_files_detached_head_is_written_where_git_reads_it() {
     remove(root.as_path());
 }
 
+/// A branch that is itself a symbolic ref to another branch keeps its chain in the
+///  shadow,
+/// and the private target is written where the chain ends,
+/// as the `git update-ref` this replaces wrote it.
+#[cfg(unix)]
+#[test]
+fn a_files_target_that_is_a_symbolic_ref_is_written_at_the_end_of_its_chain() {
+    let root: PathBuf = fixture("shadow-refs-files-chain");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+    git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/alias"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    write_shadow_refs(
+        &git_context(),
+        repo.as_path(),
+        shadow.as_path(),
+        RefFormat::Files,
+        "refs/heads/alias",
+        &SymbolicHead::Branch(String::from("refs/heads/alias")),
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    // The chain survives, and every view of it that a hook asks Git for answers as the real repository does.
+    assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "refs/heads/alias"]), git_text(repo.as_path(), &["symbolic-ref", "refs/heads/alias"]));
+    assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), git_text(repo.as_path(), &["symbolic-ref", "HEAD"]));
+    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/heads/main"]), head);
+    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
+    remove(root.as_path());
+}
+
 /// The files snapshot is published whole and made no file sync:
 /// the shadow is thrown away,
 /// and nothing reads its refs
