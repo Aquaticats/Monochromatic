@@ -174,7 +174,7 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
             pass = next_pass(pass, differences.gone.as_slice())?;
             continue;
         }
-        if pass < SETTLING_RETRIES && pass < MOST_PASSES {
+        if pass < SETTLING_RETRIES {
             copy_again(&mut entries, &mut stamps, differences.changed.as_slice(), request.source_root, request.stage_root, request.clone)?;
             pass += 1;
             continue;

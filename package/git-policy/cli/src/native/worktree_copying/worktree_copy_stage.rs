@@ -330,17 +330,17 @@ fn stage_into(
         clone,
         gone: copied_manifest.gone,
     })?;
-    let entries: Vec<WorktreeCopyEntry> = settled.entries;
+    let staged_entries: Vec<WorktreeCopyEntry> = settled.entries;
     let stamps: Vec<Option<FileStamp>> = settled.stamps;
     debug(
         "worktreeCopyStage",
         format!(
             "staged {} entries ({} cloned under a stamp) in {} ms: walk {} ms, copy by {} workers {} ms, settling and modes {} ms; {} went away and {} kept changing",
-            entries.len(),
+            staged_entries.len(),
             stamps.iter().flatten().count(),
             started.elapsed().as_millis(),
             walked.as_millis(),
-            copy_worker_count(entries.len()),
+            copy_worker_count(staged_entries.len()),
             (copied - walked).as_millis(),
             (started.elapsed() - copied).as_millis(),
             settled.gone,
@@ -349,7 +349,7 @@ fn stage_into(
         .as_str(),
     );
     return Ok(StagedSnapshot {
-        entries,
+        entries: staged_entries,
         selected_roots,
         source_root: source_root.to_path_buf(),
         stage_container: stage_container.to_path_buf(),
