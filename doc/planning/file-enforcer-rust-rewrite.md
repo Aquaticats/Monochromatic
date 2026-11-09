@@ -780,7 +780,9 @@ since nothing reads the spelling and Mise is due to be removed.
 
 ### Root mise.toml PATH: existence-based, as today
 
-Asked 2026-10-29 how `_.path` (`mise.toml:1262`) lists `package/*/*/node_modules/.bin` directories;
+Asked 2026-10-29 how `_.path` (`mise.toml:1348` in that day's generated file,
+`.config/mise/conf.d/20-env.toml:42` and the generated `10-bin.local.toml` today)
+lists `package/*/*/node_modules/.bin` directories;
 the user chose "Keep existence-based",
 noting:
 "The existence of option 1 means you don't understand how pnpm,
