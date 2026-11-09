@@ -2137,9 +2137,16 @@ because the worktree may switch branches at any instant.
 It is the only pusher of the repositories it serves and runs one push per branch at a time,
 so the push takes no lock.
 A failed push never fails the commit:
-the service leaves a notice that the next command in the repository shows,
-and that command removes the record only once its words are written out,
-and only while the file still holds the text they were worded from
+the service leaves a notice that the next command in the repository shows.
+A command takes a record under a name only it holds,
+by the one atomic step the file system gives,
+a rename (`src/native/push/push_failure_notice_claimed_by_one_command.rs`):
+the command whose rename wins shows the words,
+so two commands that read the record before either showed it print it once,
+and its removal can take only its own name,
+never a record the service wrote meanwhile.
+A claim whose holder is provably gone is taken over,
+and a record whose words could not be written goes back to its own name for the next command
 (`Notice::show`).
 
 #### Merges and commits never fail
@@ -2314,10 +2321,20 @@ and the message it passes is the branch's reflog entry for the move.
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
 content,
 and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
+A `git switch` that lands between that look and the `read-tree` is put back to the tree the checkout shows then,
+never to the branch the reconcile checked,
+and nothing is written back when that tree is the merge's already
+(`move_the_named_branch` in `src/native/push/auto_push_reconcile_branch_advance.rs`).
 A push the service stopped or that failed is tried again by the service on its own,
 with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
 until it lands or the person must act (`src/native/push/push_retry.rs`).
+A branch the person deleted is settled as done with one notice that names the commit and every ref that still holds it:
+nothing is sent,
+every later attempt would fail the same way,
+and when no ref holds the commit any more the notice says so
+(`source_branch_is_gone` in `src/native/push/push_retry.rs`,
+`branch_is_gone_words` in `src/native/landing/service_work.rs`).
 The person must act for a conflict,
 for a login the service does not have,
 and for a hook on the server that declined the push
@@ -2377,9 +2394,11 @@ and a kill before that would leave a notice that says the service keeps trying a
 A plan that could not be written makes no promise:
 the notice then carries only Git's own words
 (`planned_retry`).
-A forget the same round asked for before that file was written keeps it,
-by the name the round's plan will publish,
-so the replay of the older change does not take the newer plan (`PushRetries::apply`).
+Only the last plan a round makes for a branch is published:
+a plan the same round plans again later is not applied,
+and a forget keeps the name of that last plan,
+so neither the replay of an earlier plan nor the forget after it can take the newer plan
+(`PushRetries::apply`).
 
 #### Git steps, tools and checks end only on no progress
 
@@ -2595,6 +2614,13 @@ of the review call and of the whole review).
   a descendant that is a hook must count as work before this rule is
   true.
   The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+- The thread that gives a second-pass command its input is bounded by the same window applied to the input:
+  the pipe's
+  writing end is non-blocking,
+  so a full pipe is reported rather than waited in,
+  and the writer gives up once the command has taken
+  none of its input for the window
+  (`write_within_the_window` in `src/native/push/bounded_query.rs`).
 - The reconcile's own Git children (`git merge-tree --write-tree`,
   every command of the word-level second pass,
   and the
@@ -3998,9 +4024,17 @@ in-process reader can) gives every value of the multi-valued keys.
   is waited for on a thread of its own,
   and its locks are judged when the whole tree has ended;
   the push is reported at its deadline and does not wait for it.
+  A child that thread gives up on is kept,
+  and the service's next round collects it with a non-blocking wait once the kernel has
+  released it,
+  so an abandoned stop leaves no zombie for the life of the service
+  (`reap_abandoned_children` in `src/native/push/stop_of_a_push_and_sweep_of_its_locks.rs`).
   The judgement takes no lock of its own.
   A push whose output grows past 4 MiB (`MAX_PUSH_OUTPUT`) is stopped the same way,
-  and only the first 4 MiB are kept.
+  and only the first 4 MiB are kept;
+  a push that ended between two looks with more printed than that keeps its own status,
+  and the attempt says that only the head of its output is kept
+  (`shortened_output_line` in `src/native/push/bounded_push.rs`).
   Citation of the 4 MiB:
   none;
   the owner decided "Keep all lines" for push output and no
