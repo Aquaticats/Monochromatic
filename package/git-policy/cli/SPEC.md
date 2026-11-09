@@ -10539,13 +10539,51 @@ and leave one audit line each
   the hex field is the identity,
   because a text field for `refs/heads/lost-\xff` holds replacement characters,
   and restoring from it would create a different branch.
-  A name Git expands before deleting (`@{-1}`,
-  the branch the worktree visited before the current one) is read through
-  `git rev-parse --symbolic-full-name --verify`,
-  and the line names the branch that expression resolved to and its commit,
+  A name Git expands before deleting is read through the expansion Git's own branch deletion performs,
+  which depends on the namespace it deletes from.
+  A local one is `git check-ref-format --branch`,
+  Git's `copy_branchname` under `INTERPRET_BRANCH_LOCAL` behind Git's own branch-name checks,
+  so `@{-1}` (the branch the worktree visited before the current one) resolves to that branch,
+  and a revision that is no branch name (`HEAD`,
+  `@`,
+  `main@{1}`) resolves to nothing.
+  A remote-tracking one is `git rev-parse --symbolic-full-name --verify`,
+  read only when the operand spells a branch mark (`@{`) and Git's answer is a `refs/remotes/`
+  reference,
+  which is what `INTERPRET_BRANCH_REMOTE` leaves of `@{u}` and `@{push}`,
+  and which `@{-1}` and `HEAD` never are because they resolve to a local branch.
+  General revision resolution is never asked for a name of its own:
+  it answers `refs/heads/main` for `HEAD`,
+  and a line naming `main` for a deletion Git refused would restore a branch the command
+  never took,
+  where the owner's line states what the deletion took.
+  The line names the branch the typed or expanded name resolved to and its commit,
   so the owner's line is written for every deletion Git runs;
   the typed reference is asked about first,
-  so a plain name costs the one query it always did.
+  so a plain name costs the one query it always did,
+  and a reference literally named `refs/heads/HEAD` is still a branch of its own that Git
+  deletes and the line records.
+  A line states what the deletion was about to take,
+  not what it took.
+  `deletion_facts` reads the reference and its commit,
+  `record_audited` appends the line,
+  and only then does real Git resolve the reference again and delete it,
+  so the read,
+  the line and the deletion are three steps,
+  and the wrapper holds no lock across them.
+  Another command can move the branch in that gap
+  (`git update-ref refs/heads/lost <newer> <older>`),
+  and Git then deletes the newer tip while the line names the older one:
+  restoring from the line restores a tip the deletion did not remove,
+  and the tip it did remove is named by no line.
+  The deleted branch's own reflog goes with its reference
+  (measured on Git 2.56.0:
+  no `.git/logs/refs/heads/<name>` survives `git branch -D <name>`),
+  so that tip stays only where the object store and any other reference or reflog still reach it.
+  `writtenBeforeGitRuns` already says the line is no result,
+  and the gap is accepted rather than closed by a lock:
+  "Use as few locks as possible",
+  and a lock over the reference would have to be held across the person's whole Git command.
   The region is read with the wrapper's own `git branch` option table and tokenizer,
   the same ones every other `git branch` fact uses,
   so every spelling and abbreviation Git accepts is read
