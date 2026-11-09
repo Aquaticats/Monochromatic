@@ -165,44 +165,84 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
 }
 
 /// A foreign holder that lets go while the service waits is followed at once by the service's own lock,
-/// long before the
-///  repetition of the notice;
-/// the wait makes a handful of attempts,
-/// not one per event it causes itself.
-/// The holder lets go a while after the wait's first notice,
-/// so the wait idles on the watch for that while however long
-///  the marker's flush took before it.
+/// and the wait is woken by that removal and by nothing else.
+/// What that is read from is the order of the placements,
+/// not how fast the host runs:
+/// no placement
+///  after the first met the holder,
+/// so nothing but the removal that ended the hold woke the wait,
+/// and a wait woken by a file of its own would meet the holder over and over.
+/// How soon the wake came is the one thing no order can show,
+/// so it is one clock reading,
+/// taken from the wait's own line and not from the
+///  staging before it,
+/// against a fifth of the interval that repeats that line:
+/// over ten runs the wake came 400.35 to 400.51 ms after the line,
+/// and 10.0018 to 10.0090 s after it
+///  over three runs with the watch blinded to the lock's removal.
+/// The repeated line is no witness of the same thing:
+/// it was said once in both arms,
+/// because a wake from the
+///  interval's timer places the lock before it repeats anything.
+/// The hold is the window the order is read in;
+/// no verdict is measured against it.
 #[test]
 fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
+    /// How long the foreign holder keeps the lock after the wait's first look.
+    ///
+    /// It is the window a wait woken by anything but the lock would be seen in,
+    /// so it is far longer than one look and far shorter than the interval that
+    ///  repeats the holder's line.
+    const HOLD: Duration = Duration::from_millis(400);
+    /// The longest the wake may take after the wait's line,
+    /// a fifth of the interval that repeats it.
+    ///
+    /// A wake from the removal takes that line's own measure of the hold (400 ms),
+    /// and one from the interval's timer
+    ///  takes the whole interval (10 s),
+    /// so a fifth sits between the two by a factor of five either way.
+    const WAKE_WITHIN: Duration = Duration::from_secs(2);
     let (root, index) = index_in("index-lock-wait");
-    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let foreign: PathBuf = lock_path_of(&index);
+    std::fs::write(&foreign, "foreign").expect("foreign lock");
     let (looked, looking) = std::sync::mpsc::channel::<()>();
+    let let_go: PathBuf = foreign.clone();
     let release = std::thread::spawn(move || {
         looking.recv_timeout(Duration::from_secs(60)).expect("the wait looked at the lock");
-        std::thread::sleep(Duration::from_millis(400));
-        std::fs::remove_file(foreign).expect("the foreign holder lets go");
+        std::thread::sleep(HOLD);
+        std::fs::remove_file(let_go).expect("the foreign holder lets go");
     });
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-    let attempts_made: Cell<usize> = Cell::new(0);
+    // Whether the foreign lock stood at each placement, in the order the placements were made.
+    let met: Mutex<Vec<bool>> = Mutex::new(Vec::new());
     let counting = |from: &Path, to: &Path| -> std::io::Result<()> {
-        attempts_made.set(attempts_made.get() + 1);
+        met.lock().expect("lock").push(foreign.exists());
         return rename_noreplace(from, to);
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
-    let began: Instant = Instant::now();
+    // When the wait said what it waits for: the interval its own reminder is counted in begins there, after the staging.
+    let said_at: Mutex<Option<Instant>> = Mutex::new(None);
     let lock = acquire_on(&platform, &index, 2, &|note| {
-        let _sent = looked.send(());
+        {
+            let mut first = said_at.lock().expect("lock");
+            if first.is_none() {
+                *first = Some(Instant::now());
+                let _sent = looked.send(());
+            }
+        }
         heard.lock().expect("lock").push(note);
     }).expect("taken after the wait");
-    let waited: Duration = began.elapsed();
-    let attempts: usize = attempts_made.get();
+    let said: Option<Instant> = *said_at.lock().expect("lock");
     release.join().expect("thread");
-    // The holder let go 400 ms after the wait's first look, and the wait followed it by the event, not by the notice's timer.
-    assert!(waited >= Duration::from_millis(300) && waited < NOTICE_EVERY, "{waited:?}");
+    let placements: Vec<bool> = met.lock().expect("lock").clone();
+    assert_eq!(placements.first(), Some(&true), "the first placement meets the foreign holder: {placements:?}");
+    assert!(placements[1..].iter().all(|stood| !stood), "every placement after the first follows the holder's removal, so the wait woke for nothing else: {placements:?}");
     assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
-    // A wait woken by its own files tries thousands of times in 400 ms; one woken only by the lock tries a few times.
-    assert!(attempts < 20, "{attempts} attempts in {waited:?}");
+    // The holder let go a hold after the wait's line, so a wait that returned before the foreign lock was gone is caught by the placements and here.
+    let since_said: Duration = said.expect("the wait said what it waits for").elapsed();
+    assert_eq!(WAKE_WITHIN * 5, NOTICE_EVERY, "the bound stays a fifth of the interval that repeats the holder's line");
+    assert!(since_said >= HOLD, "the wait returned before the hold it was told to keep: {since_said:?}");
+    assert!(since_said < WAKE_WITHIN, "the wake came {since_said:?} after the line, so it was the reminder's timer and not the removal");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(2));
     drop(lock);
     remove(root.as_path());
