@@ -2754,6 +2754,29 @@ What the read got before that moment is not returned as the step's answer:
 a step whose output may be incomplete is reported,
 never guessed at.
 
+A step whose watcher cannot exist is said so and still ends at its ceiling.
+The watcher is a task of the runtime,
+and a task needs a worker thread of its own
+(`src/native/foundation/lazy_runtime.rs`).
+When the runtime has none (the current-thread stand-in,
+or a build the system refused),
+nothing announces the wait,
+nothing ends the step for being quiet,
+and nothing ends it at its ceiling.
+The refusal is now said once in the command's diagnostics,
+the watch records it,
+and the wait carries the step's own ceiling:
+a step that has one is ended at it and fails with a sentence naming the refused thread and the
+limit to check.
+A step with no ceiling is still waited for as long as it lives,
+which the owner decided for a write that cannot be run twice,
+and the sentence that says nothing watches it is what tells the person
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 8).
+The line goes straight to the diagnostics rather than through the blocking pool,
+because the refusal means no task may be reachable;
+it is one line per step.
+
 A signal the wrapper catches is relayed to the child or it ends the wrapper;
 it is never swallowed.
 `SignalGuard` (`src/native/process/signal_relay.rs`) installs the handlers of `SIGINT`,

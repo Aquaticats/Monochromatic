@@ -211,6 +211,11 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     if !stoppable {
         watch.never_stop();
     }
+    // Nothing watches this step, so this wait is what ends it at its ceiling; a step with no ceiling is waited for as before.
+    let carried: Option<Duration> = match watch.unwatched() {
+        Some(_no_watcher) => ceiling,
+        None => None,
+    };
     watch.begin();
     // Whether the step was left running, so what it writes from here on is read by nobody.
     let mut left_running: bool = false;
@@ -224,7 +229,7 @@ pub async fn output_watched_within_for_a_stop_awaiting(
             Err(error) => Err(error),
         },
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends_awaiting(child, waiting_for, None).await,
+            Some(open) => open.read_until_the_child_ends_awaiting(child, waiting_for, carried).await,
             None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
         },
         StepBound::Unbounded => {

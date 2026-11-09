@@ -464,6 +464,60 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
     crate::test_support::remove(root.as_path());
 }
 
+/// What:
+///  A step whose watch could not start still ends at its ceiling,
+/// and the failure says no thread could watch it.
+/// Why:
+///   `spawn_on_runtime` returning nothing left the step with no task at all:
+/// nothing announced it,
+/// nothing ended it,
+///  and the wait was unbounded,
+/// so a step that keeps quiet was waited for until it ended by itself,
+/// with nothing saying why
+///  (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 8).
+/// The fixture would outlive the control's own bound if the ceiling were not carried,
+/// so a wait that outlasts the step shows.
+#[test]
+fn a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so() {
+    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sleep");
+    command.arg("6").stdin(Stdio::null());
+    let began: Instant = Instant::now();
+    let failure: std::io::Error = output_watched_within(
+        &mut command,
+        "a step nobody watches",
+        "a step nobody watches",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_millis(700)),
+    )
+    .expect_err("the ceiling ended it");
+    let waited: Duration = began.elapsed();
+    drop(refused);
+    // The positive control: a worker can run the watch, and the step ends at the ceiling through it.
+    let mut watched: Command = Command::new("sleep");
+    watched.arg("6").stdin(Stdio::null());
+    let began_watched: Instant = Instant::now();
+    let through_the_watch: std::io::Error = output_watched_within(
+        &mut watched,
+        "a step a watch follows",
+        "a step a watch follows",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_millis(700)),
+    )
+    .expect_err("the ceiling ended it");
+    let waited_watched: Duration = began_watched.elapsed();
+    assert!(is_ceiling(&through_the_watch), "the watch ends the step at its ceiling: {through_the_watch}");
+    assert!(waited_watched < Duration::from_secs(3), "the watched step ended at its ceiling after {waited_watched:?}");
+    assert!(waited < Duration::from_secs(3), "a step nobody could watch outlasted its ceiling by {waited:?}");
+    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
+    assert!(failure.to_string().contains("refused a thread"), "the failure says no thread could watch the step: {failure}");
+    assert!(failure.to_string().contains("a step nobody watches"), "the failure names the step: {failure}");
+}
+
 /// A command that finishes at once prints nothing;
 /// the grace is an hour,
 /// so no host is slow enough to outlast it.

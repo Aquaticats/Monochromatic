@@ -49,6 +49,28 @@ pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
 }
 
 /// What:
+///  Why nothing watches a step,
+/// in the words the person reads.
+/// Why:
+///   A step with no watcher is announced by nobody,
+/// ended by nobody for being quiet,
+/// and has its ceiling carried by
+///  the wait itself,
+/// so the person has to be told that the reason is a refused thread and what to do about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} has no watcher: the system refused a thread for it, so nothing announces this wait ...`
+/// ```
+pub fn no_watcher_text(waiting_for: &str) -> String {
+    return format!(
+        "{waiting_for} has no watcher: the system refused a thread for it, so nothing announces this wait, nothing ends the step \
+         for being quiet, and a step with a ceiling is ended at that ceiling by the wait itself. Hint: check the process limit \
+         (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again."
+    );
+}
+
+/// What:
 ///  How long a watched step is waited for,
 /// and what happens at the end.
 /// Why:
