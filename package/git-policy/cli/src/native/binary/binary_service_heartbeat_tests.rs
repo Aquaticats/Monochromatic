@@ -218,6 +218,13 @@ fn fake_reset(_bus: &Path, _unit: &str) -> bool {
     return true;
 }
 
+/// The fake manager takes a request to read the units again,
+/// and nothing comes of it:
+/// these controls are about a service that never starts.
+fn fake_reload(_bus: &Path) -> bool {
+    return true;
+}
+
 /// A watch on the fake manager that asks quickly.
 fn watched(name: &str) -> ClientConfig {
     let watch: ManagerWatch = ManagerWatch {
@@ -228,6 +235,7 @@ fn watched(name: &str) -> ClientConfig {
         state: fake_manager,
         start: fake_start,
         reset: fake_reset,
+        reload: fake_reload,
     };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }

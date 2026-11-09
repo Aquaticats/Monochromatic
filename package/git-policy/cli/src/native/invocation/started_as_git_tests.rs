@@ -419,7 +419,7 @@ fn a_record_of_this_process_is_read_even_when_an_older_marker_sits_above() {
         return;
     }
     // The record belongs to one process, so the body runs in a child and the parent asserts its report.
-    let output: std::process::Output = crate::test_support::child_this_test(
+    let output: std::process::Output = crate::test_support::child_test_process::run(
         RECORD_ABOVE_CHILD_VARIABLE,
         "invocation::started_as_git::tests::a_record_of_this_process_is_read_even_when_an_older_marker_sits_above",
     );

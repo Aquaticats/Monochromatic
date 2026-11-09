@@ -556,29 +556,74 @@ fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
 /// writeExecutable(relayParent, `#!/bin/sh\n/bin/sh '${relayChild}' "$@"; echo relayed`);
 /// writeExecutable(relayChild, `#!/bin/sh\n'${wrapper}' "$@"; echo relayed`);
 /// ```
-fn relays_behind_a_launcher_that_clears_the_environment(scripts: &Path, path_variable: &OsStr, wrapper: &Path) {
+fn relays_behind_a_launcher_that_clears_the_environment(scripts: &Path, path_variable: &OsStr, wrapper: &Path, relays: usize) {
     let launcher: PathBuf = scripts.join("git");
-    let relay_parent: PathBuf = scripts.join("relay-parent");
-    let relay_child: PathBuf = scripts.join("relay-child");
+    let first: PathBuf = scripts.join("relay-0");
     // A read of the wrapper's own is answered by the real Git, so the forwarding below is the chain this control is about.
     executable(
         launcher.as_path(),
         format!(
-            "#!/bin/sh\ncase \"${{CLI_GIT_STARTED_AS_GIT}}\" in\n*query*) exec {real_git} \"$@\" ;;\nesac\nexec /usr/bin/env --ignore-environment HOME=\"$HOME\" PATH='{path}' /bin/sh '{parent}' \"$@\"\n",
+            "#!/bin/sh\ncase \"${{CLI_GIT_STARTED_AS_GIT}}\" in\n*query*) exec {real_git} \"$@\" ;;\nesac\nexec /usr/bin/env --ignore-environment HOME=\"$HOME\" PATH='{path}' /bin/sh '{first}' \"$@\"\n",
             path = path_variable.to_string_lossy(),
-            parent = relay_parent.display(),
+            first = first.display(),
             real_git = REAL_GIT
         )
         .as_bytes(),
     );
-    executable(
-        relay_parent.as_path(),
-        format!("#!/bin/sh\n/bin/sh '{child}' \"$@\"\nstatus=$?\necho relayed >&2\nexit $status\n", child = relay_child.display()).as_bytes(),
+    // Each relay starts the next and waits, and the last starts the wrapper and waits, so every one of them stands
+    //  between the wrapper that wrote the record and the wrapper that reads it.
+    for level in 0..relays {
+        let next: String = if level + 1 < relays {
+            format!("/bin/sh '{}' \"$@\"", scripts.join(format!("relay-{}", level + 1)).display())
+        } else {
+            format!("'{}' \"$@\"", wrapper.display())
+        };
+        executable(
+            scripts.join(format!("relay-{level}")).as_path(),
+            format!("#!/bin/sh\n{next}\nstatus=$?\necho relayed >&2\nexit $status\n").as_bytes(),
+        );
+    }
+}
+
+
+/// What:
+///  A chain of relays longer than the ancestors the record is looked for in still ends.
+/// Why:
+///  The walk read four processes above the arriving wrapper,
+/// and a launcher that starts five relays puts the
+///  start that wrote the record further above than that;
+/// the record was then rejected and the count started again
+///  at one at every generation,
+/// so the wrapper kept starting itself and accumulating waiting shells until an
+///  outside limit stopped it
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 1 of the round-4
+///  review).
+/// The record is now looked for in every process above this one,
+/// so the length of the relay chain is not what
+///  ends the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [bin, scripts] }).code).toBe(2); expect(text).toContain('start 33 of one chain');
+/// ```
+#[test]
+fn a_chain_of_five_relays_still_ends() {
+    let fixture: Fixture = fixture("launcher-five-relays");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let scripts: PathBuf = directory(&fixture, "scripts");
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(scripts.as_os_str());
+    relays_behind_a_launcher_that_clears_the_environment(scripts.as_path(), path.as_os_str(), fixture.wrapper.as_path(), 5);
+    let observed: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        b"",
     );
-    executable(
-        relay_child.as_path(),
-        format!("#!/bin/sh\n'{wrapper}' \"$@\"\nstatus=$?\necho relayed >&2\nexit $status\n", wrapper = wrapper.display()).as_bytes(),
-    );
+    let text: String = words(&observed);
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, not a relay limit: {text}");
+    assert!(text.contains(&format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1)), "it names the start that passed the bound: {text}");
+    remove(&fixture);
 }
 
 /// What:
@@ -608,7 +653,7 @@ fn a_chain_of_relays_between_two_starts_still_ends() {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(scripts.as_os_str());
-    relays_behind_a_launcher_that_clears_the_environment(scripts.as_path(), path.as_os_str(), fixture.wrapper.as_path());
+    relays_behind_a_launcher_that_clears_the_environment(scripts.as_path(), path.as_os_str(), fixture.wrapper.as_path(), 2);
     let observed: Observed = observe(
         bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
         b"",

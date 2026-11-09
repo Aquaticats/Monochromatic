@@ -305,3 +305,28 @@ fn the_temporary_file_is_private_and_only_the_writers_own_names_are_leftovers() 
     }
     remove(parent.as_path());
 }
+
+/// What:
+///  A named pipe where the journal belongs is refused at once,
+///  naming the file,
+/// instead of waiting for a writer
+///  that never comes.
+/// Why:
+///   Opening a named pipe for reading waits until something writes to it,
+/// and the command that waits holds the
+///  claim of the checkout,
+/// so every later command on it is refused as busy with a process that never ends.
+/// The
+///  conversion's reader already refuses such a file;
+/// the migration's must too.
+#[test]
+fn a_named_pipe_where_the_journal_belongs_is_refused_at_once() {
+    let parent: PathBuf = fixture("journal-fifo");
+    let path: PathBuf = parent.join(".cli-git-migrate-checkout.journal.json");
+    crate::subvolume_sync_attrs::make_fifo(path.as_path(), 0o600).expect("named pipe");
+    let read: Option<Result<Journal, MigrateError>> = crate::test_support::finished_within(move || { return Journal::load(path.as_path()); });
+    let Some(loaded) = read else { panic!("reading the journal did not finish within five seconds") };
+    let reason: String = loaded.expect_err("a named pipe is not a journal").to_string();
+    assert!(reason.contains("not a plain file"), "{reason}");
+    remove(parent.as_path());
+}
