@@ -216,7 +216,14 @@ A list with one entry and no trailing `?` is a plain path,
 the only form that existed before lists.
 See "Rules list" below for the grammar.
 
-Every runtime-rules scan uses read-write caching by default with no opt-out.
+The standalone command scans with read-write caching: it compiles what the cache lacks and publishes it.
+An embedding host chooses per load (`Scanner::load_writing_cache`,
+  `Scanner::load_entries_writing_cache`,
+  `forbidden_strings::CacheAccess`),
+  and `forbidden_strings::has_compiled_rules` says beforehand whether a load can miss at all.
+A load that may not write still scans with the rules it compiled in memory,
+  reports the miss as its cache warning,
+  and leaves the artifact to whoever publishes it.
 `FORBIDDEN_STRINGS_CACHE_DIR` may set an absolute cache root.
 Without the override,
 the scanner uses `$XDG_CACHE_HOME` or `$HOME/.cache` on XDG-oriented Unix,
@@ -1129,7 +1136,12 @@ commands,
   validates scanner-owned envelope metadata,
   rebuilds the literal matcher from compact groups,
   and decodes optional regex-only engine bytes.
-  Scan-time repair and `compile-rules` share the same atomic publisher.
+  Scan-time repair and `compile-rules` share the same atomic publisher,
+  which fills a private temporary file and renames it over the artifact,
+  syncing nothing:
+  a reader validates the whole artifact,
+  so one a crash tore is rejected and recompiled,
+  and forcing the bytes to the device only made the caller wait for a derived file.
 - **Line-based batch scan.**
   `src/frx_scan.rs` splits each file's bytes into lines once
   and hands the buffer plus line-start offsets through a common matcher interface.

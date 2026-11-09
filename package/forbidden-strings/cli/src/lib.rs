@@ -63,6 +63,9 @@ mod scanner;
 pub use scanner::{CandidateScan, Scanner};
 /// Fixed-token cache warnings remain structured for embedded event reporting.
 pub use runtime_cache::CacheWarning;
+/// Embedding hosts say whether a load that misses may write the shared compiled-rules cache,
+///  and ask the same question before loading.
+pub use runtime_cache::{has_compiled_rules, CacheAccess};
 /// Native-byte path normalization and protocol-safe display encoding.
 mod path_name_bytes;
 /// Registers component-level pathname matching and masked display labels.
