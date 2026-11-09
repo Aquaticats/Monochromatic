@@ -11,6 +11,7 @@
 use super::*;
 use crate::fs_beneath::handle_path;
 use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
+use crate::push_failure_notice_words::PushOutcome;
 use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
 use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy_with_owner, record_destroyed};
 use std::cell::RefCell;
@@ -305,7 +306,7 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     // A push failure nobody has seen yet lives in that registration and would go with it.
-    record_push_failure(admin.as_path(), "refs/heads/topic", "0123456789abcdef0123456789abcdef01234567", "refused by test policy").expect("notice");
+    record_push_failure(admin.as_path(), "refs/heads/topic", "0123456789abcdef0123456789abcdef01234567", PushOutcome::Refused, "refused by test policy").expect("notice");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
     record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
