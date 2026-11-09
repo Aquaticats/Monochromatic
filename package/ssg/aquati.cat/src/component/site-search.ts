@@ -178,9 +178,7 @@ export function css(): string {
         'border-color': cssVar('color-border',),
         'border-radius': cssRem(GAP_SMALL,),
         // oxlint-disable-next-line no-unsafe-type-assertion -- template literal produces valid box-shadow but doesn't narrow to StrictValue
-        'box-shadow': `0 ${cssRem(GAP_SMALL,)} ${
-          cssRem(GAP,)
-        } rgba(0, 0, 0, 0.1)` as CssValue,
+        'box-shadow': `0 ${cssRem(GAP_SMALL,)} ${cssRem(GAP,)} ${cssVar('color-shadow',)}` as CssValue,
         'z-index': 10,
       },
       children: [

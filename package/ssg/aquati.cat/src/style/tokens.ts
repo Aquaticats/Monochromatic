@@ -43,6 +43,8 @@ function lightTokenDecls(): CssDeclarations {
     '--color-muted': '#666',
     '--color-subtle': '#888',
     '--color-focus-ring': '#0066cc',
+    /* Black at low alpha; a shadow has to darken the lavender surface below it. */
+    '--color-shadow': 'rgb(0 0 0 / 10%)',
     '--hl-keyword': '#a626a4',
     '--hl-string': '#50a14f',
     '--hl-comment': '#a0a1a7',
@@ -89,6 +91,8 @@ function darkTokenDecls(): CssDeclarations {
     '--color-muted': '#999',
     '--color-subtle': '#aaa',
     '--color-focus-ring': '#6db3f2',
+    /* Darker than light mode, because the surface a shadow falls on is already near black. */
+    '--color-shadow': 'rgb(0 0 0 / 45%)',
     '--hl-keyword': '#c678dd',
     '--hl-string': '#98c379',
     '--hl-comment': '#5c6370',
