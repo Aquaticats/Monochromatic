@@ -195,6 +195,8 @@ pub(crate) fn finish_trash_and_repair(invocation: &Invocation, after: &AfterLock
         end_step(repair_entered);
         return;
     };
+    // The writer is lent for this call's own span, so the lock and the writer it holds are one lifetime, and both threads
+    //  name the same stream.
     let held: &mut (dyn Write + Send) = stderr;
     let stream: NoticeStream<'_> = std::sync::Mutex::new(held);
     // A thread with nothing running beside it is a thread only waited for, so the disposal runs here instead.
