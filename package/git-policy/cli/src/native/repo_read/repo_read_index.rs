@@ -188,15 +188,21 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
         }
         let size: usize = usize::try_from(be32(bytes, at + 4)?).ok()?;
         let body_at: usize = at.checked_add(8)?;
+        let body: Option<&[u8]> = bytes.get(body_at..body_at.checked_add(size)?);
         match signature {
             // An extension that does not read as Git writes it is dropped by Git too, so the comparison goes without it.
-            b"TREE" => tree = bytes.get(body_at..body_at.checked_add(size)?).and_then(|body| { return CacheTree::read(body, hash_length); }),
+            b"TREE" => {
+                tree = match body {
+                    Some(found) => CacheTree::read(found, hash_length),
+                    None => None,
+                };
+            }
             // Git words a `REUC` or an `FSMN` body it cannot read on standard error and answers anyway, so both must read here.
             b"REUC" => {
-                crate::index_resolve_undo::ResolveUndo::read(bytes.get(body_at..body_at.checked_add(size)?)?, hash_length)?;
+                crate::index_resolve_undo::ResolveUndo::read(body?, hash_length)?;
             }
             b"FSMN" => {
-                crate::index_fsmonitor::read_fsmonitor(bytes.get(body_at..body_at.checked_add(size)?)?, entries.len())?;
+                crate::index_fsmonitor::read_fsmonitor(body?, entries.len())?;
             }
             // Git reads these without a word on any body it is handed, measured on Git 2.56.0 with each body `abcd`.
             b"UNTR" | b"EOIE" | b"IEOT" => {}

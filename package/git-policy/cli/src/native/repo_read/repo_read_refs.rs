@@ -204,13 +204,15 @@ impl Refs {
         return self.packed_named(false);
     }
 
-    /// The packed lines as `(name, object name)`;
-    /// with `skip_unplain` a well-formed line whose name Git itself would refuse
-    ///  (a name holding a space, for one) is left out instead of making the whole file unreadable.
+    /// The packed lines as `(name, object name)`.
+    /// With `skip_unplain` set,
+    /// a well-formed line whose name Git itself would refuse,
+    /// a name holding a space for one,
+    /// is left out instead of making the whole file unreadable.
     /// Why:
     /// a lookup of one name Git accepts cannot be answered by a line Git refuses,
-    /// and a Git that lists refs words a broken packed name on standard error and prints the other
-    ///  refs without it (`ref-filter.c`,
+    /// and a Git that lists refs words a broken packed name on standard error
+    /// and prints the other refs without it (`ref-filter.c`,
     /// "ignoring ref with broken name"),
     /// and the reader leaves the reading of such a listing to Git.
     /// A line with a damaged object name still ends the read.
