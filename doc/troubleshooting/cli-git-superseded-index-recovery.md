@@ -11,6 +11,9 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:55:17-05:00:
+`package/git-policy/cli/src/native/recovery_inspect.rs` left the tree on 2026-11-01 in `72e0534cca`.
+
 ## Symptom
 
 On 2026-10-03,

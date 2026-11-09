@@ -1,5 +1,10 @@
 # Pi 0.87.1 subagents expose an empty live scope that prevented auto-mode judge selection
 
+Note 2026-11-09T16:51:44-05:00:
+`package/pi-shared/model-selection/src/sdk-scope.unit.test.ts` is now
+`package/agent-harness-shared/model-selection/src/sdk-scope.unit.test.ts`,
+moved 2026-10-20 in `b710410e81`.
+
 ## Symptom
 
 The supplied `Screenshot_20260925_231044.png` shows auto-mode repeatedly logging:

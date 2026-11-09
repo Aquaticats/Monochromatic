@@ -55,11 +55,13 @@ non-JavaScript files:
    Handles static imports and re-exports reliably.
 
 2. **`resolveId` hook**:
-    for dynamic imports,
-    rolldown's Rust scanner discovers
-   dependencies from the original AST before `transform` runs.
+    for a specifier the transform left untagged.
    The plugin reads the importer's source to detect the attribute clause
    and tags the resolved ID with the appropriate query parameter.
+   Measured on rolldown 1.3.0,
+    a dynamic import the transform rewrote resolves from its tagged
+   specifier and never reaches this scan,
+    so the scan covers what the transform could not rewrite.
 
 The `load` hook then intercepts tagged IDs,
  reads the file,

@@ -14,6 +14,11 @@
 
 import { join, } from 'node:path';
 
+import {
+  makeOwnedFileParser,
+  type OwnedFileParser,
+} from '../../runtime/handler-runtime.ts';
+
 /**
  Environment lookup object accepted by path helpers.
  */
@@ -97,6 +102,12 @@ const BY_PID_DIR: string = byPidDir();
 const SPAWNS_DIR: string = spawnsDir();
 
 /**
+ Parser for the spawn-state records this package writes, asserted once for every
+ reader instead of once per reader.
+ */
+const parseSpawnState: OwnedFileParser<SpawnState> = makeOwnedFileParser<SpawnState>();
+
+/**
  JSON structure for PID-to-session mapping files in `.by-pid/`.
  */
 type PidMapping = {
@@ -143,6 +154,7 @@ type SpawnState = {
 export {
   byPidDir,
   BY_PID_DIR,
+  parseSpawnState,
   spawnResultsDir,
   SPAWN_RESULTS_DIR,
   spawnsDir,

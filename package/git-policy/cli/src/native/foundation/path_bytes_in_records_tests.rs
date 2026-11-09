@@ -85,3 +85,43 @@ fn the_two_fields_of_a_record_of_lines_are_read_by_one_rule() {
     }
     assert_eq!(path_of_the_two_fields(None, None), Ok(None), "a record with neither field names no path");
 }
+
+/// What:
+///  The one rule a list of repository paths and a single entry of one keep:
+/// the text field is written exactly when the text spells every byte,
+/// the bytes field then stands alone,
+/// and a reader takes whichever the record holds.
+/// Why:
+///   A record written by the release before the bytes form keeps the text form byte for byte,
+/// so that release still reads it,
+/// and a record naming a name that is not text has no text field,
+/// so that release refuses it rather than acting on a replacement spelling.
+#[test]
+fn a_list_and_an_entry_keep_their_bytes_without_losing_the_earlier_release() {
+    let text_paths: Vec<Vec<u8>> = vec![b"cache".to_vec(), b"cache/a".to_vec()];
+    assert_eq!(list_fragment("intended", text_paths.as_slice()), r#""intended":["cache","cache/a"]"#, "the text form is unchanged for names that are text");
+    let mixed: Vec<Vec<u8>> = vec![b"cache".to_vec(), b"cache/a\xff".to_vec()];
+    assert_eq!(
+        list_fragment("intended", mixed.as_slice()),
+        r#""intendedHex":["6361636865","63616368652f61ff"]"#,
+        "one name that is not text moves the whole list to its bytes"
+    );
+    let written: Value = serde_json::from_str(r#"{"intendedHex":["6361636865","63616368652f61ff"]}"#).expect("record");
+    assert_eq!(read_path_list(&written, "intended"), Some(mixed.clone()), "the bytes are read back");
+    let earlier: Value = serde_json::from_str(r#"{"intended":["cache","cache/a"]}"#).expect("record");
+    assert_eq!(read_path_list(&earlier, "intended"), Some(text_paths.clone()), "the text of an earlier release is read as it is");
+    let damaged: Value = serde_json::from_str(r#"{"intendedHex":["6361636865","63616368652f61f"]}"#).expect("record");
+    assert_eq!(read_path_list(&damaged, "intended"), None, "damaged bytes name no path");
+    let neither: Value = serde_json::from_str(r#"{"other":1}"#).expect("record");
+    assert_eq!(read_path_list(&neither, "intended"), None, "a record with no such field names no list");
+
+    let entry: Vec<u8> = b"cache/a\xff".to_vec();
+    assert_eq!(field_fragment("relativePath", entry.as_slice()), r#""relativePathHex":"63616368652f61ff""#);
+    assert_eq!(field_fragment("relativePath", b"cache/a"), r#""relativePath":"cache/a""#);
+    let entry_record: Value = serde_json::from_str(r#"{"relativePathHex":"63616368652f61ff"}"#).expect("record");
+    assert_eq!(read_path_field(&entry_record, "relativePath"), Some(entry));
+    let earlier_entry: Value = serde_json::from_str(r#"{"relativePath":"cache/a"}"#).expect("record");
+    assert_eq!(read_path_field(&earlier_entry, "relativePath"), Some(b"cache/a".to_vec()));
+    let damaged_entry: Value = serde_json::from_str(r#"{"relativePathHex":"6"}"#).expect("record");
+    assert_eq!(read_path_field(&damaged_entry, "relativePath"), None);
+}

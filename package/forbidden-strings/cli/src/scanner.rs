@@ -20,8 +20,9 @@ use crate::path_scan::{PathScanRecords, scan_path_records};
 use crate::{BIN_PROBE_SIZE, ScanFinding};
 /// Import the incumbent load-error channel.
 use anyhow::Result;
-/// Imports the fixed-token cache diagnostic retained from loading.
-use crate::runtime_cache::CacheWarning;
+/// Imports the fixed-token cache diagnostic retained from loading,
+///  and what a load may write into the shared compiled-rules cache.
+use crate::runtime_cache::{CacheAccess, CacheWarning};
 /// Imports the list entry a host passes to name its rules files.
 use crate::rules_list::RulesEntry;
 /// Native paths preserve operating-system encoding until matching/display boundaries.
@@ -74,8 +75,30 @@ impl Scanner {
     /// function loadScanner(runtimeRulesPath, builtinRules, explicitlySelectedPath): Scanner;
     /// ```
     pub fn load(runtime_rules_path: &Path, builtin_rules: bool, explicit: bool) -> Result<Scanner> {
+        return Scanner::load_writing_cache(runtime_rules_path, builtin_rules, explicit, CacheAccess::ReadWrite)
+    }
+
+    /// What:
+    ///  Load runtime rules from one path,
+    ///  saying whether a miss may add the compiled rules to the shared cache.
+    /// Why:
+    ///  A host that arranges the publication somewhere else
+    ///  (a resident service reading the same repository)
+    ///  takes no write on its own path,
+    ///  and a load that misses still scans with the rules it compiled in memory.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function loadScanner(runtimeRulesPath, builtinRules, explicitlySelectedPath, cacheAccess): Scanner;
+    /// ```
+    pub fn load_writing_cache(
+        runtime_rules_path: &Path,
+        builtin_rules: bool,
+        explicit: bool,
+        access: CacheAccess,
+    ) -> Result<Scanner> {
         // Propagate the loader's existing redacted failure instead of accepting an incomplete ruleset.
-        let loaded: LoadedRules = load_request::load(runtime_rules_path, builtin_rules, explicit)?;
+        let loaded: LoadedRules = load_request::load(runtime_rules_path, builtin_rules, explicit, access)?;
         return Ok(Scanner { loaded });
     }
 
@@ -92,8 +115,27 @@ impl Scanner {
     /// function loadScannerFromList(entries: { path: string; optional: boolean }[], builtinRules: boolean): Scanner;
     /// ```
     pub fn load_entries(entries: &[RulesEntry], builtin_rules: bool) -> Result<Scanner> {
+        return Scanner::load_entries_writing_cache(entries, builtin_rules, CacheAccess::ReadWrite)
+    }
+
+    /// What:
+    ///  Load the files of a rules list,
+    ///  saying whether a miss may add the compiled rules to the shared cache.
+    /// Why:
+    ///  The list form of [`Scanner::load_writing_cache`],
+    ///  for a host whose configuration names several rules files.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function loadScannerFromList(entries, builtinRules, cacheAccess): Scanner;
+    /// ```
+    pub fn load_entries_writing_cache(
+        entries: &[RulesEntry],
+        builtin_rules: bool,
+        access: CacheAccess,
+    ) -> Result<Scanner> {
         // Propagate the loader's existing redacted failure instead of accepting an incomplete ruleset.
-        let loaded: LoadedRules = load_request::load_entries(entries, builtin_rules)?;
+        let loaded: LoadedRules = load_request::load_entries(entries, builtin_rules, access)?;
         return Ok(Scanner { loaded });
     }
 

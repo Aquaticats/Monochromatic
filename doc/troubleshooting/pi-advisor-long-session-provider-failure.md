@@ -1,5 +1,10 @@
 # Pi Advisor 0.0.1 with Pi 0.82.1: long compacted sessions duplicate failed calls and render unreadable errors
 
+Note 2026-11-09T16:51:44-05:00:
+`package/pi-shared/model-selection/src/cost-ranking.ts` is now
+`package/agent-harness-shared/model-selection/src/cost-ranking.ts`,
+moved 2026-10-20 in `b710410e81`.
+
 ## Symptom
 
 Session `019fb34b-1fa3-7b1e-b6bf-e4ce7f632feb` reached Task 8 after two Pi compactions.

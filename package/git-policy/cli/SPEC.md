@@ -3965,6 +3965,47 @@ it would load changed,
 only to a service of that worktree that already runs (found by its start arguments),
 and never starts a process.
 The client keeps compiling on a cache miss.
+`src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
+(`CachePublisher`,
+`cache_access`):
+when the cache holds no artifact for the rules text
+(`forbidden_strings::compiled_rules_artifact_exists`,
+one `stat` of the path the text's digest names)
+the command asks a service of that worktree that already runs to compile and publish it,
+with the same one-way `warm` message,
+and loads the rules read-only
+(`forbidden_strings::CacheAccess::ReadOnly`,
+`CandidateScanner::load_writing_cache`),
+so the rules it compiled are only ever a scan's input.
+An artifact too damaged to decode is not a miss here:
+the load reads it,
+rejects it,
+and repairs it in this process.
+The command publishes the artifact itself in two cases:
+a worktree with no running service,
+and a rules list the command took from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no
+rules files,
+which the service's environment does not carry and would not compile.
+A configuration that names rules files wins over the variable,
+so such a repository leaves its list to the service.
+A service that declines the warm (its address space leaves too little room,
+`warm_fits`)
+also leaves the artifact for the next command that publishes,
+so such a machine compiles the rules once per command:
+correct,
+and slower than a cache it cannot fill.
+The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
+writes a private temporary and renames it over the artifact,
+syncing neither the file nor its directory:
+every read validates magic,
+schema,
+scanner version,
+platform,
+source digest,
+payload digest,
+engine digest and trailing bytes,
+so a torn artifact is rejected and recompiled,
+and the file is derived data that may be deleted at any time.
 The waiting notice of the commit Git builds in the scratch repository names that `git commit`,
 signing,
 the signing program,
@@ -10531,7 +10572,7 @@ For injected commit-only semantics:
     Intent-to-add entries stay in the copy,
     because they carry no cached stat data and copy as they are,
     and the paths they name are cleared before the reset
-    (`copy_index_for_reset`,
+    (`write_index_for_reset`,
     `commit_index_copying.rs`):
     the reset to the base then writes the base's own entry at each of those paths,
     replaces one whose mode or object name differs,
@@ -11682,7 +11723,8 @@ empty for a commit that noted no step:
 `calls` how often it ran,
 `totalMs` the whole of its time and `longestMs` its longest run;
 the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
-`index read` for reading an index's bytes to decide whether it may seed a private index,
+`index read` for the one reading of an index's bytes that every private copy of the commit is written from,
+`index seed` for the walk of those bytes that decides which way an index may seed a private commit index,
 `index equals base` for the in-process answer of whether the captured index already holds the base's tree,
 `index copy` for a copy of an index into a private one,
 `policy blob write` for storing a correction's bytes,
