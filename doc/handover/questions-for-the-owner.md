@@ -26,6 +26,45 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### How should a fuzz sidecar that stops compiling get caught?, asked 2026-11-09T16:25:06-05:00
+
+The wrapper's fuzz sidecar (`package/git-policy/cli.fuzz`) stopped compiling because later wrapper changes moved the code it uses,
+and nothing ran it,
+so nobody noticed until an agent looked.
+The wrapper's `lint:sidecar-locks` checks only its lockfile and never compiles the sidecar,
+and no CI job or hook runs that lint.
+`doc/planning/catching-a-stale-fuzz-sidecar-lockfile.md` holds the full comparison.
+Nothing here is built yet.
+
+- A.
+  The wrapper's `lint` also runs `mise run //package/git-policy/cli.fuzz:lint:types`.
+  Pro:
+  it catches a stale lock and a wrapper change on the branch that made it,
+  before the merge.
+  Con:
+  it adds about 18 s to a warm lint (5.2 s check and 13.1 s Clippy).
+- B.
+  A as well as a path-filtered workflow like `toml-edit-fuzz.yml`.
+  Pro:
+  it also catches a branch that skipped the local lint.
+  Con:
+  another workflow to keep.
+- C.
+  A workflow only.
+  Pro:
+  no cost locally.
+  Con:
+  it finds the break after the push.
+
+Ranking:
+A > B > C,
+because A catches it earliest at the smallest cost,
+B adds a backstop nothing has yet needed,
+and C finds it latest.
+Please also say whether `lint:sidecar-locks` should stay separate once A makes the compile catch the lock too,
+and whether `toml-edit-fuzz.yml` and `logger-fuzz.yml` should gain the same check for their sidecars,
+which have the same second lockfile.
+
 ### May the ignored-state rule say what a copy does with a file that never settles?, asked 2026-11-09T16:22:51-05:00
 
 `doc/decision/cli-git-policies-platform.md`,
