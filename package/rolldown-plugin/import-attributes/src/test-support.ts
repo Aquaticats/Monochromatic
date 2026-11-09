@@ -18,6 +18,8 @@ import {
 } from 'rolldown/utils';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Parsing: every helper parses one source string and walks it once with its own visitor
+
 /**
  Name the parser reports in diagnostics; the helpers only need a stable label.
  */
@@ -48,6 +50,10 @@ function visitModule({
   );
   visitor.visit(parsed.program,);
 }
+
+//endregion
+
+//region Node finders: each returns the first node a case asked for, and throws when the source has none
 
 /**
  Returns the import attributes of the source's first static declaration,
@@ -164,3 +170,5 @@ export function dynamicImportOptionsOf(code: string,): ESTree.Expression {
     throw new Error(`no dynamic import with options in: ${code}`,);
   return found.options;
 }
+
+//endregion
