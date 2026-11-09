@@ -7253,6 +7253,9 @@ Three further private Git starts carry the same switch:
 the whole-index staging `commit -a` does in the private index (`:/`),
 the staging of each unmerged worktree copy that finishes a merge,
 and the settled-entry lookup that installs a landed correction into the worktree copy.
+That lookup also compares the pathname of every entry Git lists with the path it asked about:
+`GIT_ICASE_PATHSPECS` makes `:(top,literal)<path>` list every name that differs only in case,
+and the first of them is not necessarily the corrected path.
 Only the replay of a caller's `git add` keeps the caller's own mode.
 Preparation constructs candidate facts from the private index,
 writes each policy's corrections into the private index,
