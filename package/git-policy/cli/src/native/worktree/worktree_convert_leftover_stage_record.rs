@@ -33,8 +33,9 @@
 //! ```
 
 use crate::diagnostic_log::warn;
-use crate::fs_beneath::ObjectId;
+use crate::fs_beneath::{ObjectId, identity_at, open_root};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
+use crate::worktree_convert_inspection::converting_path;
 use crate::worktree_convert_journal::read_plain_file;
 use std::path::{Path, PathBuf};
 
@@ -128,6 +129,36 @@ pub fn leftover_stage_of(worktree: &Path) -> Option<LeftoverStage> {
         }
     }
     return Some(LeftoverStage { original: original?, created });
+}
+
+/// What:
+///  The identity of the object at `<worktree>.cli-git-converting` when that object is one a conversion recorded,
+/// or nothing when the name is free,
+/// holds something else,
+/// or no record is there.
+/// Why:
+///   The record alone says what a conversion *may* have left,
+/// not what is there now:
+/// a record whose stage is gone is stale,
+///  and one whose name holds another object is not about that object.
+/// A removal refuses only on this answer,
+/// so a stale record
+///  cannot block it while a real leftover still does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stage = await recordedStageOf(worktree); // ObjectId | undefined
+/// ```
+pub fn recorded_stage_of(worktree: &Path) -> Option<ObjectId> {
+    let recorded: LeftoverStage = leftover_stage_of(worktree)?;
+    let stage: PathBuf = converting_path(worktree);
+    let parent: PathBuf = worktree.parent()?.to_path_buf();
+    let held: std::fs::File = open_root(parent.as_path()).ok()?;
+    let found: ObjectId = identity_at(&held, stage.file_name()?).ok()?;
+    if found == recorded.original || recorded.created == Some(found) {
+        return Some(found);
+    }
+    return None;
 }
 
 /// Drop the record of `worktree`,

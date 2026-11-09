@@ -643,9 +643,15 @@ Read-only commands,
      it does not run Git afterwards.
   A worktree that still has a conversion's copy beside it is not removed,
      and what proves the copy is a conversion's
-   is the record that conversion wrote beside the worktree;
-     a directory at that name that no record names is the person's own,
-   and the removal goes on and leaves it alone:
+   is the record that conversion wrote beside the worktree,
+     and the object at that name must still be one the record holds:
+     a
+   directory that no record names,
+     or one the record's identities do not match,
+     or a record whose stage is gone,
+   is not a
+     copy a conversion left,
+     and the removal goes on and leaves the directory alone:
      the command
    refuses with status 1 and a report that names the copy and both commands that clear it
    (`convert-worktree-to-subvolume <path>` to finish the conversion,

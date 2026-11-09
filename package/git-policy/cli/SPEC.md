@@ -1802,6 +1802,16 @@ names is the person's own,
 and the removal goes on and leaves it where it is,
 because refusing on the suffix alone would block a
 legitimate removal with neither command able to clear it.
+The record must also still be true:
+the object at the stage's name is
+compared with the identities the record holds,
+so a record whose stage is gone,
+or whose name holds another object,
+does not stop
+the removal,
+because the record says what a conversion may have left and not what is there now,
+and nothing clears a
+record a killed `--abandon` left behind.
 The report of the refusal:
 the wrapper refuses with
 exit status 1 and one report that names the copy,

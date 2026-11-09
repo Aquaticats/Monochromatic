@@ -476,6 +476,58 @@ fn a_worktree_with_a_leftover_conversion_stage_is_refused() {
 }
 
 /// What:
+///  A record whose stage is gone does not stop the removal:
+///  the record alone says what a conversion may have left,
+///  not what is
+///  there now,
+///  and nothing clears a stale record,
+/// so refusing on it would block the removal for good.
+/// Why:
+///   `--abandon` removes the record after it destroys the stage,
+/// so a kill in that instant leaves the record behind;
+/// a removal
+///  must not be blocked by it.
+#[test]
+fn a_stale_record_whose_stage_is_gone_does_not_stop_the_removal() {
+    let root: PathBuf = fixture("remove-stale-record-no-stage");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
+        original: crate::fs_beneath::identity_of(&std::fs::File::open(worktree.as_path()).expect("the worktree")).expect("identity"),
+        created: None,
+    };
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert!(!worktree.exists(), "the removal ran");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record whose stage name holds another object does not stop the removal either:
+///  the object is not the one the
+///  record names,
+/// so it is the person's and the removal leaves it alone.
+#[test]
+fn a_record_whose_stage_name_holds_another_object_does_not_stop_the_removal() {
+    let root: PathBuf = fixture("remove-stale-record-other-object");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let sibling: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
+    std::fs::create_dir_all(sibling.join("d")).expect("a directory of the person's own");
+    std::fs::write(sibling.join("d/theirs"), b"theirs\n").expect("its file");
+    let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
+        original: crate::fs_beneath::identity_of(&std::fs::File::open(worktree.as_path()).expect("the worktree")).expect("identity"),
+        created: None,
+    };
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert!(sibling.join("d/theirs").is_file(), "the object that is not the recorded one is left alone");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A directory beside a worktree that no conversion recorded does not stop its removal:
 ///  the suffix proves nothing,
 ///  and refusing on it would block a legitimate removal with neither advertised command able to clear it.

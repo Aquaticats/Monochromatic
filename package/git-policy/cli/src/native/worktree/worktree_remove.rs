@@ -479,7 +479,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // a conversion's is the record the conversion writes beside the worktree: a directory at that name without one is the
     // person's own, and refusing on the name alone would block the removal with nothing able to clear it.
     let converting: PathBuf = crate::worktree_convert::converting_path(target);
-    if crate::worktree_convert_leftover_stage_record::leftover_stage_of(target).is_some() {
+    if crate::worktree_convert_leftover_stage_record::recorded_stage_of(target).is_some() {
         let report: String = leftover_stage_report(target, converting.as_path());
         debug(TAG, report.as_str());
         return RemoveOutcome::Refused(report);
