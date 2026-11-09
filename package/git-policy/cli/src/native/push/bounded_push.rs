@@ -142,10 +142,10 @@ pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// size > MAX_PUSH_OUTPUT
+/// size > cap
 /// ```
-fn is_flood(size: u64) -> bool {
-    return size > MAX_PUSH_OUTPUT;
+fn is_flood(size: u64, cap: u64) -> bool {
+    return size > cap;
 }
 
 /// What:
@@ -161,13 +161,13 @@ fn is_flood(size: u64) -> bool {
 /// ```ts
 /// outputs.some((output) => isFlood(statSize(output)))
 /// ```
-pub(crate) fn flooded(outputs: &[&File]) -> bool {
+pub(crate) fn flooded(outputs: &[&File], cap: u64) -> bool {
     for output in outputs {
         let size: u64 = match output.metadata() {
             Ok(metadata) => metadata.len(),
             Err(_) => u64::MAX,
         };
-        if is_flood(size) {
+        if is_flood(size, cap) {
             return true;
         }
     }
@@ -264,8 +264,35 @@ pub async fn wait_until_done(
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    return wait_until_done_up_to(child, outputs, clock, MAX_PUSH_OUTPUT, quiet, stop).await;
+}
+
+/// What:
+///  The same wait as `wait_until_done`,
+/// with the output ceiling it stops past given by the caller.
+/// Why:
+///   A query's answer is a report,
+/// and the push report's cap bounds it;
+/// the second pass of a merge reads the three stages of the files it may merge,
+/// up to the
+///  pass's own blob limit for each name it asks for,
+/// so its ceiling is that sum and not the report's.
+/// Nothing else may pass a ceiling above `MAX_PUSH_OUTPUT`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([exited, stalled, flood]); // flood: any watched file past `cap`
+/// ```
+pub async fn wait_until_done_up_to(
+    child: &mut OwnedChild,
+    outputs: &[&File],
+    clock: Clock,
+    cap: u64,
+    quiet: &mut Option<Duration>,
+    stop: Option<&StopArm>,
+) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet, stop).await;
+    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop).await;
 }
 
 /// What:
@@ -292,7 +319,7 @@ pub async fn wait_until_done_noting(
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let clock: Clock = Clock::start(child.id(), patience);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, label, waits, &mut unused, stop).await;
+    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
 
 /// The loop of both waits,
@@ -301,6 +328,7 @@ async fn wait_with_clock(
     child: &mut OwnedChild,
     outputs: &[&File],
     mut clock: Clock,
+    cap: u64,
     label: &str,
     waits: &mut Vec<WaitReport>,
     quiet: &mut Option<Duration>,
@@ -319,7 +347,7 @@ async fn wait_with_clock(
             *quiet = quiet_gap_kept(&clock);
             return Ok(Err(StopCause::ServiceStopped));
         }
-        if flooded(outputs) {
+        if flooded(outputs, cap) {
             *quiet = quiet_gap_kept(&clock);
             return Ok(Err(StopCause::Flood));
         }
@@ -514,7 +542,7 @@ pub async fn run_bounded_push_awaiting(
     // A push that ends in the pause between two looks can still have printed past the cap. Its output is the log a person
     //  reads, not Git's answer, so the attempt keeps the push's own status; but the text kept is the head of it, and passing
     //  that for all of it would be the same silence a shortened answer is.
-    let shortened: bool = ended.is_ok() && flooded(&[&output]);
+    let shortened: bool = ended.is_ok() && flooded(&[&output], MAX_PUSH_OUTPUT);
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
     if shortened {

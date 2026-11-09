@@ -30,7 +30,14 @@ use crate::diagnostics::render_configuration_warning;
 use crate::config_snapshot::ConfigSnapshot;
 /// The name of the absent hooks directory the wrapper's own overrides use.
 use crate::hooks_off::NO_HOOKS_DIRECTORY;
+/// The longest this optional line may take to reach the stream it is written to.
+use crate::wait_ceilings::WARNING_WRITE_CEILING;
+/// The job run on a thread of its own,
+/// awaited no longer than that ceiling.
+use crate::work_awaited_within_a_ceiling::work_within;
 use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
+/// The spellings of the folder the wrapper keeps inside a Git directory.
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 /// How the wrapper names its transaction directories.
 use crate::random_id::is_canonical_uuid;
 /// A stream the warning is written to.
@@ -45,6 +52,11 @@ pub const TRADITIONAL_HOOKS_UNSUPPORTED_CODE: &str = "traditional-hooks-unsuppor
 
 /// Canonical (lowercase) snapshot key of the setting that triggers the warning.
 const HOOKS_PATH_KEY: &str = "core.hookspath";
+
+/// The scope of a value that reaches Git as a `-c` option or through `GIT_CONFIG_PARAMETERS`,
+/// which is
+///  the only place the wrapper's own overrides come from.
+const COMMAND_SCOPE: &str = "command";
 
 /// Module tag for diagnostics.
 const TAG: &str = "traditionalHookWarning";
@@ -63,7 +75,12 @@ const TAG: &str = "traditionalHookWarning";
 /// ```ts
 /// value === NO_HOOKS_DIRECTORY || /\/monochromatic-git-policy-cli\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
-pub fn is_wrapper_hooks_path(value: &str) -> bool {
+pub fn is_wrapper_hooks_path(scope: &str, value: &str) -> bool {
+    // A value a configuration file holds is somebody's choice, whatever it spells; the wrapper writes no configuration,
+    // so only a value that reached Git as a `-c` option or through the environment is its own.
+    if scope != COMMAND_SCOPE {
+        return false;
+    }
     if value == NO_HOOKS_DIRECTORY {
         return true;
     }
@@ -83,8 +100,16 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
     if !is_canonical_uuid(identifier) {
         return false;
     }
-    return match shadow.parent().and_then(Path::file_name) {
-        Some(root) => root == SHADOW_ROOT_NAME,
+    let Some(root) = shadow.parent() else {
+        return false;
+    };
+    if root.file_name() != Some(OsStr::new(SHADOW_ROOT_NAME)) {
+        return false;
+    }
+    // The folder above `shadow` is the wrapper's own data folder inside the Git directory, whose name this build knows.
+    // A path that merely ends in `shadow/<transaction>/no-hooks` belongs to whoever made it.
+    return match root.parent().and_then(Path::file_name) {
+        Some(folder) => folder == OsStr::new(DATA_FOLDER.current) || folder == OsStr::new(DATA_FOLDER.earlier),
         None => false,
     };
 }
@@ -101,10 +126,15 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
 ///  A command-scope entry the wrapper injected travels into a child Git,
 /// so a commit run by such a child sees the
 ///  wrapper's value last and must still warn about the person's.
+///  "The wrapper's own" is a value that reached Git as a `-c` option or through `GIT_CONFIG_PARAMETERS`
+/// and names the
+///  wrapper's own hooks-off directory (`is_wrapper_hooks_path`):
+/// a file that merely spells that path is somebody's
+///  choice and is reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// snapshot.entries.filter(isHooksPath).reverse().map(value).find((v) => !isWrapperHooksPath(v));
+/// snapshot.entries.filter(isHooksPath).reverse().find((e) => !isWrapperHooksPath(e.scope, e.value))?.value;
 /// ```
 pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
     for candidate in snapshot.entries().iter().rev() {
@@ -118,7 +148,7 @@ pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
         }
         let text: String = String::from_utf8_lossy(bytes).into_owned();
         // The wrapper's own entries sit last and are not the person's; what they override is.
-        if is_wrapper_hooks_path(text.as_str()) {
+        if is_wrapper_hooks_path(candidate.scope.as_str(), text.as_str()) {
             continue;
         }
         return Some(text);
@@ -165,22 +195,34 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
 ///   The command's exit status already carries its result,
 /// so a stream that refuses the line is logged and the
 ///  command goes on.
+///  A stream whose reader has stopped draining waits in the kernel with no end,
+/// and this line sits on
+///  the commit's preparation path,
+/// so the write runs on a thread of its own and the command waits for it no longer
+///  than `WARNING_WRITE_CEILING`.
+/// A line still waiting then is left behind and logged;
+/// the commit goes on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const line = traditionalHooksWarning(snapshot); if (line !== undefined) stream.write(line);
+/// const line = traditionalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: &mut impl Write) {
+pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) {
     let Some(line) = traditional_hooks_warning(snapshot) else {
         return;
     };
-    // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
-    let written: std::io::Result<()> = match stream.write_all(line.as_bytes()) {
-        Ok(()) => stream.flush(),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = written {
-        debug(TAG, format!("the warning could not be written: {error}").as_str());
+    let delivered: Option<std::io::Result<()>> = work_within(WARNING_WRITE_CEILING, move || {
+        let mut target = stream;
+        // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
+        return match target.write_all(line.as_bytes()) {
+            Ok(()) => target.flush(),
+            Err(error) => Err(error),
+        };
+    });
+    match delivered {
+        Some(Err(error)) => debug(TAG, format!("the warning could not be written: {error}").as_str()),
+        Some(Ok(())) => {}
+        None => debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str()),
     }
 }
 

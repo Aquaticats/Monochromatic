@@ -111,12 +111,9 @@ pub(crate) fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Re
 /// spawn(gitPath, args, { cwd, env: { ...withoutUnset(process.env), ...environment, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY } })
 /// ```
 pub(crate) fn build_command(context: &GitContext, request: &GitRequest) -> Command {
-    // `mut` allows assembling the argument list in order.
-    let mut arguments: Vec<OsString> = Vec::new();
-    if !request.without_prefix {
-        arguments.extend(context.global_prefix.iter().cloned());
-    }
-    arguments.extend(request.arguments.iter().cloned());
+    // `full_arguments` decides which of the caller's global options reach this start, so a request whose
+    // pathspecs are the wrapper's own runs without the caller's pathspec modes.
+    let arguments: Vec<OsString> = request.full_arguments(context.global_prefix.as_slice());
     let mut command: Command = git_command(
         context.real_git.as_path(),
         arguments.as_slice(),

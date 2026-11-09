@@ -19,6 +19,9 @@ pub mod word_merge;
 /// and the lines that list each merged part.
 pub mod merge_second_pass;
 
+/// The words that list a merged part and the journal entry for a merged file.
+pub mod merge_second_pass_report;
+
 /// The conflicted files of a merge tree and the reading of `git merge-tree` output into conflicts.
 pub mod merge_second_pass_conflicts;
 
@@ -33,6 +36,13 @@ pub mod merge_second_pass_tree;
 /// rebase,
 /// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
+
+/// What the word-level second pass will not replace:
+/// a path another command moved while it computed its merge.
+pub mod merge_second_pass_worktree_unchanged;
+
+/// The sentences the word-level second pass ends a stopped operation with.
+pub mod merge_second_pass_worktree_words;
 
 /// The finish of a stopped operation,
 /// like a clean run,

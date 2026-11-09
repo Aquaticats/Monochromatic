@@ -533,3 +533,62 @@ fn the_query_estimate_is_the_measured_whole_history_peak_rounded_up_to_a_power_o
     const { assert!(QUERY_MEMORY >= MEASURED_WHOLE_HISTORY_QUERY, "the query estimate must cover the measured whole-history query") };
     assert_eq!(QUERY_MEMORY, MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two());
 }
+
+/// A Git stand-in that answers `ls-remote` with one record per ref it was asked for:
+/// the ref's own name as its object name,
+/// so an update that reads the wrong record says so.
+/// Returns its path.
+fn git_that_lists_every_ref_asked_for(root: &Path) -> PathBuf {
+    let stand_in = root.join("git-listing-stand-in");
+    let script = "#!/bin/sh\nfor word in \"$@\"; do\n  case \"$word\" in\n    refs/*) printf '%s\\t%s\\n' \"$word\" \"$word\" ;;\n  esac\ndone\n";
+    std::fs::write(&stand_in, script).expect("stand-in");
+    std::fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return stand_in;
+}
+
+/// What:
+///  Confirming a destination reads each listed ref once and gives each update its own record.
+/// Why:
+///  `AGENTS.md` `RG2`:
+/// a mirror or `--all` push publishes hundreds of refs,
+///  and asking every earlier listed record whether the candidate is its ref
+///  is quadratic in them.
+///  The seam counts the collected records a question looks at,
+///  which is one per record and one per update when a map answers
+///  (`foundation/collected_elements_looked_at_tests.rs` proves the count separates the two).
+#[test]
+fn confirming_a_destination_reads_each_listed_ref_once() {
+    let root = fixture("mp-probe-confirm-once");
+    std::fs::create_dir_all(root.as_path()).expect("fixture root");
+    let mut environment: Vec<(OsString, OsString)> = fixture_environment();
+    environment.push((OsString::from("HOME"), home_beside(root.as_path()).into_os_string()));
+    let coordinator = PushGit {
+        real_git: git_that_lists_every_ref_asked_for(root.as_path()),
+        cwd: root.clone(),
+        environment,
+        lfs: false,
+    };
+    let width: usize = 2048;
+    let mut updates: Vec<(PorcelainUpdate, Option<String>)> = Vec::new();
+    for number in 0..width {
+        let to: String = format!("refs/heads/branch-{number:05}");
+        updates.push((
+            PorcelainUpdate { from: to.clone(), to: to.clone(), before: RemoteBefore::Unknown, after: None },
+            Some(format!("{number:040x}")),
+        ));
+    }
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let confirmed: Vec<PushUpdate> = confirm_group(&coordinator, "origin", "origin", updates.as_slice()).expect("confirms");
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert_eq!(confirmed.len(), width);
+    for (index, update) in confirmed.iter().enumerate() {
+        assert_eq!(update.remote_ref, updates[index].0.to, "the updates keep their order");
+        assert_eq!(update.remote_oid.as_deref(), Some(update.remote_ref.as_str()), "each update read its own record");
+    }
+    assert_eq!(
+        looked,
+        2 * width as u64,
+        "{looked} collected records looked at for {width} listed refs and {width} updates; one pass over the listing and one lookup per update is linear"
+    );
+    remove(root.as_path());
+}

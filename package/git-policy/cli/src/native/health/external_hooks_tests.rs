@@ -4,6 +4,7 @@
 //!  blocks.
 
 use super::*;
+use crate::test_support::SharedSink;
 
 /// A snapshot parsed from `(scope, record)` pairs in the `git config --list -z --show-scope` shape.
 fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
@@ -130,13 +131,33 @@ fn the_warning_names_the_hooks_and_the_ways_forward() {
 #[test]
 fn the_writer_emits_one_line_or_nothing() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "hook.a.event\npost-commit")]);
-    let mut written: Vec<u8> = Vec::new();
-    warn_external_hooks(Some(&snapshot), &mut written);
-    assert_eq!(written, external_hooks_warning(Some(&snapshot)).expect("warning").into_bytes());
-    let mut nothing: Vec<u8> = Vec::new();
-    warn_external_hooks(None, &mut nothing);
-    assert!(nothing.is_empty());
-    warn_external_hooks(Some(&snapshot), &mut RefusingStream);
+    let written: SharedSink = SharedSink::default();
+    warn_external_hooks(Some(&snapshot), written.clone());
+    assert_eq!(written.text(), external_hooks_warning(Some(&snapshot)).expect("warning"));
+    let nothing: SharedSink = SharedSink::default();
+    warn_external_hooks(None, nothing.clone());
+    assert_eq!(nothing.text(), "");
+    warn_external_hooks(Some(&snapshot), RefusingStream);
+}
+
+/// What:
+///  A hook disabled with an integer false is already off,
+/// so the report does not name it and the warning does not fire.
+/// Why:
+///  Git reads `hook.<name>.enabled` with its own boolean reader,
+/// which parses `00` as zero;
+/// the report kept
+///  every value it had not modelled,
+/// and told the person to remove a hook that never runs.
+#[test]
+fn a_hook_disabled_with_a_numeric_false_is_not_reported() {
+    let snapshot: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.audit.event\npre-commit"),
+        ("local", "hook.audit.command\necho EXTERNAL-RAN"),
+        ("local", "hook.audit.enabled\n00"),
+    ]);
+    assert_eq!(configured_hooks(&snapshot), Vec::<ConfiguredHook>::new());
+    assert_eq!(external_hooks_warning(Some(&snapshot)), None);
 }
 
 /// What:

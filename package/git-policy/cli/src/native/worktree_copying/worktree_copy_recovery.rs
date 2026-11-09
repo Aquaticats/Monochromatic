@@ -18,6 +18,8 @@
 //! ```
 
 use crate::json_record::quote;
+use crate::plain_file::read_plain_file;
+use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
@@ -51,6 +53,9 @@ pub enum Registration {
     /// The destination is not registered under the common directory.
     Unregistered,
     /// The destination holds a pointer that could not be followed,
+    /// because the file names no directory,
+    /// names none that is there,
+    /// or cannot be read as a plain file,
     /// so whether it is registered is unknown.
     PointerUnfollowable,
 }
@@ -140,7 +145,9 @@ fn pointer_directory(recorded: &[u8]) -> Option<&[u8]> {
 ///   A missing path on the way to the registration is an answer,
 /// not a failure,
 /// but only where it proves the destination is registered nowhere:
-/// a pointer that names a directory which is not there could not be followed.
+/// a pointer that names a directory which is not there could not be followed,
+/// and neither can a pointer file that is empty,
+/// half written or not a plain file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,14 +162,18 @@ fn read_registration(common_dir: &Path, destination: &Path) -> std::io::Result<R
         Err(error) if not_there(&error) => return Ok(Registration::Unregistered),
         Err(error) => return Err(error),
     }
-    // The same for a destination with no pointer file, or with a file that is not a pointer at all.
-    let recorded: Vec<u8> = match std::fs::read(destination.join(".git")) {
+    // The pointer is read as bytes, without waiting and without following a link: a command killed while it rewrites
+    // the file leaves it empty or half written, and a named pipe left at that name would stop its reader until a writer
+    // comes, which the pending check runs into before it forwards anything. Only a file that is not there at all proves
+    // the destination is registered nowhere; one that cannot be read as a plain file proves nothing either way.
+    let recorded: Vec<u8> = match read_plain_file(destination.join(".git").as_path(), GIT_FILE_LIMIT) {
         Ok(recorded) => recorded,
         Err(error) if not_there(&error) => return Ok(Registration::Unregistered),
-        Err(error) => return Err(error),
+        Err(_unreadable) => return Ok(Registration::PointerUnfollowable),
     };
+    // A file that is not a whole pointer names no directory this reader can follow.
     let Some(named) = pointer_directory(recorded.as_slice()) else {
-        return Ok(Registration::Unregistered);
+        return Ok(Registration::PointerUnfollowable);
     };
     // A file that claims a pointer and names no directory cannot be followed either.
     if named.is_empty() {

@@ -89,27 +89,48 @@ fn an_unreadable_directory_is_an_error() {
 
 /// The default directory comes first,
 /// the configured one follows,
-/// and one directory named two ways is scanned once.
+/// and one directory named two ways is scanned once,
+/// by the identity the file system gives it.
 #[test]
 fn directories_are_the_default_then_the_configured_one_once() {
+    let root: PathBuf = fixture("doctor-directories");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = repo.join(".git/hooks");
+    std::fs::create_dir(repo.join("custom")).expect("custom hooks directory");
     let plain: HooksLocation = HooksLocation {
-        common_directory: PathBuf::from("/repo/.git"),
+        common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
         configured: None,
     };
-    assert_eq!(hook_directories(&plain), vec![PathBuf::from("/repo/.git/hooks")]);
+    assert_eq!(hook_directories(&plain), vec![hooks.clone()]);
     let configured: HooksLocation = HooksLocation {
-        common_directory: PathBuf::from("/repo/.git"),
-        configured: Some(PathBuf::from("/repo/custom")),
+        common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
+        configured: Some(repo.join("custom")),
     };
-    assert_eq!(
-        hook_directories(&configured),
-        vec![PathBuf::from("/repo/.git/hooks"), PathBuf::from("/repo/custom")]
-    );
+    assert_eq!(hook_directories(&configured), vec![hooks.clone(), repo.join("custom")]);
+    // The same directory through another spelling of a component that exists is scanned once.
     let same: HooksLocation = HooksLocation {
-        common_directory: PathBuf::from("/repo/.git"),
-        configured: Some(PathBuf::from("/repo/./sub/../.git/hooks/")),
+        common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
+        configured: Some(repo.join("./custom")),
     };
-    assert_eq!(hook_directories(&same), vec![PathBuf::from("/repo/.git/hooks")]);
+    assert_eq!(hook_directories(&same), vec![hooks.clone(), repo.join("./custom")]);
+    // The default hooks directory named again by the configured path is one directory too.
+    let itself: HooksLocation = HooksLocation {
+        common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
+        configured: Some(repo.join(".git/./hooks")),
+    };
+    assert_eq!(hook_directories(&itself), vec![hooks.clone()]);
+    // A spelling whose directory does not exist is a directory that holds no hooks either way, so it is kept as given.
+    let absent: HooksLocation = HooksLocation {
+        common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
+        configured: Some(PathBuf::from("/repo/./sub/../absent")),
+    };
+    assert_eq!(hook_directories(&absent), vec![hooks, PathBuf::from("/repo/./sub/../absent")]);
+    remove(root.as_path());
 }
 
 /// The report is one path per line and nothing else.
@@ -423,7 +444,7 @@ fn each_of_the_four_shims_is_recognized() {
     let root: PathBuf = fixture("doctor-shims-all");
     let repo: PathBuf = repository(root.as_path(), "repo");
     for name in ["pre-push", "post-checkout", "post-commit", "post-merge"] {
-        assert!(is_lfs_shim(write_shim(repo.as_path(), name).as_path()), "{name}");
+        assert!(is_lfs_shim(write_shim(repo.as_path(), name).as_path()).expect("the shim is readable"), "{name}");
     }
     let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!((code, stdout.as_str()), (0, ""));
@@ -477,6 +498,37 @@ fn a_nested_doctor_lists_the_persons_hooks_and_not_the_wrappers() {
     remove(root.as_path());
 }
 
+///  A newline inside a path is part of that path,
+/// never the end of one answer;
+/// the repository Git selected is the one examined.
+/// Why:
+///  The answers were read as lines,
+/// so a newline in the selected repository's own name ended the answer early and
+///  the doctor scanned,
+/// and renamed state in,
+/// an unrelated directory beside it (`STB`).
+#[cfg(unix)]
+#[test]
+fn a_newline_in_a_path_is_no_separator() {
+    let root: PathBuf = fixture("doctor-newline");
+    let decoy: PathBuf = root.join("newline-decoy");
+    std::fs::create_dir_all(decoy.join("hooks")).expect("decoy hooks");
+    executable(decoy.join("hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    std::fs::create_dir_all(decoy.join("cli-git")).expect("decoy kept folder");
+    std::fs::write(decoy.join("cli-git/do-not-move.txt"), b"unrelated-content\n").expect("decoy file");
+    let repo: PathBuf = root.join("newline-decoy\nactual");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let context: GitContext = git_context();
+    let location: HooksLocation = located(&context, repo.as_path()).expect("locate");
+    assert_eq!(location.common_directory, repo.join(".git"));
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!((code, stdout.as_str()), (0, ""));
+    assert!(decoy.join("cli-git/do-not-move.txt").exists(), "the unrelated directory keeps its folder");
+    assert!(!decoy.join("monochromatic-git-policy-cli").exists(), "the unrelated directory was renamed");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A hook that is gone between the listing and the look is not a hook now,
 ///  and one vanished name does not cost the whole report.
@@ -501,7 +553,7 @@ fn a_hook_that_vanished_between_the_listing_and_the_look_is_skipped() {
     std::fs::remove_file(hooks.join("update")).expect("the other terminal deletes it");
     let mut found: Vec<PathBuf> = Vec::new();
     for entry in &listed {
-        if is_hook_entry(entry).expect("a vanished entry is not a failure to examine the directory") {
+        if is_hook_entry(entry.path().as_path()).expect("a vanished entry is not a failure to examine the directory") {
             found.push(entry.path());
         }
     }
@@ -538,6 +590,100 @@ fn a_hook_of_an_event_the_author_switched_off_is_not_reported() {
     remove(root.as_path());
 }
 
+///  A `core.hooksPath` whose bytes are not UTF-8 names a directory Git runs,
+/// and the doctor reads it byte for byte.
+/// Why:
+///  A pathname is a byte string;
+/// the answer was decoded as UTF-8 and a valid pathname was refused as an error,
+///  although Git runs a hook there.
+#[cfg(unix)]
+#[test]
+fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
+    use std::ffi::{OsStr, OsString};
+    use std::os::unix::ffi::OsStrExt as _;
+    let root: PathBuf = fixture("doctor-non-utf8");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = root.join(OsString::from(OsStr::from_bytes(b"hooks-\xff")));
+    std::fs::create_dir(hooks.as_path()).expect("hooks");
+    executable(hooks.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    git(repo.as_path(), &[OsStr::new("config"), OsStr::new("core.hooksPath"), hooks.as_os_str()]);
+    let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(location.configured, Some(hooks.clone()));
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hook is found: {stdout}");
+    assert!(stdout.ends_with("pre-commit\n"), "{stdout}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A report reads the names an earlier release kept,
+/// and moves none of them.
+/// Why:
+///  The command's contract says it changes nothing (`SPEC.md`,
+/// section Doctor),
+/// and a check that moves what it inspects can hide the state it was asked about.
+///  The saved copies are read through the folder that exists,
+/// so the earlier name is still reported.
+#[test]
+fn the_report_moves_none_of_the_names_it_reads() {
+    let root: PathBuf = fixture("doctor-read-only");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let earlier: PathBuf = repo.join(".git/cli-git");
+    let save: PathBuf = earlier.join("discarded/2026-11-02T19-33-20");
+    std::fs::create_dir_all(save.as_path()).expect("earlier kept folder");
+    std::fs::write(save.join("copy.txt"), b"saved-content\n").expect("kept copy");
+    std::fs::write(earlier.join("kept.txt"), b"saved-content\n").expect("kept file");
+    let (code, _stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(earlier.join("kept.txt").exists(), "the report moved a folder it was only reading: {stderr}");
+    assert!(save.join("copy.txt").exists(), "a saved copy stays where it is");
+    assert!(!repo.join(".git/monochromatic-git-policy-cli").exists(), "the report wrote the current name");
+    assert!(stderr.contains("discarded copies:"), "the saved copies are still reported: {stderr}");
+    remove(root.as_path());
+}
+
+
+/// A listing that never answers,
+/// as a directory on a mount whose server stopped answering does not.
+///
+/// The thread parks,
+/// so it spends no processor time while it waits:
+/// this is a stall,
+/// not a load.
+fn stalled_listing(_directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// What:
+///  A directory listing that never answers ends at the ceiling as an error,
+/// never as an empty directory.
+/// Why:
+///  A mount whose server stopped answering holds `readdir` and `lstat` in the kernel with no end,
+/// and the owner's rule is
+///  "nothing should ever wait forever or indefinitely".
+/// Silence would read as "no hooks here",
+/// which is the one answer a
+///  report must not give when it could not look.
+#[test]
+fn a_stalled_directory_listing_gives_up_at_its_ceiling() {
+    let root: PathBuf = fixture("doctor-stalled-listing");
+    let named: PathBuf = root.clone();
+    let (done, finished) = std::sync::mpsc::channel::<std::io::Result<Vec<PathBuf>>>();
+    let worker = std::thread::spawn(move || {
+        let outcome: std::io::Result<Vec<PathBuf>> = scan_hooks_directory_with(stalled_listing, std::time::Duration::from_millis(50), named.as_path());
+        let _sent = done.send(outcome);
+    });
+    // The worker is left behind on purpose: a read that never answers has no end, and the test process ends it.
+    let answered: Result<std::io::Result<Vec<PathBuf>>, _> = finished.recv_timeout(std::time::Duration::from_secs(10));
+    let _abandoned = worker;
+    let outcome: std::io::Result<Vec<PathBuf>> = answered.unwrap_or_else(|_| { panic!("the listing never returned, so a directory on a mount that stopped answering holds the report forever") });
+    let error: std::io::Error = outcome.expect_err("a listing that gives no answer is an error, never an empty directory");
+    assert_eq!(error.kind(), ErrorKind::TimedOut, "{error}");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A `core.hooksPath` value that holds a line break is one directory,
 /// and doctor scans the hooks in it.
@@ -559,6 +705,38 @@ fn a_hooks_path_that_holds_a_line_break_is_scanned_where_it_points() {
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!(code, 1, "the executable hook is found: {stdout}{stderr}");
     assert_eq!(stdout, format!("{}\n", directory.join("pre-commit").display()));
+    remove(root.as_path());
+}
+
+///  A `core.hooksPath` of `redirect/../hooks`,
+/// where `redirect` is a symbolic link,
+/// scans the directory Git runs hooks
+///  in.
+/// Why:
+///  A lexical rewrite removes the component before `..` without asking the file system,
+/// while the kernel resolves
+///  `redirect` first:
+/// Git ran the hook and the doctor listed nothing (`SPEC.md`,
+/// section Doctor,
+///  "the directory it names").
+#[cfg(unix)]
+#[test]
+fn a_dot_dot_after_a_symlink_scans_the_directory_git_runs() {
+    let root: PathBuf = fixture("doctor-symlink-parent");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let external: PathBuf = root.join("external");
+    std::fs::create_dir_all(external.join("child")).expect("the redirect's target");
+    std::fs::create_dir_all(external.join("hooks")).expect("the hooks directory Git reads");
+    executable(external.join("hooks/pre-commit").as_path(), b"#!/bin/sh\necho HOOK-RAN >&2\n");
+    std::os::unix::fs::symlink(external.join("child"), repo.join("redirect")).expect("the redirect");
+    git(repo.as_path(), &["config", "core.hooksPath", "redirect/../hooks"]);
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hook Git runs is listed: {stdout}");
+    assert!(stdout.contains("hooks/pre-commit"), "{stdout}");
+    assert!(stdout.trim_end().ends_with("hooks/pre-commit"), "{stdout}");
+    // The file the report names is the file Git runs, resolved by the file system and not by the spelling.
+    let reported: PathBuf = PathBuf::from(stdout.trim_end());
+    assert_eq!(std::fs::canonicalize(reported).expect("the reported hook exists"), std::fs::canonicalize(external.join("hooks/pre-commit")).expect("the ran hook exists"));
     remove(root.as_path());
 }
 
@@ -592,5 +770,58 @@ fn every_value_of_the_hooks_path_is_told_apart_from_the_one_before_it() {
     git(repo.as_path(), &["config", "--add", "core.hooksPath", ""]);
     let reset: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
     assert_eq!(reset.configured, None, "an empty value is no directory");
+    remove(root.as_path());
+}
+
+///  The checkout the section reports on is the one Git names,
+/// and its layout is Git's answer about which worktree the command runs in.
+/// Why:
+///  The section used to read the directory above the common Git directory,
+/// which is a metadata directory when a
+///  repository keeps its Git directory elsewhere and a bare repository's parent when it keeps none;
+/// both
+///  were measured and named as places to migrate.
+#[test]
+fn the_checkout_is_the_one_git_names_and_its_layout_is_gits_answer() {
+    let root: PathBuf = fixture("doctor-checkout-identity");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let linked: PathBuf = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("UTF-8")]);
+    let context: GitContext = git_context();
+    let reported = |cwd: &Path| -> (Option<PathBuf>, CheckoutLayout) {
+        let location: HooksLocation = located(&context, cwd).expect("locate");
+        return crate::lazy_runtime::run_on_runtime(checkout_of(&context, cwd, &location)).expect("the runtime");
+    };
+    assert_eq!(reported(repo.as_path()), (Some(repo.clone()), CheckoutLayout::Main));
+    assert_eq!(reported(linked.as_path()), (Some(linked.clone()), CheckoutLayout::Linked));
+    remove(root.as_path());
+}
+
+/// A bare repository has no checkout at all,
+/// and a repository whose Git directory lives elsewhere is reported on
+///  its worktree,
+/// which is what Git answers and no directory name is.
+#[test]
+fn a_bare_repository_has_no_checkout_and_a_separate_git_directory_keeps_its_worktree() {
+    use std::ffi::OsStr;
+    let root: PathBuf = fixture("doctor-checkout-layouts");
+    let bare: PathBuf = root.join("bare-parent");
+    std::fs::create_dir_all(bare.join(".git")).expect("bare Git directory");
+    git(bare.join(".git").as_path(), &["init", "--quiet", "--bare", "--initial-branch=main"]);
+    let worktree: PathBuf = root.join("real-worktree");
+    let metadata: PathBuf = root.join("metadata");
+    std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+    std::fs::create_dir(metadata.as_path()).expect("metadata directory");
+    git(
+        worktree.as_path(),
+        &[OsStr::new("init"), OsStr::new("--quiet"), OsStr::new(format!("--separate-git-dir={}", metadata.join(".git").display()).as_str())],
+    );
+    let context: GitContext = git_context();
+    let reported = |cwd: &Path| -> (Option<PathBuf>, CheckoutLayout) {
+        let location: HooksLocation = located(&context, cwd).expect("locate");
+        return crate::lazy_runtime::run_on_runtime(checkout_of(&context, cwd, &location)).expect("the runtime");
+    };
+    assert_eq!(reported(bare.join(".git").as_path()), (None, CheckoutLayout::Main));
+    assert_eq!(reported(worktree.as_path()), (Some(worktree.clone()), CheckoutLayout::Main));
     remove(root.as_path());
 }

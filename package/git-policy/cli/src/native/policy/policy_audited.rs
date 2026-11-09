@@ -32,7 +32,7 @@ use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::{RepositoryLocation, effective_directory};
 use crate::rule_linked_worktree::AuditedCommand;
 use crate::transaction_git::GitContext;
-use crate::worktree_audit::{removal_facts, target_path};
+use crate::worktree_audit::{removal_facts, removal_target};
 use crate::worktree_identity::worktree_root;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -70,7 +70,7 @@ pub fn record_audited(
                 Some(root) => effective_directory(root, location.prefix.as_slice()),
                 None => std::env::current_dir().unwrap_or_default(),
             };
-            let target: PathBuf = target_path(removal.target.as_os_str(), directory.as_path());
+            let target: PathBuf = removal_target(&context, removal.target.as_os_str(), directory.as_path());
             let read: Vec<AuditFact> =
                 removal_facts(&context, target.as_path(), removal.target.as_os_str(), removal.force);
             record_audit_with_facts(&location.identity, audited, AuditOutcome::Logged, arguments, None, read.as_slice());

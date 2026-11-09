@@ -39,9 +39,6 @@ use crate::doctor_config::{ConfigFindings, config_findings, render_hook_lines, r
 /// Whether Git's own fsmonitor is off,
 /// or which setting turns it on.
 use crate::doctor_fsmonitor::fsmonitor_report;
-/// Lexical path normalization,
-/// so one directory named two ways is scanned once.
-use crate::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
 use crate::transaction_git::{GitContext, GitRequest};
 /// The same Git start awaited by a task of the runtime.
@@ -53,6 +50,15 @@ use crate::lazy_runtime::run_on_runtime;
 use std::io::ErrorKind;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// `Duration` is how long a file system read of the report may take.
+use std::time::Duration;
+/// The ceiling of each file system read of the report.
+use crate::wait_ceilings::REPORT_SCAN_CEILING;
+/// The job of such a read,
+/// run on a thread of its own.
+use crate::work_awaited_within_a_ceiling::work_within;
+/// How the checkout the section describes is laid out.
+use crate::checkout_layout::CheckoutLayout;
 
 /// Exit status when at least one traditional hook was found.
 pub const HOOKS_FOUND_EXIT_CODE: i32 = 1;
@@ -77,6 +83,9 @@ pub struct HooksLocation {
     /// Absolute common Git directory,
     /// whose `hooks` directory is the default.
     pub common_directory: PathBuf,
+    /// Absolute Git directory of the worktree the command runs in,
+    /// which equals the common one there and differs in a linked worktree.
+    pub git_directory: PathBuf,
     /// Absolute directory a configured `core.hooksPath` names,
     /// resolved the way Git resolves it.
     pub configured: Option<PathBuf>,
@@ -94,14 +103,45 @@ pub struct HooksLocation {
 /// unique([join(commonDirectory, 'hooks'), configured].filter(Boolean));
 /// ```
 pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
-    let mut directories: Vec<PathBuf> = vec![normalized_path(location.common_directory.join("hooks").as_path())];
-    if let Some(configured) = &location.configured {
-        let normalized: PathBuf = normalized_path(configured.as_path());
-        if !directories.contains(&normalized) {
-            directories.push(normalized);
-        }
+    let mut directories: Vec<PathBuf> = vec![location.common_directory.join("hooks")];
+    if let Some(configured) = &location.configured
+        && !directory_is_listed(directories.as_slice(), configured.as_path())
+    {
+        directories.push(configured.clone());
     }
     return directories;
+}
+
+/// What:
+///  Whether `candidate` is one of the directories already listed,
+/// judged by the identity the file system gives it.
+/// Why:
+///   Only the file system can say that `redirect/../hooks` and `hooks` are one directory,
+/// because a symbolic link
+///  in the way decides it:
+/// a lexical rewrite of the path removed the component before `..` without asking,
+/// and then the
+///  scan looked at a directory Git runs no hook in.
+///  A spelling whose directory does not exist is kept as given,
+/// because one that does not exist holds no hooks either
+///  way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = (realpath(listed)) === (realpath(candidate));
+/// ```
+fn directory_is_listed(listed: &[PathBuf], candidate: &Path) -> bool {
+    let identity: Option<PathBuf> = std::fs::canonicalize(candidate).ok();
+    for existing in listed {
+        if existing.as_path() == candidate {
+            return true;
+        }
+        let known: Option<PathBuf> = std::fs::canonicalize(existing).ok();
+        if identity.is_some() && identity == known {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -151,17 +191,22 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 /// and
 ///  every other failure to look is still reported,
 /// because silence would pass a file the command could not examine.
+///  The listing hands over names and not open entries,
+/// so the predicate takes the path it is asked about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stats = await lstat(entry.path()).catch((error) => (error.code === 'ENOENT' ? undefined : error));
+/// const stats = await lstat(path).catch((error) => (error.code === 'ENOENT' ? undefined : error));
 /// stats instanceof Error ? throw stats : isSymlink(stats) || (isFile(stats) && isExecutable(stats));
 /// ```
-pub fn is_hook_entry(found: &std::fs::DirEntry) -> std::io::Result<bool> {
-    if found.file_name().as_encoded_bytes().ends_with(SAMPLE_SUFFIX) {
+pub fn is_hook_entry(path: &Path) -> std::io::Result<bool> {
+    let Some(name) = path.file_name() else {
+        return Ok(false);
+    };
+    if is_a_sample(name) {
         return Ok(false);
     }
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(found.path()) {
+    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(path) {
         Ok(looked) => looked,
         // Gone between the listing and the look: it is not a hook now, and one vanished name must not cost the whole listing.
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
@@ -169,6 +214,58 @@ pub fn is_hook_entry(found: &std::fs::DirEntry) -> std::io::Result<bool> {
     };
     let kind: std::fs::FileType = metadata.file_type();
     return Ok(kind.is_symlink() || (kind.is_file() && is_executable(&metadata)));
+}
+
+/// What:
+///  Whether one entry's name ends the way a sample Git installs ends.
+/// Why:
+///   A sample is never a hook,
+/// and the check is one condition of the scan,
+/// so it is a named rule rather than a closure
+///  inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isASample = (name: string) => name.endsWith('.sample');
+/// ```
+fn is_a_sample(name: &std::ffi::OsStr) -> bool {
+    return name.as_encoded_bytes().ends_with(SAMPLE_SUFFIX);
+}
+
+/// What:
+///  The names in one directory,
+/// as one read of it.
+///  `fn(&Path) -> std::io::Result<Vec<PathBuf>>` is a function pointer,
+/// so a control can stand a read that never answers where the
+///  listing stands.
+/// Why:
+///   The listing of a directory is where a mount that stopped answering waits,
+/// so it is the read the bound is placed
+///  on,
+/// and it is a value the report is given rather than a call it makes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EntryListing = (directory: string) => string[];
+/// ```
+pub type EntryListing = fn(&Path) -> std::io::Result<Vec<PathBuf>>;
+
+/// What:
+///  The names in one directory,
+/// read by the system.
+/// Why:
+///   This is the production listing the bounded scan takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listEntries = (directory) => readdirSync(directory, { withFileTypes: true }).map((entry) => join(directory, entry.name));
+/// ```
+fn list_entries(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(directory)? {
+        entries.push(entry?.path());
+    }
+    return Ok(entries);
 }
 
 /// What:
@@ -184,28 +281,61 @@ pub fn is_hook_entry(found: &std::fs::DirEntry) -> std::io::Result<bool> {
 /// because Git follows it when it starts the hook.
 ///  One entry that is gone by the time it is looked at is not a hook and does not end the listing
 /// (`is_hook_entry`).
+///  Every call here reads the file system,
+/// and a mount that stops answering holds such a call in the kernel with no end,
+/// so
+///  the whole scan runs on a thread of its own and is awaited only to `REPORT_SCAN_CEILING`.
+///  A scan that gives no answer is an error,
+/// never an empty directory:
+/// silence would read as "no hooks here".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// (await readdir(directory)).filter((name) => !name.endsWith('.sample') && (isSymlink(name) || isExecutableFile(name)));
 /// ```
 pub fn scan_hooks_directory(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
-    let entries = match std::fs::read_dir(directory) {
-        Ok(found) => found,
-        Err(error) if error.kind() == ErrorKind::NotFound || error.kind() == ErrorKind::NotADirectory => {
-            return Ok(Vec::new());
+    return scan_hooks_directory_with(list_entries, REPORT_SCAN_CEILING, directory);
+}
+
+/// What:
+///  `scan_hooks_directory` with the listing and the ceiling given.
+/// Why:
+///   The listing and the ceiling are the two things a control varies;
+/// `REPORT_SCAN_CEILING` says why the production value is
+///  what it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanHooksDirectoryWith(listEntries, REPORT_SCAN_CEILING, directory);
+/// ```
+pub fn scan_hooks_directory_with(listing: EntryListing, ceiling: Duration, directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let named: PathBuf = directory.to_path_buf();
+    let scanned: Option<std::io::Result<Vec<PathBuf>>> = work_within(ceiling, move || {
+        let entries: Vec<PathBuf> = match listing(named.as_path()) {
+            Ok(found) => found,
+            Err(error) if error.kind() == ErrorKind::NotFound || error.kind() == ErrorKind::NotADirectory => {
+                return Ok(Vec::new());
+            }
+            Err(error) => return Err(error),
+        };
+        let mut hooks: Vec<PathBuf> = Vec::new();
+        // Each entry is looked at through `is_hook_entry`, so a name that vanished since the listing is skipped and the
+        //  hooks that are still there are listed.
+        for path in entries {
+            if is_hook_entry(path.as_path())? {
+                hooks.push(path);
+            }
         }
-        Err(error) => return Err(error),
+        hooks.sort();
+        return Ok(hooks);
+    });
+    let Some(answer) = scanned else {
+        return Err(std::io::Error::new(
+            ErrorKind::TimedOut,
+            format!("the listing of {} gave no answer within {ceiling:?}", directory.display()),
+        ));
     };
-    let mut hooks: Vec<PathBuf> = Vec::new();
-    for entry in entries {
-        let found = entry?;
-        if is_hook_entry(&found)? {
-            hooks.push(found.path());
-        }
-    }
-    hooks.sort();
-    return Ok(hooks);
+    return answer;
 }
 
 /// What:
@@ -261,16 +391,21 @@ monochromatic-git-policy-cli, which supports no external hook program and runs n
 or express what it checked as a policy under policies in monochromatic-git-policy-cli.config.jsonc.\n";
 
 /// What:
-///  Run one Git query in `cwd` and return its standard output as text.
+///  Run one Git query in `cwd` and return its standard output as bytes.
 /// Why:
-///   Locating the repository takes three small questions,
+///   Locating the repository takes a few small questions,
 /// and each failure is reported with Git's own words.
+/// A path answer is
+///  bytes,
+/// not text:
+/// a pathname is a byte string,
+/// and one that is not UTF-8 is a directory Git runs hooks in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const { stdout } = await git(args, { cwd });
 /// ```
-async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, String> {
+async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<Vec<u8>>, String> {
     let request: GitRequest = GitRequest::new(cwd, arguments);
     let output = match run_git_awaiting(context, &request).await {
         Ok(done) => done,
@@ -282,51 +417,27 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
     if !output.succeeded() {
         return Err(format!("git {} failed: {}", arguments.join(" "), output.error_text()));
     }
-    let text: String = match String::from_utf8(output.stdout) {
-        Ok(decoded) => decoded,
-        Err(_) => return Err(format!("git {} printed bytes that are not UTF-8", arguments.join(" "))),
-    };
-    return Ok(Some(text));
+    return Ok(Some(output.stdout));
 }
 
 /// What:
-///  The `core.hooksPath` directory the person configured,
-/// when Git reports one that is not the wrapper's own.
+///  Ask Git for one pathname and read its own answer.
 /// Why:
-///   Git reports every value of the key and the last one wins,
-/// and a command-scope entry the wrapper injected travels into a child
-///  Git,
-/// so the wrapper's own hooks-off directory is last in a run inside one.
-/// The person's value is the last one that
-///  is not the wrapper's,
-/// an empty one names no directory,
-/// and a value that cannot be decoded is not read.
-///   The values are read from the NUL-delimited listing Git was asked for:
-/// a directory whose name holds a line break
-///  is one value,
-/// and splitting on line breaks read it as two,
-/// the second of which named a directory the person
-///  never chose.
+///   Each pathname is asked for alone:
+/// a pathname may hold the line feed that separated two answers in one report,
+///  and then a shared report cannot be split into them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const values = (await git(['config', '--type=path', '--null', '--get-all', 'core.hooksPath'])).split('\0').slice(0, -1);
-/// values.filter((value) => !isWrapperHooksPath(value)).at(-1);
+/// const answer = await gitQuestion(context, cwd, args);
 /// ```
-fn configured_hooks_directory(text: &str) -> Option<String> {
-    // Git terminates every value with a NUL, so the empty piece after the last one is no value of its own.
-    let listing: &str = text.strip_suffix('\0').unwrap_or(text);
-    if listing.is_empty() {
-        return None;
+async fn path_answer_question(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<PathBuf, String> {
+    let answer: Vec<u8> = query(context, cwd, arguments).await?.unwrap_or_default();
+    let value: &[u8] = without_the_terminator(answer.as_slice());
+    if value.is_empty() {
+        return Err(format!("git {} printed no path", arguments.join(" ")));
     }
-    let mut chosen: Option<String> = None;
-    for value in listing.split('\0') {
-        if crate::traditional_hook_warning::is_wrapper_hooks_path(value) {
-            continue;
-        }
-        chosen = Some(String::from(value));
-    }
-    return chosen;
+    return Ok(path_answer(value));
 }
 
 /// What:
@@ -345,149 +456,53 @@ fn configured_hooks_directory(text: &str) -> Option<String> {
 /// const location = await locateHooks({ context, cwd });
 /// ```
 pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, String> {
-    let report: String = query(
+    // One question per pathname: a pathname may hold the line feed that a shared report is split at.
+    let common: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--git-common-dir"]).await?;
+    let git_directory: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]).await?;
+    // Every value of the key with its scope, because the wrapper's own command-scope entry is placed last by Git; the
+    //  listing is NUL-delimited, so a value holding a line feed stays one value.
+    let configured: Option<PathBuf> = match query(
         context,
         cwd,
-        &["rev-parse", "--path-format=absolute", "--git-common-dir", "--absolute-git-dir"],
+        &["config", "--type=path", "--null", "--show-scope", "--get-all", "core.hooksPath"],
     )
     .await?
-    .unwrap_or_default();
-    let mut lines = report.lines();
-    let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
-        return Err(String::from("git rev-parse did not report the common and Git directories"));
-    };
-    // Every value of the key, because the wrapper's own command-scope entry is placed last by Git; NUL-delimited, so a
-    //  value holding a line break stays one value.
-    let configured_text: Option<String> =
-        match query(context, cwd, &["config", "--type=path", "--null", "--get-all", "core.hooksPath"]).await? {
-        // An empty value is the person's own reset, and it names no directory.
-        Some(text) => match configured_hooks_directory(text.as_str()) {
-            Some(value) if value.is_empty() => None,
-            other => other,
-        },
+    {
+        Some(listing) => configured_hooks_directory(listing.as_slice()),
         None => None,
     };
-    let Some(value) = configured_text else {
+    let Some(chosen) = configured else {
         return Ok(HooksLocation {
-            common_directory: PathBuf::from(common),
+            common_directory: common.clone(),
+            git_directory,
             configured: None,
         });
     };
-    if Path::new(value.as_str()).is_absolute() {
+    if chosen.is_absolute() {
         return Ok(HooksLocation {
-            common_directory: PathBuf::from(common),
-            configured: Some(PathBuf::from(value)),
+            common_directory: common,
+            git_directory,
+            configured: Some(chosen),
         });
     }
     // A relative value resolves where Git runs hooks; a repository without a worktree has no top level.
-    let base: PathBuf = match query(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
-        Ok(Some(top)) if !top.trim_end().is_empty() => PathBuf::from(top.trim_end()),
-        Ok(_) | Err(_) => PathBuf::from(git_directory),
+    let base: PathBuf = match path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
+        Ok(top) => top,
+        Err(_) => git_directory.clone(),
     };
     return Ok(HooksLocation {
-        common_directory: PathBuf::from(common),
-        configured: Some(base.join(value)),
+        common_directory: common,
+        git_directory,
+        configured: Some(base.join(chosen)),
     });
 }
 
-/// The four hooks `git lfs install` writes.
-const LFS_SHIM_NAMES: [&str; 4] = ["pre-push", "post-checkout", "post-commit", "post-merge"];
-
-/// The longest shim file the comparison reads,
-/// in bytes;
-/// a longer file is not a shim.
-const LFS_SHIM_LIMIT: u64 = 1024;
-
-/// The text git-lfs 3.8.0 writes (`lfs/hook.go`,
-/// `hookBaseContent` and its `write`,
-/// which appends a line feed),
-///  with the hook's own name where `{{Command}}` stands.
-const LFS_SHIM_TEMPLATE: &str = r##"#!/bin/sh
-command -v git-lfs >/dev/null 2>&1 || { printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the '{{Command}}' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks')."; exit 2; }
-git lfs {{Command}} "$@"
-"##;
-
-/// What:
-///  The text git-lfs writes for the hook called `name`.
-/// Why:
-///   Recognition is by these exact bytes,
-/// so an edited or foreign file is never taken for a shim.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// template.replaceAll('{{Command}}', name)
-/// ```
-pub fn lfs_shim_text(name: &str) -> String {
-    return LFS_SHIM_TEMPLATE.replace("{{Command}}", name);
-}
-
-/// What:
-///  Whether a hook file is exactly the git-lfs shim for its own name.
-/// Why:
-///   Only a regular file whose name is one of the four hooks and whose bytes equal that hook's shim counts;
-/// a link,
-///  a file that differs by one byte,
-/// and a shim under another hook's name are ordinary unsupported hooks.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isFile(path) && readFileSync(path).equals(lfsShimText(basename(path)))
-/// ```
-pub fn is_lfs_shim(path: &Path) -> bool {
-    use std::io::Read;
-    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
-        return false;
-    };
-    if !LFS_SHIM_NAMES.contains(&name) {
-        return false;
-    }
-    let Ok(metadata) = std::fs::symlink_metadata(path) else {
-        return false;
-    };
-    if !metadata.file_type().is_file() {
-        return false;
-    }
-    let Ok(file) = std::fs::File::open(path) else {
-        return false;
-    };
-    let mut content: Vec<u8> = Vec::new();
-    if file.take(LFS_SHIM_LIMIT).read_to_end(&mut content).is_err() {
-        return false;
-    }
-    return content == lfs_shim_text(name).as_bytes();
-}
-
-/// What:
-///  The explanation of the Git LFS shims a repository holds.
-/// Why:
-///   They are listed apart from the unsupported hooks and say what is going on,
-/// because the person who finds them
-///  after deleting them needs to know they come back,
-/// that this is normal,
-/// and that nothing needs doing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const explanation = (shims: string[]) => '...';
-/// ```
-pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
-    let mut text: String = String::from(
-        "git monochromatic-git-policy-cli doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
-    );
-    for shim in shims {
-        text.push_str("  ");
-        text.push_str(shim.display().to_string().as_str());
-        text.push('\n');
-    }
-    text.push_str(
-        "git-lfs writes these files again whenever it cleans a file in a Git that monochromatic-git-policy-cli did not start (for example \
-`git add` of an LFS file run as `/usr/bin/git` directly), so they can come back after you delete them; this is \
-normal. monochromatic-git-policy-cli uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
-files never run through monochromatic-git-policy-cli. You may delete them or leave them. Only a script that starts Git without monochromatic-git-policy-cli, \
-such as `/usr/bin/git` directly, would run them.\n",
-    );
-    return text;
-}
+/// The bytes Git prints for a pathname,
+/// and the values of `core.hooksPath`.
+use crate::hooks_path_values::{configured_hooks_directory, path_answer, without_the_terminator};
+/// The Git LFS shims a repository holds,
+/// recognized by name and by the exact bytes git-lfs writes.
+pub use crate::lfs_shims::{is_lfs_shim, lfs_shim_text, render_lfs_shims};
 
 /// What:
 ///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with,
@@ -515,6 +530,63 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 }
 
 /// What:
+///  What the filesystem section is told about the repository the command runs in.
+///  `Option<&Path>` is a borrowed path or nothing;
+/// `CheckoutLayout` is how a checkout that exists is laid out.
+/// Why:
+///   The section describes a checkout,
+/// and Git alone says which directory is one:
+/// it reported no top
+///  level for a bare repository,
+/// so that field is `None` there and no checkout advice is printed.
+///  The home is the one the invocation names,
+/// which the line about the repository's link to another drive reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CheckoutViewpoint = { checkout?: string; layout: CheckoutLayout; home?: string };
+/// ```
+pub struct CheckoutViewpoint<'a> {
+    /// The checkout Git reported for where the command runs,
+    /// or nothing when the repository has none.
+    pub checkout: Option<&'a Path>,
+    /// How that checkout is laid out;
+    /// meaningless without a checkout.
+    pub layout: CheckoutLayout,
+    /// The home the invocation names.
+    pub home: Option<&'a Path>,
+}
+
+/// What:
+///  The checkout this command reports on,
+/// and its layout,
+/// as Git answers them.
+/// Why:
+///   `git rev-parse --show-toplevel` names a worktree root and fails where there is none (a bare repository),
+/// so
+///  the section is never pointed at the directory above a Git directory,
+/// which is a metadata directory or a bare
+///  repository's parent and not a checkout.
+///  The Git directory equal to the common one means the command runs in the main worktree;
+/// a different one means a
+///  linked worktree,
+/// whose conversion command differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { checkout, layout } = await checkoutOf({ context, cwd, location });
+/// ```
+async fn checkout_of(context: &GitContext, cwd: &Path, location: &HooksLocation) -> (Option<PathBuf>, CheckoutLayout) {
+    let layout: CheckoutLayout = if location.git_directory == location.common_directory {
+        CheckoutLayout::Main
+    } else {
+        CheckoutLayout::Linked
+    };
+    let checkout: Option<PathBuf> = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await.ok();
+    return (checkout, layout);
+}
+
+/// What:
 ///  A filesystem section that is always empty.
 /// Why:
 ///   `doctor_action` prints no filesystem section,
@@ -525,7 +597,7 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 /// ```ts
 /// const noFilesystemSection = (_commonDirectory: string, _home: string | undefined) => '';
 /// ```
-fn no_filesystem_section(_common_directory: &Path, _home: Option<&Path>) -> String {
+fn no_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
     return String::new();
 }
 
@@ -554,12 +626,14 @@ pub async fn doctor_action_with_section(
     context: &GitContext,
     cwd: &Path,
     home: Option<&Path>,
-    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
+    filesystem_section: &dyn Fn(&CheckoutViewpoint<'_>) -> String,
 ) -> Action {
     let location: HooksLocation = match locate_hooks(context, cwd).await {
         Ok(found) => found,
         Err(message) => return doctor_failure(message.as_str()),
     };
+    // The scan reads directories and shim files under its ceiling (`scan_hooks_directory`), so a mount that stops
+    // answering ends the read instead of the report.
     let found: Vec<PathBuf> = match find_traditional_hooks(hook_directories(&location).as_slice()) {
         Ok(listed) => listed,
         Err(error) => return doctor_failure(format!("cannot read a hooks directory: {error}").as_str()),
@@ -567,19 +641,22 @@ pub async fn doctor_action_with_section(
     let mut shims: Vec<PathBuf> = Vec::new();
     let mut hooks: Vec<PathBuf> = Vec::new();
     for path in found {
-        if is_lfs_shim(path.as_path()) {
-            shims.push(path);
-        } else {
-            hooks.push(path);
+        match is_lfs_shim(path.as_path()) {
+            Ok(true) => shims.push(path),
+            Ok(false) => hooks.push(path),
+            Err(error) => return doctor_failure(format!("cannot read a hook file: {error}").as_str()),
         }
     }
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd).await;
     let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd).await);
-    // The first time the common Git directory is known to this command, an earlier release's names in it are moved.
-    crate::kept_names_in_the_git_directories::settle_common_directory_names(location.common_directory.as_path());
+    // A report changes nothing, so the earlier release's names in this directory are read where they are and never moved
+    // (`SPEC.md`, section Doctor): moving them is left to the commands that write there.
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
-    let section: String = filesystem_section(location.common_directory.as_path(), home);
+    // The host facts read `statfs` and the mount table under their own ceiling, for the checkout Git named.
+    let (checkout, layout): (Option<PathBuf>, CheckoutLayout) = checkout_of(context, cwd, &location).await;
+    let viewpoint: CheckoutViewpoint<'_> = CheckoutViewpoint { checkout: checkout.as_deref(), layout, home };
+    let section: String = filesystem_section(&viewpoint);
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,

@@ -150,7 +150,7 @@ fn is_ignorable(text: &str) -> bool {
     return matches!(
         text,
         "-v" | "--verbose" | "--no-verbose" | "--progress" | "--no-progress" | "--no-verify" | "--verify"
-            | "--summary" | "--no-summary" | "--no-signoff" | "--no-autostash" | "--no-verify-signatures"
+            | "--no-signoff" | "--no-autostash" | "--no-verify-signatures"
     );
 }
 
@@ -201,8 +201,10 @@ pub fn parse_merge_shape(region: &[OsString]) -> ParsedMerge {
             "-q" | "--quiet" => shape.quiet = true,
             "--ff" => shape.fast_forward = FastForwardChoice::Allowed,
             "--no-ff" => shape.fast_forward = FastForwardChoice::Never,
-            "--stat" => shape.stat = Some(true),
-            "--no-stat" | "-n" => shape.stat = Some(false),
+            // `git merge -h` of 2.56.0 documents `--[no-]summary` as a synonym to `--stat`,
+            //  and native Git 2.56.0 prints and hides the end-of-merge diffstat with it.
+            "--stat" | "--summary" => shape.stat = Some(true),
+            "--no-stat" | "-n" | "--no-summary" => shape.stat = Some(false),
             "--allow-unrelated-histories" => shape.allow_unrelated_histories = true,
             "--log" => shape.log = Some(true),
             "--no-log" => shape.log = Some(false),

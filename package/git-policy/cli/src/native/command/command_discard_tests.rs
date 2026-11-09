@@ -12,11 +12,12 @@
 
 /// The readings and the argument builder.
 use super::{
-    Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, switch_discard,
+    Discard, abort_discard, checkout_discard, force_discard, previous_branch_expression,
+    read_tree_discard, restore_discard, restores_index_only, switch_discard,
 };
-use crate::command_test_support::{fixture, git_status, os_arguments, remove, repository};
-use std::path::Path;
+use crate::command_test_support::{fixture, git, git_status, os_arguments, remove, repository, repository_with_tracked_file};
+use std::path::{Path, PathBuf};
+use std::process::Output;
 
 /// Every read of a checkout region that Git accepts.
 #[test]
@@ -275,4 +276,44 @@ fn an_option_value_is_not_a_restore_flag() {
     ] {
         assert_eq!(restores_index_only(os_arguments(values.as_slice()).as_slice()), expected, "{values:?}");
     }
+}
+
+/// The one shorthand that only `switch` and `checkout` read becomes the expression Git resolves wherever an
+/// object name is read,
+/// and every other revision is left as it was written.
+#[test]
+fn the_previous_branch_shorthand_becomes_the_expression_git_resolves() {
+    assert_eq!(previous_branch_expression(b"-"), Some(&b"@{-1}"[..]));
+    for written in [
+        &b"@{-1}"[..],
+        &b"@{-2}"[..],
+        &b"tracks"[..],
+        &b"--"[..],
+        &b"-f"[..],
+        &b""[..],
+    ] {
+        assert_eq!(previous_branch_expression(written), None, "{written:?}");
+    }
+}
+
+/// Real Git resolves the expression the shorthand becomes to the previous branch of a worktree.
+#[test]
+fn real_git_resolves_the_previous_branch_expression() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("previous-branch-expression");
+    git(root.as_path(), &["branch", "tracks"]);
+    git(root.as_path(), &["switch", "--quiet", "tracks"]);
+    let main: String = String::from_utf8_lossy(git(root.as_path(), &["rev-parse", "--abbrev-ref", "HEAD"]).stdout.as_slice())
+        .trim()
+        .to_owned();
+    assert_eq!(main, "tracks");
+    // The worktree is on `tracks`, so the previous branch is the one before it.
+    git(root.as_path(), &["switch", "--quiet", "tracks"]);
+    let expression: &[u8] = previous_branch_expression(b"-").expect("the expression");
+    let shown: String = String::from_utf8_lossy(expression).into_owned();
+    let resolved: Output = git(root.as_path(), &["rev-parse", "--symbolic-full-name", shown.as_str()]);
+    assert_eq!(
+        String::from_utf8_lossy(resolved.stdout.as_slice()).trim(),
+        "refs/heads/tracks"
+    );
+    remove(directory.as_path());
 }

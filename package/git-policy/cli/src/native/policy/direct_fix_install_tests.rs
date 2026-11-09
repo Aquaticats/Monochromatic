@@ -29,9 +29,76 @@ use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
 use crate::direct_fix_install_writes::{Kept, write_new};
 use crate::test_support::{fixture, git, remove, repository};
+use std::ffi::CString;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+/// What:
+///  Give `path` the extended attribute `name` with `value`;
+///  false when the filesystem refuses it.
+/// Why:
+///  A control that plants an attribute must know whether the filesystem can hold one,
+///  so a refusal is reported as a control that did not run rather than as a defect.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const planted = (path, name, value) => { try { setxattrSync(path, name, value); return true } catch { return false } };
+/// ```
+fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
+    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+        return false;
+    };
+    // SAFETY: both strings are NUL-terminated and outlive the call; `value` holds `value.len()` initialised bytes.
+    let result: libc::c_int = unsafe {
+        libc::lsetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+        )
+    };
+    return result == 0;
+}
+
+/// What:
+///  The value of the extended attribute `name` of `path`,
+///  or nothing when it has none.
+/// Why:
+///  The control must read the person's data back from the same name and by the same rule the fix does,
+///  never through the file's own bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const attribute = (path, name) => { try { return getxattrSync(path, name) } catch { return undefined } };
+/// ```
+fn attribute(path: &Path, name: &[u8]) -> Option<Vec<u8>> {
+    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+        return None;
+    };
+    // SAFETY: a null buffer with size 0 asks the system for the length of the value.
+    let size: isize = unsafe { libc::lgetxattr(path_text.as_ptr(), name_text.as_ptr(), std::ptr::null_mut(), 0) };
+    if size < 0 {
+        return None;
+    }
+    let mut value: Vec<u8> = vec![0; usize::try_from(size).ok()?];
+    // SAFETY: `value` holds `size` writable bytes.
+    let read: isize = unsafe {
+        libc::lgetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            value.as_mut_ptr().cast(),
+            value.len(),
+        )
+    };
+    if read < 0 {
+        return None;
+    }
+    value.truncate(usize::try_from(read).ok()?);
+    return Some(value);
+}
 
 /// A worktree with a regular file at the top,
 ///  an executable one below,
@@ -80,6 +147,37 @@ fn changes() -> Vec<InstallChange> {
             replacement: Rc::from(&b"#!/bin/sh\n"[..]),
         },
     ];
+}
+
+
+/// What:
+///  An access-control list that grants a second entry beside the owner's,
+/// as the bytes the kernel stores under `system.posix_acl_access`.
+/// Why:
+///  An access-control list decides who may read the file,
+///  and it is the one extended attribute with a shape of its own;
+///  a control that plants it must build exactly what the kernel checks,
+///  so the fix is shown to carry a list and not only a user attribute.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const blob = pack('<I', 2) + [[1, 6, -1], [2, 4, owner], [4, 4, -1], [0x10, 4, -1], [0x20, 0, -1]].map(([tag, perm, id]) => pack('<HHI', tag, perm, id)).join('');
+/// ```
+fn access_list() -> Vec<u8> {
+    let mut blob: Vec<u8> = u32::to_le_bytes(2).to_vec();
+    let entries: [(u16, u16, u32); 5] = [
+        (0x01, 0o6, u32::MAX),
+        (0x02, 0o4, 0),
+        (0x04, 0o4, u32::MAX),
+        (0x10, 0o4, u32::MAX),
+        (0x20, 0o0, u32::MAX),
+    ];
+    for (tag, permission, identifier) in entries {
+        blob.extend_from_slice(u16::to_le_bytes(tag).as_slice());
+        blob.extend_from_slice(u16::to_le_bytes(permission).as_slice());
+        blob.extend_from_slice(u32::to_le_bytes(identifier).as_slice());
+    }
+    return blob;
 }
 
 /// One correction of the top-level file.
@@ -248,6 +346,94 @@ fn the_mode_owner_and_kind_of_a_file_survive_a_fix() {
     remove(fixture_tree.root.as_path());
 }
 
+/// What:
+///  The extended attributes a file carries survive a fix,
+///  and one the replacement cannot be given stops the fix with a word.
+/// Why:
+///  A user attribute is the person's data outside the file's bytes,
+///  which Git never stores and no commit can bring back;
+///  a replacement that drops it deletes the only copy without saying so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(a, 'user.draft', 'only-copy-of-draft'); await installCorrections(...); expect(getxattr(a, 'user.draft')).toBe('only-copy-of-draft')
+/// ```
+#[test]
+fn the_extended_attributes_of_a_file_survive_a_fix() {
+    let fixture_tree: Tree = tree("install-attributes");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    // The value is the person's only copy: nothing in Git, and nothing in the fix's journal, holds it.
+    if !set_attribute(path.as_path(), b"user.draft", b"only-copy-of-draft") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(
+        std::fs::read(&path).expect("a"),
+        b"a\n",
+        "the fix installed its correction"
+    );
+    assert_eq!(
+        attribute(path.as_path(), b"user.draft"),
+        Some(b"only-copy-of-draft".to_vec()),
+        "the data the file carried outside its bytes is still there"
+    );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+
+/// What:
+///  The access-control list of a file survives a fix,
+///  so who may read the file does not change under the person's hands.
+/// Why:
+///  The list is an extended attribute the kernel reads to decide access;
+///  a replacement that carried only the mode would widen or narrow the file
+///  for every account the person granted or denied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(a, 'system.posix_acl_access', acl); await installCorrections(...); expect(getxattr(a, 'system.posix_acl_access')).toEqual(acl)
+/// ```
+#[test]
+fn the_access_control_list_of_a_file_survives_a_fix() {
+    let fixture_tree: Tree = tree("install-access-list");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    let list: Vec<u8> = access_list();
+    if !set_attribute(path.as_path(), b"system.posix_acl_access", list.as_slice()) {
+        eprintln!(
+            "ACL CONTROL NOT RUN: this filesystem refuses an access-control list ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        Some(list.clone()),
+        "the list is on the file before the fix"
+    );
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, one_change().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(std::fs::read(&path).expect("a"), b"a\n", "the fix installed its correction");
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        Some(list),
+        "who may read the file is unchanged"
+    );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
 /// A selected path that is not a regular file stops the fix before any file changes.
 #[test]
 fn a_file_that_is_not_a_regular_file_stops_before_any_change() {
@@ -372,6 +558,65 @@ fn a_permission_change_made_while_the_fix_ran_is_refused_and_kept() {
     remove(fixture_tree.root.as_path());
 }
 
+
+/// What:
+///  An attribute the person changed while the fix ran is refused and kept,
+///  like a change of its bytes or its mode.
+/// Why:
+///  The fix installs the attributes it read;
+///  a person who saves a value into the file's own attribute while the fix
+///  runs would get the older value back,
+///  and the displaced comparison of bytes,
+///  mode and owner cannot see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const prepared = prepare(...);
+/// // setxattr(a, 'user.draft', 'second');
+/// // const refused = install(prepared); // 'changed while'
+/// // expect(getxattr(a, 'user.draft')).toBe('second');
+/// ```
+#[test]
+fn an_attribute_change_made_while_the_fix_ran_is_refused_and_kept() {
+    let fixture_tree: Tree = tree("install-attribute-change");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    if !set_attribute(path.as_path(), b"user.draft", b"first") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    assert!(set_attribute(path.as_path(), b"user.draft", b"second"), "the person saves a newer value");
+    let mut notices: Vec<String> = Vec::new();
+    let refused: String = install_prepared(
+        prepared.as_slice(),
+        &fixture_tree.index,
+        &before,
+        &mut notices,
+    )
+    .expect_err("an attribute changed under the fix");
+    assert!(
+        refused.starts_with(
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran"
+        ),
+        "{refused}"
+    );
+    assert_eq!(
+        attribute(path.as_path(), b"user.draft"),
+        Some(b"second".to_vec()),
+        "the person's newer value is back on the file"
+    );
+    assert_eq!(std::fs::read(&path).expect("a"), b"a", "the fix left the person's bytes alone");
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
 /// What:
 ///  A write that lands at a corrected path before a rollback is kept,
 ///  and the rollback says where the
@@ -430,6 +675,19 @@ fn a_save_to_a_corrected_path_before_a_rollback_is_kept() {
             && notices[0].contains("cli-git-direct-fix-")
             && notices[0].contains("/content"),
         "{notices:?}"
+    );
+    // What: The message says where the save is, which is the journal it names, and never that the file holds it.
+    // Why:  The file was just put back to the bytes the fix found, so a person who read "the file itself holds what the
+    //       other writer put there" would look at a file holding the opposite. Finding of the fifth review.
+    assert!(
+        !notices[0].contains("the file itself holds"),
+        "the notice says the file holds the other writer's save, and the file holds what the fix found: {}",
+        notices[0]
+    );
+    assert!(
+        notices[0].contains("in that journal"),
+        "the notice does not say the save is in the journal: {}",
+        notices[0]
     );
     let kept: Vec<PathBuf> = journals(&fixture_tree.root);
     assert_eq!(kept.len(), 1, "one journal stays");
@@ -949,6 +1207,7 @@ fn a_replacement_never_changes_the_owner() {
         mode: 0o644,
         uid: 0,
         gid: 0,
+        attributes: Vec::new(),
     };
     match write_new(path.as_path(), b"x\n", &asked) {
         // A process that may give the file away gives it.
@@ -1281,6 +1540,7 @@ fn a_replacement_keeps_the_group_the_file_had() {
         mode: 0o640,
         uid: unsafe { libc::geteuid() },
         gid: own,
+        attributes: Vec::new(),
     };
     write_new(path.as_path(), b"x\n", &asked).expect("the replacement is written");
     /// `MetadataExt` adds the group.

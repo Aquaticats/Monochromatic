@@ -1,6 +1,6 @@
 //! What:
 //!  The filesystem section of `git monochromatic-git-policy-cli doctor`:
-//! what the repository's main checkout sits on (btrfs subvolume,
+//! what the checkout Git named for the command sits on (btrfs subvolume,
 //!  btrfs directory,
 //! overlayfs,
 //! other),
@@ -34,9 +34,15 @@
 //! const section = renderSection(await gatherFacts(mainCheckoutRoot)); // '' when no checkout was found
 //! ```
 
+use crate::checkout_layout::{CheckoutLayout, conversion_command};
 use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
 use crate::shell_quote::shell_quote;
+/// The ceiling of a read of the host's facts.
+use crate::wait_ceilings::REPORT_SCAN_CEILING;
+/// The job of such a read,
+/// run on a thread of its own.
+use crate::work_awaited_within_a_ceiling::work_within;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
@@ -92,8 +98,11 @@ pub struct MountSummary {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FilesystemFacts {
-    /// The repository's main checkout.
+    /// The checkout the section reports on.
     pub root: PathBuf,
+    /// How that checkout is laid out,
+    /// which decides the command the advice names.
+    pub layout: CheckoutLayout,
     /// The filesystem kind holding it.
     pub kind: FilesystemKind,
     /// Whether the checkout is a subvolume root (inode 256 on btrfs).
@@ -215,7 +224,7 @@ pub fn parse_rootflags(command_line: &str) -> Vec<String> {
 /// ```ts
 /// const facts = await gatherFacts(root);
 /// ```
-pub fn gather_facts(root: &Path) -> Option<FilesystemFacts> {
+pub fn gather_facts(root: &Path, layout: CheckoutLayout) -> Option<FilesystemFacts> {
     let kind: FilesystemKind = filesystem_kind(root).ok()?;
     let root_is_subvolume: bool = kind == FilesystemKind::Btrfs && is_subvolume_root(root).unwrap_or(false);
     let mount: Option<MountSummary> = match read_mount_facts(root).ok().flatten() {
@@ -230,6 +239,7 @@ pub fn gather_facts(root: &Path) -> Option<FilesystemFacts> {
     let command_line: String = std::fs::read_to_string(CMDLINE_PATH).unwrap_or_default();
     return Some(FilesystemFacts {
         root: root.to_path_buf(),
+        layout,
         kind,
         root_is_subvolume,
         mount,
@@ -328,8 +338,8 @@ fn btrfs_lines(facts: &FilesystemFacts) -> Vec<String> {
         lines.push(String::from("  Making it a subvolume can help with performance: `git worktree add` then makes the new worktree from a btrfs snapshot of the worktree it is run from, which took a median of 0.35 s to 1.09 s in the design measurements, against 2.1 s to 2.7 s for Git's checkout and 28.35 s with an ignored tree of 72 thousand entries, and shares every data block with its source (doc/planning/cli-git-btrfs-worktree.md, section Measurements)."));
         lines.push(String::from("  Until then `git worktree add` clones the tracked files of a clean worktree, which shares disk but takes about as long as Git's checkout, and makes every new worktree a subvolume that later ones can be snapshotted from; worktrees that exist already as ordinary directories stay ordinary. The conversion keeps the original tree until you delete it."));
         lines.push(String::from("  Stop agent sessions and editors that have their working directory inside the checkout first, then:"));
-        lines.push(String::from("    git monochromatic-git-policy-cli migrate-to-subvolume --dry-run"));
-        lines.push(String::from("    git monochromatic-git-policy-cli migrate-to-subvolume"));
+        lines.push(format!("    git monochromatic-git-policy-cli {} --dry-run", conversion_command(facts.layout)));
+        lines.push(format!("    git monochromatic-git-policy-cli {}", conversion_command(facts.layout)));
     }
     match &facts.mount {
         Some(mount) if mount.has_removal_option => {
@@ -365,35 +375,92 @@ pub fn render_section(facts: &FilesystemFacts) -> String {
 }
 
 /// What:
-///  The section for the repository whose common Git directory is given,
+///  The section for the checkout Git named for the command,
 /// read from the running system;
-/// empty when that
-///  directory is not a `.git` directory (a bare repository has no main checkout) or its filesystem cannot be identified.
+/// empty when its file system cannot be
+///  identified.
 /// Why:
 ///   This is what the command appends to the doctor's standard error.
-/// Git chose the common directory,
+/// The checkout is the one Git reported for
+///  where the command runs,
 /// so a worktree,
-///  `-C` and `--git-dir` all lead to the right main checkout without a second guess.
-/// A repository the command cannot
-///  place adds no line,
-/// because a guess about the wrong directory would mislead.
+/// `-C`,
+/// `--git-dir` and a repository whose Git directory lives elsewhere all lead to a
+///  directory that is a checkout,
+/// and a repository without one (a bare repository) gets no line.
+///  A basename is not a layout proof:
+/// reading the directory above the common Git directory measured the metadata
+///  directory of a separate Git
+/// directory and the parent directory of a bare repository,
+/// and told the person to migrate
+///  those.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const section = hostSection(commonGitDirectory);
+/// const section = checkoutSection(checkoutGitNamed, layout);
 /// ```
-pub fn host_section(common_directory: &Path) -> String {
-    let is_git_directory: bool = match common_directory.file_name() {
-        Some(name) => name == ".git",
-        None => false,
-    };
-    if !is_git_directory {
-        return String::new();
-    }
-    let Some(root) = common_directory.parent() else { return String::new() };
-    return match gather_facts(root) {
+pub fn checkout_section(checkout: &Path, layout: CheckoutLayout) -> String {
+    return checkout_section_with(section_of_the_checkout, REPORT_SCAN_CEILING, checkout, layout);
+}
+
+/// What:
+///  What one read of the host's facts answers,
+/// as a function pointer,
+/// so a control can stand a read that never answers where the file system stands.
+///  `CheckoutLayout` is how the checkout it is asked about is laid out.
+/// Why:
+///  `statfs`,
+/// the subvolume check and the mount table wait in the kernel on a mount whose server stopped
+///  answering,
+/// so the read is a value the section is given rather than a call it makes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HostFactsRead = (checkout: string, layout: CheckoutLayout) => string;
+/// ```
+pub type HostFactsRead = fn(&Path, CheckoutLayout) -> String;
+
+/// What:
+///  The section's own facts read:
+/// the checkout's file system kind,
+/// its subvolume state,
+/// its mount and the kernel command
+///  line,
+/// or nothing when its file system cannot be identified.
+/// Why:
+///   This is the read the ceiling is placed on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sectionOfTheCheckout = (checkout, layout) => { ... };
+/// ```
+fn section_of_the_checkout(checkout: &Path, layout: CheckoutLayout) -> String {
+    return match gather_facts(checkout, layout) {
         Some(facts) => render_section(&facts),
         None => String::new(),
+    };
+}
+
+/// What:
+///  `checkout_section` with the facts read and the ceiling given.
+/// Why:
+///   A read that gives no answer within the ceiling becomes one line that says so,
+/// because a report that
+///  silently left the section out would read as "nothing to say about this file system".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// checkoutSectionWith(sectionOfTheCheckout, REPORT_SCAN_CEILING, checkout, layout);
+/// ```
+pub fn checkout_section_with(reader: HostFactsRead, ceiling: std::time::Duration, checkout: &Path, layout: CheckoutLayout) -> String {
+    let named: PathBuf = checkout.to_path_buf();
+    let read: Option<String> = work_within(ceiling, move || { return reader(named.as_path(), layout); });
+    return match read {
+        Some(text) => text,
+        None => format!(
+            "{SECTION_MARKER} the host facts of {} could not be read within {ceiling:?}, so nothing is said about its file system\n",
+            checkout.display()
+        ),
     };
 }
 
