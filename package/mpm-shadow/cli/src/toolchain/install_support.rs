@@ -194,6 +194,8 @@ pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), T
     let staging_text: String = staging.to_string_lossy().to_string();
     let opened: RunOutcome = ctx.run(&RunRequest::new("unzip", &["-q", "-o", &archive_text, "-d", &staging_text]).with_env(ctx.path_env()));
     if !opened.succeeded() {
+        // Best effort: the staging directory only held the outer archive's members, and the error below is what matters.
+        let _ = fs::remove_dir_all(&staging);
         return Err(ToolchainError::failure(format!("unzip failed for {archive_text}: {}", opened.failure_text())));
     }
     let mut names: Vec<PathBuf> = Vec::new();
@@ -212,6 +214,8 @@ pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), T
         }
     }
     let Some(payload_path) = payload else {
+        // Best effort: the staging directory only held the outer archive's members, and the error below is what matters.
+        let _ = fs::remove_dir_all(&staging);
         return Err(ToolchainError::failure(format!("{archive_text} holds no pkg-*.tar.zst payload")));
     };
     let payload_text: String = payload_path.to_string_lossy().to_string();

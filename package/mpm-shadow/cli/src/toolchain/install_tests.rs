@@ -15,7 +15,7 @@ use super::hash::sha256_hex;
 use super::install::install_tool;
 use super::install_archive::safe_file_name;
 use super::install_bin::{percent_decode, release_tag_url, seed_bin_config};
-use super::install_support::{atomic_symlink, download_verified, restore_exec_bits};
+use super::install_support::{atomic_symlink, download_verified, extract_conda, restore_exec_bits};
 use super::cargo_installs::version_directory;
 use super::archive_staging::{has_complete_marker, staging_dir_of};
 use super::layout::tool_install_dir;
@@ -667,4 +667,31 @@ fn a_download_whose_rename_fails_removes_its_temporary_file() {
         .expect_err("a rename onto a directory fails");
     assert!(error.to_string().contains("cannot move the verified download"), "{error}");
     assert!(!temporary.exists(), "the failed download left {} behind", temporary.display());
+}
+
+/// A failed unzip reports the failure and leaves no `.conda-staging` directory behind.
+#[test]
+fn a_conda_extraction_whose_unzip_fails_removes_its_staging_directory() {
+    let rig = Rig::new();
+    let into: std::path::PathBuf = rig.scope.root.join("conda-tool");
+    fs::create_dir_all(&into).expect("make the install directory");
+    rig.runner.fail("unzip", "cannot find zipfile directory");
+    let error = extract_conda(&rig.context(), &rig.scope.root.join("tool.conda"), &into).expect_err("the unzip failed");
+    assert!(error.to_string().contains("unzip failed"), "{error}");
+    assert!(!into.join(".conda-staging").exists(), "the failed extraction left its staging directory behind");
+}
+
+/// An outer archive holding no `pkg-*.tar.zst` payload reports that and leaves no `.conda-staging` behind.
+#[test]
+fn a_conda_extraction_that_finds_no_payload_removes_its_staging_directory() {
+    let rig = Rig::new();
+    let into: std::path::PathBuf = rig.scope.root.join("conda-tool");
+    fs::create_dir_all(&into).expect("make the install directory");
+    rig.runner.on("unzip", Box::new(|request| {
+        let staging = request.args.last().expect("the -d directory");
+        fs::write(std::path::Path::new(staging).join("info.json"), "{}").expect("write a non-payload member");
+    }));
+    let error = extract_conda(&rig.context(), &rig.scope.root.join("tool.conda"), &into).expect_err("there is no payload");
+    assert!(error.to_string().contains("holds no pkg-*.tar.zst payload"), "{error}");
+    assert!(!into.join(".conda-staging").exists(), "the failed extraction left its staging directory behind");
 }
