@@ -2408,7 +2408,13 @@ a claim whose owner lives is a copy between claiming and journaling and is left 
 so a copy that died while staging (a signal,
 the out-of-memory killer,
 a power loss) left it.
-Recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
+A claim with a destination record beside it was made by an add,
+and its stage is reported and never removed (`38e01bcd33`):
+the claim names a stage by its path alone,
+which proves nothing about what stands there now,
+so the notice names the stage and says to remove it once nothing needs it.
+For a claim no add recorded,
+recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix,
 and the container to be a private directory owned by the user,
 removes it with its read-only subdirectories,
@@ -3441,6 +3447,9 @@ so a walk taken while the step was alive is discarded when it ended in the meant
 and signals the step whatever that walk came to,
 recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
 so one of them may still be running),
+and a signal the kernel refused is recorded as `belowUnended` and said in the same words,
+because a program that was listed and could not be ended may still be running too,
+and the person is the one who can end it
 a stop recorded only when a signal was really taken for the step,
 only `ESRCH` from the descriptor's signal read as the step being gone,
 with every other refusal,
@@ -3485,10 +3494,16 @@ whose number the kernel keeps until it is reaped,
 so no process that took the number can be reached;
 the programs below it are read before the signal,
 while the step still holds its number,
-and ended through descriptors pinned the same way;
+and ended through descriptors pinned the same way,
+with every program it could not pin or not signal counted as `belowUnended`,
+so the stop says what it could not end instead of reporting a walk that ended everything it listed;
 and the child is reaped there,
 a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
-so the kernel's release of it never holds the command.
+so the kernel's release of it never holds the command,
+and the status that reap collects decides what ended the step:
+a step that finished by itself between the ceiling and the signal is answered with its own exit and no stop,
+because a kill cannot turn an exit into a signal,
+and only a status that is the `SIGKILL` this wait sent is a ceiling stop.
 
 That second enforcer is why the ceiling survives both failures the notice cannot:
 a system that refuses its thread,
@@ -3985,6 +4000,13 @@ on the commit path:
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
   then runs and reports what Git says.
+  Before the wait it learns which index it writes from two queries,
+  `git rev-parse --path-format=absolute --absolute-git-dir` and then `--git-path index`,
+  each asked on its own and each answer read as bytes with only its one terminating line feed removed,
+  because a pathname may hold a line feed,
+  the reading `src/native/landing/landing_location.rs` and `health/doctor.rs` both make.
+  The in-process reader answers first,
+  so a command in a plain checkout starts no query for it.
 - A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
   journal
   command.
@@ -4530,14 +4552,20 @@ in-process reader can) gives every value of the multi-valued keys.
   (`feature` tracking `origin/main` wrote
   `Merge remote-tracking branch 'origin/main' into feature`),
   and a branch whose name differs from the tracked ref's short name also gets
-  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  `Published to <remote>/<tracked ref>.`
   as a further line of its body,
-  because the commit lands on a branch its subject does not name.
+  because the commit lands on a ref its subject does not name.
+  That ref is the destination of the rejected push,
+  which is not always the branch's upstream
+  (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
+  so the line states where the merge was published and nothing about what the branch tracks.
   A detached `HEAD` has no branch to name and keeps the tracked ref's short name
   (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
-  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
+  in a sentence that names the branch the merge was into,
+  the same name the merge's subject carries and never the destination ref.
   A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
   (the lines `word-level merge: <path>: part <n> of <m>: ...`),
   the same lines in the report after the push (each begins with `monochromatic-git-policy-cli: auto-push: `),
@@ -8818,14 +8846,27 @@ and the executable does not read the name it was started under.
   so no hook runs in the shadow whatever the
   real config defines,
   and the native commit repeats the hooks-off hooks path after the caller's global options.
-- The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
-  commit ...` with no `--work-tree`:
+- The native commit runs `git <caller global options> --git-dir=<shadow> -c include.path=<scratch>/native-commit.config
+  -c core.hooksPath=/dev/null/cli-git-no-hooks commit ...` with no `--work-tree`:
   the shadow's `config` names the work tree.
   A caller's `-c core.worktree` cannot redirect it:
   with an explicit `--git-dir`,
   Git reads the work tree from the git
   directory's own config file only (measured on Git 2.56.0),
   and the wrapper removes `GIT_WORK_TREE` from the environment.
+- `native-commit.config` in the commit's scratch directory states every entry of the keys native `git commit`
+  reads that the invocation resolved,
+  in the order Git resolved them,
+  because an `includeIf` condition that names the real Git directory no longer matches in the shadow.
+  The entries travel in one included file and not as `-c` settings:
+  a `-c key=value` argument stops a key at its first equals sign,
+  so a subsection such as
+  `[trailer "review=bot"]` would lose its configuration,
+  and an argument stops at the platform's single-argument limit,
+  which a configured value can exceed (measured on Git 2.56.0:
+  262144 bytes is
+  `Argument list too long` as one argument,
+  and reads back from the file unchanged).
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit,
   decided from the configuration snapshot the commit already holds:
@@ -8931,39 +8972,53 @@ For injected commit-only semantics:
     233,618,538 bytes of LFS content cleaned and 3.6 s for an index built from the base alone,
     against 0.1 s for a copy).
     Intent-to-add entries stay in the copy,
-    because they carry no cached stat data and copy as they are:
-    the reset to the base then leaves a mark whose mode and object name match the entry the base holds,
-    replaces one that differs,
-    and drops one the base does not hold,
-    exactly as native Git's own reset does.
+    because they carry no cached stat data and copy as they are,
+    and the paths they name are cleared before the reset
+    (`copy_index_for_reset`,
+    `commit_index_copying.rs`):
+    the reset to the base then writes the base's own entry at each of those paths,
+    replaces one whose mode or object name differs,
+    and drops one the base does not hold.
+    A mark whose mode and object name match the base's entry survives native Git's own reset,
+    and a tree built from an index that holds it leaves the path out as soon as anything invalidates the cached tree
+    (measured with Git 2.56.0:
+    staging the selected path does,
+    and so does a scratch-commit hook),
+    so the wrapper keeps a tracked file nobody named.
     The selected additions are carried afterwards
     (`git diff-index --cached --diff-filter=A` against the base,
     step 2),
     and that step is never skipped for an index holding such a mark:
     a force-added ignored file the real index holds as intent-to-add is an addition the selection names,
     and native Git records it with its worktree content (measured against Git 2.56.0).
-    A tracked file whose intent-to-add entry equals the base's entry stays in the commit's tree,
-    where native Git leaves that path out:
-    the scratch `git commit` builds its tree from the base for every path the command does not name,
-    and the wrapper never records a removal the person did not make.
     An index that holds an assume-unchanged or skip-worktree entry,
     or one the in-process readers do not understand,
     is built from the base alone instead:
     a copied mark makes `git add --all` skip or refuse a file the commit named,
     where native Git stages it.
     A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
+    from the same copy and through the same clearing,
+    so it holds exactly the requested tree,
     with the same answers,
-    and one thing more:
-    it writes the requested tree's own entry over every path an intent-to-add mark names,
-    before the reset.
-    A rebuild holds exactly that tree,
-    so an entry the reset would leave marked must not survive:
-    a scratch-commit hook that restages an unrelated file invalidates the cached tree,
-    and a surviving mark would leave a tracked file nobody named out of the tree the index writes.
-    Native Git's own reset leaves such a mark,
-    and a tree built from that index omits the path (measured with Git 2.56.0);
-    the wrapper keeps the file,
-    as it does for the first preparation.
+    and neither preparation keeps a rule of its own.
+    One window stays open in that rebuild and is written here rather than closed
+    (`initialize_retry_index`,
+    `commit_index.rs`):
+    the real index is classified at the start of the build and copied after the stat refresh,
+    and a command that replaces it between the two
+    leaves the copy holding intent-to-add entries the classification never named,
+    so the clearing above does not reach them.
+    A second program inside those few instructions can therefore make a retry record a deletion the person did not make:
+    the reset keeps a mark whose mode and object name match the requested tree's entry,
+    and a scratch-commit hook that restages a file the commit names invalidates the cached tree,
+    after which the tree written from that index leaves the tracked file out
+    (measured with Git 2.56.0:
+    the mark survives the reset,
+    the tree still holds the path while the cached tree stands,
+    and the restage drops it).
+    No lock covers it:
+    the real index belongs to the person and their other commands,
+    and a lock held across the stat refresh would stop them to protect a path nothing named.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
@@ -9838,6 +9893,9 @@ kept with a zero bound when a look saw it only once,
 `belowCpuMs` the processor time everything below the step had used at the last look,
 `belowUnlisted` whether the programs below the step could not be listed when it was ended,
 so one of them may still be running,
+`belowUnended` how many programs below the step were not ended because the kernel refused a descriptor for one of them
+or refused the signal to it,
+so each of those may still be running and the stop's words say so,
 `blindLooks` how many looks could not be made at all because `/proc` refused the read,
 and `blockedLooks` how many looks found one of them in uninterruptible sleep;
 an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;

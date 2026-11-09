@@ -786,6 +786,45 @@ fn an_intent_to_add_entry_equal_to_the_base_stays_in_the_commit_where_native_git
     remove_settled(&fixture);
 }
 
+/// A tracked empty file the real index holds as intent-to-add,
+/// with the entry's mode and object name equal to the base's.
+fn intent_empty_repository(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("a.txt"), b"a one\n").expect("a");
+    std::fs::write(repo.join("empty"), b"").expect("the tracked empty file");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt", "empty"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["rm", "--quiet", "--cached", "--", "empty"]);
+    git(fixture, repo.as_path(), &["add", "--intent-to-add", "--", "empty"]);
+    std::fs::write(repo.join("a.txt"), b"a two\n").expect("edit a");
+    keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    return repo;
+}
+
+/// A commit whose tree native Git builds from the private index keeps that tracked file too.
+/// Why this matters:
+///  a detached `HEAD` makes the service defer to native `git commit`
+///  (`config_needs_native` and `forced` in `service_prepare.rs`),
+///  which writes its tree from the private index,
+///  where an intent-to-add mark equal to the base's entry leaves that path out:
+///  a deletion the person did not make.
+#[test]
+fn an_intent_to_add_entry_equal_to_the_base_stays_in_a_commit_native_git_builds() {
+    let fixture: Fixture = fixture("commit-intent-detached");
+    let repo: PathBuf = intent_empty_repository(&fixture, "wrapped");
+    git(&fixture, repo.as_path(), &["switch", "--detach", "--quiet"]);
+    let observed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=detached", "--", "a.txt"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["ls-tree", "-r", "HEAD", "empty"]),
+        "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tempty\n",
+        "the tracked file stays in the commit Git built from the private index"
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "a two\n", "the named path carries the edit");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
 /// An ignored path nothing stages is refused with the way forward,
 /// not with Git's force-add hint alone.
 #[test]

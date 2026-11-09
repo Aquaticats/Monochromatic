@@ -42,8 +42,9 @@ use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 /// read while its number still names it.
 use crate::process_tree::{TreeMember, descendants_of_read};
 /// Ending what the step started,
-/// each through a descriptor opened while its number still named it.
-use crate::member_signalled_through_its_pidfd::kill_members;
+/// each through a descriptor opened while its number still named it,
+/// and what that came to.
+use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, unended_in};
 /// The grace a stopped child gets before a task of the runtime collects it.
 use crate::bounded_push::STOP_GRACE;
 /// The stop of a push,
@@ -70,7 +71,7 @@ use std::time::{Duration, Instant};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingStop = { waited: number; belowListed: boolean };
+/// type CeilingStop = { waited: number; belowListed: boolean; belowUnended: number };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CeilingStop {
@@ -79,6 +80,67 @@ pub struct CeilingStop {
     /// Whether the programs below the step were listed,
     /// so one that was not is not reported as gone.
     pub below_listed: bool,
+    /// How many programs below the step were not ended:
+    /// one the kernel refused a descriptor for,
+    /// or one it refused the signal to.
+    /// Such a program may still be running,
+    /// which the record and the stop's words say.
+    pub below_unended: u32,
+}
+
+// What:
+//  A control that ends the step in the interval between the ceiling and the signal.
+// Why:
+//   That interval is a few instructions wide on a real host,
+//  so a control that races a real exit proves nothing;
+//  here the wait itself holds the step until the kernel says it ended,
+//  and the status waits for the reap below.
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    /// Whether the next ceiling holds its step until that step has ended by itself.
+    static A_STEP_ENDS_BEFORE_THE_SIGNAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The longest a control's step is waited for once the ceiling has come.
+///  Longer than any step a control starts takes to end,
+/// so a starved runtime delays the control rather than failing it,
+/// and a control whose step never ended fails rather than passing on a window it never made.
+#[cfg(all(test, target_os = "linux"))]
+const A_CONTROLS_BOUND: Duration = Duration::from_secs(30);
+
+/// Arm the next ceiling to hold its step until that step has ended by itself.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn a_control_ends_the_step_here() {
+    A_STEP_ENDS_BEFORE_THE_SIGNAL.with(|armed| { armed.set(true); });
+}
+
+/// What:
+///  Hold the step at the moment between the ceiling and the signal,
+///  when a control asked for it,
+///  until the kernel says the step ended.
+/// Why:
+///   A step that finishes there was ended by its own exit,
+///  and the reap below still collects that status,
+///  which is what the caller must answer with.
+///  The wait is bounded so a control's mistake ends the run with the wait's own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await aControlHoldsTheStepUntilItEnded(owned);
+/// ```
+#[cfg(all(test, target_os = "linux"))]
+async fn a_control_holds_the_step_until_it_ended(owned: &OwnedChild) {
+    if !A_STEP_ENDS_BEFORE_THE_SIGNAL.with(|armed| { return armed.replace(false); }) {
+        return;
+    }
+    let deadline: Instant = Instant::now() + A_CONTROLS_BOUND;
+    while !owned.has_ended_without_reaping() {
+        if Instant::now() >= deadline {
+            return;
+        }
+        sleep(Duration::from_millis(1)).await;
+    }
+    return;
 }
 
 /// What:
@@ -135,17 +197,68 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // a number cannot be reused while its process holds it, and everything below the step is found by that number only
     // then.
     let walked: Option<Vec<TreeMember>> = i32::try_from(owned.id()).ok().and_then(descendants_of_read);
+    // What: The interval between the ceiling and the signal.
+    // Why:  A step that finishes there was ended by its own exit, and the status the reap collects says so;
+    //       the control holds the step here so that order is its own and not a clock's.
+    #[cfg(all(test, target_os = "linux"))]
+    a_control_holds_the_step_until_it_ended(&owned).await;
     // The step itself is killed through the child this path still owns and has not reaped,
     // so no process that took its number can be reached.
     let _killed: std::io::Result<()> = owned.kill();
-    let _below_ended = kill_members(walked.as_deref().unwrap_or_default());
+    let ended_below: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
+    // What: The programs below the step that this wait could not end.
+    // Why:  A signal the kernel refused leaves the program running, and the stop must say so rather than report a walk
+    //       that ended everything it listed.
+    let below_unended: u32 = unended_in(ended_below.as_slice());
     // A killed step is reaped here at once unless the kernel holds it in an uninterruptible call;
     // past the grace a task of the runtime collects it, so the kernel's release of it never holds the command.
-    match tokio::time::timeout(STOP_GRACE, owned.wait()).await {
-        Ok(_reaped) => {}
-        Err(_still_held) => hand_to_a_task_that_collects_it(owned),
+    let reaped: Option<std::process::ExitStatus> = match tokio::time::timeout(STOP_GRACE, owned.wait()).await {
+        Ok(Ok(collected)) => Some(collected),
+        // What: A status the wait could not collect.
+        // Why:  The step was signalled here and the wait knows nothing of what ended it, which is what the answer says;
+        //       a commit is not failed over the reading of a status it already ended the step for
+        //       (owner: "Commits should never fail.").
+        Ok(Err(_not_collected)) => None,
+        Err(_still_held) => {
+            hand_to_a_task_that_collects_it(owned);
+            None
+        }
+    };
+    // A status the reap collected decides what ended the step: one that is not the signal this wait sent proves the
+    //  step finished by itself in the interval before the signal, and its exit is what the caller must answer.
+    if let Some(status) = reaped
+        && it_ended_by_itself(status)
+    {
+        return Ok((outcome_of(status), None));
     }
-    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some() })));
+    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended })));
+}
+
+/// What:
+///  Whether a reaped status proves the step ended by itself,
+///  rather than by the signal this wait sent.
+/// Why:
+///   `SIGKILL` is the only signal sent here,
+///  so a status that is not it is the step's own end,
+///  and a status with a code is an exit that the kill could not change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const itEndedByItself = (status) => status.code !== null || status.signal !== 'SIGKILL';
+/// ```
+fn it_ended_by_itself(status: std::process::ExitStatus) -> bool {
+    // `if let Some(code) = ...` runs only when the child exited normally, and a kill cannot turn an exit into a code.
+    if status.code().is_some() {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        // The trait adds `.signal()` to exit statuses on Unix.
+        use std::os::unix::process::ExitStatusExt;
+        return status.signal() != Some(libc::SIGKILL);
+    }
+    #[cfg(not(unix))]
+    return false;
 }
 
 /// What:

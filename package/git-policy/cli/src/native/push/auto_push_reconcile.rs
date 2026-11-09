@@ -245,11 +245,13 @@ pub fn integrate_and_push(
         Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
         None => short.as_str(),
     };
-    // The merge is published to the tracked ref, which the branch's name does not always spell.
+    // The merge is published to the ref the rejected push updated, which the branch's name does not always spell. That
+    // ref is not always the branch's upstream (an explicit `feature:main` push sends a branch that tracks
+    // `origin/feature`), so the line says where the merge went and nothing about what the branch tracks.
     let published: String = if merged_into == short {
         String::new()
     } else {
-        format!("\nPublished to {remote}/{short}, which {merged_into} tracks.", remote = destination.remote)
+        format!("\nPublished to {remote}/{short}.", remote = destination.remote)
     };
     let message = format!(
         "Merge {}/{short} into {merged_into}\n\nCreated by monochromatic-git-policy-cli {label} because {}/{short} advanced after the commit landed.{published}",
@@ -338,7 +340,7 @@ pub fn integrate_and_push(
                     &previous,
                     rejected.exit_code,
                     &format!(
-                        "merging {}/{short} into {short}{CONFLICT_PHRASE}{}. Nothing was pushed and the worktree was not touched; \
+                        "merging {}/{short} into {merged_into}{CONFLICT_PHRASE}{}. Nothing was pushed and the worktree was not touched; \
                          merge {}/{short} in a separate worktree, resolve the conflicts and push.",
                         destination.remote,
                         paths.join(", "),

@@ -27,6 +27,12 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// The size the platform lets one command-line argument or one environment string reach,
+/// for controls that prove a value cannot travel that way;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod argument_limit;
+
 /// The owner of a process that really started and was then killed,
 /// a fixture of the controls beside `test_support.rs`.
 #[cfg(test)]
