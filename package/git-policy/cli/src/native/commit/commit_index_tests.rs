@@ -125,10 +125,12 @@ fn both_private_indexes_hold_the_bytes_of_one_read_of_the_real_index() {
 ///  A staging that lands in the real index after the read reaches neither private copy.
 /// Why:
 ///  Another command may stage in the real index while a commit prepares,
-///  and those bytes are that command's work, not this commit's:
+///  and those bytes are that command's work,
+/// not this commit's:
 ///  a copy written from a later read would record them under this commit,
 ///  and the landing would compare the person's index against a state their commit never saw.
-///  The control proves the staging really happened, so the two copies being free of it is an answer and not an empty
+///  The control proves the staging really happened,
+/// so the two copies being free of it is an answer and not an empty
 ///  question.
 ///
 /// In TS you'd write (pseudocode):
@@ -163,7 +165,9 @@ fn a_staging_that_lands_after_the_read_reaches_neither_private_copy() {
 }
 
 /// What:
-///  A preparation states its one read of the index and, where the mode decides one, the seed walk of those bytes.
+///  A preparation states its one read of the index and,
+/// where the mode decides one,
+/// the seed walk of those bytes.
 /// Why:
 ///  The record is what an unexplained slow commit is read from,
 ///  and a read or a walk that is not stated is time the phase holds and nothing explains.

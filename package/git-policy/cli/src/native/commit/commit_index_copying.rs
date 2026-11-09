@@ -17,7 +17,8 @@
 
 /// What marks an index carries.
 use crate::index_flags::{IndexFlags, read_index_flags};
-/// The bytes one read of an index returned, and the copy a reset follows.
+/// The bytes one read of an index returned,
+/// and the copy a reset follows.
 use crate::commit_index_bytes::{IndexBytes, copy_index_failure};
 /// The request built against a private index.
 use crate::private_index_request::indexed_request;

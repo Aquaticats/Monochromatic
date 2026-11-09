@@ -63,7 +63,8 @@ pub fn copy_index_failure(error: std::io::Error) -> GitFailure {
 ///   The times come from the open file and not from its path,
 ///  so a rename of another index over that path between the read and the stat cannot give this content that file's
 ///  times.
-///  A read that fails is reported to the caller: a commit whose real index cannot be read cannot know what it stages.
+///  A read that fails is reported to the caller:
+/// a commit whose real index cannot be read cannot know what it stages.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,7 +101,8 @@ fn write_index_bytes(bytes: &IndexBytes, destination: &Path) -> std::io::Result<
 }
 
 /// What:
-///  The bytes of one index file, read one time,
+///  The bytes of one index file,
+/// read one time,
 ///  with the mode and the times every copy of them is given.
 /// Why:
 ///   Every private copy of one commit is written from these bytes,
@@ -116,7 +118,8 @@ fn write_index_bytes(bytes: &IndexBytes, destination: &Path) -> std::io::Result<
 pub struct IndexBytes {
     /// The bytes the one read returned.
     bytes: Vec<u8>,
-    /// The mode each copy is given, read from the open source.
+    /// The mode each copy is given,
+    /// read from the open source.
     permissions: Permissions,
     /// The access and modification times each copy is given.
     times: FileTimes,

@@ -306,6 +306,20 @@ fn stage_into_the_private_index(
 }
 
 /// What:
+///  Which way an index one read returned may seed a rebuild's private index.
+/// Why:
+///   `Option::map_or` takes a named function where a closure that captures nothing stood,
+///  and the answer is the seed decision asked of the bytes that read returned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seedOfTheReadIndex = (read: IndexBytes) => seedOfIndexBytes(read.bytes());
+/// ```
+fn seed_of_the_read_index(read: &IndexBytes) -> PrivateIndexSeed {
+    return seed_of_index_bytes(read.bytes());
+}
+
+/// What:
 ///  Makes the private index of a retry hold exactly `tree`,
 /// starting from a copy of the real index so every entry the tree shares with it keeps its cached stat data.
 /// Why:
@@ -363,7 +377,7 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     // const index = await IndexBytes.read(realIndex).catch(() => undefined);
     // ```
     let index: Option<IndexBytes> = IndexBytes::read(real_index).ok();
-    let seed: PrivateIndexSeed = index.as_ref().map_or(PrivateIndexSeed::Base, |read| { return seed_of_index_bytes(read.bytes()); });
+    let seed: PrivateIndexSeed = index.as_ref().map_or(PrivateIndexSeed::Base, seed_of_the_read_index);
     note_index_build(IndexBuildKind::Retry, seed.keeps_stat_data());
     // The copy is written from the bytes this read returned, so the marks it clears and the stat data it keeps describe
     // the one state the read saw.

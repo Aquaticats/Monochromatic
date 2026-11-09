@@ -245,7 +245,7 @@ fn an_intent_to_add_entry_equal_to_the_base_keeps_its_path_in_the_commit() {
 #[test]
 fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     let root: PathBuf = fixture("commit-index-seeds");
-    let (repo, indexes, _base) = committed_repository(root.as_path());
+    let (repo, _indexes, _base) = committed_repository(root.as_path());
     let real: PathBuf = repo.join(".git").join("index");
     assert_eq!(seed_of_index_bytes(&index_bytes_of(real.as_path())), PrivateIndexSeed::Copy);
     std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
