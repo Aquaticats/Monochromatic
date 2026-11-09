@@ -7287,7 +7287,26 @@ from the paths that differ between the old branch and the new commit.
 
 For injected commit-only semantics:
 
-1.  Build a commit index from the preparation base.
+1.  Build a commit index from the preparation base:
+    copy the real index captured at invocation and reset the copy to the base,
+    so every entry the base shares with the real index keeps its cached stat data
+    and the scratch `git commit` does not read and hash the whole work tree
+    (measured:
+    233,618,538 bytes of LFS content cleaned and 3.6 s for an index built from the base alone,
+    against 0.1 s for a copy).
+    Intent-to-add entries are left out of the copy,
+    by one `git update-index --force-remove -z --stdin` that names them
+    and runs only when such an entry exists:
+    an intent-to-add entry holds the empty blob's name and no cached stat data at all,
+    a tree Git builds from an index that holds one leaves that path out,
+    and native Git's partial commit commits the base's content of every path the command does not name.
+    An index that holds an assume-unchanged or skip-worktree entry,
+    or one the in-process readers do not understand,
+    is built from the base alone instead:
+    a copied mark makes `git add --all` skip or refuse a file the commit named,
+    where native Git stages it.
+    A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
+    with the same three answers.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
