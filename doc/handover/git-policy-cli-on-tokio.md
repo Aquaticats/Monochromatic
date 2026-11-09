@@ -665,17 +665,18 @@
   3. Then item 4 (T13's guards),
      unchanged.
 - Checks,
-  the whole suites once at the end:
+  both whole suites at the tip:
   `native:test:host` 4807 run,
-  4806 passed (1 slow),
-  1 failed,
+  4807 passed (1 slow),
   8 skipped;
   `native:test:binary:host` 733 run,
-  733 passed (6 slow),
+  733 passed (10 slow),
   3 skipped;
   `native:clippy` clean;
   `//package/git-policy/cli:lint` 0 errors and 0 warnings.
-  The one lib failure is in a folder this branch does not touch:
+  A lib run before the last two commits showed one failure,
+  in a folder this branch does not touch,
+  and the tip run of the same suite passed everything:
   `worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`
   asserts that a file written this instant is still inside the timestamp
   granularity,
@@ -686,7 +687,11 @@
   the suspected cause is the twenty milliseconds the control allows between the
   write and the clone,
   against the load of the whole suite.
-  The folder is one another agent is changing.
+  The folder is one another agent is changing,
+  and three observations are what there is:
+  it failed once inside a full run,
+  passed three times out of three alone,
+  and passed in the full run at the tip.
   Both suites ran with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`
   and with the run's own control group at `TasksMax=4000`,
   the conditions the section above records,

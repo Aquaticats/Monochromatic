@@ -4907,26 +4907,38 @@ clean.
 0 findings
 after `//:format:monochromatic-lint` inserted the three line breaks it asks for.
 The whole suites,
-once,
-at the end
-(`native:test:host` 4807 run,
-4806 passed,
-1 failed,
+at the tip,
+with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own
+control group at `TasksMax=4000`:
+`native:test:host` 4807 run,
+4807 passed (1 slow),
 8 skipped;
 `native:test:binary:host` 733 run,
-733 passed,
-3 skipped):
-the one failure is
+733 passed (10 slow),
+3 skipped.
+A lib run before the last two commits showed one failure,
 `worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`,
 which asserts that a file written this instant is still inside the timestamp
-granularity and passes three times out of three when asked alone,
-so it is a contention defect under the load of the whole suite,
-in a folder another agent is changing,
-not this step's.
-The fixture root the two runs used is in the handover,
-with the second length limit this step measured:
-it must be six path segments deep,
-not only short enough for `SUN_LEN`.
+granularity;
+the same binary passed it three times out of three when asked alone,
+and the tip run of the whole suite passed it too.
+It is in a folder this branch does not touch,
+and the suspected cause is the twenty milliseconds the control allows between
+the write and the clone,
+against the load of the whole suite,
+which is a suspicion and not a measured cause.
+The fixture root has two length limits,
+not one,
+which the earlier sections did not record:
+it must be short enough for a Unix socket under it to fit `SUN_LEN`,
+**and** at least six path segments deep,
+because `worktree_add_binding`'s control
+`a_relative_pointer_without_links_is_bound` resolves `../../../../../../..`
+from a fixture directory and fails when that lands above `/`.
+Measured on this tree:
+`/var/tmp/cg-fixtures` (three segments) fails that control and
+`/var/tmp/cg/cli-git/fixtures/root` (six) passes it,
+the same test binary both times.
 
 #### Latency, and why this host cannot answer the commit bar today
 
