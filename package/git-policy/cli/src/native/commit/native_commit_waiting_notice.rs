@@ -581,6 +581,8 @@ impl NativeCommitNotice {
                     let the_ceiling: TheCeiling = ceiling_came(&watched);
                     // A step signalled while the walk below it failed leaves whatever it started unnamed.
                     facts.below_unlisted = !the_ceiling.below_listed;
+                    // A program this ceiling could not end may still be running, and the record says so.
+                    facts.below_unended = the_ceiling.below_unended;
                     match the_ceiling.came {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);

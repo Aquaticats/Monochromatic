@@ -1130,6 +1130,75 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
     remove(&fixture);
 }
 
+/// A remote-tracking deletion of the upstream mark records the reference Git expanded it to,
+/// and a fully
+///  qualified operand,
+///  which Git refuses,
+///  leaves no line.
+#[test]
+fn a_remote_tracking_deletion_of_the_upstream_mark_records_what_git_deleted() {
+    let fixture: Fixture = fixture("audit-branch-delete-upstream");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "main"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    // An upstream stored as a remote-tracking reference, which is what a remote-tracking deletion expands `@{u}` to.
+    let place: String = repo.display().to_string();
+    git(&fixture, repo.as_path(), &["config", "remote.origin.url", place.as_str()]);
+    git(&fixture, repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/main", commit.as_str()]);
+    // The control: Git itself expands the mark to the reference the line must name.
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{u}"]).stdout.as_slice()
+        )
+        .trim(),
+        "refs/remotes/origin/main",
+        "the control needs @{{u}} to name the remote-tracking ref"
+    );
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "@{u}"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"branch\":\"origin/main\"",
+        "\"reference\":\"refs/remotes/origin/main\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice()
+        )
+        .trim(),
+        "",
+        "Git deleted the remote-tracking ref"
+    );
+    // A fully qualified operand is no mark: Git prefixes it again, deletes nothing, and no line is written.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/other", commit.as_str()]);
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "refs/remotes/origin/other"]);
+    assert_ne!(refused.code, Some(0), "Git refuses a fully qualified remote-tracking operand");
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice()
+        )
+        .trim(),
+        "refs/remotes/origin/other",
+        "the control needs the reference to survive"
+    );
+    assert_eq!(
+        audit_lines_of(repo.as_path()).len(),
+        before,
+        "a deletion that deleted nothing wrote {:?}",
+        audit_lines_of(repo.as_path())
+    );
+    remove(&fixture);
+}
+
 /// A repository whose `tracks` branch holds a file under a directory the ignore rules hide,
 /// and a linked
 ///  worktree that holds the person's file where that directory must go.
@@ -1442,8 +1511,17 @@ fn a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit() {
         .expect("one audit line for the deletion");
     assert!(line.contains("\"form\":\"BranchDelete\""), "{line}");
     assert!(line.contains(format!("\"commit\":\"{commit}\"").as_str()), "{line}");
-    // The reference keeps the name it deleted, rendered as JSON can hold it.
-    assert!(line.contains("\"reference\":\"refs/heads/lost-"), "{line}");
+    // The line names the whole reference it deleted, byte for byte, so `git update-ref` restores that branch
+    //  and not a second one spelled with replacement characters.
+    let mut reference_bytes: Vec<u8> = b"refs/heads/".to_vec();
+    reference_bytes.extend_from_slice(name.as_encoded_bytes());
+    let exact: String = format!(
+        "\"referenceHex\":\"{}\"",
+        git_policy_cli::path_bytes_in_records::hex_of_bytes(reference_bytes.as_slice())
+    );
+    assert!(line.contains(exact.as_str()), "{exact} missing from {line}");
+    // The text field beside it is the display name, which holds replacement characters and restores nothing.
+    assert!(line.contains("\"reference\":\"refs/heads/lost-\u{fffd}\""), "{line}");
     remove(&fixture);
 }
 
@@ -1474,5 +1552,45 @@ fn a_removal_counts_the_worktree_whose_path_holds_a_line_break() {
     ] {
         assert!(line.contains(field), "{field} missing from {line}");
     }
+    remove(&fixture);
+}
+
+/// A deletion whose name is no branch writes no line:
+/// `HEAD` is not a branch name to Git,
+///  so the record must not
+///  name the branch it resolves to.
+#[test]
+fn a_deletion_of_a_revision_that_is_no_branch_leaves_no_line() {
+    let fixture: Fixture = fixture("audit-branch-delete-head");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    // Git refuses this deletion: `HEAD` names no branch, so nothing is deleted.
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
+    assert_ne!(refused.code, Some(0), "Git refuses branch -D HEAD");
+    assert!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "main"]).stdout.as_slice())
+            .contains("main"),
+        "the control needs main to survive"
+    );
+    assert_eq!(
+        audit_lines_of(repo.as_path()).len(),
+        before,
+        "a deletion that deleted nothing wrote {:?}",
+        audit_lines_of(repo.as_path())
+    );
+    // A reference literally named `refs/heads/HEAD` is a branch of its own, and Git deletes that one.
+    // `git branch` cannot create the name, so the reference is written by `update-ref`.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/heads/HEAD", "main"]);
+    let deleted: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "HEAD"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "HEAD"]).stdout.as_slice()),
+        "",
+        "Git deleted the branch named HEAD"
+    );
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    // `refs/heads/HEAD` in bytes: the identity of the branch Git deleted.
+    assert!(line.contains("\"reference\":\"refs/heads/HEAD\""), "{line}");
+    assert!(line.contains("\"referenceHex\":\"726566732f68656164732f48454144\""), "{line}");
     remove(&fixture);
 }

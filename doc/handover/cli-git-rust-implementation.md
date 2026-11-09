@@ -200,6 +200,51 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
+  `resume-after-wall-clock-prompt.md` for `wrapper-issue-defects-and-linear-scans`,
+  which reached its time limit in a full test run,
+  `shadow-and-replay-round-2-prompt.md`,
+  `push-route-round-5-prompt.md`,
+  and `literal-pathspec-round-3-prompt.md`.
+- The shadow branch's round 1 findings are fixed on the branch,
+  which is not merged into main,
+  and its round 2 waits for a slot:
+  `shadow-and-replay-round-1-sol.txt` named a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that lost its value,
+  and a long value that stopped the scratch commit from starting.
+  The branch now carries every native-commit entry of the invocation in one included
+  `native-commit.config` in the commit's scratch directory.
+  `resume-after-provider-error-prompt.md` for `worktree-add-findings-fixed`,
+  whose run 4 the provider ended mid-work,
+  `worktree-copy-round-4-prompt.md` for `worktree-copy-records-keep-path-bytes`
+  (an empty `.git` discards a pending copy,
+  and a FIFO at `.git` blocks recovery with no bound),
+  and `standards-review-round-2-prompt.md`,
+  whose run 2 was stopped at once because a miscount had started a twenty-first agent.
+  `commit-scratch-removal-round-4-prompt.md`
+  (a sweep or release can remove a tree a queued landing needs,
+  a slow cleanup fails a commit with `AlreadyExists`,
+  and the first sweep has no limit across entries).
+  `wrapper-issue-defects-round-3-prompt.md` for `wrapper-issue-defects-and-linear-scans` as run 3
+  (its branch landed as `3de639be89`;
+  a merge message can claim a false tracking relationship,
+  a conflict diagnostic names the wrong branch,
+  a repository path with a newline reads the wrong index,
+  and `published_tips` is quadratic).
+  Issue 6007 stays open until that round reports.
+  `merge-route-round-10-prompt.md` for `merge-route-findings-fixed` as run 10
+  (its merge of main is open in that worktree with four conflicts from the health branch,
+  and that branch is otherwise ready for its check and review),
+  `worktree-copy-round-5-prompt.md` for `worktree-copy-records-keep-path-bytes` as run 5
+  (recovery reads the `.git` pointer and not the registration,
+  so a pointer cut short or missing during a rewrite can discard a pending copy),
+  and `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  (an audit line can name a non-UTF-8 branch wrongly,
+  and `git branch -D HEAD` can record a branch nothing deleted),
+  and `wrapper-tests-suite-round-4-prompt.md` for `wrapper-tests-that-fail-only-in-a-suite` as run 4
+  (a late runtime can be lost between a timeout and dropping its receiver,
+  and a control lost its ability to fail).
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
   none at this moment,
   because every follow-up written so far has been started.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
@@ -250,6 +295,45 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the driver's 30 s wait for a prompt's answer ended that run as `prompt-rejected`;
   the owner wrote "\"That's a limit in our driver \" - so fix it.",
   and `driver-prompt-waits-through-compaction` is that fix.
+  The owner wrote
+  "And we still need to find out why the earlier neuralwatt and opencode-go responses were cutoff.
+  I'm suspecting my wifi driver."
+  The radio is `wlp9s0` on `ath12k_wifi7_pci` with power save off.
+  It has stayed associated since the driver's last kernel line at 2026-11-06T09:37:09Z,
+  and the kernel,
+  `wpa_supplicant` and NetworkManager logged nothing about it during any burst.
+  Every burst before 2026-11-09T17:08:33Z cut responses of one provider only,
+  while responses of other providers in flight across it finished normally.
+  This does not exclude a short silent stall:
+  `iw` reads zero retries and failures,
+  which this driver may simply not report,
+  and a cut-off's record says only `terminated`.
+  `connection-cut-off-watch.service` and `network-change-watch.service` record Pi's connections,
+  gateway pings and address changes in `~/temp/agent/connection-cut-off-watch-2026-11-09/`.
+  The owner wrote "Make our wg-quicker avoid proxying opencode-go,
+  qwen,
+  synthetic,
+  neuralwatt,
+  deepseek,
+  pi traffic."
+  and "Apply every exemption mechanic.";
+  `wg-quicker-model-providers-off-the-tunnel` is that work,
+  and applying it to the running tunnel is still to do.
+  Waiting for a free agent slot:
+  health route run 3 with `resume-after-wall-clock-prompt.md`,
+  literal pathspec run 5 with `resume-after-provider-error-prompt.md`,
+  worktree add round 8,
+  commit ceiling run 5 with `resume-after-wall-clock-prompt.md`,
+  worktree copy round 6,
+  the locks round 6 if its start did not take,
+  and conversion round 5.
+  Briefs are in `~/temp/agent/pi-runs/`.
+  Cloudflare's status page opened "Network Performance Issues in Eastern North America" at 2026-11-09T16:34:35Z,
+  identified a fix at 16:56:39Z and moved to monitoring at 17:21:50Z;
+  this host reaches Cloudflare through Toronto,
+  and neuralwatt and opencode-go are served through Cloudflare while Synthetic and DeepSeek's own API are not.
+  The bursts at 15:05Z and 15:08Z came before that first post.
+  The locks review `locks-and-transactions-round-4` and the conversion review `subvolume-conversion-round-3` need fix rounds before those branches land.
   A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
@@ -309,10 +393,22 @@ The old tree kept for the rollback stays until the owner deletes it.
   a Git step reads its child through the runtime,
   so inside a blocking job of the pool every step refuses as nested.
   Its branch keeps the corrected wording for a refused thread.
-- Open from the test-coverage report,
-  not yet given to an agent:
-  the kill sweeps list calls a flow never makes,
-  so those names add no positions and nothing says so.
+- The kill sweeps list only calls their flow makes
+  (`test/git-policy-cli-kill-sweeps-reach-the-calls-they-name`,
+  `41b8f27188`,
+  awaiting review):
+  a listed call with no position fails the sweep,
+  every state-changing call the measurement showed is listed,
+  and one call is one control of its own,
+  because the copy flow's 44 positions had reached nextest's five-minute limit.
+  That split found a state the timeout had hidden:
+  a kill inside the copy's staging window leaves the add's stage,
+  which `38e01bcd33` keeps and reports and never removes,
+  so `copy_recovered` now requires that report instead of the removal it demanded.
+  Open from the same measurement:
+  a kill during a journal write in the copy journal root leaves a hidden `.partial` scratch file,
+  whose name carries no owner,
+  so the dead-temporary sweep (which matches `.tmp`) never removes it.
 - `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` failed once in a suite and passes alone on the branch and on main.
 - The worktree-copy branch does not land yet.
   `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
@@ -9037,6 +9133,52 @@ not through the question tool.
 
 Rules not in `AGENTS.md` (each recorded at the time shown in the former handover).
 
+- Cross-vendor review findings (2026-11-09T13:16:01-05:00):
+  the owner wrote
+  "If you ask GPT to find issues,
+  it will find issues.
+  Be sure to dismiss them via your own judgement at some point."
+  and,
+  on a coordinator line that blamed the asking,
+  "I'm not asking you to ask differently.
+  I'm asking you to use your judgement on GPT's results.
+  Sometimes they just nitpick."
+  and,
+  on pasting that last sentence into the preamble,
+  "don't.
+  Phrase smartly.
+  If you tell GPT to find issues,
+  they will find issues no matter what,
+  even if the issues aren't really good issues.
+  That's why I said to use your own judgement."
+  and,
+  later,
+  "assign a code to the rule and put it in AGENTS.md .
+  Remove the "a Claude subagent is a second pass" line."
+  `AGENTS.md` rules `XVW`,
+  `PFW` and `WGH` carry it,
+  split in three because `RLM` caps a tagged rule at 200 characters and the command alone takes most of that.
+  The review request stays as it was.
+  The coordinator's working bar,
+  a revisable suggestion and not an owner rule:
+  fix what ordinary use or a killed process can cause,
+  and dismiss what needs someone to deliberately set up the situation.
+  First dismissals under it:
+  Pi's CLI path passed as a data argument to an unrelated Node program
+  (`package/wg/cli-quicker-exempt/src/update_entry_points.rs:183`,
+  review `~/temp/agent/reviews/wg-quicker-providers-round-1-sol.txt`),
+  and a FIFO replacing a launcher record between `metadata` and `read_to_string`
+  (`repair/package_repair_toolchain.rs:136-143`,
+  review `~/temp/agent/reviews/tokio-repair-round-2-sol.txt`).
+- Pi's automatic retry (2026-11-09T13:26:09-05:00):
+  the owner wrote
+  "The provider confirmed it was CF and told us to turn on client retries for terminated errors.
+  Do it for pi permanently."
+  `retry.enabled` in `~/.pi/agent/settings.json` is now `true`,
+  with the file's other fields unchanged.
+  The evidence and the end-to-end test are in `doc/troubleshooting/pi-responses-ended-terminated-at-cloudflare.md`.
+  The connection watchers that were waiting for the next cut-off are stopped;
+  their records stay in `~/temp/agent/connection-cut-off-watch-2026-11-09/`.
 - Standing authorization (2026-10-13):
   "bump and publish any updates of the native wrapper crate and its `forbidden-strings`
   dependency during this session,

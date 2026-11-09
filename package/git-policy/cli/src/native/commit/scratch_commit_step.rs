@@ -117,6 +117,12 @@ pub struct ScratchStepFacts {
     /// Whether the ceiling could not list the programs below the step when it ended it,
     /// so one of them may still be running.
     pub below_unlisted: bool,
+    /// How many programs below the step were not ended:
+    /// one the kernel refused a descriptor for,
+    /// or one it refused the signal to.
+    /// Such a program may still be running,
+    /// which the stop's words say (round six of the review).
+    pub below_unended: u32,
     /// How many looks could not be made at all,
     /// because `/proc` could not be read
     /// (a descriptor or memory limit,
@@ -151,6 +157,7 @@ impl ScratchStepFacts {
             below: Vec::new(),
             below_cpu: Duration::ZERO,
             below_unlisted: false,
+            below_unended: 0,
             blind_looks: 0,
             blocked_looks: 0,
         };
@@ -249,12 +256,12 @@ fn seen_json(program: &SeenProgram) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, belowUnlisted, blindLooks, blockedLooks })
+/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, belowUnlisted, belowUnended, blindLooks, blockedLooks })
 /// ```
 fn facts_json(facts: &ScratchStepFacts) -> String {
     let names: Vec<String> = facts.below.iter().map(seen_json).collect();
     return format!(
-        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"belowUnlisted\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
+        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"belowUnlisted\":{},\"belowUnended\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
         millis(facts.ceiling),
         facts.armed,
         millis(facts.stopped_after),
@@ -266,6 +273,7 @@ fn facts_json(facts: &ScratchStepFacts) -> String {
         names.join(","),
         facts.below_cpu.as_millis(),
         facts.below_unlisted,
+        facts.below_unended,
         facts.blind_looks,
         facts.blocked_looks,
     );
