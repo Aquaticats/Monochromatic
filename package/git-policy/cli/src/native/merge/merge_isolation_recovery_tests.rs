@@ -2487,3 +2487,35 @@ fn a_saved_merge_that_replaces_a_nested_directory_finishes() {
     assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  An emptied directory the merge's own pruning never reaches stops the finish before anything is written.
+/// Why:
+///  Judging a directory through its whole subtree must not accept a directory with nothing in it:
+/// the pruning walks up
+///  from a deleted path,
+/// so an emptied directory with no such path below it keeps the checkout from holding the
+///  merge's file,
+/// and the merge would be half installed before the failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = nestedDirectoryToFileWorld(); mkdir('dir/notes'); const record = deferredRecord(); const before = snapshot(world); const outcomes = await recover(...); expect(outcomes[0].action).toBe('deferred-refused'); expect(snapshot(world)).toEqual(before);
+/// ```
+#[test]
+fn an_emptied_directory_the_merge_does_not_reach_refuses_before_anything_is_written() {
+    let world: World = nested_directory_to_file_world("merge-recovery-nested-directory-emptied");
+    std::fs::create_dir(world.repo.join("dir/notes")).expect("the person's empty directory");
+    let record: PathBuf = deferred_record_of(&world, "53535353-0000-4000-8000-000000000053", "refs/cli-git/kept/53");
+    let before = snapshot(&world);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("a saved merge that wrote nothing lets the command go on");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused, "it is refused, not installed");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("dir"), "the path is named: {text}");
+    assert_eq!(snapshot(&world), before, "nothing was written and nothing was taken");
+    assert!(world.repo.join("dir/sub/child.txt").is_file(), "the branch's nested file is where it was");
+    assert!(world.repo.join("dir/notes").is_dir(), "the person's directory is where it was");
+    assert!(record.exists(), "the record is kept");
+    remove(world.parent.as_path());
+}
