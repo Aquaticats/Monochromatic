@@ -16,7 +16,8 @@
 //! // reapInterruptedInstalls(gitDir, notices);
 //! ```
 
-/// The permission bits and owner a journal's record names.
+/// The permission bits,
+///  owner and extended attributes a journal's record names.
 use crate::direct_fix_install_writes::Kept;
 /// The journal's own shape,
 /// record and removal.
@@ -125,6 +126,7 @@ pub(crate) fn reap_interrupted_installs(git_dir: &Path, notices: &mut Vec<String
             mode: record.mode,
             uid: record.uid,
             gid: record.gid,
+            attributes: record.attributes.clone(),
         };
         match crate::direct_fix_install_judging::holds_digest(
             content.as_path(),

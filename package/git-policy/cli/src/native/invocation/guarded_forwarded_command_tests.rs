@@ -113,6 +113,40 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
     assert_eq!(chained.arguments, args(&["reset", "--hard"]));
 }
 
+/// What:
+///  The caller's own words follow the alias value into the shell,
+///  so both a `!git` alias and a `!git reset` alias are decided on the command that runs.
+/// Why:
+///  Git appends the caller's words to the value before it starts the shell
+///  (`git.c:401` to `git.c:402`),
+///  so
+///  `git -c 'alias.wipe=!git' wipe reset --hard` and
+///  `git -c 'alias.wipe=!git reset' wipe --hard`
+///  both run a hard reset;
+///  a reading that stopped at the value would decide about a command nobody runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['fixup', '!git']], words: ['fixup', 'reset', '--hard'] })
+/// //   => decision 'needs-effective-target: reset-hard', arguments ['fixup', 'reset', '--hard']
+/// ```
+#[test]
+fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
+    for (value, words, command) in [
+        ("!git", vec!["fixup", "reset", "--hard"], GuardedCommand::ResetHard),
+        ("!git reset", vec!["fixup", "--hard"], GuardedCommand::ResetHard),
+        ("!git clean", vec!["fixup", "-fdx"], GuardedCommand::CleanIgnored),
+    ] {
+        let walked: GuardedForwarded = decided(&[("fixup", value)], words.as_slice());
+        assert_eq!(
+            walked.decision,
+            LinkedWorktreeDecision::NeedsEffectiveTarget(command),
+            "{value} {words:?}"
+        );
+        assert_eq!(walked.arguments, args(words.as_slice()), "{value}: Git receives the caller's own words");
+    }
+}
+
 /// What the guard cannot read is left to Git and to the shell,
 ///  and no subcommand at all is still a pass.
 #[test]

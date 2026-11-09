@@ -34,6 +34,7 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/tunnel-dns-lookup.ts',
     './src/update-policy-notice.ts',
     './src/update-hosts.data.ts',
+    './src/provider-hosts.data.ts',
     './src/opensnitch-toolchain-rule-patterns.ts',
     './src/opensnitch-toolchain-rules.ts',
     './src/opensnitch-rules-command.ts',

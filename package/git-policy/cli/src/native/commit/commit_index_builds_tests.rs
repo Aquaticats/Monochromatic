@@ -14,7 +14,7 @@
 //! ```
 
 use super::*;
-use crate::commit_index::{IndexSelection, initialize_commit_index, initialize_retry_index};
+use crate::commit_index::{IndexSelection, initialize_commit_index, initialize_retry_index, write_private_tree};
 use crate::private_index_request::CaptureIndexes;
 use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::TransactionMode;
@@ -157,15 +157,33 @@ fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
     remove(root.as_path());
 }
 
-/// A rebuild after the branch moved keeps an intent-to-add entry whose mode and object name equal the tree's own entry:
-/// the reset leaves such a mark as Git's own reset does,
-/// and the commit then leaves that path out of its tree
-/// (measured in the gate image on 2026-11-09:
-/// after `read-tree --reset` the entry still carries flags `20004000`,
-/// and `write-tree` over an index a later `add` invalidated lists only the named file).
+/// Run real Git against `index`,
+/// as a scratch-commit hook does,
+/// requiring success.
+fn git_on_private(repo: &Path, index: &Path, arguments: &[&str]) {
+    let output: std::process::Output = Command::new(REAL_GIT)
+        .current_dir(repo)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_INDEX_FILE", index)
+        .args(arguments)
+        .output()
+        .expect("real Git on the private index");
+    assert!(output.status.success(), "git {arguments:?} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+}
+
+/// A rebuild holds exactly the requested tree,
+/// so a tracked file nobody named stays in it:
+/// an intent-to-add entry whose mode and object name equal the tree's is restaged as the tree's own entry,
+///  and a scratch-commit hook that restages a selected file cannot turn the other path into a deletion.
+/// Why this matters:
+///  the hook invalidates the cached tree,
+/// and a mark left in the index would leave that path out of the tree the commit writes.
 #[test]
-fn a_retry_keeps_the_mark_that_equals_the_tree_for_the_scratch_commit() {
-    let root: PathBuf = fixture("index-builds-intent-empty-retry");
+fn a_retry_keeps_a_tracked_file_whose_mark_equals_the_tree_when_a_hook_restages_another_path() {
+    let root: PathBuf = fixture("index-builds-intent-retry-hook");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     std::fs::write(repo.join("empty"), "").expect("empty file");
     git(repo.as_path(), &["add", "empty"]);
@@ -175,10 +193,52 @@ fn a_retry_keeps_the_mark_that_equals_the_tree_for_the_scratch_commit() {
     git(repo.as_path(), &["add", "--intent-to-add", "empty"]);
     let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
     initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
-    let bytes: Vec<u8> = std::fs::read(indexes.commit_index.as_path()).expect("the rebuilt index");
-    let index = crate::index_full::parse_full_index(bytes.as_slice(), 20).expect("an index this reader takes");
-    let entry = index.entries.into_iter().find(|entry| { return entry.path == b"empty"; }).expect("the rebuilt index holds the tracked file");
-    assert_ne!(entry.extended & crate::index_full::INTENT_TO_ADD, 0, "the reset leaves a mark equal to the tree as Git's own reset does");
+    // What a scratch-commit hook does: restage a selected file the commit names, without changing its content.
+    git_on_private(repo.as_path(), indexes.commit_index.as_path(), &["update-index", "--force-remove", "--", "a.txt"]);
+    git_on_private(repo.as_path(), indexes.commit_index.as_path(), &["update-index", "--add", "--", "a.txt"]);
+    let written: String = write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path()).expect("tree");
+    assert_eq!(
+        git_text(repo.as_path(), &["ls-tree", "-r", written.as_str()]),
+        git_text(repo.as_path(), &["ls-tree", "-r", tree.as_str()]),
+        "the rebuilt index writes the requested tree, marks or no marks"
+    );
+    remove(root.as_path());
+}
+
+/// A first build writes the base's own entry over an intent-to-add mark whose mode and object name equal it,
+/// so a tracked file nobody named stays in the tree that index writes.
+/// Why this matters:
+///  staging the selected path invalidates the cached tree,
+///  and a commit native Git builds from the index,
+///  which a detached HEAD or a signing configuration asks for,
+///  then writes a tree that leaves that file out:
+///  a deletion the person did not make.
+#[test]
+fn a_first_build_keeps_a_tracked_file_whose_mark_equals_the_base() {
+    let root: PathBuf = fixture("index-builds-intent-first");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("empty"), "").expect("empty file");
+    git(repo.as_path(), &["add", "empty"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=empty"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let base_tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "empty"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "empty"]);
+    std::fs::write(repo.join("a.txt"), "a changed\n").expect("change a");
+    let named: [OsString; 1] = [OsString::from("a.txt")];
+    let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
+    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    let written: String = write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path()).expect("tree");
+    assert_eq!(
+        git_text(repo.as_path(), &["ls-tree", "-r", written.as_str(), "--", "b.txt", "empty"]),
+        git_text(repo.as_path(), &["ls-tree", "-r", base_tree.as_str(), "--", "b.txt", "empty"]),
+        "the first build writes the base's own entry at every path the selection did not name"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["show", format!("{written}:a.txt").as_str()]),
+        "a changed",
+        "the named path carries the worktree content"
+    );
     remove(root.as_path());
 }
 

@@ -15,6 +15,7 @@ fn stopped_facts() -> ScratchStepFacts {
     facts.looks = 164;
     facts.looks_found = 163;
     facts.below_cpu = Duration::from_millis(210);
+    facts.below_unended = 3;
     facts.blind_looks = 2;
     facts.blocked_looks = 61;
     facts.credit("ssh-keygen", Duration::from_millis(250));
@@ -36,6 +37,7 @@ fn every_figure_of_a_build_reaches_the_record() {
     assert!(stated.contains("\"looks\":164") && stated.contains("\"looksFound\":163"), "{stated}");
     assert!(stated.contains("\"below\":[{\"name\":\"ssh-keygen\",\"seenMs\":250}]"), "{stated}");
     assert!(stated.contains("\"belowCpuMs\":210") && stated.contains("\"blindLooks\":2") && stated.contains("\"blockedLooks\":61"), "{stated}");
+    assert!(stated.contains("\"belowUnended\":3"), "a program the stop could not end reaches the record: {stated}");
     let unarmed: String = scratch_steps_json(&[ScratchStepFacts::unarmed(None)]);
     assert!(unarmed.contains("\"ceilingMs\":null") && unarmed.contains("\"stoppedAfterMs\":null"), "{unarmed}");
     assert!(unarmed.contains("\"armed\":false") && unarmed.contains("\"below\":[]"), "{unarmed}");
