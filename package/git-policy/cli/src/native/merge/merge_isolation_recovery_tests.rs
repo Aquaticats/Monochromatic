@@ -601,3 +601,119 @@ fn a_dead_holders_lock_leaves_the_merge_for_the_next_command() {
     assert!(text.contains("no longer runs") && text.contains("stays unfinished"), "it says what is unfinished: {text}");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  Judge every changed path of the world's merge the way recovery does,
+///  and return the changes with their judgements.
+/// Why:
+///  A control about a file that changes after it was judged needs the judgement and the write separated,
+/// and that
+///  separation is the very instant the finding is about;
+/// no sleep and no second process is needed,
+/// because the judgement is
+///  the value the control hands on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function judge(world) { return mergeChanges(place, root, intent).map((change) => ({ change, judged: { standing: standing(change, stateOf(change)), identity: identityOf(change) } })); }
+/// ```
+fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
+    let intent: MergeIntent = MergeIntent {
+        owner: dead_owner("14141414-0000-4000-8000-000000000014"),
+        repository_root: world.repo.to_string_lossy().into_owned(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: world.old_oid.clone(),
+        new_oid: world.new_oid.clone(),
+    };
+    let place: RecoveryPlace = place(world);
+    let changes: Vec<Change> = merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");
+    let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
+    for change in &changes {
+        // The identity first, as recovery reads it, then the content: exactly the order of `settle_failed_merge`.
+        let identity = file_identity(worktree_path(world.repo.as_path(), change.path.as_slice()).as_path());
+        let state: WorktreeState = worktree_state(&place.git, world.repo.as_path(), change.path.as_slice()).expect("the state");
+        judgements.push(Judged { standing: standing(change, &state), identity });
+    }
+    return (changes, judgements);
+}
+
+/// The names in `repository` that are the private names a take leaves.
+fn aside_names(repository: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let listing = std::fs::read_dir(repository).expect("the worktree root");
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(".cli-git-recovery-") {
+            found.push(name);
+        }
+    }
+    return found;
+}
+
+/// What:
+///  A file saved after recovery judged it is never replaced by the merge.
+/// Why:
+///  The judgement and the write of a merged file were separate steps,
+/// so an editor that saved in between lost the
+///  edit with no notice (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 4).
+/// The take checks
+///  what it took against the file system identity the judgement read,
+/// so the edit stays and the merge stops,
+/// naming
+///  the path and keeping the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (changes, judged) = judge(world); write('f.txt', edit); await expect(installEntries(place, root, changes, judged, sink)).rejects.toMatch(/f.txt/); expect(read('f.txt')).toEqual(edit);
+/// ```
+#[test]
+fn a_file_saved_after_the_judgement_is_not_replaced() {
+    let world: World = world("merge-recovery-edit-after-judging");
+    // Git had not written this path yet: the checkout holds the old content, so the merge writes it.
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let before = snapshot(&world);
+    // The person's editor saves one of the merge's paths after the judgement.
+    std::fs::write(world.repo.join("f.txt"), b"an edit saved after the judgement\n").expect("the edit");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("a file that changed after the judgement is not the merge's to replace");
+    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    assert!(refused.0.contains("changed after this command judged them"), "the reason is stated: {}", refused.0);
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the edit"), b"an edit saved after the judgement\n", "the edit is kept");
+    let after = snapshot(&world);
+    assert_eq!(after.0, before.0, "the index is exactly as it was");
+    assert_eq!(after.1, " M f.txt", "the checkout is exactly as it was, and the merge is still unfinished");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing was left at a private name");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file that appeared where the merge adds one is refused,
+///  put back,
+///  and never replaced.
+/// Why:
+///  The judged state there was `Missing`,
+/// so any file is someone else's;
+/// without the take the merge would have written over it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm('dir/new.txt'); const (changes, judged) = judge(world); write('dir/new.txt', mine); await expect(installEntries(...)).rejects.toMatch(/dir\/new.txt/); expect(read('dir/new.txt')).toEqual(mine);
+/// ```
+#[test]
+fn a_file_created_after_the_judgement_is_not_replaced() {
+    let world: World = world("merge-recovery-create-after-judging");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    // The merge adds `dir/new.txt`; it is gone when the paths are judged, so its judged state is `Missing`.
+    std::fs::remove_file(world.repo.join("dir/new.txt")).expect("the merge's file goes");
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    std::fs::write(world.repo.join("dir/new.txt"), b"a file of my own\n").expect("the person's file");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("a file that appeared where the merge adds one is not the merge's to replace");
+    assert!(refused.0.contains("dir/new.txt"), "the path is named: {}", refused.0);
+    assert_eq!(std::fs::read(world.repo.join("dir/new.txt")).expect("the person's file"), b"a file of my own\n", "the file is put back");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing was left at a private name");
+    remove(world.parent.as_path());
+}

@@ -30,12 +30,12 @@
 //! ```
 
 /// The raw differences and the worktree states.
-use crate::merge_isolation_changes::{Change, WorktreeState, parse_raw_changes, worktree_state};
+use crate::merge_isolation_changes::{Change, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state};
 /// The intent record.
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_steps::{
-    Installed, MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes,
+    Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes,
     remove_record, standing,
 };
 /// The fail-closed recovery failure.
@@ -72,7 +72,10 @@ pub(crate) fn settle_moved_branch(
     let root: &Path = Path::new(intent.repository_root.as_str());
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
     let mut states: Vec<WorktreeState> = Vec::with_capacity(changes.len());
+    let mut identities: Vec<Option<crate::merge_isolation_changes::FileIdentity>> = Vec::with_capacity(changes.len());
     for change in &changes {
+        // The identity is read before the content, so a file written in between does not match the judgement.
+        identities.push(file_identity(worktree_path(root, change.path.as_slice()).as_path()));
         states.push(worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?);
     }
     let mut worktree_began: bool = false;
@@ -120,8 +123,8 @@ pub(crate) fn settle_moved_branch(
         });
     }
     let mut foreign: Vec<String> = Vec::new();
-    let mut held: Vec<Standing> = Vec::with_capacity(ends.len());
-    for ((change, end), state) in changes.iter().zip(ends.iter()).zip(states.iter()) {
+    let mut held: Vec<Judged> = Vec::with_capacity(ends.len());
+    for (((change, end), state), identity) in changes.iter().zip(ends.iter()).zip(states.iter()).zip(identities.iter()) {
         let holds_old_or_merged: bool = standing(change, state) != Standing::Foreign;
         let holds_end: bool = match state {
             WorktreeState::Missing => !end.exists_after(),
@@ -131,7 +134,7 @@ pub(crate) fn settle_moved_branch(
         if !holds_old_or_merged && !holds_end {
             foreign.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
         }
-        held.push(if holds_end { Standing::New } else { Standing::Old });
+        held.push(Judged { standing: if holds_end { Standing::New } else { Standing::Old }, identity: *identity });
     }
     if !foreign.is_empty() {
         return Err(RecoveryError(format!(

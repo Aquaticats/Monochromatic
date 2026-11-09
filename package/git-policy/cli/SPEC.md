@@ -7581,6 +7581,16 @@ so a program that holds the index does not end every command in that worktree;
 a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
 leaves the record and the checkout as they were,
 and the next command finishes the same merge.
+Settling takes every file it must write aside by one rename that never replaces,
+and checks what it took against the device,
+inode,
+size and modification time the judgement read,
+so the bytes that make way for the merge are exactly the bytes that were judged;
+a file saved in between is put back,
+nothing of the merge is written,
+the paths are named on standard error and the record is kept.
+The files are checked out without `--force`,
+so a file that appears in the instant after the take is skipped and Git's own words are reported.
 A record that is discarded,
 a record whose owner still runs and a branch that already names the merge
 change nothing of the branch and say nothing.

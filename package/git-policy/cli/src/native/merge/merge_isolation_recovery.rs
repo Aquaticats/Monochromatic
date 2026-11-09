@@ -32,11 +32,11 @@ use crate::merge_isolation_journal::{
 use crate::merge_isolation_moved::settle_moved_branch;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
-pub use crate::merge_isolation_recovery_steps::{Installed, MergeRecoveryAction, RecoveryPlace, Standing};
+pub use crate::merge_isolation_recovery_steps::{Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing};
 use crate::merge_isolation_recovery_steps::{index_holds_the_merge, install_entries, merge_changes, remove_record, standing};
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::{
-    Change, WorktreeState, worktree_state,
+    Change, WorktreeState, file_identity, worktree_path, worktree_state,
 };
 /// The fail-closed recovery failure.
 use crate::recovery_error::{RecoveryError, io_failure};
@@ -255,6 +255,21 @@ fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<OwnerLiveness, 
 }
 
 /// What:
+///  Whether the worktree holds the merge's content at this path,
+/// which is the only evidence that Git began.
+/// Why:
+///   Named rather than written as a closure inside `any`,
+/// and it says what the check means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsTheMerge = (judged: Judged) => judged.standing === 'new';
+/// ```
+fn holds_the_merge(judged: &Judged) -> bool {
+    return judged.standing == Standing::New;
+}
+
+/// What:
 ///  The commit a ref names,
 /// or nothing when it names none.
 /// Why:
@@ -319,21 +334,25 @@ pub fn settle_failed_merge(
         }
     }
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
-    let mut standings: Vec<Standing> = Vec::with_capacity(changes.len());
+    let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for change in &changes {
+        let location: PathBuf = worktree_path(root, change.path.as_slice());
+        // The identity is read before the content, so a file written in between does not match the judgement and is never
+        //  replaced (finding 4 of `doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`).
+        let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(location.as_path());
         let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
-        standings.push(standing(change, &state));
+        judgements.push(Judged { standing: standing(change, &state), identity });
     }
     let index_started: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())?;
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
-    let worktree_started: bool = standings.contains(&Standing::New);
+    let worktree_started: bool = judgements.iter().any(holds_the_merge);
     if !index_started && !worktree_started {
         remove_record(record)?;
         return Ok(MergeRecoveryAction::Discarded);
     }
     let mut foreign: Vec<String> = Vec::new();
-    for (change, found) in changes.iter().zip(standings.iter()) {
-        if *found == Standing::Foreign {
+    for (change, judged) in changes.iter().zip(judgements.iter()) {
+        if judged.standing == Standing::Foreign {
             foreign.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
         }
     }
@@ -350,7 +369,7 @@ pub fn settle_failed_merge(
     }
     // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
     //  same merge (the recovery is idempotent).
-    if complete(place, root, intent, &changes, &standings, out)? == Installed::IndexHeld {
+    if complete(place, root, intent, &changes, &judgements, out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     remove_record(record)?;
@@ -376,10 +395,10 @@ fn complete(
     root: &Path,
     intent: &MergeIntent,
     changes: &[Change],
-    standings: &[Standing],
+    judgements: &[Judged],
     out: &mut dyn Write,
 ) -> Result<Installed, RecoveryError> {
-    if install_entries(place, root, changes, standings, out)? == Installed::IndexHeld {
+    if install_entries(place, root, changes, judgements, out)? == Installed::IndexHeld {
         return Ok(Installed::IndexHeld);
     }
     let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by monochromatic-git-policy-cli recovery)");

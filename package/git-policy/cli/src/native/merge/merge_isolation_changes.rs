@@ -123,6 +123,76 @@ pub enum WorktreeState {
     Other,
 }
 
+/// What:
+///  What the file system holds at a worktree path when recovery judges it:
+/// the device,
+/// the inode,
+/// the size and the modification time.
+/// Why:
+///   A file taken aside after the judgement is compared with this,
+/// so the bytes a merge replaces are exactly the
+///  bytes that were judged;
+/// a file written between the judgement and the take differs here,
+/// and is never
+///  replaced.
+/// The inode alone is never compared,
+/// because a freed inode is reused,
+/// so the modification time and the
+///  size go with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FileIdentity = { device: bigint; inode: bigint; size: bigint; modifiedSeconds: bigint; modifiedNanos: bigint };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FileIdentity {
+    /// Device number.
+    pub device: u64,
+    /// Inode number.
+    pub inode: u64,
+    /// Size in bytes.
+    pub size: u64,
+    /// Modification time,
+    /// whole seconds since the epoch.
+    pub modified_seconds: i64,
+    /// Modification time,
+    /// the nanoseconds part.
+    pub modified_nanos: i64,
+}
+
+/// What:
+///  The identity of whatever stands at `location`,
+/// without following a link,
+/// or nothing when nothing is there.
+/// Why:
+///   A symbolic link is a file of its own here,
+/// because a take moves it and `checkout-index` writes it back as one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fileIdentity(location: string): FileIdentity | undefined; // lstat, no link followed
+/// ```
+#[cfg(unix)]
+pub fn file_identity(location: &Path) -> Option<FileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+    let found: std::fs::Metadata = std::fs::symlink_metadata(location).ok()?;
+    return Some(FileIdentity {
+        device: found.dev(),
+        inode: found.ino(),
+        size: found.len(),
+        modified_seconds: found.mtime(),
+        modified_nanos: found.mtime_nsec(),
+    });
+}
+
+/// The identity of whatever stands at `location`.
+///  Always nothing on this platform:
+/// the read of a device and an inode is a Unix one.
+#[cfg(not(unix))]
+pub fn file_identity(_location: &Path) -> Option<FileIdentity> {
+    return None;
+}
+
 /// The filesystem path of a repository path given as raw bytes.
 ///
 /// In TS you'd write (pseudocode):
