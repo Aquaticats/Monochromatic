@@ -1,5 +1,6 @@
 //! What:
-//! `mpm-shadow bin-paths`:
+//! `mpm-shadow bin`
+//! (the command that replaced `bin-paths`):
 //! prints,
 //! as JSON,
 //! the directories that hold the toolchain's programs and the
