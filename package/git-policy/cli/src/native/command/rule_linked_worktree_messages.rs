@@ -22,6 +22,10 @@
 //! ```
 
 use crate::rule_linked_worktree::GuardedCommand;
+/// The paths a message names before it counts the rest.
+use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
+use std::ffi::OsStr;
+use std::path::Path;
 
 /// The sentence every text ends with:
 /// the one deliberate way to discard work anyway.
@@ -51,10 +55,25 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "it moves your uncommitted changes out of the worktree, and a later pop or drop can lose them",
             "To park work in progress, commit it with explicit paths (git commit --message <message> -- <paths>) on a topic branch, ideally in its own linked worktree (git worktree add -b <branch> <path>). Reading stashes is allowed: git stash list and git stash show.",
         ),
+        GuardedCommand::StashDrop => return (
+            "git stash drop (or git stash clear)",
+            "it deletes entries of the one stash the whole repository shares, and git stash clear deletes every entry, so work parked in any worktree of this repository is gone",
+            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> (allowed), which applies the entry and keeps it in the branch. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
+        ),
         GuardedCommand::Clean => return (
             "git clean",
             "it deletes untracked files that Git cannot bring back",
             "To see what would be deleted, run git clean -n (allowed). To remove specific files, delete them by name with rm. To clear build output, use the project's own clean task. For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD).",
+        ),
+        GuardedCommand::CleanIgnored => return (
+            "git clean -x",
+            "it deletes ignored files as well as untracked ones, and an ignored file is where a person keeps their environment and their local secrets",
+            "To see what would be deleted, run git clean -nx (allowed). To delete only untracked files and keep the ignored ones, use git clean -fd (allowed while no untracked file is precious). For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD), and to clear ignored build output, use the project's own clean task.",
+        ),
+        GuardedCommand::CleanIgnoredOnly => return (
+            "git clean -X",
+            "it deletes ignored files, which is where a person keeps their environment and their local secrets",
+            "To see what would be deleted, run git clean -nX (allowed). To remove the ignored entries you no longer need, delete them by name with rm, or use the project's own clean task for its build output. For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD).",
         ),
         GuardedCommand::ResetHard => return (
             "git reset --hard (or --merge, --keep)",
@@ -174,6 +193,50 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 }
 
 /// What:
+///  The sentence that says which variable exempted a repository from the worktree guard.
+///  `&str` borrows the two facts and `&Path` the directory the variable named.
+/// Why:
+///   The exemption is chosen by the invocation's own environment,
+///  so a variable that happens to name the
+///       repository exempts it and nothing measured or saved anything;
+///  a person who is told that before Git runs can
+///       stop the command or unset the variable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exemption_notice(variable, directory: string): string;
+/// ```
+pub fn exemption_notice(variable: &str, directory: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains its Git directory. \
+         Nothing was measured and nothing was saved, so the command runs without that guard. \
+         Hint: if {variable} does not describe a tool cache on this machine, unset it for this command (env --unset={variable} git ...) or run the command from a shell where it does not name this directory.\n",
+        directory.display()
+    );
+}
+
+/// What:
+///  The rejection text for a `git stash drop` or `git stash clear` that would delete an entry of the
+///  repository's one stash.
+/// Why:
+///   The entry belongs to the repository,
+/// not to the worktree the command runs in,
+///  so the text says where
+///       the stash lives and what keeps the work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function repositoryStashMessage({ command }): string;
+/// ```
+pub fn repository_stash_message(command: GuardedCommand) -> String {
+    let (name, risk, instead): (&str, &str, &str) = describe(command);
+    return format!(
+        "monochromatic-git-policy-cli: {name} is rejected because this repository holds a stash entry: {risk}, and it is not this worktree's. \
+         {instead} {HATCH_ADVICE}"
+    );
+}
+
+/// What:
 ///  The rejection text for a command run in a worktree that holds uncommitted state.
 /// Why:
 ///   The state is what the command could destroy;
@@ -186,13 +249,55 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// ```
 pub fn dirty_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
-    let what: &str = if command == GuardedCommand::Clean {
-        "changes to tracked files or untracked files"
-    } else {
-        "changes to tracked files"
+    let what: &str = match command {
+        GuardedCommand::Clean => "changes to tracked files or untracked files",
+        GuardedCommand::CleanIgnored => "changes to tracked files, untracked files or ignored files",
+        GuardedCommand::CleanIgnoredOnly => "ignored files",
+        _ => "changes to tracked files",
     };
     return format!(
         "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}: {risk}. \
          {instead} {HATCH_ADVICE}"
+    );
+}
+
+/// What:
+///  The rejection text for a forced checkout,
+/// a forced switch or a hard reset whose target tree tracks a path the
+///  worktree has ignored.
+///  `&[String]` borrows the shared paths;
+///  `Option<&OsStr>` is the revision the command named.
+/// Why:
+///   The tracked state of the worktree is clean,
+/// so the usual text would say it is dirty;
+///  this one names
+///       the ignored files the command would replace with the tree's content,
+///  which is where a person
+///       keeps their environment and their local secrets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ignoredFileMessage({ command, revision, paths }): string;
+/// ```
+pub fn ignored_file_message(command: GuardedCommand, revision: Option<&OsStr>, paths: &[String]) -> String {
+    let (name, _risk, instead): (&str, &str, &str) = describe(command);
+    let tree: &str = match revision {
+        Some(named) => &named.to_string_lossy(),
+        None => "HEAD",
+    };
+    let mut named: Vec<String> = Vec::<String>::with_capacity(SHARED_PATHS_NAMED.min(paths.len()) + 1);
+    for path in paths.iter().take(SHARED_PATHS_NAMED) {
+        named.push(path.clone());
+    }
+    let mut listed: String = named.join(", ");
+    if paths.len() > SHARED_PATHS_NAMED {
+        listed.push_str(format!(", and {} more", paths.len() - SHARED_PATHS_NAMED).as_str());
+    }
+    return format!(
+        "monochromatic-git-policy-cli: {name} is rejected because this worktree ignores {listed}, which the tree of \
+         {tree} tracks: Git would replace {} with the content that tree carries, and an ignored file is where a person \
+         keeps their environment and their local secrets. Only the tracked state of the worktree is clean, and a forced \
+         form overrides Git's own --no-overwrite-ignore. {instead} {HATCH_ADVICE}",
+        if paths.len() == 1 { "it" } else { "them" }
     );
 }

@@ -56,6 +56,31 @@ pub enum EffectiveTarget {
 }
 
 /// What:
+///  One tool cache directory exempt from worktree enforcement,
+///  and the variable or default that named it.
+///  A `struct` is a record with named fields.
+/// Why:
+///   The exemption is chosen by the invocation's own environment,
+///  so a repository can be exempt because a
+///       variable happens to name it;
+///  a person who is told which variable did that can decide whether the
+///       variable means what they think.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolCacheDirectory = { path: string; namedBy: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ToolCacheDirectory {
+    /// The directory,
+    ///  as the variable named it.
+    pub path: PathBuf,
+    /// The environment variable that named it,
+    ///  or `HOME` for the default below a home directory.
+    pub named_by: &'static str,
+}
+
+/// What:
 ///  Resolve uv's cache directory the way uv does:
 ///  `UV_CACHE_DIR`,
 ///  then
@@ -73,20 +98,29 @@ pub enum EffectiveTarget {
 /// ```ts
 /// function uvCacheDir(environment: [string, string][], home?: string): string | undefined;
 /// ```
-pub fn uv_cache_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -> Option<PathBuf> {
+pub fn uv_cache_dir(
+    environment: &[(OsString, OsString)],
+    home: Option<&Path>,
+) -> Option<ToolCacheDirectory> {
     // `if let Some(x) = ... && cond` runs only when the variable is set and the second
     // condition also holds, like `x !== undefined && x !== ""`.
     if let Some(explicit) = environment_value(environment, "UV_CACHE_DIR")
         && !explicit.is_empty()
     {
         // `Some(...)` is the "present" variant.
-        return Some(PathBuf::from(explicit));
+        return Some(ToolCacheDirectory {
+            path: PathBuf::from(explicit),
+            named_by: "UV_CACHE_DIR",
+        });
     }
     if let Some(cache_home) = environment_value(environment, "XDG_CACHE_HOME")
         && !cache_home.is_empty()
     {
         // `.join` appends one path segment and returns an owned path.
-        return Some(PathBuf::from(cache_home).join("uv"));
+        return Some(ToolCacheDirectory {
+            path: PathBuf::from(cache_home).join("uv"),
+            named_by: "XDG_CACHE_HOME",
+        });
     }
     // What: `let Some(x) = ... else { return None; };` unwraps the home or exits.
     // Why:  Without any hint and without a home directory there is no cache to exempt.
@@ -99,7 +133,10 @@ pub fn uv_cache_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -
         // `None` is the "absent" variant.
         return None;
     };
-    return Some(home_directory.join(".cache").join("uv"));
+    return Some(ToolCacheDirectory {
+        path: home_directory.join(".cache").join("uv"),
+        named_by: "HOME",
+    });
 }
 
 /// What:
@@ -122,20 +159,29 @@ pub fn uv_cache_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -
 /// ```ts
 /// function miseDataDir(environment: [string, string][], home?: string): string | undefined;
 /// ```
-pub fn mise_data_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -> Option<PathBuf> {
+pub fn mise_data_dir(
+    environment: &[(OsString, OsString)],
+    home: Option<&Path>,
+) -> Option<ToolCacheDirectory> {
     // `if let Some(x) = ... && cond` runs only when the variable is set and the second
     // condition also holds, like `x !== undefined && x !== ""`.
     if let Some(explicit) = environment_value(environment, "MISE_DATA_DIR")
         && !explicit.is_empty()
     {
         // `Some(...)` is the "present" variant.
-        return Some(PathBuf::from(explicit));
+        return Some(ToolCacheDirectory {
+            path: PathBuf::from(explicit),
+            named_by: "MISE_DATA_DIR",
+        });
     }
     if let Some(data_home) = environment_value(environment, "XDG_DATA_HOME")
         && !data_home.is_empty()
     {
         // `.join` appends one path segment and returns an owned path.
-        return Some(PathBuf::from(data_home).join("mise"));
+        return Some(ToolCacheDirectory {
+            path: PathBuf::from(data_home).join("mise"),
+            named_by: "XDG_DATA_HOME",
+        });
     }
     // What: `let Some(x) = ... else { return None; };` unwraps the home or exits.
     // Why:  Without any hint and without a home directory there is no data directory to exempt.
@@ -148,7 +194,10 @@ pub fn mise_data_dir(environment: &[(OsString, OsString)], home: Option<&Path>) 
         // `None` is the "absent" variant.
         return None;
     };
-    return Some(home_directory.join(".local").join("share").join("mise"));
+    return Some(ToolCacheDirectory {
+        path: home_directory.join(".local").join("share").join("mise"),
+        named_by: "HOME",
+    });
 }
 
 /// What:
@@ -169,9 +218,9 @@ pub fn mise_data_dir(environment: &[(OsString, OsString)], home: Option<&Path>) 
 pub fn default_allowed_worktree_dirs(
     environment: &[(OsString, OsString)],
     home: Option<&Path>,
-) -> Vec<PathBuf> {
+) -> Vec<ToolCacheDirectory> {
     // `Vec::<PathBuf>::new()` is an empty owned list; `mut` allows pushing.
-    let mut directories: Vec<PathBuf> = Vec::<PathBuf>::new();
+    let mut directories: Vec<ToolCacheDirectory> = Vec::<ToolCacheDirectory>::new();
     if let Some(uv) = uv_cache_dir(environment, home) {
         directories.push(uv);
     }
@@ -197,7 +246,26 @@ pub fn default_allowed_worktree_dirs(
 /// ```ts
 /// async function isAllowedWorktreeDir(candidate: string, allowedDirs: string[]): Promise<boolean>;
 /// ```
-pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[PathBuf]) -> bool {
+pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[ToolCacheDirectory]) -> bool {
+    return matching_allowed_worktree_dir(candidate, allowed_dirs).is_some();
+}
+
+/// What:
+///  The first allowed directory the canonical `candidate` lies inside,
+/// with the variable that named it.
+/// Why:
+///   The exemption names the variable that produced it,
+/// so a person can see why their repository
+///  was exempt instead of reading an outcome no one answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function matchingAllowedWorktreeDir(candidate, allowedDirs): Promise<ToolCacheDirectory | undefined>;
+/// ```
+pub fn matching_allowed_worktree_dir<'dirs>(
+    candidate: &Path,
+    allowed_dirs: &'dirs [ToolCacheDirectory],
+) -> Option<&'dirs ToolCacheDirectory> {
     // `for directory in allowed_dirs` borrows each entry in turn.
     for directory in allowed_dirs {
         // What: `if let Ok(resolved) = ... && cond` runs only when the directory could be
@@ -208,13 +276,13 @@ pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[PathBuf]) -> bo
         // ```ts
         // let resolved; try { resolved = await realpath(directory); } catch { continue; }
         // ```
-        if let Ok(resolved) = std::fs::canonicalize(directory)
+        if let Ok(resolved) = std::fs::canonicalize(directory.path.as_path())
             && candidate.starts_with(resolved.as_path())
         {
-            return true;
+            return Some(directory);
         }
     }
-    return false;
+    return None;
 }
 
 /// What:
@@ -230,7 +298,7 @@ pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[PathBuf]) -> bo
 /// ```
 pub fn classify_effective_target(
     identity: &WorktreeIdentity,
-    allowed_dirs: &[PathBuf],
+    allowed_dirs: &[ToolCacheDirectory],
 ) -> EffectiveTarget {
     // What: `match` on the borrowed identity; `{ git_dir, .. }` binds one field and
     //       ignores the rest.
