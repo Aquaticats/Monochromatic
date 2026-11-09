@@ -38,7 +38,7 @@ use crate::policy_content::{Correction, LifecycleContent};
 use crate::policy_convergence::{
     Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass,
 };
-use crate::policy_engine::{StageEnd, StageRequest, Unavailable};
+use crate::policy_engine::{StageEnd, StageRequest, Unavailable, pass_exit_code};
 use crate::policy_events::{FindingEvent, PolicyEvent};
 use crate::policy_pass::PassResult;
 use crate::policy_registry::{PolicyId, Severity};
@@ -66,6 +66,7 @@ fn fix_request(config: PolicyConfig) -> StageRequest {
 fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.to_path_buf());
+    facts.git_dir = Some(repo.join(".git"));
     return shipped_checks(
         facts,
         os_arguments(&[]),
@@ -245,6 +246,112 @@ fn a_fix_with_the_wired_policy_listed_completes_and_installs() {
     let result: PassResult = run_direct_fix(&listed, &mut checks, Some(repo.as_path()));
     assert_eq!(result.end, StageEnd::Completed);
     assert_eq!(std::fs::read(repo.join("a.txt")).expect("a"), b"a\n");
+    // Nothing of the fix stays: no file beside a corrected file and no journal in the Git directory, and nothing to
+    // report.
+    let mut beside: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(repo.as_path()).expect("the repository") {
+        let name: String = entry
+            .expect("entry")
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
+        if name.starts_with(".cli-git-direct-fix-") {
+            beside.push(name);
+        }
+    }
+    assert_eq!(beside, Vec::<String>::new());
+    assert!(
+        !result
+            .events
+            .iter()
+            .any(|event| return matches!(event, PolicyEvent::EngineFailure { .. })),
+        "{result:?}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A fix that keeps a journal for the person still installs and still succeeds,
+///  and names where the
+///       bytes are.
+/// Why:
+///   A file someone wrote to during the fix is never touched again,
+///  but the corrections do go in and the
+///       command exits 0:
+///  the owner's "commits should never fail" is about the work,
+/// and the person must
+///       still be told where the bytes of the file are before the summary.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // afterSwap = () => writeFileSync(repo/'a.txt', 'newer\n'); const result = runDirectFix(...); expect(result.end).toBe('completed'); expect(passExitCode(result.events, result.end)).toBe(0); expect(result.events[0].type).toBe('engine-failure')
+/// ```
+#[test]
+fn a_fix_that_keeps_a_journal_still_installs_and_says_where_it_is() {
+    let root: PathBuf = fixture("direct-fix-kept-journal");
+    let repo: PathBuf = untidy_repository(root.as_path());
+    let request: StageRequest = fix_request(PolicyConfig::defaults());
+    let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    let destination: PathBuf = repo.join("a.txt");
+    let git_dir: PathBuf = repo.join(".git");
+    crate::direct_fix_install::AFTER_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
+            if !swapped.ends_with("a.txt") {
+                return;
+            }
+            // A writer that opened the file before the swap writes through its descriptor: the bytes land in the
+            // file the swap displaced, which is this journal's content.
+            for entry in std::fs::read_dir(git_dir.as_path()).expect("the Git directory") {
+                let path: PathBuf = entry.expect("entry").path();
+                if !path
+                    .file_name()
+                    .expect("name")
+                    .to_string_lossy()
+                    .starts_with("cli-git-direct-fix-")
+                {
+                    continue;
+                }
+                std::fs::write(path.join("content"), b"# a late save\n").expect("a late write");
+            }
+        }));
+    });
+    let result: PassResult = run_direct_fix(&request, &mut checks, Some(repo.as_path()));
+    crate::direct_fix_install::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    assert_eq!(result.end, StageEnd::Completed);
+    assert_eq!(
+        std::fs::read(&destination).expect("a"),
+        b"a\n".to_vec(),
+        "the corrections are in place"
+    );
+    let notice: &PolicyEvent = result.events.first().expect("a notice before the summary");
+    assert!(
+        matches!(
+            notice,
+            PolicyEvent::EngineFailure {
+                code: EngineFailureCode::PolicyIncomplete,
+                trigger: Some(Trigger::DirectFix),
+                ..
+            }
+        ),
+        "{result:?}"
+    );
+    let PolicyEvent::EngineFailure { message, .. } = notice else {
+        unreachable!("just matched");
+    };
+    assert!(message.contains("cli-git-direct-fix-"), "{message}");
+    // The fix still succeeded: the summary follows and the exit code is 0.
+    assert!(
+        result
+            .events
+            .iter()
+            .any(|event| return matches!(event, PolicyEvent::FixSummary { .. })),
+        "{result:?}"
+    );
+    assert_eq!(
+        pass_exit_code(result.events.as_slice(), result.end),
+        0,
+        "a kept journal never fails the command"
+    );
     remove(root.as_path());
 }
 
@@ -304,7 +411,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         }],
         StageEnd::Completed,
     );
-    let checks: ShippedChecks<ScriptedFacts> = shipped_checks(
+    let mut checks: ShippedChecks<ScriptedFacts> = shipped_checks(
         scripted_facts(),
         os_arguments(&["kept"]),
         LifecycleContent::None,
@@ -313,7 +420,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
     let mut arguments_kept: PassResult = warned.clone();
     arguments_kept.arguments = os_arguments(&["kept"]);
     assert_eq!(
-        finish_fix(Convergence::FixCycle, arguments_kept.clone(), &checks, None),
+        finish_fix(Convergence::FixCycle, arguments_kept.clone(), &mut checks, None),
         PassResult {
             arguments: os_arguments(&["kept"]),
             events: vec![PolicyEvent::EngineFailure {
@@ -328,11 +435,11 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         }
     );
     assert_eq!(
-        finish_fix(Convergence::FixPassLimit, warned.clone(), &checks, None),
+        finish_fix(Convergence::FixPassLimit, warned.clone(), &mut checks, None),
         fix_failure(&[], EngineFailureCode::FixPassLimit, FIX_PASS_LIMIT_MESSAGE)
     );
     assert_eq!(
-        finish_fix(Convergence::Blocked, warned.clone(), &checks, None),
+        finish_fix(Convergence::Blocked, warned.clone(), &mut checks, None),
         warned
     );
     // Nothing corrected: the pass as it is, with no summary and no worktree needed.
@@ -340,13 +447,13 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         finish_fix(
             Convergence::Settled { changed_passes: 0 },
             warned.clone(),
-            &checks,
+            &mut checks,
             None
         ),
         warned
     );
     let failing: PassResult = pass_with(Vec::new(), StageEnd::Failed);
-    assert_eq!(settled_fix(failing.clone(), 1, &checks, None), failing);
+    assert_eq!(settled_fix(failing.clone(), 1, &mut checks, None), failing);
     // An error finding in the last pass: reported as it is, exit status 1, nothing
     // installed although a file was corrected.
     let mut corrected: ShippedChecks<ScriptedFacts> = shipped_checks(
@@ -378,18 +485,143 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         finish_fix(
             Convergence::Settled { changed_passes: 1 },
             stopped.clone(),
-            &corrected,
+            &mut corrected,
             None
         ),
         stopped
     );
     // The same correction under a clean last pass needs a worktree to install into.
     assert_eq!(
-        settled_fix(warned.clone(), 1, &corrected, None),
+        settled_fix(warned.clone(), 1, &mut corrected, None),
         fix_failure(
             &[],
             EngineFailureCode::TransactionFailed,
             NO_WORKTREE_MESSAGE
         )
     );
+}
+
+/// What:
+///  A fix with nothing to correct still reports what a killed fix left behind.
+/// Why:
+///  An interrupted fix can leave the file looking canonical,
+/// so the next fix proposes no
+///       correction at all;
+///  if the sweep only ran on the install path,
+/// the person's only copy of an edit would
+///       sit in a journal no command ever names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // leaveJournal(repo); const result = runDirectFix(cleanRequest, checks, repo); expect(result.events[0].message).toContain('cli-git-direct-fix-')
+/// ```
+#[test]
+fn a_fix_with_nothing_to_correct_still_reports_a_journal() {
+    let root: PathBuf = fixture("direct-fix-clean-journal");
+    let repo: PathBuf = untidy_repository(root.as_path());
+    let request: StageRequest = fix_request(PolicyConfig::defaults());
+    // The first fix installs, so the worktree is tidy.
+    let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    assert_eq!(
+        run_direct_fix(&request, &mut checks, Some(repo.as_path())).end,
+        StageEnd::Completed
+    );
+    let destination: PathBuf = repo.join("a.txt");
+    assert_eq!(std::fs::read(&destination).expect("a"), b"a\n");
+    // The state a kill leaves after the swap: the file holds the correction, and the journal holds the bytes it
+    // displaced. The record's writer is then made one no platform can name.
+    let git_dir: PathBuf = repo.join(".git");
+    let kept: crate::direct_fix_install_writes::Kept =
+        crate::direct_fix_install_writes::Kept::of(&std::fs::metadata(&destination).expect("a"));
+    let journal: PathBuf = crate::direct_fix_install_journal::open_journal(
+        git_dir.as_path(),
+        destination.as_path(),
+        &kept,
+        b"a\n",
+        None,
+    )
+    .expect("a journal");
+    std::fs::write(
+        crate::direct_fix_install_journal::content_of(journal.as_path()),
+        b"the person's own bytes",
+    )
+    .expect("the displaced bytes");
+    crate::direct_fix_install_journal::mark_writer_gone(journal.as_path());
+    // Nothing needs correcting now, so this fix installs nothing and must still name the journal.
+    let mut again: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    let reported: PassResult = run_direct_fix(&request, &mut again, Some(repo.as_path()));
+    assert_eq!(reported.end, StageEnd::Completed);
+    assert_eq!(
+        reported.events,
+        [PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PolicyIncomplete,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
+            message: crate::direct_fix_install_journal_sweep::reported_leftover(journal.as_path()),
+            trigger: Some(Trigger::DirectFix),
+            policy: None,
+            path: None,
+        }],
+        "the journal is named even though nothing needed correcting"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A fix whose install fails still names the journal an interrupted fix left.
+/// Why:
+///  The sweep found it and built the notice before the install ran;
+///  the location in that notice is the
+///       only way the person finds the edit the interrupted fix displaced,
+///  so a later failure of this
+///       command must not drop it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // deadJournal(repo); changeFileUnderTheFix(); const failed = runDirectFix(...); expect(failed.events.some(e => e.message.includes('cli-git-direct-fix-'))).toBe(true)
+/// ```
+#[test]
+fn an_installation_failure_still_names_an_interrupted_fix() {
+    let root: PathBuf = fixture("direct-fix-failure-keeps-notice");
+    let repo: PathBuf = untidy_repository(root.as_path());
+    let request: StageRequest = fix_request(PolicyConfig::defaults());
+    // A dead fix's journal, holding bytes the record does not know.
+    let git_dir: PathBuf = repo.join(".git");
+    let kept: crate::direct_fix_install_writes::Kept =
+        crate::direct_fix_install_writes::Kept::of(&std::fs::metadata(repo.join("ok.txt")).expect("ok"));
+    let journal: PathBuf = crate::direct_fix_install_journal::open_journal(
+        git_dir.as_path(),
+        repo.join("ok.txt").as_path(),
+        &kept,
+        b"a correction the fix never wrote\n",
+        None,
+    )
+    .expect("a journal");
+    std::fs::write(
+        crate::direct_fix_install_journal::content_of(journal.as_path()),
+        b"the person's own bytes",
+    )
+    .expect("the displaced bytes");
+    crate::direct_fix_install_journal::mark_writer_gone(journal.as_path());
+    // A selected file changes under this fix, so its install fails.
+    let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    checks
+        .content
+        .prepare(&checks.candidates, &mut checks.facts)
+        .expect("prepared");
+    std::fs::write(repo.join("a.txt"), b"edited meanwhile").expect("edit");
+    let failed: PassResult = run_direct_fix(&request, &mut checks, Some(repo.as_path()));
+    assert_eq!(failed.end, StageEnd::Failed);
+    assert!(
+        failed.events.iter().any(|event| {
+            return match event {
+                PolicyEvent::EngineFailure { message, .. } => {
+                    return message.contains("cli-git-direct-fix-");
+                }
+                _other => false,
+            };
+        }),
+        "the journal's location reaches the person: {:?}",
+        failed.events
+    );
+    remove(root.as_path());
 }

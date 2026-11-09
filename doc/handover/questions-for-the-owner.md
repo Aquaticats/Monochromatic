@@ -26,6 +26,57 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### What should the next push do with a commit its checks blocked?, asked 2026-11-09T05:03:17-05:00
+
+`package/git-policy/cli/README.md:2194` promises this:
+"A landed commit that a post-commit policy then blocks exits `2` and stays local."
+It stays local only until the next push on that branch,
+because a queued push sends the whole branch
+(`git push <remote> <branch>:<target>`,
+`package/git-policy/cli/src/native/push/auto_push.rs:243-245`).
+The landing agent reproduced this with real Git for a commit held with no verdict:
+commit A was held,
+commit B was pushed by that command,
+and A was then on the remote.
+Its report says a commit a policy blocked goes the same way,
+for the same reason.
+
+The example both options use:
+commit A is blocked,
+exits `2`,
+and sits on `main`.
+A minute later another agent lands commit B on `main`,
+and B's checks pass.
+
+Option A stops the automatic push at the commit before the blocked one.
+Commits older than A still go out.
+A and B stay on this machine,
+and every command in that repository says in one line which commit is holding the branch back and why.
+The automatic push resumes once A is no longer on the branch's way out.
+What a person's own `git push` does is unchanged by this option.
+For it:
+it makes the README true,
+and automation can never publish a commit a policy refused.
+Against it:
+with many agents on `main`,
+one blocked commit keeps every later commit off GitHub until someone acts,
+so those commits have no copy off this machine in the meantime.
+
+Option C keeps today's behaviour and corrects the README to say the blocked commit's own push is skipped and the next push on the branch carries it.
+For it:
+nothing ever stalls.
+Against it:
+a refusal lasts one commit,
+and if the policy refused a secret,
+that secret reaches GitHub and cannot be taken back.
+
+Ranking:
+A > C,
+because a stalled push can be released with one word from you,
+and a published commit cannot be withdrawn.
+Nothing changes until you answer:
+write "A" or "C" here.
+
 ### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
 
 The owner,
@@ -129,7 +180,7 @@ and reading the code says that does not happen:
 a queued push is `git push <remote> <branch>:<target>`
 (`package/git-policy/cli/src/native/push/auto_push.rs:230-245`),
 so the next commit's push on that branch carries the held commit.
-The branch's agent is reproducing that now.
+The branch's agent reproduced that with real Git.
 And keeping a commit local can be undone,
 while a push of a commit whose secret check never ran cannot.
 
@@ -139,8 +190,7 @@ and the next command in that worktree says in one line that the commit is held a
 Write "push it" here to overrule this.
 
 The same fact raises a question that does need you,
-`What should the next push do with a commit its checks blocked?`,
-once the agent has reproduced it.
+`What should the next push do with a commit its checks blocked?`.
 
 ### Should a commit stop when the repair of a stale index cannot be made?
 
@@ -1332,6 +1382,22 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T05:12:19-05:00,
+  `monochromatic-git-policy-cli fix` refuses a worktree whose Git directory is on another file system,
+  before it writes anything,
+  because its crash-safe swap needs both names on one file system (`package/git-policy/cli/SPEC.md`,
+  on the branch `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`).
+  This session reads that branch's report as saying the refusal has not been exercised by a test.
+  Say "undo" to have `fix` fall back to a copy in that case,
+  which loses the guarantee that a kill cannot leave a half-written file.
+- 2026-11-09T05:12:19-05:00,
+  the publish-list reader in `dependent_version` accepts only the line forms `package/config/pnpr/src/generated-config-render.ts` writes and refuses every other line by name and number.
+  No YAML crate was added.
+  The agent found one viable crate,
+  `yaml_serde` 0.10.7,
+  and rejected it because a general parser accepts documents the generator never writes,
+  which is the class of silent miss three reviews kept finding.
+  Say "undo" to have the crate vetted instead.
 - 2026-11-09T04:26:58-05:00,
   a shell alias (`!`) stays unguarded.
   Git runs it with its own folder first on `PATH`,

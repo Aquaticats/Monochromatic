@@ -11,7 +11,10 @@
 #![cfg(unix)]
 
 /// Import the query helpers under test and shared fixtures.
-use super::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use super::{
+    MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, run_metadata_git_within,
+    strip_git_line,
+};
 use crate::test_support::{REAL_GIT, executable, fixture, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -127,5 +130,89 @@ fn queries_pass_arguments_and_overlay_and_close_stdin() {
             .kind(),
         std::io::ErrorKind::NotFound
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A read that never returns is ended at the ceiling and said so,
+///  while the same ceiling lets a
+///       read that answers through.
+/// Why:
+///   A `core.fsmonitor` program,
+///  a stalled mount or a Git waiting on an index can hold a Git read
+///  for good;
+///  the owner's "nothing should ever wait forever or indefinitely" bounds it,
+///  and a read that
+///       answers must not be touched.
+///  The ceiling is the seam here,
+///  so the control never waits for a real one to
+///       pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // ids: readWithin(hang, ['ls-files'], 300); expect(result.code).toBe('ETIMEDOUT')
+/// ```
+#[test]
+fn a_read_that_never_returns_is_ended_at_its_ceiling() {
+    let root: PathBuf = fixture("metadata-hang");
+    let quick: PathBuf = root.join("quick");
+    executable(quick.as_path(), b"#!/bin/sh\nprintf 'answer\\n'\n");
+    let hang: PathBuf = root.join("hang");
+    executable(hang.as_path(), b"#!/bin/sh\nsleep 60\n");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(300);
+    // The positive control: the same ceiling leaves a read that answers alone.
+    let answered: MetadataOutput = run_metadata_git_within(
+        quick.as_path(),
+        &[OsString::from("ls-files")],
+        &[],
+        ceiling,
+    )
+    .expect("a read that answers");
+    assert_eq!(answered.stdout, b"answer\n".to_vec());
+    assert!(answered.success);
+    let started: std::time::Instant = std::time::Instant::now();
+    let ended: std::io::Error = run_metadata_git_within(
+        hang.as_path(),
+        &[OsString::from("ls-files")],
+        &[],
+        ceiling,
+    )
+    .expect_err("a read that never returns");
+    let took: std::time::Duration = started.elapsed();
+    assert_eq!(ended.kind(), std::io::ErrorKind::TimedOut, "{ended}");
+    let text: String = ended.to_string();
+    assert!(text.contains("ls-files"), "{text}");
+    assert!(text.contains("was ended"), "{text}");
+    // The read is announced and reported under the Git program and its subcommand.
+    assert!(text.contains("showed no sign of work"), "{text}");
+    // The read is ended at the ceiling, not left until the script's own minute is over.
+    assert!(took < std::time::Duration::from_secs(30), "{took:?}");
+    // How the person is told about it: the sentence each caller reports.
+    let sentence: String =
+        read_stopped_text("the staging area", &ended).expect("a read the wrapper ended");
+    assert!(
+        sentence.starts_with(
+            "monochromatic-git-policy-cli stopped waiting for the Git read of the staging area: "
+        ),
+        "{sentence}"
+    );
+    // The words of a watched step belong to a commit's steps, and a check's read says what stayed as it was instead.
+    assert!(
+        sentence.contains("The read changed nothing, so the index and the worktree are as they were; run the command again"),
+        "{sentence}"
+    );
+    assert!(
+        !sentence.contains("finishes or undoes that commit"),
+        "{sentence}"
+    );
+    // Any other failure keeps the wording its caller already had.
+    let unstartable: std::io::Error = run_metadata_git_within(
+        root.join("missing").as_path(),
+        &[],
+        &[],
+        ceiling,
+    )
+    .expect_err("a program that is not there");
+    assert_eq!(read_stopped_text("the staging area", &unstartable), None);
     remove(root.as_path());
 }
