@@ -32,8 +32,11 @@ import {
  @throws Error when the transform reported no attribute clause to rewrite
  */
 function transform(code: string,): string {
+  /**
+   Transform result; the sentinel arm throws below.
+   */
   const result = transformImportAttributes({ code, id: 'transform-case.ts', },);
-  if (typeof result === 'symbol')
+  if ((typeof result) === 'symbol')
     throw new Error(`transform reported no attribute clause for: ${code}`,);
   return result.code;
 }

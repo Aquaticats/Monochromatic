@@ -42,15 +42,21 @@ await describe({
         it({
           name: 'returns the value of a string literal',
           fn: async () => {
-            expect(getStringLiteralValue(stringLiteralSourceOf("import x from './schema.sql';",),),)
-              .toBe('./schema.sql',);
+            /**
+             Specifier node of a plain static import.
+             */
+            const source = stringLiteralSourceOf("import x from './schema.sql';",);
+            expect(getStringLiteralValue(source,),).toBe('./schema.sql',);
           },
         },),
         it({
           name: 'reports a non-literal expression as no string',
           fn: async () => {
-            expect(getStringLiteralValue(dynamicImportOptionsOf("import('./a.sql', { with: { type: 'text' } });",),),)
-              .toBe(NON_STRING_NODE,);
+            /**
+             Options expression of a dynamic import, which is not a literal.
+             */
+            const options = dynamicImportOptionsOf("import('./a.sql', { with: { type: 'text' } });",);
+            expect(getStringLiteralValue(options,),).toBe(NON_STRING_NODE,);
           },
         },),
       ],

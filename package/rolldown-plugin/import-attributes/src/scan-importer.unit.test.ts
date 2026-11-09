@@ -49,6 +49,8 @@ async function waitForObservation({
   for (let elapsed = 0; elapsed < LOG_WAIT_TIMEOUT_MS; elapsed += LOG_POLL_INTERVAL_MS) {
     if (isObserved())
       return true;
+    // A poll must await each interval before the next check; the deadline bounds the loop.
+    // oxlint-disable-next-line eslint/no-await-in-loop -- polling loop bounded by LOG_WAIT_TIMEOUT_MS
     await delay(LOG_POLL_INTERVAL_MS,);
   }
   return isObserved();

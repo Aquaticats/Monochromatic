@@ -39,7 +39,14 @@ function visitModule({
   readonly code: string;
   readonly visitor: Visitor;
 },): void {
-  visitor.visit(parseSync(SOURCE_NAME, code,).program,);
+  /**
+   Parsed module the visitor walks.
+   */
+  const parsed = parseSync(
+    SOURCE_NAME,
+    code,
+  );
+  visitor.visit(parsed.program,);
 }
 
 /**

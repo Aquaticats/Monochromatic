@@ -80,25 +80,37 @@ await describe({
         it({
           name: 'produces a module whose default export is the content',
           fn: async () => {
-            expect(exportedContent(textHandler('SELECT 1',),),).toBe('SELECT 1',);
+            /**
+             Module source the handler produced for the simplest content.
+             */
+            const moduleSource = textHandler('SELECT 1',);
+            expect(exportedContent(moduleSource,),).toBe('SELECT 1',);
           },
         },),
         ...CONTENT_CASES.map(function mapContentCase([name, content,],) {
           return it({
             name: `round-trips content holding ${name}`,
             fn: async () => {
-              expect(exportedContent(textHandler(content,),),).toBe(content,);
+              /**
+               Module source the handler produced for this content.
+               */
+              const moduleSource = textHandler(content,);
+              expect(exportedContent(moduleSource,),).toBe(content,);
             },
           },);
         },),
         it({
           name: 'produces a module the parser accepts for every content case',
           fn: async () => {
+            /**
+             Content of every case joined into one file.
+             */
+            const joined = CONTENT_CASES.map(function contentOf([, content,],) {
+              return content;
+            },)
+              .join('\n',);
             expect(function parses() {
-              parseModule(textHandler(CONTENT_CASES.map(function contentOf([, content,],) {
-                return content;
-              },)
-                .join('\n',),),);
+              parseModule(textHandler(joined,),);
             },).not.toThrow();
           },
         },),
@@ -110,13 +122,13 @@ await describe({
         it({
           name: 'registers the text handler under the text type',
           fn: async () => {
-            expect(HANDLERS['text'],).toBe(textHandler,);
+            expect(HANDLERS.text,).toBe(textHandler,);
           },
         },),
         it({
           name: 'registers no handler for an unregistered type',
           fn: async () => {
-            expect(HANDLERS['unknown'],).toBeUndefined();
+            expect(HANDLERS.unknown,).toBeUndefined();
           },
         },),
       ],

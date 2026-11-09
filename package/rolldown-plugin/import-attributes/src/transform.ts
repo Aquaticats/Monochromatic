@@ -160,7 +160,10 @@ export function transformImportAttributes({
   readonly id: string;
 },): { code: string; } | typeof NO_TRANSFORM {
   if (!ATTRIBUTE_CLAUSE_KEYWORDS.some(function byKeyword(keyword,) {
-    return mentionsKeyword({ code, keyword, },);
+    return mentionsKeyword({
+      code,
+      keyword,
+    },);
   },))
     return NO_TRANSFORM;
 
@@ -263,7 +266,10 @@ export function transformImportAttributes({
           .start,
         end: node.source
           .end,
-        text: `${rawLiteral.slice(0, -1,)}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
+        text: `${rawLiteral.slice(
+          0,
+          -1,
+        )}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
       },);
 
       // Remove the options argument: find the first comma between source and options

@@ -101,7 +101,10 @@ function skipComment({
   readonly code: string;
   readonly idx: number;
 },): number {
-  if (code.startsWith('/*', idx,)) {
+  if (code.startsWith(
+    '/*',
+    idx,
+  )) {
     /**
      Offset of the block comment's closing `*\/`; -1 means it never closes.
      */
@@ -111,7 +114,10 @@ function skipComment({
     );
     return blockEnd === (-1) ? code.length : blockEnd + 2;
   }
-  if (code.startsWith('//', idx,)) {
+  if (code.startsWith(
+    '//',
+    idx,
+  )) {
     /**
      Offset of the newline that ends the line comment; -1 means it runs to the end of the source.
      */
@@ -309,7 +315,10 @@ export function collectStaticReplacements({
   const specifierReplacement: Replacement = {
     start: source.start,
     end: source.end,
-    text: `${rawLiteral.slice(0, -1,)}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
+    text: `${rawLiteral.slice(
+      0,
+      -1,
+    )}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
   };
 
   /**

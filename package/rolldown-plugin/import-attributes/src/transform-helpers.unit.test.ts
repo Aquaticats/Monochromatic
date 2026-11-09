@@ -213,12 +213,12 @@ await describe({
             /**
              Clause elision replacement, the second the helper returns.
              */
-            const elision = collectStaticReplacements({
+            const [, elision,] = collectStaticReplacements({
               source: stringLiteralSourceOf(code,),
               attributes: importAttributesOf(code,),
               attrType: 'text',
               code,
-            },)[1];
+            },);
 
             expect(elision?.start,).toBe(code.indexOf(' /* note',),);
             expect(code.slice(elision?.start, elision?.end,),).toBe(' /* note */ with { type: \'text\' }',);

@@ -68,9 +68,13 @@ function resolveIdHookOf(plugin: Plugin,): ResolveIdHook {
   const hook = plugin.resolveId;
   if (hook === undefined)
     throw new Error('the plugin declares no resolveId hook',);
-  if (typeof hook !== 'function')
+  if ((typeof hook) !== 'function')
     throw new Error('the plugin declares resolveId in a form this case does not drive',);
-  return hook as ResolveIdHook;
+  /**
+   Hook narrowed to its callable form, which rolldown invokes with the plugin context.
+   */
+  const resolveIdHook = hook as ResolveIdHook;
+  return resolveIdHook;
 }
 
 /**
@@ -94,9 +98,13 @@ function loadHookOf(plugin: Plugin,): LoadHook {
   const hook = plugin.load;
   if (hook === undefined)
     throw new Error('the plugin declares no load hook',);
-  if (typeof hook !== 'function')
+  if ((typeof hook) !== 'function')
     throw new Error('the plugin declares load in a form this case does not drive',);
-  return hook as LoadHook;
+  /**
+   Hook narrowed to its callable form, which rolldown invokes with the plugin context.
+   */
+  const loadHook = hook as LoadHook;
+  return loadHook;
 }
 
 /**
