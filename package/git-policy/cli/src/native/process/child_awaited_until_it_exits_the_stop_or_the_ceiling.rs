@@ -213,7 +213,12 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // A killed step is reaped here at once unless the kernel holds it in an uninterruptible call;
     // past the grace a task of the runtime collects it, so the kernel's release of it never holds the command.
     let reaped: Option<std::process::ExitStatus> = match tokio::time::timeout(STOP_GRACE, owned.wait()).await {
-        Ok(collected) => Some(collected?),
+        Ok(Ok(collected)) => Some(collected),
+        // What: A status the wait could not collect.
+        // Why:  The step was signalled here and the wait knows nothing of what ended it, which is what the answer says;
+        //       a commit is not failed over the reading of a status it already ended the step for
+        //       (owner: "Commits should never fail.").
+        Ok(Err(_not_collected)) => None,
         Err(_still_held) => {
             hand_to_a_task_that_collects_it(owned);
             None
