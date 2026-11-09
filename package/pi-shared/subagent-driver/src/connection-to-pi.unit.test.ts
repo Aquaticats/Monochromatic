@@ -45,16 +45,25 @@ const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
 const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
 const execFileAsync = promisifyExecFile(execFile,);
 
-/** Milliseconds Pi gets at each stage of ending; the stand-in needs no more than its own start-up. */
-const GRACE_MILLISECONDS = 1_500;
-/** Milliseconds to wait for an answer that must arrive, above the stand-in's start-up on a loaded host. */
-const ANSWER_MILLISECONDS = 10_000;
+/**
+ Milliseconds Pi gets at each stage of ending in the tests about escalating past a stage: the scenario there ignores its input
+ closing or its first signal, so the stage bound is the thing being waited out, and it is short so the test is quick.
+ */
+const ESCALATION_GRACE_MILLISECONDS = 1_500;
+/**
+ Milliseconds to wait for an answer that must arrive. The stand-in starts, answers and leaves in a fraction of this even with a
+ capped processor; the bound only matters when the connection, not the machine, is what failed, so it is generous.
+ */
+const ANSWER_MILLISECONDS = 60_000;
 /** Milliseconds to wait for an answer that will never come, far below the bound the driver ships. */
 const SHORT_ANSWER_MILLISECONDS = 50;
 /** Milliseconds between looks at what a test waits for. */
 const LOOK_MILLISECONDS = 20;
-/** Milliseconds a test waits for something the connection reports before giving up on it. */
-const REPORT_DEADLINE_MILLISECONDS = 10_000;
+/**
+ Milliseconds a test waits for something the connection reports before giving up on it. What it waits for is a report the
+ connection makes as the event arrives, so only a starved host can spend this.
+ */
+const REPORT_DEADLINE_MILLISECONDS = 60_000;
 
 type Heard = {
   readonly events: PiRecord[];
@@ -188,10 +197,17 @@ async function openConnection(
     scenario,
     withoutPi = false,
     standardErrorIsPipe = false,
+    graceMilliseconds,
   }: {
     readonly scenario: string;
     readonly withoutPi?: boolean;
     readonly standardErrorIsPipe?: boolean;
+
+    /**
+     How long Pi gets at each stage of ending. Absent means the bound the driver ships, which is what a test about Pi leaving
+     on its own terms needs: a starved host has to be allowed the same leave a real run would take.
+     */
+    readonly graceMilliseconds?: number;
   },
 ): Promise<Opened> {
   const folder = await mkdtemp(join(scratchRoot(), 'pi-connection-',),);
@@ -220,7 +236,7 @@ async function openConnection(
       STAND_IN_PI_LOG: log,
     },
     standardErrorFile,
-    graceMilliseconds: GRACE_MILLISECONDS,
+    ...(graceMilliseconds === undefined ? {} : { graceMilliseconds, }),
     listeners: {
       onEvent: (record,) => {
         heard.events.push(record,);
@@ -289,13 +305,14 @@ await describe({
       },
     },),
     it({
-      name: 'a silent Pi gives a failed answer before it leaves, so the bound asked for is the one used',
+      name: 'a silent Pi gives a failed answer naming the bound asked for, so that bound is the one used',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'exit-later', },);
         const answer = await opened.connection.send({ command: { type: 'get_state', }, answerMilliseconds: SHORT_ANSWER_MILLISECONDS, },);
         expect(answer.success,).toBe(false,);
-        expect(String(answer.error,),).toContain('no answer',);
-        expect(opened.connection.hasExited(),).toBe(false,);
+        // The answer that named no bound, or Pi's own leaving, would be a different text; this one proves the bound asked for
+        // was the bound used, whatever the host's schedule made of the two timers.
+        expect(answer.error,).toBe(`no answer in ${String(SHORT_ANSWER_MILLISECONDS,)} ms`,);
       },
     },),
     it({
@@ -313,7 +330,10 @@ await describe({
     it({
       name: 'a Pi that stays after its input closes is ended with SIGTERM',
       fn: async () => {
-        await using opened = await openConnection({ scenario: 'ignores-input-close', },);
+        await using opened = await openConnection({
+          scenario: 'ignores-input-close',
+          graceMilliseconds: ESCALATION_GRACE_MILLISECONDS,
+        },);
         await opened.connection.send({ command: { type: 'get_state', }, },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
@@ -323,7 +343,10 @@ await describe({
     it({
       name: 'a Pi that ignores SIGTERM is ended with SIGKILL',
       fn: async () => {
-        await using opened = await openConnection({ scenario: 'ignores-sigterm', },);
+        await using opened = await openConnection({
+          scenario: 'ignores-sigterm',
+          graceMilliseconds: ESCALATION_GRACE_MILLISECONDS,
+        },);
         await opened.connection.send({ command: { type: 'get_state', }, },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
@@ -373,7 +396,11 @@ await describe({
     it({
       name: 'a standard error copy that cannot finish is reported, and ending the run still returns',
       fn: async () => {
-        await using opened = await openConnection({ scenario: 'normal', standardErrorIsPipe: true, },);
+        await using opened = await openConnection({
+          scenario: 'normal',
+          standardErrorIsPipe: true,
+          graceMilliseconds: ESCALATION_GRACE_MILLISECONDS,
+        },);
         const outcome = await opened.connection.shutDown();
         expect(outcome.stopped,).toBe(true,);
         expect(opened.heard.problems.some((problem,) => problem.includes('standard error',)),).toBe(true,);
