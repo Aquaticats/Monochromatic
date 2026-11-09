@@ -108,6 +108,26 @@ pub fn remembers(runtime_dir: &Path, texts: &[(&'static str, String)]) -> bool {
 }
 
 /// What:
+///  Drops the record,
+/// so the next provisioning writes the units and asks for the reload again.
+/// Why:
+///   A service of another release that will not retire is proof that the unit the manager loaded and the files on disk
+///  disagree,
+/// and a record that says otherwise is the one thing that keeps every later commit on the fast path
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-2
+///  review).
+/// A record that is already gone is the repair someone else finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rmSync(recordPath, { force: true })
+/// ```
+pub fn forget(runtime_dir: &Path) {
+    let _removed = std::fs::remove_file(record_path(runtime_dir));
+}
+
+/// What:
 ///  Records that the manager was told about these texts.
 /// Why:
 ///   This is written only after the manager accepted the reload,

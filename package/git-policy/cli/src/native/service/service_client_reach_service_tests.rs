@@ -59,6 +59,9 @@ struct StandIn {
     /// What `ActiveState` answers,
     /// until a start replaces it.
     state: Option<String>,
+    /// The release the service greets with,
+    /// and this release unless a control says otherwise.
+    release: Option<String>,
     /// What the client asked for,
     /// in order.
     asked: Vec<String>,
@@ -67,9 +70,14 @@ struct StandIn {
 impl StandIn {
     /// A manager that holds nothing and answers nothing.
     const fn empty() -> Self {
-        return Self { socket: None, state: None, asked: Vec::new() };
+        return Self { socket: None, state: None, release: None, asked: Vec::new() };
     }
 }
+
+/// How many connections the stand-in service greets before its thread ends:
+/// a control reconnects a few times a second,
+/// and this is a bound of its own so no thread waits on a test that ended.
+const SERVED_CONNECTIONS: u32 = 400;
 
 /// The one stand-in of this test process.
 static MANAGER: Mutex<StandIn> = Mutex::new(StandIn::empty());
@@ -110,16 +118,32 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
             return false;
         }
     };
-    // The service greets the connection the client makes next, then the stand-in has done its part.
+    // The service greets the connections the client makes next, one after another: a control of a service that will not
+    //  retire reconnects until its wait ends.
     let _served = std::thread::spawn(move || {
-        let Ok((mut stream, _address)) = listener.accept() else { return };
-        let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
-        line.push('\n');
-        let _sent = stream.write_all(line.as_bytes());
+        let _set = listener.set_nonblocking(true);
+        for _attempt in 0..SERVED_CONNECTIONS {
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    let greeting: String = manager_release();
+                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(greeting) });
+                    line.push('\n');
+                    let _sent = stream.write_all(line.as_bytes());
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
     });
     let mut manager = MANAGER.lock().expect("lock");
     manager.state = Some(String::from("active"));
     return true;
+}
+
+/// The release the stand-in service greets with:
+/// this one unless a control named another.
+fn manager_release() -> String {
+    let named: Option<String> = MANAGER.lock().expect("lock").release.clone();
+    return named.unwrap_or_else(|| { return String::from(RELEASE); });
 }
 
 /// The stand-in service's listening socket at an abstract name,
@@ -166,6 +190,7 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
         withdraw_ceiling: Duration::from_secs(5),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
+        units_record_dir: None,
     };
 }
 
@@ -229,6 +254,76 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
         .filter(|call| { return call.starts_with("state "); })
         .count();
     assert!(before_the_start <= 2, "{before_the_start} state answers came before the start request: {asked_of_the_manager:?}");
+}
+
+
+/// What:
+///  A service of another release that will not retire is proof that the unit the manager loaded and the files
+///  disagree,
+/// so the record of the texts the manager was told about is dropped.
+/// Why:
+///  The record can certify the files while the manager runs the release they replaced:
+/// an interrupted downgrade
+///  writes and reloads the older release's files and is killed before it records them,
+/// and an interrupted upgrade
+///  then writes the newer files without a reload,
+/// which leaves the files and the record agreeing and the manager running
+///  the older release.
+/// Repeating the commit took the fast path into the same answer,
+/// `ClientFailure::OtherRelease`,
+/// for ever
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-2 review).
+/// The next commit now writes the units and reloads,
+/// which is the one repair of that state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reachCurrent(configWithAnotherRelease)).toEqual({ otherRelease: true }); expect(recordExists()).toBe(false);
+/// ```
+#[test]
+fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units() {
+    let socket: String = address("client-reach-other-release");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
+    // The service answers every connection as a later release of this wrapper, which reads no retire of this one.
+    let done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let serving_done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&done);
+    let serving = std::thread::spawn(move || {
+        let _set = listener.set_nonblocking(true);
+        let began: std::time::Instant = std::time::Instant::now();
+        while !serving_done.load(std::sync::atomic::Ordering::Relaxed) && began.elapsed() < Duration::from_secs(30) {
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from("another-release")) });
+                    line.push('\n');
+                    let _sent = stream.write_all(line.as_bytes());
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+    let runtime: PathBuf = crate::test_support::fixture("client-reach-other-release-runtime");
+    let texts: [(&'static str, String); 1] = [("a.service", String::from("what the manager was told"))];
+    crate::service_provision_loaded_unit_texts::record(runtime.as_path(), texts.as_slice()).expect("the record is written");
+    assert!(crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()), "the record stands before the answer");
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    // The socket answers every time, so no manager is asked; the wait for the retire is the whole of this control.
+    settings.start_watch = None;
+    settings.start_wait = Duration::from_millis(300);
+    settings.units_record_dir = Some(runtime.clone());
+    let mut announced: bool = false;
+    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("a service of another release that will not stop ends the command");
+    assert_eq!(failure, ClientFailure::OtherRelease);
+    assert!(
+        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
+        "the record is dropped, so the next commit sets the units up again"
+    );
+    done.store(true, std::sync::atomic::Ordering::Relaxed);
+    serving.join().expect("the service's thread");
+    crate::test_support::remove(runtime.as_path());
 }
 
 /// The instance name every control's unit carries,

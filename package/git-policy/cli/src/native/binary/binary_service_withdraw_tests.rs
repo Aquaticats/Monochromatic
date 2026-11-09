@@ -101,6 +101,7 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
         withdraw_ceiling: PATIENCE,
         extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: PATIENCE,
+        units_record_dir: None,
     };
 }
 

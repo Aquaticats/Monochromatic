@@ -17,6 +17,7 @@ use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_provision::ProvisionHost;
 use crate::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use crate::service_server::Bind;
+use std::path::PathBuf;
 use std::time::Duration;
 /// How long a start takes before the client says it is starting the service.
 pub const START_NOTICE_GRACE: Duration = Duration::from_secs(1);
@@ -72,6 +73,20 @@ pub struct ClientConfig {
     pub extra_wait: Duration,
     /// The longest a start is waited for when the service manager can be asked.
     pub start_ceiling: Duration,
+    /// What:
+    ///  The runtime directory whose record of the unit texts the manager was told about is dropped when a service of
+    ///  another release will not retire,
+    /// or nothing where this client did not provision.
+    /// Why:
+    ///   A service of another release that will not stop is proof that the unit the manager loaded and the files on disk
+    ///  disagree,
+    /// whatever a record says;
+    /// dropping the record makes the next commit set the units up again,
+    /// which is
+    ///  the only repair of an interrupted downgrade followed by an interrupted upgrade
+    ///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+    /// finding 2 of the round-2 review).
+    pub units_record_dir: Option<PathBuf>,
 }
 
 /// What:

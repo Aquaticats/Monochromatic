@@ -3430,6 +3430,21 @@ and
   however often it is run.
   Test:
   `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
+  The record alone cannot tell a state the manager disagrees with:
+  an interrupted downgrade writes and reloads the
+    older release and is killed before it records that,
+  and an interrupted upgrade then writes the newer files without a reload,
+  which leaves the files and the record agreeing while the manager runs the release they replaced.
+  The client knows:
+  a service that answers was started from another release and will not retire is proof that the
+  unit the manager loaded and the files on disk disagree,
+  so `reach_current` drops the record
+  (`units_record_dir` in the client's settings),
+  and the next commit writes the units and asks for the reload.
+  The message now says so,
+  and names the restart for a service that still will not stop.
+  Test:
+  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`.
 
 
 #### Commands that add commits

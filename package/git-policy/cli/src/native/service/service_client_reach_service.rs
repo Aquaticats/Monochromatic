@@ -230,6 +230,15 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             }
         };
         if Instant::now() >= deadline {
+            // What: A service of another release will not stop, so the manager and the files disagree.
+            // Why:  The record of the texts the manager was told about can certify the files while the manager runs the
+            //       release they replaced (an interrupted downgrade, then an interrupted upgrade). Dropping it makes the
+            //       next commit write and reload instead of taking the fast path into the same answer
+            //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+            //        finding 2 of the round-2 review).
+            if let Some(directory) = config.units_record_dir.as_ref() {
+                crate::service_provision_loaded_unit_texts::forget(directory.as_path());
+            }
             return Err(ClientFailure::OtherRelease);
         }
         // Written in the version the service announced: a service of an earlier release reads a retire in no other.
