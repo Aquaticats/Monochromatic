@@ -100,12 +100,80 @@ fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, Str
 }
 
 /// What:
-///  Split `git cat-file --batch` output for the requested names into texts;
-/// a name Git reports `missing` has none.
-///  Every byte of the output must belong to one of the requested names,
-/// so a reply nothing asked for is a failure,
-/// not text
-///  hung on the last name.
+///  One object a batch request asks for:
+/// the changed path it is the file of,
+/// and the bytes that name it in the request.
+/// Why:
+///   Git echoes the bytes of a `missing` object's name exactly as the request wrote them,
+/// so a
+///  reply can only be recognised as missing by comparing its own request's bytes,
+/// which must travel with the
+///  request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RequestedObject = { name: ChangedPath; spec: Uint8Array };
+/// ```
+#[derive(Clone)]
+pub struct RequestedObject {
+    /// The path the object is the file of.
+    pub name: ChangedPath,
+    /// `sha:path`,
+    /// as the request writes it.
+    pub spec: Vec<u8>,
+}
+
+/// What:
+///  The objects a request asks for of `sha`,
+/// each named by the commit,
+/// a colon and the path's own bytes.
+/// Why:
+///   One value holds the request and the identity a reply is checked against,
+/// so the request body and the
+///  parser cannot disagree about what was asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const objects = names.map((name) => ({ name, spec: concat(utf8(sha), ':', name.bytes) }));
+/// ```
+fn requested_objects(sha: &str, names: &[ChangedPath]) -> Vec<RequestedObject> {
+    let mut objects: Vec<RequestedObject> = Vec::with_capacity(names.len());
+    for name in names {
+        let mut spec: Vec<u8> = Vec::new();
+        spec.extend_from_slice(sha.as_bytes());
+        spec.push(b':');
+        spec.extend_from_slice(name.as_bytes());
+        objects.push(RequestedObject { name: name.clone(), spec });
+    }
+    return objects;
+}
+
+/// What:
+///  The reply Git writes for an object the store does not hold:
+/// the request's own bytes,
+/// a space and `missing`.
+/// Why:
+///   A name holding a line feed is echoed whole,
+/// so this is the only text a missing reply can be recognised by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const missingLine = (spec) => concat(spec, ' missing\n');
+/// ```
+fn missing_line(spec: &[u8]) -> Vec<u8> {
+    let mut line: Vec<u8> = Vec::with_capacity(spec.len() + 9);
+    line.extend_from_slice(spec);
+    line.extend_from_slice(b" missing\n");
+    return line;
+}
+
+/// What:
+///  Split `git cat-file --batch` output for the requested objects into texts;
+/// an object Git reports `missing` has none.
+///  Every byte of the output must belong to one of the requested objects,
+/// so a reply nothing asked for is a
+///  failure,
+/// not text hung on the last object.
 /// Why:
 ///   A file the commit deleted has no new-side text,
 /// and a size says where content ends,
@@ -115,21 +183,25 @@ fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, Str
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parseBatch({ output, names }): Map<ChangedPath, string>
+/// parseBatch({ output, objects }): Map<ChangedPath, string>
 /// ```
-pub fn parse_batch(output: &[u8], names: &[ChangedPath]) -> Result<BTreeMap<ChangedPath, String>, String> {
+pub fn parse_batch(output: &[u8], objects: &[RequestedObject]) -> Result<BTreeMap<ChangedPath, String>, String> {
     let mut texts: BTreeMap<ChangedPath, String> = BTreeMap::new();
     let mut offset: usize = 0;
-    for name in names {
+    for object in objects {
+        let name: &ChangedPath = &object.name;
+        // A missing object's reply is its own request's bytes, so it is compared before any line feed is looked for.
+        let missing: Vec<u8> = missing_line(object.spec.as_slice());
+        if output[offset..].starts_with(missing.as_slice()) {
+            offset += missing.len();
+            continue;
+        }
         let Some(relative) = output[offset..].iter().position(is_line_feed_byte) else {
             return Err(format!("git cat-file omitted the header for {name}"));
         };
         let header: String = String::from_utf8_lossy(&output[offset..offset + relative]).into_owned();
         offset += relative + 1;
         let fields: Vec<&str> = header.split(' ').collect();
-        if fields.len() == 2 && fields[1] == "missing" {
-            continue;
-        }
         let announced_size: Option<usize> = match fields.get(2) {
             Some(text) => text.parse::<usize>().ok(),
             None => None,
@@ -147,7 +219,7 @@ pub fn parse_batch(output: &[u8], names: &[ChangedPath]) -> Result<BTreeMap<Chan
         offset = end + 1;
     }
     if offset != output.len() {
-        return Err(format!("git cat-file answered more objects than the {} the review asked for", names.len()));
+        return Err(format!("git cat-file answered more objects than the {} the review asked for", objects.len()));
     }
     return Ok(texts);
 }
@@ -207,11 +279,8 @@ pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<Strin
 }
 
 /// What:
-///  One `git cat-file --batch -z` request body for the objects of `sha` at `names`:
-/// each spec is the commit name,
-/// a colon,
-/// the path's own bytes,
-/// and the NUL byte that ends it.
+///  The `git cat-file --batch -z` request body for `objects`:
+/// each object's spec and the NUL byte that ends it.
 /// Why:
 ///   A path may contain a line feed,
 /// which would end the request in the middle of a name and let the rest of the name be read as
@@ -222,17 +291,15 @@ pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<Strin
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const specs = names.map((n) => Buffer.concat([utf8(sha), colon, n.bytes, nul]));
+/// const body = concat(objects.map((o) => Buffer.concat([o.spec, nul])));
 /// ```
-fn batch_request(sha: &str, names: &[ChangedPath]) -> Vec<u8> {
-    let mut specs: Vec<u8> = Vec::new();
-    for name in names {
-        specs.extend_from_slice(sha.as_bytes());
-        specs.push(b':');
-        specs.extend_from_slice(name.as_bytes());
-        specs.push(0);
+fn batch_request(objects: &[RequestedObject]) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+    for object in objects {
+        body.extend_from_slice(object.spec.as_slice());
+        body.push(0);
     }
-    return specs;
+    return body;
 }
 
 /// What:
@@ -255,8 +322,9 @@ fn batch_request(sha: &str, names: &[ChangedPath]) -> Vec<u8> {
 pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: &str, code_files: &[ChangedPath]) -> Result<LandedCommit, String> {
     let patch: String = read_patch(context, cwd, sha)?;
     let wanted: Vec<ChangedPath> = code_files.iter().take(MAX_EXCERPT_FILES).cloned().collect();
+    let objects: Vec<RequestedObject> = requested_objects(sha, wanted.as_slice());
     let mut request: GitRequest = GitRequest::new(cwd, &[OsString::from("cat-file"), OsString::from("--batch"), OsString::from("-z")]);
-    request.input = Some(batch_request(sha, wanted.as_slice()));
+    request.input = Some(batch_request(objects.as_slice()));
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(format!("starting git cat-file failed: {error}")),
@@ -264,7 +332,7 @@ pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: 
     if !output.succeeded() {
         return Err(format!("git cat-file failed: {}", output.error_text()));
     }
-    let contents: BTreeMap<ChangedPath, String> = parse_batch(output.stdout.as_slice(), wanted.as_slice())?;
+    let contents: BTreeMap<ChangedPath, String> = parse_batch(output.stdout.as_slice(), objects.as_slice())?;
     return Ok(LandedCommit { sha: String::from(sha), subject: String::from(subject), patch, contents });
 }
 

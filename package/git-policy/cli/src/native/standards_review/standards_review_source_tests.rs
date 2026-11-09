@@ -10,17 +10,25 @@ use std::path::PathBuf;
 #[test]
 fn batch_output_is_read_by_size_with_missing_names_absent() {
     let names: Vec<ChangedPath> = ["a.ts", "gone.ts", "b.rs"].iter().map(|name| return ChangedPath::from_bytes(name.as_bytes().to_vec())).collect();
-    let output: &[u8] = b"oid1 blob 5\nx\ny\nz\nHEAD:gone.ts missing\noid2 blob 0\n\n";
-    let texts: BTreeMap<ChangedPath, String> = parse_batch(output, names.as_slice()).expect("parsed");
+    let objects: Vec<RequestedObject> = requested_objects("s", names.as_slice());
+    let output: String = format!("oid1 blob 5\nx\ny\nz\n{}oid2 blob 0\n\n", String::from_utf8(missing_line(objects[1].spec.as_slice())).expect("ascii"));
+    let texts: BTreeMap<ChangedPath, String> = parse_batch(output.as_bytes(), objects.as_slice()).expect("parsed");
     let named = |text: &str| return ChangedPath::from_bytes(text.as_bytes().to_vec());
     assert_eq!(texts.get(&named("a.ts")).map(String::as_str), Some("x\ny\nz"));
     assert_eq!(texts.get(&named("b.rs")).map(String::as_str), Some(""));
     assert!(!texts.contains_key(&named("gone.ts")));
-    assert!(parse_batch(b"oid1 blob 5\nx\ny\nz\noid2 blob 5\nx\ny\nz\n", &names[..1]).is_err(), "a reply nothing asked for is not text for the last name");
-    assert!(parse_batch(b"", names.as_slice()).is_err());
-    assert!(parse_batch(b"oid1 tree 3\nabc\n", &names[..1]).is_err());
-    assert!(parse_batch(b"oid1 blob 9\nabc\n", &names[..1]).is_err());
-    assert!(parse_batch(b"oid1 blob x\nabc\n", &names[..1]).is_err());
+    assert!(parse_batch(b"oid1 blob 5\nx\ny\nz\noid2 blob 5\nx\ny\nz\n", &objects[..1]).is_err(), "a reply nothing asked for is not text for the last name");
+    assert!(parse_batch(b"", objects.as_slice()).is_err());
+    assert!(parse_batch(b"oid1 tree 3\nabc\n", &objects[..1]).is_err());
+    assert!(parse_batch(b"oid1 blob 9\nabc\n", &objects[..1]).is_err());
+    assert!(parse_batch(b"oid1 blob x\nabc\n", &objects[..1]).is_err());
+    // A missing object whose name holds a line feed is absent, not a header the parser cannot read.
+    let awkward: Vec<ChangedPath> = vec![ChangedPath::from_bytes(b"gone\nHEAD:x.ts".to_vec())];
+    let awkward_objects: Vec<RequestedObject> = requested_objects("s", awkward.as_slice());
+    let mut echoed: Vec<u8> = missing_line(awkward_objects[0].spec.as_slice());
+    echoed.extend_from_slice(b"oid2 blob 0\n\n");
+    let parsed: BTreeMap<ChangedPath, String> = parse_batch(echoed.as_slice(), &[awkward_objects[0].clone(), RequestedObject { name: ChangedPath::from_bytes(b"x.ts".to_vec()), spec: b"s:x.ts".to_vec() }]).expect("a missing awkward name parses");
+    assert_eq!(parsed.len(), 1);
 }
 
 /// A commit that changes,
