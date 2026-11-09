@@ -424,13 +424,14 @@ fn settle_creation(
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {
             let finish_rung_entered: bool = begin_step("finishRung");
-            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout());
+            // The line Git's checkout prints goes to the standard output, and every note about what the add did instead goes to the stream this command was given, so a caller that hands in its own report reads the whole of it.
+            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout(), stderr);
             end_step(finish_rung_entered);
             Ok(finished)
         }
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
-            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink());
+            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink(), stderr);
             Err(error)
         }
     };

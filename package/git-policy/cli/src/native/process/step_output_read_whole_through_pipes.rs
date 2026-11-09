@@ -61,17 +61,28 @@ pub struct StepPipes {
 /// const pipes = await attachPipes(command); // throws before any child exists
 /// ```
 pub fn attach_pipes(command: &mut Command) -> std::io::Result<StepPipes> {
-    let made = run_on_runtime(async {
-        let (output_reader, output_writer) = std::io::pipe()?;
-        let (error_reader, error_writer) = std::io::pipe()?;
-        let standard_output: Receiver = Receiver::from_owned_fd(OwnedFd::from(output_reader))?;
-        let standard_error: Receiver = Receiver::from_owned_fd(OwnedFd::from(error_reader))?;
-        return Ok::<_, std::io::Error>((StepPipes { standard_output, standard_error }, output_writer, error_writer));
-    });
-    let (pipes, output_writer, error_writer) = match made {
-        Ok(opened) => opened?,
-        Err(refusal) => return Err(std::io::Error::other(refusal.to_string())),
+    return match run_on_runtime(attach_pipes_awaiting(command)) {
+        Ok(opened) => opened,
+        Err(refusal) => Err(std::io::Error::other(refusal.to_string())),
     };
+}
+
+/// What:
+///  `attach_pipes` as the future a task of the runtime awaits.
+/// Why:
+///   The read ends must be registered with the reactor of the runtime the wait will run on,
+/// and a caller that is already a task has one;
+///  entering the runtime from inside it would never end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipes = await attachPipes(command);
+/// ```
+pub async fn attach_pipes_awaiting(command: &mut Command) -> std::io::Result<StepPipes> {
+    let (output_reader, output_writer) = std::io::pipe()?;
+    let (error_reader, error_writer) = std::io::pipe()?;
+    let pipes: StepPipes =
+        StepPipes { standard_output: Receiver::from_owned_fd(OwnedFd::from(output_reader))?, standard_error: Receiver::from_owned_fd(OwnedFd::from(error_reader))? };
     command.stdout(Stdio::from(output_writer)).stderr(Stdio::from(error_writer));
     return Ok(pipes);
 }
@@ -126,17 +137,14 @@ impl StepPipes {
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
     pub fn read_until_the_child_ends(self, child: Child) -> std::io::Result<Output> {
+        // Both wait in an `Option`: whichever of the two paths runs takes them, and a refused runtime leaves them here.
         let mut waiting: Option<Child> = Some(child);
-        let StepPipes { standard_output, standard_error } = self;
+        let mut unread: Option<StepPipes> = Some(self);
         let finished = run_on_runtime(async {
-            let Some(mut input_closed) = waiting.take() else {
-                return Err(std::io::Error::other("the child was handed over twice"));
+            return match (unread.take(), waiting.take()) {
+                (Some(open), Some(started)) => read_until_the_child_ends_awaiting(open, started).await,
+                _ => Err(std::io::Error::other("the child or its pipes were handed over twice")),
             };
-            drop(input_closed.stdin.take());
-            let mut owned = adopt(input_closed);
-            let (read_output, read_error, waited) = tokio::join!(read_whole(standard_output), read_whole(standard_error), owned.wait());
-            let status: ExitStatus = waited?;
-            return Ok(Output { status, stdout: read_output?, stderr: read_error? });
         });
         return match finished {
             Ok(output) => output,
@@ -150,4 +158,45 @@ impl StepPipes {
             }
         };
     }
+
+    /// What:
+    ///  `read_until_the_child_ends` as the future a task of the runtime awaits,
+    /// with no call into the runtime from inside it.
+    /// Why:
+    ///   A caller that is already a task (the asynchronous Git runner,
+    /// `transaction/transaction_git_awaiting.rs`) must not enter the runtime
+    ///  from inside it;
+    /// this is the same wait those callers make.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
+    /// ```
+    pub async fn read_until_the_child_ends_awaiting(self, child: Child) -> std::io::Result<Output> {
+        return read_until_the_child_ends_awaiting(self, child).await;
+    }
+}
+
+/// What:
+///  Reads both pipes of a started child to their end while its exit is awaited,
+/// on the runtime the caller already runs on.
+/// Why:
+///   The one body both faces of this wait share,
+/// so a synchronous caller and a task cannot report differently;
+/// the child's input is closed first,
+///  as `wait_with_output` closes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
+/// ```
+async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child) -> std::io::Result<Output> {
+    let StepPipes { standard_output, standard_error } = pipes;
+    // `mut` lets the wait take the standard input away before the join.
+    let mut input_closed: Child = child;
+    drop(input_closed.stdin.take());
+    let mut owned = adopt(input_closed);
+    let (read_output, read_error, waited) = tokio::join!(read_whole(standard_output), read_whole(standard_error), owned.wait());
+    let status: ExitStatus = waited?;
+    return Ok(Output { status, stdout: read_output?, stderr: read_error? });
 }

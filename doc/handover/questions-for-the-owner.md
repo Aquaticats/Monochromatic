@@ -100,6 +100,13 @@ Each record is cited so the context is one read away.
   they give `rg` an ignored or null standard input,
   or pass `--files`.
   Should that override apply to this refusal before the release?
+- Issue 3474 also asked whether an unbounded `rg` over a large tree that is not a repository,
+  such as `~/temp/agent`,
+  should be limited too:
+  by a cap on the shadow's own output,
+  or by treating known scratch roots like a repository root.
+  Neither is built.
+  Is either wanted?
 - `package/hall-monitor/daemon` fails its own `lint:oxlint` on `test-import(require-eventual-artifact)`,
   two findings before and four now that it has the tests issue 1297 asked for.
   The rule needs an import from a built artifact,
