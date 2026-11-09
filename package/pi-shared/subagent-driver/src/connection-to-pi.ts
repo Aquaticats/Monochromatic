@@ -12,113 +12,36 @@ import {
   SHUTDOWN_GRACE_MILLISECONDS,
 } from './driver-constants.ts';
 import type {
+  CommandAnswer,
   PiExit,
   PiRecord,
 } from './driver-types.ts';
+import type {
+  CommandRequest,
+  ConnectionListeners,
+  ConnectionRequest,
+  ConnectionToPi,
+  ShutDownOutcome,
+  ShutDownRequest,
+} from './shapes-of-the-connection.ts';
+import {
+  startReadingPiRecords,
+  type PiRecords,
+} from './pi-records-on-a-channel.ts';
+import {
+  startWaitingForAnAnswer,
+  type WaitingForAnAnswer,
+} from './wait-for-an-answer.ts';
 import { keepStandardError, } from './keep-standard-error.ts';
-import { isRecord, } from './read-pi-fields.ts';
-import { startLineSplitter, } from './split-pi-output.ts';
 
-/**
- Stands for a line that held no record.
- */
-const UNREADABLE_LINE: PiRecord = Object.freeze({},);
-
-/**
- What the connection tells the run about.
- */
-export type ConnectionListeners = {
-  readonly onEvent: (record: PiRecord,) => void;
-  readonly onUnreadableLine: (line: string,) => void;
-  readonly onExit: (exit: PiExit,) => void;
-
-  /**
-   A failure of the channel itself, such as a write to a Pi that has gone.
-   */
-  readonly onProblem: (problem: string,) => void;
-};
-
-/**
- What starting Pi needs.
- */
-export type ConnectionRequest = {
-  readonly piArguments: readonly string[];
-  readonly workingFolder: string;
-
-  /**
-   Pi's environment, passed as given: this seam starts one process and applies no policy. `supervisePiRun` is where the
-   credential rule runs, so a caller of this function that builds its own environment keeps whatever it passes.
-   */
-  readonly environment: NodeJS.ProcessEnv;
-  readonly standardErrorFile: string;
-  readonly listeners: ConnectionListeners;
-
-  /**
-   How long Pi gets at each stage of ending; tests shorten it.
-   */
-  readonly graceMilliseconds?: number;
-};
-
-/**
- A command to send and how long to wait for its answer.
- */
-export type CommandRequest = {
-  readonly command: PiRecord;
-  readonly answerMilliseconds?: number;
-};
-
-/**
- What ending Pi needs.
- */
-export type ShutDownRequest = {
-  /**
-   How long each stage of ending Pi may take. The whole ending takes at most `SHUTDOWN_STAGES` of these, so a caller that has its
-   own bound divides it by that count.
-   */
-  readonly graceMilliseconds?: number;
-};
-
-/**
- How ending Pi went.
- */
-export type ShutDownOutcome =
-  | { readonly stopped: true }
-    | {
-      readonly stopped: false;
-
-    /**
-     Why the driver could not confirm that Pi had gone.
-     */
-      readonly reason: string;
-    };
-
-/**
- A running Pi.
- */
-export type ConnectionToPi = {
-  readonly hasExited: () => boolean;
-
-  /**
-   How Pi ended, or nothing while it runs.
-   */
-  readonly exitDetails: () => PiExit;
-
-  /**
-   Writes a command with no answer to wait for.
-   */
-  readonly write: (command: PiRecord,) => void;
-
-  /**
-   Sends a command and waits for its answer, within a bound. Pi's silence or absence comes back as a failed answer.
-   */
-  readonly send: (request: CommandRequest,) => Promise<PiRecord>;
-
-  /**
-   Ends Pi: closes its input, then signals it if it stays, then settles every handle. It reports whether Pi's leaving could be
-   confirmed, because a signal the operating system refused is not proof that Pi went.
-   */
-  readonly shutDown: (request?: ShutDownRequest,) => Promise<ShutDownOutcome>;
-};
+export type {
+  CommandRequest,
+  ConnectionListeners,
+  ConnectionRequest,
+  ConnectionToPi,
+  ShutDownOutcome,
+  ShutDownRequest,
+} from './shapes-of-the-connection.ts';
 
 /**
  Starts Pi and returns the connection to it.
@@ -171,7 +94,7 @@ export function startConnectionToPi(
   /**
    The commands waiting for Pi's answers, by identifier.
    */
-  const waitingForAnswer = new Map<string, (answer: PiRecord,) => void>();
+  const waitingForAnswer = new Map<string, WaitingForAnAnswer>();
   /**
    Settles once Pi is known to have gone.
    */
@@ -206,6 +129,20 @@ export function startConnectionToPi(
   };
 
   /**
+   Pi's records, which say when a compaction begins and ends and carry the answers every command waits for.
+   */
+  const records: PiRecords = startReadingPiRecords({
+    output: child.stdout,
+    input: child.stdin,
+    hasExited: function hasExited() {
+      return state.exit !== undefined;
+    },
+    waitingForAnswer,
+    listeners,
+  },);
+
+
+  /**
    Records that Pi has gone, once, and answers every command still waiting.
 
    @param exit - how Pi ended
@@ -216,10 +153,10 @@ export function startConnectionToPi(
     }
     state.exit = exit;
     listeners.onExit(exit,);
-    for (const answer of waitingForAnswer.values()) {
-      answer({
-        success: false,
-        error: 'pi exited',
+    for (const waiting of waitingForAnswer.values()) {
+      waiting.settle({
+        ending: 'pi-exited',
+        problem: 'pi exited',
       },);
     }
     closed.resolve('closed',);
@@ -251,84 +188,39 @@ export function startConnectionToPi(
   }
 
   /**
-   Parses a line.
+   Sends a command and waits for its answer, counting only the time Pi is silent.
 
-   @param line - text of one record
-
-   @returns the record, or the marker for a line that held none, after reporting it
-   */
-  function parseLine(line: string,): PiRecord {
-    try {
-      /**
-       The line's value, of any shape.
-       */
-      const parsed: unknown = JSON.parse(line,);
-      if (isRecord(parsed,)) {
-        return parsed;
-      }
-      listeners.onUnreadableLine(line,);
-      return UNREADABLE_LINE;
-    }
-    catch (error) {
-      listeners.onUnreadableLine(`${line} (${String(error,)})`,);
-      return UNREADABLE_LINE;
-    }
-  }
-
-  /**
-   Hands one line to whoever waits for it.
-
-   @param line - text of one record
-   */
-  function readLine(line: string,): void {
-    if (line.trim() === '') {
-      return;
-    }
-    /**
-     The record, or the marker for a line that held none.
-     */
-    const record = parseLine(line,);
-    if (record === UNREADABLE_LINE) {
-      return;
-    }
-    if ((record.type === 'response') && ((typeof record.id) === 'string')) {
-      waitingForAnswer.get(record.id,)?.(record,);
-      return;
-    }
-    listeners.onEvent(record,);
-  }
-
-  /**
-   Writes a command if Pi can still read it.
-
-   @param command - record to send
-   */
-  function write(command: PiRecord,): void {
-    if (state.exit === undefined) {
-      child.stdin
-        .write(`${JSON.stringify(command,)}\n`,);
-    }
-  }
-
-  /**
-   Sends a command and waits for its answer.
+   Pi's silence is the time it spends neither answering nor compacting: a compaction under way is Pi at work on its own session,
+   not Pi gone or Pi refusing, so this wait stops counting silence for as long as Pi reports one (its `compaction_start` and
+   `compaction_end` records) and starts counting again when the compaction ends. The deadline its caller gives ends the wait
+   whatever Pi is doing, which is what bounds a compaction that never ends.
 
    @param command - record to send
 
-   @param answerMilliseconds - longest wait
+   @param answerMilliseconds - longest silence waited out
 
-   @returns Pi's answer, or a failed answer when Pi has gone or stays silent
+   @param deadline - when the wait must be over whatever Pi reports
+
+   @returns Pi's answer, or how the wait ended instead
    */
   async function send(
     {
       command,
       answerMilliseconds = COMMAND_ANSWER_MILLISECONDS,
+      deadline,
     }: CommandRequest,
-  ): Promise<PiRecord> {
+  ): Promise<CommandAnswer> {
     if (state.exit !== undefined) {
       return {
-        success: false,
-        error: 'pi exited',
+        ending: 'pi-exited',
+        problem: 'pi exited',
+      };
+    }
+    if (deadline <= Date.now()) {
+      // Nothing is written for a wait that is already over, so Pi is never sent a command whose answer nobody would read.
+      return {
+        ending: 'deadline',
+        problem: 'no answer before the deadline',
       };
     }
     state.commandsSent += 1;
@@ -337,34 +229,25 @@ export function startConnectionToPi(
      */
     const id = `driver-${String(state.commandsSent,)}`;
     /**
-     The answer, settled by whichever comes first.
+     The wait for this answer, which counts only the silence Pi keeps and never outlasts the deadline its caller gave.
      */
-    const answer = Promise.withResolvers<PiRecord>();
-    /**
-     The bound on the wait.
-     */
-    const timer = setTimeout(
-      function giveUpOnAnswer() {
-        answer.resolve({
-          success: false,
-          error: `no answer in ${String(answerMilliseconds,)} ms`,
-        },);
-      },
+    const waiting = startWaitingForAnAnswer({
       answerMilliseconds,
-    );
+      deadline,
+      compactionOfPi: records.compactionOfPi,
+    },);
     waitingForAnswer.set(
       id,
-      answer.resolve,
+      waiting,
     );
-    write({
+    records.write({
       ...command,
       id,
     },);
     /**
      What came back.
      */
-    const result = await answer.promise;
-    clearTimeout(timer,);
+    const result = await waiting.answer;
     waitingForAnswer.delete(id,);
     return result;
   }
@@ -483,11 +366,6 @@ export function startConnectionToPi(
     return { stopped: true, };
   }
 
-  child.stdout
-    .on(
-    'data',
-    startLineSplitter({ onLine: readLine, },),
-    );
   child.on(
     'spawn',
     function onSpawn() {
@@ -541,7 +419,7 @@ export function startConnectionToPi(
     exitDetails: function exitDetails() {
       return state.exit ?? {};
     },
-    write,
+    write: records.write,
     send,
     shutDown,
   };

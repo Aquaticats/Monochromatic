@@ -73,6 +73,11 @@ const RUN_WALL_SECONDS = 300;
  reach first, so start-up delayed past this limit changes how the run got there, never what it ends with.
  */
 const SHORT_WALL_SECONDS = 1;
+/**
+ Seconds a run may last when its subject is a compaction that outlives it: above the start-up and the three commands before the
+ prompt, so the wall clock reaches the run while Pi is compacting, and short so the test is quick.
+ */
+const COMPACTION_WALL_SECONDS = 3;
 /** Seconds of silence after which a settled run ends. */
 const IDLE_SECONDS = 0.2;
 /** Seconds of idle wait in tests that end the run with the stop file. */
@@ -685,6 +690,17 @@ await describe({
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('prompt-rejected',);
         expect(run.standardError,).toContain('prompt-rejected',);
+      },
+    },),
+    it({
+      name: 'a Pi whose compaction outlives the run ends at the wall clock, and the summary and the message name the compaction',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'compaction-never-ends', wallSeconds: COMPACTION_WALL_SECONDS, },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        expect(run.feed.some((entry,) => entry.kind === 'compaction_start'),).toBe(true,);
+        expect(String(run.summary.compactionProblem,),).toContain('compacting',);
+        expect(run.standardError,).toContain('compacting',);
       },
     },),
     it({

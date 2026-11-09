@@ -288,5 +288,68 @@ await describe({
         expect('piExit' in summary,).toBe(false,);
       },
     },),
+    it({
+      name: 'names the compaction Pi could not finish, which no reply of the run recovers',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, clock, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: { type: 'compaction_start', reason: 'threshold', },
+          declineDialog: declineNothing,
+        },);
+        clock.at += SILENCE_MILLISECONDS;
+        record.observe({
+          event: {
+            type: 'compaction_end',
+            reason: 'threshold',
+            aborted: false,
+            errorMessage: 'Auto-compaction failed: the request is larger than the model window',
+          },
+          declineDialog: declineNothing,
+        },);
+        expect((await summaryOf(record,)).compactionProblem,)
+          .toBe('Auto-compaction failed: the request is larger than the model window',);
+      },
+    },),
+    it({
+      name: 'notes a compaction still running as the run ended, naming it and how long it had run',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, clock, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: { type: 'compaction_start', reason: 'threshold', },
+          declineDialog: declineNothing,
+        },);
+        clock.at += SILENCE_MILLISECONDS;
+        expect((await summaryOf(record,)).compactionProblem,)
+          .toBe(`Pi was still compacting (threshold) after ${String(SILENCE_MILLISECONDS,)} ms`,);
+      },
+    },),
+    it({
+      name: 'a compaction that worked and one Pi aborted leave no problem behind',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: { type: 'compaction_start', reason: 'threshold', },
+          declineDialog: declineNothing,
+        },);
+        record.observe({
+          event: { type: 'compaction_end', reason: 'threshold', aborted: false, },
+          declineDialog: declineNothing,
+        },);
+        expect('compactionProblem' in (await summaryOf(record,)),).toBe(false,);
+        const aborted = recordOnOwnClock(join(folder.path, 'aborted.jsonl',),);
+        aborted.record.observe({
+          event: { type: 'compaction_start', reason: 'manual', },
+          declineDialog: declineNothing,
+        },);
+        aborted.record.observe({
+          event: { type: 'compaction_end', reason: 'manual', aborted: true, },
+          declineDialog: declineNothing,
+        },);
+        expect((await summaryOf(aborted.record,)).compactionProblem,).toBe('Pi aborted the compaction',);
+      },
+    },),
   ],
 },);

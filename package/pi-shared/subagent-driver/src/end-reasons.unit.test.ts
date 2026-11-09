@@ -10,6 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  endReasonOfPromptWait,
   finalEndReason,
   NO_RUN_FAILURE,
 } from '../dist/final/node/index.mjs';
@@ -120,6 +121,76 @@ await describe({
           feedProblem: failed('EISDIR',),
           piExit: { code: 0, },
         },),).toBe('driver-failed',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: endReasonOfPromptWait.name,
+  children: [
+    it({
+      name: 'a wait the run\'s deadline ended is the wall clock, whatever Pi was doing',
+      fn: async () => {
+        expect(endReasonOfPromptWait({
+          answer: {
+            ending: 'deadline',
+            problem: 'no answer before the deadline',
+            compactionProblem: 'Pi was still compacting (threshold) after 400 ms',
+          },
+          passedDeadline: true,
+        },),).toBe('wall-clock',);
+      },
+    },),
+    it({
+      name: 'a prompt Pi would not take while nothing failed is a rejected prompt',
+      fn: async () => {
+        expect(endReasonOfPromptWait({
+          answer: {
+            ending: 'silence',
+            problem: 'no answer in 30000 ms',
+          },
+          passedDeadline: false,
+        },),).toBe('prompt-rejected',);
+        expect(endReasonOfPromptWait({
+          answer: {
+            ending: 'answered',
+            record: { success: false, },
+          },
+          passedDeadline: false,
+        },),).toBe('prompt-rejected',);
+      },
+    },),
+    it({
+      name: 'silence after a compaction Pi could not finish names the compaction, not a prompt Pi refused',
+      fn: async () => {
+        expect(endReasonOfPromptWait({
+          answer: {
+            ending: 'silence',
+            problem: 'no answer in 30000 ms',
+            compactionProblem: 'Auto-compaction failed: the request is larger than the model window',
+          },
+          passedDeadline: false,
+        },),).toBe('compaction-failed',);
+      },
+    },),
+    it({
+      name: 'a wait Pi left is a Pi that exited, and a refusal the deadline had already reached is the wall clock',
+      fn: async () => {
+        expect(endReasonOfPromptWait({
+          answer: {
+            ending: 'pi-exited',
+            problem: 'pi exited',
+          },
+          passedDeadline: false,
+        },),).toBe('pi-exited',);
+        expect(endReasonOfPromptWait({
+          answer: {
+            ending: 'answered',
+            record: { success: false, },
+          },
+          passedDeadline: true,
+        },),).toBe('wall-clock',);
       },
     },),
   ],
