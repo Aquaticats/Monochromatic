@@ -291,7 +291,7 @@ never by gaining flags.
 
 - `package/terminal/app/mise.toml:68` and the twelve copies in `task.ts` (`--memory=4g --cpus=4`):
   the twelve `task.ts` copies now pass `containerLimitArguments(containerBound)`, and so does the `mise.toml` body
-  since 2026-11-08T20:00:00-05:00: before that, `mise run //package/terminal/app:build:container` started the
+  since this pass: before that, `mise run //package/terminal/app:build:container` started the
   compiler container with the two literal flags and no `--pids-limit` (the observed `pids.max` was Podman's 2048)
   and no weight, while the inventory said it had them.
   The 4g is measured (2.97 GiB, 74 percent of it, on a build that reused a warm target directory) and 1024 processes
@@ -438,7 +438,7 @@ and `AGENTS.md` rule NQH keeps the measurement at the load the host already has.
 
 ### Measured runs on this host
 
-Probe pass of 2026-11-08T19:46:11-05:00 on branch
+Pass of 2026-11-08T19:18:31-05:00 to 19:57:43-05:00 on branch
 `docs/container-limit-sizes-measured-from-their-own-workloads`.
 Each entry is one run of a site's own task,
 at the load the host already had,
@@ -521,7 +521,7 @@ and every Windows and macOS leg.
   was throttled in 207 of 2260 CPU periods (164.8 s of throttled time),
   and killed nothing.
   Two limits of this figure:
-  the build reused the target directory the failed attempt below had already filled,
+  the build reused the target directory the failed attempt named later in this bullet had already filled,
   so a cold build can go higher,
   and the variants covered are the release build only.
   `lint:clippy:container` and `test:container` share this bound and were not run.
