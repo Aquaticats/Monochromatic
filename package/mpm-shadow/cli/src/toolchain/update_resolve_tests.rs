@@ -7,7 +7,7 @@ use super::fakes::{FakeHttp, Rig};
 use super::hash::sha256_hex;
 use super::model::{Artifact, Declaration, Request};
 use super::update_android_conda::{cmdline_packages, resolve_android, resolve_conda};
-use super::update_github::{glob_matches, resolve_github};
+use super::update_github::{asset_digest, glob_matches, resolve_github};
 use super::update_github_assets::pick_asset;
 use super::update_go_zig::{resolve_go_module, resolve_go_runtime, resolve_zig};
 use super::update_java_aws::{resolve_aws, resolve_java};
@@ -558,4 +558,19 @@ fn conda_keeps_a_complete_lower_build_row_when_a_higher_build_row_is_incomplete(
     let resolution = resolve_conda(&rig.context(), "bubblewrap", None).expect("the complete row resolves the platform");
     assert_eq!(row(&resolution.artifacts, "linux-x64").sha256, "a1");
     assert_eq!(row(&resolution.artifacts, "linux-arm64").sha256, "b1");
+}
+
+/// A digest of another algorithm is not recorded as the artifact SHA-256:
+/// the file is hashed instead, so the lock row can verify at install time.
+#[test]
+fn a_non_sha256_asset_digest_falls_back_to_hashing_the_download() {
+    let rig = Rig::new();
+    let url = "https://github.com/o/r/releases/download/v1/tool.tar.gz";
+    rig.http.serve(url, b"the bytes");
+    let other = serde_json::json!({"name": "tool.tar.gz", "browser_download_url": url, "digest": "sha384:abcd"});
+    assert_eq!(asset_digest(&rig.context(), &other, url).expect("hashed"), sha256_hex(b"the bytes"));
+    let none = serde_json::json!({"name": "tool.tar.gz", "digest": ""});
+    assert_eq!(asset_digest(&rig.context(), &none, url).expect("hashed"), sha256_hex(b"the bytes"));
+    let recorded = serde_json::json!({"name": "tool.tar.gz", "digest": "sha256:abc"});
+    assert_eq!(asset_digest(&rig.context(), &recorded, url).expect("recorded"), "abc");
 }
