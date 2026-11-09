@@ -54,6 +54,11 @@ pub mod entry_rules_text_change_warm;
 /// Spellings of the wrapper-only escape hatches shared by several modules.
 pub mod escape_hatch;
 
+/// The command a Git alias really runs:
+///  the expansion of ordinary aliases,
+///  and the executable Git selects first.
+pub mod external_git_command;
+
 /// Starting real Git with unchanged arguments,
 ///  streams and exit status.
 pub mod forwarding;

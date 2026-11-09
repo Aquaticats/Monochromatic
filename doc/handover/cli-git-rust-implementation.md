@@ -125,14 +125,86 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Queue after the push landing (2026-11-09T08:09:56-05:00)
+#### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
-- `67e8cf0808` landed the discarding-commands branch.
-  The review `~/temp/agent/reviews/discarding-commands-round-2-sol.txt` is a source review and names further cases,
-  none reproduced yet.
-  Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
-  previous-branch and audit cases,
+- `421ab69c3e` landed the landing branch,
+  `2522a13f4f` the literal-pathspec branch,
+  `2b309f8f25` the test-coverage branch,
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  and `8026d49827` the alias branch.
+- Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
+  previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
+- Follow-up runs started:
+  landing run 12,
+  worktree-removal run 6,
+  worktree-add run 4,
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
+  Worktree-add and child-process open with a merge of main in conflict,
+  which their briefs tell them to resolve first,
+  so neither branch has landed.
+- Deferred until a slot frees,
+  because the practical limit of agents was reached when each was written,
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `wrapper-tests-that-fail-only-in-a-suite-round-3-prompt.md`.
+  That branch's merge of main is open in its worktree on two conflicts,
+  in `landing/service_push_retry_tests.rs` and `testing/test_support.rs`,
+  and the brief also answers its two questions:
+  split the two long controls per case,
+  and fix `every_call_runs_on_the_same_runtime`.
+- Started:
+  alias run 2 on the review `invocation-route-round-1-sol.txt`,
+  and hook run 4,
+  because hook run 3 reached its time limit while writing wording tests.
+- The intent-to-add branch passed 660 of 661 on top of main.
+  `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on it and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note;
+  the branch's review is running.
+- The conversion branch finished seven findings and its check is running.
+- `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
+  of which index 57.8 s and journal 20.6 s,
+  and said a real commit makes the same writes and flushes.
+- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
+  The branch is not to be merged or landed until that run reports,
+  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
+  That merge left the four files alone.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
+  `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that loses its value,
+  and a long value that stops the scratch commit from starting.
+- The merge branch passed 320 of 320 on top of main.
+  Under the coordinator's decision to converge,
+  its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,
+  and documents in `SPEC.md` the three findings that need another process to act inside a few instructions.
+- The tokio landing-round agent converted nothing,
+  and measured why:
+  a Git step reads its child through the runtime,
+  so inside a blocking job of the pool every step refuses as nested.
+  Its branch keeps the corrected wording for a refused thread.
+- Open from the test-coverage report,
+  not yet given to an agent:
+  the kill sweeps list calls a flow never makes,
+  so those names add no positions and nothing says so.
+- `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` failed once in a suite and passes alone on the branch and on main.
 - The worktree-copy branch does not land yet.
   `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
   a `containerHex=` line inside an older release's unescaped path can direct recursive deletion,
@@ -146,15 +218,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   because each finding is no worse than main.
   Those reviews read source only,
   so the follow-ups reproduce each finding first.
-  The landing branch and the worktree-add branch land next for the same reason.
-- Deferred until a slot frees,
-  in this order,
-  briefs in `~/temp/agent/pi-runs/`:
-  `landing-route-round-12-prompt.md`,
-  `worktree-add-round-4-prompt.md`,
-  `entry-and-service-round-5-prompt.md`,
-  and `push-route-round-5-prompt.md`.
-  The practical limit of agents was reached when they were written.
 - Fail alone on main,
   so no branch caused them,
   and they are with `wrapper-tests-that-fail-only-in-a-suite`:
@@ -166,10 +229,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   `a_writer_saving_during_a_pass_loses_no_copy` (235 s alone against a 300 s limit),
   `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
   and `a_landing_over_an_unheld_lock_removes_it_and_goes_on`.
-- Check on top of main running:
-  the worktree-removal branch.
-  Cross-vendor reviews running:
-  child-process round 3 and literal-pathspec round 2.
 - The owner,
   2026-11-09:
   "Always Size turn limits to the task based on past data."

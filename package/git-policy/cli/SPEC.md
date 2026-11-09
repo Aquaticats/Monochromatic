@@ -737,6 +737,11 @@ and symbolic links.
 Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
+A selection that names repository paths asks about each one as `:(top,literal)<path>`,
+and that listing runs real Git with `--no-literal-pathspecs`,
+so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
+`--literal-pathspecs`)
+cannot make the name match nothing and leave the file in the source uncopied.
 A bare repository has no source root and synchronizes an empty set.
 The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
 a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
@@ -879,6 +884,9 @@ or a submodule,
 found anywhere in the index (not only at the first refusal);
 a `.gitattributes`
 file among the changes or untracked anywhere;
+that untracked listing (`:(glob)**/.gitattributes`)
+runs real Git with `--no-literal-pathspecs`,
+so a global pathspec mode cannot hide a deep attributes file from the refusal;
 a sparse checkout;
 a source that is a linked worktree,
 whose index lies outside
@@ -4997,8 +5005,11 @@ so no event is an exception.
   values it already reads for classification),
   so the options follow the `-c` options an alias value may carry;
   put before the alias word they would lose to them (measured on Git 2.56.0).
+  An alias Git refuses or does not select is forwarded as the caller typed it instead,
+  so those options no longer reach a command Git will not run (see "Discarding commands").
   A shell alias (`!...`) is run by Git's shell,
-  and a `git` it starts through `PATH` is the wrapper again.
+  which finds real Git's own `git` first on `PATH`,
+  so the command inside it runs with the options Git gives that shell and not with these.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
   repository configures and the wrapper reads `core.hooksPath` that way (the commit warning,
@@ -5957,7 +5968,8 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments alone and starts no process.
+`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone,
+reads no file and starts no process.
 It rejects `-A`,
 `--all`,
 `-u`
@@ -5984,6 +5996,17 @@ pathspec magic and globs can select the same set in further spellings.
 so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
 The rejection names every matched token as the caller wrote it and offers
 `--no-enforce-bulk-add` for one invocation.
+A token that names the working directory still does so whatever pathspec mode the caller set,
+so `.` and `./` stay bulk under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1`;
+every other spelling of the list is one plain name under that mode
+(so `**` stages a file named `**`,
+and `:/` names no file and is left to Git's own refusal),
+and the policy reads the caller's mode
+(the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
+and otherwise the variable's own boolean reading)
+before it judges a spelling.
+A variable value Git would refuse to read as a boolean is no mode,
+so an unmodelled spelling keeps the rejection rather than lifting it.
 
 ## Whole-sequence fixing
 
@@ -6444,14 +6467,21 @@ A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
 so the next push from that branch carries it.
-The next command in the worktree says so once,
-in one line,
-through the notice a worktree's push failures
-use:
+Every command in the worktree says so in one line,
+read from the held records themselves:
 which commit is held,
-that its command stopped before its checks ran,
-and that it goes out with the
-next push from that branch.
+that its push has not been released yet,
+and that it goes out with the next push from its branch.
+The record is the only place the state exists,
+so the line cannot disagree with it:
+a kill between the record and a second file cannot lose the line,
+a release cannot leave a stale one,
+and two commands cannot interleave into either.
+Measured on 2026-11-12 on this host,
+one look at the held records of a worktree that holds none costs 27.8 microseconds
+(2,000 looks through the command's notice desk,
+`push_notices_for`),
+which is nothing beside the owner's limit of five seconds per commit.
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,
@@ -6616,13 +6646,13 @@ and the notice names it,
 so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
-where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
-path,
-and a concurrent staging of the same content a `git commit --all` selected while an unrelated record
-exists,
-where that content is left out of that commit.
-In both the person sees one line naming the path among those left out,
-and the next commit records what the index holds.
+where the copy still holds a stale entry that no record names any more,
+so nothing is compared,
+nothing is named,
+and the commit records the landed path as a deletion,
+and a concurrent staging of the same content a `git commit --all` selected for a path a record names,
+where that content is left out of that commit and named among the paths left out.
+In both the next commit records what the index holds.
 The comparison is made against the commit's own index,
 because that snapshot is what the commit records:
 a program that catches the live index up between the copy and the comparison leaves the snapshot's stale
@@ -7496,6 +7526,12 @@ private file,
 so Git's `core.fsync` governs only that fallback;
 the in-process write always flushes the file,
 as Git's default does.
+A `reset` the service starts (that fallback and the reconciliation's own index update) carries `--no-literal-pathspecs`,
+because every spec it is given is `:(top,literal)<path>`,
+and `reset` accepts a spec that matches nothing without a word:
+under a global literal pathspec mode,
+inherited from the command that first started the service,
+it would install no entry and report success.
 The entries the update makes from the tree record the worktree's stat data where the file provably holds the tree's bytes
 (`index_reset_worktree_stat.rs`),
 and the all-zero value `git reset --no-refresh` writes everywhere else.
@@ -8227,6 +8263,9 @@ Three further private Git starts carry the same switch:
 the whole-index staging `commit -a` does in the private index (`:/`),
 the staging of each unmerged worktree copy that finishes a merge,
 and the settled-entry lookup that installs a landed correction into the worktree copy.
+That lookup also compares the pathname of every entry Git lists with the path it asked about:
+`GIT_ICASE_PATHSPECS` makes `:(top,literal)<path>` list every name that differs only in case,
+and the first of them is not necessarily the corrected path.
 Only the replay of a caller's `git add` keeps the caller's own mode.
 Preparation constructs candidate facts from the private index,
 writes each policy's corrections into the private index,
@@ -9283,6 +9322,13 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   The reader therefore answers an `IEOT` body only when it is version 1,
   names at least one block,
   and every block begins where this reader parsed an entry and together they cover all of them;
+  in a version 4 index every block must also begin an entry that carries its whole pathname,
+  because Git reads a block with no preceding entry,
+  so a block that starts on a compressed pathname would give that entry another name
+  (measured on Git 2.56.0 with a hand-built index whose second block begins on the entry written as the suffix `z`
+  of `a/z`:
+  `index.threads=3` lists `a/a` and `z`,
+  where `index.threads=1` lists `a/a` and `a/z`);
   any other body is a decline,
   so Git answers it.
   An unknown lower-case signature is a required extension,
@@ -9437,6 +9483,25 @@ either spelling) is expanded the way Git expands it,
 up to 16 expansions,
 and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
+Two aliases are left unexpanded and forwarded as the caller typed them,
+because the expansion the wrapper read is not the command that runs:
+one whose value moves the directory or sets an environment variable,
+which Git refuses with `changes environment variables` and runs nothing for
+(`-C` with a directory,
+`--git-dir`,
+`--work-tree`,
+`--namespace`,
+`--bare`,
+`--shallow-file`,
+`--attr-source`,
+`--literal-pathspecs` and its family,
+`--no-optional-locks`,
+`--no-advice`,
+`-P`),
+and one whose name an installed `git-<name>` program carries,
+which Git runs before it looks any alias up.
+No fact of the caller then describes a repository the command never runs in,
+and the audit names what Git runs.
 A built-in word is decided without reading any configuration,
 so no process is started for it.
 The expansion is resolved once per invocation and read by all three of them:
@@ -9450,7 +9515,28 @@ so no process is started for it.
 A shell alias (`!...`) and an undefined name are forwarded as they are:
 a shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
-so a `git` inside it is real Git and not this wrapper.
+so a `git` inside it is real Git and not this wrapper,
+which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
+not the wrapper first on `PATH`).
+One plain form of it is read,
+only so the guard can decide:
+a value written `!git <words>` whose bytes hold no quote,
+backslash,
+`$`,
+backtick,
+glob,
+brace or separator,
+and whose words name no global option of their own.
+`!git reset --hard` is then refused where `git reset --hard` is refused,
+and the alias itself is still forwarded unchanged,
+because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
+which a substituted argument list would lose.
+Everything else,
+`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included,
+runs as Git runs it:
+through real Git,
+with no guard and no index-writer coordination,
+because the wrapper never sees that command start.
 `git by the word Git will run` is the boundary of this guard.
 
 A form is rejected in the main worktree and outside any worktree always,

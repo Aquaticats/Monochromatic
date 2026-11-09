@@ -82,7 +82,11 @@ pub struct GuardedForwarded {
 /// ```ts
 /// function decideGuardedForwarded({ context, args }): GuardedForwarded;
 /// ```
-pub fn decide_guarded_forwarded(context: &GitContext, arguments: &[OsString]) -> GuardedForwarded {
+pub fn decide_guarded_forwarded(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    arguments: &[OsString],
+) -> GuardedForwarded {
     // `let Some((word, region)) = ... else { ... };` unwraps the subcommand, or passes when Git runs none.
     let Some((word, region)) = command_tokens(arguments) else {
         return GuardedForwarded {
@@ -97,9 +101,30 @@ pub fn decide_guarded_forwarded(context: &GitContext, arguments: &[OsString]) ->
             arguments: arguments.to_vec(),
         };
     }
-    // The word names no built-in, so Git looks it up as an alias; an alias value that starts with `!` runs a shell,
-    //  whose own `git` is this wrapper again, and an undefined name is left to Git.
-    let resolved: ResolvedCommand = resolve_forwarded_command(context, arguments);
+    // The word names no built-in, so Git looks it up as an alias, and an undefined name is left to Git.
+    let resolved: ResolvedCommand = resolve_forwarded_command(context, environment, arguments);
+    // A value that starts with `!` runs a shell, and Git puts its own executable directory first on that shell's
+    //  `PATH`, so the `git` such an alias names is the real Git and never this wrapper. The one plain `git` command
+    //  the resolver read from the value is what the shell runs, and the guard decides on it while the caller's own
+    //  arguments stay untouched: Git runs the shell with an environment a substituted argument vector would lose.
+    if resolved.route == Route::ShellAlias {
+        let Some(shell_command) = &resolved.shell_command else {
+            return GuardedForwarded {
+                decision: LinkedWorktreeDecision::Pass,
+                arguments: arguments.to_vec(),
+            };
+        };
+        let Some((shell_word, shell_region)) = command_tokens(shell_command.as_slice()) else {
+            return GuardedForwarded {
+                decision: LinkedWorktreeDecision::Pass,
+                arguments: arguments.to_vec(),
+            };
+        };
+        return GuardedForwarded {
+            decision: decide_guarded_word(shell_word.as_encoded_bytes(), shell_region),
+            arguments: arguments.to_vec(),
+        };
+    }
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
         return GuardedForwarded {
             decision: LinkedWorktreeDecision::Pass,
