@@ -4925,27 +4925,30 @@ so no second thread exists while either is written,
 and the lock the disposal's stream needs would buy nothing here.
 The control is `btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in`
 (`worktree_copy_lifecycle_tests.rs`):
-with the note put back on the process's standard error it fails with the note on the harness's standard error and
-`the note reaches the stream the caller handed in: ""`.
+with the note put back on the process's standard error the control fails,
+its own stream empty and the line on the harness's standard error.
 
-`a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself` claimed two things from one stopwatch over a
-400 ms hold.
+The control `a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself`
+claimed two things from one stopwatch over a 400 ms hold.
 The count of placement attempts is now the order of the placements:
 the `rename` stand-in records whether the foreign lock stood at each of them,
 so the verdict is that only the first met the holder.
 A wait woken by a file of its own meets the holder over and over;
 no clock enters that claim.
 With the wait made to block for one millisecond instead of for the removal,
-the control fails naming every placement that met the holder, one for each millisecond of the hold.
+the control fails naming every placement that met the holder,
+one for each millisecond of the hold.
 
 How soon the wake came is the one claim no order can show,
 so it stays one clock reading,
-taken from the wait's own line instead of from before the staging that a slow flush can stretch
-(10.2 s against a 400 ms hold, measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
+taken from the wait's own line instead of from before the staging a slow flush can stretch
+(10.2 s against a 400 ms hold,
+measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
 The bound is a fifth of the interval that repeats the holder's line:
 over ten runs the wake came 400.35 to 400.51 ms after the line,
 and 10.0018 to 10.0090 s over three runs with the watch blinded to the lock's removal.
-The old bound sat at the whole interval, which is where the blinded arm lands,
+The old bound sat at the whole interval,
+which is where the blinded arm lands,
 so it was a knife edge of about a millisecond rather than a separation.
 
 A witness that the line did not repeat cannot replace that reading:
