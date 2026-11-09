@@ -395,10 +395,10 @@ fn dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
         let counting = std::sync::Arc::clone(&finished);
         crate::lazy_runtime::spawn_on_runtime(async move {
             for _ in 0..jobs {
-                let counting = std::sync::Arc::clone(&counting);
+                let each = std::sync::Arc::clone(&counting);
                 drop(tokio::task::spawn_blocking(move || {
                     std::thread::sleep(POOL_BUSY_FOR);
-                    counting.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    each.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }));
             }
         })

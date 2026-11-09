@@ -323,6 +323,7 @@ static SYNCING_IS_FAITHFUL: std::sync::atomic::AtomicBool = std::sync::atomic::A
 /// The records of the syncs are still made,
 /// so their order stays observable.
 /// Nothing of the release executable.
+#[cfg(test)]
 pub(crate) fn skip_the_durability_syncs_here() {
     SYNCING_IS_FAITHFUL.store(false, std::sync::atomic::Ordering::SeqCst);
 }

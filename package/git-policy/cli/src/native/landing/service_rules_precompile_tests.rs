@@ -146,8 +146,8 @@ fn landing_triggers_body(directory: &Path) {
     // A landing that changes the rules file warms again.
     let changed: Warms = warms();
     after_landing(&journal, &repository, &[String::from(RULES_FILE)]);
-    let answered: Warms = changed.after(1).expect("the landing asks the service about the rules");
-    assert!(answered.made > changed.made, "a landing that changed the rules file warms them");
+    let warmed_again: Warms = changed.after(1).expect("the landing asks the service about the rules");
+    assert!(warmed_again.made > changed.made, "a landing that changed the rules file warms them");
     assert_eq!(artifacts().len(), 1, "the compiled rules are in the cache again");
 }
 
