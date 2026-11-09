@@ -224,11 +224,12 @@ pub fn run_native_commit_within(
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
     let facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
     let stopped_after: Option<std::time::Duration> = facts.stopped_after;
+    let below_unlisted: bool = facts.below_unlisted;
     crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
-        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(waited, ceiling, signs))));
+        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(waited, ceiling, signs, below_unlisted))));
     }
     return finished;
 }

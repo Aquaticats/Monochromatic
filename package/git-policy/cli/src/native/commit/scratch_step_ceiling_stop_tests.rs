@@ -52,7 +52,7 @@ fn a_step_whose_record_could_not_be_read_keeps_the_ceiling_armed() {
     let watched: ChildNumber = ChildNumber::not_started();
     watched.publish(pid);
     crate::process_tree::unreadable_after_the_next_reads(pid, 1);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -71,7 +71,7 @@ fn a_step_that_can_be_read_is_stopped_at_the_ceiling() {
     let pid: i32 = i32::try_from(step.id()).expect("a process number");
     let watched: ChildNumber = ChildNumber::not_started_pinned();
     watched.publish(pid);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -102,7 +102,7 @@ fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number
     let watched: ChildNumber = ChildNumber::not_started_pinned();
     watched.publish(pid);
     crate::process_tree::unreadable_after_the_next_reads(pid, 0);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -129,7 +129,7 @@ fn a_step_that_started_without_a_descriptor_is_not_signalled() {
     // A start the kernel refused a descriptor for: the number is all the notice has.
     let watched: ChildNumber = ChildNumber::not_started();
     watched.publish(pid);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -163,7 +163,7 @@ fn a_walk_whose_step_ended_signals_nothing() {
     step.kill().expect("the step ends");
     step.wait().expect("reaped");
     plant_what_the_walk_finds(vec![planted]);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut never_the_steps_child, STILL_RUNNING_BOUND);
     if ended.is_none() {
         never_the_steps_child.kill().expect("cleanup");
@@ -186,7 +186,7 @@ fn a_refused_signal_that_is_not_no_such_process_keeps_the_ceiling_armed() {
     let watched: ChildNumber = ChildNumber::not_started_pinned();
     watched.publish(i32::try_from(step.id()).expect("a process number"));
     crate::member_signalled_through_its_pidfd::refuse_the_next_signal_with(libc::EPERM);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -212,7 +212,7 @@ fn a_walk_that_cannot_be_made_does_not_keep_the_step_from_being_signalled() {
     let watched: ChildNumber = ChildNumber::not_started_pinned();
     watched.publish(i32::try_from(step.id()).expect("a process number"));
     refuse_the_next_walk();
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");

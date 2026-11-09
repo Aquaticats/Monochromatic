@@ -330,7 +330,7 @@ fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
     let look: Option<Vec<(i32, ProcessUse)>> = look_below(own);
     let watched: ChildNumber = ChildNumber::not_started_pinned();
     watched.publish(own);
-    let came: CeilingCame = ceiling_came(&watched);
+    let came: CeilingCame = ceiling_came(&watched).came;
     drop(held);
     crate::test_support::restore_limit(before);
     assert!(look.is_none(), "the look was made with no descriptor left free: {look:?}");
@@ -468,8 +468,8 @@ fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
     let mut running_step: std::process::Child = sleeping_step();
     let running: ChildNumber = ChildNumber::not_started_pinned();
     running.publish(step_number(&running_step));
-    let after_the_end: CeilingCame = ceiling_came(&already_over);
-    let while_running: CeilingCame = ceiling_came(&running);
+    let after_the_end: CeilingCame = ceiling_came(&already_over).came;
+    let while_running: CeilingCame = ceiling_came(&running).came;
     let ended: Option<i32> = ended_by_signal(&mut running_step);
     if ended.is_none() {
         running_step.kill().expect("cleanup");

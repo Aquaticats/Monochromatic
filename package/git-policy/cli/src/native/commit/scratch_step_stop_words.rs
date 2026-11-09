@@ -35,18 +35,24 @@ use std::time::Duration;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// stopWords({ waited, ceiling, signs })
+/// stopWords({ waited, ceiling, signs, belowUnlisted })
 /// ```
-pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool) -> String {
+pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool, below_unlisted: bool) -> String {
     let signing: &str = if signs {
         " The commit signs the commit because `commit.gpgsign` or `-S` asks for it, so the signing program is the first thing to check."
+    } else {
+        ""
+    };
+    // A step ended while the programs below it could not be listed: one of them may still run, and the person is told so.
+    let unlisted: &str = if below_unlisted {
+        " The programs it started could not be listed when it was ended, so one of them may still be running; check with `ps`."
     } else {
         ""
     };
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, the most a commit whose \
          message came with the command may take ({} seconds, three times the slowest `git commit` step this repository's commit timing log holds); nothing was \
-         committed, and your index and files are as they were.{signing} Run the same `git commit` command again.\n",
+         committed, and your index and files are as they were.{signing}{unlisted} Run the same `git commit` command again.\n",
         waited.as_secs(),
         ceiling.as_secs()
     );

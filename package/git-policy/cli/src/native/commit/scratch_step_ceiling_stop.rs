@@ -109,6 +109,24 @@ fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
 }
 
 /// What:
+///  What the ceiling came to, and whether the programs below the step could be listed.
+/// Why:
+///   A step that is signalled while the walk below it failed leaves whatever it started to be named in the record and in the
+/// stop's words, so the person is told that something below may still run (finding 2 of the fourth review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheCeiling = { came: CeilingCame; belowListed: boolean };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TheCeiling {
+    /// What the ceiling came to.
+    pub came: CeilingCame,
+    /// Whether the programs below the step were listed.
+    pub below_listed: bool,
+}
+
+/// What:
 ///  End the step the ceiling watches and what it started,
 /// and answer what that came to.
 /// Why:
@@ -123,31 +141,36 @@ fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
 /// ```ts
 /// const came = ceilingCame(step); // an unreadable tree: 'unknown'
 /// ```
-pub fn ceiling_came(step: &ChildNumber) -> CeilingCame {
+pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
     let Some(number) = step.number() else {
         // A step that never started has nothing to end, and nothing is concluded about it.
-        return CeilingCame::Unknown;
+        return TheCeiling { came: CeilingCame::Unknown, below_listed: true };
     };
-    // A start whose descriptor the kernel refused leaves a number and nothing else to name the step by,
-    // and a number read at the ceiling may belong to a process that took it after the step ended.
-    // Nothing is sent, and the line says the step cannot be stopped.
     let Some(descriptor) = step.descriptor() else {
-        return CeilingCame::Unknown;
+        // A start whose descriptor the kernel refused leaves a number and nothing else to name the step by,
+        // and a number read at the ceiling may belong to a process that took it after the step ended.
+        // Nothing is sent.
+        return TheCeiling { came: CeilingCame::Unknown, below_listed: true };
     };
-    let Some(below) = walk_below(number) else {
-        return CeilingCame::Unknown;
-    };
+    let walked: Option<Vec<TreeMember>> = walk_below(number);
+    let below_listed: bool = walked.is_some();
     if has_ended(descriptor) {
         // The step ended while its children were being read, so that read proves nothing and nothing from it is signalled.
-        return CeilingCame::TheStepEnded;
+        return TheCeiling { came: CeilingCame::TheStepEnded, below_listed };
     }
+    // The step is signalled whatever the walk came to: the descriptor names it, and a walk that could not be made says
+    // nothing about it (finding 2 of the fourth review).
     let answer: Delivered = signal_through(descriptor, libc::SIGKILL);
-    let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
-    return match answer {
+    let _ended_below: Vec<Delivered> = match walked {
+        Some(below) => kill_members(below.as_slice()),
+        None => Vec::new(),
+    };
+    let came: CeilingCame = match answer {
         Delivered::Sent => CeilingCame::Stopped,
         Delivered::Gone => CeilingCame::TheStepEnded,
         Delivered::Unproven => CeilingCame::Unknown,
     };
+    return TheCeiling { came, below_listed };
 }
 
 /// Controls stay out of the release executable.

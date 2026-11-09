@@ -112,6 +112,9 @@ pub struct ScratchStepFacts {
     pub below: Vec<SeenProgram>,
     /// The processor time everything below the step had used at the last look.
     pub below_cpu: Duration,
+    /// Whether the ceiling could not list the programs below the step when it ended it,
+    /// so one of them may still be running.
+    pub below_unlisted: bool,
     /// Whether the ceiling could end the step:
     /// false for a step whose start gave no descriptor,
     /// which the kernel refused,
@@ -151,6 +154,7 @@ impl ScratchStepFacts {
             looks_found: 0,
             below: Vec::new(),
             below_cpu: Duration::ZERO,
+            below_unlisted: false,
             pinnable: true,
             blind_looks: 0,
             blocked_looks: 0,
@@ -250,12 +254,12 @@ fn seen_json(program: &SeenProgram) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, pinnable, blindLooks, blockedLooks })
+/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, belowUnlisted, pinnable, blindLooks, blockedLooks })
 /// ```
 fn facts_json(facts: &ScratchStepFacts) -> String {
     let names: Vec<String> = facts.below.iter().map(seen_json).collect();
     return format!(
-        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"pinnable\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
+        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"belowUnlisted\":{},\"pinnable\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
         millis(facts.ceiling),
         facts.armed,
         millis(facts.stopped_after),
@@ -266,6 +270,7 @@ fn facts_json(facts: &ScratchStepFacts) -> String {
         facts.looks_found,
         names.join(","),
         facts.below_cpu.as_millis(),
+        facts.below_unlisted,
         facts.pinnable,
         facts.blind_looks,
         facts.blocked_looks,

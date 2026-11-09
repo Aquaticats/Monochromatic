@@ -88,7 +88,7 @@ use crate::wait_progress::{Cadence, Ticker};
 /// and the processes it started.
 use crate::process_tree::descendants_of_read;
 /// What the ceiling does when it comes.
-use crate::scratch_step_ceiling_stop::{CeilingCame, ceiling_came};
+use crate::scratch_step_ceiling_stop::{CeilingCame, TheCeiling, ceiling_came};
 /// The line the notice prints,
 /// and the programs it names below the step.
 use crate::scratch_step_notice_line::{notice_line, other_programs};
@@ -461,7 +461,10 @@ impl NativeCommitNotice {
                     && seen_at.is_some()
                     && since_seen >= ceiling
                 {
-                    match ceiling_came(&watched) {
+                    let the_ceiling: TheCeiling = ceiling_came(&watched);
+                    // A step signalled while the walk below it failed leaves whatever it started unnamed.
+                    facts.below_unlisted = !the_ceiling.below_listed;
+                    match the_ceiling.came {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
                             break 'notice;
