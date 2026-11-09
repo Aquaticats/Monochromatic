@@ -421,9 +421,17 @@ pub fn prune_toolchain(
             // naming a directory it removed.
             let kept: Vec<&PresentVersion> =
                 present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
+            // What: the versions of this crate the plan deletes, which the link must never be left on.
+            // Why: a link naming one of them would dangle once the deletions run, so the guard that leaves a newer
+            // link alone does not apply to them.
+            let deleted_here: Vec<&str> = planned
+                .iter()
+                .filter(|(crate_of_removal, _version, _directory)| return crate_of_removal == crate_name)
+                .map(|(_crate, version, _directory)| return version.as_str())
+                .collect();
             match newest_finished(&kept) {
                 Some(newest) => {
-                    if !point_current_at(&scope.toolchain_root, crate_name, &newest)? {
+                    if !point_current_at(&scope.toolchain_root, crate_name, &newest, &deleted_here)? {
                         // The version this run keeps is not there any more, so the link was left alone:
                         // it must then not go on naming a version this run deletes.
                         remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?;
