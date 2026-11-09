@@ -337,17 +337,56 @@ fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
     assert_eq!(came, CeilingCame::Unknown, "a look that could not be made was read as the step having ended, which takes the ceiling away");
 }
 
+/// The longest a control waits for the notice to reach a state it means to test.
+///  Longer than several look intervals (`LOOK_INTERVAL`),
+/// so a starved thread delays the control rather than failing it.
+#[cfg(all(test, target_os = "linux"))]
+const A_STATE_BOUND: Duration = Duration::from_secs(30);
+
+/// The ceiling this control gives the notice,
+///  long enough that no setup before the window can reach it:
+/// the window holds the notice past it and this control plants the ceiling that comes.
+#[cfg(all(test, target_os = "linux"))]
+const A_CEILING_NO_SETUP_CAN_REACH: Duration = Duration::from_secs(600);
+
+/// The ceiling this control plants once its window is blind,
+///  already behind the look that found the step,
+/// so the next look counts as past it.
+#[cfg(all(test, target_os = "linux"))]
+const A_CEILING_ALREADY_COME: Duration = Duration::from_millis(1);
+
 /// What:
-///  A step is still stopped at its ceiling after a look that could not be made.
+///  The ceiling still ends the step when the look below it cannot be made,
+///  and the record says the programs below it could not be listed.
 /// Why:
-///   This is the harm the review describes:
-/// the ceiling's look fails (a descriptor limit refuses the reads of `/proc`),
-/// and the old notice ended itself there,
-/// so the step ran on with nothing left to stop it while the command still waited.
-///  The limit is dropped after the first look has found the step and held past the ceiling,
-/// and the next look that can be made stops it.
+///   The harm this control exists for is the ceiling going away with a look that failed,
+/// so the step runs on with nothing left to stop it while the command still waits.
+///  What this control measured before it was ordered:
+/// the look interval is 250 ms,
+/// so a 50 ms sleep after the number is published never contains the look that finds the step.
+/// In the runs that passed,
+/// the arm that starts the ceiling landed inside the descriptor-free window,
+/// so nothing was armed there,
+/// and the step was found and stopped only after the window ended:
+/// the control passed without ever making a look fail at the ceiling.
+/// When the setup slipped in front of that look instead,
+/// the arm happened before the window and the ceiling came inside it,
+/// which is the failure this control reported.
+///  The order is the control's now:
+///  it waits for the look that finds the step,
+///  makes `/proc` unreadable,
+///  plants the ceiling so it comes at the next look,
+///  and reads the answer in the record.
+///  A loaded host makes the control slower and never wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await untilALookFindsTheStep(); holdEveryDescriptor(); plantTheCeiling(); const seen = notice.finish(); expect(seen.stoppedAfterMs).toBeDefined(); expect(seen.belowUnlisted).toBe(true)
+/// ```
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
+    let _window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
     let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
@@ -355,32 +394,31 @@ fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
         cadence,
-        ceiling: Duration::from_millis(200),
+        ceiling: A_CEILING_NO_SETUP_CAN_REACH,
         sink: Box::new(sink.clone()),
     });
     notice.step_started(step_number(&step));
-    // The first look finds the step, so the ceiling is armed on it.
-    std::thread::sleep(Duration::from_millis(50));
+    assert!(
+        the_controls_window::until_a_look_finds_the_step(A_STATE_BOUND),
+        "no look found the step within {A_STATE_BOUND:?}, so the ceiling was never armed"
+    );
+    // The ceiling comes now, and `/proc` cannot be read at all, so the look that carries it out fails.
     let baseline: usize = crate::test_support::open_descriptors();
     let before: rustix::process::Rlimit = crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
     let held: Vec<std::fs::File> = crate::test_support::leave_free(0);
-    // Long enough for two looks, both past the ceiling, to fail.
-    std::thread::sleep(Duration::from_millis(600));
-    let still_running: bool = step.try_wait().expect("status").is_none();
+    assert!(std::fs::read_dir("/proc").is_err(), "the window this control makes is not blind: `/proc` was read with no descriptor left free");
+    the_controls_window::plant_the_ceiling(A_CEILING_ALREADY_COME);
+    let ended: Option<i32> = ended_by_signal(&mut step);
     drop(held);
     crate::test_support::restore_limit(before);
-    let ended: Option<i32> = ended_by_signal(&mut step);
     let seen: ScratchStepFacts = notice.finish();
-    if ended.is_none() {
+    if step.try_wait().expect("status").is_none() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert!(still_running, "the step was stopped while `/proc` could not be read at all");
-    assert!(ended.is_some(), "a look that could not be made took the ceiling away: {seen:?}");
+    assert_eq!(ended, Some(libc::SIGKILL), "a look that could not be made took the ceiling away, so the step ran on: {seen:?}");
     assert!(seen.stopped_after.is_some(), "the stop is recorded: {seen:?}");
-    // How many looks were blind is not asserted here: a notice thread the host starved through the whole window
-    // would report none and this control would then be an ordinary stop, so the count is controlled where it can be certain
-    // (`a_look_that_could_not_be_made_keeps_the_ceiling_armed`, and the record's own figures).
+    assert!(seen.below_unlisted, "a walk that could not be made leaves what the step started unnamed, and the record says so: {seen:?}");
 }
 
 /// What:

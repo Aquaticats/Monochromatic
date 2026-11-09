@@ -70,6 +70,14 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
     assert_eq!(value["dirty"], true);
     assert_eq!(value["cwd"], "/r/sub");
     assert_eq!(value["arguments"], serde_json::Value::from(vec!["-C", "/r", "restore", "--", "a.txt"]));
+    // The bytes sit beside the text, so a reader that takes the text reads what it read before.
+    assert_eq!(value["cwdHex"], "2f722f737562", "the working directory's bytes");
+    assert_eq!(value["gitDirHex"], crate::path_bytes_in_records::hex_of_path(Path::new("/r/.git/worktrees/w")));
+    assert_eq!(
+        value["argumentsHex"],
+        serde_json::Value::from(vec!["2d43", "2f72", "726573746f7265", "2d2d", "612e747874"]),
+        "each argument's bytes"
+    );
     let unasked: String = audit_line(&AuditRecord {
         time_millis: 1,
         process: 1,
@@ -88,6 +96,50 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
     assert_eq!(unasked_value["dirty"], serde_json::Value::Null);
     assert_eq!(unasked_value["outcome"], "hatch");
     assert_eq!(unasked_value["level"], "info");
+}
+
+/// A working directory and an argument need not be text,
+/// so the line keeps each one's bytes;
+/// two names that the text of a lossy capture collapses are told apart.
+/// Issue 6210:
+/// the audit line replaced every byte that is not UTF-8 with U+FFFD,
+/// so the record could not attribute a loss to the command that made it.
+#[test]
+fn a_cwd_and_arguments_that_are_not_text_keep_their_bytes() {
+    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    let place: (PathBuf, &'static str) = (PathBuf::from("/r/.git"), "main");
+    // Two directories whose names differ only in a byte no UTF-8 sequence holds, and one argument of the same kind.
+    let first: Vec<u8> = b"/r/sub/\xff".to_vec();
+    let second: Vec<u8> = b"/r/sub/\xfe".to_vec();
+    let arguments: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from_vec(b"restore\xff".to_vec())];
+    let one = |directory: &[u8]| -> serde_json::Value {
+        let line: String = audit_line(&AuditRecord {
+            time_millis: 1,
+            process: 1,
+            parent: 1,
+            form: DecidedForm::Guarded(GuardedCommand::RestoreWorktree),
+            outcome: AuditOutcome::Rejected,
+            place: &place,
+            git_dir: Path::new("/r/.git/worktrees/w"),
+            directory: Path::new(std::ffi::OsStr::from_bytes(directory)),
+            arguments: arguments.as_slice(),
+            dirty: None,
+            copies: &[],
+            facts: &[],
+        });
+        return serde_json::from_str(line.trim_end()).expect("JSON");
+    };
+    let first_value: serde_json::Value = one(first.as_slice());
+    let second_value: serde_json::Value = one(second.as_slice());
+    let expected_cwd = |bytes: &[u8]| -> String { return crate::path_bytes_in_records::hex_of_path(Path::new(std::ffi::OsStr::from_bytes(bytes))); };
+    assert_eq!(first_value["cwdHex"], expected_cwd(first.as_slice()), "the directory's bytes, byte for byte");
+    assert_eq!(second_value["cwdHex"], expected_cwd(second.as_slice()), "the other byte is another directory");
+    assert_ne!(first_value["cwdHex"], second_value["cwdHex"], "the bytes tell the two commands apart");
+    assert_eq!(first_value["cwd"], second_value["cwd"], "the text a reader sees is the same lossy capture for both");
+    let replacement_text: String = first_value["cwd"].as_str().expect("the field is text").to_owned();
+    assert_ne!(first_value["cwdHex"], expected_cwd(replacement_text.as_bytes()), "the bytes are not the replacement text's");
+    let expected_argument: String = crate::path_bytes_in_records::hex_of_path(Path::new(arguments[0].as_os_str()));
+    assert_eq!(first_value["argumentsHex"], serde_json::Value::from(vec![expected_argument]), "the argument's bytes");
 }
 
 /// The four outcomes have four distinct words.

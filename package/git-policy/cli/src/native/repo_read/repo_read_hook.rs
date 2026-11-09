@@ -176,11 +176,8 @@ pub fn try_complete(_arguments: &[OsString], _directory: &std::path::Path, _envi
 /// ```
 #[cfg(unix)]
 pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutput> {
-    let mut arguments: Vec<OsString> = Vec::new();
-    if !request.without_prefix {
-        arguments.extend(context.global_prefix.iter().cloned());
-    }
-    arguments.extend(request.arguments.iter().cloned());
+    // The same assembly the started command uses, so an in-process answer reads what Git would.
+    let arguments: Vec<OsString> = request.full_arguments(context.global_prefix.as_slice());
     // The context names the Git it runs, which the readers need to learn the system configuration file.
     // The context names the Git it runs, which the readers need to learn the system configuration file.
     let mut variables: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());

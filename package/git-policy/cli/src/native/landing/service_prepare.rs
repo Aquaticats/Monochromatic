@@ -105,8 +105,8 @@ pub fn prepare<F: RepositoryFacts>(
     let region = invocation.region;
     let layout = capture_invocation_layout(context, cwd, region.amend)?;
     if inputs.first {
-        warn_traditional_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
-        warn_external_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
+        warn_traditional_hooks(layout.config_snapshot.as_ref(), std::io::stderr());
+        warn_external_hooks(layout.config_snapshot.as_ref(), std::io::stderr());
     }
     // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
     //  included: the owner's rule is "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will
