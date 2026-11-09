@@ -269,8 +269,9 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 ///  into the Git directory,
 ///  and says so in the debug log:
 ///  a commit must not fail over where its scratch files go.
-///  A leftover of this command's own earlier attempt that its ceiling cut short is moved aside rather than left in the way,
-///  so a slow device cannot fail a retry either.
+///  A leftover of this command's own earlier attempt is moved aside before it is removed,
+///  and the removal is given only the aside's name,
+///  so a slow device cannot fail a retry and a removal that outlives its ceiling cannot take the tree the retry makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -296,20 +297,52 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
         Some(found) => found,
         None => git_dir.to_path_buf(),
     };
-    let tree: PathBuf = directory.join(name);
+    let mut tree: PathBuf = directory.join(name);
     // A tree of this command's own earlier attempt is removed first, so every attempt of one command starts from an empty one:
     //  the name carries this command's identity and no other command makes it.
     let present: bool = std::fs::symlink_metadata(tree.as_path()).is_ok();
     if present {
-        let removal: Removal = remove_within(tree.as_path(), ceiling);
-        // A removal that did not finish leaves the name taken, and a commit must not fail over that: the leftover is moved aside
-        //  under a name no commit tree has, where the sweep of a later command collects it by age, and this attempt starts from an
-        //  empty tree as every attempt does.
-        if !removal.finished() {
-            let aside: PathBuf = directory.join(format!("{name}.removing-{}", crate::random_id::random_uuid().unwrap_or_default()));
-            match std::fs::rename(tree.as_path(), aside.as_path()) {
-                Ok(()) => debug(TAG, format!("the leftover {} could not be removed yet, so it was moved to {}", tree.display(), aside.display()).as_str()),
-                Err(error) => debug(TAG, format!("the leftover {} could not be removed or moved aside: {error}", tree.display()).as_str()),
+        // The old tree is moved aside before anything removes it, and only the aside's name is given to the removal: a removal
+        //  that outlives its ceiling keeps the pathname it was given and never learns that the tree moved, so one handed this
+        //  attempt's name could empty the tree this attempt makes next. The aside's name is one no attempt ever makes.
+        let aside: PathBuf = directory.join(format!("{name}.removing-{}", crate::random_id::random_uuid().unwrap_or_default()));
+        match std::fs::rename(tree.as_path(), aside.as_path()) {
+            Ok(()) => {
+                // A control checks which name the removal below is given (`scratch_location_removal_targets_test_support.rs`).
+                #[cfg(test)]
+                test_targets::note(aside.as_path());
+                match remove_within(aside.as_path(), ceiling) {
+                    Removal::Finished => {}
+                    Removal::Unfinished => debug(
+                        TAG,
+                        format!(
+                            "the leftover {} could not be removed within {ceiling:?} and stays at {}, where the sweep of a later command collects it by age",
+                            tree.display(),
+                            aside.display()
+                        )
+                        .as_str(),
+                    ),
+                    Removal::Failed(error) => debug(
+                        TAG,
+                        format!("the leftover was moved to {} and could not be removed: {error}", aside.display()).as_str(),
+                    ),
+                }
+            }
+            Err(error) => {
+                // The name cannot be moved aside, so this attempt cannot have it while a removal of the old tree may still run:
+                //  the old tree is removed where it is, and an attempt that cannot wait for that takes a name of its own instead,
+                //  which no removal was ever given and which the wrapper's scratch rules accept.
+                debug(TAG, format!("the leftover {} cannot be moved aside: {error}", tree.display()).as_str());
+                #[cfg(test)]
+                test_targets::note(tree.as_path());
+                if !remove_within(tree.as_path(), ceiling).finished() {
+                    let fresh: PathBuf = directory.join(format!("{name}-again-{}", crate::random_id::random_uuid().unwrap_or_default()));
+                    debug(
+                        TAG,
+                        format!("the leftover {} is still being removed, so this attempt makes {} instead", tree.display(), fresh.display()).as_str(),
+                    );
+                    tree = fresh;
+                }
             }
         }
     }
@@ -520,6 +553,11 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
     }
     return removed;
 }
+
+/// The names a removal of a leftover was handed, for the controls that prove it never names the tree an attempt makes.
+#[cfg(test)]
+#[path = "scratch_location_removal_targets_test_support.rs"]
+pub(crate) mod test_targets;
 
 /// Environment resolution,
 /// preparation,

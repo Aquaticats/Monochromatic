@@ -512,6 +512,9 @@ fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
 ///  the leftover is moved aside under a name no commit tree has,
 ///  the attempt starts from an empty tree,
 ///  and the sweep of a later command collects what was moved.
+///  The removal of the moved tree runs beside this call,
+///  so whether any of it is still there when the assertion below runs is the device's to say,
+///  and what is asserted is that nothing but such a moved tree is left beside the attempt's own.
 #[test]
 fn a_leftover_its_removal_cut_short_is_moved_aside_and_the_attempt_goes_on() {
     let root: PathBuf = fixture("scratch-leftover-aside");
@@ -527,13 +530,60 @@ fn a_leftover_its_removal_cut_short_is_moved_aside_and_the_attempt_goes_on() {
     assert_eq!(again, first, "the attempt keeps the name of its own tree");
     assert!(!again.join("entry-0").exists(), "the attempt starts from an empty tree");
     let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
-    let moved: Vec<PathBuf> = std::fs::read_dir(&scratch)
+    let beside: Vec<PathBuf> = std::fs::read_dir(&scratch)
         .expect("scratch directory")
         .flatten()
         .map(|entry| { return entry.path(); })
-        .filter(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".removing-"); }); })
+        .filter(|path| { return path != &again; })
         .collect();
-    assert_eq!(moved.len(), 1, "the leftover was moved aside rather than left in the way");
+    for leftover in &beside {
+        let named: String = leftover.file_name().map(|file| { return file.to_string_lossy().into_owned(); }).unwrap_or_default();
+        assert!(named.contains(".removing-"), "the leftover is under a name no commit tree has: {}", leftover.display());
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The name a preparation hands to the removal of its earlier attempt's tree is the name that tree was moved to,
+///  never the name the attempt now beginning makes.
+/// Why:
+///  A removal that outlives its ceiling keeps the pathname it was given and never learns that the tree moved;
+///  one holding this attempt's name would examine that name later,
+///  after this attempt created its tree,
+///  and empty or remove the tree the attempt is writing.
+///  The attempt's own writes are here a private index,
+///  which is the first thing a commit puts in its tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const again = prepareCommitScratch(common, common, name, 1);
+/// expect(removals.named()).not.toContain(again);
+/// expect(await read(again + '/commit.index')).toBe('this attempt');
+/// ```
+#[test]
+fn a_removal_of_a_leftover_is_never_given_the_name_the_next_attempt_makes() {
+    let root: PathBuf = fixture("scratch-leftover-target");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d-0";
+    let first: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
+    std::fs::write(first.join("commit.index"), b"the earlier attempt's index").expect("a private index of the earlier attempt");
+    // The ceiling of a removal that outlives it: the leftover is still there when the next attempt begins.
+    test_targets::forget();
+    let again: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
+    let named: Vec<PathBuf> = test_targets::named();
+    assert_eq!(named.len(), 1, "the leftover's removal is started once: {named:?}");
+    assert_ne!(named[0], again, "the removal is given the name the old tree was moved to, not the name this attempt makes");
+    assert!(named[0] != first, "the removal is not given the name this attempt uses either: {}", named[0].display());
+    // What this attempt writes after it is given its tree is still there once a removal that outlived its ceiling has run.
+    std::fs::write(again.join("commit.index"), b"this attempt's index").expect("this attempt's private index");
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(
+        std::fs::read(again.join("commit.index")).ok().as_deref(),
+        Some(&b"this attempt's index"[..]),
+        "the tree this attempt made is still its own: {}",
+        again.display()
+    );
     remove(root.as_path());
 }
 
