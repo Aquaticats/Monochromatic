@@ -33,8 +33,8 @@ use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::external_git_command::dashed_external_selected;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{Path, PathBuf};
 
 /// Alias expansions followed before giving up,
 ///  well above any realistic chain.
@@ -388,7 +388,10 @@ pub fn resolve_forwarded_command(
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
 ) -> ResolvedCommand {
-    return resolve_command(context, environment, arguments, 0, &[]);
+    // The directory this process was started in; Git starts in it too and moves only for the caller's `-C`, so a
+    //  relative `PATH` entry or exec path is resolved from here.
+    let current_directory: Option<PathBuf> = std::env::current_dir().ok();
+    return resolve_command(context, environment, arguments, 0, &[], current_directory.as_deref());
 }
 
 /// What:
@@ -398,7 +401,9 @@ pub fn resolve_forwarded_command(
 ///  `usize` counts the shells already read;
 ///  `&[OsString]` borrows the globals of the process that started this one,
 ///       which the Git a shell alias starts reads too;
-///       no globals when Git starts the command itself.
+///       no globals when Git starts the command itself;
+///  `Option<&Path>` is the directory this process was started in,
+///       and nothing when it cannot be read.
 /// Why:
 ///   A `!` alias runs a shell that runs the real Git,
 ///  so no guard sees that command unless the value
@@ -413,7 +418,7 @@ pub fn resolve_forwarded_command(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolveCommand({ context, environment, args, shellDepth, inheritedGlobals }): ResolvedGitCommand;
+/// function resolveCommand({ context, environment, args, shellDepth, inheritedGlobals, currentDirectory }): ResolvedGitCommand;
 /// ```
 fn resolve_command(
     context: &GitContext,
@@ -421,6 +426,7 @@ fn resolve_command(
     arguments: &[OsString],
     shell_depth: usize,
     inherited_globals: &[OsString],
+    current_directory: Option<&Path>,
 ) -> ResolvedCommand {
     // `mut` allows replacing the arguments with each expansion.
     let mut current: Vec<OsString> = arguments.to_vec();
@@ -441,7 +447,7 @@ fn resolve_command(
         }
         // Git runs an installed `git-<word>` before it looks for an alias of that word (git.c:905 to git.c:912), so
         //  such a word reaches no alias and the wrapper leaves it to Git.
-        if dashed_external_selected(context, environment, caller_globals.as_slice(), name.as_os_str()) {
+        if dashed_external_selected(context, environment, caller_globals.as_slice(), current_directory, name.as_os_str()) {
             debug(
                 "resolveForwardedCommand",
                 format!("Git runs {} as an external command", name.to_string_lossy()).as_str(),
@@ -477,6 +483,7 @@ fn resolve_command(
                 shell_depth,
                 &current[layout.prefix_len + 1..],
                 process_globals.as_slice(),
+                current_directory,
             );
             return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command);
         }
@@ -548,7 +555,9 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
 ///       which Git hands the shell after the alias's;
 ///  `&[OsString]` borrows the globals of the process that started this one,
 ///       which the Git
-///       inside the shell reads too.
+///       inside the shell reads too;
+///  `Option<&Path>` is the directory this process was started in,
+///       and nothing when it cannot be read.
 /// Why:
 ///   Git prepends its own executable directory to `PATH` before it runs the shell
 ///  (`exec-cmd.c:333` to
@@ -569,7 +578,7 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function shellCommandOf({ context, environment, value, shellDepth, callerArguments, inheritedGlobals }): string[] | undefined;
+/// function shellCommandOf({ context, environment, value, shellDepth, callerArguments, inheritedGlobals, currentDirectory }): string[] | undefined;
 /// ```
 fn shell_command_of(
     context: &GitContext,
@@ -578,6 +587,7 @@ fn shell_command_of(
     shell_depth: usize,
     caller_arguments: &[OsString],
     inherited_globals: &[OsString],
+    current_directory: Option<&Path>,
 ) -> Option<Vec<OsString>> {
     // One shell is read: a shell alias named inside another is left unread, so a chain of them cannot repeat.
     if shell_depth >= 1 {
@@ -590,8 +600,14 @@ fn shell_command_of(
     if words.is_empty() {
         return None;
     }
-    let nested: ResolvedCommand =
-        resolve_command(context, environment, words.as_slice(), shell_depth + 1, inherited_globals);
+    let nested: ResolvedCommand = resolve_command(
+        context,
+        environment,
+        words.as_slice(),
+        shell_depth + 1,
+        inherited_globals,
+        current_directory,
+    );
     // Only a built-in this crate already read is handed on, and only when no global option stands before it.
     if !nested.is_builtin() || nested.subcommand_index != 0 {
         return None;

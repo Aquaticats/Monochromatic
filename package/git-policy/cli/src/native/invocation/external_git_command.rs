@@ -32,6 +32,8 @@
 use crate::diagnostic_log::debug;
 /// The environment overlay reader the wrapper uses for every variable it consults.
 use crate::child_environment::environment_value;
+/// The directories a caller's `-C` options move Git through.
+use crate::global_arguments::directory_changes;
 /// The directory a `--exec-path=` global names, read from the caller's own options.
 use crate::global_arguments::exec_path_option;
 /// Running real Git,
@@ -54,7 +56,10 @@ const OWNER_EXECUTE_BIT: u32 = 0o100;
 ///       that word is selected.
 ///  `&[OsString]` borrows the caller's global options;
 ///  `&[(OsString, OsString)]` borrows the
-///       environment the real Git will be started with.
+///       environment the real Git will be started with;
+///  `Option<&Path>` is the directory the wrapper was started in,
+///  which the caller's
+///       `-C` options move, and nothing when it cannot be read.
 /// Why:
 ///  The wrapper substitutes the expansion it resolved,
 ///  so it must not do that for a word Git resolves
@@ -67,19 +72,20 @@ const OWNER_EXECUTE_BIT: u32 = 0o100;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dashedExternalSelected({ context, environment, globals, word }): boolean;
+/// function dashedExternalSelected({ context, environment, globals, currentDirectory, word }): boolean;
 /// ```
 pub fn dashed_external_selected(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     globals: &[OsString],
+    current_directory: Option<&Path>,
     word: &OsStr,
 ) -> bool {
     // UNTESTED ON WINDOWS: the crate does not build for Windows (README, Requirements); this answer keeps the alias
     //  unchecked there rather than guessing at `PATHEXT` and the extension Git would run.
     #[cfg(not(unix))]
     {
-        let _ = (context, environment, globals, word);
+        let _ = (context, environment, globals, current_directory, word);
         return true;
     }
     #[cfg(unix)]
@@ -90,10 +96,10 @@ pub fn dashed_external_selected(
         if candidate.as_encoded_bytes().contains(&b'/') {
             return is_executable_file(Path::new(candidate.as_os_str()));
         }
-        let Some(directories) = search_directories(context, environment, globals) else {
+        let Some(directories) = search_directories(context, environment, globals, current_directory) else {
             debug(
                 "dashedExternalSelected",
-                format!("cannot read the exec path, so {}", candidate.to_string_lossy()).as_str(),
+                format!("cannot read the search directories, so {}", candidate.to_string_lossy()).as_str(),
             );
             return true;
         };
@@ -114,7 +120,7 @@ pub fn dashed_external_selected(
 ///  The directories Git searches for `git-<word>`,
 ///  its exec path first and then every `PATH` entry,
 /// or
-///       nothing when the exec path cannot be read.
+///       nothing when the directory Git runs in or its exec path cannot be read.
 /// Why:
 ///  `setup_path` puts the exec path in front of `PATH` once,
 ///  before any command runs
@@ -125,16 +131,21 @@ pub fn dashed_external_selected(
 ///  The order only matters to Git;
 ///  this caller asks whether any
 ///  entry holds the program.
+///  A relative exec path is made absolute against the directory Git runs in before Git adds it
+///  (`exec-cmd.c:325` to `exec-cmd.c:330`),
+///  so that directory is read first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function searchDirectories({ context, environment, globals }): string[] | undefined;
+/// function searchDirectories({ context, environment, globals, currentDirectory }): string[] | undefined;
 /// ```
 fn search_directories(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     globals: &[OsString],
+    current_directory: Option<&Path>,
 ) -> Option<Vec<PathBuf>> {
+    let directory: PathBuf = effective_directory(current_directory?, globals);
     let mut directories: Vec<PathBuf> = Vec::new();
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     for entry in std::env::split_paths(path.as_os_str()) {
@@ -145,12 +156,37 @@ fn search_directories(
             directories.push(entry);
         }
     }
-    let exec_path: PathBuf = exec_path(context, environment, globals)?;
+    let exec_path: PathBuf = exec_path(context, environment, globals, directory.as_path())?;
     // An empty answer adds no executables directory at all (`exec-cmd.c:325`), so the search keeps to `PATH`.
     if !exec_path.as_os_str().is_empty() {
         directories.push(exec_path);
     }
     return Some(directories);
+}
+
+/// What:
+///  The directory Git runs in after the caller's `-C` options,
+///  read from the directory the wrapper was started in.
+/// Why:
+///  Each `-C` moves Git once, in the order written,
+///  and a relative value is resolved against the directory the
+///       move starts from
+///  (`git.c:316` to `git.c:328`);
+///  `Path::join` keeps a value as written,
+///  so a `..` or a link in it resolves
+///  exactly as the kernel resolves it when Git changes into it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const effectiveDirectory = (start: string, globals: string[]) =>
+///   directoryChanges(globals).reduce((at, change) => join(at, change), start);
+/// ```
+fn effective_directory(start: &Path, globals: &[OsString]) -> PathBuf {
+    let mut directory: PathBuf = start.to_path_buf();
+    for change in directory_changes(globals) {
+        directory = directory.join(change);
+    }
+    return directory;
 }
 
 /// What:
@@ -169,57 +205,50 @@ fn search_directories(
 ///  so the answer comes from `git --exec-path` with the
 ///  caller's globals.
 ///  A relative answer
-///  is made absolute against the directory Git starts in,
-///  which the caller's `-C` chain moves;
-///  reading that
-///  chain is another job,
-///  so a relative answer leaves the search uncertain instead of guessed.
+///  is made absolute against the directory Git runs in,
+///  which the caller's `-C` chain moves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function execPath({ context, environment, globals }): string | undefined;
+/// function execPath({ context, environment, globals, directory }): string | undefined;
 /// ```
 fn exec_path(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     globals: &[OsString],
+    directory: &Path,
 ) -> Option<PathBuf> {
     if let Some(configured) = exec_path_option(globals) {
-        return usable_exec_path(configured);
+        return Some(usable_exec_path(configured, directory));
     }
     // A caller that exported `GIT_EXEC_PATH` as an empty string names no setting, so Git answers with its own path.
     if let Some(configured) = environment_value(environment, "GIT_EXEC_PATH")
         && !configured.is_empty()
     {
-        return usable_exec_path(configured);
+        return Some(usable_exec_path(configured, directory));
     }
-    return usable_exec_path(printed_exec_path(context, globals)?);
+    return Some(usable_exec_path(printed_exec_path(context, globals)?, directory));
 }
 
 /// What:
-///  A configured exec path as a directory this reading can search,
-///  or nothing when it is relative.
+///  A configured exec path as an absolute directory this reading can search.
 /// Why:
 ///  An empty setting adds no executables directory at all
 ///  (`exec-cmd.c:325`),
-///  and a relative one is relative to the directory Git runs in,
-///  which this reading does not know yet,
-///  so it stays
-///  uncertain instead of being guessed.
+///  and a relative one is made absolute against the directory Git runs in
+///  before Git adds it to `PATH` (`exec-cmd.c:325` to `exec-cmd.c:330`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const usableExecPath = (configured: string) => configured === '' ? '' : isAbsolute(configured) ? configured : undefined;
+/// const usableExecPath = (configured: string, directory: string) =>
+///   configured === '' ? '' : isAbsolute(configured) ? configured : join(directory, configured);
 /// ```
-fn usable_exec_path(configured: OsString) -> Option<PathBuf> {
+fn usable_exec_path(configured: OsString, directory: &Path) -> PathBuf {
     let path: PathBuf = PathBuf::from(configured);
-    if path.as_os_str().is_empty() {
-        return Some(path);
+    if path.as_os_str().is_empty() || path.is_absolute() {
+        return path;
     }
-    if !path.is_absolute() {
-        return None;
-    }
-    return Some(path);
+    return directory.join(path);
 }
 
 /// What:

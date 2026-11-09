@@ -304,6 +304,52 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
 }
 
 /// What:
+///  A `GIT_EXEC_PATH` relative to the directory Git runs in is searched there,
+///  so an ordinary alias of a word no program names reaches the guard.
+/// Why:
+///   Git makes a relative exec path absolute against its own directory before it adds it to
+///       `PATH`
+///  (`exec-cmd.c:325` to `exec-cmd.c:340`),
+///  so the search has an answer;
+///  a reading that calls the relative path uncertain leaves the alias to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // cwd repo, mkdir exec, GIT_EXEC_PATH=exec, alias.wipe=reset --hard => real Git resets; the wrapper refuses
+/// ```
+#[test]
+fn a_relative_exec_path_is_searched_where_git_searches_it() {
+    let fixture: Fixture = fixture("alias-expansion-relative-exec-path");
+    let control: PathBuf = repository_with_unstaged_work(&fixture, "control");
+    let refused: PathBuf = repository_with_unstaged_work(&fixture, "refused");
+    for repo in [control.as_path(), refused.as_path()] {
+        std::fs::create_dir(repo.join("exec")).expect("exec path directory");
+    }
+    let arguments: [&str; 3] = ["-c", "alias.wipe=reset --hard", "wipe"];
+    let exec_path: &OsStr = OsStr::new("exec");
+    // The positive control: the directory holds no `git-wipe`, so Git expands the alias and discards the work.
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(control.as_path())
+            .args(arguments)
+            .env("GIT_EXEC_PATH", exec_path),
+        b"",
+    );
+    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
+    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let observed: Observed = observe(
+        wrapper_program(&fixture)
+            .current_dir(refused.as_path())
+            .args(arguments)
+            .env("GIT_EXEC_PATH", exec_path),
+        b"",
+    );
+    assert_ne!(observed.code, Some(0), "the wrapper ran the alias's reset: {}", stderr_of(&observed));
+    assert_eq!(tracked(refused.as_path()), USER_DATA, "the alias discarded the work");
+    remove(&fixture);
+}
+
+/// What:
 ///  The same refusal from a clean linked worktree,
 ///  where the guard of uncommitted work has nothing to reject and the copy of a
 ///       main checkout is not involved.

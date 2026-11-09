@@ -106,6 +106,7 @@ fn a_program_on_the_path_is_the_command_git_runs() {
         &context(),
         environment(pairs.as_slice()).as_slice(),
         &[],
+        Some(root.as_path()),
         OsStr::new("audit-external"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
@@ -144,6 +145,7 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
         &context(),
         environment(pairs.as_slice()).as_slice(),
         globals(given.as_slice()).as_slice(),
+        Some(root.as_path()),
         OsStr::new("audit-external"),
     );
     assert_eq!(
@@ -164,6 +166,7 @@ fn a_word_no_program_names_is_not_an_external_command() {
         &context(),
         environment(pairs.as_slice()).as_slice(),
         &[],
+        Some(root.as_path()),
         OsStr::new("audit-absent"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-absent"));
@@ -186,10 +189,43 @@ fn a_program_in_the_exec_path_is_the_command_git_runs() {
         &context(),
         environment(pairs.as_slice()).as_slice(),
         &[],
+        Some(root.as_path()),
         OsStr::new("audit-external"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
     assert!(answer, "the program in the exec path was not found");
+    remove(root.as_path());
+}
+
+/// What:
+///  A relative `GIT_EXEC_PATH` is searched from the directory Git runs in,
+///  so a program there is what Git runs.
+/// Why:
+///  Git makes a relative exec path absolute against its own directory before it adds it to `PATH`
+///  (`exec-cmd.c:325` to `exec-cmd.c:340`),
+///  so the search has an answer;
+///  a reading that called the relative path uncertain left the alias to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// dashedExternalSelected({ environment: { GIT_EXEC_PATH: 'exec' }, currentDirectory: root, word: 'audit-external' })
+/// ```
+#[test]
+fn a_relative_exec_path_is_searched_where_git_searches_it() {
+    let root: PathBuf = scratch("external-relative-exec-path");
+    let exec: PathBuf = root.join("exec");
+    std::fs::create_dir(&exec).expect("exec path directory");
+    program(exec.join("git-audit-external").as_path());
+    let pairs: Vec<(&str, &str)> = vec![("GIT_EXEC_PATH", "exec"), ("PATH", "/usr/bin:/bin")];
+    let answer: bool = dashed_external_selected(
+        &context(),
+        environment(pairs.as_slice()).as_slice(),
+        &[],
+        Some(root.as_path()),
+        OsStr::new("audit-external"),
+    );
+    assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
+    assert!(answer, "the program in the relative exec path was not found");
     remove(root.as_path());
 }
 
@@ -214,6 +250,7 @@ fn a_file_without_the_owner_execute_bit_is_no_command() {
         &context(),
         environment(pairs.as_slice()).as_slice(),
         &[],
+        Some(root.as_path()),
         OsStr::new("audit-plain"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-plain"));

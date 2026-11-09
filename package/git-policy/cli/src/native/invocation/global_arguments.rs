@@ -169,6 +169,50 @@ pub fn option_tokens(global_prefix: &[OsString]) -> Vec<&OsString> {
 }
 
 /// What:
+///  The directories the caller's `-C` options move Git through,
+///  in the order Git reads them,
+///  and without the empty value Git treats as no move.
+/// Why:
+///   A relative `PATH` entry or exec path is resolved against the directory Git runs in,
+///  and `-C` moves that directory before any command is looked up
+///  (`git.c:316` to `git.c:328`,
+///  then `git.c:988`);
+///  an empty `-C` moves Git nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directoryChanges = (prefix: string[]) =>
+///   prefix.flatMap((token, index) => token === '-C' && prefix[index + 1] ? [prefix[index + 1]] : []);
+/// ```
+pub fn directory_changes(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut directories: Vec<OsString> = Vec::new();
+    // True while the token being visited is the value of the separated-value option before it.
+    let mut is_value: bool = false;
+    for (index, token) in global_prefix.iter().enumerate() {
+        if is_value {
+            is_value = false;
+            continue;
+        }
+        let argument: &[u8] = token.as_encoded_bytes();
+        if !takes_value(argument) {
+            continue;
+        }
+        is_value = true;
+        if argument != b"-C" {
+            continue;
+        }
+        let Some(value) = global_prefix.get(index + 1) else {
+            continue;
+        };
+        if value.as_encoded_bytes().is_empty() {
+            continue;
+        }
+        directories.push(value.clone());
+    }
+    return directories;
+}
+
+/// What:
 ///  The directory the last `--exec-path=` option of a global prefix names,
 ///  or nothing when the prefix holds no such option.
 ///  A value is returned as the caller wrote it,
