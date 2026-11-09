@@ -3185,6 +3185,10 @@ now inside these bounds:
   The journal keeps the lock's device,
   inode and size and the number of unreadable processes,
   and the waiting notices tell the person.
+  A descriptor is matched to the lock by the device number and the inode the lock has,
+  so a holder that reached it through a bind mount is seen,
+  and a file of another btrfs subvolume that shares the inode number is not a holder (audit of 2026-11-09,
+  finding 4).
   A lock with content is not removed:
   a native `git commit --all`,
   `--only` or with paths keeps `index.lock` with the index written into it,
@@ -4191,7 +4195,17 @@ and the first answer wins:
    `bcachefs`) is unproven,
    because a Git on another machine is
    invisible here.
-3. A process of the account that has the candidate open (same device and inode in `/proc/<pid>/fd`) makes it **held**.
+3. A process of the account that has the candidate open makes it **held**.
+   A descriptor is matched to the file by the device number and the inode the file has,
+   which is the pair that names one file on a machine,
+   and the record's inode number is only the cheap test that comes first,
+   before the descriptor's own open link is resolved.
+   The mount number the kernel writes for a descriptor is not an identity (audit of 2026-11-09,
+   finding 4):
+   a bind mount gives the same file another mount number,
+   so a holder that reached the lock that way was not found at all,
+   and two files of two btrfs subvolumes reached through one mount share the mount number and the inode number,
+   so a process holding one of them made the other **held**.
    A process list that cannot be read,
    or a Git process of the account whose descriptors cannot be read,
    makes it unproven.
@@ -5673,7 +5687,8 @@ Each commit passes through three phases:
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
     What a foreign lock's evidence proves rests on two facts and never on the wall clock (audit of 2026-11-09,
     finding 3):
-    a process of the account that has the lock open, and a Git lock PID file (`core.lockfilePid`) that names a running process whose command name
+    a process of the account that has the lock open, matched to it by the device number and the inode the lock has,
+    and a Git lock PID file (`core.lockfilePid`) that names a running process whose command name
     starts with `git`,
     which is the holder because Git writes its own number there.
     A running program that is not named like Git may be that Git under another name or a later program that took the number,

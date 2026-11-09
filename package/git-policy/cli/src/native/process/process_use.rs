@@ -177,8 +177,11 @@ pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -
             held = value.trim().parse::<u64>().ok();
         }
     }
-    let _ = (link, device);
-    return Ok(held == Some(inode));
+    if held != Some(inode) {
+        return Ok(false);
+    }
+    let opened: std::fs::Metadata = std::fs::metadata(link)?;
+    return Ok(opened.dev() == device && opened.ino() == inode);
 }
 
 /// What:
