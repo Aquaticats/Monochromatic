@@ -758,7 +758,7 @@ fn a_destination_made_again_before_the_lookup_is_left_alone() {
         None,
         "the replacement registration received nothing: {said}"
     );
-    assert!(said.contains("made again") || said.contains("no longer the"), "the person is told why: {said}");
+    assert!(said.contains("no longer at that path"), "the person is told why: {said}");
     remove(root.as_path());
 }
 
@@ -849,6 +849,14 @@ fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
         "the replacement registration received nothing: {said}"
     );
     assert!(said.contains("received no ignored-state copy"), "the person is told why: {said}");
+    // The worktree this command made was moved away and never filled, so its record stays and a later add from it is held
+    // back instead of treating its missing ignored state as whole.
+    let records: Vec<String> = recorded_names(common.as_path());
+    assert_eq!(
+        records.iter().filter(|name| return name.ends_with(".add")).count(),
+        1,
+        "the record of the worktree this command never filled stays: {records:?}"
+    );
     remove(root.as_path());
 }
 

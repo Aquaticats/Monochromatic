@@ -120,7 +120,7 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
 pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let why: &str = match ownership {
-        DestinationOwnership::MadeAgain => "it is no longer the directory this command made, so the worktree that stands there is another command's",
+        DestinationOwnership::MadeAgain => "the worktree this command registered is no longer at that path, so the ignored state was not copied into it and the record of this add stays; `git worktree list` shows where it is now",
         DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
         DestinationOwnership::Mine => "it is not this command's to fill",
     };

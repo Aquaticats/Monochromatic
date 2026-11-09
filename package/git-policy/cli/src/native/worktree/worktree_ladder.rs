@@ -68,6 +68,12 @@ mod other {
     }
 
     impl Ladder {
+        /// No destination was made before real Git on this system,
+        /// so the lifecycle reserves its own.
+        pub fn destination_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
+            return None;
+        }
+
         /// The person's arguments.
         pub fn first_step(&self) -> GitStep<'static> {
             return GitStep::Person;

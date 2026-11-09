@@ -380,6 +380,11 @@ pub(crate) fn synchronize_after(
         if ownership == DestinationOwnership::GitFailed && nothing_but_a_reservation(destination) {
             return Ok(Vec::new());
         }
+        // A destination this command made and no longer holds means the worktree it registered is elsewhere and was
+        // never filled, so the record naming it stays for the next command to report.
+        if ownership == DestinationOwnership::MadeAgain {
+            *left_unfilled = true;
+        }
         let line: String = not_this_commands_destination_notice(destination, ownership);
         stderr
             .write_all(line.as_bytes())
