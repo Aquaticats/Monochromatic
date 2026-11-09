@@ -26,6 +26,7 @@ use super::{
 };
 use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
 use crate::candidate_object::CandidateMode;
+use crate::direct_fix_install_attributes::{Attribute, attributes_of};
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
 use crate::direct_fix_install_writes::{Kept, write_new};
 use crate::test_support::{fixture, git, remove, repository};
@@ -164,10 +165,26 @@ fn changes() -> Vec<InstallChange> {
 /// // const blob = pack('<I', 2) + [[1, 6, -1], [2, 4, owner], [4, 4, -1], [0x10, 4, -1], [0x20, 0, -1]].map(([tag, perm, id]) => pack('<HHI', tag, perm, id)).join('');
 /// ```
 fn access_list() -> Vec<u8> {
+    return access_list_with_owner(0o6, 0);
+}
+
+/// What:
+///  The same list with the owner's own permission given,
+/// as the bytes a directory stores under `system.posix_acl_default`.
+/// Why:
+///  A default list is what a directory hands to every file created inside it,
+///  and the owner's own permission in it decides what the created object may be used for:
+///  a list whose owner may not enter leaves a created directory unusable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const blob = acl(2, [[1, ownerPermission, -1], [2, 4, namedAccount], [4, 4, -1], [0x10, 4, -1], [0x20, 0, -1]])
+/// ```
+fn access_list_with_owner(owner_permission: u16, named_account: u32) -> Vec<u8> {
     let mut blob: Vec<u8> = u32::to_le_bytes(2).to_vec();
     let entries: [(u16, u16, u32); 5] = [
-        (0x01, 0o6, u32::MAX),
-        (0x02, 0o4, 0),
+        (0x01, owner_permission, u32::MAX),
+        (0x02, 0o4, named_account),
         (0x04, 0o4, u32::MAX),
         (0x10, 0o4, u32::MAX),
         (0x20, 0o0, u32::MAX),
@@ -430,6 +447,69 @@ fn the_access_control_list_of_a_file_survives_a_fix() {
         Some(list),
         "who may read the file is unchanged"
     );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+/// An account the person's file never named,
+///  and one this control can plant without owning it.
+const ANOTHER_ACCOUNT: u32 = 4321;
+
+/// What:
+///  A fix never grants an account access the file never granted,
+///  by the list a directory hands to every file created inside it.
+/// Why:
+///  The replacement is created in the Git directory,
+///  and a default access-control list there is copied onto it;
+///  the corrected file would then be readable by an account the person's file never named,
+///  and comparing the displaced original cannot see it,
+///  because the unexpected list belongs to the replacement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(gitDir, 'system.posix_acl_default', acl); await installCorrections(...); expect(getxattr(a, 'system.posix_acl_access')).toBeUndefined()
+/// ```
+#[test]
+fn a_replacement_never_gains_an_access_control_list_the_file_never_had() {
+    let fixture_tree: Tree = tree("install-inherited-access-list");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    // The Git directory holds every journal, so a default list there is copied to every replacement created in it.
+    if !set_attribute(
+        fixture_tree.root.as_path(),
+        b"system.posix_acl_default",
+        access_list_with_owner(0o7, ANOTHER_ACCOUNT).as_slice(),
+    ) {
+        eprintln!(
+            "ACL CONTROL NOT RUN: this filesystem refuses a default access-control list ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    let carried: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        None,
+        "the file names no account before the fix"
+    );
+    let mode: u32 = std::fs::metadata(&path).expect("a").permissions().mode() & 0o7777;
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, one_change().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(std::fs::read(&path).expect("a"), b"a\n", "the fix installed its correction");
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        None,
+        "the corrected file grants nobody access the original did not"
+    );
+    assert_eq!(
+        attributes_of(path.as_path(), "reading a file").expect("read"),
+        carried,
+        "the corrected file carries exactly what the file it replaced did"
+    );
+    let after: u32 = std::fs::metadata(&path).expect("a").permissions().mode() & 0o7777;
+    assert_eq!(after, mode, "and the permission bits it had");
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     remove(fixture_tree.root.as_path());
 }
@@ -1540,7 +1620,7 @@ fn a_replacement_keeps_the_group_the_file_had() {
         mode: 0o640,
         uid: unsafe { libc::geteuid() },
         gid: own,
-        attributes: Vec::new(),
+        attributes: carried_by_a_new_file_in(shared.as_path()),
     };
     write_new(path.as_path(), b"x\n", &asked).expect("the replacement is written");
     /// `MetadataExt` adds the group.
@@ -1548,6 +1628,26 @@ fn a_replacement_keeps_the_group_the_file_had() {
     let actual: u32 = std::fs::metadata(&path).expect("written").gid();
     assert_eq!(actual, own, "the replacement keeps the group it was asked for");
     remove(root.as_path());
+}
+
+/// What:
+///  The extended attributes a file this directory creates carries,
+///  as the list a fix reads from a file that has none of its own.
+/// Why:
+///  A replacement is created in that directory and must end with exactly the list it is given,
+///  and the file system gives every file here an identity of its own;
+///  a control that named an empty list would describe a file this directory cannot create.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // writeFile(prototype, 'x'); const carried = attributesOf(prototype); unlink(prototype); return carried;
+/// ```
+fn carried_by_a_new_file_in(directory: &Path) -> Vec<Attribute> {
+    let prototype: PathBuf = directory.join("prototype.txt");
+    std::fs::write(&prototype, b"x\n").expect("a prototype");
+    let carried: Vec<Attribute> = attributes_of(prototype.as_path(), "reading a file").expect("read");
+    std::fs::remove_file(&prototype).expect("the prototype is removed");
+    return carried;
 }
 
 /// What:

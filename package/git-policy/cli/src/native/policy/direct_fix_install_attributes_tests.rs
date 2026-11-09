@@ -13,7 +13,7 @@
 //! ```
 
 /// The module under test.
-use super::{Attribute, attributes_of, give_to};
+use super::{Attribute, AttributeRefusal, attributes_of, give_to};
 /// A disposable fixture and its removal.
 use crate::test_support::{fixture, remove};
 /// `CString` names the attribute the control plants.
@@ -167,8 +167,11 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
         name: b"bogus.never".to_vec(),
         value: b"x".to_vec(),
     };
-    let (refused, why): (Attribute, std::io::Error) =
+    let refusal: AttributeRefusal =
         give_to(&file, [impossible.clone()].as_slice()).expect_err("no such namespace");
+    let AttributeRefusal::NotGiven { attribute: refused, reason: why } = refusal else {
+        panic!("the refusal names the attribute the system would not set: {refusal:?}");
+    };
     assert_eq!(refused, impossible);
     assert_ne!(why.raw_os_error(), None, "the system's own reason is kept: {why}");
     assert_eq!(refused.display_name(), "bogus.never");
@@ -182,7 +185,14 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
         name: DRAFT.to_vec(),
         value: b"second".to_vec(),
     };
-    assert!(give_to(&known, [wanted.clone()].as_slice()).is_ok(), "the value is given");
+    // The list is the file's own with the wanted value in place of the one it holds, as the fix's list is the
+    // original's: every attribute the file carries is named, so nothing is taken off it.
+    let mut asked: Vec<Attribute> = attributes_of(known_path.as_path(), "reading a file").expect("read");
+    asked.retain(|attribute| {
+        return attribute.name != wanted.name;
+    });
+    asked.push(wanted.clone());
+    assert!(give_to(&known, asked.as_slice()).is_ok(), "the value is given");
     let read_back: Vec<Attribute> = attributes_of(known_path.as_path(), "reading a file").expect("read");
     assert!(
         read_back.contains(&wanted),
@@ -190,4 +200,52 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
     );
     remove(root.as_path());
     remove(known_root.as_path());
+}
+
+/// What:
+///  An extended attribute the replacement carries and the original never did is taken off it.
+/// Why:
+///  A directory's default access-control list is copied onto every file created inside it,
+///  and the replacement is created inside the Git directory:
+///  a replacement that kept the inherited list would grant an account read access the original
+///       never gave,
+///  which no comparison of the displaced original can see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(replacement, 'user.inherited', 'from the directory'); giveTo(replacement, []); expect(getxattr(replacement, 'user.inherited')).toBeUndefined()
+/// ```
+#[test]
+fn an_attribute_the_original_never_had_is_taken_off_the_replacement() {
+    const INHERITED: &[u8] = b"user.inherited";
+    let root: PathBuf = fixture("xattr-not-inherited");
+    let path: PathBuf = root.join("replacement.txt");
+    std::fs::write(&path, b"x\n").expect("a file");
+    if !set_attribute(path.as_path(), INHERITED, b"from the directory") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(root.as_path());
+        return;
+    }
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    // The list is what the original carried: every attribute of the file but the one the directory planted on it.
+    let kept: Vec<Attribute> = attributes_of(path.as_path(), "reading a file")
+        .expect("read")
+        .into_iter()
+        .filter(|attribute| {
+            return attribute.name != INHERITED;
+        })
+        .collect();
+    give_to(&file, kept.as_slice()).expect("every attribute the original never had is taken off");
+    let found: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    let user: Vec<&Attribute> = found
+        .iter()
+        .filter(|attribute| {
+            return attribute.name.starts_with(b"user.");
+        })
+        .collect();
+    assert_eq!(user, Vec::<&Attribute>::new(), "the inherited attribute is gone: {found:?}");
+    remove(root.as_path());
 }

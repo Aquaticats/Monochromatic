@@ -15,8 +15,12 @@
 //!  A replacement that did not carry them would delete the only copy,
 //!  which is
 //!       the loss the owner forbids;
-//!  so a replacement either carries every attribute the file lists or the fix
+//!  so a replacement either carries exactly the attributes the file lists or the fix
 //!       refuses that file and says which attribute it could not keep.
+//!  An attribute the replacement carries and the original never
+//!       did is taken off for the same reason read the other way:
+//!  the corrected file would otherwise
+//!       grant an account access the original never granted.
 //!
 //! What is out of reach:
 //!  a namespace this process may not list (another user's `trusted.*`)
@@ -105,6 +109,49 @@ impl Attribute {
 }
 
 /// What:
+///  Why a replacement could not be made to carry exactly the attributes the original had.
+/// Why:
+///  The person must be told which attribute the system would not carry,
+///  and which one the
+///       replacement carries that the original did not;
+///  the two are different harms,
+///  one deleting their
+///       data and the other granting access the original never granted,
+///  so they are different answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AttributeRefusal =
+///   | { kind: 'not-given'; attribute: Attribute; reason: Error }
+///   | { kind: 'not-removed'; attribute: Attribute; reason: Error }
+///   | { kind: 'list-failed'; reason: Error };
+/// ```
+#[derive(Debug)]
+pub(crate) enum AttributeRefusal {
+    /// The replacement could not be given an attribute the original carries.
+    NotGiven {
+        /// The attribute the system refused.
+        attribute: Attribute,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The replacement carries an attribute the original did not,
+    ///  and the system would not take it off.
+    NotRemoved {
+        /// The attribute that stays on the replacement.
+        attribute: Attribute,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The attributes of the open replacement could not be listed,
+    ///  so what it carries beyond the original's cannot be named.
+    ListFailed {
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+}
+
+/// What:
 ///  A pathname as the system calls want it.
 /// Why:
 ///   They take NUL-terminated bytes,
@@ -180,6 +227,50 @@ fn names_of_attributes(path: &Path) -> std::io::Result<Vec<Vec<u8>>> {
         // SAFETY: `names` holds `names.len()` writable bytes, and the path outlives the call.
         let filled: libc::ssize_t =
             unsafe { libc::llistxattr(text.as_ptr(), names.as_mut_ptr().cast(), names.len()) };
+        if filled < 0 {
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::ERANGE) {
+                continue;
+            }
+            return Err(error);
+        }
+        names.truncate(usize::try_from(filled).unwrap_or(0));
+        return Ok(names
+            .split(is_zero)
+            .filter(named)
+            .map(<[u8]>::to_vec)
+            .collect());
+    }
+    return Err(std::io::Error::other(
+        "the list of its extended attributes kept changing while it was read",
+    ));
+}
+
+/// What:
+///  The names of every extended attribute of the open file at `descriptor`,
+///  in the order the kernel
+///       lists them.
+/// Why:
+///  The descriptor cannot be redirected by a swap of the name,
+///  so the list is the replacement's own,
+///  and the names are what a removal addresses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = (fd) => flistxattr(fd).split('\0').filter(Boolean);
+/// ```
+#[cfg(unix)]
+fn names_on_descriptor(descriptor: libc::c_int) -> std::io::Result<Vec<Vec<u8>>> {
+    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
+        // SAFETY: a null buffer with size 0 asks the system for the length of the list.
+        let length: libc::ssize_t = unsafe { libc::flistxattr(descriptor, std::ptr::null_mut(), 0) };
+        if length < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let mut names: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
+        // SAFETY: `names` holds `names.len()` writable bytes, and the descriptor is this file's.
+        let filled: libc::ssize_t =
+            unsafe { libc::flistxattr(descriptor, names.as_mut_ptr().cast(), names.len()) };
         if filled < 0 {
             let error: std::io::Error = std::io::Error::last_os_error();
             if error.raw_os_error() == Some(libc::ERANGE) {
@@ -358,7 +449,9 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
 /// What:
 ///  Give the open replacement at `file` each of `attributes`,
 ///  and nothing else.
-///  `Result<(), (Attribute, std::io::Error)>` is the attribute the system refused and why.
+///  `Result<(), AttributeRefusal>` is the attribute the system refused and why,
+///  or the
+///       attribute the system would not take off.
 /// Why:
 ///   The descriptor cannot be redirected by a swap of the name,
 ///  so the attributes land on the file that will be
@@ -371,20 +464,28 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
 ///  a system label that the file was created with is then replaced by the label the
 ///       person's file carried,
 ///  and a refusal to replace it is a refusal to fix.
+///  Everything the replacement carries that `attributes` does not name is then taken
+///       off,
+///  because a directory's default access-control list is copied onto every file created
+///       inside it,
+///  and the replacement is created inside the Git directory:
+///  a corrected file that kept that
+///       list would grant an account access the original never granted (`take_off_every_extra`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const { name, value } of attributes) { try { fsetxattr(file, name, value) } catch (error) { return { refused: name, error } } }
+/// for (const { name, value } of attributes) { try { fsetxattr(file, name, value) } catch (error) { return { kind: 'not-given', attribute: name, error } } }
+/// takeOffEveryExtra(file, attributes);
 /// ```
 #[cfg(unix)]
-pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attribute, std::io::Error)> {
+pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), AttributeRefusal> {
     let descriptor: libc::c_int = file.as_raw_fd();
     for attribute in attributes {
         let Ok(text) = CString::new(attribute.name.as_slice()) else {
-            return Err((
-                attribute.clone(),
-                std::io::Error::from(std::io::ErrorKind::InvalidInput),
-            ));
+            return Err(AttributeRefusal::NotGiven {
+                attribute: attribute.clone(),
+                reason: std::io::Error::from(std::io::ErrorKind::InvalidInput),
+            });
         };
         // SAFETY: the names are NUL-terminated strings, and `value` holds `value.len()` initialised bytes.
         let result: libc::c_int = unsafe {
@@ -397,7 +498,88 @@ pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attr
             )
         };
         if result != 0 {
-            return Err((attribute.clone(), std::io::Error::last_os_error()));
+            return Err(AttributeRefusal::NotGiven {
+                attribute: attribute.clone(),
+                reason: std::io::Error::last_os_error(),
+            });
+        }
+    }
+    return take_off_every_extra(file, attributes);
+}
+
+/// What:
+///  Whether `kept` names the attribute `name`.
+/// Why:
+///  A name the original carried is left as it is;
+///  a name it never had is one the replacement may not keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesIt = (kept, name) => kept.some((attribute) => attribute.name === name);
+/// ```
+#[cfg(unix)]
+fn names_it(kept: &[Attribute], name: &[u8]) -> bool {
+    for attribute in kept {
+        if attribute.name.as_slice() == name {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Take off the open replacement at `file` every extended attribute `kept` does not name.
+/// Why:
+///  A default access-control list belongs to the directory a file is created in,
+///  and the journal
+///       directory the replacement is written inside inherits one from the Git directory;
+///  the list is
+///       then copied onto the replacement,
+///  which after the swap decides who may read the person's file.
+///  A
+///       corrected file that kept it would grant an account the original never named read access,
+///  and
+///       comparing the displaced original cannot see it,
+///  because the unexpected list belongs to the
+///       replacement.
+///  The list is read from the descriptor,
+///  so no other process can move the name
+///       between the listing and the removal,
+///  and a removal the system refuses stops the write rather than leaving
+///       a grant behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of flistxattr(file)) if (!kept.some((attribute) => attribute.name === name)) fremovexattr(file, name);
+/// ```
+#[cfg(unix)]
+fn take_off_every_extra(file: &File, kept: &[Attribute]) -> Result<(), AttributeRefusal> {
+    let descriptor: libc::c_int = file.as_raw_fd();
+    let names: Vec<Vec<u8>> = match names_on_descriptor(descriptor) {
+        Ok(listed) => listed,
+        Err(reason) => return Err(AttributeRefusal::ListFailed { reason }),
+    };
+    for name in names {
+        if names_it(kept, name.as_slice()) {
+            continue;
+        }
+        let extra: Attribute = Attribute {
+            name: name.clone(),
+            value: Vec::new(),
+        };
+        let Ok(text) = CString::new(name.as_slice()) else {
+            return Err(AttributeRefusal::NotRemoved {
+                attribute: extra,
+                reason: std::io::Error::from(std::io::ErrorKind::InvalidInput),
+            });
+        };
+        // SAFETY: the name is a NUL-terminated string the kernel listed, and the descriptor is this file's.
+        let result: libc::c_int = unsafe { libc::fremovexattr(descriptor, text.as_ptr()) };
+        if result != 0 {
+            return Err(AttributeRefusal::NotRemoved {
+                attribute: extra,
+                reason: std::io::Error::last_os_error(),
+            });
         }
     }
     return Ok(());
@@ -416,16 +598,16 @@ pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attr
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const giveTo = (file, attributes) => attributes.length === 0 ? undefined : { refused: attributes[0], error: unsupported };
+/// const giveTo = (file, attributes) => attributes.length === 0 ? undefined : { kind: 'not-given', attribute: attributes[0], error: unsupported };
 /// ```
 #[cfg(not(unix))]
-pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attribute, std::io::Error)> {
+pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), AttributeRefusal> {
     let _ = file;
     return match attributes.first() {
-        Some(attribute) => Err((
-            attribute.clone(),
-            std::io::Error::from(std::io::ErrorKind::Unsupported),
-        )),
+        Some(attribute) => Err(AttributeRefusal::NotGiven {
+            attribute: attribute.clone(),
+            reason: std::io::Error::from(std::io::ErrorKind::Unsupported),
+        }),
         None => Ok(()),
     };
 }

@@ -18,8 +18,9 @@
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// One extended attribute of the file a replacement stands in for,
-///  and the call that gives it to the replacement.
-use crate::direct_fix_install_attributes::{self, Attribute};
+///  the call that gives it to the replacement,
+///  and why that could not be done exactly.
+use crate::direct_fix_install_attributes::{self, Attribute, AttributeRefusal};
 
 /// What:
 ///  Swap the two files `first` and `second` name in one step.
@@ -299,18 +300,27 @@ fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), W
         }
     }
     // What: The person's extended attributes go on the replacement before the permission bits, because setting an
-    //       access-control list sets the group's bits from the list's mask.
-    // Why:  A refusal here means the replacement cannot carry data the original holds, so the whole write fails and the
+    //       access-control list sets the group's bits from the list's mask, and any attribute the file never had is taken
+    //       off in the same step.
+    // Why:  A refusal here means the replacement cannot carry exactly what the original held: either it would delete data
+    //       of the person's or it would grant access the original never granted, so the whole write fails and the
     //       original file is never replaced.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const refused = giveTo(file, kept.attributes); if (refused) return { kind: 'attribute-kept', name: refused.name };
+    // const refused = giveTo(file, kept.attributes); if (refused) return { kind: refused.kind, name: refused.attribute.name };
     // ```
-    if let Err((refused, reason)) = direct_fix_install_attributes::give_to(file, kept.attributes.as_slice()) {
-        return Err(WriteFailure::AttributeKept {
-            name: refused.display_name(),
-            reason,
+    if let Err(refusal) = direct_fix_install_attributes::give_to(file, kept.attributes.as_slice()) {
+        return Err(match refusal {
+            AttributeRefusal::NotGiven { attribute, reason } => WriteFailure::AttributeKept {
+                name: attribute.display_name(),
+                reason,
+            },
+            AttributeRefusal::NotRemoved { attribute, reason } => WriteFailure::AttributeAdded {
+                name: attribute.display_name(),
+                reason,
+            },
+            AttributeRefusal::ListFailed { reason } => WriteFailure::Io(reason),
         });
     }
     // SAFETY: `fchmod` takes a descriptor this file owns and plain numbers; it reads no memory of this process.
@@ -334,13 +344,19 @@ fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), W
 ///       replacement could not keep,
 ///  so the person is told which attribute it was and that nothing was
 ///       changed.
+///  An attribute the replacement cannot be rid of is a third answer:
+///  a directory's default
+///       access-control list was copied onto the replacement,
+///  so installing it would grant an account access
+///       the person's file never granted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type WriteFailure =
 ///   | { kind: 'io'; error: Error }
 ///   | { kind: 'owner-kept'; uid: number; gid: number; reason: Error }
-///   | { kind: 'attribute-kept'; name: string; reason: Error };
+///   | { kind: 'attribute-kept'; name: string; reason: Error }
+///   | { kind: 'attribute-added'; name: string; reason: Error };
 /// ```
 #[derive(Debug)]
 pub(crate) enum WriteFailure {
@@ -357,6 +373,15 @@ pub(crate) enum WriteFailure {
     },
     /// The replacement cannot be given an extended attribute the destination carries.
     AttributeKept {
+        /// The attribute's name,
+        ///  as the system spells it.
+        name: String,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The replacement carries an extended attribute the destination never had,
+    ///  and this process may not take it off.
+    AttributeAdded {
         /// The attribute's name,
         ///  as the system spells it.
         name: String,
@@ -386,6 +411,10 @@ impl std::fmt::Display for WriteFailure {
             Self::AttributeKept { name, reason } => write!(
                 formatter,
                 "the file carries the extended attribute {name}, which is data no commit holds, and this process may not give the replacement that attribute ({reason}), so installing it would delete that data"
+            ),
+            Self::AttributeAdded { name, reason } => write!(
+                formatter,
+                "the replacement carries the extended attribute {name}, which the file it replaces never had, and this process may not take it off ({reason}), so installing it would grant access the original never granted"
             ),
         };
     }
