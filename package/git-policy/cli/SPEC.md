@@ -1910,6 +1910,17 @@ the folder is read on every wrapped command,
 so a
 named pipe,
 a device or a link there would otherwise make a commit wait for a writer that never comes.
+Before a registration is emptied,
+its `gitdir` is compared with the path the record holds:
+a registration a repair
+has pointed at a restored checkout names that checkout,
+so it is kept (with its index,
+reflog and per-worktree refs) and
+the record is dropped,
+and the person is told both paths.
+A `gitdir` that cannot be read is treated the same way,
+because
+nothing then proves the registration is this record's.
 Every wrapped command then finishes a marked record:
 the registration is emptied and
 removed through descriptors opened below `worktrees`,

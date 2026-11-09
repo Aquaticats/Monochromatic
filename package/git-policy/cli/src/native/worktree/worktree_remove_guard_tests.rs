@@ -581,6 +581,41 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
 }
 
 /// What:
+///  A registration a repair has pointed at a restored checkout is kept,
+///  even though the destroy record names a path that is gone.
+/// Why:
+///   The record says which path the destroy was aimed at,
+/// not that no checkout claims the registration now:
+/// a repaired
+///  worktree keeps its index,
+/// its reflog and its per-worktree refs in that registration,
+/// and emptying it leaves the restored
+///  worktree's `.git` pointing at nothing.
+#[test]
+fn a_registration_a_repair_pointed_at_a_restored_checkout_is_kept() {
+    let root: PathBuf = fixture("remove-record-then-repaired");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
+    // The checkout is destroyed, and a backup of it is restored at another path, which real Git then repairs the
+    // registration to name.
+    let restored: PathBuf = root.join("restored");
+    std::fs::rename(worktree.as_path(), restored.as_path()).expect("the checkout is restored at another path");
+    git(repo.as_path(), &["worktree", "repair", restored.to_str().expect("UTF-8")]);
+    let pointer: String = std::fs::read_to_string(admin.join("gitdir")).expect("the registration's gitdir");
+    assert!(pointer.contains("restored"), "the repair pointed the registration at the restored checkout: {pointer}");
+    let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+    assert!(problems.iter().any(|text: &String| { return text.contains("restored"); }), "the person is told what the registration names now: {problems:?}");
+    assert!(admin.join("gitdir").is_file(), "the registration of a restored checkout is kept");
+    assert!(restored.join("tracked.txt").is_file(), "the restored checkout is untouched");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A worktree moved away after the destroy was recorded is not a destroyed one:
 ///  its registration is kept,
 ///  because the moved worktree's `.git` file still names it and its index and logs live there.

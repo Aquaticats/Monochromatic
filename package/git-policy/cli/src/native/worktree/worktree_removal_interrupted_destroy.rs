@@ -236,6 +236,44 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
 }
 
 /// What:
+///  The report for a registration whose `gitdir` names a checkout other than the path the record holds,
+///  or nothing when it names
+///  that path.
+/// Why:
+///   The record says which path the destroy was aimed at.
+/// A registration a repair pointed at a restored checkout is
+///  live elsewhere,
+/// and its `.git` file names it:
+/// emptying it would take that checkout's index and reflog.
+/// A `gitdir` that
+///  cannot be read is treated the same way,
+/// because nothing proves the registration is this record's any more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = namedCheckout(admin, target); // undefined when the registration names target
+/// ```
+fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
+    let named: Vec<u8> = read_plain_file(&admin.join("gitdir"), RECORD_LIMIT).ok()?;
+    let recorded: &[u8] = named.strip_suffix(b"\n".as_slice()).unwrap_or(named.as_slice());
+    let spelled: PathBuf = PathBuf::from(OsStr::from_bytes(recorded));
+    let resolved: PathBuf = if spelled.is_absolute() { spelled } else { admin.join(spelled) };
+    let checkout: Option<&Path> = resolved.parent();
+    if checkout == Some(target) {
+        return None;
+    }
+    let named_checkout: String = match checkout {
+        Some(shown) => shown.display().to_string(),
+        None => String::from("nothing"),
+    };
+    return Some(format!(
+        "The registration {} names the checkout {named_checkout} now, and the record of its interrupted removal names {}. Nothing was removed, so that checkout keeps its index and its logs; the record of the interrupted removal is dropped.",
+        admin.display(),
+        target.display()
+    ));
+}
+
+/// What:
 ///  Remove the registration `id` through descriptors below the held `worktrees` directory,
 ///  only while it is the object the record names and while nothing below it is a nested subvolume or a mount point.
 /// Why:
@@ -340,6 +378,13 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
     }
     if read.target.exists() {
         debug(TAG, format!("the worktree {} of the recorded destroy is still there, so nothing was destroyed", read.target.display()).as_str());
+        forget_destroy(common_dir, id);
+        return;
+    }
+    // What the registration names now, before the record's path is trusted: a repair can point it at a restored checkout,
+    // whose index, reflog and per-worktree refs are live, and emptying it would leave that checkout's `.git` dangling.
+    if let Some(named) = named_checkout(admin.as_path(), read.target.as_path()) {
+        problems.push(named);
         forget_destroy(common_dir, id);
         return;
     }
