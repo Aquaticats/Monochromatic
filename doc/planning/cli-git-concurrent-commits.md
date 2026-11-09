@@ -404,12 +404,19 @@ the owner declined an `AGENTS.md` rule.
   so `git worktree list` never shows it.
   The ref is briefly visible to `git for-each-ref` and `git log --all`.
   The design session chose that ref;
-  the implementation replaced it with the per-transaction shadow object store,
-  so no `refs/cli-git/` ref exists
+  the implementation has no `refs/cli-git/` pending ref.
+  What protects a prepared commit is the per-worktree scratch ref
+  `refs/worktree/cli-git-service/<sequence>`,
+  which the landing batch points at its commit and deletes afterwards
   (`doc/decision/cli-git-concurrent-commits.md`,
-  lines 43 to 46 and 487 to 488;
-  `package/git-policy/cli/SPEC.md`,
-  section "Transaction protocol").
+  section "Private `HEAD` shape:
+  shadow repository with alternates",
+  and its 2026-11-04 correction;
+  `package/git-policy/cli/src/native/landing/service_scratch_ref_marker_of_a_batch.rs`,
+  module header).
+  A `refs/cli-git/kept/<number>` ref is a kept copy of a stopped batch,
+  not a pending commit
+  (`package/git-policy/cli/src/native/transaction/transaction_git_step_rerun_and_end_rules.rs:516`).
 - Hooks during preparation run through the dispatcher shim.
   It resolves the repository's own `core.hooksPath`,
   respects user-disabled events,
