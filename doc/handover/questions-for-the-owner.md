@@ -203,6 +203,76 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in a plain message, recorded 2026-11-09T00:07:24-05:00
+
+- Kopia and this repository:
+  "Make kopia exclude the entire Monochromatic dir."
+  Applied as `kopia policy set user@bazzite:/home/user/Monochromatic --manual '--add-ignore=*'`.
+  The hourly `kopia snapshot create --all` skips a source set to manual,
+  and an explicit snapshot of it stores nothing,
+  dot-folders included;
+  both were tried on a throwaway repository with an unchanged source as the control.
+  Existing snapshots stay.
+  The last full one is `kf33ae88159bbdf201f5735e37d21d1c8`,
+  taken 2026-11-08T23:57:49-05:00.
+  To undo:
+  `kopia policy set user@bazzite:/home/user/Monochromatic --no-manual '--remove-ignore=*'`.
+
+## Answered in plain messages, recorded 2026-11-08T23:47:13-05:00
+
+- Stale folders and the handover:
+  "Delete dirs that shouldn't be there anymore and update handover now."
+- Cleanup from now on:
+  "Cleanup whenever it makes sense on your own."
+  and then,
+  about the detached worktrees the handover held for the owner's word:
+  "It covers deleting stale detached worktrees."
+  The coordinator now removes worktrees and leftovers without asking when nothing would be lost:
+  a worktree goes only if its commits are on a branch and it has no uncommitted work.
+  Branches stay,
+  because branch deletion was not part of these messages,
+  and the old tree kept for the 860 rollback stays for the owner.
+
+## Answered in the question tool, recorded 2026-11-08T23:24:03-05:00
+
+- The ceiling of the signed scratch `git commit` step,
+  asked again after 886 samples showed 12 steps past the 3 s ceiling (1.35%),
+  10 of those commits not landing:
+  the owner chose "About 16 seconds"
+  (three times the slowest ordinary step,
+  5,444 ms)
+  over the recommended "Stop only when idle",
+  and added:
+  "About 16s,
+  and investigate what happened for those 3 commits.
+  If we can't figure it out,
+  then we have a defect and should log more."
+  The three are the steps of 26,256,
+  36,651 and 171,383 ms.
+  This replaces the 2026-11-08 answer "About 3 s now".
+- Where the overdue-agent check lives:
+  "Move into the driver (Recommended)",
+  so it goes into `package/pi-shared/subagent-driver`.
+
+## Answered in a plain message, recorded 2026-11-08T23:10:25-05:00
+
+- How to watch running subagents:
+  "Regularly,
+  check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+  The coordinator now runs a scratch watcher,
+  `report-overdue-pi-runs.ts` under `${HOME}/temp/agent/pi-runs`,
+  which ends as soon as a running Pi agent has passed the 90th percentile of finished runs of its kind
+  (85 minutes over all runs,
+  55 for audits,
+  233 for tokio steps,
+  recomputed on each look),
+  and the coordinator then reads what that agent is running.
+  Its first look found agents working normally past that time,
+  and two agents blocked for most of an hour in their own probes,
+  which waited without a deadline.
+  Those two probes were ended by process number and container ID,
+  and each agent was told why.
+
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
 
 - How subagents are used from now on,
@@ -830,6 +900,16 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-08T23:47:13-05:00,
+  conclusion record on repositories using the files backend:
+  a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),
+  and the new reader accepts its absence.
+  A cross-vendor review found one consequence:
+  if a commit is killed before its cleanup finishes and a wrapper from before that change recovers it,
+  that older wrapper's cleanup fails instead of completing.
+  The review established no data loss,
+  and the case needs an older wrapper recovering a newer one's transaction.
+  Say "undo" to keep writing the empty record.
 - 2026-11-08T22:14:46-05:00,
   secret scanner:
   when `forbidden-strings --all` cannot read a repository's index,

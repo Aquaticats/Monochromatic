@@ -18,7 +18,9 @@
 //! expect(run(wrapper, ['monochromatic-git-policy-cli', 'service', 'run', '--journal', dir]).code).toBe(3); expect(exists(dir)).toBe(false);
 //! ```
 
-use super::support::{Fixture, fixture, hermetic, remove, repository, service_command, service_executable, spawn_owned, wrapped};
+use super::support::{
+    Fixture, fixture, hermetic, kept_stderr_pipe, remove, repository, service_command, service_executable, service_log, short_runtime_directory, spawn_owned, wrapped,
+};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -164,7 +166,10 @@ fn a_git_that_is_the_wrapper_is_refused() {
 #[test]
 fn the_same_start_with_the_real_git_listens() {
     let fixture: Fixture = fixture("service-mode-real-git");
-    let socket: PathBuf = fixture.root.join("real.sock");
+    // The socket's name must fit `SUN_LEN`, which a fixture root under a deep checkout does not; the short directory is the one
+    //  the fixture's own services put their sockets in.
+    let runtime: PathBuf = short_runtime_directory(&fixture);
+    let socket: PathBuf = runtime.join("real.sock");
     let mut command = service_command();
     hermetic(&mut command, &fixture, std::ffi::OsStr::new("/usr/bin:/bin"));
     let mut child: Child = spawn_owned(
@@ -175,16 +180,24 @@ fn the_same_start_with_the_real_git_listens() {
             .arg(&socket)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null()),
+            // The service says why it ended only on its own error stream, which a panic would lose with the fixture.
+            .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log"))),
     )
     .expect("the service mode starts");
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-        assert!(child.try_wait().expect("state").is_none(), "the service ended before it listened");
-        assert!(began.elapsed() < PATIENCE, "the service never listened");
+        let ended: Option<std::process::ExitStatus> = child.try_wait().expect("state");
+        assert!(
+            ended.is_none(),
+            "the service ended ({ended:?}) before it listened at {}; {}",
+            socket.display(),
+            service_log(fixture.root.as_path())
+        );
+        assert!(began.elapsed() < PATIENCE, "the service never listened at {}; {}", socket.display(), service_log(fixture.root.as_path()));
         std::thread::sleep(Duration::from_millis(10));
     }
     let _killed = child.kill();
     let _waited = child.wait();
     remove(&fixture);
+    let _removed = std::fs::remove_dir_all(runtime.as_path());
 }

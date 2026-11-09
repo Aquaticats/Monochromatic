@@ -75,10 +75,16 @@ fn cache_directory(root: &Path) -> PathBuf {
 
 /// Runs the scanner in the fixture root with the fixture rules and a test-owned runtime cache.
 fn scan(root: &Path, arguments: &[&str]) -> Output {
+    return scan_from(root, &cache_directory(root), &root.join("rules.txt"), arguments);
+}
+
+/// Runs the scanner in `directory`,
+///  naming the rules file absolutely so a working directory below the fixture root still reads it.
+fn scan_from(directory: &Path, cache: &Path, rules: &Path, arguments: &[&str]) -> Output {
     return Command::new(BIN)
-        .env("FORBIDDEN_STRINGS_CACHE_DIR", cache_directory(root))
-        .current_dir(root)
-        .args(["--rules", "rules.txt"])
+        .env("FORBIDDEN_STRINGS_CACHE_DIR", cache)
+        .current_dir(directory)
+        .args(["--rules", &rules.to_string_lossy()])
         .args(arguments)
         .output()
         .expect("run scanner");
@@ -160,5 +166,38 @@ fn all_mode_still_skips_the_rule_sources() {
     let output = scan(&root, &["--all"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(0), "{stderr}");
+    remove_fixture(root);
+}
+
+/// The `--all` walk started inside the repository still skips the three sources.
+///
+/// What:
+/// the walk root is the working directory,
+///  so a run from `package/forbidden-strings/cli` reaches the same three files by a path below it.
+/// Why:
+/// the skip set is anchored at the repository root,
+///  not at the working directory,
+///  so the anchor holds wherever the run starts.
+#[test]
+fn all_mode_from_a_subdirectory_still_skips_the_rule_sources() {
+    let root = fixture("walk-subdirectory");
+    let directory = root.join("package/forbidden-strings/cli");
+    let output = scan_from(&directory, &cache_directory(&root), &root.join("rules.txt"), &["--all"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(0), "a rule source self-matched from a subdirectory: {stderr}");
+    remove_fixture(root);
+}
+
+/// Positive control for the subdirectory walk:
+/// an ordinary file with a hit in the same subtree still fails the run.
+#[test]
+fn all_mode_from_a_subdirectory_still_reports_an_ordinary_file() {
+    let root = fixture("walk-subdirectory-control");
+    write_file(&root, "package/forbidden-strings/cli/src/leak.ts", &format!("const value = '{SENTINEL}';\n"));
+    let directory = root.join("package/forbidden-strings/cli");
+    let output = scan_from(&directory, &cache_directory(&root), &root.join("rules.txt"), &["--all"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "the ordinary file's hit must fail the run: {stderr}");
+    assert!(stderr.contains("leak.ts:1"), "{stderr}");
     remove_fixture(root);
 }
