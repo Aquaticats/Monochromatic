@@ -130,7 +130,10 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `421ab69c3e` landed the landing branch,
   `2522a13f4f` the literal-pathspec branch,
   `2b309f8f25` the test-coverage branch,
-  and `87f5771748` the index offset guard.
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  and `8026d49827` the alias branch.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -138,21 +141,61 @@ The old tree kept for the rollback stays until the owner deletes it.
   landing run 12,
   worktree-removal run 6,
   worktree-add run 4,
-  child-process run 5
-  and merge run 8.
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
   Worktree-add and child-process open with a merge of main in conflict,
   which their briefs tell them to resolve first,
   so neither branch has landed.
 - Deferred until a slot frees,
-  because the practical limit of agents was reached when each was written,
-  in this order,
-  briefs in `~/temp/agent/pi-runs/`:
-  `resume-after-wall-clock-prompt.md` for `wrapper-issue-defects-and-linear-scans`,
-  which reached its time limit in a full test run,
-  `shadow-and-replay-round-2-prompt.md`,
-  `push-route-round-5-prompt.md`,
-  and `literal-pathspec-round-3-prompt.md`.
-- The shadow branch has passed its tests on top of main and waits for its round 2:
+  because the practical limit of agents was reached when it was written:
+  `~/temp/agent/pi-runs/resume-after-wall-clock-prompt.md` for `worktree-removal-findings-fixed`,
+  whose run 6 reached its time limit while writing a test for the report after the exchange.
+- `discarding-commands-round-3-sol.txt` names a regression:
+  an ignored file inside a directory the target replaces with a file is deleted unguarded,
+  so that branch is not to land until its run 4 reports.
+- Started:
+  discarding-commands run 4,
+  alias run 2,
+  hook run 4,
+  intent-to-add run 3 on two regressions its review named,
+  suite-failures run 3,
+  `kill-sweeps-reach-the-calls-they-name`,
+  `commit-queue-position-reaches-the-person`
+  and `tokio-repair-threads-on-the-runtime`.
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on the intent-to-add branch
+  and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note.
+- Checks on top of main with cross-vendor reviews running:
+  merge 272 of 272,
+  standards review 249 of 249,
+  entry and service 703 of 704,
+  worktree copy 283 of 284.
+  The one failure each is a test `wrapper-tests-that-fail-only-in-a-suite` has changed.
+- The conversion branch passed 397 of 402 on top of main,
+  and its three migration timeouts not yet named on main are running alone on it and on main.
+- `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
+  of which index 57.8 s and journal 20.6 s,
+  and said a real commit makes the same writes and flushes.
+- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
+  The branch is not to be merged or landed until that run reports,
+  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
+  That merge left the four files alone.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
   `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
   a subsection holding `=` that loses its value,
   and a long value that stops the scratch commit from starting.
