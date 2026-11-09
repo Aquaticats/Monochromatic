@@ -64,7 +64,8 @@ impl Rendezvous {
     ///  A caller that throws the arrival's answer away holds the early jobs for the patience and cannot tell work that
     /// never reached the bound from work that did,
     /// so the places of such a run are given back on a clock.
-    ///  The patience then bounds only how long a failing run waits, never whether the claim is witnessed.
+    ///  The patience then bounds only how long a failing run waits,
+    /// never whether the claim is witnessed.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

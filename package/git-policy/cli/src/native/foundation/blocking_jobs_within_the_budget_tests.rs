@@ -42,7 +42,8 @@ const BEYOND_THE_BOUND_WINDOW: Duration = Duration::from_millis(1000);
 ///  a job that slept for a fixed time let the burst finish before the bound was reached,
 /// which made the peak an arrival order of six jobs and not a measurement of the bound.
 ///  Here every job holds its place until the control has counted the burst,
-/// so the peak is the whole burst's peak, and the place of a job is given back because the control read the count,
+/// so the peak is the whole burst's peak,
+/// and the place of a job is given back because the control read the count,
 /// never because time passed.
 ///
 /// In TS you'd write (pseudocode):
@@ -50,9 +51,12 @@ const BEYOND_THE_BOUND_WINDOW: Duration = Duration::from_millis(1000);
 /// class Counted { enter(): number; leave(): void; waitFor(live: number, patience: Duration): boolean; most(): number }
 /// ```
 struct Concurrency {
-    /// How many jobs are inside now, and whether the control has counted the burst.
+    /// How many jobs are inside now,
+    /// and whether the control has counted the burst.
     state: Mutex<Held>,
-    /// Woken whenever a job enters, leaves, or the control has counted the burst.
+    /// Woken whenever a job enters,
+    /// leaves,
+    /// or the control has counted the burst.
     changed: Condvar,
     /// The most that were inside together.
     most: AtomicUsize,
@@ -62,7 +66,8 @@ struct Concurrency {
 struct Held {
     /// How many jobs are inside their work right now.
     live: usize,
-    /// Whether the control has read the peak, so every job of the burst may finish.
+    /// Whether the control has read the peak,
+    /// so every job of the burst may finish.
     counted: bool,
 }
 
@@ -99,7 +104,8 @@ impl Concurrency {
     }
 
     /// Hold the job until the control has counted the burst;
-    /// false only when the control never counted, which is a control that failed before it could.
+    /// false only when the control never counted,
+    /// which is a control that failed before it could.
     fn wait_until_counted(&self, patience: Duration) -> bool {
         let locked = self.state.lock().expect("lock");
         let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return !held.counted; }).expect("wait");
@@ -107,7 +113,8 @@ impl Concurrency {
         return !waited.timed_out();
     }
 
-    /// Let every job of the burst finish, once the peak has been read.
+    /// Let every job of the burst finish,
+    /// once the peak has been read.
     fn count_the_burst(&self) {
         let mut held = self.state.lock().expect("lock");
         held.counted = true;

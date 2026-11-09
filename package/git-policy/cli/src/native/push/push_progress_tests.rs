@@ -368,12 +368,15 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
 /// so the child reads it and writes nothing.
 #[repr(C)]
 struct DiskWaitHold {
-    /// How long the child sleeps before it ends, in milliseconds.
+    /// How long the child sleeps before it ends,
+    /// in milliseconds.
     milliseconds: usize,
-    /// How long the child sleeps before it announces, in milliseconds,
+    /// How long the child sleeps before it announces,
+    /// in milliseconds,
     /// so the announcement is made from inside the hold.
     announce_after_milliseconds: usize,
-    /// A NUL-terminated path the child creates once the thread that holds is suspended, or null for no announcement.
+    /// A NUL-terminated path the child creates once the thread that holds is suspended,
+    /// or null for no announcement.
     announce: *const libc::c_char,
 }
 
@@ -458,7 +461,8 @@ fn hold_in_disk_wait(milliseconds: usize, announce: Option<&std::path::Path>) {
 /// it does nothing unless the
 ///  variable names a hold,
 /// and then holds a thread in uninterruptible sleep for that long and either ends or sleeps on.
-///  It creates the file `PROBE_ANNOUNCE_VARIABLE` names from inside the hold, so a control that reads it knows the tree is
+///  It creates the file `PROBE_ANNOUNCE_VARIABLE` names from inside the hold,
+/// so a control that reads it knows the tree is
 /// suspended rather than still starting up.
 #[test]
 fn disk_wait_probe() {
