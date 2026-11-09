@@ -82,6 +82,47 @@ fn registration_follows_the_linked_pointer() {
     remove(root.as_path());
 }
 
+/// Git strips every trailing line feed and carriage return from a `.git` pointer (`read_gitfile_raw` in its `setup.c`),
+/// so a pointer written by a Windows tool still names the administrative directory it holds:
+/// the pending copy of the registered worktree is resumed instead of discarded.
+#[test]
+fn a_pointer_that_ends_in_a_carriage_return_is_still_followed() {
+    let root: PathBuf = fixture("recovery-pointer-crlf");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let pointer: PathBuf = topic.join(".git");
+    let recorded: String = std::fs::read_to_string(pointer.as_path()).expect("the pointer Git wrote");
+    std::fs::write(pointer.as_path(), format!("{}\r\n", recorded.trim_end_matches(['\n', '\r'])).as_bytes()).expect("the same pointer, ended the way a Windows tool ends a line");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1, "{:?}", report.notices);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(!PathBuf::from(pending.journal.stage_container.as_path()).exists(), "a finished copy takes its stage with it");
+    remove(root.as_path());
+}
+
+/// A destination whose pointer names a directory that is not there is not proven to be unregistered,
+/// so its pending copy is kept and reported with its journal and stage whole.
+#[test]
+fn a_pointer_that_cannot_be_followed_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-pointer-unfollowable");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    std::fs::write(topic.join(".git"), b"gitdir: /nonexistent/admin\n").expect("a pointer to nothing");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be followed"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
 /// A journal whose destination is no longer registered is discarded with the notice,
 /// and its stage goes too.
 #[cfg(unix)]
