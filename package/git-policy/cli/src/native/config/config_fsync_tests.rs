@@ -1,5 +1,5 @@
 //! Controls for reading `core.fsync`:
-//! every reading is checked against the flushes real Git makes with the same value,
+//! every value is checked against the flushes real Git makes with that value,
 //! counted
 //!  from Git's own trace2 `fsync` counters,
 //! so a reading that drifts from Git's fails here.
@@ -23,32 +23,38 @@ const VALUES: [&str; 22] = [
 ];
 
 /// What:
-///  The values of `VALUES` that read differently,
-///  each with the first value that spells that reading.
+///  The values of `VALUES` spelled by `spell`,
+///  each with the value it was spelled from and the reading that value has,
+/// and each resulting spelling asked once.
 /// Why:
-///   Every assertion these controls make is a question about the reading of a value,
-/// and Git is started once per question:
-/// measured on 2026-11-09 on this host,
-/// one start of Git took 0.9 to 2.8 s while the suite ran,
-/// the 22 values of `VALUES` read as 13 different sets,
-/// and the spellings that read the same were asking Git the same question again.
+///   The string is the question:
+/// two values that spell the same string ask Git the same thing, and the second
+///  start of Git only repeats the answer (one start took 0.9 to 2.8 s while the suite ran on 2026-11-09).
+/// The grouping is never taken from a reading:
+/// a value whose reading drifts to another's still spells its own
+///  string and is still asked,
+/// so no drift hides behind another value's answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const distinctReadings = () => VALUES.filter((value, at) => VALUES.findIndex((other) => parse(other).bits === parse(value).bits) === at).map((value) => [value, parse(value)]);
+/// const spellingsOf = (spell) => VALUES.reduce((kept, value) => {
+///     const spelled = spell(parse(value)).value();
+///     return kept.some(([, seen]) => seen === spelled) ? kept : [...kept, [value, spelled, parse(value)]];
+/// }, []);
 /// ```
-fn distinct_readings() -> Vec<(&'static str, FsyncComponents)> {
-    let mut readings: Vec<FsyncComponents> = Vec::new();
-    let mut distinct: Vec<(&'static str, FsyncComponents)> = Vec::new();
+fn spellings_of(spell: fn(FsyncComponents) -> FsyncComponents) -> Vec<(&'static str, String, FsyncComponents)> {
+    let mut asked: Vec<String> = Vec::new();
+    let mut kept: Vec<(&'static str, String, FsyncComponents)> = Vec::new();
     for value in VALUES {
         let set: FsyncComponents = FsyncComponents::parse(value);
-        if readings.contains(&set) {
+        let spelled: String = spell(set).value();
+        if asked.contains(&spelled) {
             continue;
         }
-        readings.push(set);
-        distinct.push((value, set));
+        asked.push(spelled.clone());
+        kept.push((value, spelled, set));
     }
-    return distinct;
+    return kept;
 }
 
 /// How many flushes Git reports (trace2 `fsync` counters) for one start of `arguments` with `core.fsync` set to `value`,
@@ -114,15 +120,20 @@ fn reference_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str)
     return flushes(repo, trace, value, &["update-ref", format!("refs/probe/{name}").as_str(), "HEAD"], None);
 }
 
-/// Each reading of a value agrees with Git:
+/// Each value agrees with Git:
 /// a component is named exactly when Git flushes its writes.
+/// The loop goes over the values of `VALUES` themselves:
+/// a value whose reading drifted to another
+///  reading's is exactly the value Git has to be asked about,
+/// so no value may be left out for reading like one already asked.
 #[test]
 fn a_value_names_the_components_git_flushes() {
     let root: PathBuf = fixture("config-fsync-reading");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    for (position, (value, set)) in distinct_readings().into_iter().enumerate() {
+    for (position, value) in VALUES.iter().enumerate() {
+        let set: FsyncComponents = FsyncComponents::parse(value);
         let name: String = format!("v{position}");
         assert_eq!(loose_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0, set.names_loose_object(), "loose objects under {value:?}");
         assert_eq!(reference_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0, set.names_reference(), "references under {value:?}");
@@ -162,8 +173,7 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    for (position, (value, set)) in distinct_readings().into_iter().enumerate() {
-        let spelled: String = set.without_packs().value();
+    for (position, (value, spelled, set)) in spellings_of(FsyncComponents::without_packs).into_iter().enumerate() {
         let name: String = format!("w{position}");
         assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.without_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?} reads back the same, but for the mapping between hash algorithms that no word names alone");
         assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()), 0, "no pack flush under {spelled:?} (from {value:?})");
@@ -182,26 +192,6 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
         );
     }
     remove(root.as_path());
-}
-
-/// What:
-///  The values Git is asked about are one per reading,
-///  and every value reads as one of them.
-/// Why:
-///   The dedupe is only safe while every question these controls ask is a question about the reading;
-/// a value that reads as a set nobody is asked about would otherwise stop being checked against Git.
-#[test]
-fn the_values_git_is_asked_about_cover_every_reading() {
-    let distinct: Vec<(&'static str, FsyncComponents)> = distinct_readings();
-    assert!(distinct.len() < VALUES.len(), "the dedupe dropped nothing: {} readings for {} values", distinct.len(), VALUES.len());
-    for value in VALUES {
-        let reading: FsyncComponents = FsyncComponents::parse(value);
-        assert!(distinct.iter().any(|(_, set)| { return *set == reading; }), "{value:?} reads as a set Git is asked about ({:?})", distinct.iter().map(|(asked, _)| { return *asked; }).collect::<Vec<&str>>());
-    }
-    // The spellings that share a reading, which is why one of them can stand for the group.
-    for (one, another) in [("", "-"), ("", "bogus"), ("", "pack"), ("pack", "p"), ("none", "-all"), ("loose-object", "none,loose-object")] {
-        assert_eq!(FsyncComponents::parse(one), FsyncComponents::parse(another), "{one:?} and {another:?} read the same");
-    }
 }
 
 /// The index is named by `index`,
@@ -231,8 +221,7 @@ fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_compo
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
     let packed_by_name: u64 = pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice());
-    for (position, (value, set)) in distinct_readings().into_iter().enumerate() {
-        let spelled: String = set.with_packs().value();
+    for (position, (value, spelled, set)) in spellings_of(FsyncComponents::with_packs).into_iter().enumerate() {
         let name: String = format!("p{position}");
         assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.with_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?}");
         assert!(set.with_packs().names_pack_and_metadata());
