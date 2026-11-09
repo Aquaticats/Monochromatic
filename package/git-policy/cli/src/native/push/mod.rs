@@ -179,6 +179,10 @@ pub mod manual_push_probe;
 /// which pushed commits a remote does not have.
 pub mod manual_push_range;
 
+/// What a remote has already published:
+/// the commits a prior destination value names, and the tracking refs Git keeps.
+pub mod manual_push_range_published_tips;
+
 /// An explicit push that lost a race:
 /// run as a child,
 /// merge in what landed on the remote and publish the merge.
