@@ -13,7 +13,7 @@
 //! linked-worktree and branch-creation rejections) are listed as
 //!  self-hinted in `SELF_HINTED`,
 //! every other finding code's hint is the arm of `finding_hint` that names it,
-//! and a guard test fails when a code has neither.
+//! and a test in `event_hints_tests.rs` fails when a code it lists has both or neither.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
