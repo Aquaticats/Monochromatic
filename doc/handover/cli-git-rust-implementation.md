@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:22:00-05:00)
+#### Reviews and landings in progress (2026-11-09T02:28:11-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -141,10 +141,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress`:
-  362 of 362 tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-1-sol.txt`) names five defects in the watchdog and its controls,
-  all in test code or test builds.
-  Run 2 of its agent is on them.
+  landed on main as `8dc110a1fd`,
+  with 30 of 30 selected tests passing on top of main,
+  among them tests that had aborted near 120 seconds.
+  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-3-sol.txt`) names two more defects,
+  both in test code:
+  a failing stderr can end the watchdog without ending the test,
+  and one control passes with its guard removed.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `unit-test-watchdog-under-contention` as run 4,
+  with `unit-test-watchdog-round-4-prompt.md` and the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
   the cross-vendor review of its fourth round
   (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`)
@@ -237,10 +244,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
   The agent `driver-resumes-after-provider-errors` is on it.
-- Filtered test runs of the branches on top of main abort tests near 125 seconds,
-  and the same tests pass alone.
-  `fix/git-policy-cli-unit-test-watchdog-judges-progress` changes that watchdog,
-  so it lands before the branches its aborts cloud are judged.
+- Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
+  Rerun those tests after merging main before judging a branch by them.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
