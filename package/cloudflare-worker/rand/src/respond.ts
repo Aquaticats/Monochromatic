@@ -127,7 +127,10 @@ function plainTextResponse({
     String(bytes.byteLength,),
   );
   for (const [name, value,] of Object.entries(extraHeaders ?? {},)) {
-    headers.set(name, value,);
+    headers.set(
+      name,
+      value,
+    );
   }
   return new Response(
     omitBody ? null : body,
