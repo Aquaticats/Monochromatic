@@ -6,7 +6,7 @@ use super::*;
 use crate::index_holder_wait::IndexWait;
 use crate::merge_isolation_changes::{WorktreeState, file_identity, worktree_path, worktree_state};
 use crate::merge_isolation_journal::{intent_path, write_merge_intent};
-use crate::merge_isolation_recovery_steps::may_install;
+use crate::merge_isolation_recovery_index_lock::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
@@ -798,23 +798,23 @@ fn recovery_waits_for_another_programs_index_lock() {
 fn only_a_lock_that_is_free_or_left_by_a_gone_process_lets_the_merge_be_written() {
     let second: std::time::Duration = std::time::Duration::from_secs(1);
     let world: World = world("merge-recovery-may-install");
-    assert!(may_install(&place(&world), IndexWait::NotHeld));
-    assert!(may_install(&place(&world), IndexWait::Released(second)));
-    assert!(!may_install(&place(&world), IndexWait::GaveUp(second)));
+    assert!(may_install(world.git_dir.as_path(), IndexWait::NotHeld));
+    assert!(may_install(world.git_dir.as_path(), IndexWait::Released(second)));
+    assert!(!may_install(world.git_dir.as_path(), IndexWait::GaveUp(second)));
 
     // A lock whose PID file names a process that no longer runs is nobody's to release, so it is removed.
     let dead: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(dead.as_path(), b"").expect("a killed Git left its empty lock");
     std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
         .expect("the PID file of a process that is gone");
-    assert!(may_install(&place(&world), IndexWait::OwnerGone(second)), "a dead Git's lock is cleared and the merge goes on");
+    assert!(may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)), "a dead Git's lock is cleared and the merge goes on");
     assert!(!dead.exists(), "the lock of a Git nothing runs was removed");
 
     // A lock a program that lives holds is not the recovery's to remove.
     std::fs::write(dead.as_path(), b"").expect("a program holds the index");
     std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
         .expect("the PID file names this process, which runs");
-    assert!(!may_install(&place(&world), IndexWait::OwnerGone(second)), "a live holder's lock stays");
+    assert!(!may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)), "a live holder's lock stays");
     assert!(dead.exists(), "the live holder's lock is not removed");
     remove(world.parent.as_path());
 }

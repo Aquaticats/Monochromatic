@@ -208,7 +208,8 @@ pub enum IndexLook {
 }
 
 /// What:
-///  The index lock, looked at once and never waited for.
+///  The index lock,
+/// looked at once and never waited for.
 /// Why:
 ///  A merge that is saved on its record and its side ref has nothing of itself in the checkout,
 /// so a lock cannot be in

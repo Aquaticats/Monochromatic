@@ -240,7 +240,8 @@ pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Resu
 /// a merge that needs no
 ///  resolution took 22 to 41 seconds in a measured disk stall where real Git took 9 to 16 milliseconds
 ///  (finding 1 of the merge-and-pull audit of 2026-11-09;
-/// `AGENTS.md`, `SLW`).
+/// `AGENTS.md`,
+/// `SLW`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
