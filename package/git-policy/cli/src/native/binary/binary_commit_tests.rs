@@ -753,13 +753,14 @@ fn intent_empty_with_subdirectory(fixture: &Fixture, name: &str) -> PathBuf {
     return repo;
 }
 
-/// A commit run from a subdirectory records native Git's tree for an intent-to-add entry at the root:
-/// the entry's name is relative to the repository root,
-/// so it must not be read as `dir/empty`.
-///
+/// A commit run from a subdirectory keeps a tracked empty file the real index holds as intent-to-add with the entry's
+/// mode and object name equal to the base's, where native Git leaves that path out of its tree.
+/// Why the wrapper keeps it:
+/// the file's removal is not the person's work, and the scratch `git commit` builds its tree from the base for every
+/// path the command does not name (`SPEC.md`, "Explicit-path commit").
 /// The repository turns `require-root` off, because the shipped default refuses every command run below the root.
 #[test]
-fn an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark() {
+fn an_intent_to_add_entry_equal_to_the_base_stays_in_the_commit_where_native_git_drops_it() {
     let fixture: Fixture = fixture("commit-intent-subdirectory");
     let wrapper: PathBuf = intent_empty_with_subdirectory(&fixture, "wrapped");
     let real: PathBuf = intent_empty_with_subdirectory(&fixture, "plain");
@@ -767,10 +768,16 @@ fn an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
     git(&fixture, real.join("dir").as_path(), &["commit", "--quiet", "--message=sub", "--", "a.txt"]);
     assert_eq!(
-        git_text(&fixture, wrapper.as_path(), &["ls-tree", "-r", "HEAD"]),
-        git_text(&fixture, real.as_path(), &["ls-tree", "-r", "HEAD"]),
-        "the commit must hold native Git's tree for the same fixture"
+        git_text(&fixture, wrapper.as_path(), &["ls-tree", "-r", "HEAD", "empty"]),
+        "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tempty\n",
+        "the tracked file stays in the commit"
     );
+    assert_eq!(
+        git_text(&fixture, real.as_path(), &["ls-tree", "-r", "HEAD", "empty"]),
+        "",
+        "and native Git leaves it out of the same case, which is the difference this control records"
+    );
+    assert_eq!(git_text(&fixture, wrapper.as_path(), &["show", "HEAD:dir/a.txt"]), "a two\n");
     assert_nothing_left(&fixture, wrapper.as_path());
     remove_settled(&fixture);
 }

@@ -157,15 +157,14 @@ fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
     remove(root.as_path());
 }
 
-/// A rebuild after the branch moved leaves no intent-to-add entry in the index the scratch commit reads:
-/// the copy leaves the mark out,
-/// where a mark whose mode and object name equal the tree's own entry survives the reset,
+/// A rebuild after the branch moved keeps an intent-to-add entry whose mode and object name equal the tree's own entry:
+/// the reset leaves such a mark as Git's own reset does,
 /// and the commit then leaves that path out of its tree
 /// (measured in the gate image on 2026-11-09:
 /// after `read-tree --reset` the entry still carries flags `20004000`,
 /// and `write-tree` over an index a later `add` invalidated lists only the named file).
 #[test]
-fn a_retry_leaves_no_intent_to_add_entry_for_the_scratch_commit() {
+fn a_retry_keeps_the_mark_that_equals_the_tree_for_the_scratch_commit() {
     let root: PathBuf = fixture("index-builds-intent-empty-retry");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     std::fs::write(repo.join("empty"), "").expect("empty file");
@@ -179,7 +178,7 @@ fn a_retry_leaves_no_intent_to_add_entry_for_the_scratch_commit() {
     let bytes: Vec<u8> = std::fs::read(indexes.commit_index.as_path()).expect("the rebuilt index");
     let index = crate::index_full::parse_full_index(bytes.as_slice(), 20).expect("an index this reader takes");
     let entry = index.entries.into_iter().find(|entry| { return entry.path == b"empty"; }).expect("the rebuilt index holds the tracked file");
-    assert_eq!(entry.extended & crate::index_full::INTENT_TO_ADD, 0, "a mark the commit reads would leave the tracked file out of its tree");
+    assert_ne!(entry.extended & crate::index_full::INTENT_TO_ADD, 0, "the reset leaves a mark equal to the tree as Git's own reset does");
     remove(root.as_path());
 }
 
@@ -236,8 +235,8 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
 }
 
 /// An index whose only marks are intent-to-add entries seeds a copy too,
-/// with those entries left out,
-/// so the record says the stat data was kept and the built index holds neither the entry nor a missing stat field.
+/// so the record says the stat data was kept,
+/// and the reset drops the mark whose path the base does not hold.
 #[test]
 fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
     let root: PathBuf = fixture("index-builds-intent");
@@ -254,7 +253,7 @@ fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
     assert_eq!(
         debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
         String::new(),
-        "the copy carries no intent-to-add entry"
+        "the reset drops the mark the base does not hold"
     );
     remove(root.as_path());
 }
@@ -275,7 +274,7 @@ fn a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_t
     assert_eq!(
         debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
         String::new(),
-        "the copy carries no intent-to-add entry"
+        "the reset drops the mark the base does not hold"
     );
     remove(root.as_path());
 }

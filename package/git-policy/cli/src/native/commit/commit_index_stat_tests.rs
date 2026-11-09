@@ -199,12 +199,14 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
     remove(root.as_path());
 }
 
-/// A tracked empty file that the real index holds as intent-to-add stays in the tree the private index produces when the
-///  commit names another path:
-/// the copy leaves the intent-to-add entry out and the reset puts the base's entry back,
-/// so the tree holds the file the base holds and not the empty blob's name the mark carried.
+/// A tracked empty file that the real index holds as intent-to-add leaves the tree the private index produces when the
+/// commit names another path:
+/// the entry's mode and object name equal the base's, so the reset leaves the mark as Git's own reset does,
+/// and a tree built from an index that holds it leaves that path out.
+/// Native Git commits the same tree for the same fixture
+/// (`an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark`, `binary_commit_tests.rs`).
 #[test]
-fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
+fn an_intent_to_add_entry_equal_to_the_base_leaves_its_path_out_of_the_commit() {
     let root: PathBuf = fixture("commit-index-intent-empty");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     std::fs::write(repo.join("empty"), "").expect("empty file");
@@ -223,14 +225,14 @@ fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
     )
     .expect("tree");
     let names: String = git_text(repo.as_path(), &["ls-tree", "--name-only", tree.as_str()]);
-    assert!(names.lines().any(|name| { return name == "empty"; }), "the tree must still hold the empty file: {names}");
+    assert!(!names.lines().any(|name| { return name == "empty"; }), "the tree leaves the marked path out, as Git's tree does: {names}");
     assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
     remove(root.as_path());
 }
 
 /// An index no mark touches seeds the private index as a plain copy,
 /// so the safeguard costs nothing for it;
-/// an index whose only marks are intent-to-add entries seeds it too and names the entries the copy leaves out;
+/// an index whose only marks are intent-to-add entries seeds it too, copied as it is;
 /// an assume-unchanged entry sends the build to the base,
 /// and an absent file seeds nothing.
 #[test]
@@ -243,8 +245,8 @@ fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
     assert_eq!(
         private_index_seed(real.as_path()),
-        PrivateIndexSeed::CopyWithoutIntentToAdd(vec![b"added.txt".to_vec()]),
-        "an intent-to-add entry keeps the copy and names itself"
+        PrivateIndexSeed::CopyWithIntentToAdd,
+        "an intent-to-add entry keeps the copy"
     );
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
     assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Base);
