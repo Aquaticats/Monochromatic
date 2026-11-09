@@ -8515,6 +8515,25 @@ The executable links no YAML parser,
 so `dependent_version_yaml` and `dependent_version_yaml_lines` read the mapping,
 sequence and scalar forms the generator writes and refuse the rest by line,
 instead of taking a dependency the lockfile does not carry.
+A space or a tab separates a key from its value and starts a comment,
+so `- app` with a tab and `# published` after it lists the package `app`,
+and an interior tab stays part of a plain scalar as it does to a YAML parser.
+A line this reader would have to guess at is refused with its line,
+never kept as text:
+a tag,
+anchor,
+alias,
+block scalar,
+directive,
+reserved character,
+flow collection,
+comment or quote indicator,
+the `-`,
+`?` and `:` that open an item or an explicit key,
+an empty key,
+a colon a space or tab follows inside a value,
+text a closing quote does not separate,
+and an interior carriage return.
 
 A publish set that cannot be read is a `policy-incomplete` engine failure,
 which stops `check` and `fix` with exit `2`:

@@ -121,6 +121,12 @@ pub fn read_lines(text: &str) -> Result<Vec<YamlLine<'_>>, YamlProblem> {
         if content.is_empty() || content.starts_with('#') {
             continue;
         }
+        if content.contains('\r') {
+            return Err(YamlProblem::new(
+                number,
+                "holds a carriage return, which starts a new line",
+            ));
+        }
         if indent == 0 && (content == "---" || content == "...") {
             return Err(YamlProblem::new(
                 number,
@@ -165,17 +171,18 @@ pub fn item_content(content: &str) -> &str {
     return content
         .strip_prefix("- ")
         .unwrap_or("")
-        .trim_start_matches(' ');
+        .trim_start_matches(is_space_or_tab);
 }
 
 /// What:
 /// Whether a character separates text on a line:
 /// a space or a tab.
 /// Why:
-///  `-`,
-/// `?` and `:` begin a plain scalar only when a non-space follows,
-/// and a
-///       tab separates as a space does.
+///  YAML ends a plain scalar at a comment,
+/// and separates a key from its value,
+///       with either;
+/// treating only a space as one would read a comment
+///       as part of a package name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -240,7 +247,8 @@ fn refused_indicator(text: &str) -> Option<char> {
 /// or nothing when the line holds no key.
 /// `Err` is why a line that looks like a key is not one this reader reads.
 /// Why:
-///  A key ends at a colon a space or the line end follows;
+///  A key ends at a colon a space,
+/// a tab or the line end follows;
 /// a quoted key ends
 ///       at its closing quote,
 /// so the quoted registry pattern `'@scope/*':` is one key.
@@ -255,25 +263,28 @@ fn refused_indicator(text: &str) -> Option<char> {
 pub fn split_key(content: &str) -> Result<Option<(String, &str)>, String> {
     if content.starts_with('\'') || content.starts_with('"') {
         let (key, rest): (String, &str) = read_quoted(content)?;
-        let unspaced: &str = rest.trim_start_matches(' ');
+        let unspaced: &str = rest.trim_start_matches(is_space_or_tab);
         let Some(after): Option<&str> = unspaced.strip_prefix(':') else {
             return Ok(None);
         };
         if key.is_empty() {
             return Err(String::from("names no key"));
         }
-        return Ok(Some((key, after.trim_start_matches(' '))));
+        return Ok(Some((key, after.trim_start_matches(is_space_or_tab))));
     }
     for (index, character) in content.char_indices() {
         if character != ':' {
             continue;
         }
         let after: &str = &content[index + 1..];
-        let separated: bool = after.is_empty() || after.starts_with(' ');
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
         if !separated {
             continue;
         }
-        let key: &str = content[..index].trim_end_matches(' ');
+        let key: &str = content[..index].trim_end_matches(is_space_or_tab);
         if key.is_empty() {
             return Err(String::from("names no key"));
         }
@@ -284,7 +295,7 @@ pub fn split_key(content: &str) -> Result<Option<(String, &str)>, String> {
         }
         return Ok(Some((
             String::from(key),
-            after.trim_start_matches(' '),
+            after.trim_start_matches(is_space_or_tab),
         )));
     }
     return Ok(None);
@@ -304,37 +315,86 @@ pub fn split_key(content: &str) -> Result<Option<(String, &str)>, String> {
 /// function readScalar(text: string): string;
 /// ```
 pub fn read_scalar(text: &str) -> Result<String, String> {
-    let trimmed: &str = text.trim_end_matches(' ');
+    let trimmed: &str = text.trim_end_matches(is_space_or_tab);
     if trimmed.starts_with('\'') || trimmed.starts_with('"') {
         let (value, rest): (String, &str) = read_quoted(trimmed)?;
-        let unspaced: &str = rest.trim_start_matches(' ');
-        if unspaced.is_empty() || unspaced.starts_with('#') {
+        if rest.is_empty() {
+            return Ok(value);
+        }
+        let unspaced: &str = rest.trim_start_matches(is_space_or_tab);
+        if unspaced.len() < rest.len() && unspaced.starts_with('#') {
             return Ok(value);
         }
         return Err(String::from("holds text after its closing quote"));
     }
-    let Some(first) = trimmed.chars().next() else {
+    if trimmed.is_empty() {
         return Ok(String::new());
-    };
-    if matches!(
-        first,
-        '!' | '&' | '*' | '|' | '>' | '%' | '@' | '`' | '[' | '{'
-    ) {
+    }
+    if let Some(first) = refused_indicator(trimmed) {
         return Err(format!(
             "begins with {first:?}, which opens a value this reader does not read"
         ));
     }
-    let uncommented: &str = match trimmed.find(" #") {
-        Some(index) => &trimmed[..index],
-        None => trimmed,
-    };
-    let plain: &str = uncommented.trim_end_matches(' ');
-    if plain.contains(": ") || plain.ends_with(':') {
+    let plain: &str = plain_body(trimmed);
+    if holds_a_mapping_colon(plain) {
         return Err(String::from(
-            "holds a colon a space follows, so it reads as a key and not as one value",
+            "holds a colon a space or tab follows, so it reads as a key and not as one value",
         ));
     }
     return Ok(String::from(plain));
+}
+
+/// What:
+/// A plain scalar with its comment removed and its trailing spaces and tabs dropped.
+/// Why:
+///  YAML starts a comment at a `#` a space or a tab precedes,
+/// and
+///       trailing whitespace is not part of a scalar;
+/// reading the comment as part of a package
+///       name would hide the package the line names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plainBody = (text: string) => text.replace(/[ \t]#.*$/, '').trimEnd();
+/// ```
+fn plain_body(text: &str) -> &str {
+    let mut previous: Option<char> = None;
+    for (index, character) in text.char_indices() {
+        if character == '#' && previous.is_some_and(is_space_or_tab) {
+            return text[..index].trim_end_matches(is_space_or_tab);
+        }
+        previous = Some(character);
+    }
+    return text.trim_end_matches(is_space_or_tab);
+}
+
+/// What:
+/// Whether a plain scalar holds a colon a space or a tab follows,
+/// or ends with one.
+/// Why:
+///  Such a colon makes the line a key and a value to a YAML parser,
+/// so a reader
+///       that stored it as one scalar would report a value it never read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsMappingColon = (text: string) => /:(?:[ \t]|$)/.test(text);
+/// ```
+fn holds_a_mapping_colon(text: &str) -> bool {
+    for (index, character) in text.char_indices() {
+        if character != ':' {
+            continue;
+        }
+        let after: &str = &text[index + 1..];
+        let ends: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if ends {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

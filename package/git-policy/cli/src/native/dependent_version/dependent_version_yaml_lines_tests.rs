@@ -201,13 +201,13 @@ fn reads_and_refuses_scalars() {
     assert_eq!(
         read_scalar("repo: example"),
         Err(String::from(
-            "holds a colon a space follows, so it reads as a key and not as one value"
+            "holds a colon a space or tab follows, so it reads as a key and not as one value"
         ))
     );
     assert_eq!(
         read_scalar("trailing:"),
         Err(String::from(
-            "holds a colon a space follows, so it reads as a key and not as one value"
+            "holds a colon a space or tab follows, so it reads as a key and not as one value"
         ))
     );
 }
@@ -232,7 +232,7 @@ fn reads_a_tab_and_refuses_every_form_it_does_not_read() {
     assert_eq!(
         read_scalar("repo:\texample"),
         Err(String::from(
-            "holds a colon a space follows, so it reads as a key and not as one value"
+            "holds a colon a space or tab follows, so it reads as a key and not as one value"
         ))
     );
     assert_eq!(
