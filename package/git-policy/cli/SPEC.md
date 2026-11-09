@@ -1606,6 +1606,14 @@ and the records go in the command that finds the worktree
 whole (a checkout wrote an index and something beside Git's pointer) or gone.
 The stage is the person's to remove,
 and its claim goes with it.
+When the worktree's administrative directory holds `index.lock`
+(the shape a kill inside the index install leaves),
+that file is named first,
+with the condition for removing it (no Git command running in the worktree),
+because `git -C <path> reset --hard` cannot start while it stands
+(`fatal: Unable to create '.../index.lock': File exists`)
+and `git status` in the worktree still works,
+so nothing else would say why every write to it fails.
 A record or a completion marker that cannot be
 looked up keeps the record and says that the state is unknown.
 The cost:

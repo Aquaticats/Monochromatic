@@ -45,6 +45,10 @@ pub struct Settlement {
     pub keep: bool,
 }
 
+/// The name of the lock Git takes to write an index,
+/// in the administrative directory of a worktree.
+const INDEX_LOCK: &str = "index.lock";
+
 /// What:
 ///  Whether the worktree an add's binding names is proven whole or gone,
 /// which is when nothing is left for a person
@@ -54,16 +58,17 @@ pub struct Settlement {
 /// so the proof is what the two directories say:
 /// the destination
 ///  is gone,
-/// or it holds a file besides Git's pointer and its administrative directory holds an index,
-/// which
-///  only a checkout writes.
+/// or it holds a file besides Git's pointer,
+/// its administrative directory holds an index,
+/// and no
+///  `index.lock` stands in the way of the next Git write there.
 /// A destination that holds only its `.git` file is the shape a kill between real Git and
 ///  the checkout leaves,
-/// and it is what the report names.
+/// and a lock with no index beside it is the shape a kill inside the index install leaves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// !exists(destination) || (exists(join(admin, 'index')) && entries(destination).length > 1)
+/// !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && entries(destination).length > 1)
 /// ```
 fn add_is_finished(binding: &Binding) -> bool {
     // `match` on the lookup: a destination that is gone is nothing to finish, while one that cannot be examined is kept.
@@ -72,7 +77,7 @@ fn add_is_finished(binding: &Binding) -> bool {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return true,
         Err(_refused) => return false,
     }
-    if !binding.admin.join("index").exists() {
+    if !binding.admin.join("index").exists() || binding.admin.join(INDEX_LOCK).exists() {
         return false;
     }
     // More than the `.git` file Git wrote: a checkout put something beside it.
@@ -81,6 +86,31 @@ fn add_is_finished(binding: &Binding) -> bool {
         Err(_unreadable) => return false,
     };
     return held_listing.count() > 1;
+}
+
+/// What:
+///  What finishes or removes an interrupted add,
+/// with the stale lock named first when one stands in the way.
+/// Why:
+///   `git -C <destination> reset --hard` cannot start while that lock exists (Git answers "Unable to create
+///  .../index.lock: File exists"),
+/// so the report names the file and the condition for removing it;
+///  the worktree's own `git status` still works,
+/// so nothing else would tell a person why every write to it fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = join(admin, 'index.lock')
+/// return exists(lock) ? lockedSentence(lock, finish) : finish
+/// ```
+fn finish_instructions(shown: &str, binding: &Binding) -> String {
+    let finish: String = format!("`git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.");
+    let lock: PathBuf = binding.admin.join(INDEX_LOCK);
+    if !lock.exists() {
+        return finish;
+    }
+    let lock_shown: String = quote(lock.to_string_lossy().as_ref());
+    return format!("Its Git directory holds the lock {lock_shown} that a Git killed inside the index install left, and every Git write to the worktree fails while it stands: once no Git command is running there, `rm {lock_shown}` removes it, and then {finish}");
 }
 
 /// What:
@@ -190,7 +220,10 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
                 return Settlement { notice: None, keep: false };
             }
             Settlement {
-                notice: Some(format!("monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. `git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.")),
+                notice: Some(format!(
+                    "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. {}",
+                    finish_instructions(shown.as_str(), &binding)
+                )),
                 keep: true,
             }
         }
