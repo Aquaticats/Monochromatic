@@ -4594,6 +4594,298 @@ through it),
 `native:perf`,
 and the mutation campaign (paused by the owner).
 
+### Step T12, the first production folder on the awaited Git runner, 2026-11-08T21:05:00-05:00
+
+Branch `feat/git-policy-cli-tokio-call-sites-from-the-top-of-each-chain` in
+`.claude/worktrees/pi-tokio-convert-the-first-call-sites`,
+from main at `bbadfac560`.
+Two commits:
+`a669e2a59a` (the control that fails to compile) and
+`ae4e1a57c7` (the conversion that turns it green).
+
+#### Which folder, measured first
+
+The handover's "Exact next steps" item 1 asks for one folder whose chain to a
+boundary is short.
+The chains were measured,
+not guessed:
+
+- A call graph over the production sources (every `*.rs` under `src/native`
+  minus `*_tests.rs` and the word-merge corpus,
+  comments and string literals
+  stripped,
+  each `fn` body brace-matched) found 79 distinct
+  (file,
+  function) pairs that call a `run_git*` entry,
+  in 49 files.
+  A plain text count of the same entries gives 111 mentions in 68 files,
+  which includes doc comments.
+- Each such function's ancestor set was then read back with `rg` on its own
+  name,
+  one level at a time,
+  so a chain is a list of functions one can check
+  by hand rather than a number from the graph.
+
+What that gave,
+for the folders the brief does not reserve:
+
+- `health/` (3 sites):
+  `fsmonitor_report` is reached by
+  `main` > `run_process` > `plan_invocation` > `plan_management` >
+  `plan_management_with_section` > `plan_doctor` > `doctor_action_with_section`,
+  and inside the folder the three Git readouts are called by nothing but each
+  other and the folder's own controls.
+  Six functions above the folder,
+  three
+  inside it,
+  and the chain closes.
+- `conflict/` (7 sites):
+  `paths_with_markers` and `marker_sizes` hang below
+  `report_landing` > `service_commit` > `run_timed` > `run_commit_command` >
+  `run_commit_if_real` > `run_wrapped_command` > `plan_with_real_git` >
+  `plan_invocation`,
+  which is the commit path,
+  and the commit path is the one
+  the five-second bar and the budget controls measure.
+- `commit/` (19),
+  `landing/` (27),
+  `merge/` (15):
+  9 to 14 hops,
+  all of them
+  through the commit or the landing,
+  and `landing/` is reserved by the brief.
+- `standards_review/` (4):
+  `read_patch` is reached through
+  `service/service_review.rs` and `repository_link_check/`,
+  16 hops.
+- `shadow/` (10):
+  `list_real_refs` and `write_shadow_refs` are reached through
+  `create_shadow_repository_carrying` > `build_with_git` in `landing/`.
+- `config/` (1):
+  `read_config_snapshot` has eight production callers,
+  one in
+  `landing/` and one in `worktree_copying/`,
+  both reserved by the brief.
+- `repair/` (1):
+  `manifest_directories` sits under `repair_cargo` >
+  `repair_worktree` in `worktree_copying/`.
+- `worktree/` (5):
+  `untracked_file` and `trash_location_is_ignored` are items
+  of `run_beside_caller` (`side_by_side_threads.rs`),
+  so they move with the
+  runner and not before it.
+- `candidate/` (5):
+  the landing's attempt rounds,
+  which is item 2.
+- `push/` (4),
+  `invocation/` (5):
+  `manual_push_range` and `git_version` are
+  reached from the commit path and from `lock/`.
+
+So `health/` is the folder item 1 asks for:
+the shortest chain,
+and the only
+one whose subtree ends where it starts.
+`landing/`,
+`lock/`,
+the `worktree_copy` files and the printed wait messages
+were not touched.
+
+#### The design
+
+- `health/doctor.rs`:
+  `query`,
+  `locate_hooks` and
+  `doctor_action_with_section` are futures and ask Git through
+  `run_git_awaiting`,
+  so no step of the report enters the runtime for the
+  pipes of a step that is ended at its ceiling.
+  `doctor_action` keeps its signature and is the synchronous face:
+  it enters
+  the runtime once for the whole report,
+  which is the shape
+  `captured_child_run_to_its_end::output_of_blocking` and
+  `bounded_query::run_bounded_query` already use.
+- `health/doctor_config.rs`:
+  `config_findings` and `top_level` are futures.
+- `health/doctor_fsmonitor.rs`:
+  `fsmonitor_report` is a future.
+- `config/config_snapshot.rs`:
+  `read_config_snapshot_awaiting` is the second
+  face of one read.
+  The request,
+  the parse and the debug lines are
+  `config_listing_request` and `snapshot_of`,
+  shared with the synchronous face,
+  so the two cannot differ in what they read or what they record.
+  The synchronous read keeps every caller it has,
+  because two of them are in
+  reserved folders;
+  a conversion of the read itself is item 2's work.
+- `invocation/management.rs`:
+  `plan_doctor` enters the runtime once around the
+  report and turns a refused entry into the same doctor failure a failed Git
+  question gives.
+
+Two rules from the previous agent are kept:
+
+- No synchronous `Drop` that waits for a task runs on a worker.
+  The report is
+  one task,
+  and its watches are closed by `run_git_awaiting`,
+  which closes them
+  with `ChildWatch::close_awaiting`.
+- Nothing waits for a job.
+  The report starts no blocking job,
+  and the one
+  runtime entry is made by the synchronous face,
+  on the calling thread.
+
+One limit of this step, said rather than hidden:
+the report's storage reads (the hooks directory scan,
+the configuration file and the
+`/proc` reads of the filesystem section) run on the worker that carries the
+report rather than on the blocking pool.
+Each is one short read of a known small file or directory,
+they happen once per doctor run,
+and putting them on the pool would need owned copies of what they read for a
+`'static` job;
+the landing's round is where that shape is decided,
+so this step does not set a second one.
+
+#### What could not be converted, and why
+
+- `invocation/forwarded_command.rs::read_config_value` stays as it is.
+  Converting it would build the process's runtime on the forwarded-command
+  path,
+  and the guard `binary_forwarded_command_makes_no_thread_tests.rs`
+  plus the owner's choice 1 (lazy,
+  at the first wrapper code that needs it;
+  measured at +0.3 to +0.5 ms and about 125 minor faults on every forwarded
+  command) exist to keep that path free of the runtime.
+  A conversion here is a decision about that measurement,
+  not a call-site edit.
+- The three "pure-file" sites of item 3 (`worktree/worktree_trash_entries.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `worktree/worktree_convert_command.rs`) stay on the blocking runner for now,
+  and the next agent should read this before starting them.
+  The awaited runner takes `Arc<[T]>` items,
+  `Arc<[Vec<usize>]>` lanes and
+  `Arc<dyn OrderedAwaitingWork<T, R>>` work,
+  and a task spawned on the runtime
+  must be `'static`.
+  Each of the three lends the runner something that is not owned:
+  - `subvolume/` lends `rewrite: &RewriteOne<'a>`,
+    a borrowed closure,
+    and
+    `IndexLock<'a>`,
+    which holds a borrowed token from the caller;
+  - `worktree/worktree_convert_command.rs` lends `platform: &dyn Platform` and
+    `interrupt: &Interrupt`.
+  So converting one means owning those first:
+    `Arc<dyn Fn ... + Send + Sync>`,
+  an owned `IndexLock`,
+    and `Arc<dyn Platform + Send + Sync>`.
+  That changes the signatures `subvolume_migrate.rs`,
+    `subvolume_rollback.rs`
+  and `subvolume_index_parallel_tests.rs` are written against,
+    and the
+  controls that pass closures borrowing a `Rendezvous` and an `AtomicUsize`.
+- There is a second,
+  larger obstacle on the same three sites:
+  an item that says
+  its lines while it works.
+  `run_blocking_job_within_the_budget` takes `J: FnOnce() -> T + Send + 'static`,
+  and the sink an item says its lines through (`LinesToTheConsumer`) is lent to
+  the item's future for the length of the run,
+  so it cannot travel into a
+  `'static` job.
+  A site whose items say lines as they go therefore needs either a buffered
+  report or a new way for a blocking job to hand a line back to the consumer.
+  The landing's round and the three pure-file sites all say lines while they
+  work,
+  so this is a decision the next agent has to make before item 3 moves.
+
+#### Controls
+
+`health/doctor_tests.rs` (three new):
+
+- `the_report_is_built_on_the_runtime_it_is_awaited_on`:
+  the whole report,
+  awaited on the runtime,
+  with a hook in the default directory,
+  ends with
+  status 1 and lists that hook by path.
+  It is the conversion's proof:
+  it can pass only when no step of the report
+  calls the synchronous face.
+  Its red half,
+  `a669e2a59a`,
+  is a compile failure:
+  the compiler answers
+  "the trait `std::future::Future` is not implemented for
+  `invocation::action::Action`" and suggests making `doctor_action_with_section`
+  asynchronous.
+- `the_two_faces_of_the_report_agree`:
+  the synchronous face and the awaited
+  report give the same status,
+  standard output and standard error,
+  field for
+  field,
+  on a repository with a configured hook,
+  a traditional hook and the
+  fsmonitor note.
+- `the_synchronous_face_of_the_report_is_refused_from_inside_the_runtime`:
+  the positive control,
+  so the first control cannot pass for another reason.
+  The refusal reaches the caller as a doctor failure (status 2) whose message
+  names the runtime asked for from inside itself,
+  not as a panic.
+
+The existing controls were moved onto the runtime and say so in one helper per
+file:
+`located` (`doctor_tests.rs`),
+`findings_of` (`doctor_config_tests.rs`),
+`fsmonitor_of` (`doctor_fsmonitor_tests.rs`) and `with_section`
+(`doctor_filesystem_tests.rs`).
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:test:host -- health::`:
+67 tests run,
+67 passed.
+`native:test:binary:host -- doctor`:
+9 tests run,
+9 passed,
+including
+`doctor_outside_a_repository_still_exits_two`.
+`native:clippy`:
+clean.
+`monochromatic-lint --max-warnings 0` on the nine changed files:
+0 findings
+after `//:format:monochromatic-lint` inserted the three line breaks it asks for.
+The whole suites,
+once,
+at the end
+(`native:test:host` 4807 run,
+4806 passed,
+1 failed,
+8 skipped;
+`native:test:binary:host` 733 run,
+733 passed,
+3 skipped):
+the one failure is
+`worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`,
+which asserts that a file written this instant is still inside the timestamp
+granularity and passes three times out of three when asked alone,
+so it is a contention defect under the load of the whole suite,
+in a folder another agent is changing,
+not this step's.
+The fixture root the two runs used is in the handover,
+with the second length limit this step measured:
+it must be six path segments deep,
+not only short enough for `SUN_LEN`.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -4656,6 +4948,22 @@ the runner's jobs on the runtime"):
   one folder at a time from the top of each chain,
   and `landing/service_round.rs` last,
   because its items run the landing's handlers.
+- After the first production folder
+  (2026-11-08T21:05:00-05:00,
+  "Step T12,
+  the first production folder on the awaited Git runner"):
+  `health/` awaits its Git reads on the runtime and the report of
+  `git monochromatic-git-policy-cli doctor` is built by one task,
+  with `plan_doctor` and `doctor_action` as the synchronous faces that enter
+  the runtime once.
+  A shared read whose other callers are in reserved folders gets a second face
+  beside its synchronous one
+  (`config_snapshot::read_config_snapshot_awaiting`).
+  What is left is unchanged in order,
+  and item 3 now has two measured obstacles recorded in that section:
+  the borrowed state each pure-file site lends the blocking runner,
+  and the live lines an item says,
+  which a `'static` blocking job cannot carry.
 
 ## Open choices for the owner
 

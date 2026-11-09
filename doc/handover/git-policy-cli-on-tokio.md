@@ -414,6 +414,10 @@
   `.claude/worktrees/pi-tokio-step-t12`,
   from main at `1a907ccfb9`.
   Not merged into main.
+  Corrected 2026-11-08T21:05:00-05:00:
+  this work is on main now,
+  merged as `6c3d3ef739` from `feat/git-policy-cli-tokio-async-git-leaf-and-its-callers`;
+  the branch name above is the one the record was written with.
 - Done,
   and the whole of what T12 could be from this tree:
   the process's one bound on blocking jobs
@@ -490,6 +494,10 @@
   `.claude/worktrees/pi-tokio-async-git-leaf`,
   from `6240b51a7a`.
   Not merged into main.
+  Corrected 2026-11-08T21:05:00-05:00:
+  this work is on main now,
+  merged as `6c3d3ef739` from `feat/git-policy-cli-tokio-async-git-leaf-and-its-callers`;
+  the branch name above is the one the record was written with.
 - Done:
   a Git step can now be awaited by a task of the runtime
   (`transaction/transaction_git_awaiting.rs`:
@@ -572,6 +580,130 @@
   the container gate of this branch,
   `native:perf`,
   and the mutation campaign (paused).
+
+## Step T12, the first production folder on the awaited Git runner, 2026-11-08T21:05:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-call-sites-from-the-top-of-each-chain` in
+  `.claude/worktrees/pi-tokio-convert-the-first-call-sites`,
+  from main at `bbadfac560`.
+  Not merged into main.
+- Done:
+  `health/` is the first production folder whose Git reads are awaited on the
+  runtime,
+  and the report of `git monochromatic-git-policy-cli doctor` is built
+  by one task instead of by steps that each enter the runtime for their pipes.
+  Commits `a669e2a59a` (the control that does not compile) and `ae4e1a57c7`
+  (the conversion).
+  The scripts that measured the chains are
+  `${HOME}/temp/agent/tokio-callsite-measure-20261109/callgraph.ts` (the call
+  graph over the production sources),
+  `ancestors.ts` (one function's ancestors,
+  one level at a time) and
+  `chains.ts` (the ancestor set of every site).
+  Details,
+  the measurement of every other folder's chain,
+  the controls and the
+  checks:
+  the plan,
+  "Step T12,
+  the first production folder on the awaited Git runner".
+- The shape a later conversion copies:
+  the leaf functions become futures and call `run_git_awaiting`;
+  the outermost synchronous function of the chain enters the runtime once
+  (`doctor_action`,
+  and `plan_doctor` in `invocation/management.rs`);
+  a shared read that has callers in reserved folders gets a second face beside
+  its synchronous one (`config_snapshot::read_config_snapshot_awaiting`) rather
+  than a conversion that would reach `landing/` and `worktree_copying/`.
+- Why `health/` and not another folder,
+  measured:
+  its chain is six functions above the folder
+  (`run_process` > `plan_invocation` > `plan_management` >
+  `plan_management_with_section` > `plan_doctor` >
+  `doctor_action_with_section`) and then three functions inside it,
+  and its
+  three Git readouts are called by nothing but each other,
+  the folder's own
+  controls and `plan_doctor`.
+  Every other folder that the brief does not reserve has either a longer chain
+  through the commit path (`conflict/`,
+  `commit/`,
+  `merge/`,
+  `push/`,
+  `invocation/`),
+  a caller in a reserved folder (`config/`,
+  `repair/`,
+  `shadow/`,
+  `standards_review/`,
+  `candidate/`),
+  or items of the blocking runner (`worktree/`).
+- What stays as it is,
+  with the reason in the plan:
+  `invocation/forwarded_command.rs::read_config_value`,
+  because converting it
+  builds the runtime on the forwarded-command path the owner's lazy-runtime
+  choice and `binary_forwarded_command_makes_no_thread_tests.rs` keep free.
+- Exact next steps,
+  in order:
+  1. Item 3's pure-file sites,
+     and read the plan's list of what they need
+     first:
+     each of the three lends the blocking runner state that has to be
+     owned before the awaited runner can take it (`IndexLock<'a>`,
+     `RewriteOne<'a>`,
+     `&dyn Platform`,
+     `&Interrupt`),
+     and each says lines while
+     it works,
+     which a `'static` blocking job cannot do through the sink the
+     awaited runner lends it.
+     Decide that line path first;
+     it is one decision for all three.
+  2. Then item 2:
+     the landing's handlers and `landing/service_round.rs`.
+  3. Then item 4 (T13's guards),
+     unchanged.
+- Checks,
+  the whole suites once at the end:
+  `native:test:host` 4807 run,
+  4806 passed (1 slow),
+  1 failed,
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  733 passed (6 slow),
+  3 skipped;
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+  The one lib failure is not this step's and not the tree's:
+  `worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`
+  asserts that a file written this instant is still inside the timestamp
+  granularity,
+  which a run of the whole suite under load cannot promise;
+  the same binary passes it three times out of three when it is asked alone,
+  from the same fixture root.
+  It is a contention defect in a folder another agent is changing.
+  Both suites ran with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`
+  and with the run's own control group at `TasksMax=4000`,
+  the conditions the section above records,
+  with one addition the next agent needs:
+  the fixture root has **two** length limits, not one.
+  It must be short enough for a Unix socket under it to fit `SUN_LEN`,
+  and it must be at least six path segments deep,
+  because `worktree_add_binding`'s control `a_relative_pointer_without_links_is_bound`
+  resolves `../../../../../../..` from a fixture directory and fails when that
+  lands above `/`.
+  Measured on this tree:
+  `/var/tmp/cg-fixtures` (three segments) fails that control and
+  `/var/tmp/cg/cli-git/fixtures/root` (six) passes it,
+  the same test binary both times.
+  `native:perf`,
+  compared with the numbers the T11 section records,
+  is in the plan's section for this step.
+- Not run,
+  for the next agent:
+  the container gate of this branch (no gate image was made) and the mutation
+  campaign (paused by the owner).
 
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
