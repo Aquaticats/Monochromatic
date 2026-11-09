@@ -135,6 +135,12 @@ An executable that predates the policy refuses a configuration that lists it,
  so a repository lists the policy only after every checkout runs an executable that ships it.
 `markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
  the executable links the linter library without its semantic engine.
+A candidate the engine would rewrite is reported,
+ and the correction is proposed wherever the caller may apply patches:
+ on a direct fix,
+ and in the commit's own patch-enabled convergence,
+ the same way `final-newline` corrects a commit;
+ a read-only selection or a direct check reports the finding and proposes none.
 A panic,
 or 60 seconds in which the linter thread shows no sign of work,
 ends that candidate's check,
@@ -149,6 +155,20 @@ panic boundary and not a crash boundary.
 A run whose fixed source passes 64 MiB,
 or whose findings pass 4 MiB,
 is refused as unchecked.
+
+The `exclude` option is gitignore syntax,
+read by the wrapper's own matcher and again by the linked linter,
+and both compile every pattern through `monochromatic_lint::gitignore_pattern::for_matcher`
+(`package/linter/monochromatic-lint/src/gitignore_pattern.rs`):
+a brace is ordinary text to Git,
+while the glob compiler beneath the matcher reads `{a,b}` as an alternate group,
+so a literal brace is escaped for that compiler and a brace inside a character class is left as it is.
+A control beside the matcher asks native Git's `git check-ignore` the same questions for every pattern
+shape it covers,
+and one shape stays different:
+a character range that runs backwards (`[z-a]`) is a class matching nothing to Git and a refusal
+here,
+which fails the policy with a message naming the pattern.
 
 ## Policy re-run after a retried landing
 
@@ -2373,7 +2393,13 @@ a claim whose owner lives is a copy between claiming and journaling and is left 
 so a copy that died while staging (a signal,
 the out-of-memory killer,
 a power loss) left it.
-Recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
+A claim with a destination record beside it was made by an add,
+and its stage is reported and never removed (`38e01bcd33`):
+the claim names a stage by its path alone,
+which proves nothing about what stands there now,
+so the notice names the stage and says to remove it once nothing needs it.
+For a claim no add recorded,
+recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix,
 and the container to be a private directory owned by the user,
 removes it with its read-only subdirectories,
@@ -3263,6 +3289,14 @@ of the review call and of the whole review).
   that has been checked one file for `LINT_CEILING` (4 minutes),
   with a reason that names the tool,
   the file and the ceiling.
+  The still-waiting notices that long check prints go out on a thread of their own,
+  one at a time,
+  so a standard error that nobody drains after the pipe filled
+  holds neither the window nor the ceiling:
+  the waiting thread judges every deadline before it starts a notice,
+  never after one,
+  and a write that never returns is abandoned with the process while later notices of that command stop,
+  which an advisory line may be.
 - The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has one ceiling over the whole
   call,
   `REVIEW_CALL_CEILING` (1 minute).
@@ -3942,6 +3976,13 @@ on the commit path:
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
   then runs and reports what Git says.
+  Before the wait it learns which index it writes from two queries,
+  `git rev-parse --path-format=absolute --absolute-git-dir` and then `--git-path index`,
+  each asked on its own and each answer read as bytes with only its one terminating line feed removed,
+  because a pathname may hold a line feed,
+  the reading `src/native/landing/landing_location.rs` and `health/doctor.rs` both make.
+  The in-process reader answers first,
+  so a command in a plain checkout starts no query for it.
 - A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
   journal
   command.
@@ -4487,14 +4528,20 @@ in-process reader can) gives every value of the multi-valued keys.
   (`feature` tracking `origin/main` wrote
   `Merge remote-tracking branch 'origin/main' into feature`),
   and a branch whose name differs from the tracked ref's short name also gets
-  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  `Published to <remote>/<tracked ref>.`
   as a further line of its body,
-  because the commit lands on a branch its subject does not name.
+  because the commit lands on a ref its subject does not name.
+  That ref is the destination of the rejected push,
+  which is not always the branch's upstream
+  (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
+  so the line states where the merge was published and nothing about what the branch tracks.
   A detached `HEAD` has no branch to name and keeps the tracked ref's short name
   (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
-  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
+  in a sentence that names the branch the merge was into,
+  the same name the merge's subject carries and never the destination ref.
   A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
   (the lines `word-level merge: <path>: part <n> of <m>: ...`),
   the same lines in the report after the push (each begins with `monochromatic-git-policy-cli: auto-push: `),
@@ -6264,13 +6311,21 @@ file through `renameat2(RENAME_EXCHANGE)`,
 so the corrected bytes go in while the file they displaced stays
 readable:
 
-- the corrected bytes are created with the destination's own permission bits and owner,
-  so a file kept at `0600` stays private and the set-user-id,
-  set-group-id and sticky bits survive;
+- the corrected bytes are created with the destination's own permission bits,
+  owner and extended attributes,
+  so a file kept at `0600` stays private,
+  the set-user-id,
+  set-group-id and sticky bits survive,
+  and the access-control list that decides who may read it is the one the person
+  wrote;
   the owner is
   given before the bits,
   because changing a file's owner clears those bits even when the owner
-  and group stay the same;
+  and group stay the same,
+  and the attributes are given before the bits,
+  because setting an access-control list sets the group's bits from its mask;
+  an attribute this process may not set refuses the whole fix and names the
+  attribute;
   an owner this process may not give is refused rather than handed over,
   and the comparison is against what the
   replacement actually carries,
@@ -6297,7 +6352,8 @@ readable:
   command owns:
   bytes,
   permission bits,
-  owner and file kind,
+  owner,
+  extended attributes and file kind,
   never through a symbolic link.
   Only bytes that are
   this fix's replacement let the journal go;
@@ -6313,8 +6369,22 @@ readable:
   and a journal the fix
   cannot remove is named rather than reported as a success that says nothing.
 
-What a replacement does not carry is its extended attributes and access-control list,
-its inode number and birth time,
+A replacement carries every extended attribute the file lists,
+as the bytes it holds,
+the access-control list included,
+and an attribute this process may not read or may not set refuses the whole fix
+with the attribute's name,
+leaving the original file in place:
+that data exists in no commit,
+so a replacement that dropped it would delete its only copy.
+A namespace the system does not let this process list,
+such as another user's `trusted.*`,
+is invisible to the fix and is neither carried nor counted.
+A journal record written before the attributes were recorded names none,
+so the sweep keeps and names such a journal whose bytes carry one,
+rather than removing a copy it cannot prove is only a correction.
+
+What a replacement does not carry is its inode number and birth time,
 and its share of a hard link,
 whose other name keeps the bytes it had.
 
@@ -6399,6 +6469,7 @@ a record of the file (`record`:
 its pathname,
 permission bits,
 owner,
+the extended attributes it carries,
 the writer's owner token,
 and the
 digest of the corrected bytes).
@@ -6438,8 +6509,8 @@ proves,
 by the same judgement the rollback makes of a file it took out of a swap:
 `content` is a regular file,
 read without following a symbolic link,
-whose bytes hash to the recorded replacement and whose permission bits and owner are the ones the
-record names.
+whose bytes hash to the recorded replacement and whose permission bits,
+owner and extended attributes are the ones the record names.
 A digest alone would take a file the person saved with the correction's own bytes,
 or the same
 bytes narrowed to `0600`,
@@ -8892,7 +8963,18 @@ For injected commit-only semantics:
     a copied mark makes `git add --all` skip or refuse a file the commit named,
     where native Git stages it.
     A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
-    with the same answers.
+    with the same answers,
+    and one thing more:
+    it writes the requested tree's own entry over every path an intent-to-add mark names,
+    before the reset.
+    A rebuild holds exactly that tree,
+    so an entry the reset would leave marked must not survive:
+    a scratch-commit hook that restages an unrelated file invalidates the cached tree,
+    and a surviving mark would leave a tracked file nobody named out of the tree the index writes.
+    Native Git's own reset leaves such a mark,
+    and a tree built from that index omits the path (measured with Git 2.56.0);
+    the wrapper keeps the file,
+    as it does for the first preparation.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
@@ -10249,6 +10331,25 @@ which Git refuses with `changes environment variables` and runs nothing for
 `-P`),
 and one whose name an installed `git-<name>` program carries,
 which Git runs before it looks any alias up.
+Whether a program carries the name is read from Git's own search:
+the directory the caller's last `--exec-path=` names,
+else a nonempty `GIT_EXEC_PATH`,
+else the path Git reports for itself,
+and then every `PATH` entry.
+A relative value in either of the first two,
+and every `PATH` entry without a leading separator,
+is read from the directory Git runs in after the caller's ordered `-C` chain,
+which is why that chain is walked rather than guessed;
+an empty `--exec-path=` adds no directory,
+as Git adds none.
+An answer the reading cannot prove leaves the alias to Git,
+which then decides.
+The endings that reach that answer are starts of Git that fail for the exec path question,
+and the alias lookup is another start of the same Git with the same globals,
+environment and directory,
+so it fails with them and there is no alias to read.
+A failure that hits only the first start can still leave an alias to Git,
+and that is this reading's remaining limit.
 No fact of the caller then describes a repository the command never runs in,
 and the audit names what Git runs.
 A built-in word is decided without reading any configuration,
@@ -10276,6 +10377,16 @@ backtick,
 glob,
 brace or separator,
 and whose words name no global option of their own.
+Git appends the caller's own words to the value before the shell reads it
+(`git.c:401` to `git.c:402`),
+so the command followed is the value's words and then the caller's:
+a value of exactly `!git` starts that command with the caller's first word,
+and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
+The Git inside the shell also reads the configuration and the exec path the caller passed,
+which Git exports to what it starts
+(`config.c:469` to `config.c:504`,
+`exec-cmd.c:303` to `exec-cmd.c:310`),
+so `-c 'alias.outer=!git inner' -c 'alias.inner=reset --hard' outer` is decided on the inner reset.
 `!git reset --hard` is then refused where `git reset --hard` is refused,
 and the alias itself is still forwarded unchanged,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,

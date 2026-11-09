@@ -248,7 +248,7 @@ fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
     assert_eq!(
         private_index_seed(real.as_path()),
-        PrivateIndexSeed::CopyWithIntentToAdd,
+        PrivateIndexSeed::CopyWithIntentToAdd(vec![b"added.txt".to_vec()]),
         "an intent-to-add entry keeps the copy"
     );
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);

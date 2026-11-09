@@ -57,7 +57,7 @@ use crate::policy_content::{ContentState, Correction, LifecycleContent};
 /// Import the finding and outcome types of a check.
 use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// Import the lifecycle points;
-///  only a direct fix corrects.
+///  a direct fix and a commit's patch-enabled pass correct.
 use crate::policy_trigger::Trigger;
 /// Import the facts interface for the repository's top level.
 use crate::repository_facts::RepositoryFacts;
@@ -381,11 +381,15 @@ fn violation(path: &EventPath, remaining: &RemainingFinding) -> PolicyFinding {
 ///   An unchanged source reports only what is left;
 ///  a changed one reports the
 ///       rewrite first,
-///  with a correction on a direct fix only (`canApplyPatches`).
+///  with a correction wherever the caller may apply one:
+///  a direct fix,
+///  or a commit's own patch-enabled pass
+///  (`canApplyPatches`),
+///  as `final-newline` already corrects there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function candidateFindings(content, candidate, bytes, run, options, trigger): PolicyFinding[];
+/// function candidateFindings(content, candidate, bytes, run, options, trigger, canApplyPatches): PolicyFinding[];
 /// ```
 fn candidate_findings(
     content: &mut ContentState,
@@ -394,11 +398,12 @@ fn candidate_findings(
     run: LintRun,
     options: &MarkdownAutofixOptions,
     trigger: Trigger,
+    can_apply_patches: bool,
 ) -> Vec<PolicyFinding> {
     let path: EventPath = EventPath::from_git_bytes(candidate.path.as_slice());
     let mut findings: Vec<PolicyFinding> = Vec::new();
     if run.fixed.as_slice() != &*bytes {
-        let corrects: bool = trigger == Trigger::DirectFix;
+        let corrects: bool = trigger == Trigger::DirectFix || can_apply_patches;
         findings.push(PolicyFinding {
             code: MARKDOWN_AUTOFIX_CODE,
             message: format!(
@@ -436,9 +441,12 @@ fn candidate_findings(
 ///  the
 ///       first candidate the linter cannot check ends the policy with that candidate named.
 ///
+///  `can_apply_patches` says whether the caller may take a correction,
+///  which it may at a direct fix and in a commit's own patch-enabled pass.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function checkMarkdown(content, lifecycle, facts, state, trigger): Promise<PolicyOutcome>;
+/// async function checkMarkdown(content, lifecycle, facts, state, trigger, canApplyPatches): Promise<PolicyOutcome>;
 /// ```
 pub fn check_markdown<F: RepositoryFacts>(
     content: &mut ContentState,
@@ -446,6 +454,7 @@ pub fn check_markdown<F: RepositoryFacts>(
     facts: &mut F,
     state: &mut MarkdownState,
     trigger: Trigger,
+    can_apply_patches: bool,
 ) -> PolicyOutcome {
     let version: Rc<CandidateVersion> = match content.version(lifecycle, facts) {
         Ok(Some(found)) => found,
@@ -495,6 +504,7 @@ pub fn check_markdown<F: RepositoryFacts>(
             run,
             &state.options,
             trigger,
+            can_apply_patches,
         ));
     }
     return PolicyOutcome::Findings(findings);
