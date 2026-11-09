@@ -8626,7 +8626,8 @@ and how long anyone waits:
 - A request names its tree in the request's own `scratch` field,
   which the decoder refuses unless it is one of the wrapper's trees of that worktree,
   so the service never works the tree out from another path the request carries
-  (`index` is the worktree's real index, which is not a tree).
+  (`index` is the worktree's real index,
+  which is not a tree).
   The resident service removes that tree once the landing of that request is over,
   in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
   with a line at warning priority in the service journal when the removal cannot finish.
@@ -8747,6 +8748,38 @@ and not only the moment between creating the tree and writing anything into it.
 The wrapper accepts losing that tree.
 What keeps every other live command's tree is the renewal,
 which needs no marker file and no reader of `/proc`.
+
+A queued request loses more than its private index in the same window,
+and the sequence needs a **service** stopped,
+not only a command:
+a client prepares a conclusion commit and the service queues the request;
+the service is frozen before that landing and stays frozen for longer than
+`SCRATCH_TREE_ABANDONED_AFTER`,
+so its queue survives;
+the client is killed,
+so nothing renews the tree and nothing can withdraw the request;
+a commit in another linked worktree then prepares the shared repository scratch directory,
+and the sweep takes the queued request's tree on its age alone,
+because the one decision that removes a commit tree (`may_go`,
+`service_scratch_abandonment.rs`) has no other evidence to go by.
+When the service resumes it lands the request,
+and the conclusion cleanup after the branch move needs the directory the request named:
+`remove_conclusion_state` (`service_land_follow.rs`) finds neither it nor the copy the
+journal keeps,
+which is written only once the landing begins,
+so it removes nothing and writes one warning to the service journal that names the state it
+left as it is.
+What the person sees:
+the commit in the other worktree is unaffected and the request lands with no client left
+to read its answer,
+so nothing on that command's terminal says anything;
+after going back to that worktree,
+`git status` still reports the merge or cherry-pick as in progress,
+because the state the cleanup could not compare was left where it was,
+and the next commit there concludes the same merge again.
+An operating service lands a queued request long before its tree reaches that age,
+so the sequence needs the stop,
+which is why the age rule stays.
 
 #### Scratch repository layout
 
