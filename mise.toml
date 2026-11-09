@@ -1028,7 +1028,9 @@ shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout_packages}}"
 
 # Applies the whitespace fixes of monochromatic-lint (plain `--fix`: semantic-line-breaks inserting
-# breaks in Markdown and in rustdoc, which changes no token) over the whole tree or the given paths.
+# breaks in Markdown and in rustdoc; the only added bytes are a line break and the `>` or `///` markers
+# of the container the line continues, which are syntax and not words) over the whole tree or the
+# given paths.
 # Fixes that rewrite content (fence languages, `$ ` prompts, link styles, trailing heading punctuation,
 # bare URLs, reference definitions) wait for `monochromatic-lint --fix-content <paths>`, which this task never
 # runs; their findings stay reported. Rationale: doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md.
@@ -1040,7 +1042,7 @@ run = "{{vars.fanout_packages}}"
 # format.
 [tasks."format:monochromatic-lint"]
 hide = true
-description = "Apply monochromatic-lint whitespace fixes (plain --fix, no token changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
+description = "Apply monochromatic-lint whitespace fixes (plain --fix, no word changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
 # No usage spec: mise appends post-`--` args after `--fix` as a real argv vector.
 # The linter walks `.` when no paths are given.
 run = "monochromatic-lint --fix"
