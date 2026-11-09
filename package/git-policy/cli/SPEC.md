@@ -1546,7 +1546,10 @@ and a command that has none does not refuse on a guess.
 and that carry leaves out an entry the checkout lacks whose modification time is older than the catch-up,
 because that is also the shape of a file the person deleted from the checkout on purpose.
 The command counts those entries,
-writes their relative paths to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout,
+writes their relative paths to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout
+(through a sibling created exclusively and renamed over the name,
+so a link planted there is replaced rather than followed;
+the unreadable-file list is written the same way),
 and deletes nothing while the list is not empty:
 the refusal names the entries (up to ten,
 then how many more)

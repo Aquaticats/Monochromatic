@@ -534,6 +534,31 @@ fn a_file_the_carry_left_out_holds_back_the_deletion_and_is_named() {
     remove(parent.as_path());
 }
 
+/// What:
+///  The list of entries the carry left out is written beside the checkout by replacing the name,
+///  never through it:
+///  a symbolic link planted at that name leaves the file it points at untouched.
+/// Why:
+///   A plain write follows the link and truncates the person's file before any refusal can be read.
+#[test]
+fn the_left_out_list_is_not_written_through_a_link_at_its_name() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-list-link", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let notes: PathBuf = parent.join("notes.txt");
+    std::fs::write(notes.as_path(), b"a person's notes\n").expect("their file");
+    std::os::unix::fs::symlink(notes.as_path(), layout.left_out_path.as_path()).expect("a link at the list's name");
+    let restored: PathBuf = layout.old_path.join("ignored/restored.txt");
+    std::fs::write(restored.as_path(), b"from a backup\n").expect("restored file");
+    set_seconds(restored.as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    assert_eq!(std::fs::read(notes.as_path()).expect("their file"), b"a person's notes\n", "nothing is written through the link");
+    assert!(!std::fs::symlink_metadata(layout.left_out_path.as_path()).expect("the name").file_type().is_symlink(), "the name holds the list, not the link");
+    assert!(std::fs::read_to_string(layout.left_out_path.as_path()).expect("the list").contains("ignored/restored.txt"));
+    remove(parent.as_path());
+}
+
 /// A path at the old tree's place that is a symbolic link is never followed or deleted.
 #[test]
 fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {

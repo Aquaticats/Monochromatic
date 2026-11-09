@@ -20,6 +20,7 @@
 //! ```
 
 use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
 use crate::subvolume_platform::Platform;
@@ -256,23 +257,35 @@ impl Run<'_> {
     }
 
     /// Write the list of left-out entries beside the checkout.
+    /// The write replaces a name that is there,
+    /// a symbolic link included,
+    /// and never writes through it.
     fn write_left_out(&self) -> Result<(), MigrateError> {
         let mut text: String = String::new();
         for path in &self.left_out {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
-        return MigrateError::from_io_result(std::fs::write(&self.layout.left_out_path, text), "write the list of entries the carry left out", self.layout.left_out_path.as_path());
+        return MigrateError::from_io_result(
+            write_beside_then_rename(self.layout.left_out_path.as_path(), text.as_bytes()),
+            "write the list of entries the carry left out",
+            self.layout.left_out_path.as_path(),
+        );
     }
 
-    /// Write the unreadable-file list beside the checkout.
+    /// Write the unreadable-file list beside the checkout,
+    /// through the same replacing write as the left-out list.
     fn write_unreadable(&self) -> Result<(), MigrateError> {
         let mut text: String = String::new();
         for path in &self.unreadable {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
-        return MigrateError::from_io_result(std::fs::write(&self.layout.unreadable_path, text), "write the list of unreadable files", self.layout.unreadable_path.as_path());
+        return MigrateError::from_io_result(
+            write_beside_then_rename(self.layout.unreadable_path.as_path(), text.as_bytes()),
+            "write the list of unreadable files",
+            self.layout.unreadable_path.as_path(),
+        );
     }
 
     /// Stop here when the control asked for a simulated kill at this point.
