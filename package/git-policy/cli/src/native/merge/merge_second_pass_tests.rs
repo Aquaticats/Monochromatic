@@ -258,15 +258,63 @@ fn a_resolved_record_is_the_index_info_form() {
     assert_eq!(resolved_record(0o100_755, "abc", b"d/\xff.sh"), b"100755 abc\td/\xff.sh\0".to_vec());
 }
 
-/// Only the `-c` pairs of the global options remain,
+/// What:
+///  Only the configuration options of the global options remain,
 /// in order,
-/// so the second pass keeps the person's settings and no
-///  option that would move it away from the top of the worktree.
+/// so the second pass keeps the person's settings and no option that would move it away from the top of the
+///  worktree.
+/// Why:
+///   The attribute tree is a configuration value whoever sets it:
+/// a `-c`,
+/// a `--config-env` in either of its
+///  forms,
+/// or a `--attr-source` in either of its.
+/// Dropping them made `git check-attr` read another source than the one
+///  the person chose,
+/// so a file the person's rules exclude was word-merged and committed
+/// (cross-vendor review round 3,
+/// finding 3:
+/// the pass named no tree over the person's,
+/// and then read no tree at all).
 #[test]
 fn only_the_configuration_options_of_the_prefix_are_kept() {
-    let prefix: Vec<OsString> = ["-C", "sub", "-c", "core.autocrlf=true", "--git-dir=x", "-c", "a.b=c", "--no-pager", "-c"].iter().map(OsString::from).collect();
+    let prefix: Vec<OsString> = [
+        "-C",
+        "sub",
+        "-c",
+        "core.autocrlf=true",
+        "--git-dir=x",
+        "-c",
+        "a.b=c",
+        "--no-pager",
+        "--config-env=attr.tree=RULES",
+        "--config-env",
+        "attr.tree=RULES2",
+        "--attr-source=rules",
+        "--attr-source",
+        "rules2",
+        "-c",
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
     let kept: Vec<OsString> = config_options(prefix.as_slice());
-    assert_eq!(kept, ["-c", "core.autocrlf=true", "-c", "a.b=c"].iter().map(OsString::from).collect::<Vec<OsString>>());
+    let expected: Vec<OsString> = [
+        "-c",
+        "core.autocrlf=true",
+        "-c",
+        "a.b=c",
+        "--config-env=attr.tree=RULES",
+        "--config-env",
+        "attr.tree=RULES2",
+        "--attr-source=rules",
+        "--attr-source",
+        "rules2",
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
+    assert_eq!(kept, expected);
     assert!(config_options(&[]).is_empty());
 }
 

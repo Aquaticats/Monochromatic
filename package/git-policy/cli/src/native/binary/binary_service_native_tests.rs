@@ -524,12 +524,7 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
         assert!(!String::from_utf8_lossy(&output.stderr).contains("commit service"), "{label}: the service was never asked: {}", String::from_utf8_lossy(&output.stderr));
         assert_eq!(finished(&fixture), before, "{label}: nothing landed");
         assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD"]), start_commit, "{label}: the branch did not move");
-        let scratch: Vec<String> = std::fs::read_dir(repo.join(".git"))
-            .expect("git directory")
-            .flatten()
-            .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-            .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
-            .collect();
+        let scratch: Vec<String> = super::support::left_behind(repo.as_path());
         assert!(scratch.is_empty(), "{label}: left {scratch:?}");
     }
     let _killed = service.kill();
@@ -572,12 +567,7 @@ fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_me
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "typed:", "the typed message is the commit's");
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", "HEAD^"]), "moved by someone", "it sits on the other commit");
     assert_eq!(query(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\nedited");
-    let leftover: Vec<String> = std::fs::read_dir(repo.join(".git"))
-        .expect("git directory")
-        .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-saved-message-") || entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
-        .collect();
+    let leftover: Vec<String> = super::support::left_behind(repo.as_path());
     assert!(leftover.is_empty(), "nothing is left behind: {leftover:?}");
     let _killed = service.kill();
     let _waited = service.wait();
@@ -687,12 +677,7 @@ fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keep
         .expect("the typed message was saved");
     assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed: seed"), "the typed text is what was saved");
     assert!(stderr.contains(&saved.display().to_string()), "the message names the file: {stderr}");
-    let scratch: Vec<String> = std::fs::read_dir(repo.join(".git"))
-        .expect("git directory")
-        .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
-        .collect();
+    let scratch: Vec<String> = super::support::left_behind(repo.as_path());
     assert!(scratch.is_empty(), "left {scratch:?}");
     let _killed = service.kill();
     let _waited = service.wait();

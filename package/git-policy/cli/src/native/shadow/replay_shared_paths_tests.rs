@@ -19,16 +19,25 @@ fn entry(mode: &str, oid: &str) -> Option<TreeEntry> {
 #[test]
 fn raw_records_parse_with_absent_sides() {
     let changes: Vec<RawChange> = parse_raw_changes(
-        ":000000 100644 0000 1111 A\0added.txt\0:100644 000000 2222 0000 D\0gone.txt\0:100644 100755 3333 4444 M\0mode.txt\0",
+        b":000000 100644 0000 1111 A\0added.txt\0:100644 000000 2222 0000 D\0gone.txt\0:100644 100755 3333 4444 M\0mode.txt\0",
     )
     .expect("records");
     assert_eq!(changes.len(), 3);
     assert_eq!(changes[0].from, None);
     assert_eq!(changes[0].to, entry("100644", "1111"));
     assert_eq!(changes[1].to, None);
-    assert_eq!(changes[2].path, "mode.txt");
+    assert_eq!(changes[2].path, b"mode.txt".to_vec());
     assert_eq!(changes[2].from, entry("100644", "3333"));
     assert_eq!(changes[2].to, entry("100755", "4444"));
+}
+
+/// A name that is not UTF-8 reaches the record as the bytes Git listed,
+/// so nothing rewrites it on the way to the synthetic base.
+#[test]
+fn raw_records_keep_path_bytes_that_are_not_text() {
+    let output: &[u8] = b":100644 100644 3333 4444 M\0caf\xff.txt\0";
+    let changes: Vec<RawChange> = parse_raw_changes(output).expect("records");
+    assert_eq!(changes[0].path, b"caf\xff.txt".to_vec());
 }
 
 /// A header without its path,
@@ -36,9 +45,9 @@ fn raw_records_parse_with_absent_sides() {
 /// fails.
 #[test]
 fn malformed_raw_records_fail() {
-    assert!(parse_raw_changes(":100644 100644 a b M").is_err());
-    assert!(parse_raw_changes(":100644 100644 a M\0x\0").is_err());
-    assert!(parse_raw_changes("").expect("empty").is_empty());
+    assert!(parse_raw_changes(b":100644 100644 a b M").is_err());
+    assert!(parse_raw_changes(b":100644 100644 a M\0x\0").is_err());
+    assert!(parse_raw_changes(b"").expect("empty").is_empty());
 }
 
 /// Only `100644` and `100755` are regular files;
@@ -58,7 +67,7 @@ fn regular_file_modes_are_the_only_regular_files() {
 fn the_predicates_follow_the_entries() {
     let regular = |oid: &str| { return entry("100644", oid); };
     let all = SharedPath {
-        path: String::from("p"),
+        path: b"p".to_vec(),
         base: regular("a"),
         landed: regular("b"),
         prepared: regular("c"),
@@ -66,7 +75,7 @@ fn the_predicates_follow_the_entries() {
     assert!(is_regular_triple(&all));
     assert!(is_text_candidate(&all));
     let added_both: SharedPath = SharedPath {
-        path: String::from("p"),
+        path: b"p".to_vec(),
         base: None,
         landed: regular("b"),
         prepared: regular("c"),
@@ -74,14 +83,14 @@ fn the_predicates_follow_the_entries() {
     assert!(!is_regular_triple(&added_both));
     assert!(is_text_candidate(&added_both));
     let link: SharedPath = SharedPath {
-        path: String::from("p"),
+        path: b"p".to_vec(),
         base: regular("a"),
         landed: entry("120000", "b"),
         prepared: regular("c"),
     };
     assert!(!is_text_candidate(&link));
     let deleted: SharedPath = SharedPath {
-        path: String::from("p"),
+        path: b"p".to_vec(),
         base: regular("a"),
         landed: None,
         prepared: regular("c"),
@@ -128,8 +137,8 @@ fn shared_paths_list_the_paths_both_sides_changed() {
         prepared.as_str(),
     )
     .expect("shared paths");
-    let paths: Vec<&str> = shared.iter().map(|entry| { return entry.path.as_str(); }).collect();
-    assert_eq!(paths, vec!["d.txt", "f.txt"]);
+    let paths: Vec<&[u8]> = shared.iter().map(|entry| { return entry.path.as_slice(); }).collect();
+    assert_eq!(paths, vec![b"d.txt".as_slice(), b"f.txt".as_slice()]);
     assert!(shared[0].base.is_some() && shared[0].landed.is_some() && shared[0].prepared.is_some());
     assert_eq!(shared[1].landed, None);
     assert!(shared[1].prepared.is_some());
@@ -219,7 +228,7 @@ fn listing_shared_paths_reads_each_change_once() {
     .expect("shared paths");
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
     assert_eq!(shared.len(), width, "the paths both sides changed, in the landed listing's order");
-    assert!(!shared.iter().any(|entry| return entry.path == "landed-only.txt"));
+    assert!(!shared.iter().any(|entry| return entry.path == b"landed-only.txt".to_vec()));
     assert_eq!(
         looked,
         2 * width as u64 + 1,

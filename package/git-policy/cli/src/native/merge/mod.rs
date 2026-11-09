@@ -71,6 +71,28 @@ pub mod merge_isolation_recovery;
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
 
+/// Finishing a merge from its record:
+/// the install and the branch move,
+/// with the checks it needs.
+pub mod merge_isolation_recovery_complete;
+
+/// What the recovery of a merge reads to decide whose checkout this is and whether it began.
+pub mod merge_isolation_recovery_reads;
+
+/// The records and side refs a settled merge leaves behind,
+/// and the refusal that carries whether it began.
+pub mod merge_isolation_recovery_cleanup;
+
+/// The line a recovery writes when it changes the branch or keeps a saved merge.
+pub mod merge_isolation_recovery_notice;
+
+/// The index read the way a merge's recovery needs it.
+pub mod merge_isolation_index_reading;
+
+/// The take of a worktree file a merge must replace or delete,
+/// and the private names it leaves behind.
+pub mod merge_isolation_take_asides;
+
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 

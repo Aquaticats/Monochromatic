@@ -1,184 +1,21 @@
 /**
- Command helpers for disposable bypass integration test.
- 
+ Commands that the disposable bypass integration test runs inside its namespace,
+ and the reader of the state those commands persist.
+
  @module
  */
 
-import { spawn, } from 'node:child_process';
-import { once, } from 'node:events';
+import { stageWgQuickerCli, } from './tunnel-bypass-command-fixture-staging.ts';
 import {
-  cp,
-  mkdir,
-  mkdtemp,
-  rm,
-  symlink,
-} from 'node:fs/promises';
-import { join, } from 'node:path';
-import { text, } from 'node:stream/consumers';
-import { fileURLToPath, } from 'node:url';
-
-/**
- Result from allowed-failure integration command.
- */
-export type FixtureCommandResult = {
-  readonly exitCode: number;
-  readonly stderr: string;
-  readonly stdout: string;
-};
-
-/**
- Persisted state fields consumed by integration checks.
- */
-export type FixtureBypassState = {
-  readonly preference: number;
-  readonly table: number;
-
-  /**
-   The routes the state records,
-   which `down` deletes.
-   */
-  readonly routes: readonly {
-    readonly proto: string;
-    readonly tokens: readonly string[];
-  }[];
-};
-
-/**
- Disposable network namespace fixture.
- */
-export type BypassFixture = {
-  readonly namespace: string;
-  readonly hostPrimary: string;
-  readonly hostSecondary: string;
-  readonly peerPrimary: string;
-  readonly peerSecondary: string;
-  readonly stateDirectory: string;
-  readonly statePath: string;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-};
-
-/**
- Package directory, whose `.cache` holds staged copies of the built CLI.
- Staging inside the package keeps the bundle's bare imports resolvable through the package's `node_modules`.
- */
-const PACKAGE_DIRECTORY = fileURLToPath(new URL(
-  '..',
-  import.meta.url,
-),);
-
-/**
- Staged copy of the built CLI paired with a harmless watcher.
- */
-export type StagedCli = {
-  /**
-   Bundle entry point to run.
-   */
-  readonly cliPath: string;
-
-  /**
-   Removes the staged copy.
-   */
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-};
-
-/**
- Copies the built CLI into a disposable tree whose paired Rust watcher is `/usr/bin/true`.
-
- The CLI finds its watcher only next to its own package, so the integration test cannot name a watcher
- through the environment, which would be a switch for the process policy in production too.
- A staged tree puts the stand-in where the CLI looks, and leaves the real watcher untouched.
-
- @returns Entry point and a disposer that removes the tree.
-
- @example
- ```ts
- await using staged = await stageWgQuickerCli();
- ```
- */
-export async function stageWgQuickerCli(): Promise<StagedCli> {
-  /**
-   Parent directory of the staged tree.
-   */
-  const cacheDirectory = join(
-    PACKAGE_DIRECTORY,
-    '.cache',
-    'integration-stage',
-  );
-  await mkdir(
-    cacheDirectory,
-    { recursive: true, },
-  );
-  /**
-   Root of this staged tree, laid out as `package/wg/<package>`.
-   */
-  const root = await mkdtemp(join(
-    cacheDirectory,
-    'cli-',
-  ),);
-  /**
-   Staged copy of the TypeScript package's built output.
-   */
-  const bundleDirectory = join(
-    root,
-    'package',
-    'wg',
-    'cli-quicker',
-    'dist',
-    'final',
-    'node',
-  );
-  await mkdir(
-    bundleDirectory,
-    { recursive: true, },
-  );
-  await cp(
-    join(
-      PACKAGE_DIRECTORY,
-      'dist',
-      'final',
-      'node',
-    ),
-    bundleDirectory,
-    { recursive: true, },
-  );
-  /**
-   Where the CLI looks for the paired release watcher.
-   */
-  const watcherDirectory = join(
-    root,
-    'package',
-    'wg',
-    'cli-quicker-exempt',
-    'target',
-    'release',
-  );
-  await mkdir(
-    watcherDirectory,
-    { recursive: true, },
-  );
-  await symlink(
-    '/usr/bin/true',
-    join(
-      watcherDirectory,
-      'wg-quicker-exempt',
-    ),
-  );
-  return {
-    cliPath: join(
-      bundleDirectory,
-      'index.mjs',
-    ),
-    [Symbol.asyncDispose]: async function removeStage(): Promise<void> {
-      await rm(
-        root,
-        {
-          force: true,
-          recursive: true,
-        },
-      );
-    },
-  };
-}
+  runSudo,
+  runSudoAllowingFailure,
+} from './tunnel-bypass-command-fixture-sudo.ts';
+import type {
+  BypassFixture,
+  FixtureBypassState,
+  FixtureCommandResult,
+  StagedCli,
+} from './tunnel-bypass-command-fixture-types.ts';
 
 /**
  Built bypass bundle exercised by namespace child.
@@ -187,148 +24,6 @@ const BYPASS_BUNDLE_URL = new URL(
   '../dist/final/node/tunnel-bypass.mjs',
   import.meta.url,
 ).href;
-
-/**
- Runs privileged command and returns stdout.
- 
- @param args - Arguments after `sudo`.
- 
- @returns Captured UTF-8 stdout.
- 
- @example
- ```ts
- await runSudo({ args: ['ip', 'netns', 'list'] });
- ```
- */
-export async function runSudo(
-  { args, }: { readonly args: readonly string[]; },
-): Promise<string> {
-  /**
-   Fresh argument container sharing only immutable strings.
-   */
-  const isolatedArgs = args.map(function copyArgument(value,): string {
-    return value;
-  },);
-  /**
-   Captured command result checked at privilege boundary.
-   */
-  const result = await runSudoAllowingFailure({ args: isolatedArgs, },);
-  if (result.exitCode !== 0) {
-    throw new Error([
-      `sudo ${isolatedArgs.join(' ',)} exited ${String(result.exitCode,)}.`,
-      result.stdout,
-      result.stderr,
-    ].filter(Boolean,)
-      .join('\n',),);
-  }
-  return result.stdout;
-}
-
-/**
- Runs privileged command while capturing nonzero result.
- 
- @param args - Arguments after `sudo`.
- 
- @returns Exit code and output streams.
- 
- @example
- ```ts
- await runSudoAllowingFailure({ args: ['ip', 'netns', 'delete', 'missing'] });
- ```
- */
-export async function runSudoAllowingFailure(
-  { args, }: { readonly args: readonly string[]; },
-): Promise<FixtureCommandResult> {
-  /**
-   Fresh argument container sharing only immutable strings.
-   */
-  const isolatedArgs = args.map(function copyArgument(value,): string {
-    return value;
-  },);
-  /**
-   Child with piped output and inherited execution environment.
-   */
-  const child = spawn(
-    'sudo',
-    isolatedArgs,
-    {
-      stdio: [
-        'ignore',
-        'pipe',
-        'pipe',
-      ],
-    },
-  );
-  if ((child.stdout === null) || (child.stderr === null))
-    throw new Error('Fixture command did not expose output streams.',);
-  /**
-   Concurrent stdout collection preventing pipe backpressure.
-   */
-  const stdoutPromise = text(child.stdout,);
-  /**
-   Concurrent stderr collection preventing pipe backpressure.
-   */
-  const stderrPromise = text(child.stderr,);
-  await once(
-    child,
-    'close',
-  );
-  /**
-   Exit code available after close event.
-   */
-  const { exitCode, } = child;
-  if (exitCode === null)
-    throw new Error('Fixture command closed without an exit code.',);
-  /**
-   Captured streams complete after child closes.
-   */
-  const [stdout, stderr,] = await Promise.all([
-    stdoutPromise,
-    stderrPromise,
-  ],);
-  return {
-    exitCode,
-    stdout,
-    stderr,
-  };
-}
-
-/**
- Writes root-owned fixture file without shell interpolation.
- 
- @param path - Destination path.
- 
- @param contents - UTF-8 fixture contents.
- 
- @example
- ```ts
- await writeRootFixtureFile({ path: '/tmp/state', contents: '{}' });
- ```
- */
-export async function writeRootFixtureFile(
-  {
-    path,
-    contents,
-  }: {
-    readonly path: string;
-    readonly contents: string;
-  },
-): Promise<void> {
-  await runSudo({
-    args: [
-      process.execPath,
-      '--input-type=module',
-      '--eval',
-      "const { writeFile } = await import('node:fs/promises'); await writeFile(process.argv[1], Buffer.from(process.argv[2], 'base64'));",
-      path,
-      Buffer.from(
-        contents,
-        'utf8',
-      )
-        .toString('base64',),
-    ],
-  },);
-}
 
 /**
  Runs `ip` command inside fixture namespace.
@@ -554,12 +249,23 @@ export async function readFixtureState(
    Recorded routes, read only when they have the persisted shape.
    */
   const routes = ('routes' in value) && Array.isArray(value.routes,)
-    ? value.routes.flatMap(function routeOf(route: unknown,): readonly { readonly proto: string; readonly tokens: readonly string[]; }[] {
-      return ((typeof route) === 'object') && (route !== null) && ('proto' in route) && ('tokens' in route)
-        && ((typeof route.proto) === 'string') && Array.isArray(route.tokens,)
-        ? [{ proto: String(route.proto,), tokens: route.tokens.map(String,), },]
-        : [];
-    },)
+    ? value.routes
+      .flatMap(function routeOf(route: unknown,): readonly {
+        readonly proto: string;
+        readonly tokens: readonly string[]
+      }[] {
+        return ((typeof route) === 'object') && (route !== null)
+          && ('proto' in route)
+          && ('tokens' in route)
+          && ((typeof route.proto) === 'string')
+          && Array.isArray(route.tokens,)
+          ? [{
+            proto: route.proto,
+            tokens: route.tokens
+              .map(String,),
+          },]
+          : [];
+      },)
     : [];
   return {
     preference: value.preference,

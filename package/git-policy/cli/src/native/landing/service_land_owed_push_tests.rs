@@ -41,7 +41,17 @@ fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
     assert!(!already);
     let git_dir: PathBuf = world.repo.join(".git");
     let work_dir: PathBuf = crate::service_work::work_directory(git_dir.as_path());
-    let id: String = format!("{}-{commit}", WorkKind::Push.name());
+    let id: String = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.clone(),
+        parent: String::new(),
+        created: String::new(),
+        tries: 0,
+    }
+    .id();
     assert!(
         !state_directory(work_dir.as_path(), PENDING).join(id.as_str()).exists(),
         "no runnable push record waits for a slot: another round cannot push the commit before its gate"
@@ -70,13 +80,24 @@ fn a_held_push_stays_held_when_the_service_restarts() {
     land_with_failed_index(&world, 1, &[landed]);
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("push-{commit}"));
+    let held_name: String = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.clone(),
+        parent: String::new(),
+        created: String::new(),
+        tries: 0,
+    }
+    .id();
+    let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(held_name.as_str());
     assert!(held.exists(), "the landing held the push");
     // The restart: the queue is drained as a service start does, and nothing about an owner is judged.
     let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(crate::test_support::git_context());
     let _drained = crate::service_work::drain(world.repo.join(".git").as_path(), &handlers, &crate::claim_time::ClaimTime::read());
     assert!(held.exists(), "the held push is still held after the restart");
-    assert!(!state_directory(work_dir.as_path(), PENDING).join(format!("push-{commit}")).exists(), "nothing was made runnable");
+    assert!(!state_directory(work_dir.as_path(), PENDING).join(held_name.as_str()).exists(), "nothing was made runnable");
     remove(world.root.as_path());
 }
 
@@ -92,7 +113,7 @@ fn every_command_says_which_commit_is_held() {
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let shown: Vec<String> = crate::service_handoff::held_push_notices(world.repo.join(".git").as_path());
     assert_eq!(shown.len(), 1, "one line: {shown:?}");
-    assert!(shown[0].contains(commit.as_str()), "{}", shown[0]);
+    assert!(shown[0].starts_with(format!("the commit {commit} is held").as_str()), "the line names the commit, not the record's file name: {}", shown[0]);
     assert!(shown[0].contains("held") && shown[0].contains("has not been released yet") && shown[0].contains("next push"), "{}", shown[0]);
     // What is known is said; whether the command is still running cannot be told, so the line does not claim it stopped.
     assert!(!shown[0].contains("stopped"), "{}", shown[0]);
@@ -100,6 +121,17 @@ fn every_command_says_which_commit_is_held() {
     assert_eq!(crate::service_handoff::held_push_notices(world.repo.join(".git").as_path()), shown, "the line is the record's");
     // The record itself is still held: a notice is not a release.
     let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    assert!(state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("push-{commit}")).exists(), "the push is still held");
+    let held_name: String = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.clone(),
+        parent: String::new(),
+        created: String::new(),
+        tries: 0,
+    }
+    .id();
+    assert!(state_directory(work_dir.as_path(), crate::work_item::HELD).join(held_name.as_str()).exists(), "the push is still held");
     remove(world.root.as_path());
 }

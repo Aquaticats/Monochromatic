@@ -6,10 +6,12 @@
 
 import {
   runNamespaceIp,
+} from './tunnel-bypass-command-fixture.ts';
+import {
   runSudo,
   runSudoAllowingFailure,
-  type BypassFixture,
-} from './tunnel-bypass-command-fixture.ts';
+} from './tunnel-bypass-command-fixture-sudo.ts';
+import type { BypassFixture, } from './tunnel-bypass-command-fixture-types.ts';
 
 /**
  Removes namespace,

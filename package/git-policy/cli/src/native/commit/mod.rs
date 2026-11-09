@@ -66,6 +66,11 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// How long each stretch of a commit's preparation held no Git child,
+/// by name,
+/// for the timing record.
+pub mod commit_prepare_part_durations;
+
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 
@@ -123,6 +128,10 @@ pub mod commit_index_selection;
 /// Native `git commit` in the shadow,
 /// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
+
+/// The configuration native `git commit` reads that decides what it writes,
+/// and its effective values.
+pub mod native_commit_configuration;
 
 /// What the ceiling of the scratch `git commit` does when it comes:
 /// ends the step it watches,

@@ -60,7 +60,7 @@ fn take_orphaned_failures(directory: &Path, abbreviate: &dyn CommitNamer) -> Vec
 #[test]
 fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
     let said: &str = "! [rejected] main -> main (non-fast-forward)";
-    let text: String = push_failure_text(BRANCH, COMMIT, said);
+    let text: String = push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, said);
     assert!(text.contains("branch main"), "{text}");
     assert!(text.contains(COMMIT), "{text}");
     assert!(text.contains(said), "{text}");
@@ -98,8 +98,8 @@ fn a_skipped_push_is_worded_as_not_made_and_cleared_by_a_later_push() {
 #[test]
 fn a_successful_push_keeps_a_record_written_after_it_began() {
     let directory: PathBuf = fixture("notice-cutoff");
-    record_push_failure(directory.as_path(), BRANCH, COMMIT, "remote: older").expect("recorded");
-    record_push_failure(directory.as_path(), BRANCH, OTHER_COMMIT, "remote: newer").expect("recorded");
+    record_push_failure(directory.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "remote: older").expect("recorded");
+    record_push_failure(directory.as_path(), BRANCH, OTHER_COMMIT, PushOutcome::Refused, "remote: newer").expect("recorded");
     let began: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
     let touch = |commit: &str, written: std::time::SystemTime| {
         let path: PathBuf = notice_directory(directory.as_path()).join(record_name(BRANCH, commit));
@@ -109,7 +109,7 @@ fn a_successful_push_keeps_a_record_written_after_it_began() {
     touch(OTHER_COMMIT, began + std::time::Duration::from_secs(60));
     clear_push_failures_before(directory.as_path(), BRANCH, began);
     let shown: Vec<String> = take_push_failures(directory.as_path());
-    assert_eq!(shown, vec![push_failure_text(BRANCH, OTHER_COMMIT, "remote: newer")]);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, OTHER_COMMIT, PushOutcome::Refused, "remote: newer")]);
     remove(directory.as_path());
 }
 
@@ -117,7 +117,7 @@ fn a_successful_push_keeps_a_record_written_after_it_began() {
 /// rather than printing an empty quotation.
 #[test]
 fn an_empty_reason_is_said_plainly() {
-    let text: String = push_failure_text(BRANCH, COMMIT, "  \n");
+    let text: String = push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "  \n");
     assert!(text.contains(NO_REASON), "{text}");
     assert!(!text.contains("Git said:"), "{text}");
 }
@@ -132,7 +132,7 @@ fn credentials_are_masked_and_the_lfs_endpoint_line_stays() {
     let said: &str = "fatal: unable to access 'https://user:s3cret@example.invalid/repo.git/': 403\n\
                       error: lfs.url=https://tok3n@lfs.example.invalid/x is not allowed\n\
                       remote: denied";
-    let text: String = push_failure_text(BRANCH, COMMIT, said);
+    let text: String = push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, said);
     for secret in ["s3cret", "tok3n", "user:"] {
         assert!(!text.contains(secret), "{secret} leaked: {text}");
     }
@@ -147,7 +147,7 @@ fn credentials_are_masked_and_the_lfs_endpoint_line_stays() {
 #[test]
 fn the_wrappers_own_lfs_failure_line_keeps_its_status() {
     let said: String = format!("batch response: 401\n{}", crate::lfs_pre_push::failed_message("exited with status 2"));
-    let text: String = push_failure_text(BRANCH, COMMIT, said.as_str());
+    let text: String = push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, said.as_str());
     assert!(text.contains("exited with status 2"), "{text}");
     assert!(text.contains("(`lfs.url`)"), "{text}");
     assert!(text.contains("batch response: 401"), "{text}");
@@ -210,10 +210,10 @@ fn record_names_separate_branches_and_stay_valid_file_names() {
 #[test]
 fn a_record_is_taken_once_and_a_repeat_leaves_one() {
     let root: PathBuf = fixture("push-failure-once");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "first").expect("record");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "again").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "first").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "again").expect("record");
     let shown: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "again")]);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "again")]);
     assert!(take_push_failures(root.as_path()).is_empty(), "a record is shown once");
     remove(root.as_path());
 }
@@ -233,11 +233,11 @@ fn nothing_failed_means_nothing_to_read_and_nothing_created() {
 #[test]
 fn clearing_a_branch_keeps_the_records_of_other_branches() {
     let root: PathBuf = fixture("push-failure-clear");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "main failed").expect("record");
-    record_push_failure(root.as_path(), "refs/heads/main-two", OTHER_COMMIT, "two failed").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "main failed").expect("record");
+    record_push_failure(root.as_path(), "refs/heads/main-two", OTHER_COMMIT, PushOutcome::Refused, "two failed").expect("record");
     clear_push_failures(root.as_path(), BRANCH);
     let shown: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(shown, vec![push_failure_text("refs/heads/main-two", OTHER_COMMIT, "two failed")]);
+    assert_eq!(shown, vec![push_failure_text("refs/heads/main-two", OTHER_COMMIT, PushOutcome::Refused, "two failed")]);
     remove(root.as_path());
 }
 
@@ -263,9 +263,9 @@ fn machine_read_commands_are_told_from_human_ones() {
 #[test]
 fn a_record_is_worded_with_the_askers_abbreviation() {
     let root: PathBuf = fixture("push-failure-abbreviated");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
     let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &|commit: &str| { return commit[..12].to_string(); });
-    assert_eq!(shown, vec![push_failure_text(BRANCH, &COMMIT[..12], "rejected")]);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, &COMMIT[..12], PushOutcome::Refused, "rejected")]);
     assert!(!shown[0].contains("your commit"), "{}", shown[0]);
     assert!(!shown[0].contains(COMMIT), "{}", shown[0]);
     remove(root.as_path());
@@ -278,8 +278,8 @@ fn a_record_is_worded_with_the_askers_abbreviation() {
 #[test]
 fn a_record_waits_for_the_worktree_that_has_its_branch() {
     let root: PathBuf = fixture("push-failure-worktrees");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
-    record_push_failure(root.as_path(), "refs/heads/other", OTHER_COMMIT, "rejected too").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
+    record_push_failure(root.as_path(), "refs/heads/other", OTHER_COMMIT, PushOutcome::Refused, "rejected too").expect("record");
     let all: Vec<String> = vec![BRANCH.to_string(), "refs/heads/other".to_string()];
     let identity = |commit: &str| { return commit.to_string(); };
     let elsewhere: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: all.clone() };
@@ -288,11 +288,11 @@ fn a_record_waits_for_the_worktree_that_has_its_branch() {
     let detached: Worktrees = Worktrees { here: None, all: all.clone() };
     assert!(take_push_failures_for(root.as_path(), Some(&detached), &identity).is_empty());
     let owner: Worktrees = Worktrees { here: Some(BRANCH.to_string()), all: all.clone() };
-    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
+    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")]);
     let nobody_holds: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: vec![BRANCH.to_string()] };
     assert_eq!(
         take_push_failures_for(root.as_path(), Some(&nobody_holds), &identity),
-        vec![push_failure_text("refs/heads/other", OTHER_COMMIT, "rejected too")],
+        vec![push_failure_text("refs/heads/other", OTHER_COMMIT, PushOutcome::Refused, "rejected too")],
         "a branch no worktree holds is shown to anyone"
     );
     remove(root.as_path());
@@ -327,7 +327,7 @@ fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
 #[test]
 fn a_record_of_an_earlier_release_with_its_own_first_line_is_read_as_a_record() {
     let root: PathBuf = fixture("push-failure-earlier-magic");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
     record_push_skip(root.as_path(), "refs/heads/other", OTHER_COMMIT, "no remote branch").expect("record");
     record_lost_push(root.as_path(), "refs/heads/third", COMMIT).expect("record");
     let orphans: PathBuf = root.join(ORPHAN_NOTICE_DIRECTORY);
@@ -340,7 +340,7 @@ fn a_record_of_an_earlier_release_with_its_own_first_line_is_read_as_a_record() 
     }
     let identity = |commit: &str| { return commit.to_string(); };
     let owner: Worktrees = Worktrees { here: Some(BRANCH.to_string()), all: vec![BRANCH.to_string(), "refs/heads/other".to_string(), "refs/heads/third".to_string()] };
-    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, "rejected")], "only the record of the asking worktree's branch, worded");
+    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")], "only the record of the asking worktree's branch, worded");
     let mut rest: Vec<String> = take_push_failures(root.as_path());
     rest.extend(take_orphaned_failures(root.as_path(), &identity));
     rest.sort();
@@ -353,7 +353,7 @@ fn a_record_of_an_earlier_release_with_its_own_first_line_is_read_as_a_record() 
 #[test]
 fn the_record_on_disk_holds_no_credential() {
     let root: PathBuf = fixture("push-failure-disk");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "fatal: unable to access 'https://user:s3cret@example.invalid/x'").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "fatal: unable to access 'https://user:s3cret@example.invalid/x'").expect("record");
     for entry in std::fs::read_dir(notice_directory(root.as_path())).expect("directory").flatten() {
         let text: String = std::fs::read_to_string(entry.path()).expect("record");
         assert!(!text.contains("s3cret") && !text.contains("user:"), "{text}");
@@ -387,7 +387,7 @@ fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
 #[test]
 fn a_notice_survives_being_worded() {
     let root: PathBuf = fixture("push-failure-word-then-remove");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
     let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
     let naming = |commit: &str| {
         // The record is claimed under a name only this command holds while its words are made; whichever of the two exists,
@@ -398,7 +398,7 @@ fn a_notice_survives_being_worded() {
         return commit.to_string();
     };
     let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &naming);
-    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")]);
     assert!(!record.exists(), "and it is gone once its words exist");
     assert!(take_push_failures(root.as_path()).is_empty(), "a record is shown once");
     remove(root.as_path());
@@ -415,12 +415,12 @@ fn a_notice_survives_being_worded() {
 #[test]
 fn two_commands_that_read_a_record_show_it_once() {
     let root: PathBuf = fixture("push-failure-one-claim");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
     let first: Vec<Notice> = push_failures(root.as_path());
     let second: Vec<Notice> = push_failures(root.as_path());
     assert_eq!(first.len(), 1, "the first command holds the record");
     assert!(second.is_empty(), "the second finds it claimed and shows nothing");
-    assert_eq!(crate::test_support::shown_notices(first), vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
+    assert_eq!(crate::test_support::shown_notices(first), vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")]);
     assert!(notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT)).exists() == false, "the claim went with the words");
     remove(root.as_path());
 }
@@ -436,18 +436,18 @@ fn two_commands_that_read_a_record_show_it_once() {
 #[test]
 fn a_record_written_in_the_instant_before_removal_stays() {
     let root: PathBuf = fixture("push-failure-written-then-removed");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected for now").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected for now").expect("record");
     let recording: PathBuf = root.to_path_buf();
     let _played = crate::push_failure_notice_shown_then_removed::before_removal_in_a_control(move || {
-        record_push_failure(recording.as_path(), BRANCH, COMMIT, "the remote wants a login").expect("the newer record");
+        record_push_failure(recording.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login").expect("the newer record");
     });
     let shown: Vec<String> = take_push_failures(root.as_path());
     drop(_played);
-    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected for now")], "the words are the ones this command took");
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected for now")], "the words are the ones this command took");
     let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
     assert!(record.exists(), "the record the service wrote as the claim went stays");
     let next: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(next, vec![push_failure_text(BRANCH, COMMIT, "the remote wants a login")], "and the next command shows it");
+    assert_eq!(next, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login")], "and the next command shows it");
     remove(root.as_path());
 }
 
@@ -461,14 +461,14 @@ fn a_record_written_in_the_instant_before_removal_stays() {
 #[test]
 fn a_claim_left_by_a_command_that_is_gone_is_taken_over() {
     let root: PathBuf = fixture("push-failure-claim-orphan");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
     // The claim of a command that no longer runs: no process has this number, and its start time is none this kernel made.
     let directory: PathBuf = notice_directory(root.as_path());
     let record: PathBuf = directory.join(record_name(BRANCH, COMMIT));
     let claim: PathBuf = directory.join(format!("{}.4294967294~1~gone.claim", record_name(BRANCH, COMMIT)));
     std::fs::rename(record.as_path(), claim.as_path()).expect("the claim a killed command left");
     let shown: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")], "the claim of a dead command is shown");
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")], "the claim of a dead command is shown");
     assert_eq!(std::fs::read_dir(directory).expect("directory").count(), 0, "its claim went with the words");
     remove(root.as_path());
 }
@@ -488,7 +488,7 @@ fn taking_over_an_abandoned_claim_keeps_the_record_it_claimed_first() {
     let directory: PathBuf = notice_directory(root.as_path());
     std::fs::create_dir_all(directory.as_path()).expect("directory");
     // The newer statement, under the record's own name.
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "the remote wants a login").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login").expect("record");
     // The older statement of the same branch and commit, under a claim whose command is gone.
     let older: PathBuf = directory.join(format!("{}.4294967294~1~gone~0.claim", record_name(BRANCH, COMMIT)));
     std::fs::write(older.as_path(), format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{BRANCH}\n{COMMIT_FIELD}{COMMIT}\n\nrejected for now\n")).expect("the older claim");
@@ -503,8 +503,8 @@ fn taking_over_an_abandoned_claim_keeps_the_record_it_claimed_first() {
     assert!(on_disk.contains("rejected for now"), "and the older one is held too: {on_disk}");
     let shown: Vec<String> = crate::test_support::shown_notices(notices);
     assert_eq!(shown.len(), 2, "both statements are shown: {shown:?}");
-    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, "the remote wants a login")), "the newer statement is shown: {shown:?}");
-    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, "rejected for now")), "and the older one: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login")), "the newer statement is shown: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected for now")), "and the older one: {shown:?}");
     assert_eq!(std::fs::read_dir(directory).expect("directory").count(), 0, "the claims went with their words");
     remove(root.as_path());
 }
@@ -519,11 +519,11 @@ fn taking_over_an_abandoned_claim_keeps_the_record_it_claimed_first() {
 #[test]
 fn a_notice_given_back_keeps_a_newer_record_of_the_same_name() {
     let root: PathBuf = fixture("push-failure-give-back");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected for now").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected for now").expect("record");
     let notices: Vec<Notice> = push_failures(root.as_path());
     assert_eq!(notices.len(), 1);
     // The service writes the terminal failure while the claim is held, and then the words cannot be written.
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "the remote wants a login").expect("the newer record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login").expect("the newer record");
     assert!(notices[0].show(&mut ClosedTerminal).is_err(), "the terminal refused the words");
     let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
     let held: String = std::fs::read_to_string(record.as_path()).expect("the record's own name");
@@ -541,14 +541,14 @@ fn a_notice_given_back_keeps_a_newer_record_of_the_same_name() {
 #[test]
 fn a_notice_whose_words_cannot_be_written_stays() {
     let root: PathBuf = fixture("push-failure-unwritten");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
     let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
     let notices: Vec<Notice> = push_failures(root.as_path());
     assert_eq!(notices.len(), 1);
     assert!(notices[0].show(&mut ClosedTerminal).is_err(), "the terminal refused the words");
     assert!(record.exists(), "the record is kept for the next command");
     let shown: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")], "the next command shows it");
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")], "the next command shows it");
     assert!(!record.exists(), "and takes it once its words are out");
     remove(root.as_path());
 }
@@ -578,15 +578,117 @@ impl std::io::Write for ClosedTerminal {
 #[test]
 fn a_newer_record_at_the_same_name_survives_the_older_reader() {
     let root: PathBuf = fixture("push-failure-replaced");
-    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected for now").expect("record");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected for now").expect("record");
     // The service replaces the record while the command words it: the namer stands for that pause.
     let replacing = |commit: &str| {
-        record_push_failure(root.as_path(), BRANCH, commit, "the remote wants a login").expect("the newer record");
+        record_push_failure(root.as_path(), BRANCH, commit, PushOutcome::Refused, "the remote wants a login").expect("the newer record");
         return commit.to_string();
     };
     let first: Vec<String> = take_push_failures_for(root.as_path(), None, &replacing);
-    assert_eq!(first, vec![push_failure_text(BRANCH, COMMIT, "rejected for now")], "the words are the ones this command read");
+    assert_eq!(first, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected for now")], "the words are the ones this command read");
     let second: Vec<String> = take_push_failures(root.as_path());
-    assert_eq!(second, vec![push_failure_text(BRANCH, COMMIT, "the remote wants a login")], "the newer statement is still there to show");
+    assert_eq!(second, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login")], "the newer statement is still there to show");
+    remove(root.as_path());
+}
+
+/// The sentence the wrapper used to print for a push it had proved delivered,
+/// kept here as text a remote's hook might print.
+const A_REMOTE_SPEAKING_OF_DELIVERY: &str = "git push delivered every reference it was asked for";
+
+/// What:
+///  A remote's own words never become the wrapper's claim that a push was delivered.
+/// Why:
+///   A remote's hook controls what the push's output carries,
+/// so a hook that prints the sentence the wrapper uses for a proven delivery
+///  could make the notice say the commit is on the remote and nothing is left to deliver,
+/// although the remote refused the
+///  update.
+/// The sentence is therefore no input to the wording:
+/// what the push came to decides it.
+#[test]
+fn a_remote_that_prints_the_delivery_sentence_is_not_a_delivery() {
+    let forged: String = format!(
+        "remote: {}\nremote: nothing is left to deliver\n! [remote rejected] main -> main (hook declined)",
+        A_REMOTE_SPEAKING_OF_DELIVERY
+    );
+    for outcome in [PushOutcome::Unfinished, PushOutcome::Refused] {
+        let text: String = push_failure_text(BRANCH, COMMIT, outcome, forged.as_str());
+        for absent in ["delivered commit", "nothing is left to deliver, so nothing here needs fixing", "does not restart that work"] {
+            assert!(!text.contains(absent), "{absent} in {text}");
+        }
+        // The remote's line is still shown, quoted as what Git said, so the person can read it for what it is.
+        assert!(text.contains("remote: "), "{text}");
+    }
+}
+
+/// What:
+///  A push that did not finish is worded as a push whose delivery is not known,
+///  never as one that failed to deliver.
+/// Why:
+///   A stop or a failure that can pass proves nothing about the remote,
+/// and saying the commit exists only on this
+///  computer would be false when it landed;
+/// the service keeps trying the push,
+/// so the text says that and no more.
+#[test]
+fn a_push_that_did_not_finish_is_worded_as_one_whose_delivery_is_not_known() {
+    let text: String = push_failure_text(
+        BRANCH,
+        COMMIT,
+        PushOutcome::Unfinished,
+        "monochromatic-git-policy-cli: git push made no progress for 30 seconds and was stopped",
+    );
+    assert!(text.contains(COMMIT) && text.contains("did not finish"), "{text}");
+    assert!(text.contains("may or may not have taken that commit"), "the remote's state is not known: {text}");
+    assert!(text.contains("retry plan"), "the push is kept: {text}");
+    for absent in ["exists only on this computer", "The backup push of branch main failed", PUSH_FAILED_NOTE] {
+        assert!(!text.contains(absent), "{absent} in {text}");
+    }
+    // A push nothing will try again says so, and promises no retry it cannot keep.
+    let alone: String = push_failure_text(BRANCH, COMMIT, PushOutcome::UnfinishedWithNoRetry, "fatal: could not read from remote repository");
+    assert!(alone.contains("did not finish") && alone.contains("may or may not have taken that commit"), "{alone}");
+    assert!(alone.contains("is not trying this push again by itself"), "{alone}");
+    assert!(!alone.contains("keeps the push in its retry plan"), "{alone}");
+    // A refusal is worded as one: the remote answered and nothing was delivered.
+    let refused: String = push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "fatal: could not read from remote repository");
+    assert!(refused.contains("failed for commit") && refused.contains(PUSH_FAILED_NOTE), "{refused}");
+}
+
+/// What:
+///  The record on disk carries what the push came to,
+///  and the notice is worded from that and not from its words.
+/// Why:
+///   The record is written by one process and shown by another,
+/// so the kind has to survive the file;
+/// a record whose
+///  text holds the delivery sentence but whose kind is a refusal keeps the refusal's wording.
+#[test]
+fn the_record_keeps_what_the_push_came_to() {
+    let root: PathBuf = fixture("notice-outcome");
+    let forged: String = format!("remote: {A_REMOTE_SPEAKING_OF_DELIVERY}");
+    // One branch per kind, so the three records and the three wordings can be told apart.
+    const THIRD: &str = "fedcba9876543210fedcba9876543210fedcba98";
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, forged.as_str()).expect("record");
+    record_push_failure(root.as_path(), "refs/heads/other", OTHER_COMMIT, PushOutcome::Unfinished, forged.as_str()).expect("record");
+    record_push_failure(root.as_path(), "refs/heads/third", THIRD, PushOutcome::UnfinishedWithNoRetry, forged.as_str()).expect("record");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown.len(), 3, "{shown:?}");
+    let main: &str = shown.iter().find(|text| { return text.contains(COMMIT); }).expect("the refused record");
+    assert!(main.contains("failed for commit"), "{main}");
+    let other: &str = shown.iter().find(|text| { return text.contains(OTHER_COMMIT); }).expect("the unfinished record");
+    assert!(other.contains("did not finish") && other.contains("keeps the push in its retry plan"), "{other}");
+    let third: &str = shown.iter().find(|text| { return text.contains(THIRD); }).expect("the record of a push nothing tries again");
+    assert!(third.contains("did not finish") && third.contains("is not trying this push again by itself"), "{third}");
+    for notice in [main, other, third] {
+        assert!(notice.starts_with("The backup push of branch"), "the framing is the wrapper's own: {notice}");
+    }
+    // The kind is in the record's own first line, not in the words Git printed.
+    for entry in std::fs::read_dir(notice_directory(root.as_path())).expect("directory").flatten() {
+        let text: String = std::fs::read_to_string(entry.path()).expect("record");
+        assert!(
+            text.starts_with(RECORD_MAGIC) || text.starts_with(UNFINISHED_MAGIC) || text.starts_with(UNFINISHED_NO_RETRY_MAGIC),
+            "a record names what the push came to: {text}"
+        );
+    }
     remove(root.as_path());
 }
