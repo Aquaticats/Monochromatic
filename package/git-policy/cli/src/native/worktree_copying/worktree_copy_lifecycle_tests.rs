@@ -553,7 +553,6 @@ fn a_worktree_whose_copy_has_not_finished_is_a_source_that_is_being_filled() {
     let (main, common) = source(root.as_path());
     let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
     let mut judged: Option<bool> = None;
-    let mut during_staging: Option<bool> = None;
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
         &mut |_: &GitStep<'_>| {
@@ -572,13 +571,43 @@ fn a_worktree_whose_copy_has_not_finished_is_a_source_that_is_being_filled() {
     assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
     assert_eq!(judged, Some(true), "the destination is recorded from before real Git until its journal exists");
     // Once the copy has finished, nothing names the worktree any more.
-    during_staging = Some(
+    let after_the_copy: bool =
         crate::worktree_copy_source_still_being_filled::source_is_still_being_filled(common.as_path(), topic.as_path())
             .expect("judged")
-            .is_some(),
-    );
-    assert_eq!(during_staging, Some(false), "a finished worktree is a source");
+            .is_some();
+    assert!(!after_the_copy, "a finished worktree is a source");
     assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied"), b"payload");
+    remove(root.as_path());
+}
+
+/// An error before the copy starts leaves the record of the worktree that was never filled,
+/// so a later command reports it instead of finding a worktree that looks whole.
+#[cfg(unix)]
+#[test]
+fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_filled() {
+    let root: PathBuf = fixture("lifecycle-failure-keeps-record");
+    let (main, common) = source(root.as_path());
+    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    // The registration lookup works, and the Git question that follows it fails: the copy stops before it stages anything.
+    let mut broken: crate::transaction_git::GitContext = git_context();
+    broken.real_git = std::fs::canonicalize(root.as_path()).expect("canonical root").join("no-git-here");
+    let mut invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(topic.as_path()));
+    invocation.context = broken;
+    let settlement: Settlement = run_with_worktree_copy(
+        &invocation,
+        &mut |_: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    let failure: &WorktreeCopyError = settlement.copy_failure.as_ref().expect("the git question after the lookup cannot be asked");
+    assert!(!failure.0.is_empty());
+    let records: Vec<String> = recorded_names(common.as_path());
+    assert_eq!(
+        records.iter().filter(|name| return name.ends_with(".add")).count(),
+        1,
+        "the record of the worktree that was never filled is kept: {records:?}"
+    );
+    assert_eq!(std::fs::read(topic.join("cache").join("data")).ok(), None, "nothing was copied");
     remove(root.as_path());
 }
 

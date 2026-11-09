@@ -178,3 +178,45 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
     assert!(!stage_claims_exist(common.as_path()).expect("claims"));
     remove(root.as_path());
 }
+
+/// A copy that fails after its stage exists and before any journal names it removes the stage and settles its claim,
+/// so nothing of it is left behind while its owner still runs.
+#[cfg(unix)]
+#[test]
+fn abandoning_a_staged_copy_leaves_no_stage_and_no_claim() {
+    let root: PathBuf = fixture("synchronize-abandon-stage");
+    let (source, destination) = ignored_source(root.as_path());
+    let common: PathBuf = common_of(source.as_path());
+    let claim: StageClaim = crate::worktree_copy_stage_claim::claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    crate::private_storage::create_private_directory(container.as_path()).expect("container");
+    std::fs::write(container.join("payload"), b"staged").expect("payload");
+    abandon_staged_copy(claim, container.as_path()).expect("abandoned");
+    assert!(!container.exists(), "the stage is removed");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the claim, its record and its marker are gone");
+    remove(root.as_path());
+}
+
+/// A copy whose creating command could not record its destination before real Git still records it when it claims,
+/// so a command that wants this worktree as a source is held back instead of copying a half-filled set.
+#[cfg(unix)]
+#[test]
+fn a_copy_with_no_record_before_real_git_still_records_its_destination() {
+    let root: PathBuf = fixture("synchronize-claim-records");
+    let (source, destination) = ignored_source(root.as_path());
+    let common: PathBuf = common_of(source.as_path());
+    let destination_canonical: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let claim: StageClaim = claim_for_the_copy(None, common.as_path(), destination_canonical.as_path()).expect("claim");
+    let claim_path: PathBuf = crate::worktree_copy_stage_claim::claim_names(crate::worktree_copy_journal::journal_root(common.as_path()).as_path())
+        .expect("claims")
+        .first()
+        .map(|name| return crate::worktree_copy_journal::journal_root(common.as_path()).join(name.as_str()))
+        .expect("one claim");
+    assert_eq!(
+        crate::worktree_copy_source_still_being_filled::claim_destination(claim_path.as_path()),
+        Some(destination_canonical.clone()),
+        "the claim names the worktree it is filling"
+    );
+    claim.release().expect("released");
+    remove(root.as_path());
+}

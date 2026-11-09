@@ -349,8 +349,11 @@ fn settle_creation(
             (None, Vec::new())
         };
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
-    // settled here: the add is whole, so the record says so before it goes.
-    if let Some(unused) = held.take() {
+    // settled here: the add is whole, so the record says so before it goes. A copy that failed is not that: the worktree
+    // was never filled, so the record stays and the next command reports it as an interrupted add.
+    if copy_failure.is_none()
+        && let Some(unused) = held.take()
+    {
         let release_unused_entered: bool = begin_step("releaseClaim");
         let released: Result<(), WorktreeCopyError> = unused.settle();
         end_step(release_unused_entered);

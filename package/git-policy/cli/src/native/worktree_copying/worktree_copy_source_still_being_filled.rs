@@ -218,7 +218,7 @@ fn names_root(recorded: &Path, source_root: &Path) -> bool {
 /// ```ts
 /// const record = claim.replace(/\.stage$/, '.add'); return decodeRecord(await readFile(record))?.destination;
 /// ```
-fn claim_destination(claim: &Path) -> Option<PathBuf> {
+pub(crate) fn claim_destination(claim: &Path) -> Option<PathBuf> {
     let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
     let text: String = std::fs::read_to_string(record).ok()?;
     return match decode_record(text.as_str())? {
