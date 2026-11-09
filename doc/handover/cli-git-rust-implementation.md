@@ -270,7 +270,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   Waiting for a free agent slot:
   health route run 3 with `resume-after-wall-clock-prompt.md`,
   literal pathspec run 5 with `resume-after-provider-error-prompt.md`,
-  and worktree add round 8.
+  worktree add round 8,
+  commit ceiling run 5 with `resume-after-wall-clock-prompt.md`,
+  worktree copy round 6,
+  the locks round 6 if its start did not take,
+  and conversion round 5.
+  Briefs are in `~/temp/agent/pi-runs/`.
+  Cloudflare's status page opened "Network Performance Issues in Eastern North America" at 2026-11-09T16:34:35Z,
+  identified a fix at 16:56:39Z and moved to monitoring at 17:21:50Z;
+  this host reaches Cloudflare through Toronto,
+  and neuralwatt and opencode-go are served through Cloudflare while Synthetic and DeepSeek's own API are not.
+  The bursts at 15:05Z and 15:08Z came before that first post.
   The locks review `locks-and-transactions-round-4` and the conversion review `subvolume-conversion-round-3` need fix rounds before those branches land.
   A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
