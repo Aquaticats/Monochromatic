@@ -105,10 +105,29 @@ fn is_conflict_stage(stage: &&[u8]) -> bool {
     return *stage != b"0";
 }
 
-/// The offset of the tab that ends one entry's words,
-/// or nothing when it holds none.
-fn last_tab(record: &[u8]) -> Option<usize> {
-    return record.iter().rposition(is_tab_byte);
+/// What:
+///  One line of a NUL-delimited index or tree listing,
+/// read by its fields from the front:
+/// three words,
+/// a tab,
+/// and the path.
+/// Why:
+///   A path may hold a tab,
+/// so the tab that ends an entry's words is the first one,
+/// never the last:
+///   `100644 <object> 0<TAB>z<TAB>b` is the entry `z<TAB>b` at stage zero,
+/// and reading it from the back would
+///  take the file `b` for a conflict of a file named `0<TAB>z`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [mode, second, third, path] = frontFields(record); // three words, a tab, then the path
+/// ```
+fn front_fields(record: &[u8]) -> Option<([&[u8]; 3], &[u8])> {
+    let first: usize = record.iter().position(is_space_byte)?;
+    let second: usize = record[first + 1..].iter().position(is_space_byte)? + first + 1;
+    let third: usize = record[second + 1..].iter().position(is_tab_byte)? + second + 1;
+    return Some(([&record[..first], &record[first + 1..second], &record[second + 1..third]], &record[third + 1..]));
 }
 
 /// The paths as literal pathspecs from the top of the worktree.
@@ -154,10 +173,9 @@ fn tree_entries(git: &GitContext, owed: &Owed, names: &[Vec<u8>]) -> Result<BTre
     let output = with_specs(git, owed.repository.as_path(), None, &["ls-tree", "-z", "--full-tree", owed.old.as_str()], names)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
-        let Some(tab) = last_tab(record) else { continue };
-        let words: Vec<&[u8]> = record[..tab].split(is_space_byte).collect();
-        // A tree line is `<mode> <type> <object>`.
-        found.insert(record[tab + 1..].to_vec(), (String::from_utf8_lossy(words.first().copied().unwrap_or_default()).into_owned(), String::from_utf8_lossy(words.get(2).copied().unwrap_or_default()).into_owned()));
+        // A tree line is `<mode> <type> <object> TAB <path>`.
+        let Some(([mode, _kind, object], path)) = front_fields(record) else { continue };
+        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
     }
     return Ok(found);
 }
@@ -180,16 +198,14 @@ fn index_entries(git: &GitContext, owed: &Owed, index: &Path, names: &[Vec<u8>])
     let output = with_specs(git, owed.repository.as_path(), Some(index), &["ls-files", "-s", "-z"], names)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
-        let Some(tab) = last_tab(record) else { continue };
-        let words: Vec<&[u8]> = record[..tab].split(is_space_byte).collect();
-        let name: Vec<u8> = record[tab + 1..].to_vec();
-        // An index line is `<mode> <object> <stage>`; a stage other than zero is a conflict.
-        if words.last().is_some_and(is_conflict_stage) {
-            let _dropped = found.remove(name.as_slice());
-            found.insert(name, (String::from("unmerged"), String::new()));
+        // An index line is `<mode> <object> <stage> TAB <path>`; a stage other than zero is a conflict.
+        let Some(([mode, object, stage], path)) = front_fields(record) else { continue };
+        if is_conflict_stage(&stage) {
+            let _dropped = found.remove(path);
+            found.insert(path.to_vec(), (String::from("unmerged"), String::new()));
             continue;
         }
-        found.insert(name, (String::from_utf8_lossy(words.first().copied().unwrap_or_default()).into_owned(), String::from_utf8_lossy(words.get(1).copied().unwrap_or_default()).into_owned()));
+        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
     }
     return Ok(found);
 }
@@ -260,10 +276,22 @@ pub fn exclude_what_a_landed_commit_left(
                     }
                 }
             }
-            Err(code) => crate::diagnostic_log::warn(
-                "servicePrepare",
-                format!("the entries the index moved since the commit's copy cannot be read ({code:?}), so this commit leaves them as its index holds them").as_str(),
-            ),
+            Err(_unwritable) => match moved_since_listing(git, git_dir.parent().unwrap_or(git_dir), live_index, index) {
+                Ok(moved) if moved.is_empty() => {}
+                Ok(moved) => match set_to_head_paths(git, git_dir.parent().unwrap_or(git_dir), index, moved.as_slice()) {
+                    Ok(()) => {
+                        for path in &moved {
+                            left.push(crate::path_bytes::path_message_text(path.as_slice()));
+                        }
+                    }
+                    Err(code) => crate::service_error!(
+                        "the entries the index moved since the commit's copy cannot be set to the head ({code:?}), so this commit records them as its index holds them"
+                    ),
+                },
+                Err(code) => crate::service_error!(
+                    "the entries the index moved since the commit's copy cannot be read either way ({code:?}), so this commit records them as its index holds them"
+                ),
+            },
         }
     }
     for owed in records_of(git_dir) {
@@ -293,16 +321,6 @@ pub fn exclude_what_a_landed_commit_left(
                 continue;
             }
         };
-        let live: BTreeMap<Vec<u8>, Entry> = match commit_index {
-            None => held.clone(),
-            Some(_) => match index_entries(git, &owed, live_index, names.as_slice()) {
-                Ok(entries) => entries,
-                Err(code) => {
-                    crate::diagnostic_log::warn("servicePrepare", format!("the live index cannot be read for the paths of batch {} ({code:?}), so this commit leaves them as its index holds them", owed.seq).as_str());
-                    continue;
-                }
-            },
-        };
         let mut excluded: Vec<Vec<u8>> = Vec::new();
         for name in &names {
             let entry: Option<&Entry> = held.get(name);
@@ -310,9 +328,10 @@ pub fn exclude_what_a_landed_commit_left(
                 // A merge in progress is the person's own act.
                 continue;
             }
-            let stale: bool = entry == replaced.get(name);
-            let moved: bool = live.get(name) != entry;
-            if stale || moved {
+            // What the command staged itself (`--all`, `--include`) is its own: only the entry the landing replaced is left out.
+            //  Entries that moved in the live index are caught above, where the file the commit copied is compared with the file the
+            //  index is now.
+            if entry == replaced.get(name) {
                 excluded.push(name.clone());
             }
         }
@@ -367,6 +386,65 @@ fn moved_since(git: &GitContext, repository: &Path, live_index: &Path, commit_in
         _ => return Err(FailureCode::Unavailable),
     };
     return Ok(names_in(listing.stdout.as_slice()));
+}
+
+/// What:
+///  `moved_since` by whole listings,
+/// for an index a tree cannot be written from (a path in conflict).
+/// Why:
+///   A listing of both indexes needs no tree,
+/// so the check that protects a stale snapshot is never lost to an
+///  unmerged entry somewhere else in the index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// movedSinceByListing(liveIndex, commitIndex) // every path whose entry differs, from `ls-files -s -z`
+/// ```
+fn moved_since_listing(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
+    let live: BTreeMap<Vec<u8>, Entry> = whole_listing(git, repository, live_index)?;
+    let held: BTreeMap<Vec<u8>, Entry> = whole_listing(git, repository, commit_index)?;
+    let mut moved: Vec<Vec<u8>> = Vec::new();
+    for (path, entry) in &live {
+        if held.get(path) != Some(entry) {
+            moved.push(path.clone());
+        }
+    }
+    for path in held.keys() {
+        if !live.contains_key(path) {
+            moved.push(path.clone());
+        }
+    }
+    return Ok(names_in(&moved.join(&0)));
+}
+
+/// What:
+///  Every entry of one index,
+/// as a map from the path to its mode and object.
+/// Why:
+///   The whole listing is what `moved_since` falls back to when a tree cannot be written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wholeListing(index) // `ls-files -s -z`
+/// ```
+fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+    let mut request: GitRequest = GitRequest::new(repository, &["ls-files", "-s", "-z"]);
+    request.index = Some(index.to_path_buf());
+    let output = match run_git(git, &request) {
+        Ok(answer) if answer.succeeded() => answer,
+        _ => return Err(FailureCode::Unavailable),
+    };
+    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
+    for record in output.stdout.split(is_zero_byte) {
+        let Some(([mode, object, stage], path)) = front_fields(record) else { continue };
+        if is_conflict_stage(&stage) {
+            let _dropped = found.remove(path);
+            found.insert(path.to_vec(), (String::from("unmerged"), String::new()));
+            continue;
+        }
+        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
+    }
+    return Ok(found);
 }
 
 /// `set_to_head` for paths whose old entry is no record's,
@@ -443,7 +521,51 @@ fn set_to_head_unchecked(git: &GitContext, repository: &Path, index: &Path, path
         Ok(output) if output.succeeded() => {}
         _ => return Err(FailureCode::Unavailable),
     }
-    return crate::service_land_follow::reset_entries(git, repository, Some(index), "HEAD", paths);
+    if crate::service_land_follow::reset_entries(git, repository, Some(index), "HEAD", paths).is_ok() {
+        return Ok(());
+    }
+    // A `reset` this wrapper refuses is not the only way to the head: the entries are written where the head's tree has them.
+    let head: BTreeMap<Vec<u8>, Entry> = match head_entries(git, repository, paths) {
+        Ok(entries) => entries,
+        Err(code) => return Err(code),
+    };
+    let mut listing: Vec<u8> = Vec::new();
+    for path in paths {
+        let (mode, object) = match head.get(path) {
+            Some((mode, object)) => (mode.clone(), object.clone()),
+            // The head holds nothing there, so the entry goes.
+            None => (String::from("0"), String::from("0".repeat(40))),
+        };
+        listing.extend_from_slice(format!("{mode} {object} 0\t").as_bytes());
+        listing.extend_from_slice(path.as_slice());
+        listing.push(0);
+    }
+    let mut write: GitRequest = GitRequest::new(repository, &["update-index", "-z", "--index-info"]);
+    write.index = Some(index.to_path_buf());
+    write.input = Some(listing);
+    return match run_git(git, &write) {
+        Ok(answer) if answer.succeeded() => Ok(()),
+        _ => Err(FailureCode::Unavailable),
+    };
+}
+
+/// What:
+///  The entries the worktree's head holds at `paths`.
+/// Why:
+///   A refused `reset` leaves the entries to be written by index-info from the head's tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// headEntries(paths) // `ls-tree -z --full-tree HEAD -- :(top,literal)<path>...`
+/// ```
+fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+    let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", "HEAD"], paths)?;
+    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
+    for record in output.stdout.split(is_zero_byte) {
+        let Some(([mode, _kind, object], path)) = front_fields(record) else { continue };
+        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
+    }
+    return Ok(found);
 }
 
 /// What:
@@ -465,7 +587,7 @@ pub fn excluded_notice(paths: &[String]) -> Option<String> {
         return None;
     }
     return Some(format!(
-        "monochromatic-git-policy-cli: a commit that landed did not finish updating this worktree's index, and these entries differ from the branch. They were left out of this commit: {}. To take the branch's content: git reset -- <paths>. To commit the worktree's content for them: git commit -- <paths>.\n",
+        "monochromatic-git-policy-cli: a commit that landed did not finish updating this worktree's index, and these entries differ from the branch. They were left out of this commit: {}. To take the branch's content: git reset -- <paths>. To commit the worktree's content for them: git add -- <paths>, then git commit.\n",
         paths.join(", ")
     ));
 }

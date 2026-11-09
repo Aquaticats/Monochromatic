@@ -450,3 +450,188 @@ fn recovery_settles_the_record_of_an_installation_it_finds_recorded() {
     assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "M\tone.txt", "their change is committed");
     remove(world.root.as_path());
 }
+
+/// One Git command in the world's repository with `index` as its index file.
+fn index_run(world: &World, index: &Path, arguments: &[&str]) {
+    let output: std::process::Output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(world.repo.as_path())
+        .env("GIT_INDEX_FILE", index)
+        .args(arguments)
+        .output()
+        .expect("Git runs");
+    assert!(output.status.success(), "git {arguments:?} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+}
+
+/// A Git whose named subcommands refuse,
+/// and whose every other command is the real one's.
+fn git_refusing(world: &World, refusing: &[&str]) -> PathBuf {
+    let program: PathBuf = world.root.join("refusing-git");
+    let mut script: String = String::from("#!/bin/sh\ncase \" $* \" in\n");
+    for subcommand in refusing {
+        script.push_str(format!("  *\" {subcommand} \"*) exit 1;;\n").as_str());
+    }
+    script.push_str(format!("esac\nexec '{}' \"$@\"\n", crate::test_support::REAL_GIT).as_str());
+    std::fs::write(program.as_path(), script).expect("script");
+    std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// A tab inside a file name is the name's own character,
+/// never the tab that ends an entry's words:
+/// a record read from the back would take the file `b` for a conflict of another path,
+/// skip it,
+/// and commit its stale content.
+#[test]
+fn a_tab_in_a_file_name_is_not_taken_for_a_conflict() {
+    let world: World = world("service-land-owed-tab-name");
+    for name in ["b", "z\tb"] {
+        std::fs::write(world.repo.join(name), "A\n").expect("write");
+        git(world.repo.as_path(), &["add", "--", name]);
+    }
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let first: CommitRequest = request(&world, "one", "b", "B\n");
+    let second: CommitRequest = request(&world, "two", "z\tb", "B\n");
+    land_with_failed_index(&world, 1, &[first, second]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
+    assert_eq!(left.len(), 2, "both stale entries are left out: {left:?}");
+    assert_eq!(
+        index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]),
+        "",
+        "neither file's stale content is recorded"
+    );
+    remove(world.root.as_path());
+}
+
+/// What the command staged itself (`--all`) is the command's own,
+/// not an entry the live index moved:
+/// the worktree's content is committed.
+#[test]
+fn a_commit_all_keeps_the_content_it_staged() {
+    let world: World = world("service-land-owed-commit-all");
+    std::fs::write(world.repo.join("tracked.txt"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "tracked.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let landed: CommitRequest = request(&world, "landed", "tracked.txt", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    // The person edits the worktree and asks for `--all`: the command stages that content into its own index, and the live index is
+    //  exactly the file it copied.
+    std::fs::write(world.repo.join("tracked.txt"), "C\n").expect("write");
+    index_run(&world, commit_index.as_path(), &["add", "--", "tracked.txt"]);
+    assert_eq!(exclude(&world, Some(commit_index.as_path())), Vec::<String>::new(), "the command's own staging is not left out");
+    let blob: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", "tracked.txt"]);
+    assert_eq!(
+        index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "tracked.txt"]),
+        format!("100644 {blob} 0\ttracked.txt"),
+        "the worktree's content is what the commit records"
+    );
+    remove(world.root.as_path());
+}
+
+/// The notice names a command that works for a stale addition:
+/// `git commit -- <paths>` is refused there,
+/// and `git add -- <paths>` then `git commit` is not.
+#[test]
+fn the_notice_names_a_command_that_works_for_a_stale_addition() {
+    let notice: String = crate::owed_index_update::excluded_notice(&[String::from("p")]).expect("a notice");
+    assert!(notice.contains("git add -- <paths>"), "{notice}");
+    assert!(!notice.contains("git commit -- <paths>"), "the refused command is not advertised: {notice}");
+    assert!(notice.contains("git reset -- <paths>"), "{notice}");
+}
+
+/// A `reset` the wrapper refuses is not the end of the way to the head:
+/// the entry is written where the head's tree has it,
+/// so the commit still records nothing about the landed path.
+#[test]
+fn a_refused_reset_still_sets_the_entry_to_the_head() {
+    let world: World = world("service-land-owed-refused-reset");
+    std::fs::write(world.repo.join("tracked.txt"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "tracked.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let landed: CommitRequest = request(&world, "landed", "tracked.txt", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.real_git = git_refusing(&world, &["reset"]);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    );
+    assert_eq!(left, vec![String::from("tracked.txt")], "the path is left out even when the reset refuses");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "", "the commit records nothing about the landed path");
+    remove(world.root.as_path());
+}
+
+/// When every way to set the entry to the head refuses,
+/// the commit's index is left exactly as it was:
+/// a successful removal never outlives a refused write.
+#[test]
+fn a_refused_reset_and_write_leaves_the_index_as_it_was() {
+    let world: World = world("service-land-owed-refused-both");
+    std::fs::write(world.repo.join("tracked.txt"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "tracked.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let landed: CommitRequest = request(&world, "landed", "tracked.txt", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let before: String = index_text(&world, commit_index.as_path(), &["ls-files", "-s"]);
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.real_git = git_refusing(&world, &["reset", "update-index"]);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    );
+    assert!(left.is_empty(), "nothing is claimed to be left out when nothing was: {left:?}");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s"]), before, "the index is exactly as it was");
+    remove(world.root.as_path());
+}
+
+/// A check that cannot be made is never read as "nothing moved":
+/// an index that a tree cannot be written from (a path in conflict elsewhere) still leaves the moved paths out.
+#[test]
+fn a_check_that_cannot_be_made_still_leaves_the_moved_paths_out() {
+    let world: World = world("service-land-owed-check-fallback");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    git(world.repo.as_path(), &["add", "one.txt"]);
+    // A path in conflict in the live index: `write-tree` refuses it, so the check falls back to the listings.
+    let stage = |content: &str| -> String {
+        std::fs::write(world.root.join("stage-content"), content).expect("write");
+        let file: String = world.root.join("stage-content").display().to_string();
+        return git_text(world.repo.as_path(), &["hash-object", "-w", "--", file.as_str()]);
+    };
+    let listing: String = format!(
+        "0 {zero}\tq\n100644 {base_blob} 1\tq\n100644 {ours} 2\tq\n100644 {theirs} 3\tq\n",
+        zero = "0".repeat(40),
+        base_blob = stage("base\n"),
+        ours = stage("ours\n"),
+        theirs = stage("theirs\n")
+    );
+    let mut child = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(world.repo.as_path())
+        .args(["update-index", "--index-info"])
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .expect("git starts");
+    {
+        use std::io::Write as _;
+        child.stdin.as_mut().expect("stdin").write_all(listing.as_bytes()).expect("the stages are fed");
+    }
+    assert!(child.wait().expect("git ends").success(), "the conflict stages are made");
+    let left: Vec<String> = exclude_after_the_index_moved(&world, Some(commit_index.as_path()), real_index_of(&world).as_path());
+    assert!(left.contains(&String::from("one.txt")), "the moved path is left out and said: {left:?}");
+    assert_eq!(
+        index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD", "--", "one.txt"]),
+        "",
+        "the commit cannot record the landed file as deleted"
+    );
+    remove(world.root.as_path());
+}
