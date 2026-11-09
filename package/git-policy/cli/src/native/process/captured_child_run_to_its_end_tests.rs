@@ -81,16 +81,31 @@ fn a_synchronous_run_past_its_ceiling_is_ended_and_says_so() {
     let failure = output_of_within_bound(&mut command, Duration::from_millis(700)).expect_err("the ceiling ends it");
     let waited: Duration = began.elapsed();
     let pid: i32 = std::fs::read_to_string(&pid_file).expect("the run recorded its process").trim().parse().expect("a process number");
+    // The ceiling's own kill ends the stand-in, and the thread that waited for it reaps it; this waits for that end, bounded,
+    //  because a process that was killed stays a zombie that signal 0 still reaches until it is reaped.
+    let ending: Instant = Instant::now();
+    while runs(pid) && ending.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let still_running: bool = runs(pid);
     // The assertions come after the cleanup, so a failure leaves nothing running.
-    // SAFETY: signal 0 asks whether the process exists, and the control then ends the process it started.
-    let alive: bool = unsafe { libc::kill(pid, 0) } == 0;
-    // SAFETY: `kill` takes two integers and touches no memory; the number named the control's own stand-in.
-    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    if still_running {
+        // SAFETY: `kill` takes two integers and touches no memory; the number named the control's own stand-in.
+        let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    }
     crate::test_support::remove(root.as_path());
     assert!(waited < Duration::from_secs(3), "the run outlasted its ceiling by {waited:?}");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
     assert!(failure.to_string().contains("did not answer within"), "{failure}");
-    assert!(!alive, "the query the ceiling ended is not left running");
+    assert!(!still_running, "the query the ceiling ended is not left running");
+}
+
+/// Whether the process `pid` still runs.
+/// A process that was killed and waits to be reaped is a zombie,
+/// which `kill` with signal 0 still reaches,
+/// so the process table is what says it has exited.
+fn runs(pid: i32) -> bool {
+    return !matches!(crate::process_identity::process_birth_identity(i64::from(pid)), Ok(None));
 }
 
 /// The two Linux callers that used to block on `Command::output` use the captured run instead.
