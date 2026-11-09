@@ -210,7 +210,8 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
 /// its holder was stopped,
 /// or lost,
 /// on every
-///  try.
+///  try,
+/// and answers whether every notice is where a command will show it.
 /// Why:
 ///   Such an item moves to `failed` by recovery,
 /// not by a handler,
@@ -218,12 +219,15 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
 ///  and the person would not be told.
 /// The notice is the one a skipped push leaves,
 /// because nothing failed and nothing was sent.
+///  A notice that could not be written answers that it is not there,
+/// so the push is not settled in silence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const item of givenUp.filter(isPush)) await recordPushSkip(gitDir, item, reason)
+/// for (const item of givenUp.filter(isPush)) if (!(await recordPushSkip(gitDir, item, reason))) return false; return true;
 /// ```
-pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
+pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool {
+    let mut told: bool = true;
     for item in given_up {
         if item.kind != WorkKind::Push {
             continue;
@@ -234,8 +238,10 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
             crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+            told = false;
         }
     }
+    return told;
 }
 
 /// What:
@@ -254,8 +260,8 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
 pub(crate) struct SkipNotice<'a>(pub(crate) &'a Path);
 
 impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
-    fn tell(&self, given_up: &WorkItem) {
-        tell_about_given_up(self.0, std::slice::from_ref(given_up));
+    fn tell(&self, given_up: &WorkItem) -> bool {
+        return tell_about_given_up(self.0, std::slice::from_ref(given_up));
     }
 }
 

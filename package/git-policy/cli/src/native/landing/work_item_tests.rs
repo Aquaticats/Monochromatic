@@ -995,9 +995,10 @@ fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
         told: &'a std::cell::RefCell<Vec<bool>>,
     }
     impl crate::work_item_recovery::GivenUpNotice for Watching<'_> {
-        fn tell(&self, given_up: &WorkItem) {
+        fn tell(&self, given_up: &WorkItem) -> bool {
             assert_eq!(given_up.id(), self.id);
             self.told.borrow_mut().push(self.failed_path.exists());
+            return true;
         }
     }
     let wanted: String = last_try.id();
@@ -1006,5 +1007,46 @@ fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
     assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()], "the pass gave up on the push");
     assert_eq!(*told.borrow(), vec![false], "the person's notice was made while the record was still this instance's, before it moved to `failed`");
     assert!(failed_path.exists(), "and the record then moved to `failed`");
+    remove(directory.as_path());
+}
+
+/// What:
+///  A push whose notice cannot be written is not settled:
+/// it stays recoverable,
+/// and a later pass that can write the notice
+///  gives up on it then.
+/// Why:
+///   Nothing scans `failed`,
+/// so a record there is the person's last word about the branch;
+/// settling it while the
+///  notice could not be written abandons the push in silence.
+#[test]
+fn a_given_up_push_whose_notice_cannot_be_written_stays_recoverable() {
+    let directory: PathBuf = fixture("work-given-up-unwritten");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "kkk") };
+    enqueue(work.as_path(), &last_try).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    struct Refusing;
+    impl crate::work_item_recovery::GivenUpNotice for Refusing {
+        fn tell(&self, _given_up: &WorkItem) -> bool {
+            return false;
+        }
+    }
+    let refused: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES, &Refusing);
+    assert_eq!(refused.moved, 0, "nothing is settled while the person is not told");
+    assert!(refused.given_up.is_empty(), "and nothing is reported as given up");
+    assert!(names(work.as_path(), FAILED).is_empty(), "the push is not abandoned in silence");
+    assert_eq!(names(work.as_path(), RECOVERING).len(), 1, "it stays this instance's, to be settled once the notice is written");
+    struct Telling;
+    impl crate::work_item_recovery::GivenUpNotice for Telling {
+        fn tell(&self, _given_up: &WorkItem) -> bool {
+            return true;
+        }
+    }
+    let settled: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 4), LEASE, MAX_TRIES, &Telling);
+    assert_eq!(settled.moved, 1, "a pass that can tell the person settles it");
+    assert_eq!(names(work.as_path(), FAILED), vec![last_try.id()]);
+    assert!(names(work.as_path(), RECOVERING).is_empty());
     remove(directory.as_path());
 }

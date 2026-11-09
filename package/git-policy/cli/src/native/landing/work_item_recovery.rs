@@ -231,15 +231,19 @@ pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, exp
 ///   The notice that names an abandoned push needs the Git directory and writes a file,
 /// and a control stands in for it to see when it is called;
 /// a value keeps that step out of the recovery itself.
+/// The answer says whether the person was told:
+/// a
+///  push is not settled while its notice could not be written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface GivenUpNotice { tell(givenUp: WorkItem): void }
+/// interface GivenUpNotice { tell(givenUp: WorkItem): boolean }
 /// ```
 pub(crate) trait GivenUpNotice {
     /// Tell the person about `given_up`,
-    /// before the record moves to `failed`.
-    fn tell(&self, given_up: &WorkItem);
+    /// before the record moves to `failed`,
+    /// and answer whether the words are where a command will show them.
+    fn tell(&self, given_up: &WorkItem) -> bool;
 }
 
 /// The step of a recovery that tells nobody about the items it gives up,
@@ -247,7 +251,9 @@ pub(crate) trait GivenUpNotice {
 struct NoNotice;
 
 impl GivenUpNotice for NoNotice {
-    fn tell(&self, _given_up: &WorkItem) {}
+    fn tell(&self, _given_up: &WorkItem) -> bool {
+        return true;
+    }
 }
 
 /// `requeue_with` with the step told about each item it gives up,
@@ -324,8 +330,10 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
             }
             // The word about a push given up on comes before the move: nothing scans `failed`, so a kill in between would
             //  abandon the branch in silence. The item is this instance's alone in `recovering` here.
-            if destination == FAILED {
-                tell.tell(&item);
+            //  A word that cannot be written does not settle it either: the item stays in `recovering`, where a later pass
+            //  tries the notice again and replaces it rather than losing it.
+            if destination == FAILED && !tell.tell(&item) {
+                return None;
             }
             (destination, (destination == FAILED).then_some(item))
         }
