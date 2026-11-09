@@ -21,7 +21,9 @@
 //!  no surface under the point,
 //!  a point over a client-drawn popup that takes no input,
 //!  and a
-//! press delivered to a client that had already taken the pointer there are three different stories.
+//! press the seat had a target for are three different stories.
+//!  Which side dropped a press is decided with the client's own log,
+//! not from these lines alone.
 
 /// What:
 ///      Grouped `use` of the input state enums,
@@ -209,10 +211,12 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     //           answer `ok` for a button the seat no longer holds.
     state.held_pointer_buttons.release(code);
 
-    // What:     `tracing::info!` with the surface the pointer focus ended on, read after the
-    //           release.
-    // Why:      A button event reaches a client only through the pointer's focus, so a click that
-    //           left the seat focused on nothing was delivered to nobody whatever the hit test found.
+    // What:     `tracing::info!` with the surface the pointer focus was on once the release had
+    //           gone out.
+    // Why:      A button event reaches a client only through the pointer's focus, so this snapshot
+    //           says which surface the seat had at the end of the click: paired with the hit test
+    //           above, it separates a click aimed at a window from one aimed at nothing. It is a
+    //           snapshot only; a grab or a focus change after an event was sent does not show here.
     tracing::info!(
         focus = ?pointer.current_focus().as_ref().map(protocol_id_of),
         "the click left the seat's pointer focus",
