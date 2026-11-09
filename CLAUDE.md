@@ -777,13 +777,12 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Every command an agent does not consider trivial,
+ Every non-trivial command,
  in every agent:
- run it in its own cgroup with CPU,
+ run it as a harness-managed background process,
+ in its own cgroup with CPU,
  memory,
- process-count and disk-weight limits,
- each sized to that command,
- and state the bounds.
+ process-count and disk-weight limits sized to it.
 
 RXS:
  Per-command cgroups:
