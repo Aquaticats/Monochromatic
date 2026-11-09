@@ -1,0 +1,1 @@
+Correction: the message says "polyester's free --fix". It should say: monochromatic-lint's own --fix rewrites only whitespace, so the clause breaks come from `mise run //:format:monochromatic-lint`.
