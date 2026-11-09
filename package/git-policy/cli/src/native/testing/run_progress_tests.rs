@@ -314,6 +314,45 @@ fn a_stuck_run_ends_its_process_though_its_report_cannot_be_written() {
     assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process, though its report could not be written");
 }
 
+/// How many watchers `child_that_sleeps_under_two_watchers` arms:
+/// the fixture's one and the one it starts itself.
+/// The child prints the count it saw and the parent reads it,
+/// because the child's own watcher ends it either way,
+/// so a control that only looked at how the child ended would pass with the fixture's watcher disconnected.
+const WATCHERS_UNDER_TEST: usize = 2;
+
+/// What:
+///  How many watchers this process has registered, waiting up to `within` for `expected` of them to start.
+/// Why:
+///   A watcher registers itself at the start of its own thread,
+/// so the count is the control's to read only once the
+///  threads have run;
+/// a fixed sleep would make the control's meaning depend on the host's load.
+/// Every look at the count writes a newline
+///  (a line, because this process's standard output is held until one arrives),
+/// and a write is work,
+/// so the watcher that must end this child does not judge it quiet while it is still finding out,
+/// and a child
+///  that saw fewer watchers than it expected can still say so.
+/// The count is read again every 200 ms, which is well inside the watcher's own 500 ms look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deadline = now() + within; let running = watching().length;
+/// while (running !== expected && now() < deadline) { write('\n'); await sleep(200); running = watching().length }
+/// return running;
+/// ```
+fn watchers_running(expected: usize, within: Duration) -> usize {
+    let started: Instant = Instant::now();
+    let mut running: usize = watching().len();
+    while running != expected && started.elapsed() < within {
+        let _written = std::io::stdout().write_all(b"\n");
+        std::thread::sleep(Duration::from_millis(200));
+        running = watching().len();
+    }
+    return running;
+}
+
 /// Child of the control below:
 /// a run under the fixture's watcher and one of its own that shows nothing at all,
 /// so neither watcher may count the other's readings as the run's work.
@@ -323,6 +362,8 @@ fn child_that_sleeps_under_two_watchers() {
     forbid_core_dumps();
     arm_watchdog();
     let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    // The parent reads this count: one watcher ends this child either way, so only the count tells two apart from one.
+    println!("watchers: {}", watchers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
     std::thread::sleep(Duration::from_secs(5));
 }
 
@@ -334,6 +375,8 @@ fn two_watchers_do_not_keep_each_other_alive() {
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    // One watcher ends this child either way, so the count is what tells the two watchers apart from one.
+    assert!(ran.contains(format!("watchers: {WATCHERS_UNDER_TEST}").as_str()), "both watchers ran, so neither could count the other's readings as the run's work:\n{ran}");
     assert_eq!(output.status.signal(), Some(libc::SIGABRT), "a watcher ended the process:\n{said}");
     assert!(said.contains("a test is stuck"), "{said}");
 }
