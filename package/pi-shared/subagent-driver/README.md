@@ -205,9 +205,10 @@ because the reply after it succeeded.
 
 `compaction-failed` means Pi reported a compaction that failed and then answered nothing,
 so the run ended on the session Pi could not put in order rather than on a prompt Pi refused.
-`compactionProblem` holds what Pi said of the compaction,
-and it is there for a run whose wall clock ended such a wait as well,
-naming the compaction that was still running.
+`compactionProblem` holds what Pi said of such a compaction,
+or names the compaction that was still running when the run ended,
+and it is there however the run ended:
+a run that ended at its wall clock or on a model error after a compaction Pi could not finish carries it too.
 
 ## When Pi compacts before it takes the prompt
 

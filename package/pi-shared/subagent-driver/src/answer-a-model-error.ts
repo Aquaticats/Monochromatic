@@ -143,13 +143,34 @@ async function answerWithAnotherAttempt(
    */
   if ((answer.ending === 'silence') || (answeredRefusal(answer,))) {
     // Pi refused nothing when the driver's own bound ended the wait, which the run's deadline may be what brought on.
-    return (millisecondsLeftUntil(watch.deadline,) === 0) ? 'wall-clock' : 'prompt-rejected';
+    if (millisecondsLeftUntil(watch.deadline,) === 0) {
+      return 'wall-clock';
+    }
+    return answeredPartlyByACompaction(answer,) ? 'compaction-failed' : 'prompt-rejected';
   }
   if (disposition === 'handled') {
     watch.record
       .countHandledPrompt();
   }
   return 'still-running';
+}
+
+/**
+ Tells whether a compaction Pi reported failing is why this wait ended rather than a prompt Pi refused.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns whether the wait saw a compaction fail
+ */
+function answeredPartlyByACompaction(answer: CommandAnswer,): boolean {
+  if (answer.ending !== 'silence') {
+    return false;
+  }
+  /**
+   What Pi said of a compaction this wait saw fail.
+   */
+  const { compactionProblem } = answer;
+  return compactionProblem !== undefined;
 }
 
 /**

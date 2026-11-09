@@ -131,6 +131,49 @@ export function failCompactionThenStaySilent(id: unknown,): void {
   void failAfterWaiting(id,);
 }
 
+
+/**
+ Milliseconds the first of two reports of one compaction runs before Pi reports the same compaction again, short enough that a
+ wait which counted it twice would still have the bound left after the compaction ends.
+ */
+const SPLIT_REPORT_MILLISECONDS = 250;
+
+/**
+ Finishes the compaction whose start Pi reported twice, and answers the prompt it held.
+
+ @param id - command's identifier
+ */
+async function finishSplitCompactionAndAnswer(id: unknown,): Promise<void> {
+  await wait(COMPACTION_MILLISECONDS,);
+  emitFinishedCompaction();
+  answer({ id, },);
+  finishRun('done',);
+}
+
+/**
+ Reports one compaction twice, as a Pi that repeats itself would, then finishes it and answers the prompt.
+
+ @param id - command's identifier
+
+ @example
+ ```ts
+ reportCompactionTwice('c1',);
+ ```
+ */
+export function reportCompactionTwice(id: unknown,): void {
+  emit({
+    type: 'compaction_start',
+    reason: THRESHOLD_REASON,
+  },);
+  void (async function reportAgain(): Promise<void> {
+    await wait(SPLIT_REPORT_MILLISECONDS,);
+    emit({
+      type: 'compaction_start',
+      reason: THRESHOLD_REASON,
+    },);
+    await finishSplitCompactionAndAnswer(id,);
+  })();
+}
 /**
  What each compaction scenario does with a prompt, by scenario name.
  */
@@ -149,5 +192,9 @@ export const compactionPlays: ReadonlyMap<string, (id: unknown,) => void> = new 
     [
       'compaction-fails',
       failCompactionThenStaySilent,
+    ],
+    [
+      'compaction-reported-twice',
+      reportCompactionTwice,
     ],
   ],);

@@ -261,12 +261,9 @@ export async function supervisePiRun(
     },
   },);
   /**
-   Why the run ended, and what Pi reported of a compaction that kept its prompt waiting.
+   Why the run ended.
    */
-  const {
-    endReason,
-    compactionProblem,
-  } = await endReasonOfRun({
+  const { endReason, } = await endReasonOfRun({
     connection,
     record,
     options,
@@ -314,7 +311,6 @@ export async function supervisePiRun(
     piExit,
     piHasExited: connection.hasExited(),
     sessionStats: putAway.sessionStats,
-    ...(compactionProblem === undefined ? {} : { compactionProblem, }),
   },);
   await writeSummary({
     runFolder: options.runFolder,

@@ -449,6 +449,28 @@ await describe({
       },
     },),
     it({
+      name: 'a compaction Pi reports twice is one compaction, so its second report does not spend the bound',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'compaction-reported-twice', },);
+        // One command first, so the stand-in is up before the bound starts: a bound this short would otherwise be spent on
+        // the stand-in's own start-up, which is not what this test is about.
+        await sendTo(opened.connection, { command: { type: 'get_state', }, },);
+        const started = Date.now();
+        const answer = await sendTo(opened.connection, {
+          command: {
+            type: 'prompt',
+            message: 'hello',
+          },
+          answerMilliseconds: COMPACTION_BOUND_MILLISECONDS,
+          deadline: started + ANSWER_MILLISECONDS,
+        },);
+        expect(answer.ending,).toBe('answered',);
+        expect(answeredRecord(answer,).success,).toBe(true,);
+        // A wait that counted the repeated report as a second start would have spent its bound mid-way through the compaction.
+        expect(Date.now() - started,).toBeGreaterThan(COMPACTION_BOUND_MILLISECONDS,);
+      },
+    },),
+    it({
       name: 'a failed compaction is named in the answer that stops waiting, and the silence bound still ends that wait',
       fn: async () => {
         await using opened = await openConnection({ scenario: 'compaction-fails', },);

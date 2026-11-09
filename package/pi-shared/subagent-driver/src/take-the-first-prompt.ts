@@ -103,11 +103,10 @@ async function noteStartingState({
 }
 
 /**
- Where a run stands once its first prompt is sent, and what Pi reported of a compaction that kept that prompt waiting.
+ Where a run stands once its first prompt is sent.
  */
 type ProgressAfterPrompt = {
   readonly endReason: RunProgress;
-  readonly compactionProblem?: string;
 };
 
 /**
@@ -155,19 +154,11 @@ async function sendFirstPrompt({
   if ((answer.ending === 'answered') && (!answeredRefusal(answer,))) {
     return { endReason: 'still-running', };
   }
-  /**
-   Why the run is over, which names the compaction that kept the prompt waiting when one did.
-   */
-  const endReason = endReasonOfPromptWait({
-    answer,
-    passedDeadline: millisecondsLeftUntil(deadline,) === 0,
-  },);
-  if (answer.ending === 'answered') {
-    return { endReason, };
-  }
   return {
-    endReason,
-    ...(answer.compactionProblem === undefined ? {} : { compactionProblem: answer.compactionProblem, }),
+    endReason: endReasonOfPromptWait({
+      answer,
+      passedDeadline: millisecondsLeftUntil(deadline,) === 0,
+    },),
   };
 }
 
@@ -222,11 +213,10 @@ function notePromptAnswer({
 
 
 /**
- Why the run is over, and what Pi reported of a compaction that kept its prompt waiting.
+ Why the run is over.
  */
 export type Ending = {
   readonly endReason: EndReason;
-  readonly compactionProblem?: string;
 };
 
 /**
@@ -250,15 +240,9 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
     /**
      Where the run stands once the prompt is sent, which may already be its end.
      */
-    const {
-      endReason,
-      compactionProblem,
-    } = await sendFirstPrompt(watch,);
+    const { endReason, } = await sendFirstPrompt(watch,);
     if (endReason !== 'still-running') {
-      return {
-        endReason,
-        ...(compactionProblem === undefined ? {} : { compactionProblem, }),
-      };
+      return { endReason, };
     }
     return { endReason: await watchUntilEnded(watch,), };
   }

@@ -85,17 +85,15 @@ export function startWaitingForAnAnswer(
    */
   const settled = Promise.withResolvers<CommandAnswer>();
   /**
-   What changes while the wait runs: the silence it has served, the stretch it is serving now, what Pi said of a compaction
-   that failed, whether it is over, and the bound that is due first.
+   What changes while the wait runs: when the stretch of silence being served began, what Pi said of a compaction that failed,
+   whether the wait is over, and the bound that is due first.
    */
   const state: {
-    silentMilliseconds: number;
     silentSince: number;
     compactionFailure: RunFailure;
     over: boolean;
     timer?: NodeJS.Timeout;
   } = {
-    silentMilliseconds: 0,
     silentSince: Date.now(),
     compactionFailure: NO_RUN_FAILURE,
     over: false,
@@ -126,7 +124,7 @@ export function startWaitingForAnAnswer(
   }
 
   /**
-   Silence served so far: none of the time Pi spent compacting counts.
+   Silence served so far: none of the time Pi spent compacting counts, and the count begins again at each compaction's end.
 
    @returns the milliseconds of silence this wait has seen
    */
@@ -136,8 +134,8 @@ export function startWaitingForAnAnswer(
      */
     const compaction = compactionOfPi();
     return compaction.compacting
-      ? state.silentMilliseconds
-      : state.silentMilliseconds + (Date.now() - state.silentSince);
+      ? 0
+      : Date.now() - state.silentSince;
   }
 
   /**
@@ -204,6 +202,9 @@ export function startWaitingForAnAnswer(
    meanwhile moves the bound rather than being missed.
    */
   function arm(): void {
+    if (state.over) {
+      return;
+    }
     clearBound();
     /**
      How long is left before the wait must be over whatever Pi does.
@@ -247,10 +248,12 @@ export function startWaitingForAnAnswer(
   }
 
   /**
-   Stops counting silence, because Pi began a compaction.
+   Stops counting silence, because Pi began a compaction, and re-arms the bound this wait is left with.
    */
   function pauseSilence(): void {
-    state.silentMilliseconds += Date.now() - state.silentSince;
+    if (state.over) {
+      return;
+    }
     arm();
   }
 
@@ -260,6 +263,10 @@ export function startWaitingForAnAnswer(
    @param compaction - what Pi said of the compaction that ended, which a failure of the session is
    */
   function resumeSilence(compaction: RunFailure,): void {
+    if (state.over) {
+      return;
+    }
+    // The silence starts afresh: Pi was at work until now, so what it did not answer before then is not this wait's silence.
     state.silentSince = Date.now();
     state.compactionFailure = compaction.failed
       ? compaction

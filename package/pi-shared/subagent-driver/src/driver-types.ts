@@ -238,11 +238,6 @@ export type RunEnding = {
   readonly piExit: PiExit;
   readonly piHasExited: boolean;
   readonly sessionStats: unknown;
-
-  /**
-   What Pi reported of a compaction that kept the run's prompt waiting, when one did.
-   */
-  readonly compactionProblem?: string;
 };
 
 /**

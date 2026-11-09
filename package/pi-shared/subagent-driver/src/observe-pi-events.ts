@@ -37,6 +37,25 @@ const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ What Pi reports of its own session, measured on the run's own clock rather than the epoch's.
+ */
+type CompactionInTheRun =
+  | { readonly compacting: false }
+    | {
+      readonly compacting: true;
+
+    /**
+     Why Pi began the compaction, as `compaction_start` reports it.
+     */
+      readonly reason: string;
+
+    /**
+     How long the run had lasted when it saw the compaction begin.
+     */
+      readonly sinceMilliseconds: number;
+    };
+
+/**
  What one run has seen.
  */
 export type ObservedPiRun = {
@@ -45,6 +64,12 @@ export type ObservedPiRun = {
   readonly turnCount: () => number;
   readonly lastAssistantText: () => string;
   readonly unrecoveredModelError: () => RunFailure;
+
+  /**
+   What Pi reported of its own session, when that is why the run could not go on: a compaction that failed, or one still under
+   way as the run ended.
+   */
+  readonly compactionProblem: () => RunFailure;
   readonly toolHistogram: () => Readonly<Record<string, number>>;
   readonly toolErrors: () => readonly PiRecord[];
   readonly dialogs: () => readonly PiRecord[];
@@ -110,11 +135,22 @@ export function startObservingPiRun({
      The error Pi settled on, which is why a run ends as a model error.
      */
     unrecoveredModelError?: string;
+
+    /**
+     What Pi reports of its own session, since what it said of the last compaction that failed.
+     */
+    compaction: CompactionInTheRun;
+
+    /**
+     What Pi said when its last compaction failed, which answers why a prompt was never taken.
+     */
+    compactionFailure?: string;
   } = {
     running: false,
     settled: 0,
     turns: 0,
     lastAssistantText: '',
+    compaction: { compacting: false, },
   };
 
   /**
@@ -233,6 +269,33 @@ export function startObservingPiRun({
           tallies.declineDialog(observation,);
         },
       ],
+      [
+        'compaction_start',
+        function onCompactionStart({ event, },) {
+          state.compaction = {
+            compacting: true,
+            reason: textOf(event.reason,),
+            sinceMilliseconds: millisecondsSoFar(),
+          };
+        },
+      ],
+      [
+        'compaction_end',
+        function onCompactionEnd({ event, },) {
+          state.compaction = { compacting: false, };
+          /**
+           What Pi said of the failure, which is empty for a compaction that worked.
+           */
+          const message = textOf(event.errorMessage,);
+          if (message !== '') {
+            state.compactionFailure = message;
+            return;
+          }
+          if (event.aborted === true) {
+            state.compactionFailure = 'Pi aborted the compaction';
+          }
+        },
+      ],
     ],);
 
   /**
@@ -275,6 +338,26 @@ export function startObservingPiRun({
       return (state.unrecoveredModelError === undefined) ? NO_RUN_FAILURE : {
         failed: true,
         problem: state.unrecoveredModelError,
+      };
+    },
+    compactionProblem: function compactionProblem() {
+      /**
+       The compaction under way, or the fact that there is none.
+       */
+      const { compaction } = state;
+      if (compaction.compacting) {
+        return {
+          failed: true,
+          problem: `Pi was still compacting (${compaction.reason}) after ${String(millisecondsSoFar() - compaction.sinceMilliseconds,)} ms`,
+        };
+      }
+      /**
+       What Pi said when its last compaction failed, if one did.
+       */
+      const { compactionFailure } = state;
+      return (compactionFailure === undefined) ? NO_RUN_FAILURE : {
+        failed: true,
+        problem: compactionFailure,
       };
     },
     toolHistogram: tallies.toolHistogram,
