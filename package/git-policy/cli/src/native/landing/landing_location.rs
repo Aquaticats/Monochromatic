@@ -95,10 +95,10 @@ fn index_arguments() -> [&'static str; 4] {
 /// answer.endsWith('\n') ? answer.slice(0, -1) : answer
 /// ```
 fn without_the_terminator(answer: &[u8]) -> &[u8] {
-    return match answer.strip_suffix(&[b'\n'][..]) {
-        Some(body) => body,
-        None => answer,
-    };
+    if answer.ends_with(b"\n") {
+        return &answer[..answer.len() - 1];
+    }
+    return answer;
 }
 
 /// What:
