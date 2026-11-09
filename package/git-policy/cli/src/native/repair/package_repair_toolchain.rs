@@ -262,6 +262,10 @@ fn prepare_install_in_a_job((destination, environment): (PathBuf, RepairEnvironm
 /// A refusal from the system runs the same read in turn,
 /// under a place of the process's bound on blocking jobs.
 ///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const decided = await prepareInstallWithinTheBudget(destination, environment);
+/// ```
 async fn prepare_install_within_the_budget(destination: &Path, environment: &RepairEnvironment) -> Result<ToolchainRepair, BlockingJobError> {
     let state: (PathBuf, RepairEnvironment) = (destination.to_path_buf(), environment.clone());
     return run_a_job_or_in_turn(state, prepare_install_in_a_job).await;
@@ -290,6 +294,10 @@ fn count_stale_in_a_job(destination: PathBuf) -> usize {
 ///  The awaiting face has no read of the launcher directory of its own,
 /// so a worktree whose records changed under the install is counted without stopping the task's other waits.
 ///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await countStaleWithinTheBudget(destination);
+/// ```
 async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, BlockingJobError> {
     return run_a_job_or_in_turn(destination.to_path_buf(), count_stale_in_a_job).await;
 }
