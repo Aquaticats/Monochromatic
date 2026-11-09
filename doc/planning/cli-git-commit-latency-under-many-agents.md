@@ -1003,7 +1003,8 @@ each step of the preparation by name,
 with how often it ran,
 the whole of its time and its longest run.
 The names are the index's stat check,
-the index read,
+the one read of the index,
+the walk of those bytes for the seed decision,
 the index copies,
 the answer of whether the index already holds the base,
 the writes of corrected entries,
@@ -1193,6 +1194,84 @@ One run under a lighter disk put the same binary at 452 ms,
 which is why every figure here is repeated beside the
 unchanged binary and none is reported alone.
 
+What the trace of a later commit shows the reverted copy was:
+`copy_file_range`,
+not a byte copy.
+`std::io::copy` of two `File`s asks the kernel to copy the range,
+and on btrfs that shares the source's extents,
+so the copies of every traced commit were reflinks at 4 ms to 172 ms,
+and the two copies this record blames were never byte copies after `a30eceb87f`.
+That is why the stall stayed in the records measured after the revert.
+
+### Both private copies are written from one read of the live index
+
+`79050a88b2`.
+The third entry of "What would take the tail under five seconds",
+measured.
+
+A preparation read the real index three times over:
+the stat check read it,
+the captured copy was made from it,
+and the commit's own copy was a copy of that captured file,
+whose bytes the seed decision read again.
+`IndexBytes` (`commit_index_bytes.rs`) reads the file once and writes every copy from those bytes,
+so both private copies hold one state by construction:
+a staging that lands in the real index after the read reaches neither,
+and none of another command's staged work can be recorded under a commit that did not capture it.
+An index commit decides no seed,
+so only an explicit-path preparation walks those bytes (`index seed`),
+and both kinds state the one read as `index read`.
+
+The measurement,
+one session,
+the same shaped clone and the same 20-round harness,
+two runs of the unchanged binary and two of this change:
+
+- The unchanged binary:
+  paired delta median 7,483 ms and 3,075 ms,
+  p95 15,666 ms and 17,169 ms,
+  14 and 6 of the 20 rounds over the owner's five seconds,
+  `index copy` a median 180 ms and 2 ms per round,
+  its largest 3,381 ms and 5,716 ms,
+  8 and 6 rounds with a copy over 900 ms,
+  and 20,410 ms and 16,083 ms in all.
+- This change:
+  paired delta median 4,442 ms and 547 ms,
+  p95 13,015 ms and 5,416 ms,
+  10 and 2 of the 20 rounds over five seconds,
+  `index copy` a median of 0 ms per round,
+  its largest 328 ms and 1,216 ms,
+  no round over 900 ms in one run and one round in the other,
+  and 407 ms and 1,369 ms in all.
+- The copies' own spread between the two runs of the unchanged binary is 20,410 ms against 16,083 ms,
+  so their fall to 407 ms and 1,369 ms is twelve times below the lower of those.
+- The one read of the index costs what a read of a warm file costs:
+  `index read` and `index seed` are each under a millisecond in every round of both runs,
+  against 19 ms and 47 ms for the seed's own read of a private copy before.
+- What the copies are now,
+  in the trace of six wrapped commits:
+  no `copy_file_range` call at all,
+  the index read in blocks of 0.39 ms to 0.53 ms,
+  and each copy written by `write` in 0.03 ms to 1.42 ms,
+  against two `copy_file_range` calls per commit before.
+- The paired delta did not move outside the host's own spread:
+  the unchanged binary's two runs differ by 2.4 times in their medians,
+  and the direct arm's median halved between the two pairs (281 ms and 337 ms against 152 ms and 150 ms),
+  so this change's runs met a lighter host,
+  and what it removed was worth seconds in the rounds where a copy stalled,
+  not seconds of every round's delta.
+- What the tail is left to:
+  `submitMs` holds the rounds over five seconds in both runs of this change
+  (a median 181 ms and 1,398 ms,
+  with single rounds at 12,967 ms),
+  which is the landing's queue and lock,
+  the second entry of "What remains".
+- Both arms signed every commit:
+  the shaped clone carries SSH commit signing in its own configuration.
+  The unchanged binary's runs signed with a key another session's scratch root held,
+  and this change's runs sign with one made for them;
+  a signature is the same work for either arm of a round either way.
+
 ## What remains over the five seconds
 
 With the copy gone,
@@ -1225,6 +1304,11 @@ and the phases of those rounds name three causes:
   while `candidates prepared` is 6 to 8 ms and every policy is under 30 ms.
   A cold three-megabyte read of `.git/index` costs seconds on this disk,
   and the wrapper reads that index once more than native Git does.
+  Measured again in one session on 2026-11-09:
+  both copies are now written from one read of that index,
+  `index copy` holds 407 ms and 1,369 ms in all over 20 rounds against 20,410 ms and 16,083 ms
+  ("Both private copies are written from one read of the live index"),
+  and the reading that places a read of `.git/index` in this list is corrected there.
 
 ## What would take the tail under five seconds
 
@@ -1246,6 +1330,10 @@ in the order the numbers rank it:
   the captured copy and the commit's own copy hold the same bytes at that moment,
   and `git add` reads the live index again in the same command,
   which is the 4,227 ms to 5,793 ms of `index copy` that the rounds over the bar hold.
+  Done (`79050a88b2`,
+  under "Both private copies are written from one read of the live index");
+  what it removed was the copies' second and third pass over the bytes and not the reads,
+  which the same records put at 4 ms to 182 ms.
 
 ## What the record now says about a landing, and what eight overlapping commits measured
 
