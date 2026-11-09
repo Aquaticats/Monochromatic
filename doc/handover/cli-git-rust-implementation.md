@@ -9542,6 +9542,16 @@ though nothing conflicted.
   the first build of that commit took 171,383 ms,
   and a first preparation copies the real index too (stat data kept),
   so the retry path does not account for it.
+  Corrected 2026-11-09 (see "The ceiling is about 16 s,
+  and the three steps over it"):
+  the record's own offsets put that 171,383 ms step second,
+  not first.
+  The first build of the same commit took 33 ms,
+  before the `git add` of its preparation,
+  and the four builds after it took 171,383,
+  11,444,
+  32,395 and 5,742 ms,
+  each preceded by a `git read-tree` alone.
   The candidates are an index that could not seed (`seeds_private_index` false at that moment) and I/O contention
   (the scratch Git sat in `D` state on a full block queue at load average 38).
   Both ways of building the index wrote a debug line (`initializeCommitIndex`,
@@ -9594,6 +9604,136 @@ though nothing conflicted.
   `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
   The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
   `service_land.rs`) is unchanged.
+
+### The ceiling is about 16 s, and the three steps over it (2026-11-08)
+
+The owner was shown the scratch `git commit` steps of this repository's commit timing log
+(886 records that name the step,
+twelve of them past the 3,006 ms ceiling then in force),
+chose "About 16 seconds",
+three times the slowest ordinary step (5,444 ms),
+and added:
+"About 16s,
+and investigate what happened for those 3 commits.
+If we can't figure it out,
+then we have a defect and should log more."
+"Those 3 commits" are the steps that would still run past 16 s:
+26,256,
+36,651 and 171,383 ms.
+
+- The ceiling is `SCRATCH_COMMIT_STEP_CEILING`,
+  3 x `SLOWEST_MEASURED_COMMIT_STEP`,
+  and that figure moved from 1,002 to 5,444 ms,
+  so the ceiling is 16,332 ms.
+  Read again on 2026-11-09 over both generations of the timing log (958 records,
+  releases 0.6.1-alpha.2 to 0.6.1-alpha.5,
+  907 naming the step):
+  the same twelve run past 3,006 ms,
+  the three above run past 16,332 ms,
+  and the slowest of the rest is still 5,444 ms.
+  That 5,444 ms record is one the old ceiling stopped,
+  so it holds the stop's own cost (2.4 s of it),
+  and the next reading of an unstopped population may be larger.
+  The value and its figures are beside the constant and in `SPEC.md`.
+- The 171,383 ms step (2026-11-08T04:10:42Z,
+  release 0.6.1-alpha.3,
+  request `539a7563`,
+  `outcome: stopped`,
+  five builds,
+  270,232 ms in all) is the retry defect already fixed in this file ("Slow rebuilds and the moved-branch bound"):
+  the second build's index came from a plain `git read-tree` and held no stat data,
+  so `git commit` hashed the whole work tree and cleaned its LFS content.
+  Established from the record's own steps,
+  which is what the earlier reading lacked:
+  build one took 33 ms after its preparation's `git add`,
+  and builds two to five took 171,383,
+  11,444,
+  32,395 and 5,742 ms,
+  each preceded by a `git read-tree` of 21 to 29 ms and no `git add`,
+  which is the retry path.
+  The service journal shows the branch moving under every one of those builds:
+  five `answered` lines for that request,
+  all `outcome=branch-moved`.
+  The fix (`initialize_retry_index` copies the real index and runs `read-tree --reset`) landed as `0bafaea12d`
+  on 2026-11-07T23:24:08-05:00,
+  hours after this commit,
+  and is in 0.6.1-alpha.4 and later,
+  not in 0.6.1-alpha.3.
+- The 26,256 ms step (2026-11-08T05:49:59Z,
+  release 0.6.1-alpha.3,
+  request `4f54ca75`,
+  landed,
+  two builds) is the same defect on the same code:
+  build one took 33 ms after `git add`,
+  build two 26,256 ms after a `git read-tree` of 23 ms and no `git add`.
+  0.6.1-alpha.4 was published 51 s before this step began (05:48:29Z) and the record names the release it ran,
+  so the installed binary was still the earlier one.
+- The 36,651 ms step (2026-11-08T20:23:30Z,
+  release 0.6.1-alpha.4,
+  request `83235372`,
+  landed,
+  one build,
+  worktree `pi-fuzz-claim-decode-and-sidecar-locks`) is not the retry path:
+  one build,
+  and its index build ran `git update-index` 13 ms and `git add` 17 ms as a first preparation does.
+  What it was doing is not established.
+  Everything that could have said so is absent from the record of that time:
+  `indexBuilds` (whether the index kept the real index's stat data) was added ninety seconds after this commit landed (`db2ebe60`),
+  the step is one figure with Git and the signing program inside it,
+  the notice thread's own join is inside the same figure,
+  and the two debug lines that said which way an index was built appear only under `MONOCHROMATIC_VERBOSE`,
+  which nothing sets.
+  The commit was signed (`gpgsig` in the object),
+  so the signing program ran;
+  the host was under the pressure other sessions keep up (load average 90 on 6 threads that evening),
+  and the same minute holds a `git commit` step of 50 ms in another worktree,
+  so the pressure alone is not the answer.
+  This is the defect the owner named.
+- What the record could not say is now in it:
+  `scratchSteps`,
+  one entry per build,
+  with `ceilingMs`,
+  `armed` (a commit that may open an editor keeps no ceiling,
+  and so does one whose notice thread the system refused),
+  `stoppedAfterMs`,
+  `noticeMs`,
+  `wroteMs`,
+  `looks`,
+  `looksFound`,
+  `below` (each program other than Git that ran below the step,
+  with the milliseconds it was seen),
+  `belowCpuMs` and `blockedLooks`.
+  The record's `git commit` step figure is the child alone,
+  so the join and the programs below the step are beside it and never inside it.
+  A control proves it end to end:
+  `a_slow_build_step_is_named_in_the_record_with_its_duration` runs a fixture whose stand-in Git sleeps 3 s before it execs Git,
+  and reads the stand-in's `sleep` named below the step.
+- The stop's check was wrong,
+  and is fixed:
+  the notice looked for the step only when the ceiling came,
+  and answered "the step ended on its own" when that look found nothing.
+  A start the host held up put the step below the command after that moment,
+  so the notice had ended and the step ran on with no ceiling at all,
+  which is one way a commit lands after a long step.
+  The notice now looks every 250 ms until it finds the step,
+  counts the ceiling from that look,
+  and treats an empty look as "the step ended by itself" only after it has seen it running.
+  The look reads the kernel's per-thread child lists and one `/proc/<pid>/stat` per descendant
+  (19.6 microseconds against 17.6 ms for the pass over `/proc` the kill still reads,
+  measured 2026-11-09 on 1,210 entries at load average 90 on 6 threads),
+  and a step that ends sooner than the first interval is ended by its own channel,
+  so an ordinary commit pays one look.
+  Controls:
+  `a_step_that_appeared_after_the_ceiling_look_is_still_stopped` fails on the code as it stood
+  ("a step that started after the ceiling's look ran on with no ceiling and was never stopped")
+  and passes now;
+  removing the look that arms the ceiling puts the same failure back.
+- What the record still cannot separate:
+  Git's own work from the signing program's inside the step.
+  `below` carries the time a program below the step was seen at the look interval,
+  so a signing program that runs and ends between two looks is not named,
+  and a named entry is a lower bound.
+  A step whose `below` holds no signing program may still have signed for less than the interval.
 
 ### The lock ceiling and the three waits it fed, measured (2026-11-08T16:01:42-05:00)
 
