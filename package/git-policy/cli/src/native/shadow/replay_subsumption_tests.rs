@@ -266,3 +266,73 @@ fn the_exact_record_width_follows_the_present_entries() {
     };
     assert_eq!(base_record(&edit), b"0 0000\tp.txt\0".to_vec());
 }
+
+/// What:
+///  Deciding the unordered shared paths reads each collected text path once per path,
+///  not every one of them per shared path.
+/// Why:
+///  `AGENTS.md` `RG2`: both the shared paths and the subsumed text paths grow with the diff
+///  of one path's hunk list and with the number of paths a commit touches,
+///  so asking the text list "is this path in it" from every shared path is quadratic.
+///  The seam counts the collected text paths a question looks at,
+///  which is one per question when a set answers and every one of them when a walk does
+///  (`foundation/collected_elements_looked_at_tests.rs` proves the count separates the two).
+#[test]
+fn deciding_the_unordered_paths_reads_the_text_list_once_per_path() {
+    let root: PathBuf = fixture("replay-subsumption-once");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let width: usize = 256;
+    for number in 0..width {
+        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("base {number}\n")).expect("base file");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = rev(repo.as_path(), "HEAD");
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "prepared"]);
+    for number in 0..width {
+        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("prepared {number}\n")).expect("prepared file");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=prepared"]);
+    let prepared: String = rev(repo.as_path(), "HEAD");
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    for number in 0..width {
+        std::fs::write(repo.join(format!("text-{number:04}.txt")), format!("landed {number}\n")).expect("landed file");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=landed"]);
+    let current: String = rev(repo.as_path(), "HEAD");
+    let shared: Vec<SharedPath> = shared_of(repo.as_path(), base.as_str(), current.as_str(), prepared.as_str());
+    assert_eq!(shared.len(), width, "every path changed on both sides");
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir_all(scratch.as_path()).expect("scratch");
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let outcome: SubsumptionBase = subsume_landed_changes(
+        &git_context(),
+        repo.join(".git").as_path(),
+        repo.join(".git").join("objects").as_path(),
+        repo.as_path(),
+        scratch.as_path(),
+        1,
+        base.as_str(),
+        shared.as_slice(),
+        &BTreeMap::new(),
+    )
+    .expect("subsumption");
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert!(
+        outcome.subsumed_paths.len() + outcome.kept_landed_paths.len() <= width,
+        "every decided path is one of the shared ones"
+    );
+    // The text check reads the base, landed and prepared bytes of every candidate, and each
+    //  read is one object name of the batch it prepares; the claim below is about the
+    //  deciding question, so the count it states is those names plus one question per path.
+    const OBJECTS_ONE_TEXT_CHECK_READS: u64 = 3;
+    let expected: u64 = OBJECTS_ONE_TEXT_CHECK_READS * width as u64 + width as u64;
+    assert_eq!(
+        looked, expected,
+        "{looked} collected names looked at for {width} unordered shared paths; one question per path over a set is linear, \
+a walk over the text list would add every text path to each question"
+    );
+    remove(root.as_path());
+}
