@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::merge_second_pass::tests::{Change, World, corpus, runner, world};
+use crate::merge_second_pass_worktree_unchanged::LARGEST_RECORDED_BYTES;
 use crate::test_support::{git, git_context, git_output, git_text, remove};
 use std::path::{Path, PathBuf};
 
@@ -178,6 +179,69 @@ fn entries_of(repo: &Path) -> Vec<IndexEntry> {
 fn staged_text(repo: &Path, path: &str) -> Option<String> {
     let shown: std::process::Output = crate::test_support::git_output(repo, &["show", format!(":0:{path}").as_str()]);
     return if shown.status.code() == Some(0) { Some(String::from_utf8_lossy(&shown.stdout).into_owned()) } else { None };
+}
+
+/// A sparse file of `length` bytes at `path`:
+/// longer than a conflicted file can be,
+/// without writing the bytes no control reads.
+fn sparse_file_of(path: &Path, length: u64) {
+    let file: std::fs::File = std::fs::File::create(path).expect("the file");
+    file.set_len(length).expect("a sparse file of that length");
+}
+
+/// What:
+///  A worktree file that was too large to compare before the pass and is too large again when it installs
+/// is not "unchanged":
+/// it stays as the person left it and the line names it.
+/// Why:
+///   Both reads recorded nothing,
+/// so the comparison of two nothings said "the same bytes" and the pass staged its own merge
+///  over a file it never compared,
+/// which can run to exit `0`
+/// (cross-vendor review round 3,
+/// finding 1).
+#[test]
+fn a_path_too_large_to_compare_twice_is_left_and_named() {
+    let (world, entries) = stopped_merge("second-pass-worktree-too-large-twice");
+    let path: PathBuf = world.repo.join("a.md");
+    sparse_file_of(path.as_path(), LARGEST_RECORDED_BYTES + 1);
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a file past the limit is recorded as nothing to compare");
+    // Different bytes, and still past the limit: the second read records nothing either.
+    sparse_file_of(path.as_path(), LARGEST_RECORDED_BYTES + 2);
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert!(kept.files.is_empty(), "nothing is installed over a file the pass never read: {} merged file(s) would be", kept.files.len());
+    assert_eq!(kept.unreadable, vec![b"a.md".to_vec()], "the path nobody compared is named");
+    assert!(kept.moved.is_empty(), "no edit was seen, so none is claimed: {:?}", kept.moved);
+    assert_eq!(std::fs::metadata(path.as_path()).expect("the file").len(), LARGEST_RECORDED_BYTES + 2, "the newer file is still there");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A worktree path the pass cannot read at all is left and named as one it could not compare.
+/// Why:
+///   A read that fails says nothing about the bytes,
+/// and no person can be told their file changed when nobody read it
+///  (cross-vendor review round 3,
+/// finding 1,
+/// the other half: "inability to compare is accepted as equality").
+#[test]
+fn a_path_that_cannot_be_read_is_left_and_named() {
+    let (world, entries) = stopped_merge("second-pass-worktree-cannot-read");
+    let path: PathBuf = world.repo.join("a.md");
+    std::fs::remove_file(path.as_path()).expect("the file Git left");
+    std::fs::create_dir(path.as_path()).expect("a directory where the file was");
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that cannot be read is recorded as nothing to compare");
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert!(kept.files.is_empty(), "nothing is installed over a path the pass never read: {} merged file(s) would be", kept.files.len());
+    assert_eq!(kept.unreadable, vec![b"a.md".to_vec()], "the path nobody read is named");
+    assert!(path.is_dir(), "what is at the path is untouched");
+    remove(world.root.as_path());
 }
 
 /// A repository whose merge of the two branches stopped with `a.md` conflicted,
