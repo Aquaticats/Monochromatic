@@ -19,6 +19,7 @@ use super::commit::{remove_settled, wrapped_commit};
 use super::support::{
     Fixture, fixture, git, repository,
 };
+use git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -129,7 +130,7 @@ fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
     );
     let notices: Vec<&str> = lines_with(watched.stderr.as_str(), needle.as_str());
     assert!(notices.len() >= 2, "a first notice and a repeat: {}", watched.stderr);
-    assert!(notices.iter().all(|line| { return line.contains("for as long as that process holds the lock"); }), "{}", watched.stderr);
+    assert!(notices.iter().all(|line| { return line.contains(format!("for at most {} seconds", LANDING_LOCK_CEILING.as_secs()).as_str()); }), "every notice says how long the wait lasts: {}", watched.stderr);
     assert!(!watched.stderr.contains("giving up"), "{}", watched.stderr);
     assert_eq!(watched.code, Some(0), "{}", watched.stderr);
     remove_settled(&fixture);
