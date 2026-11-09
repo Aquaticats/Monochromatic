@@ -347,28 +347,86 @@ pub enum RetryChange {
     },
 }
 
+/// The number of changes a control lets `apply` apply before it stops,
+/// as a killed service leaves the round half applied;
+/// nothing outside a control.
+#[cfg(test)]
+thread_local! {
+    /// The bound of the control running on this thread.
+    static STOP_AFTER: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+/// Stops `apply` after `changes` changes on this thread until the guard drops.
+#[cfg(test)]
+pub(crate) fn stop_after_in_a_control(changes: usize) -> StopAfterGuard {
+    STOP_AFTER.with(|slot| { slot.set(Some(changes)); });
+    return StopAfterGuard;
+}
+
+/// Ends the control's bound when dropped.
+#[cfg(test)]
+pub(crate) struct StopAfterGuard;
+
+#[cfg(test)]
+impl Drop for StopAfterGuard {
+    fn drop(&mut self) {
+        STOP_AFTER.with(|slot| { slot.set(None); });
+    }
+}
+
+/// Whether a control's bound is reached after `applied` changes.
+#[cfg(test)]
+fn stopped_after(applied: usize) -> bool {
+    return STOP_AFTER.with(|slot| { return slot.get().is_some_and(|bound| applied >= bound); });
+}
+
 /// What:
-///  The plan file names the changes after `from` write for one branch of one Git directory.
+///  Whether the round plans the same branch of the same Git directory again after `at`.
 /// Why:
-///   A forget replayed after those plans were kept must not remove them,
-/// and their names are known before
-///  they are written.
+///   The last plan of a branch is the round's statement about it;
+/// publishing an earlier one would remove the
+///  file the worker of the last one already wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// changes.slice(from).filter((c) => c.plan && c.plan.gitDir === gitDir && c.plan.item.branchRef === branchRef).map(planName)
+/// changes.slice(at + 1).some((c) => c.plan && c.plan.gitDir === gitDir && c.plan.item.branchRef === branchRef)
 /// ```
-fn later_plans_of(changes: &[RetryChange], from: usize, git_dir: &Path, branch_ref: &str) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for change in &changes[from..] {
+fn planned_again_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> bool {
+    for change in &changes[at + 1..] {
+        if let RetryChange::Plan { git_dir: planned_dir, item, .. } = change
+            && planned_dir == git_dir
+            && item.branch_ref == branch_ref
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The file name of the last plan the changes after `at` write for one branch of one Git directory,
+/// or nothing.
+/// Why:
+///   A forget replayed before that plan must not remove it,
+/// and the name is known before the plan is written;
+///  only the last plan of a branch is ever published,
+/// so its name is the one to keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// changes.slice(at + 1).filter((c) => c.plan && sameBranch(c.plan)).map(planName).at(-1)
+/// ```
+fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> Option<String> {
+    let mut name: Option<String> = None;
+    for change in &changes[at + 1..] {
         if let RetryChange::Plan { git_dir: planned_dir, item, attempt, .. } = change
             && planned_dir == git_dir
             && item.branch_ref == branch_ref
         {
-            names.push(name_of(&StoredPlan { git_dir: planned_dir.clone(), item: item.clone(), attempt: *attempt }));
+            name = Some(name_of(&StoredPlan { git_dir: planned_dir.clone(), item: item.clone(), attempt: *attempt }));
         }
     }
-    return names;
+    return name;
 }
 
 /// What:
@@ -499,17 +557,36 @@ impl PushRetries {
     /// its
     ///  file name is known,
     /// so the forget keeps it and the round's own plan stays.
+    ///  A plan the same round plans again later is not published at all:
+    /// the last plan of a branch is the round's statement,
+    ///  and publishing an earlier one would remove the file the last one's worker already wrote,
+    /// leaving a forget
+    ///  replayed between them nothing to keep
+    /// and a restarted service no plan where a notice promised a retry.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// for (const [at, change] of changes.entries()) { if (change.forget) forgetKeeping(branch, laterPlanNames(changes.slice(at + 1))) else plan(change) }
+    /// for (const [at, change] of changes.entries()) {
+    ///   if (change.forget) forgetKeeping(branch, lastPlanName(changes.slice(at + 1)))
+    ///   else if (!plannedAgainAfter(changes, at)) plan(change)
+    /// }
     /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
         for index in 0..changes.len() {
+            // A service killed here has applied the changes before this one and nothing after it.
+            #[cfg(test)]
+            if stopped_after(index) {
+                return;
+            }
             match &changes[index] {
-                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), item, *attempt, *due),
+                RetryChange::Plan { git_dir, item, attempt, due } => {
+                    if planned_again_after(changes.as_slice(), index, git_dir, item.branch_ref.as_str()) {
+                        continue;
+                    }
+                    self.plan(git_dir.as_path(), item, *attempt, *due)
+                }
                 RetryChange::Forget { git_dir, branch_ref } => {
-                    let keep: Vec<String> = later_plans_of(changes.as_slice(), index + 1, git_dir, branch_ref);
+                    let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
                     self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice());
                 }
             }

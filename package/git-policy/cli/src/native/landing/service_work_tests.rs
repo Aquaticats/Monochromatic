@@ -1086,6 +1086,64 @@ fn a_plan_kept_after_an_older_forget_survives_its_replay() {
 }
 
 /// What:
+///  A round that plans a retry, forgets the branch and plans it again leaves the last plan after a kill at any
+///  of its changes.
+/// Why:
+///   The workers publish their plans at once,
+/// so replaying the first plan removes the file the second one wrote,
+/// and the forget replayed after that finds nothing to keep;
+/// a restarted service would then find no retry where the newer
+///  push's notice promised one.
+#[test]
+fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes() {
+    let repo: Repo = repo("work-retry-plan-forget-plan");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let older: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let newer: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    let _first: String = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &older, 1, "the network is down");
+    replanning.forget(repo.common.as_path(), BRANCH);
+    let _second: String = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newer, 1, "the network is down");
+    assert_eq!(replanning.changes.len(), 3, "a plan, a forget and a plan");
+    let newest_name: String = crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan {
+        git_dir: repo.common.clone(),
+        item: newer.clone(),
+        attempt: 1,
+    });
+    for stopped_after in 0..replanning.changes.len() {
+        // The state the workers left: the plan they published,
+        // and the earlier one their own saves took away.
+        for entry in std::fs::read_dir(plans.as_path()).into_iter().flatten().flatten() {
+            std::fs::remove_file(entry.path()).expect("the plans of the round before");
+        }
+        crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan {
+            git_dir: repo.common.clone(),
+            item: newer.clone(),
+            attempt: 1,
+        })
+        .expect("the plan the newer push's worker published");
+        let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+        {
+            // The service is killed after that many of the round's changes, as a kill at any instruction leaves it.
+            let _stopped = crate::push_retry::stop_after_in_a_control(stopped_after);
+            retries.apply(replanning.changes.clone());
+        }
+        let on_disk: Vec<crate::push_retry_store::StoredPlan> = crate::push_retry_store::load(plans.as_path());
+        assert_eq!(
+            on_disk.len(),
+            1,
+            "a kill after {stopped_after} of the round's changes leaves one plan: {on_disk:?}"
+        );
+        assert_eq!(
+            crate::push_retry_store::name_of(&on_disk[0]),
+            newest_name,
+            "and it is the newer push's, as its notice said"
+        );
+    }
+    remove(repo.root.as_path());
+}
+
+/// What:
 ///  A push whose retry plan cannot be kept is not told that the service keeps trying.
 /// Why:
 ///   The plan is what keeps that promise across a restart;
