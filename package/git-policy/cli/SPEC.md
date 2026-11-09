@@ -2793,8 +2793,10 @@ counted with `strace` over ten commits on 2026-11-07),
 rounded up to a power of two.
 The commit Git builds in the scratch repository runs with the terminal attached and no watch,
 so its entry (`git commit`) is the
-only record of its time,
-signing included.
+only record of the time Git itself took,
+signing and the work Git does included,
+and the notice's own time and the time a program below the step ran are in `scratchSteps` beside it,
+never inside it.
 The gateway call's total deadline is `ureq`'s `global` timeout,
 set to `REVIEW_CALL_CEILING`;
 the transport's other timeouts
@@ -2829,10 +2831,72 @@ the signing program,
 and when the step is stopped:
 a commit whose message came with the command (`-m`,
 `-F`,
-`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
-everything below the command ended with `SIGKILL`,
-the command failing with a message that says nothing was committed and to run the same command again;
+`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`,
+16,332 ms:
+three times the slowest `git commit` step record that is not one of the three over 26 s,
+5,444 ms,
+in the 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5 read on 2026-11-09;
+owner,
+2026-11-08,
+"About 16 seconds"),
+that `git commit` and the processes it started ended with `SIGKILL` and no other child of the command touched
+(the notice holds the pidfd the step was given the moment it started and signals through it and nothing else,
+reads the programs below the step first and asks that descriptor afterwards whether the step is still there,
+so a walk taken while the step was alive is discarded when it ended in the meantime,
+and signals the step whatever that walk came to,
+recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
+so one of them may still be running),
+a stop recorded only when a signal was really taken for the step,
+only `ESRCH` from the descriptor's signal read as the step being gone,
+with every other refusal,
+and a look that could not be made,
+leaving the ceiling armed rather than standing down,
+and the command failing with a message that says nothing was committed and to run the same command again;
+a step whose start the kernel refused a descriptor for is taken again at the ceiling,
+and only one proof is accepted before anything is sent:
+the step's record must say the number is a living child of this process that has not been reaped,
+which is the one moment the kernel cannot have given that number to another process
+(a child that exits in the instant before the signal becomes a zombie that still holds the number and discards it);
+with that proof a descriptor is made then,
+or the signal goes to the proved number,
+a record that names another parent means the child was reaped and the step ended,
+so nothing is sent,
+and a record that cannot be read leaves the ceiling armed;
+its lines are written by a thread of their own,
+handed over a queue of one line,
+so a reader that stopped reading holds that thread and never the ceiling,
+a line that cannot be handed over is dropped and counted (`linesDropped`),
+`finish` waits for the notice's answer and for the line already handed over no longer than `NOTICE_BOUND`
+(twice `LOOK_INTERVAL`),
+and a command that ended prints nothing more:
+the writer stops at its next line,
+so at most the one line already inside a write can still reach the reader after the command is over,
+and the writer ends there rather than living on beside a reader that stopped reading;
+a member the kernel refuses a pidfd for is never signalled by its number,
+and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
+
+##### The one wait the ceiling cannot end
+
+A step whose start the kernel refused a descriptor for is ended at the ceiling by the proof above.
+The one state in which no ceiling can end it is both failures at once:
+the start made no descriptor,
+and `/proc` cannot be read at the ceiling,
+so the step's number cannot be proven to be this process's own unreaped child.
+Then nothing is sent,
+the ceiling stays armed,
+and the notice keeps printing what it knows at its cadence until `/proc` reads again,
+at which point the ceiling fires,
+or until the step ends by itself.
+The person sees the usual waiting lines,
+the last of which promises the stop at the ceiling,
+and a commit that lasts longer than the ceiling says so every cadence;
+`run_native_commit_within` reaches its stop only when the ceiling does.
+This is named here rather than bounded because no honest bound exists:
+the wrapper may not signal a number it cannot prove,
+and the owner's rule against killing another command's process stands.
+The uninterruptible wait after a delivered signal is the separate owner question in
+`doc/handover/questions-for-the-owner.md`.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -3389,6 +3453,27 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  After a commit was prepared,
+  that failure reads the branch once (`git merge-base --is-ancestor <prepared> <reference>`)
+  and states what it shows:
+  that the branch holds the commit this command prepared,
+  at its tip or under a later commit,
+  so the commit was made and the command returns the landed commit with exit 0,
+  reporting the landing and handing the after-commit work over as the answer that landed does,
+  through the one function both paths share,
+  so that a refusal from the work after a landed commit is a warning in either
+  path and never the command's failure;
+  that it does not hold it,
+  so the commit was not made by this command,
+  though the service may still land it;
+  or that the branch could not be read,
+  which keeps the words "not known whether the commit was made".
+  The read waits for nothing,
+  and a commit the service builds itself from the request leaves the third answer,
+  because the wrapper has no commit to compare the branch with (2026-11-09T07:44:20Z:
+  a message said the commit was
+  not known to have been made,
+  and the service landed it 73 seconds later).
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -6286,6 +6371,14 @@ which records it once the index and the branch are read together.
 A link is compared by what Git stores for a link,
 the hash of its target text with mode `120000`,
 never by hashing through it.
+That comparison cannot tell a restoration the person staged from one they made without staging it:
+a dangling link whose target text was put back leaves the same index entry either way,
+and nothing is lost in either case,
+because the entry the repair compares is the one the person's own index holds.
+The repair leaves such a path out when the index still holds the text the landing replaced and the
+worktree holds different text,
+and the notice names it,
+so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
 where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
@@ -8632,6 +8725,30 @@ and `statDataKept` says whether that build started from a copy of the real index
 keeping the cached stat data of every entry its tree shares with it;
 a build from the base or the tree alone holds none,
 and the scratch commit then hashes every file of the work tree),
+`scratchSteps`
+(one entry per build of the scratch `git commit`,
+empty for a commit that ran none,
+in the order the builds ended:
+`ceilingMs` the ceiling that build ran under,
+`null` for a commit that may open an editor,
+`armed` whether a notice thread ran to enforce it,
+`stoppedAfterMs` how long the step had lasted when the notice ended it,
+recorded only when a signal was really taken for the step,
+`noticeMs` how long the notice's own end took after the step ended,
+`wroteMs` how long the writer spent on the lines it finished,
+`linesDropped` how many lines it dropped because a reader stopped taking them,
+`looks` and `looksFound` how many looks it made for the step and how many found it,
+`below` one entry per program that ran below the step with the milliseconds the same process number,
+start time and name were seen at the look interval,
+kept with a zero bound when a look saw it only once,
+`belowCpuMs` the processor time everything below the step had used at the last look,
+`belowUnlisted` whether the programs below the step could not be listed when it was ended,
+so one of them may still be running,
+`blindLooks` how many looks could not be made at all because `/proc` refused the read,
+and `blockedLooks` how many looks found one of them in uninterruptible sleep;
+an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;
+the record's own `git commit` step figure is the child alone,
+so `noticeMs` and `below` are never inside it),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,
@@ -8913,11 +9030,26 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   Git prints `ignoring <signature> extension` on standard error and answers,
   so the reader declines instead of answering in silence.
   `TREE`,
-  `UNTR`,
-  `EOIE` and `IEOT` are read without a word on any body they are handed,
+  `UNTR` and `EOIE` are read without a word on any body they are handed,
   so those answer,
-  and `REUC` and `FSMN` answer only when their bodies read the way Git reads them,
-  because Git words a body it cannot read for those two.
+  and `REUC`,
+  `FSMN` and `IEOT` answer only when their bodies read the way Git reads them,
+  because Git words a body it cannot read for those three.
+  An `IEOT` table is read when `index.threads` turns threaded loading on and a valid
+  end-of-entries (`EOIE`) extension is present:
+  `read_ieot_extension` (`read-cache.c`,
+  Git 2.56.0) prints `error: invalid IEOT version <n>`
+  for a version other than 1,
+  and it then seeks each block by the table's own byte offsets,
+  so a table naming other bytes is a different listing or none at all
+  (measured on Git 2.56.0,
+  a first block one byte off ends Git without a word,
+  and a first block pointing into the header prints `fatal: unknown index entry format 0xc0110000`).
+  The reader therefore answers an `IEOT` body only when it is version 1,
+  names at least one block,
+  and every block begins where this reader parsed an entry and together they cover all of them;
+  any other body is a decline,
+  so Git answers it.
   An unknown lower-case signature is a required extension,
   which Git stops on and the reader already declined.
 - A ref name Git itself would refuse.
@@ -8942,6 +9074,33 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   because the reader cannot prove Git's bytes for them.
   A listing that holds a name Git refuses declines whole:
   Git words such a name on standard error (`ignoring ref with broken name`) and prints the other refs without it.
+
+#### A ref listing past a measured count is left to Git
+
+`for-each-ref` is the one in-process answer whose cost grows with the repository rather than
+sitting in a Git start:
+every ref it prints is checked against the object database,
+because Git drops a ref whose object is missing (`warning: ignoring broken ref`)
+and the answer must drop it too.
+Measured on 2026-11-09 (release profile,
+arms alternating in one binary,
+this repository with 1442 refs and four packs of 514k objects):
+the answer took 13.7 ms at the median against 3.8 ms for `git for-each-ref`,
+and 10.8 ms of it was that check.
+Of those 10.8 ms,
+6.6 ms were the loose path lookup for every packed object;
+the packs are asked before the loose paths now,
+which leaves 4.3 ms for the check and 7.1 ms for the answer.
+The layout read and the ref walk alone take 1.8 ms,
+and with the measured 3.5 us per ref the answer meets the Git start near 490 refs and loses
+above them.
+`REF_LISTING_LIMIT` (256) is set well below that meeting point,
+because a larger object database makes each check dearer while the Git start stays a constant.
+A repository above the limit declines before the object database is opened or `refs/` is walked,
+and pays the layout read (0.5 ms) and the count of `packed-refs` before Git answers,
+which is the price of the capability rather than of the answer.
+Below the limit the answer is kept:
+a two-ref repository answers in 0.30 ms against 3.8 ms for the Git start.
 
 ### Verification
 

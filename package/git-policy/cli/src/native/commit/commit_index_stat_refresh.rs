@@ -11,7 +11,8 @@
 //! and the copy of every later commit holds the same stale stat data again.
 //!  With the ceiling of the scratch step
 //! (`SCRATCH_COMMIT_STEP_CEILING`,
-//! 3,006 ms)
+//! 16,332 ms,
+//! and 3,006 ms at the time of that commit)
 //! that stopped a commit on every attempt after the move to the 860 drive,
 //! and the same command failed the same way
 //! (`doc/handover/cli-git-rust-implementation.md`,
