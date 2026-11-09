@@ -470,10 +470,22 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   for the Git directory itself
   (`git rev-parse --path-format=absolute --git-common-dir` and `--absolute-git-dir`),
   and for `core.hooksPath`
-  (`git config --type=path --get core.hooksPath`).
+  (`git config --type=path --null --show-scope --get-all core.hooksPath`).
   Each pathname is asked for on its own,
-  and each answer is read as bytes with only its one terminating line feed removed,
+  and each answer is read as bytes with only its one terminator removed,
   so a pathname that holds a line feed or bytes that are not UTF-8 is read exactly as Git printed it.
+  The hooks path is every value of the key with its scope,
+  NUL-delimited:
+  a configured directory whose name holds a line feed is one value,
+  and splitting the listing on line feeds read it as two and scanned a directory the person never named.
+  The configured directory is the last value that is not one of the wrapper's own hooks-off
+  directories:
+  a run inside a Git the wrapper started carries the wrapper's value last as command-scope configuration,
+  and must scan the person's directory and not `/dev/null/cli-git-no-hooks`.
+  A value counts as the wrapper's own only when Git reported it in the `command` scope and it names the
+  wrapper's own directory (see "Commit hooks"),
+  so a configuration file that merely spells such a path stays the person's and is scanned
+  (`src/native/health/doctor.rs`).
 - It scans `<git-common-dir>/hooks` and,
   when `core.hooksPath` is set,
   the directory it names.
@@ -489,6 +501,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   except names ending in `.sample`.
   Plain files without an execute bit,
   directories and samples are not hooks.
+  An entry that is gone by the time it is looked at,
+  deleted or replaced by another terminal or by a Git LFS upgrade after the directory was listed,
+  is not a hook and does not end the scan:
+  the report lists the hooks that are there.
+  A directory that cannot be read,
+  and an entry that fails to be looked at for any other reason,
+  is still an error with status 2.
 - A hook file that is byte for byte the shim git-lfs writes for its own name
   (`pre-push`,
   `post-checkout`,
@@ -3207,18 +3226,40 @@ of the review call and of the whole review).
   so it
   does not die of `SIGPIPE` when the command exits,
   and the system's init or subreaper reaps it.
-- The person's hook is never ended.
-  No hook of the person runs below a step the wrapper starts,
+- The person's hook is never ended by a step the wrapper starts for itself.
+  No hook of the person runs below such a step,
   because every Git the wrapper starts carries
   `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`),
   so the watch
   needs no way
   to tell a hook from Git.
   The stop signals the step and the processes it started and never a process beside it.
-  If hooks are ever started below a watched step,
-  a descendant that is a hook must count as work before this rule is
-  true.
-  The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+  A push to a local path or a `file://` remote is the one place a hook of the person runs below a watched step:
+  the setting does not follow the push into the remote,
+  so the remote's own `receive-pack` runs its `pre-receive`,
+  `update` and
+  `post-receive` hooks in the push's tree,
+  and the stop of a stalled push ends them with it (`src/native/push/bounded_push.rs`).
+  Such a stop is reported as what is known and nothing more:
+  that the push was stopped,
+  that the remote may or may not
+  have taken it,
+  and whether a retry is planned.
+  Nothing asks the remote what it holds,
+  because no question can
+  settle it:
+  the wrapper cannot know which object Git really sent,
+  which of a remote's push URLs went first,
+  or
+  which configuration shaped the attempt,
+  and a claim of delivery is one a person stops pushing on.
+  The retry settles the
+  question instead:
+  a push of something the remote already has succeeds,
+  and that success clears the record of the
+  stopped push for the person (`src/native/push/bounded_push.rs`,
+  `service_push_retry_tests.rs`,
+  "a_stopped_push_whose_reference_landed_is_settled_by_its_retry_and_claims_nothing").
 - The thread that gives a second-pass command its input is bounded by the same window applied to the input:
   the pipe's
   writing end is non-blocking,
@@ -3843,7 +3884,10 @@ on the commit path:
   and an open
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
-  Hooks are never ended by the wrapper.
+  A step of the landing never ends a hook of the person:
+  every Git it starts carries the hooks-off options,
+  and the one place a hook of the person runs below a step of the wrapper is a push to a local path
+  (see "The person's hook is never ended by a step the wrapper starts for itself").
 - A landing that ends before its intent is in the journal,
   and a restart that drops an open batch whose branch has not moved,
   keep the same two things:
@@ -4745,7 +4789,10 @@ in-process reader can) gives every value of the multi-valued keys.
   the connection closes or TCP gives up.
   A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime`
   reach Git unchanged and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
-  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
+  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before;
+  a stop says that the remote may or may not have taken the push and whether a retry is planned,
+  and the retry
+  is what settles it (`src/native/push/bounded_push.rs`).
   There is no ceiling:
   no total time ends a run that shows progress or holds an open connection (pick 5,
   above).
@@ -4804,7 +4851,14 @@ in-process reader can) gives every value of the multi-valued keys.
   seconds after a stop,
   which justify the kill and the sweep and not five seconds;
   an open question for the owner),
-  and reported as failed with exit code 124.
+  and reported with exit code 124.
+  The report names what was cut short,
+  says that the remote may or may not have taken the push,
+  and says whether a retry is planned;
+  it never claims a delivery,
+  because no question of the remote can settle one
+  (see "Commit hooks",
+  `src/native/push/bounded_push.rs`).
   The same stop (a catchable request,
   five seconds,
   then the kill) ends every Git child the wrapper stops:
@@ -4933,6 +4987,40 @@ in-process reader can) gives every value of the multi-valued keys.
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
   A successful push shows only the `remote:` lines and the lines of the reconcile.
+- The record a later command shows carries what the push came to,
+  as the first line of the record file,
+  and the notice is
+  worded from that:
+  a push Git refused delivered nothing,
+  so the note says the commit exists only on this computer;
+  a push
+  that was stopped or failed for a reason that can pass proves nothing about the remote,
+  so the note says it did not
+  finish,
+  that the remote may or may not have taken the commit,
+  and what happens next,
+  which follows the retry plan that still exists:
+  the service keeps the push in its retry plan,
+  or,
+  when the round that wrote the
+  record kept none,
+  it is not trying the push again by itself and the person pushes by hand
+  (`src/native/push/push_failure_notice_wording.rs`).
+  A round says so as it writes the record,
+  because it is the round that plans the next try or forgets the
+  branch's plan,
+  and a notice promising a try that was forgotten sends the person to wait for nothing.
+  No wording is ever chosen from the
+  text of Git's output or a remote hook's,
+  because a remote's hook controls that text:
+  a hook that prints the wrapper's own
+  delivery sentence is shown as what Git said and changes no framing
+  (`src/native/push/push_failure_notice.rs`).
+  The notice claims no delivery at all,
+  in any framing:
+  a stopped or unfinished push says only that it did not finish and that the remote may or may
+  not have taken the commit,
+  and the retry is what settles it.
 
 ### Manual push
 
@@ -6773,11 +6861,18 @@ a line still waiting at that ceiling is abandoned and logged.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
+The value it names is the last entry of the key that is not one of those overrides:
+an entry a
+wrapper-started Git put into a child as command-scope configuration is last in that child,
+and the warning is
+about the path the person configured,
+not about the one the wrapper injected.
 An override is recognized only as a `command` scope value
 (the only place the wrapper's overrides come from)
 that names `<git-common-dir>/<data folder>/shadow/<transaction>/no-hooks`,
 where the data folder is `monochromatic-git-policy-cli` or its earlier spelling:
-a path that merely ends the same way belongs to whoever made it and still warns.
+a path that merely ends the same way belongs to whoever made it and still warns,
+and so does such a path written into a configuration file.
 
 ### Core finding event
 
@@ -8854,6 +8949,36 @@ and the executable does not read the name it was started under.
   events and the ways forward (remove the keys,
   or express what the hook checked as a monochromatic-git-policy-cli policy under `policies`
   in `monochromatic-git-policy-cli.config.jsonc`).
+  A hook the author switched off is not named:
+  neither by its own `hook.<name>.enabled=false` nor by every event it asks for having
+  `hook.<event>.enabled=false`,
+  which is Git's own switch for the whole event
+  (`git hook list` reports such a hook as `event-disabled`).
+  The two switches are read from different places,
+  because the wrapper supplies only one of them:
+  - `hook.<event>.enabled` is read from the configuration files,
+    the `command` scope left out,
+    because the
+    wrapper itself supplies `false` for every event on every Git it starts,
+    a Git child passes those values on through
+    `GIT_CONFIG_PARAMETERS`,
+    and reading them here let the wrapper's own suppression hide a hook the person
+    configured,
+    from doctor and from the commit warning alike.
+  - `hook.<name>.enabled` is read the way Git reads it,
+    every scope,
+    the `command` one last and
+    winning,
+    because the wrapper writes no such switch at all:
+    a `-c hook.<name>.enabled=true` is the caller's own
+    choice,
+    and a `-c ...=false` is too,
+    so neither is discarded.
+  A hook that asks for no event,
+  or has an event and no command,
+  is named:
+  the first never runs and the second makes Git refuse the event,
+  and the warning says neither runs through the wrapper.
   `git monochromatic-git-policy-cli doctor` lists the same hooks,
   one `hook.<name> (events: ...)` line each,
   and exits 1 while any remain.
