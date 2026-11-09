@@ -3114,13 +3114,33 @@ and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
 
-`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` tell the reader to run `mpm update -g <tool id>`,
-and the README says it works from any directory.
-Run at 2026-11-08 from the home folder and from the repository,
-that command reached the real `mpm`,
-which answered `Error: No such option '-g'.` under `Usage: mpm upgrade [OPTIONS]`.
-`mise exec -- mpm-shadow update -g <tool id>` is the route that reached the shadow.
-What decides between them is not measured yet.
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` told the reader to run `mpm update -g <tool id>`
+for the machine-global lock.
+Measured 2026-11-08 and fixed on branch `fix/mpm-shadow-printed-global-update-reaches-the-shadow`:
+what decides is the program the shell starts,
+not the verb.
+`toolchain-global/exposure/mpm` is a link to `~/.local/bin/mpm`,
+the uv tool `meta-package-manager`,
+which the global plan's `mpm` entry exposes;
+no scope but a worktree's `PATH` ever makes `mpm` the shadow,
+through `.cache/mpm-shadow-bin/mpm`,
+the `mpm-shadow` entry's postinstall link.
+Started as `mpm`,
+the real program maps `update` onto its own `upgrade` and refuses `-g`;
+started as `mpm-shadow`,
+the shadow runs the verb (`names_a_declared_verb`,
+`src/main.rs`).
+The sentence and the README now name `mpm-shadow`,
+and `tests/printed_remedy.rs` runs the warning's own command in a disposable home.
+
+Still open,
+because it is the owner's file under the config directory:
+the machine-global plan declares no `mpm-shadow` entry,
+so `mpm-shadow` is not on the machine `PATH` either.
+Adding the entry the repository plan carries (`route: archive`,
+`bins: ["mpm-shadow"]`,
+`tagPrefix: monochromatic-mpm-shadow-v`,
+then `mpm-shadow install -g`) exposes it in the global exposure directory.
 
 Ordered behind other work rather than waiting for a slot:
 
