@@ -332,20 +332,42 @@ The old tree kept for the rollback stays until the owner deletes it.
   `rustup component list --installed --toolchain stable` prints `clippy-x86_64-unknown-linux-gnu`,
   `rustup which --toolchain nightly-2026-10-30 rustc` prints that toolchain's path,
   and `RUSTUP_AUTO_INSTALL=0 rustup which --toolchain stable-aarch64-apple-darwin rustc` exits 1.
+  Run 3 merged main again (`0512b66f1b`) and fixed the four findings of
+  `${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`,
+  all in the prune except the last:
+  `96c97c19e3` makes a crate directory the version scan cannot read refuse the prune
+  instead of reading as an empty crate,
+  which removed the whole directory including a locked version;
+  `6db38989cb` lists the installed versions before any lock is read,
+  so an installation that lands while the locks are read is never in the list the run deletes from;
+  `0952976ad5` repoints `current` to the newest finished version before deleting,
+  so a run killed in between leaves a link that resolves;
+  `0059d5e8fc` makes a moving channel (`stable`) prove it still holds the release the lock records
+  by running the `rustc` that `rustup which` resolved,
+  which only a hand-written `packageId` can need,
+  since this plan writes `packageId: "{version}"`.
+  710 of 710 tests and Clippy pass on top of main,
+  the cargo runs inside `systemd-run --user --scope`.
   Open:
+  the second scan of the prune reaches the same refusal through the same `?`,
+  but an interleaving that makes only that scan fail needs a hook between the deletion loop and the rescan,
+  which the module does not have;
+  a row naming a bare `nightly` with a dated version text still reads `ok`,
+  because the compiler of a bare channel reports no channel date;
   no real release tag holding `+`,
   `#` or `/` was found to test the encoder against,
   so a tag with `/` may still not resolve (it did not before either);
   the `packageId` requirement on `cargo-git` rows waits for the owner;
   issue comments for 2623,
   3511 and 3512 wait for the merge.
-  One probe side effect:
+  One probe side effect from run 2:
   `rustup component list --installed --toolchain 1.79.0` installed that toolchain in the real rustup home
   before the `RUSTUP_AUTO_INSTALL=0` guard existed,
   and it was uninstalled again from there;
   `1.99.0-x86_64-unknown-linux-gnu`,
-  which no step of this round installed,
-  appeared in the same home during it.
+  which no step of these rounds installed,
+  appeared in the same home during run 2.
+  Run 3 probed only an installed channel on the real home and an absent one in a throwaway `RUSTUP_HOME`.
   The review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`) names a race on an explicit `--lock`,
   which main has worse because it always deletes,
   and rustup observation and reconciliation looking at different toolchains,
