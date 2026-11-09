@@ -13,12 +13,13 @@
 
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::sync_directory;
-use crate::side_by_side_threads::run_all_side_by_side;
+use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::write_journal;
 use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase, TEMPORARY_SUFFIX};
 use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// What:
 ///  Makes every directory of a stage owner-accessible before its entries are deleted.
@@ -155,12 +156,15 @@ const REMOVAL_SPLIT_DEPTH: usize = 3;
 /// Why:
 ///   Workers share only the cursor,
 /// so each subtree has exactly one owner and no lock is taken.
+/// The worker is a job of the blocking pool,
+/// which must own what it reads,
+/// so the cursor and the subtrees travel as shares of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (let i = cursor.next(); subtrees[i] !== undefined; i = cursor.next()) await rm(subtrees[i], { recursive: true });
 /// ```
-fn remove_subtrees_until_none_is_left((cursor, subtrees): (&std::sync::atomic::AtomicUsize, &[PathBuf])) -> std::io::Result<()> {
+fn remove_subtrees_until_none_is_left((cursor, subtrees): (Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>)) -> std::io::Result<()> {
     loop {
         let index: usize = cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let Some(subtree) = subtrees.get(index) else {
@@ -171,21 +175,84 @@ fn remove_subtrees_until_none_is_left((cursor, subtrees): (&std::sync::atomic::A
 }
 
 /// What:
+///  Remove the subtrees of one removal with as many workers as the host leaves,
+/// each worker a job of the blocking pool,
+/// and give one outcome per worker.
+/// Why:
+///   The unlinks are independent,
+/// so they run side by side,
+/// and every worker takes a place of the process's one bound
+/// on blocking jobs before its work runs
+/// (`side_by_side_on_the_runtime.rs`).
+/// The person waits here while the pool works,
+/// never on a worker of the runtime that polls tasks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcomes = await Promise.all(workers.map(() => runBlockingJobWithinTheBudget(() => removeSubtrees(cursor, subtrees))));
+/// ```
+async fn remove_subtrees_awaiting(
+    (cursor, subtrees): (Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>),
+    workers: usize,
+) -> Vec<std::io::Result<()>> {
+    let mut states: Vec<(Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>)> = Vec::new();
+    for _worker in 0..workers {
+        states.push((Arc::clone(&cursor), Arc::clone(&subtrees)));
+    }
+    let mut outcomes: Vec<std::io::Result<()>> = Vec::new();
+    for answer in run_all_side_by_side_on_the_runtime(states, remove_subtrees_until_none_is_left).await {
+        outcomes.push(match answer {
+            Ok(outcome) => outcome,
+            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(std::io::Error::other("a removal worker panicked")),
+            Err(refused) => Err(std::io::Error::other(format!("a removal worker did not run ({refused})"))),
+        });
+    }
+    return outcomes;
+}
+
+/// What:
 ///  Removes a directory tree,
-/// sharing the subtrees below a split depth among a bounded set of threads.
+/// sharing the subtrees below a split depth among a bounded set of workers of the blocking pool.
 /// Why:
 ///   Unlinking a staged copy entry by entry took longer than staging it on a tree of hundreds of thousands of entries;
 ///  the unlinks are independent,
-/// and the thread count follows the host's budget (the CPUs the process may use less a margin,
+/// and the worker count follows the host's budget (the CPUs the process may use less a margin,
 /// and the free
 ///  memory),
 /// capped at eight.
+/// The walk to the split depth and the removal of what is left above it run on the calling thread,
+/// which is this call's own;
+/// the subtrees below it are removed by jobs of the pool.
+/// The callers of this face are synchronous (the recovery of an interrupted copy and the reaping of
+/// abandoned stages),
+///  so it enters the process's runtime once and waits there;
+/// where no runtime can be built the removal reports it,
+/// and `remove_tree_if_present` falls back to one plain recursive removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await removeTreeSplit(path); // rm -r, with the subtrees removed concurrently
 /// ```
 pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
+    return match crate::lazy_runtime::run_on_runtime(remove_tree_split_awaiting(path)) {
+        Ok(outcome) => outcome,
+        // Nothing was removed, and the reason the runtime could not run the workers is why.
+        Err(refusal) => Err(std::io::Error::other(format!("the subtrees below {} were not removed side by side ({refusal})", path.display()))),
+    };
+}
+
+/// What:
+///  `remove_tree_split` on the process's runtime:
+/// the split walk here and every subtree below the split depth removed by a job of the blocking pool.
+/// Why:
+///   A caller that is itself a task of the runtime cannot enter it,
+///  so it awaits this face instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function removeTreeSplit(path: string): Promise<void>;
+/// ```
+async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
     let mut shallow: Vec<PathBuf> = vec![path.to_path_buf()];
     let mut level: Vec<PathBuf> = vec![path.to_path_buf()];
     let mut subtrees: Vec<PathBuf> = Vec::new();
@@ -208,19 +275,8 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
         level = next;
     }
     let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
-    let cursor: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let mut worker_states: Vec<(&std::sync::atomic::AtomicUsize, &[PathBuf])> = Vec::new();
-    for _worker in 0..workers {
-        worker_states.push((&cursor, subtrees.as_slice()));
-    }
-    let mut outcomes: Vec<std::io::Result<()>> = Vec::new();
-    for joined in run_all_side_by_side(worker_states, remove_subtrees_until_none_is_left) {
-        outcomes.push(match joined {
-            Ok(outcome) => outcome,
-            Err(_panic) => Err(std::io::Error::other("a removal worker panicked")),
-        });
-    }
-    for outcome in outcomes {
+    let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
         outcome?;
     }
     for directory in shallow.iter().rev() {
