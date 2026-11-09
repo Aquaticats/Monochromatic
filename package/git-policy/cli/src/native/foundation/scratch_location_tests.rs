@@ -168,57 +168,35 @@ fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
     remove(root.as_path());
 }
 
-/// A sweep keeps the tree of a command that still runs however old that tree is,
-/// and takes one whose owner is gone without waiting for an age:
-/// the sweep and the collection a preparation does are one decision,
-/// and age alone must never take a live command's private index and typed message.
+/// A sweep keeps a commit tree that has not been abandoned,
+/// however its owner looks,
+/// because a landing that a killed client left queued is still reading it;
+/// and a tree nothing has written for the abandonment age goes,
+/// long before the sweep's own day has passed.
 #[test]
-fn a_sweep_keeps_a_live_commands_tree_and_takes_a_gone_ones() {
+fn a_sweep_keeps_a_tree_that_may_still_be_read_and_takes_one_that_is_abandoned() {
     let root: PathBuf = fixture("scratch-sweep-owner");
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
     std::fs::create_dir_all(&scratch).expect("scratch directory");
-    let live: PathBuf = scratch.join("monochromatic-git-policy-cli-service-live1");
-    std::fs::create_dir_all(&live).expect("a live command's tree");
-    std::fs::write(live.join("commit.index"), b"index").expect("a file in the tree");
-    crate::service_scratch_abandonment::mark_the_owner(live.as_path());
-    // A commit can hold its tree past any age, so the sweep's day proves nothing about the command that made it.
-    age(live.as_path(), SCRATCH_STALE_AFTER * 2);
-    let dead: PathBuf = scratch.join("monochromatic-git-policy-cli-service-dead1");
-    std::fs::create_dir_all(&dead).expect("a killed command's tree");
-    let gone: String = format!("{}{}0 0 1.1:0\n", crate::service_index_marker::LOCK_MARKER, crate::service_index_marker::MARKER_VERSION);
-    std::fs::write(dead.join("owner"), gone.as_bytes()).expect("a marker naming a process that is gone");
+    let read_by_a_landing: PathBuf = scratch.join("monochromatic-git-policy-cli-service-recent1");
+    std::fs::create_dir_all(&read_by_a_landing).expect("a tree a landing is reading");
+    std::fs::write(read_by_a_landing.join("commit.index"), b"index").expect("a file in the tree");
+    // The client that made this tree was killed a moment ago, and nothing a marker says can take the tree from its landing.
+    let gone: String = format!(
+        "{}{}0 0 1.1:0\n",
+        crate::service_index_marker::LOCK_MARKER,
+        crate::service_index_marker::MARKER_VERSION
+    );
+    std::fs::write(read_by_a_landing.join("owner"), gone.as_bytes()).expect("a marker naming a process that is gone");
+    age(read_by_a_landing.as_path(), Duration::from_secs(60 * 60));
+    let abandoned: PathBuf = scratch.join("monochromatic-git-policy-cli-service-gone1");
+    std::fs::create_dir_all(&abandoned).expect("a tree no command writes any more");
+    age(abandoned.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
     assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
-    assert!(live.exists(), "a live command's tree stays however old it is");
-    assert!(!dead.exists(), "a tree whose owner is gone goes without waiting for an age");
-    remove(root.as_path());
-}
-
-/// A sweep removes at most the number of entries one command is allowed to collect,
-/// oldest first,
-/// so a backlog another command left delays this one by that many removals and never by the backlog's length,
-/// and the next sweep takes the next of them.
-#[test]
-fn a_sweep_removes_at_most_its_share_of_a_backlog() {
-    let root: PathBuf = fixture("scratch-sweep-backlog");
-    let scratch: PathBuf = root.join("scratch");
-    std::fs::create_dir_all(&scratch).expect("scratch directory");
-    let share: usize = crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND;
-    let entries: usize = share * 2;
-    let named: Vec<PathBuf> = (0..entries).map(|at| { return scratch.join(format!("cli-git-left-{at}")); }).collect();
-    for (at, path) in named.iter().enumerate() {
-        std::fs::write(path, b"x").expect("an entry");
-        // Each entry is older than the one after it, so a full sweep removes the first of them.
-        age(path.as_path(), SCRATCH_STALE_AFTER * 2 + Duration::from_secs(u64::try_from(entries - at).expect("a small count")));
-    }
-    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), share, "one sweep removes the share");
-    let left: usize = named.iter().filter(|path| { return path.exists(); }).count();
-    assert_eq!(left, entries - share, "the rest wait for the next sweep");
-    assert!(!named[0].exists() && !named[share - 1].exists(), "the oldest go first");
-    assert!(named[share].exists(), "the youngest of the backlog wait");
-    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), share, "the next sweep takes the rest");
-    assert!(named.iter().all(|path| { return !path.exists(); }), "the backlog is gone in as many sweeps as it needs");
+    assert!(read_by_a_landing.exists(), "a tree written an hour ago may still be read by a landing");
+    assert!(!abandoned.exists(), "a tree nothing has written for the abandonment age goes, long before the day");
     remove(root.as_path());
 }
 

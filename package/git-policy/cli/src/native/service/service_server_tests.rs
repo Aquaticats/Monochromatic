@@ -228,25 +228,41 @@ fn the_batch_cap_is_the_measured_cost_knee() {
     assert_eq!(MAX_BATCH, BATCH_COST_KNEE);
 }
 
-/// A batch lands everything it carries before it removes a scratch directory it released:
-/// the tree a queued landing still reads is there while the landings run,
-/// and gone only after them.
+/// The tree a request names is still there while the landing that reads it runs,
+/// and goes once that landing is over:
+/// nothing else in the service removes it,
+/// and nothing removes it earlier.
 #[test]
-fn a_batch_lands_before_it_removes_a_released_tree() {
-    let root: std::path::PathBuf = short_directory("released");
-    let tree: std::path::PathBuf = root.join("monochromatic-git-policy-cli-service-0a1b2c3d");
-    std::fs::create_dir_all(&tree).expect("the tree a queued landing reads");
+fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
+    let root: std::path::PathBuf = short_directory("landed");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    let tree: std::path::PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-0");
+    std::fs::create_dir_all(&tree).expect("the tree a request names");
     std::fs::write(tree.join("conclusion"), b"copies the cleanup reads").expect("a conclusion copy");
-    let mut seen_by_the_landing: Option<bool> = None;
-    land_then_release(
-        || {
-            seen_by_the_landing = Some(tree.exists());
-        },
-        || {
-            let _removed = std::fs::remove_dir_all(&tree);
-        },
-    );
-    assert_eq!(seen_by_the_landing, Some(true), "a released tree is still there while the batch lands");
-    assert!(!tree.exists(), "the released tree goes once the batch has landed");
+    let index: std::path::PathBuf = tree.join("commit.index");
+    std::fs::write(&index, b"the private index").expect("a private index");
+    let trees: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(index.as_path(), git_dir.as_path()).into_iter().collect();
+    assert_eq!(trees, vec![tree.clone()], "a request names its tree through the private index it carries");
+    // The landing reads the tree; only after it is over does the service start the removal.
+    assert!(index.exists() && tree.exists(), "the landing has the tree it reads");
+    crate::service_server::remove_the_trees(trees.as_slice());
+    let began: std::time::Instant = std::time::Instant::now();
+    while tree.exists() {
+        assert!(began.elapsed() < std::time::Duration::from_secs(30), "the removal the landing started did not finish");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    remove_short(root.as_path());
+}
+
+/// A request that names a directory the wrapper did not make names no tree,
+/// so nothing removes it.
+#[test]
+fn a_request_that_names_a_foreign_directory_names_no_tree() {
+    let root: std::path::PathBuf = short_directory("foreign");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    let precious: std::path::PathBuf = git_dir.join("precious.index");
+    std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
+    std::fs::write(&precious, b"not the wrapper's").expect("a file the wrapper did not make");
+    assert_eq!(crate::service_scratch_release_removal::the_tree_of(precious.as_path(), git_dir.as_path()), None);
     remove_short(root.as_path());
 }

@@ -52,14 +52,6 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             }
             return Ok(ClientMessage::Withdraw { id: id.to_string() });
         }
-        "scratch" => {
-            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
-            let path: PathBuf = path_bytes::read_field(&value, "path")?;
-            if !is_scratch_path(path.as_path(), git_dir.as_path()) {
-                return Err(String::from("scratch directory is not acceptable"));
-            }
-            return Ok(ClientMessage::Scratch { git_dir, path });
-        }
         "warm" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
             let repository: PathBuf = path_bytes::read_field(&value, "repository")?;

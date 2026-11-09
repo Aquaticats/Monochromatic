@@ -1,10 +1,12 @@
 //! What:
-//!  The removal of a commit's scratch directory once the client that held it is gone.
+//!  The removal of a commit's scratch directory once the landing that read it is over.
 //! Why:
-//!  The service owns the directory while the client's connection is open and removes it when that connection closes,
-//!  by whatever means the client ended
-//!  (`service_server_connection_handling.rs`,
-//! `hold_a_scratch_directory`).
+//!  A request names the private index inside its tree,
+//!  and the landing reads the tree's contents,
+//!  so only that landing says when the tree is no one's
+//!  (`service_server.rs`,
+//! `remove_the_trees`).
+//!  Tying the removal to a connection instead took it from under a client killed while its request was still queued.
 //!  The removal is a recursive one,
 //!  and the record holds an `unlinkat` of a shaped tree at 2.5 s
 //!  (`doc/planning/cli-git-commit-latency-under-many-agents.md`),
@@ -31,6 +33,26 @@ use crate::blocking_job::run_blocking_job;
 /// A path and the span the removal is reported in.
 use std::path::PathBuf;
 use std::time::Duration;
+
+/// What:
+///  The commit's scratch tree that a request names,
+///  which is the directory the private index inside it lives in,
+///  when that directory is one of the wrapper's own trees of the worktree.
+/// Why:
+///   A request names its private index and nothing else about the directory,
+///  and the service must never remove a directory the wrapper did not make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = theTreeOf(request.index, request.gitDir); // undefined when it is not the wrapper's
+/// ```
+pub fn the_tree_of(index: &std::path::Path, git_dir: &std::path::Path) -> Option<PathBuf> {
+    let tree: &std::path::Path = index.parent()?;
+    if !crate::service_protocol_messages_and_name_checks::is_scratch_path(tree, git_dir) {
+        return None;
+    }
+    return Some(tree.to_path_buf());
+}
 
 /// What:
 ///  Starts the removal of one released scratch directory,

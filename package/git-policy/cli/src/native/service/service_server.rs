@@ -302,7 +302,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         ConnectionShared {
             queue: acceptor_queue,
             work: work_sender,
-            busy: Arc::clone(&busy),
             board: Arc::clone(&board),
             release: settings.release.clone(),
             instance: settings.instance.clone(),
@@ -392,7 +391,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         }
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
-        let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
                 Job::Withdraw(..) => {}
@@ -401,9 +399,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 }
                 Job::Retire => retiring = true,
                 Job::Activity => {}
-                // A released scratch directory waits until this batch's landings are done: a client killed while its request is
-                //  still queued closes its watch first, and that request's landing still reads the tree it released.
-                Job::Release(path) => releases.push(path),
                 Job::Commit(request, stream, arrival) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
@@ -418,16 +413,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 }
             }
         }
-        land_then_release(
-            #[cfg_attr(
-                dylint_lib = "monochromatic_lint_closure",
-                expect(
-                    avoidable_closure,
-                    reason = "the landings are this function's own loop body, whose locals the closure borrows; the order the two arguments are called in is the behaviour this control guards, so the phases stay one argument each"
-                )
-            )]
-            || {
-                for (_, queued_group) in groups.drain(..) {
+        for (_, queued_group) in groups.drain(..) {
+            // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
+            //  landing that reads it, and which the service removes once that landing is over.
+            let mut trees: Vec<std::path::PathBuf> = Vec::new();
+            for queued in &queued_group {
+                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.index.as_path(), queued.0.git_dir.as_path()) {
+                    trees.push(tree);
+                }
+            }
             // The shutdown waits for this landing and refuses one that would begin after the stop.
             let Ok(_landing_in_flight) = begin_unfinished_work(false, "a landing") else {
                 break;
@@ -462,32 +456,20 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             let group: Vec<Queued> = admitted;
             if group.is_empty() {
                 board.end_group(ids.as_slice());
+                remove_the_trees(trees.as_slice());
                 continue;
             }
             land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
             board.end_group(ids.as_slice());
+            // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
+            //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
+            remove_the_trees(trees.as_slice());
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
-                    if let Some(next_index) = index {
-                        start_prestage(next_index.as_path(), seq + 1);
-                    }
-                }
-            },
-            #[cfg_attr(
-                dylint_lib = "monochromatic_lint_closure",
-                expect(
-                    avoidable_closure,
-                    reason = "the releases are this batch's own list, and the second argument is the phase that may run only after the first; naming it as a value would hide the order this function exists to hold"
-                )
-            )]
-            || {
-                // The batch is landed and answered, so no landing reads these any more; each removal runs beside this loop,
-                //  bounded, and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
-                for path in releases.drain(..) {
-                    crate::service_scratch_release_removal::start(path);
-                }
-            },
-        );
+            if let Some(next_index) = index {
+                start_prestage(next_index.as_path(), seq + 1);
+            }
+        }
         // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
         if unsettled_locks() > 0 {
             crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
@@ -500,25 +482,22 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 }
 
 /// What:
-///  The order one batch's two kinds of work are done in:
-///  every group of requests is landed,
-///  and a scratch directory the batch released is removed only after that.
+///  Starts the removal of the scratch trees of the requests a group has just finished with,
+///  beside the loop.
 /// Why:
-///   A client killed while its request is still queued closes its watch before its landing reads the tree,
-///  so one batch can carry both that request and the release of the directory its landing needs:
-///  the private index and the conclusion copies a snapshot-checked cleanup reads.
-///  A removal that ran while the groups were assembled would destroy them,
-///  and the landing would fail on work that was already accepted.
-///  The removal itself is still beside the loop and bounded (`service_scratch_release_removal.rs`),
-///  and neither this order nor that removal makes the landing wait for it.
+///   The tree holds the private index and the conclusion copies a landing reads,
+///   so only the landing that named it may decide that it is done with it.
+///  A tree whose client is gone waits for that landing instead of for its connection to close,
+///  which is what makes a killed client's queued commit land on the tree it made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// landThenRelease(() => groups.forEach(land), () => releases.forEach(start));
+/// trees.forEach(startTheRemovalBesideTheLoop);
 /// ```
-fn land_then_release(land: impl FnOnce(), release: impl FnOnce()) {
-    land();
-    release();
+fn remove_the_trees(trees: &[std::path::PathBuf]) {
+    for tree in trees {
+        crate::service_scratch_release_removal::start(tree.clone());
+    }
 }
 
 /// Socket controls stay out of the release executable.

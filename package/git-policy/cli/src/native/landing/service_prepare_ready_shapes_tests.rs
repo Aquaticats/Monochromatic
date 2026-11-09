@@ -18,19 +18,10 @@
 /// The directory under control,
 /// and the place it is made.
 use super::Scratch;
-/// The marker a later command reads,
-/// and the rule it decides with.
-use crate::service_index_marker::{holder_is_running, marker_of};
-use crate::service_scratch_abandonment::{OWNER_MARKER, UNMARKED_SCRATCH_TREE_AGE, remove_abandoned_trees};
 use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
 use crate::test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
-
-/// Set an entry's modification time to `back` before now.
-fn age(path: &Path, back: Duration) {
-    std::fs::File::open(path).expect("open").set_modified(SystemTime::now() - back).expect("set modification time");
-}
+use std::path::PathBuf;
+use std::time::Duration;
 
 /// The names of this process's threads.
 fn thread_names() -> Vec<String> {
@@ -110,27 +101,6 @@ fn an_unusable_repository_scratch_directory_falls_back_to_the_git_directory() {
     let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
     let scratch: Scratch = Scratch::make(git_dir.as_path(), git_dir.as_path(), name).expect("the scratch tree");
     assert_eq!(scratch.0, git_dir.join(name));
-    drop(scratch);
-    remove(root.as_path());
-}
-
-/// The tree a command makes carries the marker of the process that made it,
-/// so a later command leaves it alone however old it is,
-/// and takes it once that process is gone.
-#[test]
-fn a_made_tree_names_the_command_that_made_it() {
-    let root: PathBuf = fixture("ready-shapes-scratch-marked");
-    let common: PathBuf = root.join("repo/.git");
-    std::fs::create_dir_all(&common).expect("common directory");
-    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let scratch: Scratch = Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
-    let marker: PathBuf = scratch.0.join(OWNER_MARKER);
-    let marked = marker_of(marker.as_path()).expect("the tree names the command that made it");
-    assert!(holder_is_running(marked.holder.as_ref()), "the marker names this live process");
-    // A live command can hold its tree for longer than any age rule allows for, so the age never decides the tree's fate.
-    age(scratch.0.as_path(), UNMARKED_SCRATCH_TREE_AGE * 2);
-    assert_eq!(remove_abandoned_trees(common.join(REPOSITORY_SCRATCH_NAME).as_path()), 0);
-    assert!(scratch.0.exists(), "a later command keeps a live command's tree");
     drop(scratch);
     remove(root.as_path());
 }

@@ -250,7 +250,6 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
     for message in [
         ClientMessage::Work { git_dir: git_dir.clone(), review_key: None },
         ClientMessage::Warm { git_dir: git_dir.clone(), repository },
-        ClientMessage::Scratch { git_dir: git_dir.clone(), path: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d") },
         ClientMessage::Commit(Box::new(sent)),
     ] {
         assert_eq!(decode_client(encode_client(&message).as_str()), Ok(message.clone()), "{message:?}");
@@ -356,26 +355,13 @@ fn a_request_without_a_capture_stamp_has_an_unknown_one() {
     assert_eq!(decoded.captured, 0);
 }
 
-/// A scratch announcement survives encoding.
-#[test]
-fn a_scratch_announcement_round_trips() {
-    let sent: ClientMessage = ClientMessage::Scratch {
-        git_dir: PathBuf::from("/work/repo/.git/worktrees/w"),
-        path: PathBuf::from("/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f"),
-    };
-    let line: String = encode_client(&sent);
-    assert!(!line.contains('\n'));
-    assert_eq!(decode_client(line.as_str()), Ok(sent));
-}
-
-/// The service removes what a scratch announcement names,
-/// so only the wrapper's own directory names directly inside the
+/// A cleanup and a request's index name the wrapper's own directory names directly inside the
 ///  repository scratch directory of the worktree,
 /// or directly inside the worktree's own Git directory as a release before this one made it,
-/// are accepted;
-/// every other path is refused at the decoder.
+/// and nothing else,
+/// which is the check `the_tree_of` asks before the service removes a tree.
 #[test]
-fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
+fn a_scratch_path_names_only_a_scratch_directory_of_the_worktree() {
     let root: PathBuf = fixture("protocol-scratch-names");
     let common: PathBuf = root.join("repo/.git");
     let git_dir: PathBuf = common.join("worktrees/w");
@@ -406,8 +392,7 @@ fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
     ] {
         assert!(!accepted(refused.clone()), "{}", refused.display());
     }
-    let hostile: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.clone(), path: root.join("precious") });
-    assert!(decode_client(hostile.as_str()).is_err());
+    assert!(!accepted(root.join("precious")), "a directory the wrapper did not make is never accepted");
     remove(root.as_path());
 }
 

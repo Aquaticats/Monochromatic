@@ -439,6 +439,13 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
     return Ok(());
 }
 
+/// The order two stale entries are removed in:
+/// the older one first,
+/// so a machine that keeps making them loses the oldest.
+fn older_first(left: &(SystemTime, PathBuf), right: &(SystemTime, PathBuf)) -> std::cmp::Ordering {
+    return left.0.cmp(&right.0);
+}
+
 /// What:
 ///  Remove every entry of `directory` last modified more than `max_age` before `now`,
 ///  within `ceiling` for each entry,
@@ -500,7 +507,7 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
         }
         stale.push((metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH), path));
     }
-    stale.sort_by(|left: &(SystemTime, PathBuf), right: &(SystemTime, PathBuf)| { return left.0.cmp(&right.0); });
+    stale.sort_by(older_first);
     let mut removed: usize = 0;
     for (_, path) in stale.iter().take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND) {
         // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the

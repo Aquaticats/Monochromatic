@@ -53,7 +53,7 @@ use crate::policy_engine::StageRequest;
 use crate::random_id::random_uuid;
 use crate::repository_facts::RepositoryFacts;
 use crate::scratch_location::SCRATCH_REFRESH_EVERY;
-use crate::service_client::{ClientConfig, FreshScratch, ScratchWatch, Submitted, submit_traced, watch_scratch};
+use crate::service_client::{ClientConfig, FreshScratch, Submitted, submit_traced};
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
@@ -119,7 +119,8 @@ pub fn service_commit<F: RepositoryFacts>(
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
     let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
-    let scratch_name: String = format!("monochromatic-git-policy-cli-service-{id}");
+    // The name carries the request's identity and, per attempt, that attempt's number: the service removes the tree of the attempt
+    //  whose landing is over, and the next attempt's tree must be another directory, or that removal would take it.
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
     //  it is gets decided once the preparation has passed every cheap decision (head, configuration, index, policies), so a
     //  commit the service never takes starts no Git for a message or an identity.
@@ -134,11 +135,6 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut retry: Option<Captured> = None;
     // The branch (or `HEAD`) the first preparation found, which every later preparation must find again.
     let mut first_reference: Option<String> = None;
-    // The commit's scratch directory, handed to the service once the first preparation made it: the service removes it when this
-    //  command ends, and when this process is killed, because the connection closes either way. Nothing in this process removes
-    //  it: a service that refused it, and a command that ends before it asked one, leave it in the repository scratch directory,
-    //  where the sweep of a later command removes it once it is abandoned (`scratch_location.rs`).
-    let mut scratch_watch: Option<ScratchWatch> = None;
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
@@ -150,6 +146,7 @@ pub fn service_commit<F: RepositoryFacts>(
         if let Some(captured) = retry.as_ref() {
             replay = Some(Retry { captured, attempt: u64::try_from(attempt).unwrap_or(u64::MAX) });
         }
+        let scratch_name: String = format!("monochromatic-git-policy-cli-service-{id}-{attempt}");
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
             allow_empty: invocation.region.allow_empty,
@@ -200,11 +197,6 @@ pub fn service_commit<F: RepositoryFacts>(
             };
             return Err(TransactionStop::Message(render(&failure)));
         }
-        if scratch_watch.is_none() {
-            scratch_watch = watch_scratch(&config, ready.inputs.capture.layout.git_dir.as_path(), ready.scratch.0.as_path());
-        }
-        // The service holds the tree from here on: it removes it when this connection closes, so this process must not.
-        ready.scratch.held_by_the_service(scratch_watch.is_some());
         if !decided {
             decided = true;
             if !ready.needs_native
@@ -303,7 +295,11 @@ pub fn service_commit<F: RepositoryFacts>(
             keep_fresh: Some(FreshScratch { path: ready.scratch.0.clone(), every: SCRATCH_REFRESH_EVERY }),
             ..config.clone()
         };
-        match submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit) {
+        let submitted: Result<Submitted, ClientFailure> = submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit);
+        // A request the service took is one whose tree the service removes once its landing is over, so this process leaves it
+        //  alone; a request the service never took leaves the tree to this process, which removes it as it ends.
+        ready.scratch.held_by_the_service(submitted.is_ok());
+        match submitted {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
                 let outcome: ServiceCommit = the_landed_commit(LandedAftermath {

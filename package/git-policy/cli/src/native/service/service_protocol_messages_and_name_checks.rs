@@ -354,17 +354,6 @@ pub enum ClientMessage {
         /// as the client sent it.
         id: String,
     },
-    /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open;
-    /// the
-    ///  service removes the directory when the connection closes,
-    /// whatever closed it.
-    Scratch {
-        /// The worktree's own Git directory,
-        /// which holds the directory and names the instance that removes it.
-        git_dir: PathBuf,
-        /// The scratch directory (`monochromatic-git-policy-cli-service-<id>` in a Git directory of that repository).
-        path: PathBuf,
-    },
     /// Work items were written for this repository;
     /// run what is pending.
     Work {

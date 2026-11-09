@@ -141,14 +141,6 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("version", Value::from(PROTOCOL_VERSION)),
             ("id", Value::from(id.as_str())),
         ]),
-        ClientMessage::Scratch { git_dir, path } => {
-            let mut fields: Map<String, Value> = Map::new();
-            put(&mut fields, "type", Value::from("scratch"));
-            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
-            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
-            path_bytes::write_field(&mut fields, "path", path.as_path());
-            Value::Object(fields).to_string()
-        }
         ClientMessage::Warm { git_dir, repository } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("warm"));

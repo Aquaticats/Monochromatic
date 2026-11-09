@@ -61,13 +61,12 @@ impl Scratch {
     /// What:
     ///  The commit's scratch directory,
     ///  made where the sweep of the repository scratch directory covers it,
-    ///  marked as this command's,
     ///  and renewed while this command lives.
     /// Why:
     ///   A directory there is collected after a day even if this command is killed at any instruction and no service ever holds
     ///  it,
     ///  which a directory in the worktree's Git directory is not,
-    ///  and the marker is what tells a later command whether this one still runs.
+    ///  and the renewal is what tells a later command whether this one still runs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -75,11 +74,7 @@ impl Scratch {
     /// ```
     pub fn make(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<Self> {
         let path: PathBuf = prepare_commit_scratch(common_dir, git_dir, name, SCRATCH_REMOVAL_CEILING)?;
-        crate::service_scratch_abandonment::mark_the_owner(path.as_path());
         let renewal: crate::service_scratch_renewal::ScratchRenewal = crate::service_scratch_renewal::ScratchRenewal::of_a_commit(path.as_path());
-        if let Some(directory) = path.parent() {
-            let _removed: usize = crate::service_scratch_abandonment::remove_abandoned_trees(directory);
-        }
         return Ok(Self(path, false, Some(renewal)));
     }
 

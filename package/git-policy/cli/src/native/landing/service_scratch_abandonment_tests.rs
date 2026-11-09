@@ -1,21 +1,21 @@
 //! What:
-//!  Which commit scratch trees a later command removes:
-//!  the ones whose marker names a process that is gone,
-//!  the ones no marker was ever written for once they are old,
-//!  and nothing else.
+//!  Which scratch entries a command may remove:
+//!  a commit tree only once nothing that named it can still be reading it,
+//!  and everything else of a scratch place by the age its caller gives.
 //! Why:
-//!  A rule that removed a live command's tree would destroy the private indexes and the typed message of a commit that is
+//!  A rule that removed a recent tree would take the private index and the typed message of a command that is
 //!  still running,
-//! and one that removed nothing would let a killed command's trees pile up.
+//! and of a landing that a killed client left queued;
+//!  one that removed nothing would let a killed command's trees pile up.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(removeAbandonedTrees(directory)).toBe(1);
+//! // expect(mayGo(tree, metadata, now, day)).toBe(false);
 //! ```
 
-/// The rules under control.
-use super::{OWNER_MARKER, SCRATCH_TREES_REMOVED_PER_COMMAND, UNMARKED_SCRATCH_TREE_AGE, mark_the_owner, remove_abandoned_trees};
-use crate::service_index_marker::{holder_is_gone, marker_of, parse_marker};
+/// The rule under control.
+use super::{SCRATCH_TREE_ABANDONED_AFTER, may_go};
+use crate::service_index_marker::{LOCK_MARKER, MARKER_VERSION};
 use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -25,8 +25,8 @@ fn age(path: &Path, back: Duration) {
     std::fs::File::open(path).expect("open").set_modified(SystemTime::now() - back).expect("set modification time");
 }
 
-/// One scratch tree of the wrapper's own name,
-/// holding a file.
+/// A commit tree of the wrapper's own name,
+/// holding the private index.
 fn tree(directory: &Path, identity: &str) -> PathBuf {
     let path: PathBuf = directory.join(format!("monochromatic-git-policy-cli-service-{identity}"));
     std::fs::create_dir_all(&path).expect("tree");
@@ -34,67 +34,39 @@ fn tree(directory: &Path, identity: &str) -> PathBuf {
     return path;
 }
 
-/// A tree this command marks belongs to it,
-/// so a later command leaves it alone however old it is,
-/// and a tree marked by a process that is gone is removed at once.
+/// Whether `path` may go by the age the sweep of a repository scratch directory gives its other entries.
+fn may_go_by_the_day(path: &Path) -> bool {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).expect("metadata");
+    return may_go(path, &metadata, SystemTime::now(), crate::scratch_location::SCRATCH_STALE_AFTER);
+}
+
+/// A recent commit tree is kept however it is marked,
+/// because a landing a killed client left queued may still be reading it;
+/// an old one goes,
+/// and so does anything else of the place once it reaches the caller's age.
 #[test]
-fn a_tree_whose_owner_runs_is_kept_and_one_whose_owner_is_gone_goes() {
+fn a_tree_goes_when_nothing_that_named_it_can_still_read_it() {
     let root: PathBuf = fixture("scratch-abandonment");
     let directory: PathBuf = root.join("scratch");
     std::fs::create_dir_all(&directory).expect("scratch directory");
-    let mine: PathBuf = tree(directory.as_path(), "mine");
-    mark_the_owner(mine.as_path());
-    age(mine.as_path(), UNMARKED_SCRATCH_TREE_AGE * 2);
-    let marker = marker_of(mine.join(OWNER_MARKER).as_path()).expect("the marker this command wrote");
-    assert!(!holder_is_gone(marker.holder.as_ref()), "the marker names this live process");
-    assert_eq!(remove_abandoned_trees(directory.as_path()), 0);
-    assert!(mine.exists(), "a live command's tree is kept however old it is");
-
-    // A tree marked by a process that cannot be running: the number leaf carries no process, so a marker naming it names a
-    //  holder that is gone.
-    let dead: PathBuf = tree(directory.as_path(), "dead");
-    let text: String = String::from("cli-git-service v2 0 0 1.1:0\n");
-    std::fs::write(dead.join(OWNER_MARKER), text.as_bytes()).expect("a marker of a process that is gone");
-    let parsed: Option<crate::service_index_marker::Marked> = parse_marker(text.as_str());
-    assert!(parsed.is_some(), "a control needs a marker the reader parses");
-    assert!(holder_is_gone(parsed.expect("parsed").holder.as_ref()), "the number leaf names no live process");
-    assert_eq!(remove_abandoned_trees(directory.as_path()), 1);
-    assert!(!dead.exists(), "a tree of a process that is gone goes");
-    assert!(mine.exists(), "the live command's tree stays");
-    remove(root.as_path());
-}
-
-/// A tree no marker was written for goes once it is old,
-/// and a fresh one and a name that is not a tree's are left alone.
-#[test]
-fn an_unmarked_tree_goes_by_age_and_a_fresh_one_stays() {
-    let root: PathBuf = fixture("scratch-abandonment-age");
-    let directory: PathBuf = root.join("scratch");
-    std::fs::create_dir_all(&directory).expect("scratch directory");
-    let old: PathBuf = tree(directory.as_path(), "old");
-    let fresh: PathBuf = tree(directory.as_path(), "fresh");
-    let foreign: PathBuf = directory.join("notes");
-    std::fs::create_dir_all(&foreign).expect("another directory");
-    age(old.as_path(), UNMARKED_SCRATCH_TREE_AGE + Duration::from_secs(60));
-    assert_eq!(remove_abandoned_trees(directory.as_path()), 1);
-    assert!(!old.exists(), "an old tree with no marker goes");
-    assert!(fresh.exists(), "a fresh tree may be a command's own");
-    assert!(foreign.exists(), "a name that is not a commit scratch tree's is left alone");
-    remove(root.as_path());
-}
-
-/// One command removes at most the number of trees it is given,
-/// so collecting them never becomes the work the command does.
-#[test]
-fn one_command_removes_only_the_trees_it_is_told_to() {
-    let root: PathBuf = fixture("scratch-abandonment-bound");
-    let directory: PathBuf = root.join("scratch");
-    std::fs::create_dir_all(&directory).expect("scratch directory");
-    let aged: Vec<PathBuf> = (0..3).map(|at| { return tree(directory.as_path(), format!("old-{at}").as_str()); }).collect();
-    for path in &aged {
-        age(path.as_path(), UNMARKED_SCRATCH_TREE_AGE + Duration::from_secs(60));
-    }
-    assert_eq!(remove_abandoned_trees(directory.as_path()), SCRATCH_TREES_REMOVED_PER_COMMAND.min(3));
-    assert_eq!(aged.iter().filter(|path| { return path.exists(); }).count(), 0, "three fit inside the bound");
+    let recent: PathBuf = tree(directory.as_path(), "recent1");
+    assert!(!may_go_by_the_day(recent.as_path()), "a tree written a moment ago may still be read by a landing");
+    // The marker of a process that is gone is no evidence at all: what a request still names does not depend on it.
+    let gone: String = format!("{LOCK_MARKER}{MARKER_VERSION}0 0 1.1:0\n");
+    std::fs::write(recent.join("owner"), gone.as_bytes()).expect("a marker naming a process that is gone");
+    assert!(!may_go_by_the_day(recent.as_path()), "a marker neither adds nor removes a reason to keep the tree");
+    age(recent.as_path(), SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    assert!(may_go_by_the_day(recent.as_path()), "a tree no command has written for two hours goes");
+    // A tree one second inside the age stays.
+    let fresh: PathBuf = tree(directory.as_path(), "fresh1");
+    age(fresh.as_path(), SCRATCH_TREE_ABANDONED_AFTER - Duration::from_secs(1));
+    assert!(!may_go_by_the_day(fresh.as_path()), "an entry exactly inside its age is kept");
+    // An entry that is not a commit tree's goes by the age its caller gives it, which here is a day.
+    let other: PathBuf = directory.join("cli-git-markdown-stale.jsonc");
+    std::fs::write(other.as_path(), b"[]").expect("an entry of the place");
+    age(other.as_path(), SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    assert!(!may_go_by_the_day(other.as_path()), "an entry of the place is kept until the age the caller gives");
+    age(other.as_path(), crate::scratch_location::SCRATCH_STALE_AFTER + Duration::from_secs(60));
+    assert!(may_go_by_the_day(other.as_path()), "and goes at that age");
     remove(root.as_path());
 }
