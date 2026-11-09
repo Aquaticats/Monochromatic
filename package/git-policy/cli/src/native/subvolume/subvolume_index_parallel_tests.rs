@@ -12,11 +12,35 @@ use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, r
 use crate::parallel_test_support::{Rendezvous, SERIAL_PATIENCE};
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// How many linked worktrees the checkout of these controls has;
 /// the checkout's own index makes one more.
 const LINKED: usize = 3;
+
+/// The files the fixture checkout commits:
+/// the readme,
+/// the program,
+/// the leaf,
+/// the empty file,
+/// the script,
+/// the link and the ignore list.
+/// Every index of the checkout and of its linked worktrees records them.
+const TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT: usize = 7;
+
+/// The entries of the fixture checkout's own index that a refresh rewrites,
+/// measured on this fixture:
+/// of the tracked files the checkout commits,
+/// one is not rewritten here.
+/// A legitimate change to the fixture or to the rewrite breaks the control that names this on purpose.
+const CHECKOUT_ENTRIES_REFRESHED: usize = TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT - 1;
+
+/// The entries of a linked worktree's index that a refresh rewrites,
+/// measured on this fixture:
+/// `git worktree add` writes that index from the files it checks out,
+/// so a refresh finds nothing to rewrite.
+const LINKED_ENTRIES_REFRESHED: usize = 0;
 
 /// A host large enough that neither the CPUs nor the memory bound a run over `LINKED + 1` indexes.
 const LARGE_HOST: HostResources = HostResources { parallelism: (LINKED + 1) * 8, memory_available: None };
@@ -118,5 +142,46 @@ fn the_budget_of_the_host_bounds_the_overlap() {
         return line;
     });
     assert_eq!(busiest.load(Ordering::SeqCst), allowed, "{lines:#?}");
+    remove(parent.as_path());
+}
+
+/// What a person reads is the report the code gave before this step,
+/// line for line and in the order of the checkout's index first and then each worktree's by path.
+#[test]
+fn the_lines_of_a_run_are_the_ones_recorded_before_the_step() {
+    let (parent, root) = checkout_with_linked("index-parallel-lines");
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &refresh_index_file_with);
+    assert_eq!(count, LINKED + 1);
+    let of_the_checkout: String = format!("{CHECKOUT_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed");
+    let of_a_worktree: String = format!("{LINKED_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed");
+    let mut expected: Vec<String> = vec![format!("index {}: {of_the_checkout}", root.join(".git").join("index").display())];
+    for index in 0..LINKED {
+        expected.push(format!("index {}: {of_a_worktree}", root.join(format!(".git/worktrees/w{index}")).join("index").display()));
+    }
+    assert_eq!(lines, expected, "the report of a run is no longer the one recorded before this step");
+    remove(parent.as_path());
+}
+
+/// What:
+///  Every rewrite runs inside the process's runtime,
+/// as a job of its blocking pool,
+/// and not on a thread of its own.
+/// Why:
+///   This is the whole of the conversion:
+/// the rewrites used to run on scoped threads,
+/// where the process's runtime is not entered at all,
+///  and the runtime is what the owner asked every wait to sit on.
+#[test]
+fn the_rewrites_run_on_the_processs_runtime() {
+    let (parent, root) = checkout_with_linked("index-parallel-runtime");
+    let probe: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let inside = Arc::clone(&probe);
+    let rewrite = move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+        inside.lock().expect("lock").push(tokio::runtime::Handle::try_current().is_ok());
+        return refresh_index_file_with(index, tree, options);
+    };
+    let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
+    let seen: Vec<bool> = probe.lock().expect("lock").clone();
+    assert_eq!(seen, vec![true; LINKED + 1], "a rewrite ran outside the process's runtime: {lines:#?}");
     remove(parent.as_path());
 }
