@@ -7,7 +7,7 @@
 //! one that changed while it was read,
 //! and one of another kind record nothing.
 
-use super::{ProofSeams, WorktreeStatRequest, recorded_stat, recorded_stat_seamed};
+use super::{ProofSeams, WorktreeStatRequest, read_some, recorded_stat, recorded_stat_seamed};
 use crate::index_stat::{IndexStamp, StatData};
 use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
 use std::os::unix::ffi::OsStrExt as _;
@@ -192,7 +192,7 @@ fn a_file_that_changed_while_it_was_read_records_nothing() {
     };
     let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
     let mut before_open = || {};
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut seam }), None);
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut seam, read: &mut read_some }), None);
     assert_eq!(writes, 1, "the control wrote during the read");
     remove(root.as_path());
 }
@@ -321,14 +321,14 @@ fn a_read_that_is_rejected_is_still_charged() {
     let mut after_read = move || {
         std::fs::write(&written, b"a TWO\n").expect("rewrite");
     };
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read }), None, "the file changed under the read");
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read_some }), None, "the file changed under the read");
     assert!(hashed.get() >= 6, "the six bytes that were read are charged, and the landing has {}", hashed.get());
     remove(root.as_path());
 }
 
-/// One read takes at most what is left of the bound:
-/// a file grown after its first examination is not read past the room the landing has,
-/// and what was read is charged.
+/// One read takes at most what is left of the bound,
+/// counted by the bytes the file hands over rather than by what the landing charges itself:
+/// a file grown after its first examination is not read past the room the landing has.
 #[test]
 fn one_read_takes_at_most_what_is_left_of_the_bound() {
     let root: PathBuf = fixture_root("index-worktree-stat-room");
@@ -344,9 +344,65 @@ fn one_read_takes_at_most_what_is_left_of_the_bound() {
         std::fs::write(&grown, b"abcdefghijklmnop").expect("grow");
     };
     let mut after_read = || {};
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read }), None, "a file grown past the room is not recorded");
-    assert!(hashed.get() <= crate::worktree_clean_content::CONTENT_LIMIT, "the landing never reads past its bound, and read {}", hashed.get());
-    assert!(hashed.get() > spent, "the bytes that were read are charged, and the landing read {}", hashed.get() - spent);
+    let handed: &StdCell<u64> = Box::leak(Box::new(StdCell::new(0)));
+    let counted: &StdCell<u64> = handed;
+    let mut read = move |opened: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
+        let taken: usize = read_some(opened, buffer)?;
+        counted.set(counted.get() + taken as u64);
+        return Ok(taken);
+    };
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read }), None, "a file grown past the room is not recorded");
+    assert_eq!(handed.get(), 0, "a file whose size is past the room is not read at all");
+    assert_eq!(hashed.get(), spent, "and nothing is charged for it");
+    remove(root.as_path());
+}
+
+/// Every byte the file hands over is charged,
+/// counted by the read itself:
+/// a read the proof then refuses for a changed file still took its bytes,
+/// and one that fails part way took the bytes it got.
+#[test]
+fn every_byte_the_file_hands_over_is_charged() {
+    let root: PathBuf = fixture_root("index-worktree-stat-handed");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a one\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
+    let hashed: StdCell<u64> = StdCell::new(0);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let handed: StdCell<u64> = StdCell::new(0);
+    let counted: &StdCell<u64> = &handed;
+    let mut read = move |opened: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
+        let taken: usize = read_some(opened, buffer)?;
+        counted.set(counted.get() + taken as u64);
+        return Ok(taken);
+    };
+    let written: PathBuf = file.clone();
+    let mut before_open = || {};
+    let mut after_read = move || {
+        std::fs::write(&written, b"a TWO\n").expect("rewrite");
+    };
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read }), None, "the file changed under the read");
+    assert_eq!(handed.get(), 6, "the six bytes the file handed over are counted");
+    assert_eq!(hashed.get(), handed.get(), "and exactly those are charged");
+
+    // A read that fails after some bytes took those bytes, and they are charged too.
+    let partly: StdCell<u64> = StdCell::new(0);
+    let failing: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &partly);
+    let mut still_open = || {};
+    let mut still_read = || {};
+    let fails: StdCell<u64> = StdCell::new(0);
+    let mut breaks = move |_opened: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
+        return if fails.get() == 0 {
+            fails.set(1);
+            buffer[..3].copy_from_slice(b"a o");
+            Ok(3)
+        } else {
+            Err(std::io::Error::from(std::io::ErrorKind::Other))
+        };
+    };
+    assert_eq!(recorded_stat_seamed(&failing, &mut ProofSeams { before_open: &mut still_open, after_read: &mut still_read, read: &mut breaks }), None, "a read that fails proves nothing");
+    assert_eq!(partly.get(), 3, "the three bytes taken before the failure are charged");
     remove(root.as_path());
 }
 
@@ -376,7 +432,7 @@ fn a_fifo_swapped_over_the_path_is_not_opened() {
     std::thread::spawn(move || {
         let hashed: &'static StdCell<u64> = Box::leak(Box::new(StdCell::new(0)));
         let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), held_root, held_path, held_blob, 0o100_644, hashed);
-        let answer: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read });
+        let answer: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read_some });
         let _sent = sender.send(answer);
     });
     let answer: Option<StatData> = receiver.recv_timeout(std::time::Duration::from_secs(5)).expect("the proof must not wait on a fifo for a writer");

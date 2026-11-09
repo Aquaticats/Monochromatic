@@ -80,7 +80,7 @@ use crate::index_reset_worktree_stat_source::WorktreeStatSource;
 use crate::index_stat::{IndexStamp, StatData};
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_sha::{sha1, sha256};
-use crate::worktree_clean_content::{CONTENT_LIMIT, ContentJudge, read_at_most};
+use crate::worktree_clean_content::{CONTENT_LIMIT, ContentJudge};
 use crate::worktree_clean_tree_walk::ContentTarget;
 use std::cell::{Cell, RefCell};
 use std::ffi::{OsStr, OsString};
@@ -97,13 +97,36 @@ const REGULAR_FILE: u32 = 0o100_000;
 /// The one permission bit of a file's mode that an index entry records.
 const EXECUTABLE_BIT: u32 = 0o100;
 
-/// The moments of the proof at which a control changes the file under it.
+/// The moments of the proof at which a control changes the file under it,
+/// and the read itself.
 pub struct ProofSeams<'a> {
     /// Called after the file's state was first read and before it is opened.
     pub before_open: &'a mut dyn FnMut(),
     /// Called after the bytes were read and before the state is read again.
     pub after_read: &'a mut dyn FnMut(),
+    /// One read of the file,
+    /// so a control can count what the file handed over or fail after some of it.
+    pub read: &'a mut dyn FnMut(&std::fs::File, &mut [u8]) -> std::io::Result<usize>,
 }
+
+/// What:
+///  One read of `file` into `buffer`,
+/// as the release executable makes it.
+/// Why:
+///  The seams carry every step a control changes,
+/// and the operating system's read is the one the release executable takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readSome = (file, buffer) => readSync(file, buffer);
+/// ```
+fn read_some(file: &std::fs::File, buffer: &mut [u8]) -> std::io::Result<usize> {
+    use std::io::Read as _;
+    return (&*file).read(buffer);
+}
+
+/// The bytes one read takes at most.
+const READ_CHUNK: usize = 64 * 1024;
 
 /// What:
 ///  Do nothing;
@@ -234,6 +257,43 @@ fn stat_of(metadata: &std::fs::Metadata) -> StatData {
         gid: metadata.gid(),
         size: metadata.size() as u32,
     };
+}
+
+/// What:
+///  The bytes of `file` up to `room`,
+/// each chunk charged to `spent` as it is taken.
+/// Why:
+///   The bound is on the reading and not on an earlier look at the size,
+/// and every byte that reached the disk is charged,
+/// including
+///  what a read that then fails took:
+/// a refused read still consumed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readByChunks(file, room, spent, seams) {
+///   const data = []; while (data.length < room) { const taken = seams.read(file, new Uint8Array(Math.min(64 << 10, room - data.length)));
+///     if (taken === 0) break; data.push(...taken); spent += taken; } return data;
+/// }
+/// ```
+fn read_by_chunks(file: &std::fs::File, room: u64, spent: &Cell<u64>, seams: &mut ProofSeams<'_>) -> Option<Vec<u8>> {
+    let mut data: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![0; READ_CHUNK];
+    while (data.len() as u64) < room {
+        let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(READ_CHUNK);
+        match (seams.read)(file, &mut buffer[..want]) {
+            Ok(0) => break,
+            Ok(taken) => {
+                let took: usize = taken.min(want);
+                data.extend_from_slice(&buffer[..took]);
+                spent.set(spent.get() + took as u64);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            // The bytes taken before the failure are charged already, and the read proves nothing.
+            Err(_) => return None,
+        }
+    }
+    return Some(data);
 }
 
 /// What:
@@ -379,19 +439,12 @@ impl<'a> LandingStat<'a> {
         if !held.file_type().is_file() || held.dev() != before.dev() || held.ino() != before.ino() {
             return None;
         }
-        let spent: u64 = self.hashed.get();
-        let data: Vec<u8> = match read_at_most(&file, room) {
-            Ok(Some(bytes)) => {
-                self.hashed.set(spent + bytes.len() as u64);
-                bytes
-            }
-            // The file grew past the room the landing had: the read stops at the probe byte, and the room is charged.
-            Ok(None) => {
-                self.hashed.set(spent + room);
-                return None;
-            }
-            Err(_) => return None,
-        };
+        // A file whose handle already reports more than the room the landing has is not read at all:
+        // the size the handle gives decides, not an earlier look at the path.
+        if held.len() > room {
+            return None;
+        }
+        let data: Vec<u8> = read_by_chunks(&file, room, self.hashed, seams)?;
         (seams.after_read)();
         let after: std::fs::Metadata = file.metadata().ok()?;
         let by_name: std::fs::Metadata = entry_metadata_at(directory, name).ok()?;
@@ -501,7 +554,7 @@ impl<'a> LandingStat<'a> {
 
 impl WorktreeStatSource for LandingStat<'_> {
     fn recorded(&self, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
-        return self.record(path, blob, mode, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing });
+        return self.record(path, blob, mode, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing, read: &mut read_some });
     }
 }
 
@@ -534,7 +587,7 @@ pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut Proof
 /// const stat = recordedStat(request);
 /// ```
 pub fn recorded_stat(request: &WorktreeStatRequest<'_>) -> Option<StatData> {
-    return recorded_stat_seamed(request, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing });
+    return recorded_stat_seamed(request, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing, read: &mut read_some });
 }
 
 /// Controls for the recorded stat data stay out of the release executable.

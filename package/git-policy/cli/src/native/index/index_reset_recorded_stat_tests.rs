@@ -18,27 +18,6 @@ use std::path::{Path, PathBuf};
 const FILES: [(&str, &[u8], bool); 3] = [("a", b"a one\n", false), ("d/x", b"x one\n", false), ("z", b"z one\n", false)];
 
 /// What:
-///  Settle into the middle of a second,
-/// so a file's times and an index file written just after it are separated by that half second.
-/// Why:
-///   The racy rule compares to the nanosecond,
-/// and a control for an entry older or newer than the index within one second needs a
-///  second it can spend.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const second = settleIntoASecond(); // waits out the last half of a second
-/// ```
-fn settle_into_a_second() -> u64 {
-    let mut now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("after the epoch");
-    while now.subsec_millis() > 500 {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("after the epoch");
-    }
-    return now.as_secs();
-}
-
-/// What:
 ///  Set the modification and access times of `path` to `second` and `nanoseconds`,
 /// without following a link.
 /// Why:
@@ -171,10 +150,11 @@ fn a_file_older_than_the_index_records_its_stat_data() {
 #[test]
 fn a_file_newer_than_the_index_records_nothing() {
     let scene: Scene = captures_a_two("index-reset-recorded-stat-newer");
-    // The worktree holds the committed bytes, and its time is in the second after the one the landing runs in.
+    // The worktree holds the committed bytes, and its time is an hour after any index file the landing writes, so the
+    // control does not depend on where in a second the landing runs.
     std::fs::write(scene.repo.join("a"), b"a two\n").expect("a");
-    let second: u64 = settle_into_a_second();
-    set_times(scene.repo.join("a").as_path(), second + 1, 0);
+    let ahead: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("after the epoch").as_secs() + 3_600;
+    set_times(scene.repo.join("a").as_path(), ahead, 0);
     let copy: PathBuf = copy_of(&scene);
     assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))), "the reset is the plain case");
     assert_eq!(entry_of(copy.as_path(), "a").stat, StatData::default(), "an entry as new as the index records nothing");
