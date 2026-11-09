@@ -88,6 +88,23 @@ pub fn stage_correction(stage: &PrivateStage<'_>, correction: &Correction) -> Re
 /// const oid = await git(['hash-object', '-w', '--stdin'], { input: bytes });
 /// ```
 fn write_blob(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> {
+    // A correction's bytes become a blob before any entry can name them; the write is the preparation's own work and is named.
+    let began: std::time::Instant = std::time::Instant::now();
+    let written: Result<String, String> = write_blob_through_git(stage, bytes);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::POLICY_BLOB_WRITE, began.elapsed());
+    return written;
+}
+
+/// What:
+///  `write_blob` without the note of how long the write took.
+/// Why:
+///   A write that failed is still time the preparation spent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oid = await git(['hash-object', '-w', '--stdin'], { input: bytes });
+/// ```
+fn write_blob_through_git(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> {
     let mut request: GitRequest = GitRequest::new(stage.cwd, &["hash-object", "-w", "--stdin"]);
     request.without_prefix = true;
     request.object_directory = stage.object_directory.map(Path::to_path_buf);
@@ -107,6 +124,23 @@ fn write_blob(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> 
 /// await git(['update-index', '--add', '--cacheinfo', mode, oid, path], { indexPath });
 /// ```
 fn update_entry(stage: &PrivateStage<'_>, mode: &str, oid: &str, path: &[u8]) -> Result<(), String> {
+    // One `git update-index` per corrected path per pass, so a record that names it says whether the rewrites are the cost.
+    let began: std::time::Instant = std::time::Instant::now();
+    let pointed: Result<(), String> = update_entry_through_git(stage, mode, oid, path);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::POLICY_ENTRY_WRITE, began.elapsed());
+    return pointed;
+}
+
+/// What:
+///  `update_entry` without the note of how long the write took.
+/// Why:
+///   A write that failed is still time the preparation spent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['update-index', '--add', '--cacheinfo', mode, oid, path], { indexPath });
+/// ```
+fn update_entry_through_git(stage: &PrivateStage<'_>, mode: &str, oid: &str, path: &[u8]) -> Result<(), String> {
     let mut request: GitRequest = GitRequest::new(
         stage.cwd,
         &["update-index", "--add", "--cacheinfo", mode, oid],

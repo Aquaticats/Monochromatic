@@ -9189,6 +9189,26 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+`prepareSpans`
+(what the preparation's own work did,
+by name,
+in the order each name was first noted,
+empty for a commit that noted no step:
+`name` is the step,
+`calls` how often it ran,
+`totalMs` the whole of its time and `longestMs` its longest run;
+the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
+`index read` for reading an index's bytes to decide whether it may seed a private index,
+`index copy` for a copy of an index into a private one,
+`policy blob write` for storing a correction's bytes,
+`policy entry write` for pointing a private index entry at a corrected blob,
+and `policy <name>` for every policy a pass evaluated,
+with that policy's registry name,
+summed over the convergence rounds that ran it again;
+a step that starts Git is stated here as the work and in `steps` as the child it started),
+`prepareSpansDropped`
+(how many step names came after that list reached its bound,
+so a longer run is counted rather than lost),
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:

@@ -637,7 +637,12 @@ fn walk_in_slices(slice: EntrySlice<'_>, workers: usize) -> bool {
 /// ```
 #[cfg(unix)]
 pub fn index_stat_data_needs_refresh(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> bool {
-    return read_in_process(context, cwd, index, staging);
+    // The reading is the preparation's own work: it parses the whole index and stats every entry the commit leaves alone,
+    // so a record that names it is the only thing that can say whether a slow preparation was this question.
+    let began: std::time::Instant = std::time::Instant::now();
+    let needed: bool = read_in_process(context, cwd, index, staging);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_STAT_CHECK, began.elapsed());
+    return needed;
 }
 
 /// Where there is no `stat` this reading knows,
