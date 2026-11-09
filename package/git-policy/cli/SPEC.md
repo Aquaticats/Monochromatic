@@ -1587,6 +1587,17 @@ the migration never recorded,
 and the carry would write into it and the rollback would exchange it.
 A journal written by an earlier release records no identity,
 and a command that has none does not refuse on a guess.
+A rollback resumed after its exchange renames what the old tree's name holds to the new subvolume's name and then deletes
+it,
+so that object's identity is compared with the recorded installed checkout before anything is renamed:
+an object that is
+not the recorded one is reported with both identities and nothing is renamed or deleted,
+a name with nothing at it is not
+a refusal (there is nothing to rename or delete),
+and a journal with no recorded installed identity has nothing to compare.
+A kill
+between the exchange and the rename is enough to reach that state;
+no second process is needed.
 `--remove-old` opens the checkout below its parent without following a link,
 compares the identity it reads on that
 descriptor with the recorded one,

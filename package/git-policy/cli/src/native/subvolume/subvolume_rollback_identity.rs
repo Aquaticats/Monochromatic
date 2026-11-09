@@ -42,6 +42,43 @@ pub(crate) fn as_recorded(identity: ObjectId) -> String {
 }
 
 /// What:
+///  The refusal for a resumed rollback whose old tree's name holds something other than the installed checkout,
+///  or nothing when
+///  it holds that one,
+/// when the rename already happened,
+/// or when the journal records no installed identity.
+/// Why:
+///   The resumed path renames that object to the new subvolume's name and deletes it,
+/// and a kill between the exchange and
+///  the rename is enough to put the command in that state:
+/// no second process has to run,
+/// so the object is checked before
+///  anything is renamed.
+/// A name with nothing at it is not a refusal:
+/// there is nothing to rename or delete,
+/// and the run says so
+///  by doing nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = resumedOldTreeRefusal(run, oldPath, newPath); // undefined when the object is the recorded one
+/// ```
+pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path: &Path) -> Option<Refusal> {
+    if new_path.exists() {
+        return None;
+    }
+    let installed: &str = run.journal.value(INSTALLED_ROOT)?;
+    let found: String = object_form(old_path)?;
+    if found == installed {
+        return None;
+    }
+    return Some(Refusal {
+        cause: format!("{} holds {found}, and the journal records the installed checkout as {installed}", old_path.display()),
+        remedy: String::from("If the checkout was moved or replaced, move the installed checkout back to that path and run the command again. Nothing was renamed or deleted."),
+    });
+}
+
+/// What:
 ///  The refusal for a pair of directories that is not the pair the rollback expects,
 /// or nothing when it is.
 /// Why:

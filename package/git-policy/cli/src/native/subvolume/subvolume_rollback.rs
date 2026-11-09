@@ -31,7 +31,7 @@ use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
-use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, object_form, pair_refusal, pin_root, pinned_root_moved};
+use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal};
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
@@ -203,6 +203,14 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, before_exchange
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
     let swapped: bool = run.journal.has_begun("rollback-swap") && !run.platform.is_subvolume_root(root.as_path()).unwrap_or(false);
+    if swapped {
+        // A resumed rollback renames what the old tree's name holds to the new subvolume's name and then deletes it, so that
+        // object must be the one the journal recorded installing: a kill alone leaves this state, and a directory the person
+        // put there while the command was down is theirs.
+        if let Some(refusal) = resumed_old_tree_refusal(run, old_path.as_path(), new_path.as_path()) {
+            return Ok(Some(vec![refusal]));
+        }
+    }
     if !swapped {
         if !old_path.exists() {
             return Ok(Some(vec![Refusal {
