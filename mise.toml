@@ -1089,11 +1089,135 @@ if (failed.length > 0) { throw new Error(`prepare child tasks failed: ${failed.j
 """
 
 [tasks."prepare:pnpm"]
-run = [{ tasks = ["prepare:pnpm:install"] }, { tasks = ["prepare:pnpm:others:*"] }]
+run = [
+  { tasks = ["prepare:pnpm:install"] },
+  { tasks = ["prepare:pnpm:store-links"] },
+  { tasks = ["prepare:pnpm:others:*"] },
+]
 
 [tasks."prepare:pnpm:install"]
 alias = "pi"
 run = "pnpm install"
+
+# pnpm 12 writes each `link:` override as a relative symlink whose climb out of the
+# shared global virtual store is counted from the store path as spelled. pnpm spells it
+# through ${HOME}, and this host's /home is a symlink to /var/home, so every install
+# that does not run under this repository's mise environment (the one that supplies
+# PNPM_CONFIG_STORE_DIR with the canonical home spelling) leaves a link that climbs one
+# directory too few and dangles. pnpm's own reuse check then calls that link current, so
+# a later correct install reports `Already up to date` and never rewrites it:
+# `mise run //package/pi-plugin/guardrail:verify:pi-runtime` then dies importing
+# `proper-lockfile` inside the Pi package. This task finds those links and has pnpm
+# rewrite them, which repairs a worktree without touching the shared store by hand and
+# without editing the lockfile. Upstream cause and measurements:
+# doc/troubleshooting/pnpm-symlinked-store-path.md.
+[tasks."prepare:pnpm:store-links"]
+description = "Check that every `link:` override inside the shared global virtual store resolves, and have pnpm rewrite the ones that do not"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync } = await import('node:fs')
+const { dirname, join, resolve } = await import('node:path')
+
+const WORKSPACE_STATE = 'node_modules/.pnpm-workspace-state-v1.json'
+const NODE_MODULES_MARKER = '/node_modules/'
+
+const workspaceYaml = readFileSync('pnpm-workspace.yaml', 'utf8')
+const overrideNames = [...workspaceYaml.matchAll(/^\\s+'?([^':\\n]+)'?:\\s*'link:[^'\\n]*'/gmu)]
+  .map((match) => match[1].split('>').at(-1))
+if (overrideNames.length === 0)
+  throw new Error('no `link:` override found in pnpm-workspace.yaml, so this check would prove nothing')
+
+if (!existsSync(WORKSPACE_STATE)) {
+  console.log('store links: no node_modules yet, nothing to check')
+  process.exit(0)
+}
+
+const projects = Object.keys(JSON.parse(readFileSync(WORKSPACE_STATE, 'utf8')).projects ?? {})
+
+/** Every package link a project's node_modules holds, scoped names included. */
+function packageLinks(nodeModules) {
+  if (!existsSync(nodeModules))
+    return []
+  const names = []
+  for (const entry of readdirSync(nodeModules, { withFileTypes: true })) {
+    if (entry.name.startsWith('.'))
+      continue
+    if (entry.name.startsWith('@')) {
+      for (const scoped of readdirSync(join(nodeModules, entry.name), { withFileTypes: true }))
+        names.push(`${entry.name}/${scoped.name}`)
+      continue
+    }
+    names.push(entry.name)
+  }
+  return names.map((name) => join(nodeModules, name))
+}
+
+/** Store instance directories this workspace's dependency links point into. */
+const instances = new Set()
+for (const project of projects) {
+  for (const link of packageLinks(join(project, 'node_modules'))) {
+    let target
+    try {
+      target = readlinkSync(link)
+    }
+    catch {
+      continue
+    }
+    const reached = resolve(dirname(link), target)
+    const marker = reached.lastIndexOf(NODE_MODULES_MARKER)
+    if (marker === -1)
+      continue
+    instances.add(reached.slice(0, marker))
+  }
+}
+
+/** Overridden names whose link inside a store instance does not resolve. */
+function danglingLinks() {
+  const broken = []
+  for (const instance of instances) {
+    for (const name of overrideNames) {
+      const link = join(instance, 'node_modules', name)
+      let stats
+      try {
+        stats = lstatSync(link)
+      }
+      catch {
+        continue
+      }
+      if (!stats.isSymbolicLink() || existsSync(link))
+        continue
+      const target = readlinkSync(link)
+      broken.push({ link, target, reached: resolve(dirname(link), target) })
+    }
+  }
+  return broken
+}
+
+function report(broken) {
+  for (const entry of broken)
+    console.error(`store link does not resolve: ${entry.link}`)
+  for (const entry of broken)
+    console.error(`  it climbs to ${entry.reached}, which does not exist`)
+}
+
+const before = danglingLinks()
+if (before.length === 0) {
+  console.log(`store links: ${String(instances.size)} store instance(s) checked, every ${overrideNames.join(', ')} link resolves`)
+  process.exit(0)
+}
+
+report(before)
+console.log('store links: asking pnpm to rewrite them with a forced install')
+execFileSync('pnpm', ['install', '--force', '--frozen-lockfile', '--ignore-scripts'], { stdio: 'inherit' })
+
+const after = danglingLinks()
+if (after.length > 0) {
+  report(after)
+  throw new Error(`${String(after.length)} store link(s) still do not resolve after a forced install; the cause is recorded in doc/troubleshooting/pnpm-symlinked-store-path.md`)
+}
+console.log(`store links: pnpm rewrote ${String(before.length)} dangling link(s), every ${overrideNames.join(', ')} link now resolves`)
+"""
 
 [tasks."prepare:pnpm:others:approve-builds"]
 description = "Approve build scripts for native dependencies"
