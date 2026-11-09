@@ -145,7 +145,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   `82dff2e79a` the intent-to-add branch,
   `f6716da242` the commit-ceiling branch,
   `78ca211085` the worktree-copy branch's follow-up,
-  and `6e098552e2` the discarding-commands branch.
+  `6e098552e2` the discarding-commands branch,
+  and `fc85e075d8` the suite-failures branch.
   The first clause of that merge's message names a change it does not contain;
   commit comment 209008614 on it says so.
 - Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
@@ -189,15 +190,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `merge-route-round-10-prompt.md` for `merge-route-findings-fixed` as run 10
-  (its merge of main is open in that worktree with four conflicts from the health branch,
-  and that branch is otherwise ready for its check and review),
-  `worktree-copy-round-5-prompt.md` for `worktree-copy-records-keep-path-bytes` as run 5
-  (recovery reads the `.git` pointer and not the registration,
-  so a pointer cut short or missing during a rewrite can discard a pending copy),
-  and `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
   (an audit line can name a non-UTF-8 branch wrongly,
-  and `git branch -D HEAD` can record a branch nothing deleted).
+  and `git branch -D HEAD` can record a branch nothing deleted),
+  and `wrapper-tests-suite-round-4-prompt.md` for `wrapper-tests-that-fail-only-in-a-suite` as run 4
+  (a late runtime can be lost between a timeout and dropping its receiver,
+  and a control lost its ability to fail).
   Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
