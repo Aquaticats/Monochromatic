@@ -125,7 +125,7 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 /// and its last component is always `.git`;
 /// the directory that holds it is the worktree.
 /// A registration whose recorded worktree is gone names nothing this copy could fill,
-/// while one that could not be read or resolved names nothing either way.
+/// while one that could not be resolved for another reason names nothing either way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,8 +146,28 @@ fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
     return match std::fs::canonicalize(named) {
         Ok(canonical) if canonical.as_path() == destination => Naming::Names,
         Ok(_another_place) => Naming::NamesNothing,
-        Err(_unresolved) => Naming::NamesNothing,
+        // A recorded worktree that is not there is one Git would prune, and it can name no copy this fills;
+        // a path that cannot be resolved for another reason (no search permission, a symbolic link loop) proves nothing.
+        Err(error) if absent_path(&error) => Naming::NamesNothing,
+        Err(_unresolved) => Naming::Unproven,
     };
+}
+
+/// What:
+///  Whether an error says the path,
+/// or a part of it,
+/// is not there.
+/// Why:
+///   A path that is absent answers a question about a registration,
+/// while a path that cannot be read for another reason is not an absence,
+/// and answering it as one discards a copy the registration still names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const absentPath = (error) => error.code === 'ENOENT' || error.code === 'ENOTDIR'
+/// ```
+fn absent_path(error: &std::io::Error) -> bool {
+    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ENOTDIR);
 }
 
 /// Registration naming controls stay out of the release executable.
