@@ -137,14 +137,15 @@ MONOCHROMATIC_LINT_PROPERTY_ROOT=<copy of a repository tree> \
 ```
 
 Run on 2026-11-08 over a copy of this repository it measured 6825 files,
-71 of them changed by the fix,
-11829295 tokens compared,
+72 of them changed by the fix,
+11830851 tokens compared,
 3101 Markdown hosts parsed,
+12629 code and raw HTML blocks compared,
 and reported no difference in any comparison.
 A separate one-off comparison of the same two copies,
 using a token split that sets aside quote markers and a pandoc CommonMark render,
-found the token sequence equal for all 71 changed files
-and the HTML identical for the 69 changed Markdown files.
+found the token sequence equal for all 72 changed files
+and the HTML identical for the 69 changed Markdown files among them.
 
 Removal condition:
 delete the Workaround and Limits sections once the `monochromatic-lint` release that contains
