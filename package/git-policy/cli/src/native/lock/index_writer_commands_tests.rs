@@ -7,8 +7,10 @@
 //!  separators and non-built-in routes.
 
 use super::*;
+use crate::command_test_support::{git, git_status, remove, repository_with_tracked_file};
 use crate::forwarded_command::{ResolvedCommand, Route};
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 /// A resolved command whose subcommand is the first word,
 ///  reached directly.
@@ -79,6 +81,88 @@ fn reset_writes_the_index_except_when_soft() {
     assert!(!writes(&["reset", "--soft", "HEAD~1"]));
     assert!(!writes(&["reset", "--so"]));
     assert!(!writes(&["reset", "--s"]));
+}
+
+/// Git's five mode options write one variable,
+///  so the last one is the mode and a `--soft` written first does not keep the index.
+#[test]
+fn reset_writes_the_index_for_the_mode_git_ends_with() {
+    assert!(writes(&["reset", "--soft", "--mixed"]));
+    assert!(writes(&["reset", "--soft", "--hard"]));
+    assert!(writes(&["reset", "--soft", "--ke"]));
+    assert!(!writes(&["reset", "--hard", "--soft"]));
+    assert!(!writes(&["reset", "--soft", "--so"]));
+}
+
+/// A token after a value-taking option is that option's value,
+///  so a file named like a mode is no mode at all.
+#[test]
+fn reset_does_not_read_an_option_value_as_a_mode() {
+    assert!(writes(&["reset", "--pathspec-from-file", "--soft"]));
+    assert!(writes(&["reset", "--pathspec-from-file=--soft"]));
+    assert!(writes(&["reset", "-U", "--soft"]));
+    assert!(!writes(&["reset", "--pathspec-from-file", "--soft", "--soft"]));
+    // An option with an optional value takes it only when it is attached, so this `--soft` is the mode.
+    assert!(!writes(&["reset", "--recurse-submodules", "--soft"]));
+    assert!(writes(&["reset", "--recurse-submodules=no", "--mixed"]));
+}
+
+/// A region Git refuses resets nothing,
+///  so it never needs the coordination.
+#[test]
+fn reset_writes_no_index_when_git_refuses_the_region() {
+    assert!(!writes(&["reset", "--soft=1"]));
+    assert!(!writes(&["reset", "--unknown"]));
+}
+
+/// What:
+///  The staged paths of a repository,
+///  as Git reports them.
+/// Why:
+///   Whether the index was written is what the classification claims;
+///  the staged set is the observable effect.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(root, ['diff', '--cached', '--name-only']).stdout
+/// ```
+fn staged_paths(root: &std::path::Path) -> String {
+    return String::from_utf8_lossy(&git(root, &["diff", "--cached", "--name-only"]).stdout).into_owned();
+}
+
+/// Every reading of a reset agrees with what real Git does to the index,
+///  in each of these forms.
+#[test]
+fn every_reset_reading_matches_the_index_git_writes() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("reset-index-writer");
+    // A file whose name is a mode option, for the forms that read a pathspec list instead of an argument.
+    std::fs::write(root.join("--soft"), b"tracked.txt\n").expect("pathspec list named like a mode");
+    for region in [
+        vec!["--soft"],
+        vec!["--mixed"],
+        vec!["--soft", "--mixed"],
+        vec!["--hard", "--soft"],
+        vec!["--pathspec-from-file", "--soft"],
+        vec!["--pathspec-from-file=--soft"],
+        vec!["--recurse-submodules", "--soft"],
+        vec!["-U", "--soft"],
+    ] {
+        // Stage a change, so a reset that writes the index has something to take back.
+        std::fs::write(root.join("tracked.txt"), b"staged change\n").expect("modify tracked file");
+        git(root.as_path(), &["add", "--", "tracked.txt"]);
+        assert_eq!(staged_paths(root.as_path()), "tracked.txt\n", "{region:?} starts staged");
+        let mut words: Vec<&str> = vec!["reset", "--quiet"];
+        words.extend(region.iter().copied());
+        let output: std::process::Output = git_status(root.as_path(), words.as_slice());
+        assert!(output.status.success(), "{region:?} failed: {}", String::from_utf8_lossy(&output.stderr));
+        let written: bool = staged_paths(root.as_path()).is_empty();
+        let mut command: Vec<&str> = vec!["reset"];
+        command.extend(region.iter().copied());
+        assert_eq!(writes(command.as_slice()), written, "{region:?} classification against real Git");
+        // Restore the tracked file for the next region, whatever this one did to it.
+        git(root.as_path(), &["reset", "--quiet", "--hard"]);
+    }
+    remove(directory.as_path());
 }
 
 /// `apply` writes the index with `--cached` or `--index`;
