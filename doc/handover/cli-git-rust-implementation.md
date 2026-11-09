@@ -351,51 +351,42 @@ The old tree kept for the rollback stays until the owner deletes it.
   The session aborted that one connection and detached the mount,
   and `shared-rules-for-pi-briefs.md` now requires a private mount namespace for any probe that mounts.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
-  run 2 settled the review's six findings (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`)
-  and the two snapshot controls that failed beside the leave-out rule.
-  947 of 947 selected tests pass on top of main (`worktree::`,
+  run 3 settled all six findings of the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`),
+  on top of main `121100623c`:
+  the snapshot's trash is emptied before the add returns instead of being handed to the commit service
+  (measured:
+  `rename` out of a btrfs snapshot subvolume fails `EXDEV`,
+  so the trash cannot be moved out of the worktree and must not outlive the command);
+  every path a report prints is shell-quoted (`shell_quote`);
+  the ladder's step keeps the wrapper's process group and terminal,
+  so a filter reading `/dev/tty` is a foreground reader,
+  and the line says only that Git ended while a helper may still run;
+  a collapsed untracked directory is decided by its content;
+  and the uncollected-outcome control states its outcome through a seam.
+  959 of 959 selected tests pass (`worktree::`,
   `worktree_copying::`,
   `invocation::`,
   `subvolume::fs_kind`,
   `ladder_step_ceilings`),
-  the package's lint passes,
-  and the container gate has not run on this round.
+  and the package's lint passes.
   Open:
   the recovery's proof cannot see a process filling a destination beside an index that was written before it started,
   nor compare file contents,
-  which `SPEC.md` now says where it says what the proof reads;
+  which `SPEC.md` says where it says what the proof reads;
   a linked worktree's snapshot sets another command's stage aside silently,
   while the main checkout's snapshot names the categories it left out;
-  and the remedy the interrupted-add report prints,
-  found while checking the empty-tree proof,
-  cannot run as printed,
+  and the remedy the interrupted-add report prints cannot run as printed,
   because `git -C <destination> reset --hard` is refused by the `linked-worktree-only` policy
   ("this worktree has uncommitted changes to tracked files",
   exit 1),
   so the report and the policy need the owner's choice between allowing it for a destination the wrapper recorded
   and printing `--no-enforce-worktree` with the reason.
-  The claim in run 1's report that the repeated line needs `MONOCHROMATIC_VERBOSE` does not hold:
+  The claim of run 1 that the repeated line needs `MONOCHROMATIC_VERBOSE` does not hold:
   measured through the built wrapper with the variable unset,
   the line is written by every command that runs the recovery.
+  The container gate has not run on this round.
   Not ready to merge;
   merge after the gate run and the owner's answer on the remedy.
-  its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
-  On top of main 661 of 664 selected tests pass:
-  two snapshot tests fail in about 0.2 seconds beside what it changed,
-  and the third is the tokio branch's order control.
-  The review (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`) names a snapshot of a linked worktree that still carries another command's credentials,
-  and a ceiling that also kills the person's own command.
-  By its own report,
-  the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
-  Run 2 of its agent reports six findings handled,
-  674 of 674 selected tests pass on top of main,
-  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) names another command's stage carried into the new worktree as unignored trash,
-  a lock-removal instruction quoted for JSON and not for a shell,
-  a helper reported as ended when only Git was reaped,
-  and a checkout filter that reads the terminal stopped by the new process group.
-  Not ready to merge.
-  Run 3 of its agent is on them.
-  The container gate has not run.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
