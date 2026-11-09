@@ -342,14 +342,30 @@ fn record_owner_may_be_running(owner: Option<&String>) -> bool {
 /// emptying it would take that checkout's index and reflog.
 /// A `gitdir` that
 ///  cannot be read is treated the same way,
-/// because nothing proves the registration is this record's any more.
+/// because nothing proves the registration is this record's any more;
+/// a `gitdir` that is not there is not,
+/// because a registration no checkout points at is one this command's own removal already emptied.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const report = namedCheckout(admin, target); // undefined when the registration names target
 /// ```
 fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
-    let named: Vec<u8> = read_plain_file(&admin.join("gitdir"), RECORD_LIMIT).ok()?;
+    let named: Vec<u8> = match read_plain_file(&admin.join("gitdir"), RECORD_LIMIT) {
+        Ok(read) => read,
+        // No back-pointer at all is the state the removal being finished leaves when it empties a registration and then
+        // cannot remove its directory: no checkout points at it, so finishing it discards nothing.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        // An answer that could not be read proves nothing about which checkout uses the registration, and a registration
+        // whose directory is writable can be emptied through it: the checkout that may use it keeps its index and logs.
+        Err(error) => {
+            return Some(format!(
+                "The registration {} cannot be read ({error}), so nothing proves which checkout it belongs to now, and the record of its interrupted removal names {}. Nothing was removed, so a checkout that uses that registration keeps its index and its logs; the record of the interrupted removal is dropped, and `git worktree prune` forgets a registration nothing uses.",
+                admin.display(),
+                target.display()
+            ));
+        }
+    };
     let recorded: &[u8] = named.strip_suffix(b"\n".as_slice()).unwrap_or(named.as_slice());
     let spelled: PathBuf = PathBuf::from(OsStr::from_bytes(recorded));
     let resolved: PathBuf = if spelled.is_absolute() { spelled } else { admin.join(spelled) };

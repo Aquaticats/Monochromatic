@@ -2347,7 +2347,13 @@ the record is dropped,
 and the person is told both paths.
 A `gitdir` that cannot be read is treated the same way,
 because
-nothing then proves the registration is this record's.
+nothing then proves the registration is this record's,
+and a registration whose directory is writable can be emptied through it even while the file cannot be read;
+the report names the registration and `git worktree prune`.
+A `gitdir` that is not there at all is not:
+a registration no back-pointer points at is the state this command's own removal leaves when it empties a registration
+and then cannot remove its directory,
+so finishing it discards nothing.
 Every wrapped command then finishes a marked record:
 the registration is emptied and
 removed through descriptors opened below `worktrees`,

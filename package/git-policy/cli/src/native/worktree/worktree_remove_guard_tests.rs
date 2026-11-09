@@ -573,7 +573,8 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
     assert!(!worktree.exists() && admin.is_dir(), "the destroy happened and the registration stayed");
     let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
     assert!(record.is_file(), "the destroy this removal made is recorded for the next command");
-    assert!(finish_interrupted_destroys(common.as_path()).is_empty());
+    let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+    assert!(problems.is_empty(), "{problems:?}");
     assert!(!admin.exists() && !record.exists(), "the next command finished it and dropped the record");
     // A removal that finished leaves nothing behind for a later command to do.
     let other: PathBuf = clean_worktree(repo.as_path(), root.join("wt2").as_path(), "other");
@@ -680,6 +681,50 @@ fn a_registration_a_repair_pointed_at_a_restored_checkout_is_kept() {
     assert!(problems.iter().any(|text: &String| { return text.contains("restored"); }), "the person is told what the registration names now: {problems:?}");
     assert!(admin.join("gitdir").is_file(), "the registration of a restored checkout is kept");
     assert!(restored.join("tracked.txt").is_file(), "the restored checkout is untouched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A registration whose `gitdir` cannot be read is kept and named,
+///  instead of being emptied as though it named the destroyed worktree.
+/// Why:
+///   The record says which path the destroy was aimed at,
+/// not which checkout uses the registration now,
+/// and an answer that could not be read proves nothing about that:
+/// the registration holds a live checkout's index,
+/// its reflog and its per-worktree refs,
+/// and emptying it leaves that checkout's `.git` pointing at nothing.
+/// The registration's own directory is writable,
+/// so its unreadable file can still be unlinked.
+#[test]
+fn a_registration_whose_gitdir_cannot_be_read_is_kept_and_named() {
+    // A user who is root reads a file whatever its mode, so this control has nothing to check there.
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let root: PathBuf = fixture("remove-record-unreadable-gitdir");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
+    // A backup of the checkout is restored at another path, which real Git repairs the registration to name.
+    let restored: PathBuf = root.join("restored");
+    std::fs::rename(worktree.as_path(), restored.as_path()).expect("the checkout is restored at another path");
+    git(repo.as_path(), &["worktree", "repair", restored.to_str().expect("UTF-8")]);
+    let index: PathBuf = admin.join("index");
+    assert!(index.is_file(), "the registration holds the restored checkout's index");
+    // What a mode a person cannot read does: the answer is there and this user cannot have it.
+    std::fs::set_permissions(admin.join("gitdir").as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable gitdir");
+    let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+    assert!(problems.iter().any(|text: &String| { return text.contains(admin.to_str().expect("UTF-8")); }), "the person is told which registration is kept: {problems:?}");
+    assert!(admin.join("gitdir").is_file(), "the registration is kept");
+    assert!(index.is_file(), "and so is the restored checkout's index");
+    assert!(restored.join("tracked.txt").is_file(), "the restored checkout is untouched");
+    std::fs::set_permissions(admin.join("gitdir").as_path(), std::fs::Permissions::from_mode(0o644)).expect("readable again");
     remove(root.as_path());
 }
 
