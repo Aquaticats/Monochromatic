@@ -16,7 +16,7 @@
 //! // expect(await runGuarded(() => { throw new Error('planted'); }, ...)).rejects.toEqual({ kind: 'panicked' });
 //! ```
 
-use super::{GuardFailure, GuardLimits, run_guarded};
+use super::{GuardFailure, GuardLimits, NoticeSink, run_guarded};
 use crate::test_support::{ActionSink, SharedSink};
 use crate::wait_progress::Cadence;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -76,10 +76,11 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
     std::thread::spawn(move || {
         let shared: SharedSink = SharedSink::default();
         // The write is entered once the first line is finished and then held, as a full stream holds it.
-        let mut sink: ActionSink = ActionSink::new(&shared, 1, move || {
+        let sink: ActionSink = ActionSink::new(&shared, 1, move || {
             let _ = entered.send(());
             let _ = held.recv_timeout(Duration::from_secs(10));
         });
+        let mut notices: NoticeSink = Some(Box::new(sink));
         let stopped: Result<(), GuardFailure> = run_guarded(
             || {
                 // Blocked, and not quiet for the window this control gives, so only the ceiling can end the wait.
@@ -88,7 +89,7 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
             GuardLimits { window: LONG_WINDOW, ceiling },
             NOTICE_AT_ONCE,
             "a job",
-            &mut sink,
+            &mut notices,
         );
         let _ = finished.send(stopped);
     });
@@ -122,16 +123,19 @@ fn audit_a_blocked_notice_write_does_not_hold_a_finished_result() {
     let ceiling: Duration = Duration::from_millis(50);
     std::thread::spawn(move || {
         let shared: SharedSink = SharedSink::default();
-        let mut sink: ActionSink = ActionSink::new(&shared, 1, move || {
+        let sink: ActionSink = ActionSink::new(&shared, 1, move || {
             let _ = entered.send(());
             let _ = held.recv_timeout(Duration::from_secs(10));
         });
+        let mut notices: NoticeSink = Some(Box::new(sink));
         let answered: Result<u8, GuardFailure> = run_guarded(
-            || 7,
+            || {
+                return 7;
+            },
             GuardLimits { window: LONG_WINDOW, ceiling },
             NOTICE_AT_ONCE,
             "a job",
-            &mut sink,
+            &mut notices,
         );
         let _ = finished.send(answered);
     });
@@ -165,7 +169,7 @@ fn a_finished_job_returns_its_value_from_another_thread() {
         limits(LONG_WINDOW),
         FAST,
         "a job",
-        &mut std::io::sink(),
+        &mut Some(Box::new(std::io::sink())),
     );
     assert_eq!(outcome, Ok(true));
 }
@@ -182,7 +186,7 @@ fn a_panic_comes_back_as_text() {
         limits(LONG_WINDOW),
         FAST,
         "a job",
-        &mut std::io::sink(),
+        &mut Some(Box::new(std::io::sink())),
     );
     assert_eq!(outcome, Err(GuardFailure::Panicked(String::from(MESSAGE))));
 }
@@ -204,7 +208,7 @@ fn a_job_that_shows_no_sign_of_work_is_abandoned() {
         limits(QUIET),
         FAST,
         "a job",
-        &mut std::io::sink(),
+        &mut Some(Box::new(std::io::sink())),
     );
     assert_eq!(outcome, Err(GuardFailure::Quiet(QUIET)));
     assert!(!finished.load(Ordering::SeqCst), "the guard answered while the job was blocked");
@@ -219,7 +223,7 @@ fn a_job_that_shows_no_sign_of_work_is_abandoned() {
 fn a_long_wait_prints_notices_naming_the_file() {
     let (release, blocked) = channel::<()>();
     let sink: SharedSink = SharedSink::default();
-    let mut counted: ActionSink = ActionSink::new(&sink, 3, move || {
+    let counted: ActionSink = ActionSink::new(&sink, 3, move || {
         let _ = release.send(());
     });
     let waiting_for: &str = "monochromatic-lint to check docs/a.md";
@@ -230,7 +234,7 @@ fn a_long_wait_prints_notices_naming_the_file() {
         limits(LONG_WINDOW),
         FAST,
         waiting_for,
-        &mut counted,
+        &mut Some(Box::new(counted)),
     );
     assert_eq!(outcome, Ok(()));
     let text: String = sink.text();
@@ -273,7 +277,7 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
         GuardLimits { window: WORKING_WINDOW, ceiling: CEILING },
         FAST,
         "a job",
-        &mut std::io::sink(),
+        &mut Some(Box::new(std::io::sink())),
     );
     let waited: Duration = began.elapsed();
     release.store(true, Ordering::SeqCst);

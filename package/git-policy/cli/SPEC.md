@@ -2650,6 +2650,14 @@ of the review call and of the whole review).
   that has been checked one file for `LINT_CEILING` (4 minutes),
   with a reason that names the tool,
   the file and the ceiling.
+  The still-waiting notices that long check prints go out on a thread of their own,
+  one at a time,
+  so a standard error that nobody drains after the pipe filled
+  holds neither the window nor the ceiling:
+  the waiting thread judges every deadline before it starts a notice,
+  never after one,
+  and a write that never returns is abandoned with the process while later notices of that command stop,
+  which an advisory line may be.
 - The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has one ceiling over the whole
   call,
   `REVIEW_CALL_CEILING` (1 minute).

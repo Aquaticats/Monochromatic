@@ -29,7 +29,7 @@
 //! ```
 
 /// Import the guarded thread runner.
-use crate::markdown_linter_guard::{GuardFailure, GuardLimits, run_guarded};
+use crate::markdown_linter_guard::{GuardFailure, GuardLimits, NoticeSink, run_guarded};
 /// Import the one-rule configuration.
 use crate::markdown_linter_config::one_rule_configuration;
 /// Import the reading of one run.
@@ -117,8 +117,10 @@ pub struct EmbeddedLinter {
     ceiling: Duration,
     /// When a run that takes long prints its notices.
     cadence: Cadence,
-    /// Where those notices go.
-    notices: Box<dyn Write>,
+    /// Where those notices go,
+    ///  owned so the guard can write one on a thread of its own (`markdown_linter_guard.rs`);
+    ///  nothing once a write never came back.
+    notices: NoticeSink,
     /// Whether an earlier candidate of this command was abandoned for being quiet and left its thread running.
     abandoned: bool,
 }
@@ -143,7 +145,7 @@ pub fn embedded_linter() -> EmbeddedLinter {
         window: LINT_QUIET_WINDOW,
         ceiling: crate::wait_ceilings::LINT_CEILING,
         cadence: Cadence::from_environment(),
-        notices: Box::new(std::io::stderr()),
+        notices: Some(Box::new(std::io::stderr())),
         abandoned: false,
     };
 }
@@ -164,7 +166,7 @@ pub fn embedded_linter_with(fix: FixFunction, window: Duration) -> EmbeddedLinte
         window,
         ceiling: crate::wait_ceilings::LINT_CEILING,
         cadence: Cadence::from_environment(),
-        notices: Box::new(std::io::stderr()),
+        notices: Some(Box::new(std::io::stderr())),
         abandoned: false,
     };
 }
@@ -313,8 +315,8 @@ impl EmbeddedLinter {
     }
 
     /// The same linter with another notice cadence and sink;
-    ///  tests choose a short cadence and read the notices from a buffer.
-    pub fn with_notices(mut self, cadence: Cadence, notices: Box<dyn Write>) -> Self {
+    ///  tests choose a short cadence and read the notices from a buffer that a thread can hold.
+    pub fn with_notices(mut self, cadence: Cadence, notices: Option<Box<dyn Write + Send>>) -> Self {
         self.cadence = cadence;
         self.notices = notices;
         return self;
