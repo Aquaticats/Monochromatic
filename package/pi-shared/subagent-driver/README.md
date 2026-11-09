@@ -245,11 +245,14 @@ each written as `--name=value`:
 It ends with one of these answers:
 
 - one line per run past a limit,
-  such as `OVERDUE pi-copy-route.service: up 96 min, and 90% of 120 finished runs were done within 85 min;
-  feed quiet 4 min, bash open 12 min; <run folder>`.
-- one line per call open past what finished calls take,
-  such as `STUCK? pi-copy-route.service: bash open 25 min, and 99.9% of 24,728 finished calls ended within 19 min;
-  <run folder>`.
+  and one per call open past what finished calls take:
+
+  ```text
+  # --runs-folder=$HOME/temp/agent/pi-runs
+  OVERDUE pi-copy-route.service: up 96 min, and 90% of 120 finished runs were done within 85 min; feed quiet 4 min, bash open 12 min; $HOME/temp/agent/pi-runs/copy-route-4
+  STUCK? pi-copy-route.service: bash open 25 min, and 99.9% of 24,728 finished calls ended within 19 min; $HOME/temp/agent/pi-runs/copy-route-4
+  ```
+
 - `no Pi agent is running`,
   so a caller that starts runs later starts the command again.
 - `no Pi agent is past a limit:` followed by what it compared against,
