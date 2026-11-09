@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T01:44:42-05:00)
+#### Reviews and landings in progress (2026-11-09T02:00:39-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -202,6 +202,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
   The locks audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
   ("cli-git never deletes a lock") waits for the owner.
+
+- `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
+  three runs ended within minutes on a Cloudflare 520 or a request timeout,
+  and Pi's automatic retry is off in the owner's settings.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start a run with `driver-resumes-after-provider-errors-prompt.md`.
+- Filtered test runs of the branches on top of main abort tests near 125 seconds,
+  and the same tests pass alone.
+  `fix/git-policy-cli-unit-test-watchdog-judges-progress` changes that watchdog,
+  so it lands before the branches its aborts cloud are judged.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
