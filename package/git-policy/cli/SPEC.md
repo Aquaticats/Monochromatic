@@ -3300,6 +3300,11 @@ on the commit path:
   and a `HEAD` that differs keeps the record,
   moves nothing and says which branch the merge is for;
   a switch that lands after that second read is not covered.
+  Closing that one needs another command to switch inside the same window,
+  and the person would see the merge's staged content in the `git status` of the branch they had switched to,
+  that branch's files otherwise unchanged,
+  and the merged branch moved,
+  with nothing in the output saying which command did it.
   An edit made meanwhile to one of the merge's own paths is never overwritten:
   the finish stops and names the file.
   A merge whose commit cannot be kept on a side ref is refused with nothing changed,
@@ -8207,6 +8212,12 @@ so a refusal stops the command and says the merge is partly installed in that wo
 that is decided by what the index and the checkout hold when the refusal is made,
 not by which step refused,
 so a foreign file or a staged entry met after the install began stops the command too.
+What they hold is read once,
+before anything can refuse,
+the index first and the worktree second:
+every refusal after that point reports from that one reading,
+an index that cannot be read counts as holding the merge,
+and a worktree that cannot be read is reported by what the index holds.
 A begun merge's refusal still stops it,
 because the checkout may hold that merge's files.
 Standard output is never touched by these lines,
