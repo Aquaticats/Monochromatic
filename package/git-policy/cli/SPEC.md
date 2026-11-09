@@ -8499,6 +8499,34 @@ the wrapper lists the stage entries of the pre-landing and post indexes,
 and warns with the differing paths outside the committed and guarded paths.
 The warning never changes the landing.
 
+### Dependent version bump
+
+`mono/dependent-version-bump` reads the publish set from the generated registry configuration
+(`package/config/pnpr/config.yaml`) as the document format it is,
+never as a line of text (`dependent_version_publishable.rs`).
+Every `packages:` list under an `auth.oidc[]` workload is the set,
+because a package any trusted CI identity may publish is published;
+the names are read in document order without repeats,
+so a narrower workload list above the publish set cannot hide it.
+The `packages` mapping under `registries` grants a permission pattern to a scope and lists no
+publishable name,
+and is never read as one.
+The executable links no YAML parser,
+so `dependent_version_yaml` and `dependent_version_yaml_lines` read the mapping,
+sequence and scalar forms the generator writes and refuse the rest by line,
+instead of taking a dependency the lockfile does not carry.
+
+A publish set that cannot be read is a `policy-incomplete` engine failure,
+which stops `check` and `fix` with exit `2`:
+the file is not tracked,
+no `auth.oidc` workload lists a package name,
+or the text is not block YAML this executable reads.
+That is the status every input these commands cannot use already has,
+and an unjudged ripple therefore never reads as a clean workspace.
+The diagnostic names the file,
+the cause,
+and the escape hatch.
+
 ### Forbidden root context
 
 Reject root `CONTEXT.md` for commit candidates and direct check.

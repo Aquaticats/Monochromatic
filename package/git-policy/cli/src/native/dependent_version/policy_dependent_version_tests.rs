@@ -459,18 +459,25 @@ fn failures_follow_their_cause() {
     }
 }
 
-/// Remove the registry configuration and commit the removal.
+/// Remove the registry configuration and commit the removal alone,
+/// so the raised manifest
+///  stays in the worktree.
 fn no_registry_configuration(repo: &Path) {
-    std::fs::remove_file(repo.join(CONFIG_PATH)).expect("remove");
-    git(repo, &["add", "--all"]);
-    git(repo, &["commit", "--quiet", "--message=no-registry"]);
+    git(repo, &["rm", "--quiet", CONFIG_PATH]);
+    git(
+        repo,
+        &["commit", "--quiet", "--message=no-registry", "--", CONFIG_PATH],
+    );
 }
 
-/// Replace the publish set with an empty list.
+/// Replace the publish set with an empty list and commit that alone.
 fn empty_publish_set(repo: &Path) {
     write(repo, CONFIG_PATH, &config_text(&[]));
-    git(repo, &["add", "--all"]);
-    git(repo, &["commit", "--quiet", "--message=empty-publish-set"]);
+    git(repo, &["add", "--", CONFIG_PATH]);
+    git(
+        repo,
+        &["commit", "--quiet", "--message=empty-publish-set", "--", CONFIG_PATH],
+    );
 }
 
 /// A publish set that is missing or empty is not a clean result:
