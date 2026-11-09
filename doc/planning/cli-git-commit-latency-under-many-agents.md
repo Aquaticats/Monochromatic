@@ -825,10 +825,13 @@ the unchanged binary run with it:
   `prepareMs` median 214 ms,
   `candidates prepared` median 7 ms,
   and the direct arm's median 71.1 ms.
-- The spread of the unchanged binary is 12 percent around its median while the direct arm moved 28 percent across the
-  same runs,
-  and this change is 3.5 times below the lowest of the four,
-  so it is not the host that moved.
+- The spread of the unchanged binary's four medians is 6,629 ms to 8,276 ms,
+  a quarter of the lowest of them,
+  while the direct arm's own medians moved 71.1 ms to 105.6 ms,
+  half of the lowest,
+  across the same runs.
+  This change is 3.3 times below the lowest of the four,
+  so the host alone does not explain it.
 
 ### The clone that the measurement rejected
 
