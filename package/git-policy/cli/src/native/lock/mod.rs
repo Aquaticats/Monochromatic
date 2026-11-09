@@ -26,6 +26,9 @@ pub mod index_lock_holder_parsers;
 /// Evidence about a foreign `index.lock` and the verdict it supports.
 pub mod index_lock_evidence;
 
+/// Whether a process's command name is Git's, shared by both lock judgements.
+pub mod git_command_name;
+
 /// The sentences about a lock's holder:
 /// its program,
 /// start time and the way to end it,

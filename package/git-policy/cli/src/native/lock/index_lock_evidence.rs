@@ -28,6 +28,8 @@
 
 /// Open-holder scans.
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders};
+/// Whether a process's command name is Git's.
+use crate::git_command_name::names_git_command;
 /// Process start times.
 use crate::process_start::{ProcessStart, resolve_process_start};
 /// The sentences about a live holder and the summary of what a scan could not see.
@@ -75,15 +77,6 @@ pub struct LockMetadata {
     pub inode: u64,
     /// Status change time in whole milliseconds since the epoch.
     pub ctime_ms: i64,
-}
-
-/// The prefix of Git's command name and of its helpers (`git-remote-https`),
-/// as the kernel reports it in `/proc/<pid>/comm`.
-const GIT_COMMAND_PREFIX: &str = "git";
-
-/// Whether a command name is Git's or one of its helpers'.
-fn names_git_command(name: &str) -> bool {
-    return name.starts_with(GIT_COMMAND_PREFIX);
 }
 
 /// What:

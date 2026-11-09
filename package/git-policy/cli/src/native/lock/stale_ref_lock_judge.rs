@@ -26,6 +26,7 @@ use crate::pid_namespace::current_pid_namespace;
 use crate::stale_ref_lock_judge_environment::{INITIAL_PID_NAMESPACE, PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time, proc_hides_no_process};
 use crate::process_start::{ProcessStart, linux_start, now_ms};
 use crate::process_use::{ProcessUser, UseScan, UseTarget, processes_using_through};
+use crate::git_command_name::names_git_command;
 use crate::stale_ref_lock_found::PidFile;
 pub use crate::stale_ref_lock_own_ended::{ClaimedLock, OwnEnded};
 use crate::stale_ref_lock_nested_numbers::nested_holders_of;
@@ -93,11 +94,6 @@ pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_milli
 ///  written by a Git on another machine,
 /// whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
-
-/// The command name of Git,
-/// and of its helpers (`git-remote-https`),
-/// as the kernel reports it.
-const GIT_COMMAND_PREFIX: &str = "git";
 
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -342,7 +338,7 @@ impl Judge {
                     Ok(text) => text.trim().to_owned(),
                     Err(_) => String::new(),
                 };
-                if command.starts_with(GIT_COMMAND_PREFIX) {
+                if names_git_command(command.as_str()) {
                     return Verdict::Held(format!("process {pid} ({command}), which the pid file beside it names, is running"));
                 }
                 let named: String = if command.is_empty() {
@@ -408,7 +404,7 @@ impl Judge {
             let command: Option<String> = std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")).ok();
             match command {
                 None => {}
-                Some(name) if !name.trim().starts_with(GIT_COMMAND_PREFIX) => {}
+                Some(name) if !names_git_command(name.trim()) => {}
                 Some(_) => return Some(reason.clone()),
             }
         }
