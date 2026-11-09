@@ -877,7 +877,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
     run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
-    let seen: String = mock.finish().to_ascii_lowercase();
+    let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
             .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })

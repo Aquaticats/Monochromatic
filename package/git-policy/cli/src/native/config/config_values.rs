@@ -33,6 +33,8 @@ use crate::config_error::ConfigError;
 /// import { type JsoncEntry, type JsoncValue, unitsToString } from 'jsonc-edit';
 /// ```
 use monochromatic_jsonc_edit::{JsoncEntry, JsoncKind, JsoncValue, units_to_string};
+/// The set that makes one object's repeated keys one lookup each.
+use std::collections::HashSet;
 
 /// What:
 ///  `u64` is an unsigned 64-bit integer.
@@ -179,6 +181,10 @@ pub(crate) fn member_keys(entries: &[JsoncEntry], path: &str) -> Result<Vec<Stri
     // const keys: string[] = [];
     // ```
     let mut keys: Vec<String> = Vec::<String>::with_capacity(entries.len());
+    // What: `HashSet` remembers every key already decoded from this object.
+    // Why:  Comparing the new key with each earlier one is quadratic in an object's member count,
+    //       and nothing caps a generated object's size.
+    let mut seen: HashSet<String> = HashSet::with_capacity(entries.len());
     for entry in entries {
         // What: `match` on the decoder's `Result` separates text from a decode failure.
         //       `&entry.key.units` lends the decoded UTF-16 units without copying them.
@@ -208,8 +214,8 @@ pub(crate) fn member_keys(entries: &[JsoncEntry], path: &str) -> Result<Vec<Stri
                 ));
             }
         };
-        // `.contains(&key)` borrows the new key to compare it with the earlier ones.
-        if keys.contains(&key) {
+        // `seen.insert` answers whether the key is new, in one lookup.
+        if !seen.insert(key.clone()) {
             return Err(ConfigError::new(
                 format!(
                     "Configuration key {} is defined more than once; keep exactly one definition.",

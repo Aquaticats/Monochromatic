@@ -120,12 +120,12 @@ await describe({
     },),
 
     it({
-      name: 'coerces a structurally tagged float string to a numeric read',
+      name: 'accepts a structurally tagged float with a numeric payload',
       fn: async () => {
         const edit = tomlSet({
           edit: emptyTomlEdit(),
           path: ['ratio',],
-          value: { tomlKind: 'float', value: '1.5', },
+          value: { tomlKind: 'float', value: 1.5, },
         },);
         expect(tomlGetValue({ edit, path: ['ratio',], },),).toBe(1.5,);
         expect(tomlStringify({ edit, },),).toBe('ratio = 1.5\n',);

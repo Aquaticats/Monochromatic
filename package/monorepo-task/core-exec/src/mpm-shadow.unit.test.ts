@@ -29,8 +29,10 @@ import {
   compareVersions,
   CURRENT_LINK_NAME,
   hostLockPlatformId,
+  lockFilePath,
   lockPlatformId,
   MpmShadowLockError,
+  olderLockNote,
   parseVersionOutput,
   publishStaged,
   readLockedMpmShadow,
@@ -99,6 +101,37 @@ const STALE_STUB = `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "mpm-shadow 
 const PATH_STUB = '#!/bin/sh\nversion="$PATH_STUB_VERSION"\n[ -n "$version" ] || version=0.0.1\n'
   + 'if [ "$1" = "--version" ]; then echo "mpm-shadow $version"; exit 0; fi\n'
   + 'echo "ran from PATH: $*"\nexit 99\n';
+
+/**
+ The older-lock note the entry prints for a copy that runs newer than the lock, spelled as a reader sees it: the version
+ pair, the lock file it compared, and the command that moves that lock.
+
+ @param root - Repository root whose lock was compared
+
+ @param usedVersion - The version of the copy that runs
+
+ @returns The note's text
+
+ @example
+ ```ts
+ expect(run.stderr,).toContain(noteNaming({ root, usedVersion: '0.2.3', },),);
+ ```
+ */
+function noteNaming(
+  {
+    root,
+    usedVersion,
+  }: {
+    readonly root: string;
+    readonly usedVersion: string;
+  },
+): string {
+  return olderLockNote({
+    lockFile: lockFilePath(root,),
+    lockedVersion: LOCKED_VERSION,
+    usedVersion,
+  },);
+}
 
 /**
  Writes an executable file, making its folder first.
@@ -881,9 +914,24 @@ await describe({
 
             expect(run.exitCode,).toBe(0,);
             expect(run.stdout.trim(),).toBe('locked 0.2.3 ran: list',);
-            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.2.3 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(run.stderr,).toContain(noteNaming({ root, usedVersion: '0.2.3', },),);
             expect(UPGRADE_COMMAND,).toBe('mise run toolchain:update mpm-shadow',);
             expect(served.requests.length,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'names the lock file it compared, so a reader can tell which worktree is out of date',
+          fn: async () => {
+            using directory = makeDirectory();
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, } = world;
+            writeExecutable({ path: join(root, TOOLCHAIN_BIN_LINK,), content: lockedStub('0.2.3',), },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+
+            expect(run.stderr,).toContain(
+              `locked at ${LOCKED_VERSION} in ${join(root, 'toolchain.lock.json',)}, 0.2.3 runs;`,
+            );
           },
         },),
         it({
@@ -900,7 +948,7 @@ await describe({
 
             expect(run.exitCode,).toBe(0,);
             expect(run.stdout.trim(),).toBe('locked 0.10.0 ran: outdated',);
-            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.10.0 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(run.stderr,).toContain(noteNaming({ root, usedVersion: '0.10.0', },),);
             expect(served.requests.length,).toBe(0,);
           },
         },),
@@ -916,7 +964,7 @@ await describe({
 
             expect(run.exitCode,).toBe(0,);
             expect(run.stdout.trim(),).toBe('locked 0.2.3 ran: list',);
-            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.2.3 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(run.stderr,).toContain(noteNaming({ root, usedVersion: '0.2.3', },),);
             expect(served.requests.length,).toBe(0,);
           },
         },),
@@ -994,7 +1042,7 @@ await describe({
             const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: { PATH_STUB_VERSION: '0.2.9', }, },);
 
             expect(run.exitCode,).toBe(99,);
-            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.2.9 runs; upgrade with: ${UPGRADE_COMMAND}`,);
+            expect(run.stderr,).toContain(noteNaming({ root, usedVersion: '0.2.9', },),);
           },
         },),
       ],

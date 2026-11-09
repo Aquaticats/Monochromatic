@@ -400,6 +400,120 @@ impl MarkdownSource {
     }
 }
 
+/// What:
+///  Every paragraph's container kinds and its words,
+///  which together say where each piece of text sits.
+/// Why:
+///  A whitespace-only fix may move line breaks but not text:
+///  the property check over a real tree compares two parses and needs one definition
+///  of what a document's block structure and content are,
+///  not a copy per test module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function paragraphPlacements(context: MarkdownSource): [MdastNodeType[], string[]][];
+/// ```
+#[cfg(test)]
+pub(crate) fn paragraph_placements(
+    context: &MarkdownSource,
+) -> Result<Vec<(Vec<MdastNodeType>, Vec<String>)>, MarkdownError> {
+    let mut found: Vec<(Vec<MdastNodeType>, Vec<String>)> = Vec::new();
+    for id in context.all_nodes() {
+        if context.kind(*id) != MdastNodeType::Paragraph {
+            continue;
+        }
+        let mut containers: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
+        for ancestor in context.ancestors(*id)? {
+            containers.push(context.kind(ancestor));
+        }
+        let words: Vec<String> = context
+            .text_content(*id)?
+            .split_whitespace()
+            .map(String::from)
+            .collect::<Vec<String>>();
+        found.push((containers, words));
+    }
+    return Ok(found);
+}
+
+/// What:
+///  Every block node in preorder with its depth,
+///  which records where block boundaries fall and which container holds them.
+/// Why:
+///  Paragraph ancestors alone cannot tell two adjacent quotations from one quotation with two paragraphs;
+///  a whitespace-only fix must not change either boundary.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function blockContainers(context: MarkdownSource): [number, MdastNodeType][];
+/// ```
+#[cfg(test)]
+pub(crate) fn block_containers(
+    context: &MarkdownSource,
+) -> Result<Vec<(usize, MdastNodeType)>, MarkdownError> {
+    let mut found: Vec<(usize, MdastNodeType)> = Vec::new();
+    for id in context.all_nodes() {
+        let kind: MdastNodeType = context.kind(*id);
+        if is_inline(kind) {
+            continue;
+        }
+        found.push((context.ancestors(*id)?.len(), kind));
+    }
+    return Ok(found);
+}
+
+/// Whether a node kind is inline content rather than a block boundary.
+#[cfg(test)]
+fn is_inline(kind: MdastNodeType) -> bool {
+    return matches!(
+        kind,
+        MdastNodeType::Text
+            | MdastNodeType::Emphasis
+            | MdastNodeType::Strong
+            | MdastNodeType::InlineCode
+            | MdastNodeType::Break
+            | MdastNodeType::Link
+            | MdastNodeType::Image
+            | MdastNodeType::LinkReference
+            | MdastNodeType::ImageReference
+            | MdastNodeType::FootnoteReference
+            | MdastNodeType::Delete
+            | MdastNodeType::InlineMath
+            | MdastNodeType::LeafDirective
+            | MdastNodeType::TextDirective
+            | MdastNodeType::Superscript
+            | MdastNodeType::Subscript
+            | MdastNodeType::MdxJsxTextElement
+            | MdastNodeType::MdxTextExpression
+            | MdastNodeType::Custom
+    );
+}
+
+/// What:
+///  The exact source of every code and raw HTML block,
+/// in document order.
+/// Why:
+///  The token comparison of a whole file sets line-leading markers aside everywhere,
+///  including inside a fence,
+///  so quoted source needs its own byte-for-byte comparison.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function verbatimBlocks(context: MarkdownSource): string[];
+/// ```
+#[cfg(test)]
+pub(crate) fn verbatim_blocks(context: &MarkdownSource) -> Result<Vec<String>, MarkdownError> {
+    let mut found: Vec<String> = Vec::new();
+    for id in context.all_nodes() {
+        let kind: MdastNodeType = context.kind(*id);
+        if kind != MdastNodeType::Code && kind != MdastNodeType::Html {
+            continue;
+        }
+        found.push(String::from(context.slice(*id)));
+    }
+    return Ok(found);
+}
+
 /// Direct native-arena guard controls,
 ///  independent of what malformed text the parser happens to emit.
 #[cfg(test)]

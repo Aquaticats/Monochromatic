@@ -29,6 +29,8 @@ use git_policy_cli::worktree_copy_journal_encoding_and_validation::{
 use git_policy_cli::worktree_copy_owner::CopyOwner;
 /// The path type the journal name reader takes.
 use std::path::Path;
+/// The one borrowed file-name type a path's last component is read as.
+use std::ffi::OsStr;
 /// The `/proc/<pid>/stat` reader under test.
 use git_policy_cli::process_identity::linux_identity_from_stat;
 /// The transaction owner record codec under test.
@@ -311,13 +313,18 @@ pub fn check_generated_copy_owner_token(data: &[u8]) {
 /// function checkOwnerFileNames(text: string): void;
 /// ```
 pub fn check_owner_file_names(name: &str) {
+    // The journal reader takes a path, so the name it reads a token from is the last component: a trailing separator
+    // names the component before it.
+    let component: &str = Path::new(name).file_name().and_then(OsStr::to_str).unwrap_or(name);
     if let Some(token) = owner_token_of(Path::new(name)) {
-        assert!(name.ends_with(JOURNAL_SUFFIX), "{name}");
+        assert!(component.ends_with(JOURNAL_SUFFIX), "{name}");
+        assert!(!token.is_empty(), "{name}");
         assert!(!token.contains('.') && !token.contains('/'), "{name}");
         assert!(name.contains(token.as_str()), "{name}");
     }
     if let Some(token) = temporary_writer_token(name) {
         assert!(name.ends_with(TEMPORARY_SUFFIX), "{name}");
+        assert!(!token.is_empty(), "{name}");
         assert!(!token.contains('.'), "{name}");
         assert!(name.contains(token), "{name}");
     }

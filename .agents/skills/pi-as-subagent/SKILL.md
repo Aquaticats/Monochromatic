@@ -87,6 +87,18 @@ Resource limits that add up to more than the host has are ceilings,
 not usage,
 and are no reason to hold work back.
 
+The owner on runs that do not come back:
+"Regularly,
+check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+Take that percentile from `totalMilliseconds` in the `summary.json` of finished runs,
+by kind of job where enough runs exist.
+For a run past it,
+read its open tool call and the processes under the agent before judging it:
+a quiet feed is usually a long test run.
+A message in `inbox/` reaches Pi only between tool calls,
+so a tool call that will never return gets the message first,
+and then has its hung process ended by process number.
+
 ## Start a run
 
 `pi` is in `~/Monochromatic`,
