@@ -12,6 +12,7 @@ use crate::auto_push_reconcile_branch_advance::status_differs;
 use crate::auto_push_reconcile_merge_commit::{common_dir_of, common_dir_of_awaiting, signs_commits, signs_commits_awaiting};
 use crate::auto_push_reconcile_merge_commit::PushRunner;
 use crate::merge_second_pass::GitRunner;
+use crate::merge_second_pass::tests::await_it;
 use crate::test_support::{fixture, git, remove};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
@@ -2124,10 +2125,10 @@ fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let git: PushGit = push_git(repo.as_path());
     let runner: PushRunner<'_> = PushRunner { git: &git };
-    let positive = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect("positive control: the command runs with a thread");
+    let positive = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None)).expect("positive control: the command runs with a thread");
     assert_eq!(positive.code, Some(0));
     let _refused = crate::scoped_start::RefusedStarts::here();
-    let reported: String = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect_err("no thread to give it its input");
+    let reported: String = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None)).expect_err("no thread to give it its input");
     assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
     crate::test_support::remove(root.as_path());
 }
@@ -2158,7 +2159,7 @@ fn a_second_pass_command_that_stalls_is_stopped_and_named() {
     git.environment.push((OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from(STALLED_WINDOW)));
     let runner: PushRunner<'_> = PushRunner { git: &git };
     let began: std::time::Instant = std::time::Instant::now();
-    let reported: String = runner.run(&["merge-tree", "--write-tree"], None, None).expect_err("a stalled command is stopped, not waited out");
+    let reported: String = await_it(runner.run(&["merge-tree", "--write-tree"], None, None)).expect_err("a stalled command is stopped, not waited out");
     let waited: Duration = began.elapsed();
     assert!(reported.contains("merge-tree"), "{reported}");
     assert!(waited < STALLED_STAND_IN_SLEEP, "the command was stopped at its window: {reported}");
