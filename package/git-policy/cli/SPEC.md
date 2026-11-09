@@ -2963,7 +2963,10 @@ on the commit path:
   never a pathname),
   the bound it reached (the quiet window before the ceiling,
   or the ceiling itself) and that the index,
-  the worktree and the staged changes are as they were:
+  the worktree and the staged changes are as they were,
+  with the hint of a stopped read rather than the hint of content that is missing from the clone
+  (`STOPPED_READ_HINT`,
+  `policy/policy_events.rs`):
   the bound's "Return with an error",
   not a rejected commit,
   and the person runs the command again.
@@ -5183,6 +5186,11 @@ so a large asset costs a skipped check that names itself,
 never a commit that fails.
 The ceiling is 1.57 times the largest file this repository tracks (20,453,084 bytes),
 so no content committed here is skipped.
+It bounds the bytes a check reads whole,
+never a reply's type field:
+a `HEAD` commit larger than
+the ceiling still names its commit,
+so a staged listing compares against the real `HEAD` and not the empty tree.
 
 ### Direct check
 
@@ -5207,21 +5215,39 @@ its original worktree bytes for the concurrent-change check are the verified `HE
 
 #### What an install keeps
 
-Each corrected file is prepared beside itself and then swapped with
-`renameat2(RENAME_EXCHANGE)`,
-so the corrected bytes go in while the file they displaced stays readable:
+Each corrected file is written into a journal inside the Git directory and then swapped with the
+file through `renameat2(RENAME_EXCHANGE)`,
+so the corrected bytes go in while the file they displaced stays
+readable:
 
-- the prepared file is created with the destination's own permission bits and owner,
+- the corrected bytes are created with the destination's own permission bits and owner,
   so a file kept at `0600` stays private and the set-user-id,
   set-group-id and sticky bits survive;
+  the owner is
+  given before the bits,
+  because changing a file's owner clears those bits even when the owner
+  and group stay the same;
+  an owner this process may not give is refused rather than handed over;
 - the bytes the swap displaced are read after the swap,
   when nothing can overwrite them any more,
-  and a file that no longer holds what the fix read swaps them back and fails the fix:
-  a write that arrived while the fix ran is kept rather than replaced;
-- a selected path that is a symbolic link is refused instead of replaced,
-  because reading it reads another file and the swap would remove the link;
-- rollback is the same swap,
-  so a failed install returns every file it replaced to the very inode it displaced.
+  and compared with what the fix read,
+  permission bits and owner included;
+  a difference swaps them
+  back and fails the fix,
+  so a write or a permission change that arrived while the fix ran is kept
+  rather than replaced;
+- a selected path that is not a regular file - a symbolic link,
+  a directory,
+  a device - is refused
+  instead of replaced,
+  and a path that is gone is refused rather than created;
+- rollback swaps back only while the destination still holds this fix's bytes.
+  A file someone wrote
+  to after its swap is never touched again:
+  the journal stays and the person is told where those bytes are;
+- a site whose displaced file no longer holds what the fix read is read once more before its
+  journal is removed,
+  so a write that arrived through an already-open descriptor is kept and named.
 
 What a replacement does not carry is its extended attributes and access-control list,
 its inode number and birth time,
@@ -5230,25 +5256,58 @@ whose other name keeps the bytes it had.
 
 The window that remains is two file system calls wide,
 not the length of a pass:
-a write through a descriptor opened before the swap lands in the displaced file after
-the comparison and before the prepared file is removed,
-and a write to the path after the swap replaces the corrected bytes,
+a descriptor write that arrives after the last reading of the displaced file and
+before its journal is removed is lost,
+which every atomic replacement has,
+and a write to the path after the swap
+replaces the corrected bytes,
 which is the newest state the person asked for.
+When the first is hit the person
+loses that one write and nothing of the file's earlier state;
+when a write is caught before that reading,
+it is on
+disk in the journal the message names.
 
-#### The files an install leaves
+#### The journal, and the command that finishes a killed fix
 
-A fix keeps one prepared file per corrected file while it installs,
-named with the prefix `.cli-git-direct-fix-`,
-and removes it when every file is in place.
-A fix that is killed leaves it behind,
-so before it prepares anything a fix writes `.cli-git-direct-fix-*` into the repository's own
-`info/exclude`:
-Git then never lists a leftover as untracked,
-`git add --all` never stages one,
-and a later fix never reads one as candidate content.
-A rule that cannot be written does not fail the fix;
-it adds a notice naming the file and the prefix to remove by hand.
+One journal directory per corrected file,
+`<git dir>/cli-git-direct-fix-<suffix>/`,
+`0700`,
+holding the corrected bytes (`content`) and
+a record of the file (`record`:
+its pathname,
+permission bits,
+owner,
+the writer's owner token,
+and the
+digest of the corrected bytes).
+The record is written before the file is touched.
+Nothing of a fix lives in the
+worktree,
+so no `gitignore` rule can expose a leftover and no `git add` can stage one;
+a worktree
+whose Git directory is on another file system is refused before anything is written,
+because the
+swap needs both names on one file system.
 
+Every `fix` first sweeps the journals of that Git directory and acts only on a proof that the
+writer is gone,
+using the crate's existing owner proof:
+a journal holding the correction itself is removed (the
+file was never touched),
+one whose file still holds the correction is swapped back and removed (the
+correction never verified its index),
+and everything else - a file written since,
+an unreadable record,
+a writer in another PID namespace,
+a platform that will not report - stays and is named.
+
+No lock stands in this route:
+the lock inventory guard covers `candidate/`,
+`policy/`,
+`markdown/`,
+`standards_review/` and `commit/`,
+and a lock there must be listed with its reason beside it.
 No lock stands in this route:
 the lock inventory guard covers `candidate/`,
 `policy/`,
@@ -6688,20 +6747,27 @@ The `git add` prediction copies the real index into
 `<git-dir>/cli-git-add-policy-<pid>-<nanoseconds>-<count>`,
 `0700`,
 on the same file system as the real index,
-with the real index's access and modification times,
-and names that process in the directory's `owner` record:
-its process id,
-the platform's identity of its birth and its PID namespace.
+with the real index's access and modification times.
+The copy is built under a staging name,
+`cli-git-add-policy-<suffix>.making`,
+with its `owner` record already inside it - the writer's process id,
+the platform's identity of its birth
+and its PID namespace - and one `rename` publishes it under the name a sweep visits,
+so a copy this
+release publishes always names its writer.
 The command removes the directory on every path it ends by;
-every copy made later sweeps the directory it is created in and removes a copy only when its owner
-is proven gone
+every copy made later sweeps the directory it is created in and removes a copy only when its
+record proves the owner gone
 (a dead process id in this PID namespace,
 a reused id kept,
-an owner of another namespace alive until its record outlives the foreign-owner patience),
-and keeps every other one,
-including a copy whose record cannot be read.
+an owner of another namespace alive until its record outlives the foreign-owner patience).
+A copy with no record is kept,
+whatever its name says,
+because a process id means something only inside its own PID namespace:
+another namespace's live command looks exactly like a dead one from here,
+and removing its copy makes it fail while it copies or reads the index.
 No lock protects the sweep:
-a copy has one owner and only a proven-dead owner's copy is removed.
+a copy has one writer and only a proven-dead writer's copy is removed.
 
 #### Maintenance that may run while a commit is made
 
