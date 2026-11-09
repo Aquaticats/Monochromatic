@@ -36,7 +36,7 @@ pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
 };
 use crate::merge_isolation_recovery_steps::{
-    index_holds_the_merge, install_entries, merge_changes, put_back_stranded_takes, remove_record, standing,
+    index_standings, install_entries, merge_changes, put_back_stranded_takes, remove_record, standing,
 };
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::{
@@ -376,7 +376,8 @@ pub fn settle_failed_merge(
         let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
         judgements.push(Judged { standing: standing(change, &state), identity });
     }
-    let index_started: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())?;
+    let index_standing: Vec<Standing> = index_standings(place, root, intent.old_oid.as_str(), changes.as_slice())?;
+    let index_started: bool = index_standing.iter().any(|standing| { return *standing == Standing::New; });
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
     let worktree_started: bool = judgements.iter().any(holds_the_merge);
     // A merge that was saved on a side ref is finished even though nothing of it is in the checkout yet: the record with a side
@@ -400,6 +401,25 @@ pub fn settle_failed_merge(
              finish the merge; or remove the record to abandon the merge and check `git status` yourself.",
             root.display(),
             foreign.join(", "),
+            record.display()
+        )));
+    }
+    // A staged version of a path the merge replaces has no other name, so it is never written over: the finish stops and names
+    //  the paths, and the staged content stays in the index.
+    let mut staged: Vec<String> = Vec::new();
+    for (change, standing) in changes.iter().zip(index_standing.iter()) {
+        if *standing == Standing::Foreign {
+            staged.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
+        }
+    }
+    if !staged.is_empty() {
+        return Err(RecoveryError(format!(
+            "A merge of {target} in {} is unfinished, and the index holds staged content for these paths that the merge would \
+             replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the index. Commit or \
+             unstage it, then run any git command again so recovery can finish the merge; or remove the record to abandon the \
+             merge and check `git status` yourself.",
+            root.display(),
+            staged.join(", "),
             record.display()
         )));
     }

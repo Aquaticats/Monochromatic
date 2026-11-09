@@ -1130,11 +1130,14 @@ fn a_saved_merge_whose_branch_moved_is_kept_and_named() {
 #[test]
 fn a_staged_edit_of_a_merge_path_stops_the_finish_and_is_kept() {
     let world: World = world("merge-recovery-staged-only");
-    let _record: PathBuf = deferred_record_of(&world, "18181818-0000-4000-8000-000000000018", "refs/cli-git/kept/8");
-    // Another program stages its own version of `f.txt` and then puts the worktree back to the branch's content.
+    // Git installed the merge and died before the branch moved; another program then staged its own version of `f.txt`
+    //  over the merge's entry, and the worktree was left as the merge wrote it.
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let _record: PathBuf = record_of(&world, dead_owner("18181818-0000-4000-8000-000000000018"), Some("refs/heads/main"));
     std::fs::write(world.repo.join("f.txt"), b"f.txt staged by someone else\n").expect("the staged version");
     git(world.repo.as_path(), &["add", "--", "f.txt"]);
-    std::fs::write(world.repo.join("f.txt"), b"f.txt base\n").expect("the worktree back to the branch's content");
+    // The worktree goes back to what the merge wrote there, so only the index holds the person's version.
+    std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the worktree as the merge left it");
     let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
     assert!(staged_entry.contains("f.txt"), "the index holds the staged entry under test: {staged_entry}");
     let before = snapshot(&world);

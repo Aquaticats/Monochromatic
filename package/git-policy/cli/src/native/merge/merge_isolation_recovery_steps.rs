@@ -151,6 +151,35 @@ pub fn index_holds_the_merge(
     old_oid: &str,
     changes: &[Change],
 ) -> Result<bool, RecoveryError> {
+    let standings: Vec<Standing> = index_standings(place, root, old_oid, changes)?;
+    return Ok(standings.iter().any(|standing| { return *standing == Standing::New; }));
+}
+
+/// What:
+///  How the index stands at each changed path,
+///  against the two sides of the change.
+/// Why:
+///   The index is where a person's staged work lives,
+/// and a staged version of a path the merge replaces has no other
+///  name,
+/// so writing the merge's entry over it would discard it with no copy
+///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`;
+/// a cross-vendor review of the second round).
+///  An entry equal to the old side is the branch's,
+/// one equal to the new side is the merge's,
+/// and anything else is
+///  someone's staged work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function indexStandings({ place, root, oldOid, changes }): Promise<Standing[]>;
+/// ```
+pub fn index_standings(
+    place: &RecoveryPlace,
+    root: &Path,
+    old_oid: &str,
+    changes: &[Change],
+) -> Result<Vec<Standing>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-index", "--cached", "-z", "--raw", "--no-renames", "--no-abbrev", old_oid, "--"],
@@ -160,23 +189,27 @@ pub fn index_holds_the_merge(
         Err(error) => return Err(RecoveryError(error.to_string())),
     };
     let staged: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
+    let mut found: Vec<Standing> = Vec::with_capacity(changes.len());
     for change in changes {
-        let mut found: Option<&Change> = None;
+        let mut entry: Option<&Change> = None;
         for candidate in &staged {
             if candidate.path == change.path {
-                found = Some(candidate);
+                entry = Some(candidate);
                 break;
             }
         }
-        let Some(entry) = found else {
+        // A path the index does not report differs from the old commit not at all.
+        let Some(entry) = entry else {
+            found.push(Standing::Old);
             continue;
         };
-        let merged_entry: bool = entry.new_mode == change.new_mode && entry.new_oid == change.new_oid;
-        if merged_entry {
-            return Ok(true);
+        if entry.new_mode == change.new_mode && entry.new_oid == change.new_oid {
+            found.push(Standing::New);
+        } else {
+            found.push(Standing::Foreign);
         }
     }
-    return Ok(false);
+    return Ok(found);
 }
 
 /// What the worktree holds at a changed path,

@@ -3164,6 +3164,11 @@ on the commit path:
   the record and the side ref go,
   and everything the merge does not change is left as it is,
   so an edit made meanwhile to such a file is carried forward.
+  Staged content is never written over:
+  an index entry for a path the merge replaces that is neither the branch's nor the merge's stops the finish,
+  names the paths,
+  keeps the record and leaves the staged content in the index,
+  because a staged version has no other name.
   An edit made meanwhile to one of the merge's own paths is never overwritten:
   the finish stops and names the file.
   A merge whose commit cannot be kept on a side ref is refused with nothing changed,
