@@ -12,8 +12,6 @@
 > `package/pi-plugin/auto-mode/doc/compact-review-design.md` (2026-10-17 `a861a7c1be`).
 > `package/pi-plugin/auto-mode/native/contract/integration/policy-source/policy-input-collector.mjs`
 > is deleted (2026-10-19 `ff55ced353`) and no path of that name exists today.
-> `package/pi-plugin/auto-mode/native/contract/integration/policy-source/policy-input-collector.mjs`
-> is deleted (2026-10-19 `ff55ced353`) and no path of that name exists today.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

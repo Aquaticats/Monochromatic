@@ -7,7 +7,6 @@
 > `package/webapp-productivity/rss/TODO.index.md` is now `package/rss/app/TODO.index.md`
 > (2026-10-29 `592d78b143`).
 > `package/cli/markdown-lint/src/parse.ts` is deleted (2026-10-13 `5db89c1b61`) and
-> `package/linter/monochromatic-lint` serves its job today.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

@@ -8,9 +8,7 @@
 > `package/claude-code-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
 > `package/pi-plugin/cost-dismissal` serves its job today.
 > `package/pi-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
-> `package/pi-plugin/cost-dismissal` serves its job today.
 > `package/dsh-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
-> `package/pi-plugin/cost-dismissal` serves its job today.
 
 ## Purpose
 

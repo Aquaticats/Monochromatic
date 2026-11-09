@@ -10,8 +10,6 @@
 > `package/jsonc-edit/core-ts/src/edit-state.ts` (2026-10-29 `592d78b143`).
 > `package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/csstools-css-tokenizer-package-effect-catalog.ts`
 > is deleted (2026-07-23 `2bf5f6bc5d`) and no path of that name exists today.
-> `package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/csstools-css-tokenizer-package-effect-catalog.ts`
-> is deleted (2026-07-23 `2bf5f6bc5d`) and no path of that name exists today.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

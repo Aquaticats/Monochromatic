@@ -5,11 +5,8 @@
 > `package/rust-module/rust-linter-core` is deleted (2026-10-06 `5bc05682ec`) and
 > `package/linter/monochromatic-lint` serves its job today.
 > `package/rust-module/rust-linter-pattern` is deleted (2026-10-06 `5bc05682ec`) and
-> `package/linter/monochromatic-lint` serves its job today.
 > `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
-> `package/linter/monochromatic-lint` serves its job today.
 > `package/cli/markdown-lint/README.md` is deleted (2026-10-13 `5db89c1b61`) and
-> `package/linter/monochromatic-lint` serves its job today.
 > `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
 > wrapper under `package/git-policy/cli/src/native/` serves its job today.
 
