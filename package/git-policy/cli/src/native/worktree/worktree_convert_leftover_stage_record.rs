@@ -36,7 +36,7 @@ use crate::diagnostic_log::warn;
 use crate::fs_beneath::{ObjectId, identity_at, open_root};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::worktree_convert_inspection::converting_path;
-use crate::worktree_convert_journal::read_plain_file;
+use crate::plain_file::read_plain_file;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.

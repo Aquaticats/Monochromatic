@@ -145,7 +145,7 @@ pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]
         // These queries send no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
+    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice());
     let (lfs, hook_warning, lfs_settings): (bool, String, Option<Vec<(String, String)>>) =
         needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
     let stderr_with_warning: String = format!("{stderr}{hook_warning}");

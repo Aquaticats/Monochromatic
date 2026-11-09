@@ -34,7 +34,7 @@ use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_migrate::{MigrateOptions, Verdict, migrate};
 use crate::subvolume_platform::{LinuxPlatform, Platform};
 use crate::subvolume_preflight::{Refusal, layout_of};
-use crate::subvolume_rollback::{remove_old_tree, rollback};
+use crate::subvolume_rollback::{refusals_of_the_mode, remove_old_tree, rollback};
 use crate::subvolume_run::Run;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -86,7 +86,9 @@ pub fn main_checkout_root(start: &Path) -> Result<PathBuf, String> {
 
 /// Read a linked worktree's gitfile and return the main checkout it belongs to.
 fn common_root_of_gitfile(gitfile: &Path) -> Result<PathBuf, String> {
-    let text: String = match std::fs::read_to_string(gitfile) {
+    // Both reads go through the plain-file reader, which opens without waiting and never follows a link: a named pipe at
+    // either name must end discovery with a reason instead of waiting for a writer that never comes.
+    let text: String = match crate::plain_file::read_plain_text(gitfile) {
         Ok(read) => read,
         Err(error) => return Err(format!("cannot read {}: {error}", gitfile.display())),
     };
@@ -95,9 +97,15 @@ fn common_root_of_gitfile(gitfile: &Path) -> Result<PathBuf, String> {
     };
     let base: &Path = gitfile.parent().unwrap_or(Path::new("/"));
     let admin: PathBuf = base.join(named.trim());
-    let common_text: String = match std::fs::read_to_string(admin.join("commondir")) {
+    let common_text: String = match crate::plain_file::read_plain_text(admin.join("commondir").as_path()) {
         Ok(read) => read,
-        Err(_) => return Err(format!("{} is not a linked worktree's gitfile ({} has no commondir), so this is not a main checkout or a linked worktree of one", gitfile.display(), admin.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} is not a linked worktree's gitfile ({} has no commondir: {error}), so this is not a main checkout or a linked worktree of one",
+                gitfile.display(),
+                admin.display()
+            ));
+        }
     };
     let common: PathBuf = match std::fs::canonicalize(admin.join(common_text.trim())) {
         Ok(resolved) => resolved,
@@ -201,6 +209,13 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
     }
     let mut run: Run<'_> = Run::open(platform, &layout, interrupt, say)?;
     if arguments.dry_run {
+        // A preview runs the refusals of the mode it previews, in the words the real run uses, so it never promises a
+        // step the real run refuses; it changes nothing either way.
+        let refusals: Vec<Refusal> = refusals_of_the_mode(&run, arguments.mode, arguments.discard_unreadable);
+        if !refusals.is_empty() {
+            say_refusals(run.say, refusals.as_slice());
+            return Ok(REFUSED_EXIT_CODE);
+        }
         let what: &str = if arguments.mode == MigrateMode::Rollback { "restore the original directory" } else { "delete the original tree" };
         run.line(format!("dry run: the command would {what} of {}; nothing was changed.", layout.root.display()).as_str());
         return Ok(0);

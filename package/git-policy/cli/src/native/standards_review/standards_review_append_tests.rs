@@ -6,6 +6,7 @@
 //! concurrent appenders.
 
 use super::*;
+use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::test_support::{fixture, remove};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -27,9 +28,10 @@ fn sha(tag: &str) -> String {
     return format!("{tag:0<40}");
 }
 
-/// An entry text that names the commit and ends with the blank line that separates entries.
+/// An entry text that names the commit,
+/// ends with its receipt line and the blank line that separates entries.
 fn entry(tag: &str) -> String {
-    return format!("- Date:\n  D\n  Subject:\n  {} `s`\n\n", token(sha(tag).as_str()));
+    return format!("- Date:\n  D\n  Subject:\n  {} `s`\n  reviewed: {}\n\n", &sha(tag)[..SHORT_SHA_LENGTH], sha(tag));
 }
 
 /// A log path inside a fixture directory that does not exist yet,
@@ -161,5 +163,35 @@ fn concurrent_appends_land_whole() {
     assert_eq!(found.len(), expected.len());
     assert_eq!(found, expected);
     assert_eq!(written.len(), expected.values().map(String::len).sum::<usize>(), "no byte outside an expected entry");
+    remove(root.as_path());
+}
+
+/// The name a remote answer can spell:
+/// a commit's own name inside another entry's verdict text.
+#[test]
+fn a_commit_name_inside_another_entry_is_not_a_receipt() {
+    let root: PathBuf = fixture("append-inside-text");
+    let log: PathBuf = root.join("log.md");
+    let named: String = sha("bbb");
+    std::fs::write(log.as_path(), format!("- Date:\n  D\n  Subject:\n  {} `s`\n  cost_verdict: no ({named} 0.9)\n\n", &sha("aaa")[..SHORT_SHA_LENGTH])).expect("log");
+    assert!(!names_commit(log.as_path(), named.as_str()), "text inside another entry is not this commit's receipt");
+    assert_eq!(deliver(log.as_path(), named.as_str(), entry("bbb").as_str()), Ok(Delivery::Appended), "so the review of the named commit still runs");
+    remove(root.as_path());
+}
+
+/// An entry the operating system cut short before its receipt is not a finished review:
+/// the retry appends the whole entry after the fragment and keeps the fragment.
+#[test]
+fn a_fragment_before_the_receipt_is_not_a_finished_review() {
+    let root: PathBuf = fixture("append-fragment");
+    let log: PathBuf = root.join("log.md");
+    let whole: String = entry("aaa");
+    let short: &str = &sha("aaa")[..SHORT_SHA_LENGTH];
+    let cut: usize = whole.find(short).expect("the entry names the commit") + short.len();
+    let fragment: &str = &whole[..cut];
+    std::fs::write(log.as_path(), fragment).expect("seed the fragment");
+    assert!(!names_commit(log.as_path(), sha("aaa").as_str()), "a fragment is not a receipt");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), whole.as_str()), Ok(Delivery::Appended));
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{fragment}{whole}"), "the fragment is kept and the whole entry follows it");
     remove(root.as_path());
 }

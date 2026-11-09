@@ -36,7 +36,7 @@ use crate::service_route::{Route, route_from_environment};
 use crate::service_work::{Verdict, work_directory};
 use crate::transaction_git::GitContext;
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, enqueue, state_directory};
-use crate::worktree_convert_journal::read_plain_file;
+use crate::plain_file::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;

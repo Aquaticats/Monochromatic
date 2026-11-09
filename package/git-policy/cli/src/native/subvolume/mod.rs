@@ -103,6 +103,10 @@ pub mod subvolume_sync_attrs;
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync;
 
+/// The lines a tree pass says about what it could not carry into the destination.
+#[cfg(target_os = "linux")]
+pub mod subvolume_pass_report;
+
 /// The pieces every step of a tree sync shares:
 /// options,
 /// statistics,

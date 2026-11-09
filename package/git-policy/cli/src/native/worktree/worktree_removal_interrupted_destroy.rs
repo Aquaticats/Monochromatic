@@ -36,7 +36,7 @@ use crate::private_storage::{create_private_directory_all, write_private_file_un
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::process_identity::{current_birth_identity, process_birth_identity};
-use crate::worktree_convert_journal::read_plain_file;
+use crate::plain_file::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
 use crate::worktree_removal_snapshot_promotion::promote_snapshot;
 use std::ffi::{OsStr, OsString};
@@ -128,7 +128,7 @@ pub fn record_destroy_with_owner(common_dir: &Path, id: &OsStr, admin: &ObjectId
     }
     // The owner first, so another command can tell a removal that is still running from an abandoned one, then the identity
     // the registration was proven with, then the target's own bytes, which need not be text.
-    let owner: String = match owner {
+    let written_owner: String = match owner {
         Some(spelled) => format!("{OWNER_PREFIX}{spelled}\n"),
         None => match current_birth_identity() {
             Ok(identity) => format!("{OWNER_PREFIX}{}:{identity}\n", std::process::id()),
@@ -136,7 +136,7 @@ pub fn record_destroy_with_owner(common_dir: &Path, id: &OsStr, admin: &ObjectId
             Err(_unknown) => String::new(),
         },
     };
-    let mut bytes: Vec<u8> = owner.into_bytes();
+    let mut bytes: Vec<u8> = written_owner.into_bytes();
     bytes.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", admin.encode()).as_bytes());
     bytes.extend_from_slice(target.as_os_str().as_bytes());
     return match write_private_file_unsynced(path.as_path(), bytes.as_slice()) {
@@ -287,9 +287,9 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
         return Err(String::from("its identity line is not text"));
     };
     // A record of this build spells the field; an earlier one wrote the identity alone.
-    let identity_text: &str = identity_text.strip_prefix(IDENTITY_PREFIX).unwrap_or(identity_text);
-    let Some(admin) = ObjectId::decode(identity_text) else {
-        return Err(format!("its identity line {identity_text} cannot be read"));
+    let spelled_identity: &str = identity_text.strip_prefix(IDENTITY_PREFIX).unwrap_or(identity_text);
+    let Some(admin) = ObjectId::decode(spelled_identity) else {
+        return Err(format!("its identity line {spelled_identity} cannot be read"));
     };
     // Everything after the identity's newline is the target, byte for byte.
     let target: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
@@ -317,9 +317,9 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
 /// const running = recordOwnerMayBeRunning(record.owner); // true when nothing proves the owner left
 /// ```
 fn record_owner_may_be_running(owner: Option<&String>) -> bool {
-    let Some(owner) = owner else { return true };
-    let Some((pid, identity)) = owner.split_once(':') else { return true };
-    let Ok(pid) = pid.parse::<i64>() else { return true };
+    let Some(spelled) = owner else { return true };
+    let Some((spelled_pid, identity)) = spelled.split_once(':') else { return true };
+    let Ok(pid) = spelled_pid.parse::<i64>() else { return true };
     return match process_birth_identity(pid) {
         Ok(Some(now)) => now == identity,
         Ok(None) => false,
