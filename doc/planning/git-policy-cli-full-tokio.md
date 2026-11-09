@@ -4339,6 +4339,261 @@ the tree has not been through it),
 `native:perf` (the plan asks for it after T12),
 and the mutation campaign.
 
+### Step T12, the leaf-first asynchronous Git and the ordered runner that awaits, 2026-11-08T19:29:56-05:00
+
+Branch `feat/git-policy-cli-tokio-steps-12-and-13` in
+`.claude/worktrees/pi-tokio-async-git-leaf`,
+from `6240b51a7a` (the merge of "Step T12,
+the runner's jobs on the runtime").
+Two commits:
+`e0359dc84c` (the asynchronous Git runner and the awaited watched
+run) and `a2f901dd92` (the ordered runner for work that awaits a Git child).
+
+#### What the previous step left, and what this one had to build first
+
+The section "Step T12,
+the runner's jobs on the runtime" ends with one leaf
+missing:
+`transaction/transaction_git.rs` had no `async fn`,
+so the round of the landing could not move onto the runtime runner,
+because a
+pool job that reaches `run_git` meets the refusal of
+`run_on_runtime` (`RuntimeError::Nested`).
+This step builds that leaf and the runner the round needs after it.
+
+The synchronous face of a Git step enters the runtime for one reason:
+a step that is ended at its ceiling (`StepBound::EndAt`) registers its pipes
+with the reactor,
+and `attach_pipes` does that through
+`run_on_runtime`.
+Everything else of a step is already a wait of the
+synchronous caller's thread or of the watcher task.
+
+#### The two faces, and why both exist
+
+- `transaction/transaction_git_awaiting.rs` is the same runner with the
+  entering taken out:
+  the pipes are registered on the runtime the caller
+  already runs on,
+  the child is started by `spawn_retrying_without_blocking`
+  (the awaiting start retry that already existed),
+  its output is read by
+  `StepPipes::read_until_the_child_ends_awaiting`,
+  and its end is awaited
+  through the pidfd of `OwnedChild`.
+  `run_git_awaiting` and `run_git_checked_awaiting` are its two entries.
+- The synchronous face stays exactly as it was,
+  and for a measured reason:
+  it is not only the callers that are still synchronous that need it.
+  A step
+  whose bound is `Unbounded` or `LeaveRunning` makes no pipes at all,
+  so the
+  synchronous face works today from inside the runtime for those bounds,
+  which the branch write of a landing is.
+  A bridge that entered the runtime
+  around the whole runner would have taken that away from every pool job that
+  moves a branch,
+  so the leaf is added beside the face and not under it.
+- What the two cannot differ in is shared rather than copied:
+  `build_command`,
+  `input_file`,
+  `step_subject`,
+  `terms_for_request`,
+  `step_bound`,
+  `checked_from` and `refused_by_the_system` are the synchronous file's items,
+  made `pub(crate)` for the awaiting file;
+  `ending_of_a_watched_step`
+  (`push/child_watch_step_bounds_and_errors.rs`) words the stop,
+  the ceiling
+  and the quiet window once for both;
+  `watched_timeout_text` moved beside it
+  so a file that words an ending does not use the file that runs the wait.
+- `push/child_watch_output_watched_on_the_runtime.rs` is the watched run of a
+  step as a future:
+  `attach_pipes_awaiting`,
+  the awaiting start,
+  the pipe read
+  and the child's end.
+  A step that is left running (a write that may not be
+  cut) is waited for by a task of the runtime with the runtime's timer,
+  and
+  the thread the synchronous face starts for that is not started here.
+
+#### The place a worker was held, measured
+
+The synchronous face closes a watch by dropping it,
+and `Drop` waits for the
+watcher task with `recv_timeout` on the calling thread.
+That is right for a
+synchronous caller and wrong on a worker:
+while the workers of a small
+runtime are inside those waits,
+the very tasks that would end them cannot
+run,
+so each watch pays the whole `WATCHER_END_BOUND` (19.1 s).
+
+Measured before the fix (`foundation/parallel_runner_on_the_runtime_awaiting_tests.rs`,
+`an_item_may_await_a_git_child`):
+four awaited Git steps of 3.6 ms each took
+38.2 s,
+and one awaited step alone took 19.1 s.
+`ChildWatch::close_awaiting` closes the same watch from a task,
+awaiting the
+watcher's own end with the same bound,
+and the four steps take 10.8 ms.
+The synchronous face keeps its blocking drop,
+which the measurement of
+`WATCHER_END_BOUND` was made under.
+The rule this gives any later helper:
+a synchronous `Drop` that waits for a
+task must not run on a worker,
+so a face that runs on the runtime closes its
+own watches.
+
+#### The ordered runner that awaits
+
+`foundation/parallel_runner_on_the_runtime.rs` runs each item as a job of the
+blocking pool,
+and a job cannot await anything,
+so the round of the landing
+could not use it whatever the Git leaf looked like.
+`foundation/parallel_runner_on_the_runtime_awaiting.rs` runs each lane as a
+task of the runtime instead (`run_ordered_awaiting_on_the_runtime`,
+`OrderedAwaitingWork`):
+
+- a lane's items run one after another inside one task,
+  which is what keeps
+  two items of one worktree apart,
+  and lanes run side by side,
+  bounded by
+  `workers`;
+- an item that also waits on storage puts that one call on the blocking pool
+  inside its own work (`run_blocking_job_within_the_budget`),
+  so the
+  process's one bound still covers the storage and the worker awaiting Git
+  stays free;
+- the consumer,
+  the drain of what the jobs already sent and the join are
+  `finish_the_run`,
+  shared with the blocking form,
+  so the input order,
+  the
+  live lines of the head item and the counting of jobs that returned stay one
+  code.
+  The blocking form's behaviour is unchanged.
+- `OrderedAwaitingWork::run` hands back a boxed future rather than being an
+  `async fn`,
+  because the work travels as `Arc<dyn OrderedAwaitingWork>` and a
+  trait with an `async` method cannot be made into a `dyn` value.
+
+#### What is not converted, and why that is not a gap of this step
+
+No production call site was converted,
+so no command changes behaviour.
+Converting one call site makes its function `async`,
+which makes its callers
+either `async` or a bridge that enters the runtime,
+and that chain runs up to
+the command or to the service loop.
+The 67 production files that call
+`run_git` are therefore converted one folder at a time from the top of their
+own chains,
+and the round of the landing is the last of them:
+its items run
+the landing's handlers (`landing/service_work.rs`),
+so every step below them
+becomes a future first.
+
+#### Controls
+
+`transaction/transaction_git_awaiting_tests.rs` (7):
+`a_query_awaited_on_the_runtime_gives_gits_answer`,
+`an_input_awaited_on_the_runtime_reaches_git_and_comes_back_hashed` (a 4 MiB
+input),
+`a_failure_awaited_on_the_runtime_names_the_command`,
+`a_branch_write_awaited_in_a_landing_task_moves_the_ref` (the `Unbounded`
+bound,
+from a task that carries a landing's state),
+`a_run_leaves_no_descriptor_open`,
+`the_synchronous_face_of_the_same_query_is_refused_from_inside_the_runtime`
+(the positive control:
+without it the first control could pass for a reason
+other than the one it claims),
+and
+`a_branch_write_of_the_landing_asked_of_the_synchronous_face_inside_the_runtime_still_lands`,
+which pins why the synchronous face was not turned into a bridge:
+a step with an `Unbounded` bound makes no pipes,
+and the pipes are the only reason that face enters the runtime.
+
+`push/child_watch_output_watched_on_the_runtime_tests.rs` (5):
+`a_step_awaited_on_the_runtime_returns_every_byte_of_both_streams` (a step
+that writes beyond the kept tail on both streams),
+`the_synchronous_face_of_the_same_step_is_refused_from_inside_the_runtime`,
+`a_step_that_is_never_ended_is_awaited_to_its_own_end`,
+`a_step_awaited_on_the_runtime_leaves_no_descriptor_open`,
+`a_step_on_a_directory_of_its_own_runs_and_leaves_its_marker`.
+
+`foundation/parallel_runner_on_the_runtime_awaiting_tests.rs` (4):
+`every_item_runs_and_the_report_keeps_input_order`,
+`items_run_at_the_same_time` (a rendezvous of four on a `tokio::sync::Barrier`),
+`a_lane_runs_its_items_one_after_another`,
+`an_item_may_await_a_git_child` (a real `git rev-parse` per item,
+which is
+also the measurement of the watch's drop above).
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:check`:
+clean.
+`native:clippy`:
+clean.
+`native:test:host -- foundation:: parallel_runner:: transaction:: push::child_watch`:
+335 tests run,
+335 passed.
+`mise run lint:monochromatic-lint` on every file this step touched:
+clean,
+after `format:monochromatic-lint` inserted the line breaks it asks for in
+three of them.
+The whole lib suite,
+once,
+at the end
+(`native:test:host`,
+with `CLI_GIT_TEST_ROOT` under a short path so a Unix
+socket fits `SUN_LEN`):
+4794 tests run,
+4794 passed (one slow),
+8 skipped.
+The whole binary-level suite,
+once
+(`native:test:binary:host`,
+same short root):
+733 tests run,
+733 passed (two
+slow),
+3 skipped.
+The package lint (`//package/git-policy/cli:lint`,
+`monochromatic-lint
+--max-warnings 0` over the package plus Clippy):
+0 errors,
+0 warnings.
+Two runs before those look like defects and are not:
+- with a small `TasksMax` on the run's own control group,
+  two LFS controls
+  failed with "cannot fork() for git-lfs filter-process:
+  Resource temporarily
+  unavailable",
+  which is the bound the run was given,
+  not the code;
+- without the short fixture root,
+  `service_mode::the_same_start_with_the_real_git_listens` fails as
+  `doc/handover/cli-git-rust-implementation.md` recorded on a clean checkout:
+  its socket path under `CARGO_TARGET_DIR` is longer than `SUN_LEN`.
+Not run:
+the container gate (it builds the gate image and this tree has not been
+through it),
+`native:perf`,
+and the mutation campaign (paused by the owner).
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -4389,6 +4644,18 @@ the runner's jobs on the runtime"):
   no `thread::sleep`) cannot be tightened until those call sites are converted,
   since `scoped_start.rs`,
   `side_by_side_threads.rs` and 30-odd other files still start threads.
+- After the leaf-first asynchronous Git and the awaited runner
+  (2026-11-08T19:29:56-05:00,
+  "Step T12,
+  the leaf-first asynchronous Git and the ordered runner that awaits"):
+  a Git step can be awaited by a task of the runtime
+  (`transaction_git_awaiting.rs`) and a round can run items that await one
+  (`parallel_runner_on_the_runtime_awaiting.rs`),
+  and no production call site uses either.
+  What is left of T12 is the conversion itself,
+  one folder at a time from the top of each chain,
+  and `landing/service_round.rs` last,
+  because its items run the landing's handlers.
 
 ## Open choices for the owner
 

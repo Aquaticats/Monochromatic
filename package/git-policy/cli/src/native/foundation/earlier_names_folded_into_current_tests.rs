@@ -88,6 +88,89 @@ fn assert_folded(world: &World) {
     assert_eq!(std::fs::read_to_string(git.join(COMMIT_TIMING_LOG.current)).expect("log"), "current-timing\nearlier-timing\n");
 }
 
+/// What:
+///  The steps a fold with no kill takes,
+/// in order,
+/// and a fold that never stops.
+/// Why:
+///   One fold of the fixture says how many steps there are before the kill points are walked,
+/// so each limit can be checked against the step it is meant to land on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names: string[] = []; // foldKeptNames(dir, names, surroundings, { mayContinue: (step) => { names.push(step); return true; } })
+/// ```
+struct RecordingSteps {
+    /// Every step the fold reached,
+    /// in order.
+    names: Vec<&'static str>,
+}
+
+impl FoldSteps for RecordingSteps {
+    fn may_continue(&mut self, step: &'static str) -> bool {
+        self.names.push(step);
+        return true;
+    }
+}
+
+/// The steps of one fold with no kill,
+/// from a fixture of its own,
+/// so that every kill point can be named.
+fn steps_of_one_fold() -> Vec<&'static str> {
+    let world: World = world("kill-points");
+    let mut recording: RecordingSteps = RecordingSteps { names: Vec::new() };
+    let report: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut recording);
+    assert!(report.outcomes.iter().all(|(_, outcome)| return !matches!(outcome, Outcome::Stopped(_))), "nothing stops this fold: {report:?}");
+    std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
+    return recording.names;
+}
+
+/// One kill point of the whole fold:
+/// how many steps may pass,
+/// and the steps of a fold that no kill interrupts.
+struct KillPoint<'a> {
+    /// How many steps may pass before the fold ends where a kill would have ended it.
+    limit: usize,
+    /// Every step of the whole fold,
+    /// in order,
+    /// so `limit` names the step this kill lands on.
+    steps: &'a [&'static str],
+}
+
+/// What:
+///  End the fold at one step,
+/// fold again,
+/// and check that everything ended where a fold with no kill puts it.
+/// Why:
+///   See the control that walks every step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// killThenFold({ limit, steps }); // one kill point of the sweep
+/// ```
+fn kill_then_fold(point: KillPoint<'_>) {
+    let KillPoint { limit, steps } = point;
+    let world: World = world(format!("kill-{limit}").as_str());
+    let mut stop: StopAfter = StopAfter { limit, seen: 0 };
+    let first: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut stop);
+    let stopped: Option<&'static str> = first.outcomes.last().and_then(|(_, outcome)| {
+        return match outcome {
+            Outcome::Stopped(step) => Some(*step),
+            _ => None,
+        };
+    });
+    // Each limit below the number of steps ends the first fold at exactly that step, so every kill point of the whole fold is
+    //  walked once and none twice; the last limit lets every step pass, which is the fold no kill interrupts.
+    if limit < steps.len() {
+        assert_eq!(stopped, Some(steps[limit]), "the kill at step {limit} lands on that step: {first:?}");
+    } else {
+        assert_eq!(stopped, None, "the last limit lets every step pass: {first:?}");
+    }
+    fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut NeverStopped);
+    assert_folded(&world);
+    std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
+}
+
 /// With no earlier program running,
 /// every name that exists twice is folded and nothing is held or reported.
 #[test]
@@ -156,19 +239,25 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
 /// everything ends up where a fold with no kill puts it.
 #[test]
 fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result() {
-    let mut limit: usize = 0;
-    loop {
-        let world: World = world(format!("kill-{limit}").as_str());
-        let first: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut StopAfter { limit, seen: 0 });
-        let finished: bool = first.outcomes.iter().all(|(_, outcome)| return !matches!(outcome, Outcome::Stopped(_))) && first.outcomes.len() == NAMES.len();
-        fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut NeverStopped);
-        assert_folded(&world);
-        std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
-        if finished {
-            break;
+    let steps: Vec<&'static str> = steps_of_one_fold();
+    assert!(!steps.is_empty(), "the fixture's fold has steps to kill it at");
+    // A kill point shares nothing with another: each has its own fixture, its own process table and its own surroundings, and
+    //  each fold's own durability syncs wait on the filesystem's commits, so the points cost one wait between them and not one
+    //  for each (measured 2026-11-08: one after another, 21 points cost 86 to 204 ms each, with ~10 directory syncs in every
+    //  one; the fixtures, the checks and the removals together were under 1 ms per point).
+    let points: &[&'static str] = steps.as_slice();
+    let mut failed: Vec<usize> = Vec::new();
+    std::thread::scope(|scope| {
+        let handles: Vec<std::thread::ScopedJoinHandle<'_, ()>> = (0..=points.len())
+            .map(|limit| { return scope.spawn(move || { kill_then_fold(KillPoint { limit, steps: points }); }); })
+            .collect();
+        for (limit, handle) in handles.into_iter().enumerate() {
+            if handle.join().is_err() {
+                failed.push(limit);
+            }
         }
-        limit += 1;
-    }
+    });
+    assert!(failed.is_empty(), "the kill points that failed: {failed:?}");
 }
 
 /// An earlier program that still has a log open for writing:

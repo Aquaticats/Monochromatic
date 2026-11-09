@@ -3613,6 +3613,72 @@ The saving is real where such a fixture appears:
 a create is 4.1 ms against a snapshot's 52 ms here,
 and every one of them forces a commit its neighbours wait for.
 
+### The fold's kill-point sweep walks its kill points side by side (2026-11-08T19:31:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog in a whole-suite run,
+and passed alone in 72.3 s and in 5.4 s in the same tree.
+That swing is the defect the owner named with "Fix flaky tests properly.":
+the measurement below found it in the control's own durability work.
+
+Before any change,
+with the crate's own recorder counting the syncs
+(`~/temp/agent/fold-kill-cost/`,
+per-iteration and per-step timings read through `crate::private_storage::take_directory_syncs`):
+the control walks 21 limits over 20 steps of the whole fold
+(6 for the folder pair,
+7 for each log:
+`before-journal-lock`,
+`before-move-aside`,
+`before-journal-record`,
+`before-append`,
+`after-append`,
+`before-remove-moved-log`,
+`before-remove-journal`),
+and one iteration cost 86 to 204 ms (the whole control 2.44 s at that moment).
+Inside one iteration the fixture cost 0.35 to 0.75 ms,
+`assert_folded` about 60 µs and the fixture's removal 0.25 to 0.4 ms;
+the two folds took the rest and recorded 10 to 13 directory syncs in every iteration,
+each of them a filesystem commit for the fold's own journal record,
+its move aside,
+the appended bytes,
+the moved log's removal and the journal's removal,
+with a file sync inside the journal record and inside the append.
+So the control's cost is the number of kill points times the commits one fold needs,
+and it paid them one after another:
+under this host's usual contention that is the 72.3 s sample and the watchdog stop.
+No iteration was redundant (every limit stops at a different step),
+and the fixture measured under 1 ms,
+so neither fewer kill points nor a cheaper fixture is the fix.
+
+`steps_of_one_fold` and `kill_then_fold` in that control now walk the kill points side by side:
+each has its own fixture,
+its own process table and its own surroundings,
+so a kill point shares nothing with another,
+and concurrent commits serve them all at once instead of one at a time.
+The steps of one fold are recorded first,
+so each limit is checked against the step it must land on and the last limit must stop nowhere,
+which the control did not claim before.
+
+Measured at the test's own cap (`CPUQuota=200%`,
+`MemoryMax=2G`,
+`TasksMax=512`,
+`IOWeight=10`),
+nothing changed between the arms but the build:
+one after another 9.954 s and 5.674 s,
+side by side 0.688 s and 1.699 s,
+over the same 21 kill points.
+With the per-point timings in place the side-by-side control reported `failed=[]`,
+with each limit's stop step equal to the recorded step and every other test of that module green
+(`Summary [1.046s] 8 tests run: 8 passed`).
+
+Its control still bites:
+make an interrupted fold of a log that already moved its log aside never resume
+(`(earlier && current) || leftovers` read as `(earlier && current)`),
+and the sweep fails the four kill points that land there,
+`the kill points that failed: [8, 9, 15, 16]`,
+each with `left: "current-push\n"` against `right: "current-push\nearlier-push\n"`.
+
 ### Verify 0.5.26 against native Git
 
 Measured with 0.5.27 installed (`~/temp/agent/tools/observe-main-commit.ts`,
@@ -4597,6 +4663,20 @@ Two small fixes this section listed are done:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
 
+The summary's own counts were wrong in two more places,
+found while converting the remaining worktrees and fixed in `23b2ab2540`:
+a worktree that is a subvolume already said it was skipped in the line beside its name and was counted in none of the
+summary's counts (a second run over the same worktrees said "0 skipped"),
+and an undone conversion (`--abandon`) was counted nowhere either.
+`ConversionReport` now counts the first in the summary's skips,
+and the second in a count of its own that the summary says as "undone",
+while a real refusal stays the only thing that ends a run of named worktrees with status 1:
+counting `AlreadySubvolume` as a refusal instead makes
+`a_worktree_named_twice_is_converted_once_and_then_skipped` fail on that status change,
+which was measured before the two counters were written.
+The controls are `a_worktree_that_is_a_subvolume_already_is_counted_as_skipped` and
+`the_undone_conversions_are_counted_in_the_summary` in `worktree_convert_command_tests.rs`.
+
 Converting the remaining worktrees no longer waits on a defect either:
 the conversion compared a registration's text with the real path and refused a worktree spelled
 through the repository link,
@@ -4824,7 +4904,8 @@ What was not changed is the second place that writes a report line beside the wr
 `finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
 output Git's checkout line goes to,
 so that note needs a second writer plumbed through the ladder,
-which is a change of its own.
+which is a change of its own,
+since made ("The snapshot note's stream and the index-lock wake control" in this file).
 
 The second question was whether a background thread starts where nothing overlaps it,
 and what that costs.
@@ -4906,6 +4987,59 @@ On the built binary at a disposable btrfs checkout:
 a dry run printed none,
 a real run and a `--remove-old` each printed it once as the first line of standard error,
 and a refused `--rollback` printed none.
+
+### The snapshot note's stream and the index-lock wake control (2026-11-08T19:45:57-05:00)
+
+Two follow-ups of the branch `fix/git-policy-cli-snapshot-note-on-the-commands-stream-and-wake-control`.
+
+The first closes the item "The disposal's notice stream and the thread it did not need" left open.
+`finish_snapshot` wrote the note a snapshot of the main checkout publishes to `std::io::stderr()`,
+because the ladder's `out` is the standard output Git's checkout line goes to.
+The ladder now takes the command's note stream beside `out` (`Ladder::finish`),
+and both lines of that block go there:
+the snapshot note and the one naming the uncommitted changes left out.
+`settle_creation` hands in the stream the command was given (`worktree_copy.rs`).
+It is one plain writer and no lock:
+those lines are written before `finish_trash_and_repair` starts the disposal thread,
+so no second thread exists while either is written,
+and the lock the disposal's stream needs would buy nothing here.
+The control is `btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in`
+(`worktree_copy_lifecycle_tests.rs`):
+with the note put back on the process's standard error the control fails,
+its own stream empty and the line on the harness's standard error.
+
+The control `a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself`
+claimed two things from one stopwatch over a 400 ms hold.
+The count of placement attempts is now the order of the placements:
+the `rename` stand-in records whether the foreign lock stood at each of them,
+so the verdict is that only the first met the holder.
+A wait woken by a file of its own meets the holder over and over;
+no clock enters that claim.
+With the wait made to block for one millisecond instead of for the removal,
+the control fails naming every placement that met the holder,
+one for each millisecond of the hold.
+
+How soon the wake came is the one claim no order can show,
+so it stays one clock reading,
+taken from the wait's own line instead of from before the staging a slow flush can stretch
+(10.2 s against a 400 ms hold,
+measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
+The bound is half of the interval that repeats the holder's line:
+over ten runs the wake came 400.35 to 400.51 ms after the line,
+and 10.0018 to 10.0090 s over three runs with the watch blinded to the lock's removal.
+The old bound sat at the whole interval,
+which is where the blinded arm lands,
+so it was a knife edge of about a millisecond rather than a separation.
+A fifth of that interval was tried first and failed once,
+in a run of the thirty-six controls beside it with other agents building on this host,
+and that failure's message carried no reading of the interval,
+so the bound sits at the half,
+which reads a stall of up to 4.6 s as an event and still refuses the timer.
+
+A witness that the line did not repeat cannot replace that reading:
+the line was said once in both arms,
+because a wake from the interval's timer places the lock before it repeats anything,
+which the blinded arm measured three times.
 
 ### Service follow-ups
 
@@ -5318,11 +5452,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   with its reason
   (why the line is otherwise invisible:
   `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
-- Older umbrella items from October,
-  reconciled against Git state on 2026-11-08T16:49:36-05:00 (read only;
-  no campaign,
+- The October umbrella items were reconciled against Git state again on
+  2026-11-08T19:33:30-05:00 (read only;
+  no code changed and no campaign,
   fuzz run or Windows check was started).
-  Each entry gives its verdict and where its evidence or its open work lives.
+  One of them closes:
+  the linter cutover,
+  whose closure and wiring commit now sit in `doc/handover/unified-linter-cutover.md`.
+  The rest are paused by an owner sentence,
+  answered in part,
+  or open,
+  and each entry says which,
+  what settled it,
+  and where its evidence or its open work lives.
 - The scanner's pathname mutation scope on Windows is paused,
   not closed.
   `doc/handover/scanner-native-verification.md`,
@@ -5332,28 +5474,43 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and that the guest was destroyed with nothing run.
   The one timeout the 2026-10-06 Windows campaign ended with is still unverified
   (the timeout mutant in `count_prefix_parts`,
-  `src/path_name_bytes.rs` line 59,
-  as that section locates it),
+  `package/forbidden-strings/cli/src/path_name_bytes.rs` line 59,
+  which that section locates as `src/path_name_bytes.rs:59:35`),
   so the item resumes there in that section when the owner lifts the pause.
-- The Windows checks are paused by that same sentence:
-  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not installed,
+- The Windows and macOS checks are paused by that same sentence,
+  not closed.
+  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not
+  installed,
   and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
   Windows branch without ever running it.
-  The release-artifact performance gate is closed instead of paused.
-  It is the `native:perf` task,
-  which measures the added latency of the release binary against paired direct Git within the limits its
-  description states (added p95 under 2,000 ms on forwarded commands,
-  every paired delta under 5,000 ms on commits),
-  and its figures are recorded in
-  `doc/planning/one-release-each-batch-2026-11.md`,
-  the release record of 2026-11-07T22:11:47-05:00,
-  under its "Latency" bullet,
+  The macOS results are the last recorded ones:
+  it is not a release target (the GitHub release carries Linux assets only),
+  its `native_binary` tests fail there (`/dev/full` is absent,
+  several fixture spawns fail with NotFound),
+  and its lib tests pass on `m1`.
+  The release-artifact performance gate is answered in part.
+  `native:perf` measures the release binary's added latency,
+  its limits are its own task description,
+  and its figures are the release records of `doc/planning/one-release-each-batch-2026-11.md`,
   with the same-binary spread the comparison needs.
-  A search of `doc/` and `.github/workflows` for `release-artifact`,
-  `release performance` and `perf` found no other definition of that gate,
-  so `native:perf` is the gate the older item named.
-- Long fuzz campaigns stay open.
-  Neither recorded pause names them:
+  The binary it measures comes out of the published archive,
+  which `toolchain.lock.json` names as the tarball and sha256 mpm installs,
+  so the latency gate does run on a packaged binary;
+  no record defines a check of the archive's own contents,
+  so whether the older entry also meant one stays open.
+  The Windows and macOS checks resume when the owner lifts the pause.
+- Long fuzz campaigns are open,
+  and another agent is running one now.
+  It works on branch `test/git-policy-cli-fuzz-long-campaign-results`
+  (worktree `.claude/worktrees/pi-fuzz-long-campaign-results`,
+  at `13e215b5a5` when this entry was read)
+  and runs `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900`
+  through the gate slot under `GIT_POLICY_NATIVE_IMAGE_TAG=pi-fuzz-long-campaign-20261108`,
+  writing `${HOME}/temp/agent/fuzz-campaign-20261108T1818-0500.log`.
+  It was still running at 2026-11-08T19:33:30-05:00,
+  so this entry reports no totals,
+  and its result belongs in `doc/handover/cli-git-native-replay-core.md`.
+  Neither recorded pause names fuzzing:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
   the other covers wrapper mutation campaigns
   (`doc/handover/questions-for-the-owner.md`,
@@ -5400,12 +5557,6 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and the signals and automatic-maintenance scope
   (`doc/handover/cli-git-native-signals.md`,
   "Trailing gates").
-- The linter cutover task is closed.
-  It landed on 2026-10-10 as the fast-forward merge `b111c0ca39`,
-  the five incumbent packages were deleted in `5bc05682e`,
-  and `main` holds both,
-  while the root lint and format tasks have run `monochromatic-lint` since `0b49ae109e`.
-  The durable record is `doc/handover/unified-linter-cutover.md`.
 - The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
   2026-11-04 pause.
   The rerun was waiting on a multi-pass control,
@@ -5414,13 +5565,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `snapshots_equal` through two corrections,
   and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
   Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
-  so the pause is the only thing that keeps this open,
-  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
+  so the pause is the only thing that stops the rerun from starting,
+  and what the rerun would show remains unverified;
+  the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
   so what those numbers cover beyond this item is unverified here.
-- macOS is not a release target (the GitHub release carries Linux assets only);
-  the `native_binary` tests still fail there (`/dev/full` is absent,
-  several fixture spawns fail with NotFound);
-  the lib tests pass on `m1`.
 - Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
   Closed 2026-11-08T15:41:28-05:00:
   the Android-target build is no longer blocked.
@@ -6995,6 +7143,32 @@ are in append mode now).
   The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
   (2026-11-08T15:41:28-05:00),
   so the container tasks are on the pin from now on.
+- `foundation::parallel_runner_on_the_runtime::tests::items_run_at_the_same_time` fails whenever the test process is
+  allowed 2 CPUs and passes on the same tree when it is allowed 5.
+  Measured 2026-11-08 on the branch of the conversion-summary and fold kill-point work in the test's own cgroup
+  (`CPUQuota=200%`,
+  `MemoryMax=2G`,
+  `TasksMax=512`,
+  `IOWeight=10`;
+  logs `~/temp/agent/fold-kill-cost/19-items-run-alone.log` and `20-items-run-cpu500.log`):
+  `left: 2` against `right: 4` after 10.010 s at the 200% cap,
+  and a pass in 0.012 s at 500%.
+  `nproc` inside those scopes printed 2 and 5,
+  which is the positive control that the allowance is what moves it.
+  The control asks the run for `ITEMS` workers,
+  but the runtime's worker count is `budgeted_workers` off `available_parallelism`,
+  which the quota lowers,
+  so a point every item must reach can never be met and the two workers that did start wait out `PATIENCE`
+  (10 s in `parallel_test_support.rs`).
+  The gate container runs at 2 CPUs,
+  so this control fails there;
+  it came in with the tokio runtime's first part (`2b1f830568`,
+  linted in `c1e6a78a4c`,
+  merged by `6240b51a7a`) and nothing on this branch touched it.
+  Not fixed here:
+  the choice is between a control that asks for no more items than the plan's workers and a floor the budget may not
+  go below,
+  which is the runtime's design and not this work's.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).

@@ -223,6 +223,7 @@ fn rg_help_is_the_real_help_then_the_full_section() {
             "{real}\n{header}\n\
              The help above is the real rg's own. search-shadow starts it at best-effort disk priority 7 and:\n\
              - refuses the short flag -r anywhere (in ripgrep it is --replace, not grep's recursive flag)\n\
+             - refuses a pipe on standard input beside a named search path (ripgrep reads the path and never the pipe, so the piped lines would be dropped)\n\
              - refuses --hidden, --no-ignore*, -u or -. with no search path and no piped input from a git repository root, unless SEARCH_SHADOW_ALLOW_WIDE=1 is set for one deliberate walk\n\
              Run `search-shadow --help` for the shadow itself.\n",
             real = real_stdout("rg", &[flag]),

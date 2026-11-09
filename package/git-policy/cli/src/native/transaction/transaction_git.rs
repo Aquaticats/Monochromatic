@@ -77,7 +77,7 @@ use std::time::Duration;
 /// ```ts
 /// // child.stdin.end(input);
 /// ```
-fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
+pub(crate) fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
     let Some(common) = common_dir else {
         return Err(std::io::Error::other(
             "monochromatic-git-policy-cli has no repository scratch directory for the input of this Git command: the command was started \
@@ -110,7 +110,7 @@ fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::f
 /// ```ts
 /// spawn(gitPath, args, { cwd, env: { ...withoutUnset(process.env), ...environment, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY } })
 /// ```
-fn build_command(context: &GitContext, request: &GitRequest) -> Command {
+pub(crate) fn build_command(context: &GitContext, request: &GitRequest) -> Command {
     // `mut` allows assembling the argument list in order.
     let mut arguments: Vec<OsString> = Vec::new();
     if !request.without_prefix {
@@ -266,16 +266,16 @@ impl RefusableStart<GitOutput> for RefusableGitRun<'_> {
 /// ```ts
 /// interface WatchTermsSource { terms(): WatchTerms }
 /// ```
-trait WatchTermsSource {
+pub(crate) trait WatchTermsSource {
     /// The terms for the next start.
     fn terms(&self) -> WatchTerms;
 }
 
 /// The watch terms of the class a request belongs to,
 /// asked again at each start.
-struct TermsOfRequest<'a> {
+pub(crate) struct TermsOfRequest<'a> {
     /// The request whose subcommand names the class.
-    request: &'a GitRequest,
+    pub(crate) request: &'a GitRequest,
 }
 
 impl WatchTermsSource for TermsOfRequest<'_> {
@@ -366,7 +366,7 @@ fn run_git_once_with(
 
 /// How a request names itself in notices and in the sentence of a step that was ended:
 /// the command and the kind of step.
-fn step_subject(request: &GitRequest) -> String {
+pub(crate) fn step_subject(request: &GitRequest) -> String {
     return format!(
         "{}, {}",
         command_text(&request.arguments),
