@@ -3115,6 +3115,11 @@ the build-folder timer and the worktree conversions.
 The owner doubted that,
 and checking each one showed none needed the move.
 
+Two rounds wait only for the next free slots,
+both from cross-vendor reviews read at 2026-11-08T23:10:25-05:00:
+`landing-route-findings-fixed-round-2-prompt.md` and `copy-route-records-before-git-round-4-prompt.md` in that folder,
+each resumed with the session named in its last run's `summary.json`.
+
 Converting the remaining worktrees waits on a defect instead:
 301 of 353 registrations spell the repository link,
 and the conversion compares them with the real path as text and refuses them.

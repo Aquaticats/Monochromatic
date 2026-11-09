@@ -203,6 +203,46 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in the question tool, recorded 2026-11-08T23:24:03-05:00
+
+- The ceiling of the signed scratch `git commit` step,
+  asked again after 886 samples showed 12 steps past the 3 s ceiling (1.35%),
+  10 of those commits not landing:
+  the owner chose "About 16 seconds"
+  (three times the slowest ordinary step,
+  5,444 ms)
+  over the recommended "Stop only when idle",
+  and added:
+  "About 16s,
+  and investigate what happened for those 3 commits.
+  If we can't figure it out,
+  then we have a defect and should log more."
+  The three are the steps of 26,256,
+  36,651 and 171,383 ms.
+  This replaces the 2026-11-08 answer "About 3 s now".
+- Where the overdue-agent check lives:
+  "Move into the driver (Recommended)",
+  so it goes into `package/pi-shared/subagent-driver`.
+
+## Answered in a plain message, recorded 2026-11-08T23:10:25-05:00
+
+- How to watch running subagents:
+  "Regularly,
+  check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+  The coordinator now runs a scratch watcher,
+  `report-overdue-pi-runs.ts` under `${HOME}/temp/agent/pi-runs`,
+  which ends as soon as a running Pi agent has passed the 90th percentile of finished runs of its kind
+  (85 minutes over all runs,
+  55 for audits,
+  233 for tokio steps,
+  recomputed on each look),
+  and the coordinator then reads what that agent is running.
+  Its first look found agents working normally past that time,
+  and two agents blocked for most of an hour in their own probes,
+  which waited without a deadline.
+  Those two probes were ended by process number and container ID,
+  and each agent was told why.
+
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
 
 - How subagents are used from now on,
