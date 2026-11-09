@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  mkdtemp,
+  mkdtempDisposable,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
@@ -128,7 +128,8 @@ await describe({
         it({
           name: 'returns the environment mise prints for a directory with no project key',
           fn: async () => {
-            const scratch = await mkdtemp(join(scratchRoot(), 'stop-reminder-mise-',),);
+            await using directory = await mkdtempDisposable(join(scratchRoot(), 'stop-reminder-mise-',),);
+            const scratch = directory.path;
 
             const environment = await miseEnvironment(scratch,);
 

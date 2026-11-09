@@ -17,7 +17,7 @@
 use crate::wrapper_names_old_and_new::WORKTREE_COPY_RECORD_FOLDER;
 use crate::json_record::quote;
 use crate::path_bytes::path_bytes_of;
-use crate::path_bytes_in_records::{HEX_SUFFIX, hex_of_path, read_field};
+use crate::path_bytes_in_records::{HEX_SUFFIX, field_fragment, hex_of_path, list_fragment, read_field, read_path_field, read_path_list};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path};
@@ -119,13 +119,13 @@ pub struct Journal {
     /// with their post-creation identities.
     pub created_entries: Vec<InstalledPath>,
     /// Selected paths claimed before installation.
-    pub intended_entries: Vec<String>,
+    pub intended_entries: Vec<Vec<u8>>,
     /// The worktree receiving the copy.
     pub destination_root: PathBuf,
     /// The durable phase.
     pub phase: Phase,
     /// The ignored roots the staged payload represents.
-    pub selected_roots: Vec<String>,
+    pub selected_roots: Vec<Vec<u8>>,
     /// The source worktree.
     pub source_root: PathBuf,
     /// The private container beside the destination.
@@ -227,10 +227,10 @@ pub fn encode_journal(journal: &Journal) -> String {
         .collect();
     let mut fields: Vec<String> = Vec::with_capacity(13);
     fields.push(format!("\"createdEntries\":[{}]", created.join(",")));
-    fields.push(format!("\"intendedEntries\":{}", string_array(journal.intended_entries.as_slice())));
+    fields.push(list_fragment("intendedEntries", journal.intended_entries.as_slice()));
     fields.extend(root_fields("destinationRoot", journal.destination_root.as_path()));
     fields.push(format!("\"phase\":{}", quote(journal.phase.as_str())));
-    fields.push(format!("\"selectedRoots\":{}", string_array(journal.selected_roots.as_slice())));
+    fields.push(list_fragment("selectedRoots", journal.selected_roots.as_slice()));
     fields.extend(root_fields("sourceRoot", journal.source_root.as_path()));
     fields.extend(root_fields("stageContainer", journal.stage_container.as_path()));
     fields.extend(root_fields("stageRoot", journal.stage_root.as_path()));
@@ -251,27 +251,12 @@ pub fn encode_journal(journal: &Journal) -> String {
 /// ```
 pub fn encode_installed_entry(entry: &InstalledPath) -> String {
     return format!(
-        "{{\"device\":\"{}\",\"inode\":\"{}\",\"relativePath\":{},\"selected\":{}}}",
+        "{{\"device\":\"{}\",\"inode\":\"{}\",{},\"selected\":{}}}",
         entry.device,
         entry.inode,
-        quote(entry.relative_path.as_str()),
+        field_fragment("relativePath", entry.relative_path.as_slice()),
         entry.selected
     );
-}
-
-/// What:
-///  A JSON array of strings,
-/// each quoted as `JSON.stringify` quotes it.
-/// Why:
-///   Repository paths are the only arrays a journal holds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// JSON.stringify(items)
-/// ```
-pub fn string_array(items: &[String]) -> String {
-    let quoted: Vec<String> = items.iter().map(String::as_str).map(quote).collect();
-    return format!("[{}]", quoted.join(","));
 }
 
 /// What:
@@ -285,20 +270,6 @@ pub fn string_array(items: &[String]) -> String {
 /// ```
 fn is_digit_byte(byte: u8) -> bool {
     return byte.is_ascii_digit();
-}
-
-/// What:
-///  A JSON value as text,
-/// when it is a string.
-/// Why:
-///   Every path in a journal must be a string before it is checked as a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// typeof value === 'string' ? value : undefined
-/// ```
-fn text_of(item: &serde_json::Value) -> Option<String> {
-    return item.as_str().map(str::to_string);
 }
 
 /// What:
@@ -389,24 +360,9 @@ pub fn installed_entry(value: &serde_json::Value) -> Option<InstalledPath> {
     return Some(InstalledPath {
         device: decimal_identity(object.get("device")?)?,
         inode: decimal_identity(object.get("inode")?)?,
-        relative_path: object.get("relativePath")?.as_str()?.to_string(),
+        relative_path: read_path_field(value, "relativePath")?,
         selected: object.get("selected")?.as_bool()?,
     });
-}
-
-/// What:
-///  An array of strings,
-/// read strictly.
-/// Why:
-///   A non-string path would reach the filesystem without the validation a string gets.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isStringArray(value)
-/// ```
-fn string_list(value: Option<&serde_json::Value>) -> Option<Vec<String>> {
-    let array = value?.as_array()?;
-    return array.iter().map(text_of).collect();
 }
 
 /// What:
@@ -438,10 +394,10 @@ fn read_shape(value: &serde_json::Value) -> Option<Journal> {
         .collect::<Option<Vec<InstalledPath>>>()?;
     return Some(Journal {
         created_entries,
-        intended_entries: string_list(object.get("intendedEntries"))?,
+        intended_entries: read_path_list(value, "intendedEntries")?,
         destination_root: read_field(value, "destinationRoot").ok()?,
         phase,
-        selected_roots: string_list(object.get("selectedRoots"))?,
+        selected_roots: read_path_list(value, "selectedRoots")?,
         source_root: read_field(value, "sourceRoot").ok()?,
         stage_container: read_field(value, "stageContainer").ok()?,
         stage_root: read_field(value, "stageRoot").ok()?,
@@ -523,17 +479,17 @@ pub fn parse_journal(
         ));
     }
     for selected in &journal.selected_roots {
-        assert_safe_repository_path(selected)?;
+        assert_safe_repository_path(selected.as_slice())?;
     }
     for intended in &journal.intended_entries {
-        assert_safe_repository_path(intended)?;
+        assert_safe_repository_path(intended.as_slice())?;
     }
     for created in &journal.created_entries {
-        assert_safe_repository_path(created.relative_path.as_str())?;
+        assert_safe_repository_path(created.relative_path.as_slice())?;
     }
-    let mut created_paths: Vec<&str> = Vec::new();
+    let mut created_paths: Vec<&[u8]> = Vec::new();
     for entry in &journal.created_entries {
-        created_paths.push(entry.relative_path.as_str());
+        created_paths.push(entry.relative_path.as_slice());
     }
     let duplicated: bool = has_duplicates(journal.selected_roots.as_slice())
         || has_duplicates(journal.intended_entries.as_slice())
@@ -560,8 +516,8 @@ pub fn parse_journal(
 /// ```ts
 /// new Set(items).size !== items.length
 /// ```
-fn has_duplicates<T: AsRef<str>>(items: &[T]) -> bool {
-    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+fn has_duplicates<T: AsRef<[u8]>>(items: &[T]) -> bool {
+    let mut seen: std::collections::BTreeSet<&[u8]> = std::collections::BTreeSet::new();
     // The loop stops at the first repeated item, as `any` did.
     for item in items {
         if !seen.insert(item.as_ref()) {

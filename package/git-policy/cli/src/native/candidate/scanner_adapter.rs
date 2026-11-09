@@ -48,7 +48,7 @@ use crate::git_metadata::path_from_git_bytes;
 /// ```ts
 /// import { type CacheWarning, type CandidateScan, Scanner } from 'forbidden-strings';
 /// ```
-use forbidden_strings::{CacheWarning, CandidateScan, RulesEntry, Scanner};
+use forbidden_strings::{CacheAccess, CacheWarning, CandidateScan, RulesEntry, Scanner};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::{Path, PathBuf};
 
@@ -214,6 +214,29 @@ impl CandidateScanner {
         rules: &RulesSource,
         builtin_rules: bool,
     ) -> Result<CandidateScanner, ScannerError> {
+        return CandidateScanner::load_writing_cache(rules, builtin_rules, CacheAccess::ReadWrite)
+    }
+
+    /// What:
+    ///  Load the runtime rules file and,
+    ///  when asked,
+    ///  the built-in baseline,
+    ///  saying whether a miss may add what it compiled to the shared cache.
+    /// Why:
+    ///   The commit path arranges the publication elsewhere when a service runs,
+    ///  so it must be able to say that this load writes nothing;
+    ///  the rules it compiled are still the rules it scans with,
+    ///  and every later read validates the artifact again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static loadWritingCache(rules: RulesSource, builtinRules: boolean, access: CacheAccess): CandidateScanner
+    /// ```
+    pub fn load_writing_cache(
+        rules: &RulesSource,
+        builtin_rules: bool,
+        access: CacheAccess,
+    ) -> Result<CandidateScanner, ScannerError> {
         // What: `match` on the loader's `Result`; `Err(error)` binds the scanner's failure,
         //       whose `{error}` text is already redacted.
         // Why:  The failure type belongs to a crate this one does not depend on by name,
@@ -221,12 +244,12 @@ impl CandidateScanner {
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // try { return new CandidateScanner(Scanner.load(...)); } catch (error) { throw new ScannerError(...); }
+        // try { return new CandidateScanner(Scanner.loadWritingCache(...)); } catch (error) { throw new ScannerError(...); }
         // ```
         let loaded = match (rules.explicit, rules.entries.as_slice()) {
             // The default location keeps the scanner's one-path contract: absent only under the baseline.
-            (false, [only]) => Scanner::load(only.path.as_path(), builtin_rules, false),
-            (_, entries) => Scanner::load_entries(entries, builtin_rules),
+            (false, [only]) => Scanner::load_writing_cache(only.path.as_path(), builtin_rules, false, access),
+            (_, entries) => Scanner::load_entries_writing_cache(entries, builtin_rules, access),
         };
         match loaded {
             // `Ok(...)` is the success variant.
@@ -307,6 +330,23 @@ impl CandidateScanner {
         let logical: &Path = path.as_path();
         return Ok(self.scanner.scan(candidate.identity.index, logical, bytes));
     }
+}
+
+/// What:
+///  Whether the shared cache holds a file for the compiled form of these rules files' text.
+///  `&RulesSource` borrows the selection the load would make.
+/// Why:
+///   A host that arranges the publication elsewhere asks this first,
+///  so a cache that already holds an artifact costs no write question and no process walk;
+///  the scanner answers with the artifact file's presence, one `stat`,
+///  and the load validates whatever it finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hasCompiledRules(rules: RulesSource): boolean
+/// ```
+pub fn compiled_rules_artifact_exists(rules: &RulesSource) -> bool {
+    return forbidden_strings::compiled_rules_artifact_exists(rules.entries.as_slice())
 }
 
 /// Scanner controls stay out of the release executable.

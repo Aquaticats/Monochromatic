@@ -4,8 +4,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
+  type DisposableTempDir,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -86,11 +86,12 @@ function makeEvent(
  
  @example
  ```ts
- const dir = await makeTmpDir();
+ await using directory = await makeTmpDir();
+ const dir = directory.path;
  ```
  */
-async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(scratchRoot(), 'watch-restart-gitignore-',),);
+async function makeTmpDir(): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(scratchRoot(), 'watch-restart-gitignore-',),);
 }
 
 await describe({
@@ -99,20 +100,21 @@ await describe({
     it({
       name: 'no .gitignore at root: vacuous pass-all',
       fn: async function vacuousPassAll() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const filter = await gitignoreFilter({ roots: [dir,], },);
         const passed = await filter({
           event: makeEvent({ relativePath: 'anything/at/all.ts', },),
           ctx: makeCtx(),
         },);
         expect(passed,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'directory pattern rejects events under the directory',
       fn: async function dirPatternRejects() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         await writeFile(join(dir, '.gitignore',), 'dist/\nnode_modules/\n',);
 
         const filter = await gitignoreFilter({ roots: [dir,], },);
@@ -137,13 +139,13 @@ await describe({
         expect(nestedDist,).toBe(false,);
         expect(nodeMod,).toBe(false,);
         expect(sourceFile,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'glob pattern matches files by name',
       fn: async function globPatternRejects() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         await writeFile(join(dir, '.gitignore',), '*.log\n*.tmp\n',);
 
         const filter = await gitignoreFilter({ roots: [dir,], },);
@@ -162,13 +164,13 @@ await describe({
         expect(logFile,).toBe(false,);
         expect(nestedLog,).toBe(false,);
         expect(tsFile,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'negation pattern reinstates a previously-ignored path',
       fn: async function negationReinstates() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         // Pattern `dist/*` (not `dist/`) so the parent directory is not
         // categorically excluded; git itself rejects re-including a file
         // whose parent directory was excluded, and the `ignore` library
@@ -189,13 +191,13 @@ await describe({
         },);
         expect(ignored,).toBe(false,);
         expect(reinstated,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'extraFiles patterns AND with .gitignore patterns',
       fn: async function extraFilesAnd() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         await writeFile(join(dir, '.gitignore',), 'dist/\n',);
         const watchIgnorePath = join(dir, '.watchignore',);
         await writeFile(watchIgnorePath, 'coverage/\n',);
@@ -219,13 +221,13 @@ await describe({
         expect(fromGitignore,).toBe(false,);
         expect(fromExtra,).toBe(false,);
         expect(neither,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'empty roots + extraFiles only loads from the extras',
       fn: async function emptyRootsOnlyExtras() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const watchIgnorePath = join(dir, '.watchignore',);
         await writeFile(watchIgnorePath, 'tmp/\n',);
 
@@ -243,13 +245,13 @@ await describe({
         },);
         expect(ignored,).toBe(false,);
         expect(passes,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'missing extraFile (ENOENT) collapses to no-op without throwing',
       fn: async function missingExtraNoThrow() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const missing = join(dir, 'does-not-exist.watchignore',);
 
         const filter = await gitignoreFilter({
@@ -261,7 +263,6 @@ await describe({
           ctx: makeCtx(),
         },);
         expect(passed,).toBe(true,);
-        await rm(dir, { recursive: true, },);
       },
     },),
   ],

@@ -1,5 +1,9 @@
 # Pi 0.78.0 `pi update` reintroduces npm allowScripts warnings through extension npm roots
 
+Note 2026-11-09T16:56:27-05:00:
+`.pi/npm` is not in the tree;
+its files were deleted on 2026-06-15 in `32b6cd845f`.
+
 ## Symptom
 
 Running `pi update` can print npm 11 `allowScripts` warnings for packages that the Monochromatic pnpm workspace

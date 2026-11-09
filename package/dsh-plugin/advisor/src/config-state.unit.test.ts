@@ -10,7 +10,7 @@ import {
 
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 
@@ -30,11 +30,12 @@ import {
 
  @param projectJson - project `pi-advisor.json` document text
 
- @returns home directory and project working directory paths
+ @returns home directory, project working directory, and an async disposer that
+   removes the fixture root
 
  @example
  ```ts
- const fixture = await configFixture('{"enabled":false}', '{"enabled":true}');
+ await using fixture = await configFixture('{"enabled":false}', '{"enabled":true}');
  ```
  */
 async function configFixture(
@@ -43,11 +44,13 @@ async function configFixture(
 ): Promise<{
   readonly home: string;
   readonly cwd: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }> {
   /**
    Disposable fixture root under the system temp directory.
    */
-  const root = await mkdtemp(join(scratchRoot(), 'advisor-config-',),);
+  const directory = await mkdtempDisposable(join(scratchRoot(), 'advisor-config-',),);
+  const root = directory.path;
   /**
    Global extension directory holding the user-level config file.
    */
@@ -67,6 +70,9 @@ async function configFixture(
   return {
     home: join(root, 'home',),
     cwd: join(root, 'project',),
+    [Symbol.asyncDispose]: async function removeFixtureRoot(): Promise<void> {
+      await directory.remove();
+    },
   };
 }
 
@@ -76,7 +82,7 @@ await describe({
     it({
       name: 'merges the project config over the global config',
       fn: async () => {
-        const fixture = await configFixture(
+        await using fixture = await configFixture(
           '{"enabled":false,"defaultReviewerModel":"p/global"}',
           '{"enabled":true}',
         );

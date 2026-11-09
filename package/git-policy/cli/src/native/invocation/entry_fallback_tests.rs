@@ -73,8 +73,9 @@ fn stderr_of(action: &Action) -> &str {
         | Action::ForwardCoordinated { stderr, .. }
         | Action::ForwardSettled { stderr, .. }
         | Action::ForwardPush { stderr, .. }
-        | Action::Exit { stderr, .. }
-        | Action::ExitBytes { stderr, .. } => stderr.as_str(),
+        | Action::Exit { stderr, .. } => stderr.as_str(),
+        // The explanation is bytes, and every plan this control asks for spells text, so it is read back as text.
+        Action::ExitBytes { stderr, .. } => std::str::from_utf8(stderr).expect("an explanation of text paths"),
     };
 }
 

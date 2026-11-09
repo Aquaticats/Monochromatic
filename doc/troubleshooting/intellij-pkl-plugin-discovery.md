@@ -1,5 +1,8 @@
 # Pkl IntelliJ Plugin 0.36.1 is not discoverable in JetBrains Marketplace and is hidden from IDEA before 2024.3
 
+Note 2026-11-09T16:56:27-05:00:
+`.idea/pklSettings.xml` left the tree on 2026-07-11 in `122c5dbd2a`.
+
 ## Repository status
 
 Issue `#357` removed this repository's sole Pkl input,

@@ -1,5 +1,14 @@
 # Pi 0.85.1 Advisor: exhausted-credit responses need call-local provider exclusion
 
+Note 2026-11-09T16:51:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/advisor/src/advisor-completion.ts` is now
+`package/agent-harness-shared/advisor/src/advisor-completion.ts`,
+moved 2026-10-20 in `093f32832a`.
+`package/pi-plugin/advisor/src/operation-attempt.ts` is now
+`package/agent-harness-shared/advisor/src/operation-attempt.ts`,
+moved 2026-10-20 in `093f32832a`.
+
 ## Symptom
 
 During the #413 design interview,

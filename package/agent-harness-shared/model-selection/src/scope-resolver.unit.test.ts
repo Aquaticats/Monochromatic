@@ -6,7 +6,7 @@
 
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -102,10 +102,11 @@ await describe({
     it({
       name: 'uses settings scope before available fallback',
       fn: async function testSettingsScope() {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-scope-test-',
         ),);
+        const root = directory.path;
         const cwd = join(
           root,
           'repo',
@@ -143,10 +144,11 @@ await describe({
     it({
       name: 'falls back to all available models',
       fn: async function testAvailableFallback() {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-scope-test-',
         ),);
+        const root = directory.path;
         const scope = await resolveEffectiveScope({
           ctx: {
             ...baseContext,

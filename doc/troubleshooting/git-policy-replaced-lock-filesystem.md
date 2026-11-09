@@ -1,5 +1,13 @@
 # Git-policy CLI at e02be6c8 accepts replacement locks in the measured ordinary CI directories
 
+Note 2026-11-09T16:55:17-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/native/recovery_files.rs` is now
+`package/git-policy/cli/src/native/transaction/recovery_files.rs`,
+moved 2026-11-03 in `9d630d998e`.
+`package/dev-script/task-util` is now `package/monorepo-task/core-exec`,
+moved 2026-10-29 in `592d78b143`.
+
 ## Symptom
 
 The frozen source is `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.

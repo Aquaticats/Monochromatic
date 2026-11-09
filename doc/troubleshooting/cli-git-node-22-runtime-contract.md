@@ -1,5 +1,11 @@
 # cli-git 0.0.1 declared Node 22.18 support but its built artifact needed Node 24 language and APIs
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/worktree-copy/entry-compare.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/worktree-copy/lifecycle.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/worktree-copy/journal-lock.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Resolution policy
 
 This policy is the pre-native state and no longer holds:
