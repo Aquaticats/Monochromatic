@@ -3243,10 +3243,15 @@ because nothing else can make it:
   so a repository with both lists leaves them to the service.
 
 The artifact itself is published without a file or directory sync:
-a reader validates its magic, scanner version, platform, source digest, payload digest and engine digest,
+a reader validates its magic,
+scanner version,
+platform,
+source digest,
+payload digest and engine digest,
 so a copy a crash tore is rejected and recompiled,
 and forcing the bytes to the device made the writer wait for a file that is derived data
-(6.7 s and 3.0 s of `fsync` in one measured commit, and 1.5 s in its `rename`).
+(6.7 s and 3.0 s of `fsync` in one measured commit,
+and 1.5 s in its `rename`).
 
 ## Reading the repository in process
 
