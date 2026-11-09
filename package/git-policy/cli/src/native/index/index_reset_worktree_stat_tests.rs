@@ -510,3 +510,43 @@ fn the_attribute_files_a_landing_reads_are_charged() {
     assert!(hashed.get() >= 4096 + 2, "the attribute file and the file itself are charged, and the landing has {}", hashed.get());
     remove(root.as_path());
 }
+
+/// A nested path with an indexed root `.gitattributes` is judged without a panic:
+/// the handle of the file's own directory is borrowed then, and replacing the cache under that borrow panics rather
+/// than refusing the record.
+/// The worktree's copy is the one Git applies here, so the file records.
+#[test]
+fn a_nested_path_with_an_indexed_root_attributes_file_records_rather_than_panicking() {
+    let root: PathBuf = fixture_root("index-worktree-stat-nested-attributes");
+    std::fs::write(root.join(".gitattributes"), b"a -text\n").expect("attributes");
+    std::fs::create_dir_all(root.join("d")).expect("directory");
+    let file: PathBuf = root.join("d/a");
+    std::fs::write(&file, b"a\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
+    assert_eq!(
+        recorded_with_indexed(&[Vec::new()], root.as_path(), b"d/a", blob.as_slice(), 0o100_644).unwrap_or_default(),
+        stat_of_file(file.as_path()),
+        "the worktree's copy is the one Git applies, so the nested file records"
+    );
+    remove(root.as_path());
+}
+
+/// The same for an indexed `.gitattributes` of a strict ancestor directory,
+/// which replaces the cached handle the same way.
+#[test]
+fn a_nested_path_with_an_indexed_ancestor_attributes_file_records_rather_than_panicking() {
+    let root: PathBuf = fixture_root("index-worktree-stat-ancestor-attributes");
+    std::fs::create_dir_all(root.join("d/e")).expect("directory");
+    std::fs::write(root.join("d/.gitattributes"), b"a -text\n").expect("attributes");
+    let file: PathBuf = root.join("d/e/a");
+    std::fs::write(&file, b"a\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
+    assert_eq!(
+        recorded_with_indexed(&[b"d".to_vec()], root.as_path(), b"d/e/a", blob.as_slice(), 0o100_644).unwrap_or_default(),
+        stat_of_file(file.as_path()),
+        "the ancestor's worktree copy is the one Git applies, so the nested file records"
+    );
+    remove(root.as_path());
+}

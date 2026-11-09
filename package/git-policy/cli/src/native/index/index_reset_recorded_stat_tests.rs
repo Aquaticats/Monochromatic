@@ -114,6 +114,25 @@ fn attributes_only_in_the_index(repo: &Path, attribute: &str) {
     std::fs::remove_file(repo.join(".gitattributes")).expect("the worktree copy is gone");
 }
 
+/// A landing whose index holds a root `.gitattributes`,
+/// naming a nested path whose worktree copy applies no conversion,
+/// stays in process and records that path:
+/// before the fix the proof panicked under its borrow of the file's own directory,
+/// the guard caught it,
+/// and every path of the commit fell back to `git reset --no-refresh` with no stat data.
+#[test]
+fn a_landing_with_an_indexed_root_attributes_file_records_a_nested_path() {
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "d/x", mode: "100644", content: b"x two\n" }];
+    let scene: Scene = scene("index-reset-recorded-stat-nested-attributes", &Plan { files: &FILES, edits: edits.as_slice(), ..Plan::default() });
+    std::fs::write(scene.repo.join(".gitattributes"), b"d/x -text\n").expect("attributes");
+    crate::test_support::git(scene.repo.as_path(), &["add", ".gitattributes"]);
+    std::fs::write(scene.repo.join("d/x"), b"x two\n").expect("d/x");
+    age(scene.repo.join("d/x").as_path());
+    assert!(landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["d/x"]))), "the reset is the plain case");
+    assert_eq!(entry_of(scene.repo.as_path(), "d/x").stat, stat_of_file(scene.repo.join("d/x").as_path()), "the nested path records its stat data");
+    finish(scene);
+}
+
 /// An attribute only the index's `.gitattributes` names still applies,
 /// so the proof refuses the record rather than trusting the worktree alone.
 #[test]
