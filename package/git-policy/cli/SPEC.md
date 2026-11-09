@@ -791,6 +791,27 @@ so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
 `--literal-pathspecs`)
 cannot make the name match nothing and leave the file in the source uncopied.
 A bare repository has no source root and synchronizes an empty set.
+The copy settles itself against the source in bounded passes,
+because a live checkout removes and rewrites its
+ ignored files while the copy runs:
+a source entry that is gone when its turn comes has nothing left to copy and
+ leaves the manifest,
+an entry that changed under the copy is copied again,
+twice at most,
+and an entry that is
+ still changing after that is left where it is,
+untouched,
+in its source,
+is not installed,
+and is
+ named on one line beside the entries the person could not read.
+The stage equals the source for every entry it holds,
+and a copy
+ that cannot finish names the path of the entry it failed on rather than only the checkout it came from.
+The number of
+ passes is bounded (`worktree_copy_settling.rs`),
+so a source that churns faster than the copy can prove it never
+ holds a command indefinitely.
 The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
 a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
 so nothing is staged from it.

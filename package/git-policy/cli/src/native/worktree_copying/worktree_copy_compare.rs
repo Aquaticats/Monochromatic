@@ -350,7 +350,8 @@ pub struct Differences {
     pub gone: Vec<String>,
     /// Manifest entries whose shape or bytes the source and the stage disagree about.
     pub changed: Vec<String>,
-    /// Source paths the listing did not name, which appeared while the copy ran.
+    /// Source paths the listing did not name,
+    /// which appeared while the copy ran.
     pub appeared: Vec<String>,
 }
 
@@ -418,7 +419,10 @@ pub fn differences_from_the_source(
             differences.changed.push(String::from(path));
         }
     }
-    let staged_paths: BTreeSet<&str> = staged_entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.as_str(); }).collect();
+    let mut staged_paths: BTreeSet<&str> = BTreeSet::new();
+    for entry in staged_entries {
+        staged_paths.insert(entry.relative_path.as_str());
+    }
     for path in by_source.keys() {
         if !staged_paths.contains(path) {
             differences.appeared.push(String::from(*path));

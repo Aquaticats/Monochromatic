@@ -504,6 +504,15 @@ Read-only commands,
   and a record written by an earlier release is still read.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
+  A copy settles itself against the source:
+  a file the source removed meanwhile has nothing to copy and
+   leaves the stage,
+  a file that changed is copied again twice at most,
+   and a file that keeps changing stays untouched in its source,
+  is not installed,
+  and is named
+   on one line.
+  A file that cannot be copied at all fails the copy with its own path in the message.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,

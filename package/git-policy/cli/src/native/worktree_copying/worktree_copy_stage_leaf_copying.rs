@@ -516,11 +516,13 @@ pub fn copy_manifest_entries(
 /// type CopiedManifest = { stamps: (FileStamp | undefined)[]; gone: string[] };
 /// ```
 pub struct CopiedManifest {
-    /// The stamp of each entry, in manifest order;
+    /// The stamp of each entry,
+    /// in manifest order;
     /// `None` when the bytes were copied rather than cloned,
     /// and for every entry the source no longer held.
     pub stamps: Vec<Option<FileStamp>>,
-    /// The manifest entries the source no longer held when their turn came, in manifest order.
+    /// The manifest entries the source no longer held when their turn came,
+    /// in manifest order.
     pub gone: Vec<String>,
 }
 

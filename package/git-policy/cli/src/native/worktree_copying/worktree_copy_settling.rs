@@ -89,7 +89,8 @@ pub struct SettlingRequest<'a> {
     pub source_root: &'a Path,
     /// The private payload the entries are copied into.
     pub stage_root: &'a Path,
-    /// The roots Git selected, relative to the source.
+    /// The roots Git selected,
+    /// relative to the source.
     pub selected_roots: &'a [String],
     /// The source roots no walk enters.
     pub excluded_source_roots: &'a [PathBuf],
@@ -97,11 +98,13 @@ pub struct SettlingRequest<'a> {
     pub prune: Prune,
     /// The manifest the copy staged.
     pub entries: Vec<WorktreeCopyEntry>,
-    /// The stamp of each entry, in manifest order.
+    /// The stamp of each entry,
+    /// in manifest order.
     pub stamps: Vec<Option<FileStamp>>,
     /// The clone request the copy and its retries use.
     pub clone: fn(&std::fs::File, &std::fs::File) -> bool,
-    /// The manifest entries the copy found gone, which the settling drops before it compares anything.
+    /// The manifest entries the copy found gone,
+    /// which the settling drops before it compares anything.
     pub gone: Vec<String>,
 }
 
@@ -121,7 +124,8 @@ pub struct SettlingRequest<'a> {
 pub struct Settled {
     /// The entries the stage holds.
     pub entries: Vec<WorktreeCopyEntry>,
-    /// The stamp of each of them, in entry order.
+    /// The stamp of each of them,
+    /// in entry order.
     pub stamps: Vec<Option<FileStamp>>,
     /// The entries left in the source because they kept changing under the copy.
     pub unsettled: Vec<String>,
@@ -232,7 +236,7 @@ fn copy_again(
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<(), WorktreeCopyError> {
     for path in changed {
-        let Some(index) = entries.iter().position(|entry: &WorktreeCopyEntry| { return entry.relative_path == *path; }) else { continue };
+        let Some(index) = index_of_path(entries, path.as_str()) else { continue };
         let stage_path: PathBuf = filesystem_path(stage_root, path.as_str())?;
         remove_the_staged_copy(stage_path.as_path())?;
         let entry: WorktreeCopyEntry = entries[index].clone();
@@ -270,11 +274,32 @@ fn leave_out(
     for path in paths {
         let stage_path: PathBuf = filesystem_path(stage_root, path.as_str())?;
         remove_the_staged_copy(stage_path.as_path())?;
-        let Some(index) = entries.iter().position(|entry: &WorktreeCopyEntry| { return entry.relative_path == *path; }) else { continue };
+        let Some(index) = index_of_path(entries, path.as_str()) else { continue };
         entries.remove(index);
         stamps.remove(index);
     }
     return Ok(());
+}
+
+/// What:
+///  Where the entry with this relative path sits in the manifest.
+/// Why:
+///   The passes filter the manifest and its stamps together,
+/// so each answer is an index into both;
+/// a path that is
+///  already gone has none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const indexOfPath = (entries, path) => entries.findIndex((entry) => entry.relativePath === path);
+/// ```
+fn index_of_path(entries: &[WorktreeCopyEntry], path: &str) -> Option<usize> {
+    for (index, entry) in entries.iter().enumerate() {
+        if entry.relative_path == path {
+            return Some(index);
+        }
+    }
+    return None;
 }
 
 /// What:
