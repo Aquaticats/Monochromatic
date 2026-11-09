@@ -612,3 +612,67 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   "Decisions this route answers to".
 - Windows and macOS,
   which the owner's pause leaves out.
+
+## Fixed after this audit
+
+Branch `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`.
+The page above stands as the record of the audited revision.
+Each finding got a control that was written first and shown failing,
+then passed with the fix,
+and failed again with the fix removed.
+
+- Finding 1,
+  `cb2a9f230a`:
+  the second pass reads the `merge` attribute from the tree `git merge-tree` produced
+  (`git check-attr --source=<tree>`),
+  so a rule the merge introduces governs the pass;
+  the tree is named only where the person named no source,
+  and a `.gitattributes` the merge left conflicted names no source at all,
+  which keeps every candidate of that merge conflicted.
+  `git merge-tree` itself still reads the first side's tip,
+  which is the choice the planning record leaves to the owner.
+  Controls:
+  `a_merge_rule_the_merge_itself_introduces_keeps_the_isolated_merge_from_merging_the_file`,
+  `a_rule_the_merge_itself_introduces_governs_the_second_pass`,
+  `a_gitattributes_the_merge_left_conflicted_names_no_rule`,
+  `the_merge_result_tree_is_named_only_where_the_person_named_no_source`.
+- Finding 2,
+  `ac7b52c406` (the module split that followed is `18eb5bfb96`):
+  every part line ends with the three blobs it came from
+  (`from base blob <oid>, ours blob <oid>, theirs blob <oid>`),
+  one sentence names `git cat-file blob <oid>`,
+  and the journal entry carries the same three object names in
+  `CLI_GIT_WORD_MERGE_BLOBS`.
+  The line spans stay as the coordinates of the part inside those blobs.
+  Controls:
+  `a_part_line_names_each_input_as_a_blob_that_survives_the_resolution`,
+  the hint assertion of `an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed`,
+  `the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text`,
+  `the_journal_entry_names_the_file_the_operation_and_the_parts`,
+  `the_notice_lists_each_merged_part_and_is_absent_without_one`.
+- Finding 3,
+  `ed47cef2af`:
+  the line that names the files staged as resolved is printed whether or not a finish follows,
+  and a finish that ends with a non-zero status is followed by one line naming the state
+  the person will find,
+  with the command that ends that operation.
+  Controls:
+  `a_finish_that_cannot_reach_the_commit_service_names_what_changed`,
+  `the_closing_words_say_whether_a_conflict_remains`.
+
+Still open after this work:
+
+- The reconcile merge and the replay end to end,
+  which this audit could not exercise either.
+  Both pass their `AttributeProbe` to the same `resolve_tree`,
+  so finding 1's fix reaches them by the same function,
+  and no control starts either with a `.gitattributes` the merge introduces.
+- The commit path still ends a failure it reports with "Nothing in the repository changed.",
+  which is true of that commit and false of the merge that staged the files before it.
+  The wrapper's own line after it is now the last word and the true one;
+  suppressing the commit's sentence would mean passing the state of the index into
+  the landing messages,
+  which no finding required.
+- Which `.gitattributes` `git merge-tree` itself should read
+  stays the owner's item,
+  unchanged by this work.
