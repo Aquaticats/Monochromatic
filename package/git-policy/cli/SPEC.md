@@ -2310,13 +2310,19 @@ until it lands or the person must act (`src/native/push/push_retry.rs`).
 Its plan is kept in a file whose name is a hash of the branch and of the bytes of the worktree's Git directory
 (`src/native/push/push_retry_store.rs`),
 so two directories whose paths differ only in a byte that is not text keep a plan each.
-A file an earlier release keyed by the path's text is removed with its branch only when the record inside it names that
-branch,
-because that key was built from the text,
+A file is removed by a cleanup only when its record was read and names that directory and that branch,
+because the key an earlier release wrote was built from the text of the path,
 and the text of a name that holds a byte which is not text shows the replacement character:
 a directory named with that character itself has the same text,
 and its plan is neither done nor cancelled,
 so it stays.
+A file that cannot be read,
+and one that holds no plan,
+are kept by the cleanup too;
+`load` judges them,
+says what it found,
+and removes what is no plan,
+since deleting a file needs permission on its directory alone.
 The person must act for a conflict,
 for a login the service does not have,
 and for a hook on the server that declined the push

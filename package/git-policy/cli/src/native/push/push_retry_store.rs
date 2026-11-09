@@ -156,13 +156,19 @@ pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
 /// Removes the plan files of one branch of `git_dir`,
 /// whose keys are `keys`,
 /// except the one named `keep`,
-/// and leaves every file whose record names another directory or another branch.
+/// and removes a file only when its record was read and names this directory and this branch.
 /// Why:
-///   The key an earlier release wrote was built from the text of the path,
+///   "never discard user data."
+/// The key an earlier release wrote was built from the text of the path,
 /// and two directories whose names differ only in a byte that is not text have one text,
 /// so that key alone can name both;
-/// the record inside the file says which directory the plan is for,
-/// and a plan of another directory is neither done nor cancelled.
+/// only the record inside the file says which plan it holds.
+/// A file that cannot be read,
+/// or that holds no plan,
+/// says nothing about the push it schedules,
+/// which may be neither done nor cancelled,
+/// so it stays and `load` judges it and says so,
+/// since deleting it needs permission on its directory alone.
 fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: Option<&str>) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
     for entry in listing.flatten() {
@@ -171,20 +177,23 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
             continue;
         }
         let path: PathBuf = entry.path();
-        if names_another_branch(path.as_path(), git_dir, branch_ref) {
+        if !records_this_branch(path.as_path(), git_dir, branch_ref) {
             continue;
         }
         let _removed = std::fs::remove_file(path);
     }
 }
 
-/// Whether the plan in `path` names a branch other than `git_dir` and `branch_ref`;
-/// nothing when the file holds no plan,
-/// which `load` judges and says.
-fn names_another_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> bool {
+/// Whether the plan in `path` was read and names `git_dir` and `branch_ref`,
+/// which is the only case a cleanup may remove it.
+/// Why:
+///   A read or decode that fails is no proof about the plan:
+/// an unreadable file and a file that holds no plan both stay,
+/// and `load` says what it found and removes what is no plan.
+fn records_this_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> bool {
     let Ok(text) = std::fs::read_to_string(path) else { return false };
     let Ok(found) = decode(text.as_str()) else { return false };
-    return found.git_dir != git_dir || found.item.branch_ref != branch_ref;
+    return found.git_dir == git_dir && found.item.branch_ref == branch_ref;
 }
 
 /// Whether a plan file's name begins with the key of one of the branch's plans.

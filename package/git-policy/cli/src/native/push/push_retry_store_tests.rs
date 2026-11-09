@@ -173,6 +173,36 @@ fn a_legacy_key_does_not_remove_another_directorys_plan() {
     remove_fixture(root.as_path());
 }
 
+/// What:
+///  A plan file that cannot be read is not removed by the cleanup of a legacy key.
+/// Why:
+///   "never discard user data."
+/// The cleanup removes a file only when the record inside it was read and names this directory and this branch;
+/// a file that cannot be read says nothing about the push it schedules,
+/// which may be neither done nor cancelled,
+/// and deleting it needs permission on its directory alone,
+/// so it would go.
+#[test]
+fn a_plan_that_cannot_be_read_is_not_removed() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("retry-store-unreadable-plan");
+    let kept: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
+    let name: String = format!(
+        "{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}",
+        earlier_branch_key(kept.git_dir.as_path(), kept.item.branch_ref.as_str()),
+        1,
+        crate::push_failure_notice::fnv_hex(FIRST_OID)
+    );
+    let path: PathBuf = root.join(name);
+    std::fs::write(path.as_path(), encode(&kept)).expect("a plan an earlier release wrote");
+    // Nobody may read the record, and the directory it sits in is still writable, which is what deleting it needs.
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable");
+    remove(root.as_path(), kept.git_dir.as_path(), kept.item.branch_ref.as_str());
+    assert!(path.exists(), "a file that could not be read is kept, so its push is not forgotten");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("readable again");
+    remove_fixture(root.as_path());
+}
+
 /// A plan saved for a branch replaces the earlier plan of that branch,
 /// with another try number or another commit.
 #[test]
