@@ -1446,3 +1446,33 @@ fn a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit() {
     assert!(line.contains("\"reference\":\"refs/heads/lost-"), "{line}");
     remove(&fixture);
 }
+
+/// A worktree path holding a line break is read whole,
+/// so a removal by its unique suffix counts that worktree and
+///  not a directory beside the command.
+#[test]
+fn a_removal_counts_the_worktree_whose_path_holds_a_line_break() {
+    let fixture: Fixture = fixture("audit-worktree-line-break");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let worktrees: PathBuf = fixture.root.join("worktrees");
+    std::fs::create_dir(&worktrees).expect("worktrees directory");
+    let linked: PathBuf = worktrees.join("line\nbreak/topic");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../worktrees/line\nbreak/topic"]);
+    assert!(linked.is_dir(), "the fixture needs a worktree whose path holds a line break");
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // A directory of the same name beside the command, which is not a worktree at all.
+    std::fs::create_dir(repo.join("topic")).expect("a directory of the same name");
+    let removal: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "--force", "topic"]);
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree the suffix names");
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"worktree\":\"topic\"",
+        "\"head\":\"refs/heads/side\"",
+        "\"changed\":\"1\"",
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    remove(&fixture);
+}

@@ -9890,7 +9890,9 @@ and leave one audit line each
   The target is the path Git resolves before it removes anything:
   the named path,
   or the one registered worktree whose path components the name ends,
-  from one `git worktree list --porcelain`,
+  from one `git worktree list --porcelain -z`,
+  whose NUL-terminated fields keep a path that holds a line break whole
+  (splitting such a path at its line break would read another worktree),
   asked first because every read of the target has to happen before Git removes it
   (measured at 32 to 50 ms per start in this repository's worktree,
   in ten-run batches with a load average of 70),

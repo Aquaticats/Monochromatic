@@ -280,18 +280,17 @@ fn worktree_paths(context: &GitContext) -> Option<Vec<PathBuf>> {
     if !output.success {
         return None;
     }
+    // `-z` ends every field with a NUL and every record with one more, so a path holding a line break stays whole.
     let mut paths: Vec<PathBuf> = Vec::<PathBuf>::new();
-    for record in output.stdout.split(is_nul_byte) {
-        for line in record.split(is_newline) {
-            if line.starts_with(WORKTREE_FIELD) {
-                paths.push(path_from_git_bytes(&line[WORKTREE_FIELD.len()..])?);
-            }
+    for field in output.stdout.split(is_nul_byte) {
+        if field.starts_with(WORKTREE_FIELD) {
+            paths.push(path_from_git_bytes(&field[WORKTREE_FIELD.len()..])?);
         }
     }
     return Some(paths);
 }
 
-/// The word `git worktree list --porcelain` puts before a worktree's path.
+/// The word a `git worktree list --porcelain -z` field puts before a worktree's path.
 const WORKTREE_FIELD: &[u8] = b"worktree ";
 
 /// What:
