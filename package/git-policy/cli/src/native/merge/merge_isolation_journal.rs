@@ -23,6 +23,9 @@
 /// Record writers and readers.
 use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
 use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
+/// The person's own work in the paths a merge changes,
+/// as the record holds it.
+use crate::merge_isolation_carry_parts::{Capture, decode, encode};
 /// The owner of a record.
 use crate::path_bytes_in_records as path_bytes;
 use crate::transaction_owner::TransactionOwner;
@@ -41,7 +44,14 @@ use std::path::{Path, PathBuf};
 pub const MERGE_INTENT_DIRECTORY: &str = MERGE_INTENT_FOLDER.current;
 
 /// Schema version of an intent record.
-pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 1;
+///  Version 2 adds the capture of the person's own work in the paths the merge changes;
+/// a record of version 1 holds none,
+/// and both are read.
+pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 2;
+
+/// The versions an earlier release wrote,
+/// which this one still recovers.
+pub const EARLIER_MERGE_INTENT_SCHEMA_VERSIONS: [i64; 1] = [1];
 
 /// Suffix of an intent record's file name.
 const RECORD_SUFFIX: &str = ".json";
@@ -81,6 +91,11 @@ pub struct MergeIntent {
     /// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
     /// finding 3).
     pub side_ref: Option<String>,
+    /// The person's own work in the paths the merge changes,
+    /// kept outside the checkout before the first of them is written,
+    /// or nothing for a merge whose paths held none of it
+    /// (`merge_isolation_carry_parts.rs`).
+    pub carried: Option<Capture>,
 }
 
 /// What:
@@ -141,6 +156,9 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
     if let Some(side_ref) = &intent.side_ref {
         writer.string("sideRef", side_ref.as_str());
     }
+    if let Some(carried) = &intent.carried {
+        writer.raw("carried", encode(carried).as_str());
+    }
     return format!("{}\n", writer.finish());
 }
 
@@ -156,9 +174,9 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
 /// ```
 pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
     let map: serde_json::Map<String, serde_json::Value> = parse_object(decode_fatal(bytes)?)?;
-    if !number_equals(&map, "schemaVersion", MERGE_INTENT_SCHEMA_VERSION)
-        || string_field(&map, "state")? != "merge-intent"
-    {
+    let version_readable: bool = number_equals(&map, "schemaVersion", MERGE_INTENT_SCHEMA_VERSION)
+        || EARLIER_MERGE_INTENT_SCHEMA_VERSIONS.iter().any(|earlier| { return number_equals(&map, "schemaVersion", *earlier); });
+    if !version_readable || string_field(&map, "state")? != "merge-intent" {
         return None;
     }
     let owner_pid: i64 = safe_integer_field(&map, "ownerPid")?;
@@ -195,6 +213,11 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
         side_ref: match string_field(&map, "sideRef") {
             Some(name) if !name.is_empty() => Some(String::from(name)),
             _ => None,
+        },
+        // A record of version 1 holds none: every path it wrote was the merge's own.
+        carried: match map.get("carried") {
+            Some(value) => Some(decode(value)?),
+            None => None,
         },
     });
 }

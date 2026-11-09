@@ -911,6 +911,7 @@ fn a_live_merges_record_is_left_alone() {
         old_oid: tip.clone(),
         new_oid: tip,
         side_ref: None,
+        carried: None,
     };
     let record: PathBuf = git_policy_cli::merge_isolation_journal::write_merge_intent(repo.join(".git").as_path(), &intent).expect("record");
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);

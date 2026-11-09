@@ -18,6 +18,8 @@
 
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
+/// The person's own work in the paths the merge changes.
+use crate::merge_isolation_carry_parts::Capture;
 /// The resolved command.
 use crate::forwarded_command::ResolvedCommand;
 /// The command-line reading.
@@ -155,6 +157,10 @@ pub struct Plan<'a> {
     pub old_oid: &'a str,
     /// The merge commit.
     pub new_oid: &'a str,
+    /// The person's own work in the paths the merge changes,
+    /// kept outside the checkout before the first of them is written,
+    /// or nothing when those paths held none of it.
+    pub carried: Option<&'a Capture>,
 }
 
 /// The text a finding or failure puts on standard error,

@@ -200,6 +200,7 @@ fn killed_after_the_checkout(fixture: &Fixture, repo: &Path, old_oid: &str, merg
         old_oid: String::from(old_oid),
         new_oid: String::from(merged),
         side_ref: None,
+        carried: None,
     };
     let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
     git(fixture, repo, &["read-tree", "-m", "-u", old_oid, merged]);

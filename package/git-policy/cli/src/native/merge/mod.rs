@@ -106,6 +106,28 @@ pub mod merge_isolation_report;
 /// A true merge completed in isolation while the index holds staged changes.
 pub mod merge_isolation;
 
+/// The person's own work in the paths a merge changes:
+/// what the worktree and the index held,
+/// as the record
+///  and a ref of its own keep it.
+pub mod merge_isolation_carry_parts;
+
+/// Reading the person's work and keeping it outside the checkout.
+pub mod merge_isolation_carry;
+
+/// Writing it back:
+/// the clear before the merge,
+/// the carry of each layer after it,
+/// and the restore of a merge that did not land.
+pub mod merge_isolation_carry_apply;
+
+/// What one layer of one path ends as once the person's work is merged with the merge.
+pub mod merge_isolation_carry_layers;
+
+/// The lines a carried merge prints about the paths it kept,
+/// merged or left alone.
+pub mod merge_isolation_carry_notice;
+
 /// The writing half of an isolated merge:
 /// the merge tree,
 /// the commit and the two-way update.

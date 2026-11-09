@@ -1,6 +1,7 @@
 //! Controls for the isolated merge's intent record.
 
 use super::*;
+use crate::merge_isolation_carry_parts as carry_parts;
 use crate::test_support::{fixture, remove};
 
 /// The intent every control uses.
@@ -18,6 +19,7 @@ fn intent(namespace: Option<&str>, target: Option<&str>) -> MergeIntent {
         old_oid: String::from("a".repeat(40)),
         new_oid: String::from("b".repeat(40)),
         side_ref: None,
+        carried: None,
     };
 }
 
@@ -76,7 +78,7 @@ fn a_malformed_intent_is_refused() {
         String::new(),
         String::from("[]"),
         String::from("not json"),
-        good.replace("\"schemaVersion\":1", "\"schemaVersion\":2"),
+        good.replace("\"schemaVersion\":2", "\"schemaVersion\":3"),
         good.replace("merge-intent", "landing"),
         good.replace("\"ownerPid\":4242", "\"ownerPid\":0"),
         good.replace("\"ownerIdentity\":\"linux:7\"", "\"ownerIdentity\":\"\""),
@@ -117,4 +119,74 @@ fn a_record_is_written_listed_and_removed() {
     remove_merge_intent(path.as_path()).expect("removing twice is not an error");
     assert_eq!(list_merge_intents(git_dir.as_path()).expect("listing"), vec![other]);
     remove(&root);
+}
+
+/// What:
+///  A record that carries the person's own work reads back byte for byte,
+///  including a path that is not text.
+/// Why:
+///  A merge interrupted with the checkout cleared is finished from these bytes,
+/// so a path that lost one byte would
+///  put the person's work at a name nothing reads.
+#[test]
+fn a_capture_round_trips() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let capture: Capture = Capture {
+        commit: String::from("c".repeat(40)),
+        reference: Some(String::from("refs/cli-git/carried/0b6c2c1e")),
+        paths: vec![
+            carry_parts::CapturedPath {
+                path: b"dir/a b.txt".to_vec(),
+                worktree: Some(carry_parts::CapturedFile {
+                    mode: String::from("100755"),
+                    raw: String::from("d".repeat(40)),
+                    blob: String::from("e".repeat(40)),
+                }),
+                index: Some(carry_parts::CapturedIndex { mode: String::from("100644"), oid: String::from("f".repeat(40)) }),
+            },
+            carry_parts::CapturedPath {
+                path: OsStr::from_bytes(b"not text \xff").as_bytes().to_vec(),
+                worktree: None,
+                index: Some(carry_parts::CapturedIndex { mode: String::from("100644"), oid: String::from("a".repeat(40)) }),
+            },
+        ],
+    };
+    let original: MergeIntent = MergeIntent { carried: Some(capture.clone()), ..intent(None, Some("refs/heads/main")) };
+    let text: String = encode_merge_intent(&original);
+    assert_eq!(parse_merge_intent(text.as_bytes()), Some(original));
+    assert!(text.contains("\"carried\""), "the record names the capture: {text}");
+}
+
+/// What:
+///  A record whose capture is damaged is refused,
+///  rather than read as a merge with nothing carried.
+/// Why:
+///   Reading damage as absence would make the merge replace the person's paths with no copy of their
+///  bytes.
+#[test]
+fn a_damaged_capture_is_refused() {
+    let capture: Capture = Capture {
+        commit: String::from("c".repeat(40)),
+        reference: Some(String::from("refs/cli-git/carried/0b6c2c1e")),
+        paths: vec![carry_parts::CapturedPath {
+            path: b"a.txt".to_vec(),
+            worktree: Some(carry_parts::CapturedFile {
+                mode: String::from("100644"),
+                raw: String::from("d".repeat(40)),
+                blob: String::from("e".repeat(40)),
+            }),
+            index: None,
+        }],
+    };
+    let text: String = encode_merge_intent(&MergeIntent { carried: Some(capture), ..intent(None, Some("refs/heads/main")) });
+    assert!(parse_merge_intent(text.as_bytes()).is_some());
+    for broken in [
+        text.replace("100644", ""),
+        text.replace("\"raw\"", "\"other\""),
+        text.replace("612e747874", ""),
+        text.replace("\"paths\":[", "\"paths\":[{\"index\":{\"mode\":\"100644\",\"oid\":\"ff\"}},"),
+    ] {
+        assert_eq!(parse_merge_intent(broken.as_bytes()), None, "{broken}");
+    }
 }
