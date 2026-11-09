@@ -454,3 +454,46 @@ fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no commit is made");
     remove(&fixture);
 }
+
+/// What:
+///  `git -c attr.tree=<tree> merge` reads the `merge` attribute from the tree the person named on the command line.
+/// Why:
+///   Git puts a command-line configuration above every file,
+/// so a tree that excludes the file must govern the pass
+/// (cross-vendor review of this branch, finding 3).
+/// The pass named the merge's own tree over it,
+/// and the merge was committed although a rule the
+///  person asked for forbids it.
+#[test]
+fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge() {
+    let fixture: Fixture = fixture("word-merge-command-line-tree");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("data.lock"), b"port=1 host=a zone=z\n").expect("the base file");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "rules"]);
+    std::fs::write(repo.join(".gitattributes"), b"data.lock merge=binary\n").expect("the rules of the tree the person names");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=the rules"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join("data.lock"), b"port=1 host=b zone=z\n").expect("their edit");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("data.lock"), b"port=9 host=a zone=z\n").expect("our edit");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    // Another session's staged work, which is what makes the wrapper merge from objects.
+    std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
+    git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["-c", "attr.tree=rules", "merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "the tree the person named forbids the merge: {said}");
+    assert!(said.contains("data.lock"), "the refused path is named: {said}");
+    assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
+    assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "our file is untouched: {said}");
+    remove(&fixture);
+}

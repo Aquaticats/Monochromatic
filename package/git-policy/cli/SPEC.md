@@ -7650,6 +7650,11 @@ else `GIT_ATTR_SOURCE`,
 else the configuration `attr.tree`,
 and ignores an `attr.tree` that is no tree
 (`attr.c` lines 1202 to 1231).
+A `-c attr.tree=<spec>` on the command line is a configuration value Git takes above every file
+(`git_config_from_parameters`),
+so a resolving one there is the person's choice even where a file sets the key,
+and one that is no tree is ignored as a configured one is;
+`-c attr.tree` with no value sets `true`, which no tree resolves to.
 The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`,
 the
 reconcile merge's branch tip,

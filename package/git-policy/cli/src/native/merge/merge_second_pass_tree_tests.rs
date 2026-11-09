@@ -269,3 +269,36 @@ fn common_variables_cost_no_git_start_and_a_variable_that_moves_an_answer_costs_
     assert_eq!(starts_for(moving.as_slice()).0, 1, "a variable that can move an answer sends the question to Git");
     remove(root.as_path());
 }
+
+/// What:
+///  `git -c attr.tree=<spec>` names the attribute tree,
+/// so the merge's own tree is not named over it.
+/// Why:
+///   Git's precedence puts a command-line configuration above every file,
+/// and the pass read only the files
+///  (cross-vendor review of this branch, finding 3):
+/// the choice came out `Free`,
+/// the tree the merge produced was named,
+/// and `check-attr --source=`
+///  overrode what the person asked for.
+#[test]
+fn a_configuration_option_on_the_command_line_names_the_tree() {
+    let (root, repo) = probed_repository("second-pass-attr-command-line");
+    let none: Vec<(OsString, OsString)> = hermetic_variables(root.as_path());
+    let given = |prefix: &[&str]| -> Vec<OsString> { return prefix.iter().map(|token| { return OsString::from(*token); }).collect() };
+    let tip: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("tip123"))];
+    assert!(tip_variables(repo.as_path(), given(&["-c", "attr.tree=HEAD"]).as_slice(), none.as_slice()).is_empty(), "`-c attr.tree` names the tree");
+    assert!(tip_variables(repo.as_path(), given(&["--no-pager", "-c", "attr.tree=HEAD"]).as_slice(), none.as_slice()).is_empty(), "an option before it changes nothing");
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["-c", "core.autocrlf=true"]).as_slice(), none.as_slice()),
+        tip,
+        "a configuration option that names no attribute tree leaves Git's own answer, which names the tip"
+    );
+    // An `attr.tree` the command line sets to something that is no tree is ignored by Git, as a configured one is.
+    assert_eq!(
+        tip_variables(repo.as_path(), given(&["-c", "attr.tree=no-such-tree"]).as_slice(), none.as_slice()),
+        tip,
+        "Git ignores an attr.tree that is no tree, so the tip is named"
+    );
+    remove(root.as_path());
+}

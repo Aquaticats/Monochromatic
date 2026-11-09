@@ -122,6 +122,41 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
     };
 }
 
+/// What:
+///  The value the invocation's own `-c` options give `attr.tree`, the last one winning,
+/// or nothing when the command line names no attribute tree.
+/// Why:
+///   Git takes a `-c name=value` above every configuration file (`git_config_from_parameters`),
+/// so a value given there is the one Git uses
+///  whether a file sets the key or not;
+/// a value no tree resolves to is ignored, as a configured one is,
+/// and is told apart from
+///  none at all here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function commandLineAttributeTree(prefix: string[]): string | null | undefined;
+/// ```
+fn command_line_attribute_tree(prefix: &[OsString]) -> Option<Option<String>> {
+    let mut named: Option<Option<String>> = None;
+    let mut tokens = prefix.iter();
+    while let Some(token) = tokens.next() {
+        if token.to_str() != Some("-c") {
+            continue;
+        }
+        let Some(given) = tokens.next().and_then(|value| { return value.to_str(); }) else { continue };
+        // `-c name=value` sets it, and `-c name` alone sets `true`, which no tree resolves to.
+        match given.split_once('=') {
+            Some((ATTRIBUTE_TREE_KEY, value)) if !value.is_empty() => named = Some(Some(value.to_owned())),
+            Some((ATTRIBUTE_TREE_KEY, _no_value)) => named = Some(None),
+            Some(_other_key) => {}
+            None if given == ATTRIBUTE_TREE_KEY => named = Some(None),
+            None => {}
+        }
+    }
+    return named;
+}
+
 /// What the attribute-tree precedence came to for a merge that must name a tree.
 enum AttributeChoice {
     /// The person named one (`--attr-source`,
@@ -167,7 +202,7 @@ fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
             return AttributeChoice::ThePerson;
         }
     }
-    let Some(configured) = configured_attribute_tree(probe) else {
+    let Some(configured) = command_line_attribute_tree(probe.global_prefix).or_else(|| { return configured_attribute_tree(probe); }) else {
         debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
         return AttributeChoice::ThePerson;
     };
