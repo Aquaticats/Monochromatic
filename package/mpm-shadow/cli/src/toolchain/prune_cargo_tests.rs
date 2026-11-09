@@ -162,6 +162,30 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
 }
 
+/// A crate directory goes only when it is empty:
+/// whatever another run left in it, which the scan does not count as a version, is not carried away
+/// with the directory.
+#[test]
+fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    // The lock names a version that is not installed, so `1.1.0` is the only deletion and nothing remains.
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    // A link an `atomic_symlink` write of another run leaves behind: a name the scan skips, in the crate directory.
+    let leftover = root.join("cargo").join("fd-find").join(".current.4242.tmp");
+    fs::write(&leftover, "").expect("drop the leftover");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert_eq!(removed.len(), 1, "{removed:?}");
+    assert!(!version_directory(&root, "fd-find", "1.1.0").exists(), "the unnamed version goes");
+    assert!(leftover.exists(), "the crate directory was removed with something inside it: {removed:?}");
+}
+
 /// A prune that cannot repoint `current` deletes nothing:
 /// the link is moved to the newest finished version before the older one goes,
 /// so a run that stops at the link has never deleted the version the link named.

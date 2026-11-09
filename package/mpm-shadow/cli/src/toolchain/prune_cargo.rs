@@ -385,13 +385,32 @@ pub fn prune_toolchain(
             // a crate that keeps one already has its `current` link repointed above,
             // and a directory that held no version before holds only a `current` link forwarding to the other
             // toolchain root's newer copy (see `managed_losers.rs`), which this run never pruned.
-            if !remaining && had_versions && let Err(error) = fs::remove_dir_all(&crate_dir) {
-                return Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display())));
+            // `remove_dir` is what keeps a version installed after the scan above: an empty directory goes,
+            // and a directory that is no longer empty stays with whatever another run put there.
+            if !remaining && had_versions {
+                remove_crate_directory(&crate_dir)?;
             }
         }
     }
     removed.extend(prune_archives(scope, &named_archive_tools, dry_run)?);
     return Ok(removed);
+}
+
+/// What:
+/// Removes a crate directory when it is empty.
+/// Why:
+/// `remove_dir_all` would carry away a version another run installed after the scan that decided this crate
+/// holds none, and that version may be one a lock names.
+/// A directory that is no longer empty is another run's work, so it stays and this is not a failure.
+fn remove_crate_directory(crate_dir: &Path) -> Result<(), ToolchainError> {
+    return match fs::remove_dir(crate_dir) {
+        Ok(()) => Ok(()),
+        // `ENOTEMPTY`: something arrived after the scan, and the directory is not this run's to remove.
+        Err(error) if error.kind() == ErrorKind::DirectoryNotEmpty => Ok(()),
+        // Already gone, so there is nothing left to remove.
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display()))),
+    };
 }
 
 /// What:
