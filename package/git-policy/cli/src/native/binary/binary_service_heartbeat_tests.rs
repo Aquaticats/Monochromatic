@@ -282,15 +282,16 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
 }
 
-/// A unit the manager reports `inactive` after the start wait,
-/// while the socket holds the client's connection and nothing starts
+/// A unit the manager reports `inactive`,
+/// while the socket refuses the client's connection and nothing starts
 /// it,
-/// is started by the client's request to the manager;
-/// the client goes on waiting and the service then answers.
-/// A unit the
-/// manager reports `activating` is never asked to start.
+/// is started by the client's request to the manager at the first such answer,
+/// without waiting the start wait;
+/// the client
+/// goes on waiting and the service then answers.
+/// A unit the manager reports `activating` is never asked to start.
 #[test]
-fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one_is_not() {
+fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
     let name: String = address("inactive-unit");
     START_REQUESTS.store(0, Ordering::SeqCst);
     MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);

@@ -36,7 +36,9 @@ use std::time::{Duration, Instant};
 /// or at `START_CEILING` (one minute).
 /// A unit the manager calls `failed` is asked to be
 ///  reset and started once,
-/// because nothing else repairs that state.
+/// and a unit it calls `inactive` is asked to start at the first answer,
+/// because nothing else
+///  repairs either state.
 /// Where the manager cannot be asked it ends at the start wait,
 /// as it always did.
 /// Once a service
@@ -105,11 +107,20 @@ pub(crate) fn reach(
                 if last_asked.elapsed() >= watch.every {
                     last_asked = Instant::now();
                     let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
-                    // A unit still `inactive` after the start wait, with the client's connection waiting on its socket, is one the
-                    //  manager did not start; it is asked to, again after each further start wait, and the client goes on waiting.
-                    // A unit that is `activating` is being started and is left alone.
+                    // What: A unit the manager answers `inactive` for is asked to start at once, then again after each start
+                    //       wait while it stays inactive.
+                    // Why:  The client's connection was refused, so nothing of this worktree listens and nothing is starting it: an
+                    //       `inactive` unit is the answer a person's `systemctl --user stop` leaves, and provisioning counts the
+                    //       socket file it kept as in place, so nothing else starts it. Waiting the start wait (ten seconds)
+                    //       before asking made that commit ten seconds slower than native Git
+                    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 5). A unit that
+                    //       is `activating` is being started and is left alone.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (answer === 'inactive' && (lastStartRequest === undefined || lastStartRequest.elapsed() >= startWait)) { await start(unit); }
+                    // ```
                     if answer.as_deref() == Some("inactive")
-                        && started.elapsed() >= config.start_wait
                         && match last_start_request {
                             Some(at) => at.elapsed() >= config.start_wait,
                             None => true,

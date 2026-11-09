@@ -3146,8 +3146,18 @@ on the commit path:
 - A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
   journal
   command.
-  A unit the manager reports `inactive` after `START_WAIT` is asked to start,
-  again after each further `START_WAIT`.
+  A unit the manager reports `inactive` is asked to start at the first such answer,
+  again after each further `START_WAIT`,
+  because a stopped unit keeps its socket file and provisioning counts that as in place;
+  asking only
+  after `START_WAIT` made that commit ten seconds slower than native Git.
+  A unit the manager reports `failed` is asked to have
+  that state forgotten,
+  for both of the worktree's units,
+  and then to start,
+  once;
+  a second and third `failed` answer still end the wait,
+  so a unit that cannot start fails the commit in seconds.
 - A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
   left to the
   service's retry plan,
