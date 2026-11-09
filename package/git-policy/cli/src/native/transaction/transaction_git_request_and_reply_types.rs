@@ -111,6 +111,37 @@ impl GitRequest {
             ..Self::default()
         };
     }
+
+    /// What:
+    ///  This request with every pathspec-mode variable of the caller's environment removed.
+    /// Why:
+    ///   A pathspec the wrapper writes is the wrapper's own,
+    /// so no mode the caller set may change which paths it selects:
+    ///  with `GIT_ICASE_PATHSPECS=1`,
+    /// `:(top,literal)a.txt` matches `A.txt` too,
+    ///  and `git reset` or `git rm` then changes an entry the batch never selected.
+    ///  No option turns case-insensitive matching off:
+    /// measured against Git 2.56.0,
+    /// `--no-icase-pathspecs` is an unknown global.
+    ///  Git also refuses two modes at once:
+    /// `GIT_LITERAL_PATHSPECS=1` beside `GIT_ICASE_PATHSPECS=1` stops it with
+    ///  "global 'literal' pathspec setting is incompatible with all other global pathspec settings",
+    /// and `GIT_GLOB_PATHSPECS=1` beside `GIT_NOGLOB_PATHSPECS=1` with
+    ///  "global 'glob' and 'noglob' pathspec settings are incompatible".
+    ///  `GIT_ICASE_PATHSPECS=1` alone makes `git ls-tree` refuse every pathspec
+    ///  ("pathspec magic not supported by this command:
+    /// 'icase'").
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const withoutPathspecModes = (request: GitRequest) => ({ ...request, unset: [...request.unset, ...PATHSPEC_MODE_VARIABLES] });
+    /// ```
+    pub fn without_pathspec_modes(mut self) -> Self {
+        for name in crate::conflict_side_modes::MODE_VARIABLES {
+            self.unset.push(OsString::from(name));
+        }
+        return self;
+    }
 }
 
 /// What:

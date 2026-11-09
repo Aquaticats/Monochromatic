@@ -141,6 +141,28 @@ fn changed_paths_lists_nothing_for_files_the_stat_data_cannot_vouch_for_and_one_
     remove(root.as_path());
 }
 
+/// An untracked attributes file deep in the tree is noticed even when the caller's environment turns pathspec
+/// magic off:
+/// the listing's own `:(glob)**/.gitattributes` is magic,
+/// and a missed one would let a restore run under rules it never checked.
+#[test]
+fn changed_paths_notices_an_untracked_deep_attributes_file_under_literal_pathspec_mode() {
+    let root: PathBuf = crate::test_support::fixture("changed-paths-literal-mode");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    tracked(repo.as_path(), "top.txt", b"top\n");
+    commit_all(repo.as_path(), "first");
+    std::fs::create_dir_all(repo.join("sub")).expect("sub");
+    std::fs::write(repo.join("sub/.gitattributes"), b"*.txt text\n").expect("attributes");
+    let mut context = git_context();
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"),
+        std::ffi::OsString::from("1"),
+    ));
+    let listed = changed_paths(&context, repo.as_path()).expect("an untracked attributes file has an answer");
+    assert!(listed.attributes_changed, "an untracked deep attributes file must be noticed");
+    remove(root.as_path());
+}
+
 /// Git failing is a failure with its words:
 /// the run,
 /// the exit code and what Git said,

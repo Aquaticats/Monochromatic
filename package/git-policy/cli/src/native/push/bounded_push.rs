@@ -120,6 +120,32 @@ fn is_flood(size: u64) -> bool {
     return size > MAX_PUSH_OUTPUT;
 }
 
+/// What:
+///  Whether one of a run's output files has grown past the cap.
+/// Why:
+///   The wait looks at these between its polls,
+/// and a run that ends in the pause between two looks must be judged by the same bound:
+/// what it printed past the cap is not all of what it printed.
+///  A size that cannot be read counts as past the cap,
+/// so nothing unreadable passes for a complete answer either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// outputs.some((output) => isFlood(statSize(output)))
+/// ```
+pub(crate) fn flooded(outputs: &[&File]) -> bool {
+    for output in outputs {
+        let size: u64 = match output.metadata() {
+            Ok(metadata) => metadata.len(),
+            Err(_) => u64::MAX,
+        };
+        if is_flood(size) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What a clock keeps as the longest quiet gap:
 /// its figure when it reads anything,
 /// nothing when it reads nothing.
@@ -196,6 +222,8 @@ pub enum StopCause {
 /// `quiet` receives the longest quiet gap seen,
 /// for the ledger,
 /// and nothing where the system counts nothing.
+/// The clock is the caller's,
+/// because what a run may do where nothing can be measured is the caller's decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,12 +232,11 @@ pub enum StopCause {
 pub async fn wait_until_done(
     child: &mut OwnedChild,
     outputs: &[&File],
-    patience: Patience,
+    clock: Clock,
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
     return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet, stop).await;
 }
 
@@ -264,15 +291,9 @@ async fn wait_with_clock(
             *quiet = quiet_gap_kept(&clock);
             return Ok(Err(StopCause::ServiceStopped));
         }
-        for output in outputs {
-            let size: u64 = match output.metadata() {
-                Ok(metadata) => metadata.len(),
-                Err(_) => u64::MAX,
-            };
-            if is_flood(size) {
-                *quiet = quiet_gap_kept(&clock);
-                return Ok(Err(StopCause::Flood));
-            }
+        if flooded(outputs) {
+            *quiet = quiet_gap_kept(&clock);
+            return Ok(Err(StopCause::Flood));
         }
         if let Some(cause) = clock.check() {
             *quiet = quiet_gap_kept(&clock);
@@ -318,6 +339,27 @@ pub fn command_label(command: &Command) -> String {
         return format!("{program} {word}");
     }
     return program;
+}
+
+/// What:
+///  The line a push's output gains when more of it was printed than is kept.
+/// Why:
+///   The cap bounds what is held in memory,
+/// and a person reading an attempt's output must know that what they see is the
+///  head of it.
+/// The push itself was not stopped,
+/// so the line says what was kept and points at the program that printed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git push wrote more than ${MAX} bytes of output, so only the first ${MAX} bytes are kept here; the push itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output by running it directly.`
+/// ```
+fn shortened_output_line() -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output, so only the first {MAX_PUSH_OUTPUT} bytes \
+         are kept here; the push itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output \
+         by running it directly."
+    );
 }
 
 /// What:
@@ -438,8 +480,18 @@ pub async fn run_bounded_push_awaiting(
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
+    // A push that ends in the pause between two looks can still have printed past the cap. Its output is the log a person
+    //  reads, not Git's answer, so the attempt keeps the push's own status; but the text kept is the head of it, and passing
+    //  that for all of it would be the same silence a shortened answer is.
+    let shortened: bool = ended.is_ok() && flooded(&[&output]);
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
+    if shortened {
+        if !shown_text.is_empty() {
+            shown_text.push('\n');
+        }
+        shown_text.push_str(shortened_output_line().as_str());
+    }
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
     for report in &waits {
         let line: String = wait_line(label.as_str(), report);

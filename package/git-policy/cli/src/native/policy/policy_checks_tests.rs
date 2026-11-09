@@ -23,12 +23,15 @@ use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
 use crate::policy_registry::PolicyId;
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::policy_test_support::{
     ScriptedFacts, linked_worktree, main_worktree, outside_worktree, scripted_facts,
 };
 use crate::policy_trigger::Trigger;
 use crate::rule_linked_worktree::{
     GuardedCommand, dirty_worktree_message, main_worktree_message, outside_worktree_message,
+    repository_stash_message,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
@@ -41,7 +44,7 @@ fn checks(values: &[&str], facts: ScriptedFacts) -> ShippedChecks<ScriptedFacts>
         facts,
         os_arguments(values),
         LifecycleContent::None,
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
 }
 
@@ -297,7 +300,10 @@ fn linked_worktree_exempts_an_allowed_tool_cache() {
         prefix: Vec::<u8>::new(),
     });
     let mut exempt: ShippedChecks<ScriptedFacts> = checks(&["reset", "--hard"], facts.clone());
-    exempt.allowed_worktree_dirs = vec![cache];
+    exempt.allowed_worktree_dirs = vec![ToolCacheDirectory {
+        path: cache,
+        named_by: "MISE_DATA_DIR",
+    }];
     assert_eq!(
         exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
         clean()
@@ -487,17 +493,24 @@ fn content_policies_follow_the_lifecycle_content() {
 ///  only when the status shows uncommitted state.
 #[test]
 fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
-    for (values, command, scope) in [
-        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, "Tracked"),
-        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, "Tracked"),
-        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, "Tracked"),
-        (vec!["reset"], GuardedCommand::ResetMixed, "Tracked"),
-        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked"),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked"),
-        (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked"),
-        (vec!["stash", "push"], GuardedCommand::Stash, "Tracked"),
+    for (values, command, scope, tree) in [
+        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, "Tracked", None),
+        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, "Tracked", Some("HEAD")),
+        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, "Tracked", Some("topic")),
+        (vec!["reset"], GuardedCommand::ResetMixed, "Tracked", None),
+        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked", None),
+        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked", None),
+        (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked", None),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, "Everything", None),
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, "IgnoredOnly", None),
+        (vec!["stash", "push"], GuardedCommand::Stash, "Tracked", None),
     ] {
         let dirty_scope = format!("dirty:{scope}");
+        // A form that writes a tree asks which tree once the tracked state is clean, and asks nothing while it is dirty.
+        let tree_question = match tree {
+            Some(revision) => format!("ignored-and-tracked:{revision}"),
+            None => String::new(),
+        };
         for dirty in [false, true] {
             assert_eq!(
                 pre_forward(
@@ -512,13 +525,17 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 "{values:?} main dirty={dirty}"
             );
         }
+        let mut clean_questions: Vec<&str> = vec!["location", dirty_scope.as_str()];
+        if !tree_question.is_empty() {
+            clean_questions.push(tree_question.as_str());
+        }
         assert_eq!(
             pre_forward(
                 PolicyId::LinkedWorktreeOnly,
                 values.as_slice(),
                 dirty_in(linked_worktree("/r", "/w"), false)
             ),
-            (clean(), asked(&["location", dirty_scope.as_str()])),
+            (clean(), asked(clean_questions.as_slice())),
             "{values:?} linked clean"
         );
         assert_eq!(
@@ -535,6 +552,60 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 asked(&["location", dirty_scope.as_str()])
             ),
             "{values:?} linked dirty"
+        );
+    }
+}
+
+/// linked-worktree-only:
+///  `git stash drop` and `git stash clear` are rejected in a linked worktree while the repository holds a stash entry,
+/// because the entry belongs to the repository and not to the worktree the command runs in.
+#[test]
+fn a_stash_drop_asks_the_repository_not_the_worktree() {
+    let command: GuardedCommand = GuardedCommand::StashDrop;
+    for values in [vec!["stash", "drop"], vec!["stash", "clear"]] {
+        // The worktree's own status is never asked, whatever it would say.
+        let mut clean_worktree: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        clean_worktree.stash = Ok(true);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), clean_worktree),
+            (
+                one("linked-worktree-required", &repository_stash_message(command)),
+                asked(&["location", "stash"])
+            ),
+            "{values:?} with a stash"
+        );
+        let mut no_stash: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), true);
+        no_stash.stash = Ok(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), no_stash),
+            (clean(), asked(&["location", "stash"])),
+            "{values:?} without a stash"
+        );
+        // The main worktree is refused before either question.
+        let mut main: ScriptedFacts = dirty_in(main_worktree("/r", ""), false);
+        main.stash = Ok(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), main),
+            (
+                one("linked-worktree-required", &main_worktree_message(command)),
+                location_only()
+            ),
+            "{values:?} in the main worktree"
+        );
+        // A question Git cannot answer stops the command instead of reading as "no stash".
+        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unreadable.stash = Err(String::from("Git could not read the repository stash: fatal"));
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable),
+            (
+                PolicyOutcome::Failed {
+                    code: EngineFailureCode::ContentUnavailable,
+                    message: String::from("Git could not read the repository stash: fatal"),
+                    path: None,
+                },
+                asked(&["location", "stash"])
+            ),
+            "{values:?} unreadable"
         );
     }
 }
@@ -606,4 +677,110 @@ fn an_unreadable_status_is_reported() {
             asked(&["location", "dirty:Tracked"])
         )
     );
+}
+
+/// linked-worktree-only:
+///  a forced `checkout`,
+///  a forced `switch` and a hard `reset` are rejected in a clean linked worktree
+///  while the worktree ignores a path the tree they write also tracks,
+///  and the line names the path it saw.
+#[test]
+fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
+    for (values, revision) in [
+        (vec!["checkout", "--force", "tracks"], "tracks"),
+        (vec!["switch", "--force", "tracks"], "tracks"),
+        (vec!["reset", "--hard", "tracks"], "tracks"),
+        (vec!["reset", "--hard"], "HEAD"),
+    ] {
+        let mut shared: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        shared.ignored_and_tracked = Ok(vec![String::from(".env")]);
+        let (outcome, questions): (PolicyOutcome, Vec<String>) = pre_forward(
+            PolicyId::LinkedWorktreeOnly,
+            values.as_slice(),
+            shared,
+        );
+        let PolicyOutcome::Findings(findings) = outcome else {
+            panic!("{values:?} was not rejected")
+        };
+        assert_eq!(findings.len(), 1, "{values:?}");
+        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
+        assert!(findings[0].message.contains("ignores .env"), "{values:?}: {}", findings[0].message);
+        assert!(
+            findings[0].message.contains(format!("the tree of {revision}").as_str()),
+            "{values:?}: {}",
+            findings[0].message
+        );
+        assert_eq!(
+            questions,
+            asked(&["location", "dirty:Tracked", format!("ignored-and-tracked:{revision}").as_str()]),
+            "{values:?}"
+        );
+        // A tree Git cannot read is a failure, never a clean answer.
+        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unreadable.ignored_and_tracked = Err(String::from("Git could not read the tree of a revision: fatal"));
+        assert!(
+            matches!(
+                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable).0,
+                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
+            ),
+            "{values:?} unreadable"
+        );
+        // The same form with nothing shared runs, and the questions it asked are the whole cost.
+        let mut nothing: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        nothing.ignored_and_tracked = Ok(Vec::<String>::new());
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), nothing).0,
+            clean(),
+            "{values:?} nothing shared"
+        );
+        // A form that writes no tree asks nothing about one.
+        let mut unasked: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unasked.ignored_and_tracked = Err(String::from("this form writes no tree"));
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, &["restore", "a.txt"], unasked).0,
+            clean(),
+            "a restore asks nothing about a tree"
+        );
+    }
+}
+
+/// linked-worktree-only:
+///  a clean that carries its own exclusion patterns is measured by Git's own dry run of that clean,
+///  because the status cannot see those patterns,
+///  and a dry run Git cannot answer stops the command.
+#[test]
+fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
+    let command: GuardedCommand = GuardedCommand::CleanIgnoredOnly;
+    for values in [
+        vec!["clean", "-fdX", "--exclude=notes.txt"],
+        vec!["clean", "--force", "-X", "-e", "notes.txt"],
+    ] {
+        let mut deleting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        deleting.clean_deletes = Ok(true);
+        let (outcome, questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), deleting);
+        assert_eq!(outcome, one("linked-worktree-required", &dirty_worktree_message(command)), "{values:?}");
+        let question: &String = questions.last().expect("a last question");
+        assert!(question.starts_with("clean-would-delete:"), "{values:?}: {question}");
+        assert!(question.contains("-X"), "{values:?}: {question}");
+        assert!(question.contains("notes.txt"), "{values:?}: {question}");
+        // A dry run Git cannot answer is a failure, never "nothing to delete".
+        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unreadable.clean_deletes = Err(String::from("Git could not read what the clean would delete: fatal"));
+        assert!(
+            matches!(
+                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable).0,
+                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
+            ),
+            "{values:?} unreadable"
+        );
+        // A clean that would delete nothing runs.
+        let mut empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        empty.clean_deletes = Ok(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty).0,
+            clean(),
+            "{values:?} nothing to delete"
+        );
+    }
 }
