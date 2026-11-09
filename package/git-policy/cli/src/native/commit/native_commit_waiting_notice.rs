@@ -6,7 +6,7 @@
 //! how long it has waited,
 //! and when the step is stopped;
 //! when the ceiling comes,
-//! everything below this process is ended.
+//! that `git commit` and everything it started is ended.
 //! Why:
 //!  Every other wait of the wrapper says what it waits for (issue 1811),
 //! but this step runs with the terminal attached and no watch,
@@ -24,17 +24,40 @@
 //! where the person is the wait and a stop would lose what they typed.
 //! The ceiling is `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
 //! with its measurement.
-//! A stop ends every process below this one with `SIGKILL`:
+//! A stop ends that `git commit` and what it started with `SIGKILL`:
 //! the step runs in a scratch repository on a private copy of the index,
 //! and the objects it wrote are content-addressed files the next build writes again,
 //! so nothing of the person's is in the step.
-//! The thread that watches the step is the only caller that needs to find it,
-//! because the step runs below `SignalGuard`,
-//! which relays signals but names no child;
-//! this is the only child of the command at that point,
-//! the same reading `programs_below` already makes.
+//!  It ends nothing else:
+//! the landing service runs landings of different repositories on worker threads of one process,
+//! so another landing's Git is a child of the same process at the same moment,
+//! and cutting its write is what the owner's answer of 2026-11-09 rules out
+//! ("B:
+//! let a branch write finish").
+//! The step's own number is what the notice watches (`WatchedStep`):
+//! `SignalGuard` relays signals but names no child,
+//! so the number is handed over the moment the step starts,
+//! and every look and every stop is rooted at it.
 //! A commit that opens the person's editor prints nothing and is never stopped,
 //! because the person is the wait.
+//! The ceiling is counted from the first look that found the step below this process,
+//! never from when the notice started (`LOOK_INTERVAL`):
+//! a start this host held up would otherwise pass the ceiling before the step existed,
+//! and a look that finds nothing would then end the notice and the ceiling with it,
+//! which is how a commit landed after a 36,651 ms step under a 3,006 ms ceiling on 2026-11-08.
+//! Once the step has been seen,
+//! a look that finds nothing means it ended by itself,
+//! and the commit lands.
+//! A look that could not be made at all decides nothing:
+//! the ceiling stays armed and the look is made again,
+//! because reading a failed look as an empty one is how a ceiling is lost
+//! (`blindLooks` counts them).
+//! A stop is recorded only when a signal was really taken for the step:
+//! a step that finished between the look and the signal landed,
+//! and refusing it would fail a commit that succeeded.
+//!  The lines are written by a thread of their own (`LINE_QUEUE`),
+//! so a reader that stopped reading holds that thread and never the ceiling,
+//! and `finish` waits for the notice and for the line it handed over no longer than `NOTICE_BOUND`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -61,23 +84,92 @@ pub fn scratch_ceiling() -> Duration {
 
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
-/// The processes started below this one,
-/// and their end.
-use crate::process_tree::{descendants_of, kill_members};
+/// The step the notice watches,
+/// and the processes it started.
+use crate::process_tree::descendants_of_read;
+/// What the ceiling does when it comes.
+use crate::scratch_step_ceiling_stop::{CeilingCame, TheCeiling, ceiling_came};
+/// The line the notice prints,
+/// and the programs it names below the step.
+use crate::scratch_step_notice_line::{notice_line, other_programs};
+/// The programs a look saw below the step,
+/// and the time each was credited with.
+use crate::scratch_step_programs_below::{SeenBelow, credit_between_looks, seen_below};
+/// The number of the step,
+/// published the moment it starts.
+use crate::child_number_told_at_start::ChildNumber;
 /// The configuration the commit is built under.
 use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
 use crate::service_commit_args_editor_opening::opens_editor;
 /// The notice's sink.
 use std::io::Write;
+/// The writer thread's own time,
+/// kept where the notice thread can read it.
+use std::sync::Mutex;
 /// The channel that ends the notice thread.
 use std::sync::mpsc::{Sender, RecvTimeoutError, channel};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
+/// One member of a process tree.
+use crate::process_tree::TreeMember;
 
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
 const LOOK_PAUSE: Duration = Duration::from_millis(1);
+
+/// What:
+///  How many lines the writer may hold before the notice stops handing it more.
+/// Why:
+///   A reader that stopped reading holds one line and nothing else:
+/// the line before it is dropped and counted,
+/// so the notice thread never waits for a reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lineQueue = 1;
+/// ```
+const LINE_QUEUE: usize = 1;
+
+/// What:
+///  The longest `finish` waits for the notice's answer,
+/// and then for the writer to write the line it was handed.
+/// Why:
+///   A line is advisory:
+/// a reader that stopped reading must never hold the commit,
+/// and neither may a notice thread that cannot answer.
+/// Twice `LOOK_INTERVAL` is longer than the thread's own wake and one look,
+/// which is what an answer can honestly need.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noticeBound = 500; // ms
+/// ```
+const NOTICE_BOUND: Duration = Duration::from_millis(500);
+
+/// The longest the notice goes between two looks at what runs below this process.
+/// Why:
+///   The ceiling is counted from the first look that found the step,
+/// so a start this host held up (a full process table,
+/// memory pressure,
+/// a stall in starting a process) cannot take the ceiling away:
+/// a look that finds nothing is a statement about the start,
+/// never about the step.
+///  That reading is the one the record could not make for a commit whose step ran 36,651 ms under a
+///  3,006 ms ceiling on 2026-11-08:
+/// it landed,
+/// so the ceiling never ended it.
+///  The same look is what the record's `scratchSteps` reports,
+/// so this is also how finely the time of a program below the step is known,
+/// and how soon a look that failed is tried again.
+///  A look reads the kernel's per-thread child lists and one `/proc/<pid>/stat` per descendant
+/// (`look_below`),
+/// which cost 19.6 microseconds on 2026-11-09 on this host (1,210 entries,
+/// load average 44 to 91 on 6 threads around the runs);
+/// the pass over `/proc` it falls back to where the kernel has no child lists took 17.6 ms at the median and 19.7 ms at most over 30 looks.
+/// A quarter of a second keeps a step that is started late seen within that much of its start,
+/// and a step that ends sooner than that is ended by its own channel before a second look.
+const LOOK_INTERVAL: Duration = Duration::from_millis(250);
 
 /// What a started notice is given.
 pub struct NoticeStart<'a> {
@@ -94,48 +186,45 @@ pub struct NoticeStart<'a> {
     pub sink: Box<dyn Write + Send>,
 }
 
+/// What the notice saw while the step ran,
+/// and the ledger the commit's timing record takes it from.
+use crate::scratch_commit_step::ScratchStepFacts;
+/// The kernel's name,
+/// state and processor time of one process.
+use crate::process_tree::ProcessUse;
 /// What:
-///  The words of a stop:
-/// what ended,
-/// after how long,
-/// why this long,
-/// what became of the person's work,
-/// and what to run.
-/// Why:
-///   A commit that stops with a bare exit status leaves the person guessing whether anything was committed;
-/// the step runs in a scratch repository,
-/// so nothing was,
-/// and the message is on the command line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stopWords({ waited, ceiling, signs })
-/// ```
-pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool) -> String {
-    let signing: &str = if signs {
-        " The commit signs the commit because `commit.gpgsign` or `-S` asks for it, so the signing program is the first thing to check."
-    } else {
-        ""
-    };
-    return format!(
-        "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, the most a commit whose \
-         message came with the command may take ({} seconds, three times the slowest `git commit` step this repository's commit timing log holds); nothing was \
-         committed, and your index and files are as they were.{signing} Run the same `git commit` command again.\n",
-        waited.as_secs(),
-        ceiling.as_secs()
-    );
-}
+///   the process numbers below this one,
+/// from the kernel's per-thread child lists.
+use crate::process_tree::descendant_numbers_from_thread_lists;
+/// What:
+///   one process's name,
+/// state and processor time,
+/// from one `/proc/<pid>/stat`.
+use crate::process_tree::use_of;
 
 /// The running notice:
-/// the thread that prints it and the sender that ends it.
+/// the thread that watches the step,
+/// the thread that writes its lines,
+/// and the sender that ends the watching.
 pub struct NativeCommitNotice {
     /// Ends the thread when it is sent to or dropped.
     stop: Option<Sender<()>>,
-    /// The thread,
-    /// joined when the step has ended;
-    /// it answers how long the step had lasted when it ended it,
-    /// when it did.
-    thread: Option<std::thread::JoinHandle<Option<Duration>>>,
+    /// The facts the thread answers when it ends,
+    /// waited for no longer than `NOTICE_BOUND`.
+    answers: std::sync::mpsc::Receiver<ScratchStepFacts>,
+    /// The writer's end,
+    /// waited for no longer than `NOTICE_BOUND` after the thread answered.
+    written: std::sync::mpsc::Receiver<()>,
+    /// How long the writer spent on the lines it finished.
+    wrote: std::sync::Arc<Mutex<Duration>>,
+    /// Set once the command is over,
+    /// so the writer stops instead of printing a line about a step that ended.
+    abandoned: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// What is reported when no thread ran,
+    /// so a record still says that no ceiling was armed and why.
+    unarmed: ScratchStepFacts,
+    /// The step the thread watches.
+    step: ChildNumber,
 }
 
 /// Whether the commit is signed:
@@ -158,58 +247,119 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
     return asked;
 }
 
-/// The program names of what runs below this process,
-/// other than Git itself:
-/// the signer,
-/// for instance.
-fn programs_below() -> Vec<(i32, String)> {
-    let mut found: Vec<(i32, String)> = Vec::new();
-    let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
-    for member in descendants_of(own) {
-        let name: String = std::fs::read_to_string(format!("/proc/{}/comm", member.pid)).map(trim_name).unwrap_or_default();
-        if !name.is_empty() && name != "git" {
-            found.push((member.pid, name));
-        }
-    }
-    return found;
-}
-
-/// A name from `comm` without its newline.
-fn trim_name(text: String) -> String {
-    return text.trim().to_string();
-}
-
 /// What:
-///  One notice line.
+///  The step and every living process below it,
+/// with their names,
+/// states and processor times.
 /// Why:
-///   The first one adds what to do when the step looks stuck;
-/// the repeats stay short.
+///   The step's own read comes first,
+/// so a look that finds it and nothing else still arms the ceiling.
+///  One read of one small file per process,
+/// from the kernel's per-thread child lists,
+/// so a notice that looks many times stays cheap:
+/// a walk costs 19.6 microseconds and a pass over `/proc` 17.6 ms on 2026-11-09 (`process_tree.rs`).
+///  `/proc` itself is read only where the kernel has no child lists.
+///  A process the kernel holds as a zombie is not below the step any more,
+/// as `descendants_of` counts it.
+///  Nothing is answered when `/proc` could not be read at all:
+/// that is a look that failed,
+/// never a step that ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// noticeLine({ signs, waited, first, below })
+/// const below = lookBelow(step); // [{ pid, name, state, cpu }], undefined when the look failed
 /// ```
-pub fn notice_line(signs: bool, waited: Duration, first: bool, below: &[(i32, String)], ceiling: Duration) -> String {
-    let signing: String = if signs { String::from(", which signs the commit because `commit.gpgsign` or `-S` asks for it") } else { String::new() };
-    let signer: String = match below.first() {
-        Some((pid, name)) => format!("; `{name}` (process {pid}) runs below it"),
-        None => String::new(),
+fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
+    let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(step) {
+        Some(found) => found,
+        None => descendants_of_read(step)?.iter().map(member_number).collect(),
     };
-    let hint: &str = if first { " Hint: it is still running; if it looks stuck, check it with `ps` and report it." } else { "" };
-    return format!(
-        "monochromatic-git-policy-cli: still waiting for the `git commit` this commit runs in its scratch repository{signing}{signer}, {} seconds so far; \
-         it is stopped if it lasts {} seconds in all.{hint}\n",
-        waited.as_secs(),
-        ceiling.as_secs()
-    );
+    let mut found: Vec<(i32, ProcessUse)> = Vec::new();
+    // The step itself, so a look that finds it and nothing else still arms the ceiling.
+    if let Some(used) = use_of(step)
+        && used.state != 'Z'
+    {
+        found.push((step, used));
+    }
+    let mut read_below: bool = false;
+    for pid in numbers.iter().copied() {
+        if let Some(used) = use_of(pid) {
+            read_below = true;
+            if used.state != 'Z' {
+                found.push((pid, used));
+            }
+        }
+    }
+    // A walk that named processes and let none of them be read is a look that failed,
+    // never a step with nothing below it.
+    if !numbers.is_empty() && !read_below {
+        return None;
+    }
+    return Some(found);
+}
+
+/// The number of one member of a tree.
+fn member_number(member: &TreeMember) -> i32 {
+    return member.pid;
+}
+
+/// The processor time one process below the step has used.
+fn process_cpu(entry: &(i32, ProcessUse)) -> Duration {
+    return entry.1.cpu;
+}
+
+/// Whether one process below the step is in uninterruptible sleep.
+fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
+    return entry.1.state == 'D';
 }
 
 impl NativeCommitNotice {
     /// A notice that prints nothing:
     /// the commit opens an editor,
     /// or no thread could be started.
-    fn silent() -> Self {
-        return Self { stop: None, thread: None };
+    fn silent(ceiling: Option<Duration>) -> Self {
+        let (_no_lines, written) = channel::<()>();
+        let (_no_answer, answers) = channel::<ScratchStepFacts>();
+        return Self {
+            stop: None,
+            answers,
+            written,
+            wrote: std::sync::Arc::default(),
+            abandoned: std::sync::Arc::default(),
+            unarmed: ScratchStepFacts::unarmed(ceiling),
+            step: ChildNumber::not_started(),
+        };
+    }
+
+    /// What:
+    ///  Keep the number of the `git commit` this notice watches.
+    /// Why:
+    ///   A ceiling ends the step it watches and nothing else this process started:
+    /// the landing service runs one process for every landing,
+    /// so another landing's Git is a child of the same process at the same moment.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// notice.stepStarted(pid);
+    /// ```
+    pub fn step_started(&self, pid: i32) {
+        self.step.publish(pid);
+    }
+
+    /// What:
+    ///  The spot the step's number is published into,
+    ///  for the call that starts the step.
+    /// Why:
+    ///   The code that starts a child takes no callback from the code that watches it:
+    /// the start publishes the number into this,
+    /// and the notice reads it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// guard.runChildNaming(command, notice.stepNumber());
+    /// ```
+    pub fn step_number(&self) -> &ChildNumber {
+        return &self.step;
     }
 
     /// What:
@@ -229,60 +379,185 @@ impl NativeCommitNotice {
 
     /// Starts the notice with the ceiling given.
     pub fn start_within(start: NoticeStart<'_>) -> Self {
-        let NoticeStart { snapshot, commit_arguments, cadence, ceiling, mut sink } = start;
+        let NoticeStart { snapshot, commit_arguments, cadence, ceiling, sink } = start;
         let words: Vec<std::ffi::OsString> = commit_arguments.iter().map(std::ffi::OsString::from).collect();
         if opens_editor(words.as_slice()) {
-            return Self::silent();
+            // The person is the wait, and a message typed into an editor would be lost by a stop.
+            return Self::silent(None);
         }
         let signs: bool = signs_commit(snapshot, commit_arguments);
         let (stop, ended) = channel::<()>();
+        let (lines, waiting) = std::sync::mpsc::sync_channel::<String>(LINE_QUEUE);
+        let (told_written, written) = channel::<()>();
+        let (told_answers, answers) = channel::<ScratchStepFacts>();
+        let wrote: std::sync::Arc<Mutex<Duration>> = std::sync::Arc::default();
+        // The writer's own copy of the time it spends, so the notice thread's figures can say it without waiting for a write.
+        let spending: std::sync::Arc<Mutex<Duration>> = wrote.clone();
+        let abandoned: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+        let stand_down: std::sync::Arc<std::sync::atomic::AtomicBool> = abandoned.clone();
         let began: Instant = Instant::now();
+        let step: ChildNumber = ChildNumber::not_started_pinned();
+        let watched: ChildNumber = step.clone();
+        // The lines are written here and never on the thread that enforces the ceiling:
+        // a reader that stopped reading then holds this thread, and the commit does not wait for it.
+        let _writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
+            let mut to_write: Box<dyn Write + Send> = sink;
+            for line in waiting {
+                // The command is over: the line it was handed and every line behind it say nothing a reader can act on.
+                if stand_down.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+                let writing: Instant = Instant::now();
+                let _written = to_write.write_all(line.as_bytes());
+                let _flushed = to_write.flush();
+                let mut spent = spending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                *spent = spent.saturating_add(writing.elapsed());
+            }
+            let _told = told_written.send(());
+        });
         let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
-            loop {
+            let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(ceiling));
+            facts.armed = true;
+            // When the step was first found below this process; the ceiling is counted from then.
+            let mut seen_at: Option<Duration> = None;
+            // The processes the previous look saw below the step, and when that look was.
+            let mut before: Vec<SeenBelow> = Vec::new();
+            let mut last_look: Duration = Duration::ZERO;
+            // One label for every way the loop ends, so the facts leave through the channel and not through the join.
+            'notice: loop {
                 let waited: Duration = began.elapsed();
-                if waited >= ceiling {
-                    // Everything below this process is the step and its signer; nothing of the person's runs there.
-                    let below = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
-                    if below.is_empty() {
-                        // The step ended on its own as the ceiling came.
-                        return None;
+                // One look: the step, the programs below it, and what they are using.
+                // A step that has not started yet is nothing to look at, which is not a look that failed.
+                let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
+                    Some(number) => look_below(number),
+                    None => Some(Vec::new()),
+                };
+                let below: &[(i32, ProcessUse)] = look.as_deref().unwrap_or_default();
+                facts.looks = facts.looks.saturating_add(1);
+                if !below.is_empty() {
+                    facts.looks_found = facts.looks_found.saturating_add(1);
+                }
+                if seen_at.is_none() && !below.is_empty() {
+                    seen_at = Some(waited);
+                }
+                credit_between_looks(&mut facts, before.as_slice(), below, waited.saturating_sub(last_look));
+                before = seen_below(below);
+                last_look = waited;
+                facts.below_cpu = below.iter().map(process_cpu).sum();
+                if below.iter().any(process_is_blocked) {
+                    facts.blocked_looks = facts.blocked_looks.saturating_add(1);
+                }
+                // How long the step has been running, and whether the ceiling has come, once the step has been seen.
+                let since_seen: Duration = match seen_at {
+                    Some(seen) => waited.saturating_sub(seen),
+                    None => Duration::ZERO,
+                };
+                // The ceiling can only have been counted from a look that found the step, so its number is known here.
+                if watched.number().is_some()
+                    && seen_at.is_some()
+                    && since_seen >= ceiling
+                {
+                    let the_ceiling: TheCeiling = ceiling_came(&watched);
+                    // A step signalled while the walk below it failed leaves whatever it started unnamed.
+                    facts.below_unlisted = !the_ceiling.below_listed;
+                    match the_ceiling.came {
+                        CeilingCame::Stopped => {
+                            facts.stopped_after = Some(waited);
+                            break 'notice;
+                        }
+                        CeilingCame::TheStepEnded => break 'notice,
+                        // The look failed: nothing is known about the step, and the ceiling stays armed so a later look can stop it.
+                        CeilingCame::Unknown => {
+                            facts.blind_looks = facts.blind_looks.saturating_add(1);
+                        }
                     }
-                    kill_members(below.as_slice());
-                    return Some(waited);
                 }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, programs_below().as_slice(), ceiling);
+                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling);
                     first = false;
-                    // A closed terminal is not a reason to stop the commit.
-                    let _written = sink.write_all(line.as_bytes());
-                    let _flushed = sink.flush();
+                    // A closed terminal is not a reason to stop the commit, and a reader that stopped reading is not one either:
+                    // the line is handed to the writer, and dropped and counted while the writer still holds the one before it.
+                    if lines.try_send(line).is_err() {
+                        facts.lines_dropped = facts.lines_dropped.saturating_add(1);
+                    }
                 }
-                let to_ceiling: Duration = ceiling.saturating_sub(began.elapsed());
-                match ended.recv_timeout(ticker.next_in(began.elapsed()).min(to_ceiling).max(LOOK_PAUSE)) {
+                // Wake for the sooner of the next line, the look, and the ceiling.
+                let to_next: Duration = ticker.next_in(waited);
+                let pause: Duration = match seen_at {
+                    Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(LOOK_INTERVAL),
+                    None => to_next.min(LOOK_INTERVAL),
+                };
+                // A ceiling that came and decided nothing is looked at no sooner than the look's own interval,
+                // so a step whose processes cannot be read costs one look per interval rather than one per pause.
+                let floor: Duration = if since_seen >= ceiling { LOOK_INTERVAL } else { LOOK_PAUSE };
+                match ended.recv_timeout(pause.max(floor)) {
                     Err(RecvTimeoutError::Timeout) => {}
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return None,
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break 'notice,
                 }
             }
+            // The facts leave through the channel `finish` waits on, so a thread that cannot answer never holds the commit:
+            // returning them through the join would make the join the wait.
+            let _answered = told_answers.send(facts);
         });
         return match spawned {
-            Ok(thread) => Self { stop: Some(stop), thread: Some(thread) },
-            Err(_) => Self::silent(),
+            Ok(_thread) => Self {
+                stop: Some(stop),
+                answers,
+                written,
+                wrote,
+                abandoned,
+                unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
+                step,
+            },
+            // The system refused the thread: the step runs with no ceiling, and the record says so.
+            Err(_) => Self::silent(Some(ceiling)),
         };
     }
 
     /// Ends the notice once the step has ended,
-    /// and answers how long the step had lasted when the notice stopped it,
-    /// nothing when it ended by itself.
-    pub fn finish(mut self) -> Option<Duration> {
+    /// and answers what it saw:
+    /// how long the step had lasted when the notice stopped it,
+    /// how long the notice's own end took,
+    /// and what ran below the step.
+    /// Why:
+    ///   Both waits here are bounded (`NOTICE_BOUND`):
+    /// the line is advisory,
+    /// so neither a reader that stopped reading nor a notice thread that cannot answer may hold the commit,
+    /// which is finding 3 of the 2026-11-09 process and child lifetime audit.
+    ///  A thread that does not answer leaves a record that says a ceiling was armed and no figure of it,
+    /// rather than a record of zeroes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const began = now(); notice.stop(); const seen = notice.answerWithin(bound); seen.notice = now() - began; return seen;
+    /// ```
+    pub fn finish(mut self) -> ScratchStepFacts {
+        let began: Instant = Instant::now();
         if let Some(stop) = self.stop.take() {
             let _sent = stop.send(());
         }
-        return match self.thread.take() {
-            Some(thread) => thread.join().unwrap_or(None),
-            None => None,
+        let mut facts: ScratchStepFacts = match self.answers.recv_timeout(NOTICE_BOUND) {
+            Ok(heard) => heard,
+            // No thread ran: the commit may open an editor, or the system refused the thread.
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => self.unarmed,
+            // The thread did not answer in time: a ceiling was armed and no figure of it is known,
+            // which is a different record from one whose counters are zero.
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                let mut unanswered: ScratchStepFacts = self.unarmed;
+                unanswered.armed = unanswered.ceiling.is_some();
+                unanswered
+            }
         };
+        // The line already handed to the writer is written if the reader takes it within the same bound, and no longer.
+        let _written = self.written.recv_timeout(NOTICE_BOUND);
+        // The command is over, so the writer prints nothing more: a line it still holds is dropped when its write returns,
+        // and the thread ends with it instead of living on beside a reader that stopped reading.
+        self.abandoned.store(true, std::sync::atomic::Ordering::SeqCst);
+        facts.wrote = *self.wrote.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        facts.notice = began.elapsed();
+        return facts;
     }
 }
 

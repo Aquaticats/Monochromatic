@@ -91,13 +91,28 @@ it reasons about command text and permits explicit bypass.
 `package/git-policy/cli/src/index.ts` evaluates a pre-spawn rule pipeline before invoking real Git.
 That is the deterministic seam for command-level repository safeguards.
 
+The path above was deleted on 2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper).
+That seam is now `package/git-policy/cli/src/native/invocation/wrapped_command.rs`,
+whose policy pass runs `package/git-policy/cli/src/native/policy/policy_engine.rs`
+over `package/git-policy/cli/src/native/policy/policy_checks.rs` before real Git starts.
+
 `package/git-policy/cli/src/effective-target.ts` already replays global repository-selection options and inherited
 `GIT_DIR` or `GIT_WORK_TREE` state through real Git.
 The new rules must reuse that seam rather than independently guessing the target repository.
 
+That path was deleted on 2026-10-13 in `642b6d72cb`;
+the replay is now `package/git-policy/cli/src/native/repo_read/repository_location.rs`,
+and the worktree classification the old file served is
+`package/git-policy/cli/src/native/invocation/effective_target.rs`.
+
 Current gaps include:
 
 - `package/git-policy/cli/src/rules/require-root.ts` exempts `git init`.
+  That path was singularized in `da4e6ecfb2` on 2026-07-15
+  and deleted in `642b6d72cb` on 2026-10-13;
+  the rule is now `package/git-policy/cli/src/native/command/rule_require_root.rs`,
+  whose `EXEMPT_SUBCOMMANDS` still names `init`.
 - No rule rejects reinitialization of an existing worktree.
 - No rule rejects writes to `user.name`,
    `user.email`,
@@ -916,13 +931,17 @@ The work is complete only when:
 - Pi guardrail:
   `package/pi-plugin/guardrail/README.md`
 - cli-git entry point:
-  `package/git-policy/cli/src/index.ts`
+  `package/git-policy/cli/src/index.ts` (deleted on 2026-10-13 in `642b6d72cb`;
+  now `package/git-policy/cli/src/native/invocation/wrapped_command.rs`)
 - cli-git root rule:
-  `package/git-policy/cli/src/rules/require-root.ts`
+  `package/git-policy/cli/src/rules/require-root.ts` (deleted on 2026-10-13 in `642b6d72cb`;
+  now `package/git-policy/cli/src/native/command/rule_require_root.rs`)
 - Cli-git manual-push lifecycle:
-  `package/git-policy/cli/src/policy-engine/manual-push-lifecycle.ts`
+  `package/git-policy/cli/src/policy-engine/manual-push-lifecycle.ts` (deleted on 2026-10-13 in `642b6d72cb`;
+  now `package/git-policy/cli/src/native/push/manual_push_lifecycle.rs`)
 - Cli-git post-commit lifecycle:
-  `package/git-policy/cli/src/policy-engine/post-commit-lifecycle.ts`
+  `package/git-policy/cli/src/policy-engine/post-commit-lifecycle.ts` (deleted on 2026-10-13 in `642b6d72cb`;
+  now `package/git-policy/cli/src/native/commit/post_commit.rs`)
 - GitHub commit signature verification:
   <https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification>
 - GitHub repository rules API:
