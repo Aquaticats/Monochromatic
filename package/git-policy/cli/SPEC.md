@@ -1618,6 +1618,13 @@ A rollback deletes the new subvolume only while the name holds a subvolume root,
 which is what the migration created there:
 a directory that replaced it is refused with both paths and nothing is deleted,
 because the removal's fallback would otherwise delete it and whatever it holds.
+One window stays open and is written here rather than closed:
+the journal records no identity for the stage,
+so another process that creates a subvolume at that name in the moment between the check and the
+destruction has that subvolume destroyed;
+a person sees the rollback finish and the directory they made gone,
+and nothing names it,
+because the name is one only this command may hold while it runs.
 The migration's list of files this user may not read is published the same way:
 staged in a sibling created exclusively and mode owner-only,
 synchronized,
