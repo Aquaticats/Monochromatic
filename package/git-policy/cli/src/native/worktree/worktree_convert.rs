@@ -145,9 +145,10 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
 /// const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 /// ```
 pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
-    // A platform that stands in for a filesystem that loses nothing keeps the journal and index writes in the page cache.
-    let _kept: Option<crate::subvolume_file_write_steps::WritesKeptInMemory> =
-        if platform.flushes_to_disk() { None } else { Some(crate::subvolume_file_write_steps::WritesKeptInMemory::for_this_thread()) };
+    // The platform's answer holds for the whole conversion, and a conversion on a platform that flushes turns the
+    // flushes back on even inside a stand-in's extent, as a command's does.
+    let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
+        crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(platform.flushes_to_disk());
     return convert_in_phases(platform, path, options, interrupt, say);
 }
 

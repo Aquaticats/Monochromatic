@@ -20,6 +20,10 @@
 //! A stand-in platform says so itself
 //!  (`Platform::flushes_to_disk`),
 //! and the tests that run against the real platform keep every flush.
+//! The switch is the answer of the platform whose call is running,
+//! installed for that call's
+//!  whole extent and put back when it ends,
+//! so a call on a platform that flushes keeps its flushes inside a call on one that does not.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,10 +37,9 @@ use std::path::Path;
 #[cfg(test)]
 thread_local! {
     /// Whether this thread's writes are kept in the page cache.
-    /// Only a control whose platform stands in for a filesystem that loses nothing sets it,
-    /// and only for the
-    ///  thread that runs the command,
-    /// so no other test of the same process inherits it.
+    /// Only a call on a platform that says it does not flush sets it,
+    /// and the call puts the switch back when it ends, so no other test of the same process inherits it
+    ///  and a call on a platform that flushes inside such a call turns the flushes back on.
     static KEEPING_WRITES_IN_MEMORY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -59,12 +62,15 @@ fn keeping_writes_in_memory() -> bool {
 }
 
 /// What:
-///  The switch turned on for the calling thread,
+///  The flush question answered as a platform answers it,
 /// put back when this value goes.
 /// Why:
-///   A guard puts the switch back however the scope ends,
+///   A guard puts the answer back however the scope ends,
 /// so a run that panics inside it does not leave the rest of
-///  its thread flushing into the page cache.
+///  its thread flushing into the page cache;
+/// every call installs its own platform's answer,
+/// so a call on a platform that flushes
+///  inside a call on one that does not keeps its flushes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,13 +82,21 @@ pub(crate) struct WritesKeptInMemory {
 }
 
 impl WritesKeptInMemory {
-    /// Turn the switch on for the calling thread until the value goes.
-    pub(crate) fn for_this_thread() -> WritesKeptInMemory {
+    /// Use the answer of a platform that says `flushes_to_disk` until the value goes.
+    pub(crate) fn for_flush_policy(flushes_to_disk: bool) -> WritesKeptInMemory {
         #[cfg(test)]
-        return WritesKeptInMemory { before: KEEPING_WRITES_IN_MEMORY.with(|flag| { return flag.replace(true); }) };
+        return WritesKeptInMemory { before: KEEPING_WRITES_IN_MEMORY.with(|flag| { return flag.replace(!flushes_to_disk); }) };
         // A build that is not a test keeps every write on its way to the disk and has no switch to set.
         #[cfg(not(test))]
+        let _ = flushes_to_disk;
+        #[cfg(not(test))]
         return WritesKeptInMemory { before: false };
+    }
+
+    /// Turn the switch on for the calling thread until the value goes.
+    #[cfg(test)]
+    pub(crate) fn for_this_thread() -> WritesKeptInMemory {
+        return WritesKeptInMemory::for_flush_policy(false);
     }
 }
 
