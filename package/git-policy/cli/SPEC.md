@@ -5594,7 +5594,8 @@ The built-in order is
 then `final-newline`.
 The transform order is atomic push,
 commit only,
-then status hints off.
+status hints off,
+then ignored files kept.
 
 Without `--cli-git-keep-going`,
 the first unpatched error stops the pass.
@@ -9015,6 +9016,10 @@ Unsafe warn configuration emits a `configuration-warning` JSONL event but still 
 remain.
 Generic `--no-enforce-<policy-id>` escapes and the legacy safeguard aliases skip the complete policy lifecycle and are
 stripped before real Git.
+A guarded form that runs under the hatch leaves one `hatch` line instead,
+and a form that is only recorded (`git worktree remove`,
+`git branch -d`/`-D`) leaves the same `logged` line it leaves without the hatch,
+because the owner asked for that line and the hatch skips the policy that writes it.
 Escape-looking option values and pathspecs remain ordinary Git arguments.
 The legacy fixed-rule implementations no longer participate in dispatch.
 
@@ -9053,17 +9058,233 @@ and the abort forms of `merge`,
 `rebase`,
 `cherry-pick`,
 `revert` and `am`.
+The word this reading reads is the word Git will run.
+An ordinary alias (`alias.<name>`,
+either spelling) is expanded the way Git expands it,
+up to 16 expansions,
+and the guard decides on the expansion,
+which is also the argument list the wrapper forwards and the audit record names.
+A built-in word is decided without reading any configuration,
+so no process is started for it.
+The expansion is resolved once per invocation and read by all three of them:
+the guard,
+the fixed argument transforms and the argument list forwarded to Git,
+so the tokens a transform adds land on the command Git runs
+(`git go` with `alias.go=checkout tracks` is guarded and transformed as `git checkout tracks`,
+and the wrapper forwards that expansion).
+A built-in word is decided without reading any configuration,
+so no process is started for it.
+A shell alias (`!...`) and an undefined name are forwarded as they are:
+a shell command cannot be judged by reading it,
+and Git runs it with its own `git-core` directory first on `PATH`,
+so a `git` inside it is real Git and not this wrapper.
+`git by the word Git will run` is the boundary of this guard.
+
 A form is rejected in the main worktree and outside any worktree always,
-and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty
-(`clean` also counts untracked files).
+and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
+A `clean` counts untracked files as well,
+and a `clean` that deletes ignored files counts what it deletes:
+`git clean -x` counts tracked,
+untracked and ignored files,
+and `git clean -X` counts ignored files only.
+A `git clean -X` that carries its own exclusion patterns (`-e`,
+`--exclude`,
+in every spelling Git's table accepts,
+clustered and abbreviated included) is measured by Git itself instead:
+Git adds those patterns to the ignore rules the clean applies,
+so a file the status reports as untracked is one this clean deletes and the status cannot say so.
+The question is `git clean --dry-run` over the same facts,
+rebuilt from them and never edited from the typed region
+(`-n`,
+`-f` as often as written and at least once,
+`-d` when written,
+the `-X` or `-x` mode,
+each `-e` pattern,
+then `--` and the paths),
+because an edited region would carry `-i`,
+whose dry run reads the terminal,
+or `-q`,
+which would silence it;
+a dry run that prints nothing deletes nothing,
+and one Git refuses is a `fact-unavailable` finding.
+A `-x` clean needs no such reading:
+it deletes every untracked file whether a pattern calls it ignored or not,
+and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
+which the status measurement over-reports rather than under-reports.
+The forms are `Clean`,
+`CleanIgnored` and `CleanIgnoredOnly`,
+so a rejection says which files that spelling deletes.
 A `HEAD`-moving form is rejected only while tracked changes exist.
+`git stash drop` and `git stash clear` are measured against the repository instead:
+they delete entries of `refs/stash`,
+which every worktree of the repository shares,
+so a clean linked worktree does not make them safe.
+The query is `git rev-parse --verify --quiet refs/stash`,
+which reads no worktree,
+and the record's `dirty` field says whether that query found an entry.
+A `drop` or `clear` runs where the repository holds no entry,
+because then it deletes nothing.
+A `checkout` or `switch` that changes any file is also forwarded with `--no-overwrite-ignore`,
+directly after the subcommand,
+so Git itself refuses a switch that would replace an ignored file the target tree tracks,
+naming the file.
+Git decides that inside the process that changes the files,
+so no measurement window exists for it.
+The token is not added where the region changes no file,
+where the caller already answered with `--overwrite-ignore` or `--no-overwrite-ignore`,
+or where Git refuses the region;
+a caller's own `--overwrite-ignore` after it still wins,
+because Git applies the last spelling.
+A forced `checkout -f` or `reset --hard` overrides the token,
+so the ignored file it would replace inside the process is decided before the command runs:
+for a forced `checkout`,
+a forced `switch` and a hard `reset` (`--hard`,
+`--merge`,
+`--keep`),
+the guard reads the paths of the tree that form writes (`git ls-tree -r -z --name-only <revision>`,
+`HEAD` when the form names no tree)
+and asks Git which of them the worktree holds as ignored files,
+then refuses,
+naming the paths,
+while any path is both.
+Only these three forms are read that way,
+and only in a linked worktree;
+the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
+so no query walks the worktree's ignored files
+(measured on this repository's worktree at 1,860 tracked paths:
+`git ls-tree` 4 to 6 ms and `git ls-files` 9 to 77 ms per start,
+the spread being host load).
+Every path is named with `:(top,literal)` magic,
+anchored at the top of the worktree and read as itself,
+and the query turns off a caller's `--literal-pathspecs`,
+which would otherwise make the magic a path.
+A tree or an answer Git cannot read is a `fact-unavailable` finding,
+never a clean worktree,
+and a revision Git cannot resolve is read as `HEAD`,
+because every form that names no tree writes `HEAD`'s content.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
+The list is chosen by the invocation's own environment:
+uv's cache (`UV_CACHE_DIR`,
+else `XDG_CACHE_HOME/uv`,
+else `HOME/.cache/uv`) and mise's data directory (`MISE_DATA_DIR`,
+else `XDG_DATA_HOME/mise`,
+else `HOME/.local/share/mise`).
+A repository whose Git directory lies inside one of them is exempt,
+and the wrapper says so on standard error before Git runs,
+naming the variable and the directory it points at,
+so a variable that happens to name a repository is visible to the person:
+"this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
+which contains its Git directory".
+The record carries the same name in `facts.exemptedBy`
+and the outcome `exempt`.
 The rejection names the form,
 what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
+
+#### The window between the measurement and the command
+
+The rule above is a statement about the state the wrapper measured,
+not about the state at the instant Git changes
+files.
+The measurement is one `git status` in a child process;
+the wrapper then replaces its own process with real Git,
+which does the discarding.
+Between the status leaving and Git starting there is,
+on the allowed path,
+the audit append (one `write`,
+never synced),
+the notices on standard error,
+and the in-process decisions of the fixed transforms and of the forwarding plan:
+no second Git start,
+no lock,
+no sync,
+no wait.
+A write that lands inside that window is not seen,
+and nothing in the wrapper can close it:
+only the process that changes files can decide,
+against the state it is about to change.
+
+Where Git itself has such a check,
+the wrapper hands the decision to Git instead of measuring,
+and then there is no window:
+a `checkout` or `switch` that changes files is forwarded with `--no-overwrite-ignore`,
+so Git names the ignored file it would replace and refuses
+(see "A `HEAD`-moving form" above).
+Git's own refusal of a switch or checkout that would overwrite a tracked modification covers the same ground for
+tracked files.
+`reset --hard`,
+`restore`,
+`clean` and the other forms have no equivalent option,
+so their guard is a measurement and keeps this window.
+
+A person who needs the stronger promise runs the discard in a disposable worktree
+(`git worktree add <path> <commit>`),
+where the work being discarded is not theirs.
+
+#### The two forms that are recorded and never refused
+
+Two commands run exactly as Git runs them,
+by the owner's decision,
+and leave one audit line each
+(outcome `logged`):
+
+- `git worktree remove` in any worktree.
+  The owner's words:
+  "This one is pretty intentional because agents are just as likely to run a rm rf,
+  so preventing git worktree remove buys us nothing."
+  The line's `facts` hold `worktree` (the path as typed),
+  `force` (whether `-f` or `--force` was given),
+  `head` (the removed worktree's `HEAD` ref,
+  read from its own Git directory),
+  `changed` (how many tracked paths differed from that `HEAD`,
+  from one `git status --untracked-files=no` in the target),
+  and `counted`,
+  which says `tracked changes only`.
+  Untracked and ignored files are deliberately not counted:
+  walking them is what would make a removal of a large worktree slow,
+  and the record says what it counted rather than claiming the worktree was clean.
+  The line is written whether or not `--no-enforce-worktree` was given:
+  the hatch skips the policy that writes it,
+  and the line is the owner's own requirement,
+  so it is written where a guarded form's hatch line would be.
+  Both files are read only when they are regular files,
+  and each is opened without waiting (`O_NONBLOCK`) and read up to 4,096 bytes:
+  a FIFO named `.git` with no writer,
+  or one whose writer never writes,
+  would otherwise hold the removal for ever,
+  and a record that cannot be completed is left out rather than waited for.
+  A relative `gitdir:` pointer is resolved against the worktree that holds it,
+  as Git resolves it,
+  so the `HEAD` named is that worktree's,
+  and a pointer Git would refuse names no `HEAD` at all.
+- `git branch -d`,
+  `git branch -D` and `git branch --delete` from the main worktree.
+  The owner's choice is "Allow,
+  add audit line".
+  One line per branch that exists,
+  with `facts` holding `branch` (the name as typed),
+  `reference` (the full reference the deletion took:
+  `refs/heads/<name>`,
+  or `refs/remotes/<name>` when `-r` or `--remotes` was given),
+  `commit` (the full object name that reference pointed at,
+  so `git update-ref <reference> <commit>` restores it) and `merged`
+  (whether that commit is an ancestor of the command's `HEAD`,
+  which is what Git's own `-d` means).
+  The namespace is read from the command,
+  because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
+  and a record that read the local branch would name the wrong commit to restore.
+  A short cluster is read letter by letter,
+  except after `-u`,
+  whose value takes the rest of the token (`-ur` sets the upstream of `r` and selects nothing).
+  A name with no local branch writes no line:
+  it deletes nothing and Git's own error is the answer.
+  `--delete-merged` is not read,
+  because it deletes only branches a merged branch already contains.
+  An abbreviation of `--delete` is not read either:
+  every one of them is ambiguous with `--delete-merged` in Git 2.56.0.
 
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 
@@ -9357,6 +9578,22 @@ with `schemaVersion`,
 `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
+A `logged` line also has `writtenBeforeGitRuns` set to `true`,
+and no other outcome has the field.
+The wrapper appends that line before it replaces itself with Git,
+so the line cannot know whether Git ran the deletion or refused it:
+`git branch -d` of a branch nothing else contains is refused,
+`git worktree remove` of a dirty worktree without `--force` is refused,
+and each leaves the same line as the deletion that ran.
+The field says that in words a reader cannot take for the result,
+where `outcome` alone said `logged` for both.
+A `rejected` line of a forced `checkout`,
+a forced `switch` or a hard `reset` whose tree tracks a path the worktree ignores also has
+`ignoredAndTracked`,
+the paths it read,
+and its `dirty` is `false` because the tracked state of the worktree was clean:
+the refusal is about the ignored files,
+and the paths are named so a reader sees which of them the command would have replaced.
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory,

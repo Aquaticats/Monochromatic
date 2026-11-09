@@ -3,14 +3,18 @@
 //!  in their fixed order:
 //!       atomic push,
 //!  commit-only,
-//!  status hints off.
+//!  status hints off,
+//!  ignored files kept.
 //! Why:
 //!  These are not policies:
 //!  they have no severity and cannot be configured.
 //!  They add
 //!      `--atomic` to `git push`,
-//!  `-o` to `git commit` and `-c advice.statusHints=false`
+//!  `-o` to `git commit`,
+//!  `-c advice.statusHints=false`
 //!      before `git status`,
+//!  and `--no-overwrite-ignore` to a `git checkout` or `git switch`
+//!      that changes files,
 //!  and the commit-only transform can reject a commit.
 //!  The
 //!      decisions belong to the pure rule cores;
@@ -40,6 +44,7 @@ use crate::diagnostics::EngineFailureCode;
 use crate::policy_events::PolicyEvent;
 use crate::repository_facts::RepositoryFacts;
 use crate::rule_argument_rewrite::ArgumentRewrite;
+use crate::rule_keep_ignored_files::keep_ignored_files;
 use crate::rule_atomic_push::atomic_push;
 use crate::rule_commit_only::{
     CommitOnlyDecision, decide_commit_only, resolve_index_state, resolve_sequencer_state,
@@ -241,7 +246,7 @@ fn commit_only_stage(
 }
 
 /// What:
-///  Apply the three transforms in order.
+///  Apply the four transforms in order.
 ///  `&[OsString]` borrows the arguments,
 ///  already
 ///       free of wrapper controls.
@@ -249,9 +254,11 @@ fn commit_only_stage(
 ///   The order is the incumbent's:
 ///  atomic push,
 ///  commit-only,
-///  status hints.
-///  A rejection
-///       or failure of commit-only ends the stage with the stage's input unchanged.
+///  status hints,
+///  then ignored files kept,
+///  which reads a region Git's own reading already knows and adds one token
+///       the caller's own options still override.
+///  A rejection or failure of commit-only ends the stage with the stage's input unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -281,8 +288,12 @@ pub fn apply_fixed_transforms(
         ArgumentRewrite::Rewritten(rewritten) => rewritten,
         ArgumentRewrite::Unchanged => commit.arguments,
     };
+    let after_ignored: Vec<OsString> = match keep_ignored_files(after_status.as_slice()) {
+        ArgumentRewrite::Rewritten(rewritten) => rewritten,
+        ArgumentRewrite::Unchanged => after_status,
+    };
     return TransformResult {
-        arguments: after_status,
+        arguments: after_ignored,
         events: Vec::<PolicyEvent>::new(),
         complete: true,
     };
