@@ -35,7 +35,7 @@ const STDIN_UNAVAILABLE: unique symbol = Symbol('bash-output-filter/stdin-stream
  
  @example
  ```ts
- filterOutput('hello\nhello\nworld'); // 'hello (x2 repeated lines)\nworld'
+ filterOutput('hello\nhello\nhello\nworld'); // 'hello (x3 repeated lines)\nworld'
  ```
  */
 function filterOutput(input: string,): string {
