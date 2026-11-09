@@ -1615,7 +1615,8 @@ and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
 
 Two commands are never rejected and always leave one audit line (outcome `logged`),
-by the owner's decision:
+by the owner's decision,
+also when `--no-enforce-worktree` is given:
 
 - `git worktree remove`,
   because agents are as likely to run `rm -rf`;

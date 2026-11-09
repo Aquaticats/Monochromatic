@@ -8857,6 +8857,10 @@ Unsafe warn configuration emits a `configuration-warning` JSONL event but still 
 remain.
 Generic `--no-enforce-<policy-id>` escapes and the legacy safeguard aliases skip the complete policy lifecycle and are
 stripped before real Git.
+A guarded form that runs under the hatch leaves one `hatch` line instead,
+and a form that is only recorded (`git worktree remove`,
+`git branch -d`/`-D`) leaves the same `logged` line it leaves without the hatch,
+because the owner asked for that line and the hatch skips the policy that writes it.
 Escape-looking option values and pathspecs remain ordinary Git arguments.
 The legacy fixed-rule implementations no longer participate in dispatch.
 
@@ -9083,6 +9087,10 @@ and leave one audit line each
   Untracked and ignored files are deliberately not counted:
   walking them is what would make a removal of a large worktree slow,
   and the record says what it counted rather than claiming the worktree was clean.
+  The line is written whether or not `--no-enforce-worktree` was given:
+  the hatch skips the policy that writes it,
+  and the line is the owner's own requirement,
+  so it is written where a guarded form's hatch line would be.
   Both files are read only when they are regular files,
   and each is opened without waiting (`O_NONBLOCK`) and read up to 4,096 bytes:
   a FIFO named `.git` with no writer, or one whose writer never writes, would otherwise

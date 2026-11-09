@@ -32,7 +32,13 @@ use crate::landed_summary::short_name;
 use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
-use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
+use crate::rule_linked_worktree::LinkedWorktreeDecision;
+/// The two forms that are recorded and never refused.
+use crate::policy_audited::record_audited;
+/// The guarded decision about the command Git will run, resolved once with the guard and the transforms.
+use crate::policy_checks::guarded_forwarded;
+/// The expansion an alias names, which the guard decided on.
+use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::repository_facts::RepositoryFacts;
 use crate::worktree_identity::worktree_root;
 use crate::wrapper_controls::is_escaped;
@@ -71,14 +77,23 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
     if !is_escaped(&stripped.controls, PolicyId::LinkedWorktreeOnly) {
         return;
     }
-    let command = match decide_linked_worktree(stripped.arguments.as_slice()) {
+    // An alias reaches the command Git really runs, so this record names the expansion like the guard does.
+    let forwarded: GuardedForwarded = guarded_forwarded(checks);
+    let seen: &[OsString] = forwarded.arguments.as_slice();
+    let command = match forwarded.decision {
         LinkedWorktreeDecision::Pass => return,
         LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => command,
-        // The audited forms answer their own hatch decision by running anyway; the audit line of the run already says so.
-        LinkedWorktreeDecision::Audited(_) => return,
+        // The owner asked for one line for these two recorded forms, and the policy that writes it is skipped under
+        //  the hatch: the line is written here instead, with the same facts a run without the hatch would carry.
+        LinkedWorktreeDecision::Audited(audited) => {
+            if let Ok(location) = checks.facts.location() {
+                record_audited(&mut checks.facts, seen, audited, &location);
+            }
+            return;
+        }
     };
     if let Ok(location) = checks.facts.location() {
-        record_audit(&location.identity, command, AuditOutcome::Hatch, stripped.arguments.as_slice(), None);
+        record_audit(&location.identity, command, AuditOutcome::Hatch, seen, None);
     }
 }
 

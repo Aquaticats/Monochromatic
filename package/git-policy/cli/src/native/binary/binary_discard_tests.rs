@@ -927,3 +927,55 @@ fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
     assert!(ignored_work_survives(linked.as_path()), "the ignored work went");
     remove(&fixture);
 }
+
+/// The escape keeps the audit line of a form that is only recorded:
+/// the owner asked for the line,
+///  and the
+///  hatch skips the policy that would otherwise write it.
+#[test]
+fn an_escaped_recorded_form_still_leaves_its_audit_line() {
+    let fixture: Fixture = fixture("audit-escaped-recorded");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch whose commit nothing else reaches, deleted under the hatch.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "gone"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=gone", "--", "tracked.txt"]);
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "gone"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "--no-enforce-worktree", "-D", "gone"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let lines: Vec<String> = audit_lines_of(repo.as_path());
+    let last: &str = lines.last().expect("the deletion left a line");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"outcome\":\"logged\"",
+        "\"branch\":\"gone\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(last.contains(field), "{field} missing from {last}");
+    }
+    // The same for a removal under the hatch, which would otherwise leave nothing either.
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    let removal: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "--no-enforce-worktree", "remove", "--force", linked.to_str().expect("utf-8 fixture path")],
+    );
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree");
+    let after: Vec<String> = audit_lines_of(repo.as_path());
+    assert_eq!(after.len(), lines.len() + 1, "{after:?}");
+    let removal_line: &str = after.last().expect("the removal left a line");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"outcome\":\"logged\"",
+        "\"head\":\"refs/heads/side\"",
+    ] {
+        assert!(removal_line.contains(field), "{field} missing from {removal_line}");
+    }
+    remove(&fixture);
+}
