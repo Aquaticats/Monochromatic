@@ -4232,6 +4232,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
+  Its message reads `Merge <remote>/<tracked ref> into <branch>`,
+  naming the branch whose tip is that first parent,
+  the way `git merge` names the branch it is on,
+  measured on this host at 2026-11-09T09:33:10-05:00 with native Git 2.56.0
+  (`feature` tracking `origin/main` wrote
+  `Merge remote-tracking branch 'origin/main' into feature`),
+  and a branch whose name differs from the tracked ref's short name also gets
+  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  as a further line of its body,
+  because the commit lands on a branch its subject does not name.
+  A detached `HEAD` has no branch to name and keeps the tracked ref's short name
+  (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
@@ -10280,6 +10292,14 @@ with `schemaVersion`,
 `hatch` or `saved-conflict`),
 `dirty`,
 `cwd` and `arguments`.
+Each path and argument this line names is written beside its text as its bytes
+(`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+the two-field form every other record of a path takes (`path_bytes_in_records.rs`),
+so a command whose working directory or argument is not UTF-8 is still the command the line names:
+the line exists to attribute a loss to it.
+The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,

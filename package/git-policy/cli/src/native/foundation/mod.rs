@@ -167,3 +167,7 @@ pub mod name_held_while_one_thread_publishes_it;
 /// The longest delay measured on this host and the owner's multiple of it,
 /// which the held-name wait and the wait before a forced stop use.
 pub mod worst_delay_seen_on_this_host;
+
+/// The collected elements a pass over unbounded input has looked at,
+/// counted for the controls of the passes that must stay linear.
+pub mod collected_elements_looked_at;
