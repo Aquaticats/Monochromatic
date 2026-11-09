@@ -5,8 +5,10 @@
 //! and the clean arguments.
 
 use super::*;
-use crate::package_repair_cargo_workspaces::{distinct_workspaces, parse_metadata, read_workspace};
+use crate::package_repair_cargo_workspaces::{MANIFEST, distinct_workspaces, manifest_directories_awaiting, parse_metadata, read_workspace};
+use crate::transaction_git::GitContext;
 use crate::package_repair_command::ToolLimits;
+use crate::test_support::{fixture, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
 /// The `cargo metadata --no-deps` text of a workspace,
@@ -159,4 +161,36 @@ fn metadata_that_was_cut_is_not_parsed() {
     let refused: String = read_workspace(cargo.as_path(), root.as_path(), limits).expect_err("cut output is refused");
     assert!(refused.contains("could not be taken whole"), "{refused}");
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  The tracked manifests are read as a job of the process's blocking pool,
+///  never on the task that polls the three repairs.
+/// Why:
+///  Whether a listed path is a regular file is a storage question,
+/// and this reading shares its task with the pnpm repair's quiet window and ceiling:
+/// a filesystem that stops answering would then stop those limits with it
+/// (`package_repair_cargo_workspaces.rs`,
+/// `directories_of_the_listing`).
+///  A control holds the process's only place,
+/// so it proves the reading reached the bound by asking for it.
+#[test]
+fn the_manifest_directories_are_read_as_a_job_of_the_pool() {
+    let root: PathBuf = fixture("cargo-manifest-place");
+    let worktree: PathBuf = repository(root.as_path(), "worktree");
+    std::fs::write(worktree.join(MANIFEST), b"").expect("manifest");
+    std::fs::create_dir_all(worktree.join("member")).expect("member directory");
+    std::fs::write(worktree.join("member").join(MANIFEST), b"").expect("member manifest");
+    let _staged: String = git_text(worktree.as_path(), &["add", "--", MANIFEST, "member/Cargo.toml"]);
+    let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
+    let git: GitContext = git_context();
+    let destination: PathBuf = worktree.clone();
+    let reading = crate::lazy_runtime::spawn_on_runtime(async move { return manifest_directories_awaiting(&git, destination.as_path()).await; });
+    assert!(reading.is_some(), "this process's runtime has a worker of its own");
+    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the control that holds the only place answered");
+    remove(&root);
+    assert!(
+        asked,
+        "the tracked manifests were read without asking for a place of the process's bound on blocking jobs, so the reading ran on the task that polls the repairs"
+    );
 }
