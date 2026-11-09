@@ -15,13 +15,15 @@
 //! const workspaces = distinctWorkspaces(await Promise.all(manifestDirectories(request).map(readWorkspace)));
 //! ```
 
-/// The request of one repair,
-/// whose Git lists the tracked manifests.
-use crate::package_repair_request::RepairRequest;
-/// The tool runner and its result words.
-use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, run_tool};
+/// The tool runner and its result words,
+/// for the face that awaits and the one that enters the runtime.
+use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, run_tool_awaiting};
+/// Entering the runtime, for the synchronous face beside each awaited one.
+use crate::lazy_runtime::run_on_runtime;
 /// Git runs for the tracked manifest listing.
-use crate::transaction_git::{GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest};
+/// The Git child awaited on the runtime, for the repair's tasks.
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -137,31 +139,23 @@ pub fn distinct_workspaces(mut found: Vec<Workspace>) -> Vec<Workspace> {
 }
 
 /// What:
-///  The directories of the worktree's tracked `Cargo.toml` files.
+///  The directories of the tracked `Cargo.toml` files in one `git ls-files -z` listing.
 /// Why:
-///   Git knows which manifests belong to the checkout,
-/// so no walk reads `node_modules` or build output.
+///   The two faces of the listing differ only in how they wait for Git,
+/// so the reading of its output is one code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function manifestDirectories(git: GitContext, destination: string): Promise<string[]>;
+/// function directoriesOfTheListing(listing: Uint8Array, destination: string): string[];
 /// ```
-pub fn manifest_directories(request: &RepairRequest<'_>) -> Result<Vec<PathBuf>, String> {
+fn directories_of_the_listing(listing: &[u8], destination: &Path) -> Vec<PathBuf> {
     use std::os::unix::ffi::OsStrExt;
-    let listing = GitRequest::new(request.destination, &["ls-files", "-z", "--", "*Cargo.toml"]);
-    let output = match run_git(request.git, &listing) {
-        Ok(done) => done,
-        Err(error) => return Err(format!("git could not list the tracked manifests ({error})")),
-    };
-    if !output.succeeded() {
-        return Err(format!("git could not list the tracked manifests: {}", output.error_text()));
-    }
     let mut directories: Vec<PathBuf> = Vec::new();
-    for entry in output.stdout.split(is_nul_byte) {
+    for entry in listing.split(is_nul_byte) {
         if entry.is_empty() {
             continue;
         }
-        let path: PathBuf = request.destination.join(std::ffi::OsStr::from_bytes(entry));
+        let path: PathBuf = destination.join(std::ffi::OsStr::from_bytes(entry));
         let is_manifest: bool = match path.file_name() {
             Some(name) => name == MANIFEST,
             None => false,
@@ -175,25 +169,86 @@ pub fn manifest_directories(request: &RepairRequest<'_>) -> Result<Vec<PathBuf>,
     }
     directories.sort();
     directories.dedup();
-    return Ok(directories);
+    return directories;
+}
+
+/// What:
+///  The directories of the worktree's tracked `Cargo.toml` files,
+/// with the Git child awaited on the runtime.
+/// Why:
+///   Git knows which manifests belong to the checkout,
+/// so no walk reads `node_modules` or build output,
+/// and a task of the
+///  runtime cannot enter that runtime to run one (`RuntimeError::Nested`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function manifestDirectoriesAwaiting(git: GitContext, destination: string): Promise<string[]>;
+/// ```
+pub async fn manifest_directories_awaiting(git: &GitContext, destination: &Path) -> Result<Vec<PathBuf>, String> {
+    let listing = GitRequest::new(destination, &["ls-files", "-z", "--", "*Cargo.toml"]);
+    let output = match run_git_awaiting(git, &listing).await {
+        Ok(done) => done,
+        Err(error) => return Err(format!("git could not list the tracked manifests ({error})")),
+    };
+    if !output.succeeded() {
+        return Err(format!("git could not list the tracked manifests: {}", output.error_text()));
+    }
+    return Ok(directories_of_the_listing(output.stdout.as_slice(), destination));
 }
 
 /// What:
 ///  `cargo metadata` in a directory,
+/// with the tool awaited on the runtime,
 /// as a workspace.
 /// Why:
 ///   `--no-deps` resolves nothing,
 /// so it needs no network and writes no lock;
-/// `--locked` makes that a promise.
+/// `--locked` makes that a promise,
+///  and a task of the runtime awaits the child rather than entering the runtime to block on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function readWorkspace(cargo: string, directory: string, limit: number): Promise<Workspace>;
+/// async function readWorkspaceAwaiting(cargo: string, directory: string, limit: number): Promise<Workspace>;
 /// ```
-pub fn read_workspace(cargo: &Path, directory: &Path, limit: ToolLimits) -> Result<Workspace, String> {
+pub async fn read_workspace_awaiting(cargo: &Path, directory: &Path, limit: ToolLimits) -> Result<Workspace, String> {
     let arguments: Vec<OsString> = ["metadata", "--locked", "--offline", "--no-deps", "--format-version", "1"].iter().map(OsString::from).collect();
     let command: ToolCommand = ToolCommand { arguments, directory: PathBuf::from(directory), set: Vec::new() };
-    let run: ToolRun = run_tool(cargo, &command, limit);
+    let run: ToolRun = run_tool_awaiting(cargo, &command, limit).await;
+    return workspace_of_the_run(run, directory);
+}
+
+/// What:
+///  `read_workspace` for a caller that is not a task of the runtime.
+/// Why:
+///   The callers of this face are the controls and the synchronous repair,
+/// and both faces must read a run the same way;
+/// from inside the
+///  runtime it refuses,
+/// and `read_workspace_awaiting` is the face such a caller uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readWorkspace(cargo: string, directory: string, limit: number): Workspace;
+/// ```
+pub fn read_workspace(cargo: &Path, directory: &Path, limit: ToolLimits) -> Result<Workspace, String> {
+    return match run_on_runtime(read_workspace_awaiting(cargo, directory, limit)) {
+        Ok(read) => read,
+        Err(refusal) => Err(format!("cargo metadata in {} could not be run: {refusal}", directory.display())),
+    };
+}
+
+/// What:
+///  What a finished `cargo metadata` run says about the workspace of `directory`.
+/// Why:
+///   Both faces of the read make the same answer of the same run,
+/// so neither can parse a run the other refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const workspaceOfTheRun = (run: ToolRun, directory: string) => { ... };
+/// ```
+fn workspace_of_the_run(run: ToolRun, directory: &Path) -> Result<Workspace, String> {
     return match run.end {
         ToolEnd::Succeeded if !run.notes.is_empty() => Err(format!("cargo metadata in {} wrote output that could not be taken whole ({}), so it was not read", directory.display(), run.notes.join("; "))),
         ToolEnd::Succeeded => parse_metadata(String::from_utf8_lossy(run.stdout.as_slice()).as_ref()),

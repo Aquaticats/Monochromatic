@@ -33,10 +33,11 @@
 
 use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
-use crate::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
+use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
 use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairToolchain";
@@ -175,22 +176,69 @@ fn install_summary(stdout: &[u8]) -> Option<String> {
 }
 
 /// What:
-///  Rebuild the worktree's toolchain links and launchers,
-/// when its launcher records are stale.
+///  One install of the worktree's toolchain,
+/// with everything its start and its report need.
 /// Why:
-///   See the module comment:
-/// one frozen install,
-/// with the network when the lock names tools that are not installed yet.
+///  The launcher records are looked at once,
+/// and the two faces of the repair
+/// (`repair_toolchain` and `repair_toolchain_awaiting`) then differ only in how
+///  they wait for the tool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function repairToolchain(destination: string, environment: RepairEnvironment): Promise<Finding | undefined>;
+/// type Install = { program: string; command: ToolCommand; destination: string; limits: ToolLimits };
 /// ```
-pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+struct Install {
+    /// The mpm-shadow the search path or the worktree's own link resolved.
+    program: PathBuf,
+    /// What it is started with and where.
+    command: ToolCommand,
+    /// The worktree whose launchers the install rewrites.
+    destination: PathBuf,
+    /// The two bounds the tool runs under.
+    limits: ToolLimits,
+}
+
+/// What a toolchain repair is,
+/// once the launcher records have been read.
+/// Why:
+///  The three answers differ in what they start and report,
+/// and the records are read twice
+/// (before and after the install),
+/// so the
+///  first reading decides what the repair is before either face waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolchainRepair = { kind: 'nothing' } | { kind: 'noProgram'; finding: Finding } | { kind: 'install'; work: Install };
+/// ```
+enum ToolchainRepair {
+    /// Every launcher record names this worktree,
+    /// so no tool runs and nothing is reported.
+    NothingToDo,
+    /// The worktree needs the install and the environment provides no mpm-shadow;
+    /// the finding names the command to run.
+    NoProgram(Finding),
+    /// The install to start.
+    Install(Install),
+}
+
+/// What:
+///  What the toolchain repair of `destination` is,
+/// decided from the launcher records and the search path alone.
+/// Why:
+///  Both faces decide it the same way before they wait,
+/// so neither can start a tool the other would not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function prepareInstall(destination: string, environment: RepairEnvironment): ToolchainRepair;
+/// ```
+fn prepare_install(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
     let stale: Vec<PathBuf> = stale_launch_records(destination);
     if stale.is_empty() {
         debug(TAG, format!("{}: every launcher record names this worktree", destination.display()).as_str());
-        return None;
+        return ToolchainRepair::NothingToDo;
     }
     let own_link: PathBuf = destination.join(OWN_LINK);
     // The link in the worktree is looked at only when the search path gave no program, as `.or_else(...)` ran it.
@@ -201,20 +249,97 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
         }
     };
     let Some(program) = found_program else {
-        return Some(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
+        return ToolchainRepair::NoProgram(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
-    let installed: ToolRun = run_tool(program.as_path(), &mpm_command(destination, &["install", "--frozen-lockfile"]), environment.limits());
-    debug(TAG, format!("{}: install ended {:?} after {} ms", destination.display(), installed.end, installed.millis).as_str());
-    let detail: String = match install_summary(installed.stdout.as_slice()) {
+    return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"]), destination: PathBuf::from(destination), limits: environment.limits() });
+}
+
+/// The install, awaited on the runtime the caller runs on.
+async fn install_awaiting(work: &Install) -> ToolRun {
+    return run_tool_awaiting(work.program.as_path(), &work.command, work.limits).await;
+}
+
+/// What the install reports:
+/// the line the person reads,
+/// and the records that still name another lock file.
+/// Why:
+///  Both faces report the same run the same way,
+/// whatever waited for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const installFinding = (work: Install, run: ToolRun) => { ... };
+/// ```
+fn install_finding(work: &Install, run: &ToolRun) -> Option<Finding> {
+    debug(TAG, format!("{}: install ended {:?} after {} ms", work.destination.display(), run.end, run.millis).as_str());
+    let detail: String = match install_summary(run.stdout.as_slice()) {
         Some(summary) => format!("mpm-shadow rebuilt the toolchain links ({summary})"),
         None => String::from("mpm-shadow rebuilt the toolchain links"),
     };
-    let finding: Finding = finding_from(Tool::Toolchain, &installed, detail.as_str(), MANUAL_COMMAND);
-    let remaining: usize = stale_launch_records(destination).len();
+    let finding: Finding = finding_from(Tool::Toolchain, run, detail.as_str(), MANUAL_COMMAND);
+    let remaining: usize = stale_launch_records(work.destination.as_path()).len();
     if matches!(finding.outcome, Outcome::Repaired { .. }) && remaining > 0 {
         return Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason: format!("{remaining} launcher records still name another lock file"), run_instead: String::from(MANUAL_COMMAND) } });
     }
     return Some(finding);
+}
+
+/// What:
+///  Rebuild the worktree's toolchain links and launchers,
+/// when its launcher records are stale.
+/// Why:
+///   See the module comment:
+/// one frozen install,
+/// with the network when the lock names tools that are not installed yet.
+/// The callers of this face are synchronous (`package_repair.rs` inside the repair the add runs),
+///  so it enters the process's runtime once and waits there;
+/// from inside the runtime it refuses,
+/// and `repair_toolchain_awaiting` is
+///  the face such a caller uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function repairToolchain(destination: string, environment: RepairEnvironment): Finding | undefined;
+/// ```
+pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+    return match prepare_install(destination, environment) {
+        ToolchainRepair::NothingToDo => None,
+        ToolchainRepair::NoProgram(finding) => Some(finding),
+        ToolchainRepair::Install(work) => {
+            let started: Instant = Instant::now();
+            let run: ToolRun = match crate::lazy_runtime::run_on_runtime(install_awaiting(&work)) {
+                Ok(run) => run,
+                // No install was made, and the runtime's own reason is what the person is told.
+                Err(refusal) => run_refused(work.program.as_path(), started, &refusal),
+            };
+            install_finding(&work, &run)
+        }
+    };
+}
+
+/// What:
+///  `repair_toolchain` on the runtime:
+/// the install is awaited,
+/// never blocked on.
+/// Why:
+///  A caller that is itself a task of the runtime cannot enter it
+/// (`RuntimeError::Nested`),
+/// so it awaits this face;
+/// the finding is the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function repairToolchainAwaiting(destination: string, environment: RepairEnvironment): Promise<Finding | undefined>;
+/// ```
+pub async fn repair_toolchain_awaiting(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+    return match prepare_install(destination, environment) {
+        ToolchainRepair::NothingToDo => None,
+        ToolchainRepair::NoProgram(finding) => Some(finding),
+        ToolchainRepair::Install(work) => {
+            let run: ToolRun = install_awaiting(&work).await;
+            install_finding(&work, &run)
+        }
+    };
 }
 
 /// Toolchain repair controls stay out of the release executable.

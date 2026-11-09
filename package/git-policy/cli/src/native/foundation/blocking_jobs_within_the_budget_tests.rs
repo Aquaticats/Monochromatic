@@ -403,3 +403,34 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
     assert!(!started_text.contains("will not run"), "the job runs, so nothing may promise it will not: {started_text}");
     assert_eq!(other_bound.available_permits(), 0, "the place stays with the job that holds it");
 }
+
+/// What one job of the fallback control reads:
+/// how many times its work has run.
+/// Why:
+///   The control proves the work ran once,
+/// in turn,
+/// where no thread could start it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const countTheRun = (state: AtomicUsize) => state.fetchAdd(1) + 1;
+/// ```
+fn count_the_run(state: Arc<AtomicUsize>) -> usize {
+    return state.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+}
+
+/// Where the system refuses every thread the work of the job runs in turn on the awaiting task,
+/// once,
+/// and its value is the job's.
+/// The body runs in a child that is refused every thread.
+#[test]
+fn a_job_refused_a_thread_runs_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_job_refused_a_thread_runs_in_turn") {
+        return;
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runs: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let value = runtime.block_on(run_a_job_or_in_turn(Arc::clone(&runs), count_the_run));
+    assert_eq!(value, Ok(1), "the work gave its value from the task that awaited it");
+    assert_eq!(runs.load(std::sync::atomic::Ordering::SeqCst), 1, "the work ran once, in turn");
+}

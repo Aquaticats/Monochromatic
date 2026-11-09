@@ -209,6 +209,36 @@ where
 }
 
 /// What:
+///  Run `work(state)` as a job of the blocking pool,
+/// or run it in turn here where the system refused a thread.
+/// Why:
+///   The owner's rule is that a thread is only a way to do the work sooner
+/// (`scoped_start.rs`),
+/// so the work is done on this
+///  task where no thread can start and the command loses nothing.
+/// Only a refusal falls back:
+/// `NoThreadToStart` is the one answer
+///  that promises the step will not run and changed nothing
+/// (`a_refused_thread_start`),
+/// while a busy pool queues the job and the wait for it
+///  is the caller's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return await runBlockingJobWithinTheBudget(() => work(state)); } catch (refused) { return refused.noThreadToStart ? work(state) : raise(refused); }
+/// ```
+pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    let theirs: S = state.clone();
+    let outcome: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(move || { return work(theirs); }).await;
+    return match outcome {
+        Ok(value) => Ok(value),
+        // The job will not run and changed nothing, so the same work runs here.
+        Err(BlockingJobError::NoThreadToStart) => Ok(work(state)),
+        Err(another) => Err(another),
+    };
+}
+
+/// What:
 ///  The error a refused start is,
 ///  from what the claim on the job's work decided.
 /// Why:

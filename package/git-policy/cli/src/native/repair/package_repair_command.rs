@@ -295,13 +295,46 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
     let started: Instant = Instant::now();
     return match run_on_runtime(run_tool_reaping(program, command, limits, &reap_within_stop_grace)) {
         Ok(run) => run,
-        Err(refusal) => ToolRun {
-            end: ToolEnd::Failed(format!("{} could not be run: {refusal}", program.display())),
-            millis: started.elapsed().as_millis(),
-            stdout: Vec::new(),
-            notes: Vec::new(),
-        },
+        Err(refusal) => run_refused(program, started, &refusal),
     };
+}
+
+/// What:
+///  The run a tool never made,
+/// because the runtime this process's waits need could not be entered.
+/// Why:
+///  A repair never fails the add:
+/// a tool that could not be run is a failure finding that names the command to run,
+/// which is what
+///  `run_tool` answers with the same words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const run: ToolRun = { end: { kind: 'failed', reason: `${program} could not be run: ${refusal}` }, millis, stdout: [], notes: [] };
+/// ```
+pub fn run_refused(program: &Path, started: Instant, refusal: &crate::lazy_runtime::RuntimeError) -> ToolRun {
+    return ToolRun { end: ToolEnd::Failed(format!("{} could not be run: {refusal}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+}
+
+/// What:
+///  Run a program to its end with every wait of it awaited on the runtime the caller runs on.
+/// Why:
+///  `run_tool` enters the runtime,
+/// which a caller that is itself a task cannot do
+/// (`RuntimeError::Nested`),
+/// and the
+///  repairs of a new worktree await their tools on the runtime rather than holding a thread for them.
+/// The waits,
+///  their bounds and the words of every end are `run_tool`'s,
+/// because both faces share `run_tool_reaping` and the reaper of a
+///  stopped leader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const run = await runToolAwaiting(program, command, limits);
+/// ```
+pub async fn run_tool_awaiting(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
+    return run_tool_reaping(program, command, limits, &reap_within_stop_grace).await;
 }
 
 /// What:
