@@ -217,6 +217,40 @@ fn a_thread_is_refused_now() -> Option<std::io::Error> {
     return None;
 }
 
+/// What:
+///  A control's window on the notice:
+///  the ceiling it plants and the look it waits for.
+/// Why:
+///  A control of the ceiling must make the ceiling come,
+///  and must not race a clock to do it.
+///  Test-only,
+/// so a release build reads no atomic here.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "native_commit_waiting_notice_control_window.rs"]
+pub(crate) mod the_controls_window;
+
+/// What:
+///  The ceiling this look counts from,
+///  which a control may have planted,
+///  or `ceiling`.
+/// Why:
+///   The ceiling is read at the top of every look,
+///  so a control that plants one makes it come at the look it chose,
+///  and no sleep decides the order.
+///  A release build reads no such state and uses the ceiling it was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ceilingOfThisLook = (ceiling) => theControlsWindow.planted() ?? ceiling;
+/// ```
+fn ceiling_of_this_look(ceiling: Duration) -> Duration {
+    #[cfg(all(test, target_os = "linux"))]
+    if let Some(planted) = the_controls_window::the_ceiling_the_control_planted() {
+        return planted;
+    }
+    return ceiling;
+}
+
 /// What a started notice is given.
 pub struct NoticeStart<'a> {
     /// The configuration the commit is built under.
@@ -503,6 +537,14 @@ impl NativeCommitNotice {
             // One label for every way the loop ends, so the facts leave through the channel and not through the join.
             'notice: loop {
                 let waited: Duration = began.elapsed();
+                // What: The ceiling this look counts from.
+                // Why:  A control may plant one, so the ceiling comes at the look it chose instead of a slept window.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const bound = ceilingOfThisLook(ceiling);
+                // ```
+                let bound: Duration = ceiling_of_this_look(ceiling);
                 // One look: the step, the programs below it, and what they are using.
                 // A step that has not started yet is nothing to look at, which is not a look that failed.
                 let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
@@ -516,6 +558,8 @@ impl NativeCommitNotice {
                 }
                 if seen_at.is_none() && !below.is_empty() {
                     seen_at = Some(waited);
+                    #[cfg(all(test, target_os = "linux"))]
+                    the_controls_window::noted_a_look_that_found_the_step();
                 }
                 credit_between_looks(&mut facts, before.as_slice(), below, waited.saturating_sub(last_look));
                 before = seen_below(below);
@@ -532,7 +576,7 @@ impl NativeCommitNotice {
                 // The ceiling can only have been counted from a look that found the step, so its number is known here.
                 if watched.number().is_some()
                     && seen_at.is_some()
-                    && since_seen >= ceiling
+                    && since_seen >= bound
                 {
                     let the_ceiling: TheCeiling = ceiling_came(&watched);
                     // A step signalled while the walk below it failed leaves whatever it started unnamed.
@@ -550,7 +594,7 @@ impl NativeCommitNotice {
                     }
                 }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling);
+                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), bound);
                     first = false;
                     // A closed terminal is not a reason to stop the commit, and a reader that stopped reading is not one either:
                     // the line is handed to the writer, and dropped and counted while the writer still holds the one before it.
@@ -561,12 +605,12 @@ impl NativeCommitNotice {
                 // Wake for the sooner of the next line, the look, and the ceiling.
                 let to_next: Duration = ticker.next_in(waited);
                 let pause: Duration = match seen_at {
-                    Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(LOOK_INTERVAL),
+                    Some(_seen) => to_next.min(bound.saturating_sub(since_seen)).min(LOOK_INTERVAL),
                     None => to_next.min(LOOK_INTERVAL),
                 };
                 // A ceiling that came and decided nothing is looked at no sooner than the look's own interval,
                 // so a step whose processes cannot be read costs one look per interval rather than one per pause.
-                let floor: Duration = if since_seen >= ceiling { LOOK_INTERVAL } else { LOOK_PAUSE };
+                let floor: Duration = if since_seen >= bound { LOOK_INTERVAL } else { LOOK_PAUSE };
                 match ended.recv_timeout(pause.max(floor)) {
                     Err(RecvTimeoutError::Timeout) => {}
                     Ok(()) | Err(RecvTimeoutError::Disconnected) => break 'notice,
