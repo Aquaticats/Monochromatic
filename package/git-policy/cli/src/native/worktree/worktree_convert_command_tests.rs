@@ -64,7 +64,7 @@ fn all_worktrees_are_listed_then_converted() {
 }
 
 /// A worktree that is a subvolume already costs nothing and the summary counts it as skipped,
-/// because the line beside its name says "already a subvolume, skipped";
+/// because the line beside its name already says it was skipped;
 /// a named one still ends with status 0,
 /// because nothing stood in the way.
 #[test]
