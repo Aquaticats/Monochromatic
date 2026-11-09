@@ -386,6 +386,57 @@ fn btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it() {
     remove(root.as_path());
 }
 
+/// Review round 5,
+/// finding 2:
+/// a subtree the sweep cannot examine is not evidence that it holds nothing to sweep,
+/// so the leave-out
+///  refuses and names it.
+/// Why:
+///   The sweep asked whether an entry is a directory and turned any failure into `false`,
+/// which skipped
+///  the subtree and reported success;
+/// an inherited trash directory the person can list and that can be renamed but not
+///  looked inside then travelled into this add's trash with another command's stage container and
+///  credentials.
+/// Mode `0600` is that directory:
+/// read and write let the sweep list it and the leave-out rename
+///  it,
+/// while the missing search bit makes every lookup inside it fail (measured on this host:
+/// a
+///  directory at `0400` cannot be renamed at all,
+/// `rename` answers `EACCES`,
+/// so the leave-out already fails before it
+///  moves anything).
+/// A subtree nobody examined is not a subtree with nothing in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/${earlier}/wrapper/.cli-git-worktree-copy-<token>/payload/credentials`, 'token');
+/// chmod(join(repo, TRASH_PARENT, earlier), 0o600);
+/// await expect(pruneSnapshot(stage, source)).rejects.toContain(join(TRASH_PARENT, earlier, 'wrapper'));
+/// ```
+#[test]
+fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
+    let Some(root) = btrfs_fixture("trash-unexamined-subtree") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let earlier: String = "b".repeat(40);
+    let wrapper: String = format!("{TRASH_PARENT}/{earlier}/wrapper/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(repo.as_path(), format!("{wrapper}/payload/credentials").as_str(), b"another worktree's token\n");
+    let unsearchable: PathBuf = repo.join(TRASH_PARENT).join(&earlier);
+    std::fs::set_permissions(&unsearchable, std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("a directory that can be listed and renamed but not looked inside");
+    let restore: RestoreMode = RestoreMode { path: unsearchable.clone() };
+    let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
+    let restore_stage: RestoreMode = RestoreMode { path: stage.join(TRASH_PARENT).join(&earlier) };
+    let outcome: Result<Pruned, String> = prune_snapshot(stage.as_path(), &source);
+    let reason: String = outcome.clone().expect_err(format!("pruning must refuse a subtree it cannot examine, but it returned {outcome:?} and the credentials are {}", if stage.join(TRASH_PARENT).join(&earlier).join("wrapper").join("payload/credentials").exists() { "still there" } else { "gone" }).as_str());
+    assert!(reason.contains(format!("{TRASH_PARENT}/{earlier}/wrapper").as_str()), "the reason names the subtree it could not examine: {reason}");
+    assert!(stage.join(TRASH_PARENT).join(&earlier).join("wrapper").join("payload/credentials").exists(), "the subtree keeps its files where it is");
+    drop(restore_stage);
+    assert!(repo.join(TRASH_PARENT).join(&earlier).join("wrapper").join("payload/credentials").exists(), "and the source keeps them too");
+    drop(restore);
+    remove(root.as_path());
+}
+
 /// Finding 14:
 /// a worktree whose path is not UTF-8 has its trash emptied here,
 /// by the bytes of the path,
