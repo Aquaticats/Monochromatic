@@ -5758,17 +5758,28 @@ which is the worse outcome,
 so no commit writes the live index for this reason.
 
 What a commit does instead is record nothing about those paths.
-For every path of an applicable record whose live index entry differs from the worktree's head,
-the commit's own private index is set to that head,
+For every path of an applicable record whose entry in the commit's own index differs from the worktree's
+head,
+that index is set to the head,
 and the commit prints one line naming the paths and both ways on:
 `git reset -- <paths>` to catch the index up with the branch,
 or `git commit -- <paths>` to take the worktree's content for them.
 A path with unmerged stages is left alone,
 because a merge in progress is the person's own act,
 and an explicit-path commit names its own selection and is never changed.
-The record is forgotten when the index agrees with the head at every path it names,
-or when the worktree has left the branch the landing happened on:
-an index describes the branch the worktree has checked out.
+The comparison is made against the commit's own index,
+because that snapshot is what the commit records:
+a program that catches the live index up between the copy and the comparison leaves the snapshot's stale
+entry,
+and the commit still records nothing about it.
+The record is forgotten when the live index and the commit's own index agree with the head at every path
+it names,
+and when the worktree no longer names the reference the record names,
+which is the branch the landing moved or `HEAD` for a landing on a detached head:
+an index describes the reference the worktree has checked out.
+An amend rewrites the ancestry of the same branch and is no reason to forget a record.
+The removal of a record once its index is installed is a rename to a settled name,
+so a kill between the installation and the removal leaves either an owed record or none.
 
 A restart that finds the index file is not the one the landing saw finishes the batch,
 leaves the index as its writers left it,

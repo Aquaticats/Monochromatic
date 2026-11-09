@@ -180,12 +180,10 @@ fn unmerged_of(git: &GitContext, owed: &Owed, live_index: &Path, names: &[Vec<u8
 /// What a record's applicability came to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Applies {
-    /// The worktree is on the branch that landed,
-    /// and the landed commit is in its history.
+    /// The worktree names the reference the landing recorded.
     Yes,
-    /// The worktree is on another branch,
-    /// or the landed commit is not in this branch's history:
-    /// its index describes the branch the person moved to,
+    /// The worktree names another reference:
+    /// its index describes that one,
     /// and nothing is owed here.
     No,
     /// A question could not be answered,
@@ -194,65 +192,76 @@ enum Applies {
 }
 
 /// What:
-///  Whether a batch's owed index update still names this worktree's branch.
+///  The reference the worktree names now,
+/// `HEAD` when its head is detached.
 /// Why:
-///   An index belongs to the branch the worktree has checked out.
-/// A worktree that has left the branch the landing happened on has
-///  an index that describes another branch,
-/// and the same rule finishes such a batch in the service
-/// (`still_checked_out`,
-///  `service_land_finish.rs`);
-/// with the branch values checked here,
-/// the same bytes on another branch are
-///  never taken for this landing's.
+///   An index belongs to the reference the worktree has checked out.
+/// A detached head is a different reference from any
+///  branch,
+/// so a record of a branch applies only while that branch is checked out,
+/// and a record made on a detached head only
+///  while the head stays detached.
+/// Nothing else is asked:
+/// an amend
+///  rewrites the ancestry of the same branch and takes no index obligation away,
+/// so ancestry is no reason to forget
+///  a record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// applies(owed) // the branch `HEAD` names, and `new` below `HEAD`
+/// referenceNow(owed) // 'refs/heads/main', or 'HEAD' when detached
 /// ```
-fn applies(git: &GitContext, owed: &Owed) -> Applies {
-    if owed.reference != "HEAD" {
-        let request: GitRequest = GitRequest::new(owed.repository.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
-        let named: String = match run_git(git, &request) {
-            Ok(output) if output.succeeded() => String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string(),
-            // A detached head names no branch, so this record's branch is not checked out.
-            Ok(output) if output.code == Some(NOT_AN_ANCESTOR) => return Applies::No,
-            _ => return Applies::Unknown,
-        };
-        if named != owed.reference {
-            return Applies::No;
-        }
-    }
-    let request: GitRequest = GitRequest::new(owed.repository.as_path(), &["merge-base", "--is-ancestor", owed.new.as_str(), "HEAD"]);
+fn reference_now(git: &GitContext, owed: &Owed) -> Option<String> {
+    let request: GitRequest = GitRequest::new(owed.repository.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
     return match run_git(git, &request) {
-        Ok(output) if output.succeeded() => Applies::Yes,
-        Ok(output) if output.code == Some(NOT_AN_ANCESTOR) => Applies::No,
-        _ => Applies::Unknown,
+        Ok(output) if output.succeeded() => Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()),
+        // Exit status 1 is a detached head: a reference no branch names.
+        Ok(output) if output.code == Some(NOT_AN_ANCESTOR) => Some(String::from("HEAD")),
+        _ => None,
+    };
+}
+
+/// Whether the record's reference is the one the worktree names.
+fn applies(git: &GitContext, owed: &Owed) -> Applies {
+    return match reference_now(git, owed) {
+        Some(named) if named == owed.reference => Applies::Yes,
+        Some(_) => Applies::No,
+        None => Applies::Unknown,
     };
 }
 
 /// What:
-///  Sets the commit's own index to the worktree's head for the paths whose live entry the commit would
-///  record against that head,
-///  and gives those paths.
+///  Sets the commit's own index to the worktree's head for the paths the commit it is making would record against that
+///  head,
+///  and gives the paths it left out.
 /// Why:
 ///   This is the whole of what a commit does about a landed batch's owed index update.
-/// The live index is
-///  never written:
+/// The live index is never
+///  written:
 /// nothing that may be a program's staging is replaced,
 /// so a deliberate reversal,
 /// a staged child,
-/// a conflict's stages and a stage made while the commit prepares all stand.
-/// The paths are set to the head rather than to the
-///  landed commit,
-/// so this commit records nothing about them whatever the branch has done since.
+/// a
+///  conflict's stages and a stage made while the commit prepares all stand.
+/// The comparison is made against the commit's own
+///  index when it has one,
+/// because that snapshot is what the commit records,
+/// and the live index is asked in the same
+///  breath whether anything is still owed:
+/// a program that catches the live index up between the copy and this step
+///  removes the record and leaves the snapshot's stale entry,
+/// so the snapshot is what the commit leaves out.
+/// The paths are
+///  set to the head rather than to the landed commit,
+/// so the commit records nothing about them whatever the branch has
+///  done since.
 /// An explicit-path commit names its own selection,
 /// which is the person's statement,
-/// so nothing is
-///  taken from it and the notice alone is given.
-/// A record whose branch this worktree has left is forgotten,
-/// and one whose entries all agree with the head is
-///  settled and forgotten.
+/// so nothing is taken
+///  from it and the notice alone is given.
+/// A record whose reference this worktree no longer names is forgotten,
+/// and one
+///  nothing is owed under any more is settled and forgotten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,14 +277,14 @@ pub fn exclude_what_a_landed_commit_left(git: &GitContext, git_dir: &Path, live_
         match applies(git, &owed) {
             Applies::Yes => {}
             Applies::No => {
-                crate::service_log!("the record of the index update batch {} owes in {} is forgotten: the worktree is on another branch", owed.seq, live_index.display());
+                crate::service_log!("the record of the index update batch {} owes in {} is forgotten: the worktree names another reference", owed.seq, live_index.display());
                 remove(git_dir, owed.seq);
                 continue;
             }
             Applies::Unknown => {
                 crate::diagnostic_log::warn(
                     "servicePrepare",
-                    format!("the branch of the index update batch {} owes in {} cannot be read, so this commit leaves the record and its paths as they are", owed.seq, live_index.display()).as_str(),
+                    format!("the reference of the index update batch {} owes in {} cannot be read, so this commit leaves the record and its paths as they are", owed.seq, live_index.display()).as_str(),
                 );
                 continue;
             }
@@ -287,7 +296,9 @@ pub fn exclude_what_a_landed_commit_left(git: &GitContext, git_dir: &Path, live_
                 continue;
             }
         };
-        let differing: Vec<Vec<u8>> = match differing_from_head(git, &owed, live_index, names.as_slice()) {
+        // The commit records its own snapshot; the live index says whether anything is still owed.
+        let snapshot: &Path = commit_index.unwrap_or(live_index);
+        let snapshot_differing: Vec<Vec<u8>> = match differing_from_head(git, &owed, snapshot, names.as_slice()) {
             Ok(differing) => differing,
             Err(code) => {
                 crate::diagnostic_log::warn(
@@ -297,51 +308,79 @@ pub fn exclude_what_a_landed_commit_left(git: &GitContext, git_dir: &Path, live_
                 continue;
             }
         };
-        if differing.is_empty() {
-            // The live index holds the head's entry at every path the batch named: nothing is owed any more.
+        let live_differing: Vec<Vec<u8>> = match commit_index {
+            None => snapshot_differing.clone(),
+            Some(_) => match differing_from_head(git, &owed, live_index, names.as_slice()) {
+                Ok(differing) => differing,
+                Err(code) => {
+                    crate::diagnostic_log::warn(
+                        "servicePrepare",
+                        format!("the entries the index update of batch {} owes cannot be compared with the live index ({code:?}), so the record stays", owed.seq).as_str(),
+                    );
+                    continue;
+                }
+            },
+        };
+        if snapshot_differing.is_empty() && live_differing.is_empty() {
+            // Nothing is owed any more: the index holds the head's entry at every path the batch named.
             remove(git_dir, owed.seq);
             continue;
         }
-        if let Some(index) = commit_index
-            && let Err(code) = set_to_head(git, &owed, index, differing.as_slice())
-        {
-            crate::diagnostic_log::warn(
-                "servicePrepare",
-                format!("the commit's own index could not be set to the head for the entries batch {} owes ({code:?}), so this commit records them as the index holds them", owed.seq).as_str(),
-            );
+        match commit_index {
+            Some(index) => match set_to_head(git, &owed, index, snapshot_differing.as_slice()) {
+                Ok(()) => {
+                    for path in &snapshot_differing {
+                        left.push(crate::path_bytes::path_message_text(path.as_slice()));
+                    }
+                }
+                Err(code) => crate::diagnostic_log::warn(
+                    "servicePrepare",
+                    format!("the commit's own index could not be set to the head for the entries batch {} owes ({code:?}), so this commit records them as its index holds them", owed.seq).as_str(),
+                ),
+            },
+            None => {
+                for path in &live_differing {
+                    left.push(crate::path_bytes::path_message_text(path.as_slice()));
+                }
+            }
         }
-        for path in &differing {
-            left.push(crate::path_bytes::path_message_text(path.as_slice()));
+        if live_differing.is_empty() {
+            remove(git_dir, owed.seq);
         }
     }
     return left;
 }
 
 /// What:
-///  Sets the commit's own index to the worktree's head at `paths`,
-/// and removes whatever that index held below them.
+///  Sets an index to the worktree's head at `paths`,
+/// removing whatever it held there and below them first.
 /// Why:
 ///   A path the landing added can stand beside entries a program staged below it
 /// (`p` and `p/child`),
-/// and the head holds
-///  one of the two:
+/// and the head holds one of
+///  the two:
 /// an index that holds both cannot be written to a tree,
-/// so the commit's own index takes the
-///  head's shape for the path.
-/// What the program staged below the path stays in the live index,
-/// and the commit
-///  records nothing about it.
+/// so the commit's own index takes the head's
+///  shape for the path.
+/// The removal is forced,
+/// because the entry may hold neither the head's content nor the worktree's:
+///  a landing whose index update failed leaves exactly that,
+/// and a refusal would record the old content.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await setToHead(owed, commitIndex, paths) // git rm --cached -r; git reset HEAD
+/// await setToHead(owed, index, paths) // git rm --cached -r --force; git reset HEAD
 /// ```
 fn set_to_head(git: &GitContext, owed: &Owed, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
+    if paths.is_empty() {
+        return Ok(());
+    }
     let specs: Vec<OsString> = specs_of(paths);
     let mut prune_words: Vec<&OsStr> = vec![
         OsStr::new("rm"),
         OsStr::new("--cached"),
         OsStr::new("-r"),
+        OsStr::new("--force"),
         OsStr::new("--ignore-unmatch"),
         OsStr::new("--quiet"),
         OsStr::new("--"),
@@ -349,10 +388,9 @@ fn set_to_head(git: &GitContext, owed: &Owed, index: &Path, paths: &[Vec<u8>]) -
     prune_words.extend(specs.iter().map(OsString::as_os_str));
     let mut prune: GitRequest = GitRequest::new(owed.repository.as_path(), prune_words.as_slice());
     prune.index = Some(index.to_path_buf());
-    if let Ok(output) = run_git(git, &prune)
-        && !output.succeeded()
-    {
-        return Err(FailureCode::Unavailable);
+    match run_git(git, &prune) {
+        Ok(output) if output.succeeded() => {}
+        _ => return Err(FailureCode::Unavailable),
     }
     return crate::service_land_follow::reset_entries(git, owed.repository.as_path(), Some(index), "HEAD", paths);
 }

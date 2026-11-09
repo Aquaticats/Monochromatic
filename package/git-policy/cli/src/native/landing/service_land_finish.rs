@@ -128,8 +128,9 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
     let recorded: RecordIndexed<'_> = RecordIndexed { journal, intent };
     let installed: bool = lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok();
     if installed {
-        // The index holds the commit now, so nothing is owed any more.
-        crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
+        // The index holds the commit now, so nothing is owed any more; the record goes by a rename, so a kill here leaves either
+        //  an owed record or none, never a settled obligation that still looks owed.
+        crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
     }
     return installed && cleaned;
 }

@@ -219,10 +219,49 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     };
 }
 
-/// Removes the record of one batch;
+/// The extension of a record whose obligation the landing finished.
+/// It holds nothing,
+/// and a command that meets one removes it:
+/// the rename to it is what says the obligation ended,
+/// so a kill between the installation of the index and the
+///  rename leaves a record that is still owed,
+/// never one that is owed and already settled.
+pub const SETTLED_EXTENSION: &str = "settled";
+
+/// The path that says one batch's obligation is over.
+pub fn settled_path_of(git_dir: &Path, seq: u64) -> PathBuf {
+    return directory_of(git_dir).join(format!("{seq}.{SETTLED_EXTENSION}"));
+}
+
+/// What:
+///  Says that a batch's owed index update is settled.
+/// Why:
+///   The rename is atomic,
+/// so a command that finds the owed name still sees an obligation,
+/// and one that finds the
+///  settled name sees that there is none.
+/// The settled file is removed at once;
+/// one a kill leaves is removed by the next command,
+/// and it
+///  carries no obligation either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settle(gitDir, seq) // rename `.owed` to `.settled`, then unlink
+/// ```
+pub fn settle(git_dir: &Path, seq: u64) {
+    let settled: PathBuf = settled_path_of(git_dir, seq);
+    if std::fs::rename(path_of(git_dir, seq), settled.as_path()).is_ok() {
+        let _removed: std::io::Result<()> = std::fs::remove_file(settled.as_path());
+    }
+}
+
+/// Removes the record of one batch,
+/// settled or not;
 /// a record that cannot be removed stays for the next command to find.
 pub fn remove(git_dir: &Path, seq: u64) {
     let _removed: std::io::Result<()> = std::fs::remove_file(path_of(git_dir, seq));
+    let _settled: std::io::Result<()> = std::fs::remove_file(settled_path_of(git_dir, seq));
 }
 
 /// What:
@@ -245,8 +284,14 @@ pub fn records_of(git_dir: &Path) -> Vec<Owed> {
     let mut found: Vec<Owed> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
-        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(OWED_EXTENSION) {
-            continue;
+        match path.extension().and_then(std::ffi::OsStr::to_str) {
+            Some(OWED_EXTENSION) => {}
+            // The remains of a settled obligation: nothing is owed, and it goes.
+            Some(SETTLED_EXTENSION) => {
+                let _removed: std::io::Result<()> = std::fs::remove_file(path.as_path());
+                continue;
+            }
+            _ => continue,
         }
         match std::fs::read_to_string(path.as_path()).map(decode_text) {
             Ok(Ok(owed)) => found.push(owed),
