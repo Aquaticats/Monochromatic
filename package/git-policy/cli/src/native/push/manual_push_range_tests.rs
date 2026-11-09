@@ -264,3 +264,68 @@ fn the_range_error_displays_its_message() {
     };
     assert_eq!(error.to_string(), "the range query failed");
 }
+
+/// What:
+///  A request list larger than a pipe is written while the answers are read,
+/// so the query returns.
+/// Why:
+///   Git reads its requests and answers in one loop.
+/// The wrapper wrote the whole list before it read anything,
+/// so a
+///  reply pipe that filled stopped Git reading the list,
+/// and the write waited for the reply for good
+/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 9).
+/// The stand-in fills its reply pipe and only then reads its requests,
+/// which is what a Git answering a large batch
+///  does;
+/// the list is larger than a pipe,
+/// and the wait is bounded,
+/// so a deadlock is reported rather than hanging the run.
+#[test]
+fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
+    let root: PathBuf = fixture("manual-push-range-pipes");
+    let program: PathBuf = root.join("stand-in-git");
+    let pid_file: PathBuf = root.join("stand-in-pid");
+    // The stand-in answers more than a pipe holds before it reads a request; it then reads the whole list and answers once.
+    std::fs::write(
+        &program,
+        format!("#!/bin/sh\necho $$ > '{}'\nprintf '%300000s' ''\ncat > /dev/null\nprintf 'answered\\n'\n", pid_file.display()),
+    )
+    .expect("the stand-in");
+    let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(&program, mode).expect("the stand-in runs");
+    let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
+    // One line per destination, far more than a pipe of 64 KiB holds.
+    let requests: String = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n".repeat(2000);
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, ManualPushRangeError>>();
+    // The query runs on a thread of its own, so a deadlock is reported by this control rather than hanging it.
+    let querying = {
+        let for_the_query: PushGit = git.clone();
+        let list: String = requests;
+        std::thread::Builder::new()
+            .name(String::from("manual-push-range-control"))
+            .spawn(move || {
+                let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
+                let _abandoned = sender.send(run_git_bytes(&for_the_query, arguments.as_slice(), Some(list.as_str())));
+            })
+            .expect("the control's thread")
+    };
+    let answer: Result<Result<Vec<u8>, ManualPushRangeError>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(20));
+    // The stand-in is ended whatever happened, so a query that deadlocked is released and the control's thread ends.
+    let stand_in: Result<String, std::io::Error> = std::fs::read_to_string(&pid_file);
+    if let Ok(text) = stand_in.as_ref()
+        && let Ok(number) = text.trim().parse::<libc::pid_t>()
+    {
+        // SAFETY: the number is the stand-in's own, which it wrote; `kill` takes two integers and touches no memory.
+        let _ended = unsafe { libc::kill(number, libc::SIGKILL) };
+    }
+    let _joined = querying.join();
+    remove(root.as_path());
+    let returned = answer.expect("the query returned; a full request pipe deadlocked it");
+    let bytes: Vec<u8> = returned.expect("the query answers");
+    // The stand-in's answer is what it wrote before it read the list, and the line it wrote after it.
+    assert_eq!(bytes.len(), 300_000 + "answered\n".len(), "the query read every byte the stand-in wrote");
+    assert!(bytes.ends_with(b"answered\n"), "the query read the answer that came after the request list: {} bytes", bytes.len());
+}

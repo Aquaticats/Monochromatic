@@ -2730,6 +2730,18 @@ finding 4).
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
 
+A batch query of the manual push writes its request list while it reads the answers.
+`cat-file --batch-check` and `rev-list --stdin` read one request and write one reply in a loop
+(`src/native/push/manual_push_range.rs`),
+and the wrapper wrote the whole list before it read anything,
+so a reply pipe that filled stopped Git reading the list and the write waited for the reply for good
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 9).
+The list goes in from a thread of its own,
+the answers are read on another,
+and the wait carries `PLUMBING_STEP_CEILING`,
+so a query that never answers is ended and reported with the command line and the ceiling.
+
 A read-only query the wrapper asks of Git ends at a ceiling of its own.
 The metadata questions (`src/native/repo_read/git_metadata.rs`) and the two one-shot questions of the
 invocation (`src/native/repo_read/git_system_config.rs`,
