@@ -1500,6 +1500,31 @@ a directory put at that name instead is kept and named,
 and so is a stage whose conversion left no record.
 It says what it found before it destroys it,
 and refuses while a process is inside that directory.
+That identity is read again in the step immediately before the destroy,
+so a directory another program renames into that name in that interval is destroyed as if it were the stage.
+Binding it needs a
+destroy that takes a descriptor,
+which the platform does not offer,
+so the window stays one check wide.
+The person sees the directory they put there gone,
+and the stage they moved aside still where they moved it,
+under a name
+no record names.
+The rollback's two directories are read the same way,
+immediately before and immediately after its exchange,
+and a pair that did not exchange is exchanged back and reported,
+so nothing is deleted;
+a directory renamed into
+the checkout's name inside the last interval is exchanged with the original tree and is back at the old tree's name when
+the read after the exchange refuses,
+and a kill between the exchange and that read leaves the original tree at the checkout's
+name and the person's directory at `<root>.before-subvolume`,
+where the next `--rollback` reports the pair it did not
+expect and changes nothing.
+Both windows need a second program to rename a directory inside a window measured in
+microseconds,
+which is the accepted risk of other processes changing files,
+and neither is a defect of this command alone.
 
 Other processes:
 nothing in the command or the program excludes another process from changing the worktree while a command
