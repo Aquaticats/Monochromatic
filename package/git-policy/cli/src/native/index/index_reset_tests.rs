@@ -7,7 +7,7 @@
 use super::*;
 use crate::index_cache_tree::CacheTree;
 use crate::index_fsmonitor::Fsmonitor;
-use crate::index_reset_worktree_stat::WorktreeStatSource;
+use crate::index_reset_worktree_stat_source::WorktreeStatSource;
 use crate::index_stat::{IndexStamp, StatData};
 use crate::index_untracked::{Untracked, UntrackedDir};
 

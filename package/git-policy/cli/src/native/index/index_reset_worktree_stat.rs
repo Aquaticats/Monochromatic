@@ -71,6 +71,7 @@
 //! const stat: StatData | undefined = recordedStat({ worktreeRoot, path, blob, mode, format, stamp });
 //! ```
 
+use crate::index_reset_worktree_stat_source::WorktreeStatSource;
 use crate::index_stat::{IndexStamp, StatData};
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_sha::{sha1, sha256};
@@ -90,49 +91,6 @@ const SYMBOLIC_LINK: u32 = 0o120_000;
 
 /// The one permission bit of a file's mode that an index entry records.
 const EXECUTABLE_BIT: u32 = 0o100;
-
-/// What:
-///  A source of the stat data an entry the reset makes records:
-/// the worktree's own where the caller can prove the file holds the entry's bytes.
-/// Why:
-///  `index_reset.rs` holds the choice and this module holds the proof that reads the worktree,
-/// so this trait names the one method between them and no
-///  closure carries either side's state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface WorktreeStatSource { recorded(path: Uint8Array, blob: Uint8Array, mode: number): StatData | undefined }
-/// ```
-pub trait WorktreeStatSource {
-    /// The stat data the file at `path` provably has,
-    /// for the entry `mode` records the bytes of `blob`,
-    /// or nothing when the file proves nothing.
-    fn recorded(&self, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData>;
-}
-
-/// What:
-///  Where the stat data of an entry the reset makes comes from.
-/// Why:
-///   `git reset --no-refresh` writes every entry it makes with all-zero stat data,
-/// and a landing that leaves the worktree's stat data
-///  instead saves the next commit a refresh (`index_reset.rs`);
-/// a caller that can prove no file holds the committed bytes
-///  still writes the zero value,
-/// so this is a choice the caller states.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WorktreeStat = ((path: Uint8Array, blob: Uint8Array, mode: number) => StatData | undefined) | 'none';
-/// ```
-pub enum WorktreeStat<'a> {
-    /// The worktree's stat data for a path whose file provably holds the bytes the entry's object name records,
-    /// from the source the caller names.
-    Recorded(&'a dyn WorktreeStatSource),
-    /// Nothing:
-    /// every entry the reset makes carries the all-zero stat data,
-    /// as `git reset --no-refresh` leaves it.
-    None,
-}
 
 /// What:
 ///  One path whose entry a reset writes,
@@ -284,6 +242,14 @@ fn link_bytes(path: &Path, before: &std::fs::Metadata) -> Option<Vec<u8>> {
     return Some(target.into_os_string().into_vec());
 }
 
+/// The moments of the proof at which a control changes the file under it.
+pub struct ProofSeams<'a> {
+    /// Called after the file's state was first read and before it is opened.
+    pub before_open: &'a mut dyn FnMut(),
+    /// Called after the bytes were read and before the state is read again.
+    pub after_read: &'a mut dyn FnMut(),
+}
+
 /// What:
 ///  The bytes of the regular file at `path`,
 /// or nothing when the file is larger than `CONTENT_LIMIT`,
@@ -302,7 +268,8 @@ fn link_bytes(path: &Path, before: &std::fs::Metadata) -> Option<Vec<u8>> {
 /// ```ts
 /// const bytes = readStable(path, before, afterRead); // open O_NOFOLLOW, read at most CONTENT_LIMIT, compare state before and after
 /// ```
-fn file_bytes(path: &Path, before: &std::fs::Metadata, after_read: &mut dyn FnMut()) -> Option<(Vec<u8>, std::fs::Metadata)> {
+fn file_bytes(path: &Path, before: &std::fs::Metadata, seams: &mut ProofSeams<'_>) -> Option<(Vec<u8>, std::fs::Metadata)> {
+    (seams.before_open)();
     if before.len() > CONTENT_LIMIT {
         return None;
     }
@@ -312,7 +279,7 @@ fn file_bytes(path: &Path, before: &std::fs::Metadata, after_read: &mut dyn FnMu
         return None;
     }
     let data: Vec<u8> = read_at_most(&file, CONTENT_LIMIT).ok()??;
-    after_read();
+    (seams.after_read)();
     let after: std::fs::Metadata = file.metadata().ok()?;
     let by_name: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
     if !same_state(&held, &after) || !same_state(&held, &by_name) {
@@ -384,7 +351,7 @@ impl WorktreeStatSource for LandingStat<'_> {
 /// const stat = recordedStat({ worktreeRoot, path, blob, mode, format, stamp });
 /// ```
 pub fn recorded_stat(request: &WorktreeStatRequest<'_>) -> Option<StatData> {
-    return recorded_stat_seamed(request, &mut do_nothing);
+    return recorded_stat_seamed(request, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing });
 }
 
 /// What:
@@ -398,7 +365,7 @@ pub fn recorded_stat(request: &WorktreeStatRequest<'_>) -> Option<StatData> {
 /// ```ts
 /// const stat = recordedStatSeamed(request, afterRead);
 /// ```
-pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, after_read: &mut dyn FnMut()) -> Option<StatData> {
+pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut ProofSeams<'_>) -> Option<StatData> {
     let path: PathBuf = request.worktree_root.join(std::ffi::OsStr::from_bytes(request.path));
     let before: std::fs::Metadata = std::fs::symlink_metadata(path.as_path()).ok()?;
     if !mode_agrees(request.mode, &before) || request.stamp.is_racy(&stat_of(&before)) {
@@ -424,7 +391,7 @@ pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, after_read: &mut 
     }
     let (data, examined): (Vec<u8>, std::fs::Metadata) = match request.mode & TYPE_BITS {
         SYMBOLIC_LINK => (link_bytes(path.as_path(), &before)?, before),
-        _ => file_bytes(path.as_path(), &before, after_read)?,
+        _ => file_bytes(path.as_path(), &before, seams)?,
     };
     request.hashed.set(spent + data.len() as u64);
     if blob_name(data.as_slice(), request.format) != request.blob {

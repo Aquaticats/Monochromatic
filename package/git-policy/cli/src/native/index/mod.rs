@@ -72,6 +72,12 @@ pub mod index_reset;
 pub mod index_reset_path_names;
 
 /// In-process index update:
+/// the choice of where a new entry's stat data comes from,
+/// and the trait a proof implements.
+#[cfg(unix)]
+pub mod index_reset_worktree_stat_source;
+
+/// In-process index update:
 /// the worktree's stat data for a path the reset writes,
 /// recorded only where the file provably holds the commit's bytes.
 #[cfg(target_os = "linux")]

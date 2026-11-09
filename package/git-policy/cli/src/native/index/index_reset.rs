@@ -33,7 +33,7 @@ use crate::index_reset_path_names::path_is_plain;
 use crate::index_full::{FullEntry, FullIndex, SKIP_WORKTREE};
 use crate::index_settings::{IndexSettings, UntrackedMode};
 use crate::index_stat::{IndexStamp, StatData};
-use crate::index_reset_worktree_stat::WorktreeStat;
+use crate::index_reset_worktree_stat_source::WorktreeStat;
 use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
 
 /// The mode a regular file with an executable bit gets in the index.
