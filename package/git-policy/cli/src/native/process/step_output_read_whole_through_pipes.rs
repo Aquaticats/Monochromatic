@@ -516,24 +516,24 @@ pub enum CeilingWhy {
 }
 
 /// What:
-///  The ceiling a wait carries for a step whose own ceiling is `limit`,
+///  The ceiling a wait carries for a step with `ceiling`,
 /// and why it is the wait that ends it.
 /// Why:
 ///   The reason is the watch's to tell:
 /// a watch that could not run at all,
 /// or one that runs and could not end this step.
+/// `None` in,
+///  `None` out:
+/// a step with no ceiling is waited for as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// CarriedCeiling.forAStepWith(limit, aWatchRuns);
+/// carriedFor(ceiling, aWatchRuns)
 /// ```
-impl CarriedCeiling {
-    /// `limit` for a step,
-    /// where `a_watch_runs` says whether a watch exists at all.
-    pub fn for_a_step_with(limit: Duration, a_watch_runs: bool) -> Self {
-        let why: CeilingWhy = if a_watch_runs { CeilingWhy::TheWatchCouldNotEndIt } else { CeilingWhy::NoWatcher };
-        return Self { limit, why };
-    }
+pub fn carried_for(ceiling: Option<Duration>, a_watch_runs: bool) -> Option<CarriedCeiling> {
+    let limit: Duration = ceiling?;
+    let why: CeilingWhy = if a_watch_runs { CeilingWhy::TheWatchCouldNotEndIt } else { CeilingWhy::NoWatcher };
+    return Some(CarriedCeiling { limit, why });
 }
 
 /// What:

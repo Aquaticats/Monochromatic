@@ -615,10 +615,8 @@ pub fn output_watched_within_for_a_stop(
     // Whatever the watch could not do, the wait for the output carries the step's own ceiling: a watch that cannot run, and one
     // that may announce a wait but must not end it, both leave this wait as the only thing that ends the step at its ceiling
     // (the third review's finding 2). A step with no ceiling is waited for as before.
-    let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> = match ceiling {
-        Some(limit) => Some(crate::step_output_read_whole_through_pipes::CarriedCeiling::for_a_step_with(limit, watch.unwatched().is_none())),
-        None => None,
-    };
+    let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> =
+        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.unwatched().is_none());
     watch.begin();
     let output: std::io::Result<Output> = match bound {
         StepBound::LeaveRunning { after, extra } => {
