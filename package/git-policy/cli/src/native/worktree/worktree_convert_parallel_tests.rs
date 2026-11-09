@@ -8,7 +8,7 @@
 
 use super::*;
 use crate::fs_primitive_error::PrimitiveError;
-use crate::parallel_test_support::{PATIENCE, Rendezvous, hold_the_only_place, room_for};
+use crate::parallel_test_support::{ONE_PLACE, PATIENCE, Rendezvous, hold_the_only_place, room_for};
 use crate::subvolume_test_support::{PlainPlatform, backdate, make_checkout};
 use crate::test_support::{fixture, git, remove, wait_until};
 use crate::worktree_convert::CONVERTING_SUFFIX;
@@ -476,6 +476,8 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
     // One conversion proves it, and it is the only one that may run: the place this control holds is the process's
     //  only place, so four worktrees here would be four conversions one after another, which under the load of a whole
     //  suite can outlast the test watchdog (measured: 105 s in a suite, 1.1 s alone).
+    // The room is the control's, never the CPUs this machine has, so the runtime it holds a place of is sized by this call.
+    let _room: usize = room_for("the_conversions_take_places_of_the_processs_bound_on_blocking_jobs", ONE_PLACE);
     let (parent, root) = checkout_with_worktrees("convert-parallel-a-place-of-the-bound", ONE_CONVERSION);
     let (given_back, finished) = hold_the_only_place();
     let started_after: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
