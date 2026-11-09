@@ -77,6 +77,30 @@ impl Rendezvous {
         );
     }
 
+    /// What:
+    ///  Arrive at a point that a second arrival proves an overlap of,
+    ///  and give the arrival back when the patience ends without one.
+    /// Why:
+    ///  A control that must show two pieces of work never overlapping holds its arrival until another arrives:
+    /// the arrival that answers true was inside the point while the other was,
+    /// which is an event and not a duration.
+    ///  Giving the arrival back on the patience keeps the count of the threads inside the point now,
+    /// so no later arrival can be told it overlapped one that had already left.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const overlapped = point.arriveAndGiveBack();
+    /// ```
+    pub(crate) fn arrive_and_give_back(&self) -> bool {
+        let arrived: bool = self.arrive();
+        if !arrived {
+            let mut count = self.arrived.lock().expect("lock");
+            *count = count.saturating_sub(1);
+            self.changed.notify_all();
+        }
+        return arrived;
+    }
+
     /// Wait without arriving until the target number have arrived;
     /// false after the patience.
     pub(crate) fn wait_for_target(&self) -> bool {
