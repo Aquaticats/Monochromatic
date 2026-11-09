@@ -697,10 +697,10 @@ fn a_watched_stop_of_a_responsive_holder_leaves_no_lock() {
 }
 
 /// A holder that cannot answer `SIGTERM` is killed in the watched path,
-/// and Git's own handler has removed its lock by then.
+/// and the lock it held stays.
 #[test]
-fn a_watched_stop_of_an_unresponsive_holder_leaves_no_lock() {
-    watched_step(Holder::Unresponsive, "stop-lock-watched-unresponsive", Leftover::TheHolderCleansItUp);
+fn a_watched_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
+    watched_step(Holder::Unresponsive, "stop-lock-watched-unresponsive", Leftover::NothingProvesIt);
 }
 
 /// The watched path asks with a catchable signal before it kills:
@@ -731,7 +731,8 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
 
 /// A stop with no grace kills at once and hands the child to a thread,
 /// which sweeps its locks when it has ended;
-/// the lock stays, because nothing proves its holder gone.
+/// the lock stays,
+/// because nothing proves its holder gone.
 #[test]
 fn a_stop_without_grace_sweeps_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");

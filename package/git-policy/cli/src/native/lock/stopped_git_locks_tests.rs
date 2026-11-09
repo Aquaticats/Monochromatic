@@ -80,17 +80,19 @@ fn write_pid_file(path: &Path, pid: i32) {
     std::fs::write(path, format!("pid {pid}\n")).expect("pid file");
 }
 
-/// A lock whose pid file names an ended member of the stopped tree is removed with its pid file.
+/// A lock whose pid file names an ended member of the stopped tree stays with its pid file:
+/// the number is a number the wrapper's own namespace gave its child,
+/// and a Git of a sibling namespace may have written the same one,
+/// so the pid file proves nothing about this lock.
 #[test]
-fn a_lock_named_by_an_ended_member_goes_with_its_pid_file() {
+fn a_lock_named_by_an_ended_member_stays_with_its_pid_file() {
     let repo: Repo = repo("stopped-locks-named");
     let ledger: LockLedger = ledger_of(&repo);
     let member: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(), vec![lock_of(&repo, "main")]);
-    assert!(!lock_of(&repo, "main").exists());
-    assert!(!pid_file_of(&repo, "main").exists());
+    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
 
@@ -259,7 +261,7 @@ fn locks_that_are_not_reference_locks_stay() {
 /// A judge with the view a container has:
 /// the process numbers it reads are not known to be the machine's.
 fn container_judge() -> crate::stale_ref_lock_judge::Judge {
-    return crate::stale_ref_lock_judge::Judge { pid_view_complete: false, ..crate::stale_ref_lock_killed_git::judge() };
+    return crate::stale_ref_lock_judge::Judge { ..crate::stale_ref_lock_killed_git::judge() };
 }
 
 /// A pid file holds the number its writer had in the writer's own PID namespace,

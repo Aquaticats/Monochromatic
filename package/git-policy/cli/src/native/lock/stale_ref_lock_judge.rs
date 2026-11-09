@@ -15,6 +15,14 @@
 //!  among the proofs:
 //! a correction of the wall clock moves every time that a lock and the boot are compared by (finding S-2 of
 //!  the cross-vendor review of 2026-11-03T11:33:50-05:00).
+//! Neither is a pid file:
+//!  Git writes it with a process number and no namespace,
+//! and only the birth order of the two files could tie that number to this lock,
+//! which a step of the clock turns around,
+//! so the pid file is read for the words of the notice and decides nothing
+//! (cross-vendor review of 2026-11-09,
+//! finding 3).
+//! The only removal left here is the staging file of the packed references.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,13 +30,11 @@
 //! ```
 
 use crate::fs_mount_options::read_mount_facts;
-use crate::pid_namespace::current_pid_namespace;
-use crate::stale_ref_lock_judge_environment::{INITIAL_PID_NAMESPACE, PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time, proc_hides_no_process};
+use crate::stale_ref_lock_judge_environment::{PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time};
 use crate::process_start::{ProcessStart, linux_start, now_ms};
 use crate::process_use::{ProcessUser, UseScan, UseTarget, processes_using_through};
 use crate::git_command_name::names_git_command;
 use crate::stale_ref_lock_found::PidFile;
-use crate::stale_ref_lock_nested_numbers::nested_holders_of;
 use crate::stopped_git_locks::pid_named_by;
 use crate::stale_ref_lock_walk::pid_file_beside;
 pub use crate::stale_ref_lock_identity::{Identity, identity_of};
@@ -97,8 +103,6 @@ const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", 
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Proof {
-    /// The process the pid file names is gone.
-    PidGone(i64),
     /// The staging file `packed-refs.new` has no lock beside it,
     /// and Git creates it only while holding that lock.
     OrphanStaging,
@@ -131,8 +135,6 @@ pub struct Judge {
     pub proc_root: PathBuf,
     /// How old a lock must be before it is judged at all.
     pub margin: Duration,
-    /// Whether the process numbers read here mean the same processes as in the pid files.
-    pub pid_view_complete: bool,
     /// When the machine booted by the wall clock,
     /// where known.
     /// Used only to say that a lock looks older than the boot,
@@ -180,7 +182,6 @@ impl Judge {
         return Self {
             proc_root: PathBuf::from(PROC_MOUNT_POINT),
             margin: MARGIN,
-            pid_view_complete: current_pid_namespace().as_deref() == Some(INITIAL_PID_NAMESPACE) && proc_hides_no_process(),
             boot: boot_time(),
             local_file_systems,
             scan_scope: None,
@@ -250,106 +251,15 @@ impl Judge {
         };
     }
 
-    /// What the pid file's process is now:
-    /// gone,
-    /// a program that is not Git,
-    /// a Git,
-    /// or not known.
-    ///  A number that is gone or reused here proves the writer gone only when no process of the table has that number
-    ///  inside a PID namespace of its own,
-    /// because the pid file holds the number its writer had in the writer's namespace.
-    fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
-        if !self.pid_view_complete {
-            return Verdict::Unproven(self.incomplete_view_reason(pid));
-        }
-        let verdict: Verdict = self.judge_listed_pid(pid, lock_born);
-        if !matches!(verdict, Verdict::Stale(_)) {
-            return verdict;
-        }
-        return match nested_holders_of(self.proc_root.as_path(), pid) {
-            Ok(holders) if holders.is_empty() => verdict,
-            Ok(holders) => Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, and process {} is process {pid} of a PID namespace of its own, so the writer may be that process",
-                holders.first().copied().unwrap_or_default()
-            )),
-            Err(reason) => Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, and the processes could not be searched for one that is process {pid} of a PID namespace of its own: {reason}"
-            )),
-        };
-    }
-
-    /// Why a pid file proves nothing when the process numbers read here are not known to be the machine's.
-    /// The writer wrote the number of its own PID namespace,
-    /// and Git records no namespace,
-    /// so a Git of a sibling namespace that shares the repository may have the same number.
-    /// A lock born after a child this wrapper stopped had started is no more that child's than the sibling's:
-    /// a matching number and a birth order do not say who wrote the file
-    /// (cross-vendor review of 2026-11-09,
-    /// finding 2).
-    fn incomplete_view_reason(&self, pid: i64) -> String {
-        return format!(
-            "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
-        );
-    }
-
-    /// What the pid file's process is in the process table as listed:
-    /// gone,
-    /// a Git,
-    /// a program that is not Git,
-    /// or not known.
-    /// A number that a running program has proves the writer gone only when that program cannot be the writer,
-    /// and its command name does not say that:
-    /// Git may run under another name,
-    /// and the one sign that would tell the two apart is when the process started,
-    /// which this host derives from the wall clock,
-    /// so a correction of the clock moves it against the lock's birth and the same evidence would answer both ways
-    /// (cross-vendor review of 2026-11-09,
-    /// finding 1).
-    /// The start is therefore said and never decides:
-    /// a program that is not named like Git is not proven the holder,
-    /// and not proven a later user of the number either.
-    fn judge_listed_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
+    /// What the pid file's number is now,
+    /// in words:
+    /// the notice says it and nothing decides on it.
+    fn process_state_words(&self, pid: i64) -> String {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
-            ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
-            ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
-            ProcessStart::Running { started_at_ms, resolution_ms } => {
-                let command: String = match std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")) {
-                    Ok(text) => text.trim().to_owned(),
-                    Err(_) => String::new(),
-                };
-                if names_git_command(command.as_str()) {
-                    return Verdict::Held(format!("process {pid} ({command}), which the pid file beside it names, is running"));
-                }
-                let named: String = if command.is_empty() {
-                    format!("process {pid}")
-                } else {
-                    format!("process {pid} (`{command}`)")
-                };
-                let moved: &str = if self.starts_after(lock_born, started_at_ms, resolution_ms) {
-                    ", which this host's clock puts after the lock was made, which a later program that took the number would explain and so would a correction of the clock"
-                } else {
-                    ""
-                };
-                Verdict::Unproven(format!(
-                    "the pid file beside it names {named}, which is running and is not named like Git{moved}; a Git running under another name looks the same, so nothing here proves the writer gone"
-                ))
-            }
+            ProcessStart::Missing => String::from("has ended"),
+            ProcessStart::Unknown(reason) => format!("could not be looked at ({reason})"),
+            ProcessStart::Running { .. } => String::from("is running"),
         };
-    }
-
-    /// Whether this host's clock puts the process's start after the lock's birth,
-    /// beyond the clock's resolution.
-    /// Only worded:
-    /// no verdict rests on it,
-    /// because a correction of the clock moves the derived start and nothing else.
-    fn starts_after(&self, lock_born: Option<SystemTime>, started_at_ms: f64, resolution_ms: i64) -> bool {
-        let Some(at) = lock_born else {
-            return false;
-        };
-        let Ok(elapsed) = at.duration_since(SystemTime::UNIX_EPOCH) else {
-            return false;
-        };
-        return started_at_ms > elapsed.as_secs_f64() * 1000.0 + resolution_ms as f64;
     }
 
     /// Whether the lock looks older than the boot by the wall clock.
@@ -445,12 +355,19 @@ impl Judge {
         if let Some(reason) = self.unreadable_git(&scan) {
             return verdict_with(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")), pid_file.clone(), identity, born);
         }
-        if let PidFile::Names(pid) = pid_file {
-            return verdict_with(self.judge_pid(pid, born), pid_file.clone(), identity, born);
-        }
+        // A pid file is read for these words and decides nothing: its number names a process of the writer's own PID
+        // namespace, Git records no namespace, and only the birth order of the two files could tie the number to this lock,
+        // which a correction of the clock turns around (cross-vendor review of 2026-11-09, finding 3).
         let mut why: String = match pid_file {
-            PidFile::Older(pid) => format!("the pid file beside it (process {pid}) is older than the lock, so it belongs to an earlier holder"),
-            _ => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
+            PidFile::Names(pid) => format!(
+                "a pid file beside it names process {pid}, which {}, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around",
+                self.process_state_words(pid)
+            ),
+            PidFile::Older(pid) => format!(
+                "the pid file beside it names process {pid}, which {}, and its times are earlier than the lock's, which fits an earlier holder as well as a correction of the clock, so it proves nothing",
+                self.process_state_words(pid)
+            ),
+            PidFile::Absent => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
         };
         if self.looks_older_than_boot(born, &identity) {
             why.push_str("; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing");

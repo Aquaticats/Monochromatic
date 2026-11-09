@@ -295,7 +295,7 @@ impl Drop for Helper {
 /// the veto keeps its own controls,
 /// which name the holder they plant.
 pub fn judge() -> crate::stale_ref_lock_judge::Judge {
-    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, scan_scope: Some(Vec::new()), ..crate::stale_ref_lock_judge::Judge::here() };
+    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, boot: None, scan_scope: Some(Vec::new()), ..crate::stale_ref_lock_judge::Judge::here() };
 }
 
 /// Make a new commit and start `git push origin main`,

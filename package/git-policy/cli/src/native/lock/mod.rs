@@ -81,10 +81,6 @@ pub mod stale_ref_lock_judge;
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
 
-/// The processes that carry a number inside a PID namespace nested in the reader's,
-/// which a pid file may name.
-pub mod stale_ref_lock_nested_numbers;
-
 /// The wrapper's own fetch and push,
 /// started after the stale reference locks of their repository are cleared.
 pub mod push_lock_clearing;
