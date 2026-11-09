@@ -210,6 +210,37 @@ fn abandon_leftover_stage(platform: &dyn Platform, path: &Path, reason: &str, sa
 ///  Past the swap there is nothing to undo,
 /// and the command says to run it again.
 fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+    return abandon_seamed(platform, candidate, journal, say, &mut nothing_at_all);
+}
+
+/// A step that does nothing,
+/// for the run between the two holder scans of an abandon.
+fn nothing_at_all() {}
+
+/// What:
+///  `abandon`,
+/// with a call between its two scans of the process table,
+/// where a control lets a process enter the stage.
+/// Why:
+///   The scan and the destroy are not one step,
+/// and a process that enters the stage in that window loses its working
+///  directory.
+/// The second scan is placed immediately before the destroy,
+/// so the window is one check wide,
+/// and a test can
+///  only enter it through a seam.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// abandonSeamed(platform, candidate, journal, say, betweenScans);
+/// ```
+fn abandon_seamed(
+    platform: &dyn Platform,
+    candidate: &Candidate,
+    journal: Journal,
+    say: &mut dyn LineSink,
+    between_scans: &mut dyn FnMut(),
+) -> Result<Verdict, MigrateError> {
     let converting: PathBuf = converting_path(candidate.path.as_path());
     if journal.phase >= Phase::Exchanged {
         say.say("  the swap already happened; run the command again to finish it (there is nothing to undo)");
@@ -221,10 +252,21 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
     if !holders.is_empty() {
         return Ok(Verdict::Skipped(vec![format!("the stage {} is kept because {}; stop that and run the command again", converting.display(), holders.join("; "))]));
     }
+    between_scans();
     if let Some(found) = stage_identity_of(candidate.path.as_path())? {
         if journal.new_identity == Some(found) {
             if !platform.is_subvolume_root(converting.as_path())? {
                 return Err(MigrateError::Journal(format!("{} is not a subvolume root, so it is not what this conversion created and is left alone", converting.display())));
+            }
+            // The last look before the call, as the removal phase takes it: the window is one check wide and cannot be closed
+            // without a lock the owner does not want.
+            let arrived: Vec<String> = processes_inside(converting.as_path());
+            if !arrived.is_empty() {
+                return Ok(Verdict::Skipped(vec![format!(
+                    "the stage {} is kept because {} entered it while the command was about to destroy it; stop that and run the command again",
+                    converting.display(),
+                    arrived.join("; ")
+                )]));
             }
             platform.destroy_subvolume(converting.as_path())?;
         } else {

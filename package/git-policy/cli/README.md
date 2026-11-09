@@ -1432,6 +1432,10 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   reached its swap,
   destroying only the subvolume its journal says it created,
   and refuses while a process has a shell or a file open inside it (the process is named).
+  The scan runs again immediately before the destroy,
+  so the window is one check wide;
+  it is not closed,
+  and a shell that enters the copy in that window is left in a `(deleted)` directory whose writes fail.
   It also reaches the copy a conversion left behind when its worktree was removed before the
   conversion was finished (a worktree path without a `.git` that still has `<path>.cli-git-converting`
   beside it):

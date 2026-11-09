@@ -270,6 +270,38 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
 }
 
 /// What:
+///  A process that enters the stage after the first holder scan keeps the stage:
+///  the scan immediately before the destroy
+///  sees it,
+///  so the window between the check and the kernel call is one check wide.
+/// Why:
+///   That window cannot be closed without a lock,
+/// so the command takes the last look it can and the person is told
+///  which process entered.
+#[test]
+fn a_process_that_enters_the_stage_after_the_scan_keeps_it() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-late-holder");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let candidate: Candidate = inspect(worktree.as_path()).expect("candidate");
+    let journal: Journal = Journal::load(candidate.admin.as_path()).expect("the journal loads").expect("a journal of the interrupted conversion");
+    let mut say: Vec<String> = Vec::new();
+    let late: std::cell::RefCell<Option<Sleeper>> = std::cell::RefCell::new(None);
+    let mut enter = || {
+        *late.borrow_mut() = Some(Sleeper::start(converting.as_path()));
+    };
+    let verdict = abandon_seamed(&platform, &candidate, journal, &mut |text: &str| { say.push(String::from(text)); }, &mut enter);
+    let pid: i64 = late.borrow().as_ref().expect("the sleeper entered the stage").pid();
+    let Verdict::Skipped(reasons) = verdict.expect("no failure") else { panic!("the abandon keeps the stage a process entered: {say:?}") };
+    let named: String = reasons.join("; ");
+    assert!(named.contains(format!("process {pid}").as_str()), "the refusal names the process that entered: {named}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the stage is kept");
+    drop(late);
+    remove(parent.as_path());
+}
+
+/// What:
 ///  `--abandon` destroys a leftover stage only while the object at that name is the one this conversion recorded,
 ///  so a directory someone put there instead is kept and the reason is said.
 /// Why:

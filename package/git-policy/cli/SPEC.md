@@ -1440,6 +1440,20 @@ and only while no process has a working directory or an open file inside that st
 which it reports by
 process number,
 as the removal phase of the same conversion does.
+The scan is taken twice,
+the second immediately before the kernel call,
+so the window between the
+check and the destroy is one check wide;
+it cannot be closed without a lock that excludes every process from
+the stage,
+and a process that changes its working directory into the stage inside that window loses it:
+its
+shell reads `(deleted)` and its writes there fail with `ENOENT`.
+A position a person can be in
+it is a shell that runs `cd` into the copy while the command destroys it;
+the command cannot tell,
+and it
+reports the abandonment it made.
 A worktree removed after its conversion stopped past the swap leaves the original tree at
 `<path>.cli-git-converting`,
 a full copy nobody can name once the registration and its journal are gone,
