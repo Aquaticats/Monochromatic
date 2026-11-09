@@ -5671,8 +5671,21 @@ Each commit passes through three phases:
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
+    What a foreign lock's evidence proves rests on two facts and never on the wall clock (audit of 2026-11-09,
+    finding 3):
+    a process of the account that has the lock open, and a Git lock PID file (`core.lockfilePid`) that names a running process whose command name
+    starts with `git`,
+    which is the holder because Git writes its own number there.
+    A running program that is not named like Git may be that Git under another name or a later program that took the number,
+    and no start time tells them apart:
+    a process's start is derived from the wall clock while the lock's change time is stored,
+    so a step of the clock moves a live holder's derived start past the lock (a forward step) or a later program's before it (a step back).
+    The start is read and worded beside the evidence,
+    and it decides nothing;
+    a number that is reused therefore reads as an owner nothing proves alive, which the ceiling ends,
+    and a running Git is the holder whatever the clock says.
     A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
-    and a dead one not at all;
+    and a dead one (a Git lock PID file naming a process that no longer runs) not at all;
     either ends the commit before the branch moved,
     removing the batch's intent,
     keeping the built commit on a side ref,

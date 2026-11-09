@@ -396,7 +396,7 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
         };
     }
     match &evidence.pid_file {
-        PidFile::Owner(pid, process) if !process.gone() && !process.starts_after(&evidence.lock) => {
+        PidFile::Owner(pid, process) if process.names_git() => {
             return Verdict::ProvenAlive {
                 pid: *pid,
                 by_descriptor: false,
