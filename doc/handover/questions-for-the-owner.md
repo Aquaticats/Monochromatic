@@ -57,7 +57,21 @@ about 26 to 30 agents would reach 20 open calls.
 Anything else using this key counts against the same limit,
 and the host may run short before the provider does.
 
-The trial at twenty is still running and decides the raise to 20 by itself.
+The trial passed,
+so 20 is now the permanent limit in `.agents/skills/pi-as-subagent/SKILL.md`,
+under your "Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20."
+Over 100 one-minute samples,
+60 had at least 20 agents running,
+the fewest were 16 and the most 20.
+Those 100 minutes saw 4919 model turns and no rate-limit error.
+The errors were 2 Cloudflare 520 responses and 1 request timeout,
+each ending one run,
+which is what the driver job is fixing.
+The median model turn was 3937 ms against 3153 ms in the two hours before,
+and that difference has not been compared with the run-to-run spread,
+so it may be noise.
 
 ### Should a commit add the manifests of dependents it bumps?
 
