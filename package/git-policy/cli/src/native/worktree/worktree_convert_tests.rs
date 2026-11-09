@@ -398,6 +398,38 @@ fn a_socket_stops_a_conversion_before_the_swap_and_deleting_it_finishes() {
     remove(parent.as_path());
 }
 
+/// What:
+///  The refusal a socket causes is a state `--abandon` ends:
+/// the stage is a copy that was never exchanged,
+/// so abandoning it removes the stage and its
+///  journal and leaves the worktree,
+/// with its socket,
+/// exactly as it was.
+/// Why:
+///   The refusal is worth nothing to a person if the only copy of their worktree cannot be
+/// let go of;
+/// this
+///  proves the abandon works after it rather than leaving the claim and the stage behind.
+#[test]
+fn a_conversion_refused_over_a_socket_can_still_be_abandoned() {
+    let (parent, _root, worktree) = quiet_worktree("convert-socket-abandon");
+    let listener: std::os::unix::net::UnixListener = bind_socket_in(worktree.as_path(), "agent.sock");
+    drop(listener);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
+    assert!(message.contains("nothing was swapped"), "{message}");
+    assert!(converting.exists(), "the refusal leaves the stage it copied");
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let (abandoned, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    assert_eq!(abandoned.expect("abandoned"), Verdict::Abandoned, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(&converting).is_err(), "the stage is gone");
+    assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal is gone");
+    assert!(worktree.join("agent.sock").exists(), "the worktree keeps its socket");
+    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "the worktree is not a subvolume");
+    remove(parent.as_path());
+}
+
 /// A socket that reaches the old tree after the swap names the entry to delete,
 /// and the conversion finishes once it
 ///  is gone;
