@@ -222,8 +222,10 @@ fn own_lines_between_landed_lines_need_both_ends_anchored() {
 ///  sides a bounded number of times,
 ///  never at every prepared hunk for every landed hunk.
 /// Why:
-///  `AGENTS.md` `RG2`: a machine-generated change can fill one path's diff with many disjoint
-///  hunks, so finding each landed hunk's cover by walking the whole prepared list,
+///  `AGENTS.md` `RG2`:
+/// a machine-generated change can fill one path's diff with many disjoint
+///  hunks,
+/// so finding each landed hunk's cover by walking the whole prepared list,
 ///  and then grouping the covers by filtering the whole covered list per prepared hunk,
 ///  is quadratic in the two hunk counts.
 ///  The seam counts the collected hunks a question looks at,

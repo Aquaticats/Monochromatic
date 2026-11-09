@@ -271,7 +271,8 @@ fn the_exact_record_width_follows_the_present_entries() {
 ///  Deciding the unordered shared paths reads each collected text path once per path,
 ///  not every one of them per shared path.
 /// Why:
-///  `AGENTS.md` `RG2`: both the shared paths and the subsumed text paths grow with the diff
+///  `AGENTS.md` `RG2`:
+/// both the shared paths and the subsumed text paths grow with the diff
 ///  of one path's hunk list and with the number of paths a commit touches,
 ///  so asking the text list "is this path in it" from every shared path is quadratic.
 ///  The seam counts the collected text paths a question looks at,

@@ -166,7 +166,8 @@ fn a_commit_another_branch_of_the_destination_holds_is_not_scanned_again() {
 /// What:
 ///  Collecting a push's scope looks at each named commit and tip once.
 /// Why:
-///  `AGENTS.md` `RG2`: a push can publish thousands of commits,
+///  `AGENTS.md` `RG2`:
+/// a push can publish thousands of commits,
 ///  and asking every earlier collected name whether the candidate repeats itself
 ///  is quadratic in them.
 ///  The seam counts the collected names a question looks at,

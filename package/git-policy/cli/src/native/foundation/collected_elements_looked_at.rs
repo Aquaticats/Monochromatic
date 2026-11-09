@@ -7,7 +7,8 @@
 //!  which looks at one collected element per question,
 //!  or scan the collected list,
 //!  which looks at every element collected before it.
-//!  A control that weighed clock time would report how busy the host is (`AGENTS.md`, `NQH`);
+//!  A control that weighed clock time would report how busy the host is (`AGENTS.md`,
+//! `NQH`);
 //!  this count reports the shape of the pass instead.
 //!
 //! In TS you'd write (pseudocode):

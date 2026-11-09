@@ -150,12 +150,16 @@ fn is_newline(byte: &u8) -> bool {
 }
 
 /// What:
-///  The requested object names: each distinct name once, in first-seen order.
+///  The requested object names:
+/// each distinct name once,
+/// in first-seen order.
 /// Why:
-///   One batch carries one line per name, so a repeat is wasted work and a
+///   One batch carries one line per name,
+/// so a repeat is wasted work and a
 ///  reorder would answer in another order than the caller asked;
 ///  a set answers "already requested" by naming the one collected name the
-///  candidate is compared with, so the preparation is one pass (`AGENTS.md` `RG2`).
+///  candidate is compared with,
+/// so the preparation is one pass (`AGENTS.md` `RG2`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

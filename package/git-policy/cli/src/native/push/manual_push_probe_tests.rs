@@ -547,7 +547,8 @@ fn git_that_lists_every_ref_asked_for(root: &Path) -> PathBuf {
 /// What:
 ///  Confirming a destination reads each listed ref once and gives each update its own record.
 /// Why:
-///  `AGENTS.md` `RG2`: a mirror or `--all` push publishes hundreds of refs,
+///  `AGENTS.md` `RG2`:
+/// a mirror or `--all` push publishes hundreds of refs,
 ///  and asking every earlier listed record whether the candidate is its ref
 ///  is quadratic in them.
 ///  The seam counts the collected records a question looks at,

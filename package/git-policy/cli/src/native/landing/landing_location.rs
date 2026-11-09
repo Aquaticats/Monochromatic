@@ -67,6 +67,20 @@ fn layout_arguments() -> Vec<OsString> {
 }
 
 /// What:
+///  Whether a byte ends a line of Git's layout output.
+/// Why:
+///   `split` takes a named predicate,
+///  which keeps the parser free of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0x0a
+/// ```
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
 ///  Split the layout output into its two fixed lines,
 ///  refusing any other shape.
 /// Why:
@@ -77,7 +91,7 @@ fn layout_arguments() -> Vec<OsString> {
 /// const [gitDir, indexPath] = stdout.split('\n'); if (!indexPath) throw new TypeError(...);
 /// ```
 pub fn parse_layout(stdout: &[u8]) -> Result<LandingLocation, String> {
-    let mut lines = stdout.split(|byte| return *byte == b'\n');
+    let mut lines = stdout.split(is_line_feed);
     let git_dir_bytes: &[u8] = lines.next().unwrap_or_default();
     let index_bytes: &[u8] = lines.next().unwrap_or_default();
     if git_dir_bytes.is_empty() || index_bytes.is_empty() {

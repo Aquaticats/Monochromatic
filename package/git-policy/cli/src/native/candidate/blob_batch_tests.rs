@@ -210,7 +210,8 @@ fn real_git_supplies_blobs() {
 /// What:
 ///  Preparing one batch looks at each requested object name once.
 /// Why:
-///  `AGENTS.md` `RG2`: both callers pass one object name per changed path with no cap,
+///  `AGENTS.md` `RG2`:
+/// both callers pass one object name per changed path with no cap,
 ///  so a request built by asking every earlier name whether it repeats itself is
 ///  quadratic in the paths one commit touches.
 ///  The seam counts the collected names a question looks at,

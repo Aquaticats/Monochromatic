@@ -1205,7 +1205,8 @@ fn what_git_says_of_the_fast_forward_reaches_the_journal_and_not_the_person() {
 /// What:
 ///  `--no-summary` hides the end-of-merge diffstat,
 ///  and `--summary` prints it even with `merge.stat=false`,
-///  as native Git 2.56.0 does (measured: `git merge -h` documents `--[no-]summary` as a
+///  as native Git 2.56.0 does (measured:
+/// `git merge -h` documents `--[no-]summary` as a
 ///  synonym to `--stat`).
 /// Why:
 ///  The isolated merge prints the diffstat this command line asks for;

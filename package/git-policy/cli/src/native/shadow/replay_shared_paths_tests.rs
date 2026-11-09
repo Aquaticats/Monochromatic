@@ -172,8 +172,10 @@ fn sides_that_changed_different_paths_share_none() {
 /// What:
 ///  Listing the shared paths reads each side's changes once.
 /// Why:
-///  `AGENTS.md` `RG2`: both listings grow with the history since the base and with the
-///  prepared commit, and finding each landed change by walking the whole prepared listing
+///  `AGENTS.md` `RG2`:
+/// both listings grow with the history since the base and with the
+///  prepared commit,
+/// and finding each landed change by walking the whole prepared listing
 ///  is quadratic in the two change counts.
 ///  The seam counts the collected changes a question looks at,
 ///  which is one per change when a map answers and every prepared change when a walk does
