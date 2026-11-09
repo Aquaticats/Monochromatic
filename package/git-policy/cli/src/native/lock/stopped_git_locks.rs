@@ -104,21 +104,20 @@ const PID_TEXT_PREFIX: &str = "pid ";
 ///  Where a command's Git child can leave reference locks.
 /// Why:
 ///   The sweep after a stop judges the locks of this repository,
-/// the one the child worked in;
-/// the time taken before the
-///  child started tells a lock born in its life from an older one.
+/// the one the child worked in,
+/// and removes a lock only on a proof about its holder:
+/// the wrapper's own record of a lock a member of the tree held,
+/// or the pid file and the process table when they can be read whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LockLedger = { roots: string[]; since: Date; judge?: Judge };
+/// type LockLedger = { roots: string[]; judge?: Judge; claimed: ClaimedLock[] };
 /// ```
 #[derive(Clone, Debug)]
 pub struct LockLedger {
     /// The Git directory and the common Git directory of the repository the command runs in;
     /// empty when none is found.
     roots: Vec<PathBuf>,
-    /// The wall-clock time read before the child started.
-    since: SystemTime,
     /// The judge of this process,
     /// unless a control sets another.
     judge: Option<Judge>,
@@ -131,7 +130,7 @@ impl LockLedger {
     /// for a child that holds no Git lock,
     /// such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), since: SystemTime::now(), judge: None, claimed: Vec::new() };
+        return Self { roots: Vec::new(), judge: None, claimed: Vec::new() };
     }
 
     /// The ledger of a command that has not started yet:
@@ -139,8 +138,7 @@ impl LockLedger {
     /// or from
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
-        let since: SystemTime = SystemTime::now();
-        return Self { roots: roots_of_command(command), since, judge: None, claimed: Vec::new() };
+        return Self { roots: roots_of_command(command), judge: None, claimed: Vec::new() };
     }
 
     /// What:
@@ -205,14 +203,15 @@ impl LockLedger {
     /// ```
     pub fn sweep(&self, tree: &[TreeMember]) -> Vec<PathBuf> {
         let mut judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
-        // The one proof that is the wrapper's own: the numbers of the stopped tree's processes that have ended.
+        // The one proof that is the wrapper's own: the numbers of the stopped tree's processes that have ended, and the locks
+        // it saw them hold before the stop signalled them.
         let mut pids: Vec<i64> = Vec::new();
         for member in tree {
             if !still_running(member) {
                 pids.push(i64::from(member.pid));
             }
         }
-        judge.own_ended = Some(OwnEnded { pids, since: self.since, claimed: self.claimed.clone() });
+        judge.own_ended = Some(OwnEnded { pids, claimed: self.claimed.clone() });
         let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
         let notice: String = outcome.notice();
         if !notice.is_empty() {

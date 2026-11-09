@@ -263,13 +263,15 @@ fn container_judge() -> crate::stale_ref_lock_judge::Judge {
     return crate::stale_ref_lock_judge::Judge { pid_view_complete: false, ..crate::stale_ref_lock_killed_git::judge() };
 }
 
-/// The wrapper started the child,
-/// stopped it and saw it end,
-/// so the number in the pid file the child wrote is a number of
-///  the wrapper's own namespace and names a process that is gone,
-/// whatever view the judge has of the machine.
+/// A pid file holds the number its writer had in the writer's own PID namespace,
+/// and Git records no namespace:
+/// a number that matches a member of the stopped tree,
+/// on a lock born after that member started,
+/// may be a Git of a sibling namespace that shares the repository.
+/// The wrapper never saw this file held,
+/// so nothing proves the writer ended and the lock stays.
 #[test]
-fn a_lock_named_by_an_ended_child_of_the_wrapper_goes_in_a_container_view() {
+fn a_lock_whose_pid_file_names_an_ended_childs_number_stays_without_a_claim() {
     let repo: Repo = repo("stopped-locks-container-view");
     let mut command: Command = Command::new("git");
     command.current_dir(repo.root.as_path());
@@ -277,8 +279,8 @@ fn a_lock_named_by_an_ended_child_of_the_wrapper_goes_in_a_container_view() {
     let member: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock the child held");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), vec![lock_of(&repo, "main")]);
-    assert!(!lock_of(&repo, "main").exists() && !pid_file_of(&repo, "main").exists());
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
 
@@ -306,15 +308,16 @@ fn in_a_container_view_a_pid_file_older_than_the_lock_vouches_for_nothing() {
 }
 
 /// A lock that was there before the child started is not the child's,
-/// whatever its pid file says.
+/// whatever its pid file says,
+/// and neither is one made during the child's life:
+/// the number is all there is, and it is not the wrapper's own proof.
 #[test]
-fn in_a_container_view_a_lock_older_than_the_child_stays() {
+fn in_a_container_view_a_lock_named_by_an_ended_member_stays() {
     let repo: Repo = repo("stopped-locks-container-older-lock");
     let member: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    // Longer than the slack the birth time of a file is compared with, so the lock is older than the ledger for certain.
-    std::thread::sleep(crate::stale_ref_lock_judge::COARSE_CLOCK_SLACK * 4);
+    std::thread::sleep(Duration::from_millis(50));
     let ledger: LockLedger = container_ledger_of(&repo);
     assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
@@ -363,23 +366,26 @@ fn in_a_container_view_a_lock_without_a_pid_file_stays() {
     remove(repo.root.as_path());
 }
 
-/// A lock the stopped child just made goes without waiting out the margin,
-/// because the wrapper knows its holder ended;
+/// A lock the wrapper saw the stopped child hold goes once that child has ended,
+/// without waiting out the margin;
 /// a lock
-///  that young with any other pid file is left to the margin.
+///  that young with no such record stays.
 #[test]
 fn a_young_lock_of_an_ended_child_does_not_wait_out_the_margin() {
     let repo: Repo = repo("stopped-locks-young");
     let mut command: Command = Command::new("git");
     command.current_dir(repo.root.as_path());
     let patient = crate::stale_ref_lock_judge::Judge { margin: Duration::from_secs(3600), ..container_judge() };
-    let ledger: LockLedger = LockLedger::before_start(&command).with_judge(patient);
-    let member: TreeMember = ended_member();
+    let (member, mut child): (TreeMember, Child) = running_member();
     let outsider: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the child's lock");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    let ledger: LockLedger = LockLedger::before_start(&command).with_judge(patient).claiming(std::slice::from_ref(&member));
     std::fs::write(lock_of(&repo, "other"), "0123\n").expect("another writer's lock");
     write_pid_file(pid_file_of(&repo, "other").as_path(), outsider.pid);
+    std::fs::remove_file(pid_file_of(&repo, "main")).expect("the pid file goes first");
+    child.kill().expect("kill the holder");
+    child.wait().expect("reap the holder");
     assert_eq!(ledger.sweep(std::slice::from_ref(&member)), vec![lock_of(&repo, "main")]);
     assert!(lock_of(&repo, "other").exists());
     remove(repo.root.as_path());

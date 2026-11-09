@@ -94,23 +94,6 @@ pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_milli
 /// whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
-/// How far a file's birth may precede the clock reading taken before a child started,
-/// for the file to count as born after
-///  the child started.
-/// The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
-///  Measured on this host (`CONFIG_HZ=1000`,
-/// so a tick is 1 ms):
-/// a new file's birth time lagged a clock read taken just before
-///  the create by at most 1.684 ms and 1.729 ms in two runs of 10,000 creates each,
-/// so 50 ms is about thirty times the
-///  longest lag.
-/// Kept;
-/// recorded in `doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Margins for removing left-behind locks"
-///  (the coordinator's pick under the owner's delegation,
-/// open to the owner's veto).
-pub const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
-
 /// The command name of Git,
 /// and of its helpers (`git-remote-https`),
 /// as the kernel reports it.
@@ -292,12 +275,7 @@ impl Judge {
     /// because the pid file holds the number its writer had in the writer's namespace.
     fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         if !self.pid_view_complete {
-            if self.names_ended_own_child(pid, lock_born) {
-                return self.judge_own_ended_pid(pid);
-            }
-            return Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
-            ));
+            return Verdict::Unproven(self.incomplete_view_reason(pid));
         }
         let verdict: Verdict = self.judge_listed_pid(pid, lock_born);
         if !matches!(verdict, Verdict::Stale(_)) {
@@ -315,35 +293,28 @@ impl Judge {
         };
     }
 
-    /// Whether the pid file names a process of the tree this wrapper stopped and saw end,
-    /// and the lock was born after that
-    ///  child started:
-    /// then the number is the wrapper's own namespace's,
-    /// and it was the child's.
-    fn names_ended_own_child(&self, pid: i64, lock_born: Option<SystemTime>) -> bool {
+    /// Why a pid file proves nothing when the process numbers read here are not known to be the machine's.
+    /// The writer wrote the number of its own PID namespace, and Git records no namespace,
+    /// so a Git of a sibling namespace that shares the repository may have the same number.
+    /// A lock born after a child this wrapper stopped had started is no more that child's than the sibling's:
+    /// a matching number and a birth order do not say who wrote the file
+    /// (cross-vendor review of 2026-11-09,
+    /// finding 2).
+    /// The one proof the wrapper holds itself is a lock it saw a member of a stopped tree hold,
+    /// pinned by the file's own identity (`Proof::ClaimedBeforeStop`).
+    fn incomplete_view_reason(&self, pid: i64) -> String {
+        let only_a_number: String = format!(
+            "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
+        );
         let Some(own) = self.own_ended.as_ref() else {
-            return false;
+            return only_a_number;
         };
         if !own.pids.contains(&pid) {
-            return false;
+            return only_a_number;
         }
-        return match lock_born {
-            Some(born) => born + COARSE_CLOCK_SLACK >= own.since,
-            None => false,
-        };
-    }
-
-    /// The verdict for a number of a process this wrapper saw end,
-    /// when the table is not known to be the machine's:
-    /// it is
-    ///  gone if the table shows nothing with that number now,
-    /// and anything running with it is left alone.
-    fn judge_own_ended_pid(&self, pid: i64) -> Verdict {
-        return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
-            ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
-            ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
-            ProcessStart::Running { .. } => Verdict::Held(format!("process {pid}, which the pid file beside it names, ended with the child this wrapper stopped, and a process has the number again")),
-        };
+        return format!(
+            "{only_a_number}; that number is one a tree this wrapper stopped had, and a Git of another PID namespace that shares this repository may have the same number, so the number alone does not say which writer made the lock"
+        );
     }
 
     /// What the pid file's process is in the process table as listed:
@@ -488,7 +459,7 @@ impl Judge {
             Some(own) => own.holder_of_claimed(lock, &identity),
             None => None,
         };
-        let own: bool = claimed.is_some() || matches!(&pid_file, PidFile::Names(pid) if self.names_ended_own_child(*pid, born));
+        let own: bool = claimed.is_some();
         if !own && SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
             return verdict_with(Verdict::TooNew, pid_file.clone(), identity, born);
         }

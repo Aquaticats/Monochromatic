@@ -3941,23 +3941,27 @@ in-process reader can) gives every value of the multi-valued keys.
   the birth time of the lock nor its being empty ties the lock to that child,
   and a pid
   file older than the lock names an earlier holder.
-  A lock whose pid file names a process of the stopped tree that has ended is removed on the wrapper's own proof:
-  the wrapper
-  started that process,
-  stopped it and saw it end,
-  so the number is one of its own PID namespace and names a process that is
-  gone,
-  and this needs no view of the whole machine,
-  which a container lacks (the container gate found the sweep leaving the
-  lock of the wrapper's own stopped child when it required one).
-  The proof holds only when the pid file was born at or after the lock (an older pid file names an earlier holder,
-  and must
-  not vouch for a newer foreign lock),
-  the lock was born after the child started,
-  and nothing in the process table has the
-  number again;
-  it needs no margin,
-  because the holder is known to be gone.
+  A lock whose pid file names a process of the stopped tree that has ended is **not** removed on that number:
+  the number is one the wrapper's own PID namespace gave that process,
+  and Git records no namespace,
+  so a Git in a sibling namespace that shares the repository may have the same number,
+  and the lock may be that Git's
+  (cross-vendor review of 2026-11-09,
+  finding 2).
+  A matching number,
+  a lock born during the child's life and an empty file fit both writers.
+  What the wrapper does know itself is a lock it saw a member of the stopped tree hold before it signalled that member:
+  the pid file beside the lock named a running member,
+  and the lock is pinned by the device,
+  inode and birth it had then (`Proof::ClaimedBeforeStop`,
+  `src/native/lock/stale_ref_lock_own_ended.rs` and the claim of `src/native/lock/stopped_git_locks.rs`),
+  so another Git's lock made at the same path later is never taken for it.
+  That record needs no view of the whole machine,
+  which a container lacks,
+  and no margin,
+  because the holder is known to have ended;
+  a lock of a stopped child that the wrapper did not see held stays and is named,
+  with the command that clears it.
   A lock whose pid file names any other process is judged by the proofs below,
   once it is older than the margin;
   a younger
@@ -4361,11 +4365,13 @@ instead.
 The fix of 2026-11-03 for the container (the wrapper's own proof above) does not change the step,
 so each removal has the
 same residue as before;
-it makes more removals happen (a container now removes the lock of its own stopped child,
+it changes which locks are removed:
+a container now removes a lock it saw its own stopped child hold (the claim),
 and a
-young lock of an ended child is judged without waiting out the margin),
-so it widens the number of occasions and narrows
-nothing.
+claimed lock of that child is judged without waiting out the margin,
+while a lock whose pid file merely names an ended child's number is left and named
+  (cross-vendor review of 2026-11-09,
+  finding 2).
 The occasions it adds have the fewest chances of the schedule:
 the lock is the freshest,
 and the sweep that judges it is
@@ -4498,7 +4504,14 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
   A writer in a sibling namespace that is not a descendant of the wrapper's own (the wrapper in a container) is outside the
   table and is not seen,
   which is why a wrapper outside the initial namespace proves nothing.
-  The veto of an open descriptor and the margin are the only protection beyond that.
+  A number that matches a member of a tree the wrapper stopped proves nothing either:
+  the wrapper's own namespace gave that number to its child,
+  and a sibling namespace may have given the same one to a Git that shares the repository
+  (cross-vendor review of 2026-11-09,
+  finding 2),
+  so a lock there is removed only on the claim of a file held before the stop.
+  The veto of an open descriptor,
+  the margin and that claim are the only protection beyond that.
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory):
   the file
   system must be on the fixed local list.

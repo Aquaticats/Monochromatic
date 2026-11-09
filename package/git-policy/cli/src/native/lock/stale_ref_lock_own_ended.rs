@@ -1,8 +1,6 @@
 //! What:
 //!  What the wrapper itself knows about the child it stopped:
 //! the processes of the tree that have ended,
-//! the time before the child
-//! started,
 //! and the locks a member of the tree was seen holding before the stop signalled it.
 //! Why:
 //!  The judge of reference locks proves a holder gone from the pid file beside a lock and from the process table,
@@ -13,39 +11,33 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type OwnEnded = { pids: number[]; since: Date; claimed: ClaimedLock[] };
+//! type OwnEnded = { pids: number[]; claimed: ClaimedLock[] };
 //! ```
 
 /// Paths of the locks.
 use std::path::{Path, PathBuf};
 /// The identity of a lock file as the judge reads it.
 use crate::stale_ref_lock_identity::Identity;
-/// The wall clock the kernel stamps files with.
-use std::time::SystemTime;
 
 /// What:
 ///  The processes the wrapper itself started,
-/// stopped and saw end,
-/// and when the first of them started.
+/// stopped and saw end.
 /// Why:
-///   A pid file that such a process wrote holds a number of the wrapper's own PID namespace,
-/// whatever view of the machine the
-///  judge has (a container has a view of its own),
-/// and the wrapper knows the process is gone.
-/// This is the one proof that
-///  needs no inference about namespaces,
-/// and it covers only locks born after the child started.
+///   A lock the wrapper saw a member of the tree hold before it signalled that member is the wrapper's own proof once
+///  the member has ended (cross-vendor review of 2026-11-09,
+/// finding 2).
+/// A number alone proves nothing:
+///  a pid file holds the number its writer had in the writer's own PID namespace,
+/// and a Git of a sibling namespace that shares the repository may have the same number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type OwnEnded = { pids: number[]; since: Date };
+/// type OwnEnded = { pids: number[]; claimed: ClaimedLock[] };
 /// ```
 #[derive(Clone, Debug)]
 pub struct OwnEnded {
     /// The numbers of the processes of the stopped tree that have ended.
     pub pids: Vec<i64>,
-    /// The wall-clock time read before the stopped child started.
-    pub since: SystemTime,
     /// The locks a member of the tree was seen holding before the stop signalled it.
     pub claimed: Vec<ClaimedLock>,
 }
