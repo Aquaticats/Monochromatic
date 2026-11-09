@@ -234,7 +234,7 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
         let _sent = said_once.send(());
         heard.lock().expect("lock").push(note);
     }).expect("taken once the lock went");
-    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    assert!(began.elapsed() >= holding, "the wait returned before the hold it was told to keep: {:?}", began.elapsed());
     release.join().expect("thread");
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
     assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("cannot be proven alive") && text.contains("removing the file") && text.contains("has the lock open")); }), "{said:?}");
@@ -304,8 +304,10 @@ fn a_dead_owner_ends_the_wait_at_once() {
 /// the wait goes on through the whole hold with no line that gives up,
 /// and the service's lock is taken once the holder lets go.
 /// The hold begins when the wait has spoken,
-/// so it is the wait's own line that ends the hold: a hold counted from before the acquisition's staging ended it before the wait's
-///  first look on a slow host, and the control then read no line at all (measured 2026-11-08:
+/// so it is the wait's own line that ends it.
+/// A hold counted from before the acquisition's staging ended before the wait's first look on a slow host,
+/// and the control then read no line at all
+/// (measured 2026-11-08:
 /// a flush of 10.2 s against a hold of 2.5 s).
 #[test]
 fn a_holder_proven_alive_is_waited_for_with_no_bound() {
@@ -329,7 +331,7 @@ fn a_holder_proven_alive_is_waited_for_with_no_bound() {
         let _sent = said_once.send(());
         heard.lock().expect("lock").push(note);
     }).expect("taken once the holder let go");
-    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    assert!(began.elapsed() >= holding, "the wait returned before the hold it was told to keep: {:?}", began.elapsed());
     release.join().expect("thread");
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
     assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("proven by its Git lock PID file")); }), "{said:?}");
@@ -1361,12 +1363,14 @@ fn an_owned_lock_that_is_already_gone_is_not_unsettled() {
 //endregion
 
 /// A lock that a power loss brought back after its release (the unlink was not yet on storage) carries the marker of the boot that ended:
-/// the next acquisition reclaims it and takes the lock without waiting at all, though a process of that number and tick runs now.
+/// the next acquisition reclaims it and takes the lock without waiting at all,
+/// though a process of that number and tick runs now.
 /// The ceiling the acquisition is given is already past when it begins,
 /// so a lock waited for like a live holder's would end in the ceiling's words at once;
 /// a reclaim announces no wait,
 /// and that is the claim,
-/// where a stopwatch measured the flush of the marker instead (measured 2026-11-08:
+/// where a stopwatch measured the flush of the marker instead
+/// (measured 2026-11-08:
 /// 14.3 s under a capped flush).
 /// This is why the release does not sync the directory.
 #[test]
