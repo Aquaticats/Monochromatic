@@ -4150,7 +4150,17 @@ and
   `doc/planning/cli-git-no-unbounded-waits.md`,
   "Round 5".
 - Releases that meet.
-  The protocol version stays 7 and no message changes:
+  The `landed` answer of this release carries an optional `landing` object:
+  the figures of the landing,
+  which are `lockHoldMs`,
+  `queuedBehind`,
+  `readsMs`,
+  `reads` and `syncs`,
+  and which the client's timing record states under the same name.
+  A service of an older release sends none and a client of this release states `null`,
+  and a client of an older release ignores the field,
+  so no new protocol version is needed and neither side has to know the other.
+  The protocol version stays 7 and no other message changes:
   `waiting` with `"inside_write": true`,
   `withdraw` and
   `withdrawn` are the messages of 0.5.31 and 0.5.33.
@@ -9902,6 +9912,28 @@ and when the lock was found held `lock_looks`,
 `journal_ms`,
 `ref_ms`,
 `index_update_ms` (named `sync_ms` in records written before 2026-11-04),
+`lock_hold_ms` (how long the landing held the index,
+not a phase),
+`queued_behind` (how many requests were still waiting for their answer when the landing finished,
+the batch's own taken out),
+`reads_config_ms`,
+`reads_branch_ms`,
+`reads_parents_ms`,
+`reads_changed_ms`,
+`reads_content_ms`,
+`reads_witness_ms`,
+`reads_conclusion_ms`,
+`reads_owed_ms` and
+`reads_follow_ms`
+(parts of `reads_ms`,
+whose sum they never exceed),
+`syncs_waited` and
+`syncs_queued`
+(how many of the landing's syncs it waited for and how many it handed to the background task),
+`sync_held_ms`
+(the time it spent waiting for its own),
+`syncs` (each sync as `what=<ms>` or `what=queued`,
+in the order asked),
 `answer_ms`,
 `total_ms`),
 a `pushed` line for every push the service ran
