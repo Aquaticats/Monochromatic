@@ -85,11 +85,9 @@ const lines = await watchForOverdueRuns({
   look,
   now: Date.now,
   wait: async function passTime(milliseconds,) {
-    await wait(
-      milliseconds,
-      undefined,
-      { ref: false, },
-    );
+    // A wait that lets the event loop go empty would end the process between two looks, so this one holds it up: it is the
+    // only thing pending while the runs work.
+    await wait(milliseconds,);
   },
   deadline: startedAt + (options.deadlineSeconds * MILLISECONDS_PER_SECOND),
   intervalMilliseconds: options.intervalSeconds * MILLISECONDS_PER_SECOND,
