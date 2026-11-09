@@ -221,15 +221,23 @@ fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() 
     let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) =
         scripted_world("push-retry-grows", vec![Verdict::Done, Verdict::Retry(String::from("Could not resolve host")), Verdict::Retry(String::from("Could not resolve host"))]);
     let first: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a retry is planned");
-    std::thread::sleep(first);
-    let second: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a second retry is planned");
-    // That each pause is twice the one before is controlled in `push_retry_tests.rs`; a wait measured here also holds the time the
-    //  round took, which a loaded host stretches, so only its growth is asked.
-    assert!(second > first, "the pause grew: {first:?} then {second:?}");
+    // That each pause is twice the one before is controlled in `push_retry_tests.rs`. Here only the pause's own figure is asked
+    //  for, as a lower bound: what a round returns also holds the time the round took, which a loaded host stretches (measured
+    //  2026-11-09: a round that outlasted its own pause returned nothing to wait, and the growth the control asked for read
+    //  "the pause grew: 298.945694ms then 0ns").
+    assert!(first <= SCRIPTED_PAUSE + RETRY_SLACK, "the plan asks for no more than its pause and the slack: {first:?}");
     let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
     assert!(record.contains("tries this push again by itself") && record.contains("Could not resolve host"), "{record}");
-    std::thread::sleep(second);
-    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is left to try");
+    let planned: std::cell::RefCell<PushRetries> = std::cell::RefCell::new(retries);
+    assert!(
+        wait_until(&|| {
+            // Each look runs a round, which runs the retry once its pause is over; the plan is gone once the push landed.
+            let mut held = planned.borrow_mut();
+            let _ran = round_of(git_dir.as_path(), &handlers, &mut held);
+            return held.directories().is_empty();
+        }),
+        "nothing is left to try once every pause the plan asked for has passed"
+    );
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 3);
     assert_eq!(std::fs::read_dir(notice_directory(git_dir.as_path())).map_or(0, |entries| { return entries.flatten().count(); }), 0, "the record went when the push landed");
     remove(root.as_path());
