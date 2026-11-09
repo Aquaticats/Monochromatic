@@ -79,15 +79,16 @@ use std::path::{Path, PathBuf};
 /// each named with `:(top,literal)` magic.
 /// Why:
 ///   Every name is a pathspec the wrapper wrote, and this start skips the caller's prefix,
-/// so literal pathspec mode is switched off for it: under it the names would match nothing and the commit would fail.
+/// so every mode the caller set is removed from the child's environment:
+/// under literal mode the names would match nothing,
+/// and two glob modes at once make Git refuse the start and fail the commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unmergedStagingRequest = (cwd, index, objects, paths) => indexedRequest(cwd, ['--no-literal-pathspecs', 'add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects);
+/// const unmergedStagingRequest = (cwd, index, objects, paths) => ownPathspecs(indexedRequest(cwd, ['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects));
 /// ```
 fn unmerged_staging_request(cwd: &Path, index: &Path, object_directory: &Path, paths: &[Vec<u8>]) -> GitRequest {
     let mut staging: Vec<OsString> = vec![
-        OsString::from("--no-literal-pathspecs"),
         OsString::from("add"),
         OsString::from("--all"),
         OsString::from("--"),
@@ -97,7 +98,7 @@ fn unmerged_staging_request(cwd: &Path, index: &Path, object_directory: &Path, p
         spec.extend_from_slice(path.as_slice());
         staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
     }
-    return indexed_request(cwd, staging.as_slice(), Some(index), Some(object_directory));
+    return indexed_request(cwd, staging.as_slice(), Some(index), Some(object_directory)).own_pathspecs();
 }
 
 /// What the preparation reads that does not change between two preparations of one command.
