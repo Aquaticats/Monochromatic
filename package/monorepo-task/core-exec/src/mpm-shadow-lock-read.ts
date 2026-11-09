@@ -58,14 +58,77 @@ export const CURRENT_LINK_NAME = 'current';
 
 /**
  The command that moves the lock to the newest `mpm-shadow` release, named in the note printed when a newer copy runs.
- It is the root task `toolchain:update` with the tool id appended, which runs `mpm-shadow update mpm-shadow`.
+ It is the root task `toolchain:update` with the tool id appended, which runs `mpm-shadow update mpm-shadow`,
+ and it moves the lock of the tree it is run in, which is the tree the entry searched upward from.
 
  @example
  ```ts
- log(`upgrade with: ${UPGRADE_COMMAND}`,);
+ log(`upgrade that lock with: ${UPGRADE_COMMAND}`,);
  ```
  */
 export const UPGRADE_COMMAND = 'mise run toolchain:update mpm-shadow';
+
+/**
+ Name of the lock file, at the root of a worktree and in the machine-global toolchain folder.
+
+ @example
+ ```ts
+ const lockFile = join(root, LOCK_FILE_NAME);
+ ```
+ */
+export const LOCK_FILE_NAME = 'toolchain.lock.json';
+
+/**
+ Path of the lock of the tree at `root`.
+
+ @param root - Repository root
+
+ @returns Absolute path of its lock file
+
+ @example
+ ```ts
+ const lockFile = lockFilePath('/repo',);
+ ```
+ */
+export function lockFilePath(root: string,): string {
+  return join(
+    root,
+    LOCK_FILE_NAME,
+  );
+}
+
+/**
+ The note that says a newer `mpm-shadow` runs than the lock names, which lock it compared, and how to move that lock.
+
+ The lock's path is part of the note because a repository of worktrees holds one lock each: the version pair alone does not
+ say which worktree is behind, and the copy that runs can come from any worktree.
+
+ @param lockFile - Path of the lock the note compared
+
+ @param lockedVersion - The version the lock names
+
+ @param usedVersion - The version of the copy that runs
+
+ @returns The note, one line
+
+ @example
+ ```ts
+ log(olderLockNote({ lockFile: '/repo/toolchain.lock.json', lockedVersion: '0.2.2', usedVersion: '0.2.3', },),);
+ ```
+ */
+export function olderLockNote(
+  {
+    lockFile,
+    lockedVersion,
+    usedVersion,
+  }: {
+    readonly lockFile: string;
+    readonly lockedVersion: string;
+    readonly usedVersion: string;
+  },
+): string {
+  return `locked at ${lockedVersion} in ${lockFile}, ${usedVersion} runs; upgrade that lock with: ${UPGRADE_COMMAND}`;
+}
 
 /**
  The exposure link that `mpm-shadow install` maintains, relative to the repository root.

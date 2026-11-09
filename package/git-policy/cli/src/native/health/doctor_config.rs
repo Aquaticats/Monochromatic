@@ -21,9 +21,11 @@
 use crate::config_file::load_repository_config;
 use crate::config_schema::{CliGitConfig, ConcurrencyConfig};
 use crate::discarded_prune::Limits;
-use crate::config_snapshot::read_config_snapshot;
+use crate::config_snapshot::read_config_snapshot_awaiting;
 use crate::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::LANDING_LOCK_CEILING;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -65,9 +67,9 @@ pub struct ConfigFindings {
 /// ```ts
 /// await git(['rev-parse', '--show-toplevel']).catch(() => undefined)
 /// ```
-fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
+async fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
     let request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--show-toplevel"]);
-    let output = run_git(context, &request).ok()?;
+    let output = run_git_awaiting(context, &request).await.ok()?;
     if !output.succeeded() {
         return None;
     }
@@ -89,15 +91,15 @@ fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// ```ts
 /// configFindings({ context, cwd });
 /// ```
-pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
+pub async fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
     // `match` on the `Option`: a snapshot that could not be read gives no hooks, as `.unwrap_or_default()` did.
-    let hooks: Vec<ConfiguredHook> = match read_config_snapshot(context, cwd) {
+    let hooks: Vec<ConfiguredHook> = match read_config_snapshot_awaiting(context, cwd).await {
         Some(snapshot) => configured_hooks(&snapshot),
         None => Vec::new(),
     };
     // A configuration that cannot be loaded is not doctor's to report: the command works beside a broken file, and
     // every other command names the problem.
-    let loaded: Option<CliGitConfig> = match top_level(context, cwd) {
+    let loaded: Option<CliGitConfig> = match top_level(context, cwd).await {
         Some(root) => match load_repository_config(root.as_path()) {
             Ok(found) => Some(found.config),
             Err(_) => None,
@@ -171,10 +173,14 @@ pub fn render_notes(findings: &ConfigFindings) -> String {
     }
     if findings.retired_index_lock_key {
         text.push_str(
-            "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
-             commit service waits for another process's `index.lock` for as long as the lock stays there, whether the process \
-             is proven to hold it or not, says what it knows about the owner while it waits, and reads no timeout from this \
-             file. Remove the key from monochromatic-git-policy-cli.config.jsonc.\n",
+            format!(
+                "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
+                 commit service waits for another process's `index.lock` until the lock goes, and for at most {} seconds, whether the process \
+                 is proven to hold it or not, says what it knows about the owner while it waits, and reads no timeout from this \
+                 file; after that wait the commit is not made and its change stays uncommitted. Remove the key from monochromatic-git-policy-cli.config.jsonc.\n",
+                LANDING_LOCK_CEILING.as_secs()
+            )
+            .as_str(),
         );
     }
     if findings.retired_landing_key {

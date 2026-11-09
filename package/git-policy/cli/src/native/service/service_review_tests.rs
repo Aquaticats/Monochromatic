@@ -97,7 +97,7 @@ fn a_code_commit_is_reviewed_and_appended() {
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     let verdict: Verdict = review_item(&git_context(), &item, options(&item, mock.url.as_str()));
     assert_eq!(verdict, Verdict::Done);
-    let seen: String = mock.finish();
+    let seen: String = mock.finish().seen;
     assert!(seen.contains("src/a.ts"), "the request carries the changed file");
     let log: String = log_of(&fixture);
     assert!(log.starts_with("- Date:\n"), "the live log holds the entry from its first line: {log}");
@@ -267,7 +267,7 @@ fn the_key_from_the_message_reaches_the_gateway() {
     let key: ReviewKey = ReviewKey::new(KEY).expect("a key");
     let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, mock.url.as_str(), Some(&key)));
     assert_eq!(verdict, Verdict::Done);
-    let seen: String = mock.finish().to_ascii_lowercase();
+    let seen: String = mock.finish().seen.to_ascii_lowercase();
     assert!(seen.contains(&format!("authorization: bearer {KEY}\r\n")), "{seen}");
     assert!(!log_of(&fixture).contains(KEY), "the credential is never written to the log");
     remove(fixture.parent.as_path());

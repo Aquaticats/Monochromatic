@@ -14,7 +14,7 @@
 use super::semantic_line_breaks;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::edits::{Fix, apply_fixes};
-use crate::markdown_source::MarkdownSource;
+use crate::markdown_source::{MarkdownSource, paragraph_placements};
 use satteri_ast::mdast::MdastNodeType;
 
 /// Run the rule through its actual native source model.
@@ -75,7 +75,7 @@ fn all_delimiter_families_and_nested_prefixes_are_preserved() {
     }
     assert_eq!(
         fixed("- > first, second here.\n"),
-        "- > first,\n  second here.\n"
+        "- > first,\n  > second here.\n"
     );
 }
 
@@ -100,7 +100,10 @@ fn diagnostics_and_line_endings_use_original_source_positions() {
         fixed("\u{feff}🚀 First. Second here.\n"),
         "\u{feff}🚀 First.\nSecond here.\n"
     );
-    assert_eq!(fixed("> first, second word.\n"), "> first,\nsecond word.\n");
+    assert_eq!(
+        fixed("> first, second word.\n"),
+        "> first,\n> second word.\n"
+    );
     assert_eq!(
         fixed("Sentence.  `code` follows here.\n"),
         "Sentence.\n `code` follows here.\n"
@@ -150,56 +153,120 @@ fn inserted_breaks_cannot_change_block_structure() {
 
 /// Each paragraph with the kinds of the containers around it and its words,
 ///  which is everything about where text sits that a line break must not change.
+///  The extraction itself is shared with the whole-invocation property check.
 fn placements(source: &str) -> Vec<(Vec<MdastNodeType>, Vec<String>)> {
     let context: MarkdownSource =
         MarkdownSource::new(String::from("prose.md"), String::from(source), false)
             .expect("fixture");
-    let mut found: Vec<(Vec<MdastNodeType>, Vec<String>)> = Vec::new();
-    for id in context.all_nodes() {
-        if context.kind(*id) != MdastNodeType::Paragraph {
-            continue;
-        }
-        let mut containers: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
-        for ancestor in context.ancestors(*id).expect("an acyclic parse") {
-            containers.push(context.kind(ancestor));
-        }
-        let words: Vec<String> = context
-            .text_content(*id)
-            .expect("an acyclic parse")
-            .split_whitespace()
-            .map(String::from)
-            .collect::<Vec<String>>();
-        found.push((containers, words));
-    }
-    return found;
+    return paragraph_placements(&context).expect("an acyclic parse");
 }
 
-/// A break in a quotation adds no `>` and never moves text out of its quote or list item:
-///  CommonMark 0.31.2,
-/// section 5.1 "Block quotes",
-/// rule 2 "Laziness" and example 251,
-///  keeps a line without `>` in the paragraph it continues,
-///  at any depth and inside list items.
+/// A break inside a quotation re-emits every `>` marker of the line the paragraph opens on,
+///  so the continuation line stays at the same quote depth in the raw text and not only
+///  through the laziness CommonMark allows,
+///  and the text stays in the containers it came from.
 #[test]
-fn breaks_in_quotations_add_no_marker_and_keep_the_text_where_it_was() {
-    for source in [
-        "> first, second here.\n",
-        "- > first, second here.\n  > third, fourth here.\n",
-        "> - first, second here.\n> - third, fourth here.\n",
-        "> > first, second here. And more\n> > text.\n",
-        ">>> foo, bar. Then rest\n> bar\n>>baz\n",
-        "1. > first, second here.\n",
+fn a_break_in_a_quotation_keeps_the_marker_of_every_depth() {
+    for (source, expected) in [
+        ("> first, second here.\n", "> first,\n> second here.\n"),
+        (
+            "> > first, second here. And more\n> > text.\n",
+            "> > first,\n> > second here.\n> > And more\n> > text.\n",
+        ),
+        (
+            "- > first, second here.\n  > third, fourth here.\n",
+            "- > first,\n  > second here.\n  > third,\n  > fourth here.\n",
+        ),
+        (
+            "> - first, second here.\n> - third, fourth here.\n",
+            "> - first,\n>   second here.\n> - third,\n>   fourth here.\n",
+        ),
+        (
+            "1. > first, second here.\n",
+            "1. > first,\n   > second here.\n",
+        ),
+        (
+            ">>> foo, bar. Then rest\n> bar\n>>baz\n",
+            ">>> foo,\n>>> bar.\n>>> Then rest\n> bar\n>>baz\n",
+        ),
     ] {
         let output: String = fixed(source);
-        assert_ne!(output, source, "{source:?} had nothing to break");
+        assert_eq!(output, expected, "{source:?}");
         assert_eq!(
             placements(output.as_str()),
             placements(source),
             "{output:?}"
         );
+    }
+}
+
+/// Only the lines the fix inserts carry the copied prefix:
+///  those get the paragraph's own depth,
+///  while a line the author already wrote stays byte for byte as written,
+///  so the fix still replaces nothing but the separating space at the break point.
+#[test]
+fn inserted_lines_take_the_paragraph_depth_and_existing_lines_keep_their_bytes() {
+    let source: &str = "> > deep, words here\nlazy, line here.\n";
+    let output: String = fixed(source);
+    assert_eq!(output, "> > deep,\n> > words here\nlazy,\n> > line here.\n");
+    assert_eq!(
+        placements(output.as_str()),
+        placements(source),
+        "{output:?}"
+    );
+}
+
+/// A break inside a partially marked lazy line takes the paragraph's full depth,
+///  while the author's own shorter line keeps the bytes it was written with.
+#[test]
+fn a_partially_marked_lazy_line_gets_the_paragraph_depth_on_the_inserted_line() {
+    let source: &str = "> > opening words\n> continued, further words.\n";
+    let output: String = fixed(source);
+    assert_eq!(
+        output,
+        "> > opening words\n> continued,\n> > further words.\n"
+    );
+    assert_eq!(
+        placements(output.as_str()),
+        placements(source),
+        "{output:?}"
+    );
+}
+
+/// A list item's continuation line keeps its item by starting at the item's content column,
+///  because writing a list marker there again would open a new block instead of continuing this one:
+///  a paragraph's containers offer only list markers and quote markers,
+///  and the quote markers are the family that has to be written again.
+#[test]
+fn a_list_continuation_line_keeps_its_item_by_indentation() {
+    for (source, expected) in [
+        ("- first, second here.\n", "- first,\n  second here.\n"),
+        ("* first, second here.\n", "* first,\n  second here.\n"),
+        ("+ first, second here.\n", "+ first,\n  second here.\n"),
+        ("1. first, second here.\n", "1. first,\n   second here.\n"),
+        (
+            "10. first, second here.\n",
+            "10. first,\n    second here.\n",
+        ),
+        (
+            "- [ ] first, second here.\n",
+            // The task marker sits before the paragraph, so the blank run aligns to the paragraph's own column.
+            "- [ ] first,\n      second here.\n",
+        ),
+        (
+            "- - first, second here.\n",
+            "- - first,\n    second here.\n",
+        ),
+        (
+            "-\n  first, second here.\n",
+            "-\n  first,\n  second here.\n",
+        ),
+    ] {
+        let output: String = fixed(source);
+        assert_eq!(output, expected, "{source:?}");
         assert_eq!(
-            output.split_whitespace().collect::<Vec<&str>>(),
-            source.split_whitespace().collect::<Vec<&str>>(),
+            placements(output.as_str()),
+            placements(source),
             "{output:?}"
         );
     }
@@ -212,7 +279,7 @@ fn a_break_replaces_the_space_and_leaves_no_stray_indent() {
     assert_eq!(fixed("It naps. It wakes."), "It naps.\nIt wakes.");
     assert_eq!(
         fixed("> She said the cat naps. It wakes.\n"),
-        "> She said the cat naps.\nIt wakes.\n"
+        "> She said the cat naps.\n> It wakes.\n"
     );
     assert_eq!(
         fixed("- The cat naps. It wakes.\n- Another, with a clause."),

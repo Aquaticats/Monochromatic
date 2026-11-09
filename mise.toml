@@ -346,17 +346,37 @@ run_playwright = """
 const { execFileSync } = await import('node:child_process')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/container-limit/core/src/index.ts')).href)
-// 2 GiB and 2 CPUs are package/test-harness/core's bound for its browser tests; 2048 processes is what podman run --help prints as the
-// default, so today's effective cap becomes explicit (browsers start many threads, and threads count).
-// Measured 2026-11-08T19:40:29-05:00: not at all; the run failed before any browser started, because this checkout's
-// node_modules links into ${HOME}/.local/share/pnpm/store, which the container does not mount, and the local
-// monochromatic-playwright image carries Playwright 1.63.0 while the workspace pins 1.65.0. See
-// doc/handover/container-limits-everywhere.md, section Measured runs on this host.
-const playwrightBound = { memory: '2g', cpus: 2, pidsLimit: 2048 }
+// The shared pnpm store, mounted read-only at the path this checkout's node_modules links name, so `npx playwright`
+// resolves the workspace's own Playwright instead of nothing (package/test-harness/core-matrix/src/pnpm-store-mount.ts).
+const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/test-harness/core-matrix/src/pnpm-store-mount.ts')).href)
+// One rule ties the worker count to the bound: a worker of the browser suites needs at most one CPU and about half a
+// GiB, so the bound is one CPU per worker and one GiB per worker plus one GiB for the browsers' own fixed cost.
+// The worker-count study below ran on the heaviest shape this suite has had, every OPFS test file on a persistent
+// context, whole suite, three projects, peak of a one-second sample of `podman stats`, host load average 55 to 68 on
+// 8 CPUs:
+//
+//   workers  bound     peak memory  peak CPU  peak processes  wall time  2026-11-08
+//   2        4g/4cpu   1,936 MiB    250%      680             31.6 s     23:22:20-05:00
+//   4        4g/4cpu   2,807 MiB    286%      1,129           33.4 s     23:22:52-05:00
+//   8        8g/8cpu   4,174 MiB    546%      1,863           21.8 s     23:23:22-05:00, 3 firefox tests lost their browser
+//
+// The merged tree at this bound, one OPFS test file on a persistent context, 2026-11-08T23:42:11-05:00 at load
+// average 42: 3,052 MiB, 328% CPU, 1,248 processes, 19.5 s, exit 0, which is 60% of the memory cap and 82% of the CPU
+// quota. 8 workers bought 12 s of wall time, another 1.4 GiB and three firefox crashes, so the bound and the worker
+// count both stop at four. Playwright's own default is half the host's 32 logical CPUs, because a CFS quota does not
+// change what `os.cpus().length` reports, so without this argument the run used 16 workers: at the earlier 2g/2cpu
+// bound that was killed at its memory cap after 16 minutes once, and failed 53 of 84 tests in firefox and webkit on
+// 30 s timeouts and page crashes another time (both runs in doc/handover/container-limits-everywhere.md, section The
+// shared pnpm store inside a container). 2048 processes is what `podman run --help` prints as the default, made
+// explicit (browsers start many threads, and threads count).
+const browserSuiteWorkerCount = 4
+const playwrightBound = { memory: `${browserSuiteWorkerCount + 1}g`, cpus: browserSuiteWorkerCount, pidsLimit: 2048 }
 const runPlaywright = (config, extraFlags = []) => {
   execFileSync('mise', ['run', 'prepare:playwright'], { stdio: 'inherit' })
   const args = parseUsageArgs(process.env.usage_args ?? '')
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...args], { stdio: 'inherit' })
+  // A caller that names its own worker count keeps it; the bound stays the one above, so it takes fewer workers, never more.
+  const workerArguments = args.some((argument) => argument === '--workers' || argument.startsWith('--workers=') || argument === '-j' || argument.startsWith('-j')) ? [] : [`--workers=${browserSuiteWorkerCount}`]
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, ...pnpmStoreMountArguments(), '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...workerArguments, ...args], { stdio: 'inherit' })
 }
 """
 
@@ -1028,7 +1048,9 @@ shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout_packages}}"
 
 # Applies the whitespace fixes of monochromatic-lint (plain `--fix`: semantic-line-breaks inserting
-# breaks in Markdown and in rustdoc, which changes no token) over the whole tree or the given paths.
+# breaks in Markdown and in rustdoc; the only added bytes are a line break and the `>` or `///` markers
+# of the container the line continues, which are syntax and not words) over the whole tree or the
+# given paths.
 # Fixes that rewrite content (fence languages, `$ ` prompts, link styles, trailing heading punctuation,
 # bare URLs, reference definitions) wait for `monochromatic-lint --fix-content <paths>`, which this task never
 # runs; their findings stay reported. Rationale: doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md.
@@ -1040,7 +1062,7 @@ run = "{{vars.fanout_packages}}"
 # format.
 [tasks."format:monochromatic-lint"]
 hide = true
-description = "Apply monochromatic-lint whitespace fixes (plain --fix, no token changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
+description = "Apply monochromatic-lint whitespace fixes (plain --fix, no word changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
 # No usage spec: mise appends post-`--` args after `--fix` as a real argv vector.
 # The linter walks `.` when no paths are given.
 run = "monochromatic-lint --fix"
