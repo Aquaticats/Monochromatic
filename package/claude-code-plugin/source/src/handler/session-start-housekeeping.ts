@@ -8,6 +8,7 @@ import {
   mkdir,
   rm,
 } from 'node:fs/promises';
+import { join, } from 'node:path';
 
 import {
   NO_STDOUT,
@@ -42,6 +43,32 @@ const ROOT_SENTINEL_ARTIFACTS = [
 ] as const;
 
 /**
+
+ Parent directory of the sandbox roots Claude Code creates on startup.
+ */
+const SANDBOX_PARENT_DIRECTORY = '/tmp' as const;
+
+/**
+ Name prefix of the per-user sandbox root. Claude Code lays its sandbox out as
+ `/tmp/claude-<uid>/<workspace>/<session>/scratchpad`, so the trailing number is
+ the session user's UID and differs on every host.
+ */
+const SANDBOX_ROOT_TEMPLATE = 'claude-' as const;
+
+/**
+ Sandbox root name that predates the per-user directory, kept because installs
+ and tooling written against the older layout still expect it.
+ */
+const LEGACY_SANDBOX_ROOT = 'claude' as const;
+
+/**
+ Sentinel for a runtime that exposes no user identifier, as Windows does. There
+ is then no `/tmp/claude-<uid>` convention to mirror, so only the legacy root is
+ created.
+ */
+const NO_USER_IDENTIFIER: unique symbol = Symbol('session-start-housekeeping/runtime-exposes-no-user-identifier',);
+
+/**
  Creates a directory if it does not already exist (equivalent to `mkdir -p`).
  
  @param dirPath - absolute path of directory to ensure exists
@@ -56,6 +83,87 @@ async function ensureDir(dirPath: string,): Promise<void> {
     dirPath,
     { recursive: true, },
   );
+}
+
+/**
+ Resolves the sandbox root Claude Code uses for one user.
+ 
+ @param uid - user id whose directory the sandbox uses
+ 
+ @returns absolute path of that user's sandbox root
+ 
+ @example
+ ```ts
+ sandboxRootDir(1000); // '/tmp/claude-1000'
+ ```
+ */
+function sandboxRootDir(uid: number,): string {
+  return join(
+    SANDBOX_PARENT_DIRECTORY,
+    `${SANDBOX_ROOT_TEMPLATE}${uid}`,
+  );
+}
+
+/**
+ Reads the user id this process runs as.
+ 
+ @returns the current UID, or {@link NO_USER_IDENTIFIER} when the runtime
+   exposes none
+ 
+ @example
+ ```ts
+ currentUserId(); // 1000 on a host whose user is uid 1000
+ ```
+ */
+function currentUserId(): number | typeof NO_USER_IDENTIFIER {
+  if ((typeof process.getuid) !== 'function')
+    return NO_USER_IDENTIFIER;
+  return process.getuid();
+}
+
+/**
+ Lists the sandbox roots the hook must create for one user.
+ 
+ One derivation, so a host whose user is not the uid the old hardcoded name
+ assumed still gets the directory its sandbox needs.
+ 
+ @param uid - user id whose sandbox root is wanted
+ 
+ @param sandboxParentDirectory - directory holding the roots
+ 
+ @returns every sandbox root path to ensure, legacy name first
+ 
+ @example
+ ```ts
+ sandboxRootPaths({ sandboxParentDirectory: '/tmp', uid: 1000 });
+ // ['/tmp/claude', '/tmp/claude-1000']
+ ```
+ */
+function sandboxRootPaths(
+  {
+    sandboxParentDirectory,
+    uid,
+  }: {
+    readonly sandboxParentDirectory: string;
+    readonly uid: number | typeof NO_USER_IDENTIFIER;
+  },
+): readonly string[] {
+  /**
+   Legacy root every install has always had.
+   */
+  const legacyRoot = join(
+    sandboxParentDirectory,
+    LEGACY_SANDBOX_ROOT,
+  );
+  if (uid === NO_USER_IDENTIFIER)
+    return [legacyRoot,];
+  return [
+    legacyRoot,
+    join(
+      sandboxParentDirectory,
+      `${SANDBOX_ROOT_TEMPLATE}${uid}`,
+    ),
+  ];
 }
 
 /**
@@ -199,7 +307,8 @@ type SessionStartHousekeepingOutput = void;
 /**
  Performs session-start housekeeping in parallel:
  
- - Ensures `/tmp/claude` and `/tmp/claude-1000` exist
+ - Ensures the legacy `/tmp/claude` root and the per-user `/tmp/claude-<uid>`
+   root exist (see {@link sandboxRootPaths})
  - Removes stale git metadata leaked into nested `dist/final/` directories
  - Removes zero-byte Claude Code sandbox sentinels from the workspace root
  - Removes the ephemeral `.mcp.json` from the workspace root
@@ -216,16 +325,60 @@ type SessionStartHousekeepingOutput = void;
  await sessionStartHousekeepingHandler({ cwd: '/repo', source: 'startup', ... });
  ```
  */
-async function sessionStartHousekeepingHandler(
+function sessionStartHousekeepingHandler(
   event: ReadonlyDeep<SessionStartInput>,
+): Promise<SessionStartHousekeepingOutput> {
+  return performHousekeeping({ event, },);
+}
+
+/**
+ Performs the housekeeping steps for one event.
+ 
+ Separate from {@link sessionStartHousekeepingHandler} because the runtime calls
+ a handler with the event alone, while the user identity and the directory the
+ sandbox roots live under are environment facts a test must be able to replace
+ with a disposable directory and a fixed UID.
+ 
+ @param event - parsed {@link SessionStartInput} event from Claude Code
+ 
+ @param sandboxParentDirectory - directory the sandbox roots are created under
+ 
+ @param uid - user id whose sandbox root is created
+ 
+ @returns nothing; every step is a filesystem side effect
+ 
+ @example
+ ```ts
+ await performHousekeeping({ event, sandboxParentDirectory: '/tmp', uid: 1000 });
+ ```
+ */
+async function performHousekeeping(
+  {
+    event,
+    sandboxParentDirectory = SANDBOX_PARENT_DIRECTORY,
+    uid = currentUserId(),
+  }: {
+    readonly event: ReadonlyDeep<SessionStartInput>;
+    readonly sandboxParentDirectory?: string;
+    readonly uid?: number | typeof NO_USER_IDENTIFIER;
+  },
 ): Promise<SessionStartHousekeepingOutput> {
   /**
    Monorepo root, derived from the SessionStart event's `cwd` field.
    */
   const workspaceRoot = event.cwd;
+  /**
+   Sandbox roots every session needs, legacy name first.
+   */
+  const sandboxRoots = sandboxRootPaths({
+    sandboxParentDirectory,
+    uid,
+  },);
+
   await Promise.all([
-    ensureDir('/tmp/claude',),
-    ensureDir('/tmp/claude-1000',),
+    ...sandboxRoots.map(function ensureSandboxRoot(sandboxRoot,): Promise<void> {
+      return ensureDir(sandboxRoot,);
+    },),
     cleanDistArtifacts(workspaceRoot,),
     cleanRootSentinelArtifacts(workspaceRoot,),
     removeMcpJson(workspaceRoot,),
@@ -274,7 +427,14 @@ export type { SessionStartHousekeepingOutput, };
 
 export {
   cleanRootSentinelArtifacts,
+  LEGACY_SANDBOX_ROOT,
+  NO_USER_IDENTIFIER,
+  performHousekeeping,
   ROOT_SENTINEL_ARTIFACTS,
+  SANDBOX_PARENT_DIRECTORY,
+  SANDBOX_ROOT_TEMPLATE,
+  sandboxRootDir,
+  sandboxRootPaths,
   sessionStartHousekeepingHandler,
   sessionStartHousekeepingParser,
   sessionStartHousekeepingWriter,
