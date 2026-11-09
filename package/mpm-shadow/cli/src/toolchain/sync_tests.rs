@@ -169,6 +169,8 @@ fn a_toolchain_row_naming_a_channel_is_recognised_and_reconciled_under_that_chan
         tool.version = "1.90.0".to_string();
     }
     rig.runner.answer("rustup which --toolchain stable rustc", "/home/someone/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc\n", 0);
+    // The channel still holds the release the lock records, so the row is current.
+    rig.runner.answer("rustc --version", "rustc 1.90.0 (abc 2026-09-01)\n", 0);
     rig.runner.answer(
         "rustup component list --installed --toolchain stable",
         "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
