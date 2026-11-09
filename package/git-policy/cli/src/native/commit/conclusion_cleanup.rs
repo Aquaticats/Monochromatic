@@ -185,20 +185,47 @@ pub fn same_tree(left: &Path, right: &Path) -> Result<bool, RecoveryError> {
 }
 
 /// What:
+///  Whether this backend's ref store can hold a conclusion name at all.
+/// Why:
+///   `store-held.json` names the conclusion values a reftable repository keeps in its ref store.
+/// A backend whose store holds none writes no record at all,
+/// so the record's absence is that state there and damage everywhere else.
+///  Both sides of the record read this one rule,
+/// so a name added to the table cannot leave the writer and the reader disagreeing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// CONCLUSION_STATE_FILES.some((name) => isStoreHeld(format, name))
+/// ```
+pub fn store_names_conclusions(format: RefFormat) -> bool {
+    for name in CONCLUSION_STATE_FILES {
+        if is_store_held(format, name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  The store-held values copied at preparation,
 ///  from `store-held.json`.
 /// Why:
 ///   A value that is not text is no copy;
 ///  the record itself must be valid UTF-8 JSON.
+///  A backend whose ref store can hold no conclusion value writes no record,
+///  so an absent one names nothing there and stays damage where the store does hold values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.parse(decode(await readFile(join(copies, STORE_RECORD_FILENAME))))
+/// async function readStoreRecord({ copies, format }): Promise<Value>;
 /// ```
-fn read_store_record(copies: &Path) -> Result<serde_json::Value, RecoveryError> {
+fn read_store_record(copies: &Path, format: RefFormat) -> Result<serde_json::Value, RecoveryError> {
     let path: PathBuf = copies.join(STORE_RECORD_FILENAME);
     let bytes: Vec<u8> = match std::fs::read(&path) {
         Ok(read) => read,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && !store_names_conclusions(format) => {
+            return Ok(serde_json::Value::Object(serde_json::Map::new()));
+        }
         Err(error) => return Err(io_failure("reading", path.as_path(), &error)),
     };
     let Some(text) = crate::json_record::decode_fatal(bytes.as_slice()) else {
@@ -284,7 +311,7 @@ pub fn reproduce_conclusion_cleanup(
         );
         return Ok(());
     }
-    let store: serde_json::Value = read_store_record(copies.as_path())?;
+    let store: serde_json::Value = read_store_record(copies.as_path(), format)?;
     for name in REMOVED_CONCLUSION_FILES {
         if is_store_held(format, name) {
             if let Some(copied) = store.get(name).and_then(serde_json::Value::as_str) {

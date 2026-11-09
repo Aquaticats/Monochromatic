@@ -65,7 +65,7 @@ so the skill's "commit after each phase" rule is unmet.
   so `JSON.stringify` over sorted keys is the
    canonical form.
    The canonical input is stored in `/var/home/user/temp/agent/toml-vet-2026-10-29/fingerprint.out`.
-   The hard-constraint list below is the fingerprint input;
+   The "Hard constraints (the fingerprint input)" list is the fingerprint input;
   changing it changes the fingerprint.
 - Prior compatible report:
    none.
@@ -921,7 +921,7 @@ Only the claims gathered this session are listed;
 every record is access date 2026-10-29.
 
 - Claim:
-   crates.io facts above.
+   the crates.io facts under "Candidate ledger".
    Status:
   pass or lead as labelled.
    Source:
@@ -1010,7 +1010,10 @@ No candidate has been scored.
      `agent-browser` or
       another provider.
    - Class 1 and 2:
-     optional extra queries for taxonomy terms recorded above;
+     optional extra queries for the taxonomy terms `tree-sitter-toml`,
+     `toml_writer`,
+     `serde_spanned` and `tomling`,
+     which the class records as unqueried;
      GitHub code search for
       `DocumentMut` or `toml_edit` consumers is not required.
    - Class 4:

@@ -466,7 +466,10 @@ echo "copy $(sudo find ${c.finalPath} -user root -name '*.log.jsonl' | wc --line
       command: `for name in ${names}; do
   sudo rsync --archive --checksum --dry-run --itemize-changes --delete --one-file-system --omit-dir-times ${c.externalWorktrees}/$name/ ${c.externalFinal}/$name/
 done > ${c.wiz}/external-compare.txt`,
-      check: `grep --invert-match --fixed-strings '*deleting' ${c.wiz}/external-compare.txt | head --lines=20 > ${c.wiz}/external-differences.txt; echo "kept files deleted at the source after pass one: $(grep --count --fixed-strings '*deleting' ${c.wiz}/external-compare.txt || true)"; test ! -s ${c.wiz}/external-differences.txt || { cat ${c.wiz}/external-differences.txt; exit 1; }`,
+      check: `${ // grep --invert-match exits 1 when it selects no lines, which an empty compare and one of only *deleting lines give; the group keeps that from failing a stage that has no difference to report.
+        ''}{ grep --invert-match --fixed-strings '*deleting' ${c.wiz}/external-compare.txt || true; } | head --lines=20 > ${c.wiz}/external-differences.txt
+echo "kept files deleted at the source after pass one: $(grep --count --fixed-strings '*deleting' ${c.wiz}/external-compare.txt || true)"
+test ! -s ${c.wiz}/external-differences.txt || { cat ${c.wiz}/external-differences.txt; exit 1; }`,
       checkText: 'no difference other than files deleted at the source after pass one',
       rollback: `${thawRollback}. A real difference means pass two missed a change: run this stage again after the cause is understood`,
       root: 'yes',
@@ -524,12 +527,25 @@ ls -ld ${c.repo} ${c.externalWorktrees}`,
       id: 'c20-through-link',
       title: 'Verify 9: through the link',
       window: true,
-      says: 'Verification 9: the same fsck, table and worktree list, now through the real link.',
+      says: 'Verification 9: the same fsck, table and worktree list, now through the real link. Git prints the main worktree under its resolved path, so the through-link table and list spell that one line as the 860 path where the frozen baseline spells the link path: the comparison allows exactly that spelling on that one line, and a difference on any other line still fails the stage.',
       command: `/usr/bin/git --no-optional-locks -C ${c.repo} fsck --full
 systemd-run ${c.userScope} timeout --kill-after=${killGrace} ${scanTime} ${scan} ${c.repo} ${c.wiz}/through-link.tsv ${perScan}
 /usr/bin/git --no-optional-locks -C ${c.repo} worktree list --porcelain > ${c.wiz}/porcelain-through-link.txt`,
-      check: `cmp ${c.wiz}/baseline-frozen.tsv ${c.wiz}/through-link.tsv && cmp ${c.wiz}/porcelain-frozen.txt ${c.wiz}/porcelain-through-link.txt`,
-      checkText: 'table and worktree list through the link equal the frozen baseline',
+      check: `${ // Git prints the main worktree under its resolved path, so one line of each file spells it as the 860 path where the baseline spells the link path. Only the line where that path stands alone is rewritten, on both sides, so any other difference still differs.
+        ''}main_spelling() {
+  sed --expression 's|^worktree ${c.repo}$|worktree <the main worktree>|' --expression 's|^worktree ${c.finalPath}$|worktree <the main worktree>|' --expression 's|^${c.repo}\t|<the main worktree>\t|' --expression 's|^${c.finalPath}\t|<the main worktree>\t|' "$1"
+}
+main_spelling ${c.wiz}/baseline-frozen.tsv > ${c.wiz}/baseline-spelling.tsv
+main_spelling ${c.wiz}/through-link.tsv > ${c.wiz}/through-link-spelling.tsv
+main_spelling ${c.wiz}/porcelain-frozen.txt > ${c.wiz}/porcelain-frozen-spelling.txt
+main_spelling ${c.wiz}/porcelain-through-link.txt > ${c.wiz}/porcelain-through-link-spelling.txt
+grep --quiet --extended-regexp "^${c.repo}[[:space:]]" ${c.wiz}/baseline-frozen.tsv
+grep --quiet --extended-regexp "^${c.finalPath}[[:space:]]" ${c.wiz}/through-link.tsv
+grep --quiet --line-regexp "worktree ${c.repo}" ${c.wiz}/porcelain-frozen.txt
+grep --quiet --line-regexp "worktree ${c.finalPath}" ${c.wiz}/porcelain-through-link.txt
+cmp --silent ${c.wiz}/baseline-spelling.tsv ${c.wiz}/through-link-spelling.tsv || { diff --unified=0 ${c.wiz}/baseline-spelling.tsv ${c.wiz}/through-link-spelling.tsv; exit 1; }
+cmp --silent ${c.wiz}/porcelain-frozen-spelling.txt ${c.wiz}/porcelain-through-link-spelling.txt || { diff --unified=0 ${c.wiz}/porcelain-frozen-spelling.txt ${c.wiz}/porcelain-through-link-spelling.txt; exit 1; }`,
+      checkText: 'the table and the worktree list through the link equal the frozen baseline, the main worktree spelled as the 860 path there and as the link path in the baseline, and nothing else differs',
       rollback: 'the rollback command',
       root: 'no',
       unprivileged: 'not needed: read-only Git as the user',
@@ -546,6 +562,51 @@ ${link}/check.mjs`,
       rollback: 'the rollback command renames the identity file aside and records phase before again',
       root: 'no',
       unprivileged: 'not needed: written as the user',
+    },
+    {
+      id: 'c20c-refresh-checkouts',
+      title: 'Refresh the moved checkouts',
+      window: true,
+      says: `The move gave every file a new inode, so each checkout's index keeps the stat data of the files as they were before it: a commit there is stopped at the wrapper's 3-second scratch ceiling, on every retry, until a status has rewritten the index (measured after the move). The relative links of node_modules reach the pnpm store through the checkout's physical path, so they point nowhere after the move, and the main checkout's dangling links broke pi; mise exec -- pnpm install --offline --frozen-lockfile repaired that checkout in 7.6 s. This stage runs a status in every registered checkout, which rewrites the index and changes no file (a --no-optional-locks status does not rewrite it, measured on 2026-11-08), and repairs every node_modules that holds a dangling link. It runs after the through-the-link checks, which compare the index hashes with the frozen baseline, and before the release, because commits resume there. A checkout with no node_modules is left as it is and named.`,
+      command: `/usr/bin/git --no-optional-locks -C ${c.repo} worktree list --porcelain > ${c.wiz}/checkouts-moved.txt
+awk '/^worktree /{ print substr($0, 10) }' ${c.wiz}/checkouts-moved.txt > ${c.wiz}/checkout-paths.txt
+: > ${c.wiz}/checkout-indexes.txt
+: > ${c.wiz}/checkout-index-refusals.txt
+: > ${c.wiz}/checkout-installs.txt
+: > ${c.wiz}/checkout-links-left.txt
+: > ${c.wiz}/checkout-without-node-modules.txt
+: > ${c.wiz}/checkout-install.log
+while IFS= read -r path; do
+  if /usr/bin/git -C "$path" status --porcelain > /dev/null 2> ${c.wiz}/checkout-status.err; then
+    printf 'index rewritten: %s\\n' "$path" >> ${c.wiz}/checkout-indexes.txt
+  else
+    printf 'index not rewritten: %s: %s\\n' "$path" "$(head --lines=1 ${c.wiz}/checkout-status.err)" >> ${c.wiz}/checkout-index-refusals.txt
+  fi
+  if [ ! -d "$path/node_modules" ]; then
+    printf 'no node_modules: %s\\n' "$path" >> ${c.wiz}/checkout-without-node-modules.txt
+    continue
+  fi
+  links=$(find "$path/node_modules" -xtype l -print | wc --lines)
+  if [ "$links" -eq 0 ]; then
+    continue
+  fi
+  printf 'dangling links before the install: %s %s\\n' "$links" "$path" >> ${c.wiz}/checkout-installs.txt
+  if ( cd "$path" && mise exec -- pnpm install --offline --frozen-lockfile ) >> ${c.wiz}/checkout-install.log 2>&1; then
+    printf 'repaired: %s\\n' "$path" >> ${c.wiz}/checkout-installs.txt
+  else
+    printf 'the install failed: %s\\n' "$path" >> ${c.wiz}/checkout-installs.txt
+  fi
+  left=$(find "$path/node_modules" -xtype l -print | wc --lines)
+  if [ "$left" -ne 0 ]; then
+    printf '%s still holds %s dangling node_modules links after the install\\n' "$path" "$left" >> ${c.wiz}/checkout-links-left.txt
+  fi
+done < ${c.wiz}/checkout-paths.txt
+printf 'checkouts: %s, indexes rewritten: %s, node_modules repaired: %s, without node_modules: %s\\n' "$(wc --lines < ${c.wiz}/checkout-paths.txt)" "$(wc --lines < ${c.wiz}/checkout-indexes.txt)" "$(grep --count '^repaired: ' ${c.wiz}/checkout-installs.txt || true)" "$(wc --lines < ${c.wiz}/checkout-without-node-modules.txt)"`,
+      check: `test -s ${c.wiz}/checkout-paths.txt && test ! -s ${c.wiz}/checkout-index-refusals.txt && test ! -s ${c.wiz}/checkout-links-left.txt`,
+      checkText: "every checkout's index was rewritten and no node_modules link is left dangling",
+      rollback: 'the indexes and node_modules folders it wrote belong to the working trees; the rollback command still applies (it renames the links aside)',
+      root: 'no',
+      unprivileged: 'not needed: Git and pnpm run as the user, and the copy is writable after the final pass',
     },
     {
       id: 'c21-release',
@@ -635,11 +696,12 @@ kopia snapshot list ${kopiaSource} | tail --lines=6`,
     {
       id: 'c27-container-bind',
       title: 'After the cut-over: a container bind through the link',
-      says: 'W13: a container with the repository as a read-only bind source, spelled through the link, starts and sees the Git folder. It uses the first image already on this host and pulls nothing; its memory, processor and process counts are capped.',
+      says: 'W13: a container with the repository as a read-only bind source, spelled through the link, starts and sees the Git folder. It uses the first image already on this host and pulls nothing; its memory, processor and process counts are capped, and SELinux labelling is off, as in every container this repository runs.',
       // awk reads the whole listing: a reader that stops at the first line ends the writer with SIGPIPE, which pipefail reports as a failure.
+      // Without label=disable a private SELinux label on the repository folder denies the read, which says nothing about the link.
       command: `image=$(podman images --noheading --format '{{.Repository}}:{{.Tag}}' | grep --invert-match '<none>' | awk 'NR == 1')
 test -n "$image"
-podman run --rm --pull=never ${CONTAINER_BIND_LIMIT_OPTIONS} --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
+podman run --rm --pull=never --security-opt label=disable ${CONTAINER_BIND_LIMIT_OPTIONS} --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
 echo 'container bind through the link: ok'`,
       check: `grep --fixed-strings 'container bind through the link: ok' "$OUTPUT_FILE"`,
       checkText: 'the container saw /repository/.git',

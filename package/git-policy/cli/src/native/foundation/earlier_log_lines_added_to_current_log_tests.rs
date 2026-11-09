@@ -107,6 +107,10 @@ fn a_last_line_without_a_newline_is_ended_before_the_next_begins() {
 /// each line of both logs is in the current log exactly once.
 #[test]
 fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
+    // The sweep's subject is the steps of the fold and the lines they leave, not what a crash leaves, so its syncs are
+    //  no-ops here: one walk of the whole fold made 306 `fsync` calls in its sibling sweep (`earlier_names_folded_into_current_tests.rs`),
+    //  and the filesystem's commits decided whether that walk finished inside the run's own bound.
+    crate::private_storage::skip_the_durability_syncs_here();
     let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
     let mut limit: usize = 0;
     loop {
@@ -375,6 +379,8 @@ fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
 /// each line is in the current log once.
 #[test]
 fn a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line() {
+    // As its sibling above: the steps and the lines are the subject, and the syncs of every step are not.
+    crate::private_storage::skip_the_durability_syncs_here();
     let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}{}", std::str::from_utf8(LATE_LINE).expect("text"));
     let mut limit: usize = 0;
     loop {
