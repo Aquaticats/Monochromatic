@@ -77,15 +77,16 @@ pub fn output_of_within_bound(command: &mut Command, ceiling: Duration) -> std::
     let capture: Capture = Capture::new()?;
     let (standard_output, standard_error) = capture.stdio()?;
     command.stdout(standard_output).stderr(standard_error);
-    let mut child: Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
+    let child: Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
     // This thread has not reaped the child, so the ceiling's kill reaches it and nothing else, and the reap here leaves no
     //  zombie behind.
-    let status: std::process::ExitStatus = match crate::child_waited_for_within_a_ceiling::wait_within(&mut child, ceiling) {
+    let status: std::process::ExitStatus = match crate::child_waited_for_within_a_ceiling::wait_within(child, ceiling) {
         Ok(finished) => finished,
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            let left_running: bool = crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&error);
             return Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
-                crate::child_waited_for_within_a_ceiling::ceiling_reached_text(program.as_str(), ceiling),
+                crate::child_waited_for_within_a_ceiling::ceiling_reached_text(program.as_str(), ceiling, left_running),
             ));
         }
         Err(error) => return Err(error),
