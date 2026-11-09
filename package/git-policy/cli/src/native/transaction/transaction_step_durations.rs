@@ -99,6 +99,32 @@ pub fn note_step(name: &str, began: Instant, took: Duration) {
     ledger.runs.push(StepRun { name: plain_name(name), began, took });
 }
 
+/// What:
+///  How much of a stretch of the command the Git steps it started took,
+///  clipped to the stretch's end.
+/// Why:
+///   A preparation's stretch is measured from seam to seam,
+///  and the Git child that ran inside it is recorded apart;
+///  taking it out here is what makes a stretch's figure the time it spent waiting
+///  rather than the time of a step another reading already names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const children = runs.filter((run) => run.began >= from && run.began <= to).reduce((sum, run) => sum + Math.min(run.took, to - run.began), 0);
+/// ```
+pub fn step_time_between(from: Instant, to: Instant) -> Duration {
+    let ledger = STEPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut taken: Duration = Duration::ZERO;
+    for run in &ledger.runs {
+        if run.began < from || run.began > to {
+            continue;
+        }
+        let room: Duration = to.saturating_duration_since(run.began);
+        taken += run.took.min(room);
+    }
+    return taken;
+}
+
 /// The name with every character that is not a letter,
 /// a digit,
 /// a space,

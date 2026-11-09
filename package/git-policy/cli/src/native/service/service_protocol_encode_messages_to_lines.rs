@@ -141,14 +141,6 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("version", Value::from(PROTOCOL_VERSION)),
             ("id", Value::from(id.as_str())),
         ]),
-        ClientMessage::Scratch { git_dir, path } => {
-            let mut fields: Map<String, Value> = Map::new();
-            put(&mut fields, "type", Value::from("scratch"));
-            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
-            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
-            path_bytes::write_field(&mut fields, "path", path.as_path());
-            Value::Object(fields).to_string()
-        }
         ClientMessage::Warm { git_dir, repository } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("warm"));
@@ -191,6 +183,7 @@ pub fn commit_line(request: &CommitRequest) -> String {
     path_bytes::write_field(&mut fields, "commonDir", request.common_dir.as_path());
     path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
     path_bytes::write_field(&mut fields, "index", request.index.as_path());
+    path_bytes::write_field(&mut fields, "scratch", request.scratch.as_path());
     put(&mut fields, "reference", Value::from(request.reference.as_str()));
     put(&mut fields, "base", Value::from(request.base.as_str()));
     put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));

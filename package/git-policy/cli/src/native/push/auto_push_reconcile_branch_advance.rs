@@ -285,12 +285,13 @@ pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str
     let place: RecoveryPlace = RecoveryPlace {
         git: GitContext { real_git: git.real_git.clone(), overlay: git.environment.clone(), global_prefix: Vec::new(), common_dir: git_dir.clone() },
         cwd: git.cwd.clone(),
-        common_dir: git_dir.unwrap_or_default(),
+        common_dir: git_dir.clone().unwrap_or_default(),
+        git_dir: git_dir.unwrap_or_default(),
     };
-    return Ok(match settle_failed_merge(&place, record.as_path(), &intent) {
+    return Ok(match settle_failed_merge(&place, record.as_path(), &intent, &mut std::io::stderr()) {
         Ok(MergeRecoveryAction::Completed) => Ok(()),
         Ok(_) => Err(refusal),
-        Err(error) => Err(format!("{refusal} ({})", error.0)),
+        Err(error) => Err(format!("{refusal} ({})", error.error.0)),
     });
 }
 
@@ -428,6 +429,7 @@ pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, l
         target_ref: Some(branch_ref.to_owned()),
         old_oid: local.to_owned(),
         new_oid: merge_oid.to_owned(),
+        side_ref: None,
     };
     let record: PathBuf = write_merge_intent(dir, &intent).ok()?;
     return Some((record, intent));
