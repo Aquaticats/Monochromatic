@@ -40,6 +40,20 @@ use std::{
 };
 
 /// What:
+///  The marker every checkout's top carries:
+///  a directory in an ordinary repository,
+///  and a file in a linked worktree.
+/// Why:
+///  It is where a checkout begins,
+///  so nothing above it may configure a file below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GIT_MARKER_NAME = '.git';
+/// ```
+const GIT_MARKER_NAME: &str = ".git";
+
+/// What:
 ///  The file name git reads for path attributes.
 /// Why:
 ///  Only the repository root's file is consulted,
@@ -153,14 +167,22 @@ impl LfsImageContext {
 ///  The nearest directory,
 ///  starting at `start` and walking toward the filesystem root,
 ///  that
-/// holds a regular `.lfsconfig` file.
+/// holds a regular `.lfsconfig` file,
+///  never past the top of the checkout `start` belongs to.
 /// Why:
 ///  That directory is the repository root object paths are relative to.
 /// A directory or other non-file entry with that name is not a configuration and is skipped.
+///  A checkout's top carries `.git`,
+///  as a directory in an ordinary repository and as a file in a linked worktree,
+///  and Git gives a file in a linked worktree none of the enclosing checkout's attributes;
+///  walking past that marker would rewrite the nested checkout's Markdown with another
+///  checkout's server and repository-relative path.
+///  A marker this process cannot examine ends the search too,
+///  because what lies above it may belong to another checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function findLfsRepoRoot(start: Path): Path | undefined;
+/// function findLfsRepoRoot(start: Path): Path | undefined; // stops at the nearest directory holding `.git`
 /// ```
 pub(crate) fn find_lfs_repo_root(start: &Path) -> Result<Option<PathBuf>, LfsConfigError> {
     for directory in start.ancestors() {
@@ -179,8 +201,34 @@ pub(crate) fn find_lfs_repo_root(start: &Path) -> Result<Option<PathBuf>, LfsCon
                 }
             }
         }
+        if is_a_checkout_top(directory) {
+            return Ok(None);
+        }
     }
     return Ok(None);
+}
+
+/// What:
+///  Whether `directory` is the top of a checkout:
+///  it holds `.git` as a directory,
+///  a file or anything else that exists.
+/// Why:
+///  One marker serves both shapes Git writes,
+///  and a marker that exists but cannot be examined is still the boundary of what this process
+///  may read above,
+///  so discovery stops there rather than risking another checkout's endpoint.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isACheckoutTop = (directory) => lstatSync(join(directory, '.git'), { throwIfNoEntry: false }) !== undefined;
+/// ```
+fn is_a_checkout_top(directory: &Path) -> bool {
+    return match std::fs::symlink_metadata(directory.join(GIT_MARKER_NAME)) {
+        Ok(_marker) => true,
+        Err(error) => {
+            error.kind() != ErrorKind::NotFound && error.kind() != ErrorKind::NotADirectory
+        }
+    };
 }
 
 /// What:

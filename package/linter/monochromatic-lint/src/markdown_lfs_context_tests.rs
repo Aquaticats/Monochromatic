@@ -157,7 +157,9 @@ fn a_linked_worktree_does_not_inherit_the_enclosing_checkout() {
         "a different checkout's endpoint must not govern this candidate"
     );
     assert!(
-        discover_lfs_image_repo(&checkout.join("nested")).expect("discovery").is_none(),
+        discover_lfs_image_repo(&checkout.join("nested"))
+            .expect("discovery")
+            .is_none(),
         "the rule is inert in a checkout that declares no endpoint"
     );
     // Positive controls: the enclosing checkout still finds its own endpoint, and a directory below the
@@ -172,7 +174,10 @@ fn a_linked_worktree_does_not_inherit_the_enclosing_checkout() {
     );
     // A repository whose top holds no endpoint stops there too, instead of reaching a home-directory file.
     std::fs::remove_file(checkout.join(".lfsconfig")).expect("no endpoint at the top");
-    assert_eq!(find_lfs_repo_root(&checkout.join("pkg")).expect("search"), None);
+    assert_eq!(
+        find_lfs_repo_root(&checkout.join("pkg")).expect("search"),
+        None
+    );
 }
 
 /// Without a configuration,
