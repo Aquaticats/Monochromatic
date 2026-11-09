@@ -147,7 +147,7 @@ takes the first `RealGit` it finds.
 The guard that would stop the loop is
 `src/native/invocation/started_as_git.rs:275-292`:
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 //! Quoted from src/native/invocation/started_as_git.rs:275-279.
 pub fn started_as_git(marker: &StartMarker, facts: &ProcessFacts<'_>) -> bool {
     let candidate: u32 = if marker.mode == StartMode::Replace { facts.own_pid } else { facts.parent_pid };
@@ -245,7 +245,7 @@ its promised message never appears.
 
 `src/native/service/service_provision.rs:344-350`:
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 //! Quoted from src/native/service/service_provision.rs:344-350.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     if in_place(host) {
@@ -352,7 +352,7 @@ and maps its end to a number:
 
 and then (`worktree_copying/worktree_copy.rs:237-249`):
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 //! Quoted from src/native/worktree_copying/worktree_copy.rs:237-245.
 pub fn exit_code(settlement: &Settlement) -> i32 {
     let git_code: i32 = settlement.git.code.unwrap_or(1);
