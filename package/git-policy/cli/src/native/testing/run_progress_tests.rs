@@ -10,7 +10,7 @@
 //! and that a stuck run ends its process.
 
 use super::*;
-use crate::test_support::{fixture, forbid_core_dumps, remove, spawn_owned, this_test_binary};
+use crate::test_support::{arm_watchdog, fixture, forbid_core_dumps, remove, spawn_owned, this_test_binary};
 use std::os::unix::process::ExitStatusExt as _;
 
 /// A look at a run in which nothing is able to run and nothing waits for the disk.
@@ -250,6 +250,30 @@ fn a_stuck_run_ends_its_process() {
     assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process:\n{said}");
     assert!(said.contains("a test is stuck"), "{said}");
     assert!(said.contains("showed no sign of work for"), "{said}");
+}
+
+/// Child of the control below:
+/// a run under the fixture's watcher and one of its own that shows nothing at all,
+/// so neither watcher may count the other's readings as the run's work.
+#[test]
+#[ignore = "started by two_watchers_do_not_keep_each_other_alive in a process of its own"]
+fn child_that_sleeps_under_two_watchers() {
+    forbid_core_dumps();
+    arm_watchdog();
+    let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    std::thread::sleep(Duration::from_secs(5));
+}
+
+/// Two watchers of a run that shows nothing end it,
+/// so a reading is never taken for the work of the run it reads.
+#[test]
+fn two_watchers_do_not_keep_each_other_alive() {
+    let output: std::process::Output = run_child("child_that_sleeps_under_two_watchers");
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    assert!(ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "a watcher ended the process:\n{said}");
+    assert!(said.contains("a test is stuck"), "{said}");
 }
 
 /// A run that keeps moving past its window is not ended,
