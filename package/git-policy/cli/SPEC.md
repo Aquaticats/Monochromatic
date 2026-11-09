@@ -1515,6 +1515,12 @@ A journal written by an earlier release records no such instant,
 and then every regular file's contents are compared.
 Only the files the change time flags are read,
 so a conversion nothing was changed in reads no contents at all.
+Both sides are opened by the plain-file reader,
+which waits for no writer and follows no link:
+a name
+  swapped for a named pipe or a link after the walk read its metadata ends the comparison with the
+file named
+  instead of holding the conversion's claim for ever.
 The measurement behind that choice,
 on this repository's largest worktree (28,569,216,018 bytes in 115,067 files,
 144,633 entries,

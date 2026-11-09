@@ -40,7 +40,7 @@
 //! ```
 
 use crate::subvolume_sync_attrs::carried_attributes_equal;
-use crate::worktree_copy_compare::regular_file_bytes_equal;
+use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
@@ -69,19 +69,48 @@ fn changed_since(before: &std::fs::Metadata, synced_ms: Option<i64>) -> bool {
 /// Whether two files hold different bytes.
 /// Why:
 ///   See `changed_since`;
-/// the bytes are compared in bounded chunks by the call the copy uses,
-/// so memory does not grow with
-///  the file.
+/// the bytes are compared in bounded chunks,
+/// through the plain-file open on both sides,
+/// so memory
+///  does not grow with the file and a name swapped for a pipe or a link cannot make the read wait or
+///  follow it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function contentsDiffer(old: string, installed: string): boolean; // throws when a file cannot be read
 /// ```
 fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
-    return match regular_file_bytes_equal(old, installed) {
-        Ok(equal) => Ok(!equal),
-        Err(error) => Err(std::io::Error::other(error.0)),
-    };
+    // Both sides go through the plain-file open: a name swapped for a link or a named pipe after the walk read its metadata
+    // must not make this read follow it or wait for a writer, while the conversion holds its claim.
+    let mut left: std::fs::File = crate::plain_file::open_plain_file(old)?;
+    let mut right: std::fs::File = crate::plain_file::open_plain_file(installed)?;
+    let mut left_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
+    let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
+    loop {
+        let left_read: usize = fill_buffer(&mut left, &mut left_buffer)?;
+        let right_read: usize = fill_buffer(&mut right, &mut right_buffer)?;
+        if left_read != right_read || left_buffer[..left_read] != right_buffer[..right_read] {
+            return Ok(true);
+        }
+        if left_read == 0 {
+            return Ok(false);
+        }
+    }
+}
+
+/// Fill `buffer` from `file` as far as the file has bytes,
+/// and answer how many it gave;
+/// nothing means both met their end.
+fn fill_buffer(file: &mut std::fs::File, buffer: &mut [u8]) -> std::io::Result<usize> {
+    let mut filled: usize = 0;
+    while filled < buffer.len() {
+        let read: usize = std::io::Read::read(file, &mut buffer[filled..])?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    return Ok(filled);
 }
 
 /// What:
