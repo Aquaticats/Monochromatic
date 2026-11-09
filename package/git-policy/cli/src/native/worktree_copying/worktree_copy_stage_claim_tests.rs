@@ -57,7 +57,8 @@ fn a_claim_names_the_container_and_creates_no_container() {
     assert!(!claim.container().exists(), "the claim precedes the container");
     let recorded: String = std::fs::read_to_string(claim.path.as_path()).expect("claim file");
     let mut lines = recorded.lines();
-    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()));
+    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()), "a text path stays where the earlier release reads it");
+    assert_eq!(lines.next(), Some(format!("{CONTAINER_HEX_PREFIX}{}", hex_of_path(claim.container())).as_str()), "the claim carries the container's bytes");
     assert_eq!(lines.next(), Some(format!("owner={}", current_copy_owner().expect("owner").token()).as_str()), "the claim names its owner");
     assert_eq!(claim.path.parent(), Some(journal_root(common.as_path()).as_path()));
     assert!(claim.path.to_string_lossy().ends_with(".stage"));
@@ -721,11 +722,12 @@ fn earlier_release_claim_container(text: &str) -> Option<PathBuf> {
 #[test]
 fn a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text() {
     let (root, common, destination) = scene_with_bytes("claim-bytes", b"par\xffnt");
-    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &owner).expect("claim");
     assert_eq!(claim.container().parent(), destination.parent(), "the container stands beside the destination");
     let read: (PathBuf, Option<String>) = read_claim(claim.path.as_path()).expect("read").expect("present");
     assert_eq!(read.0, claim.container().to_path_buf(), "the claim names the container it was made for");
-    assert_eq!(read.1, Some(dead_copy_owner().token()), "the claim names its owner");
+    assert_eq!(read.1, Some(owner.token()), "the claim names its owner");
     claim.release().expect("release");
     remove(root.as_path());
 }
@@ -762,11 +764,12 @@ fn two_claims_whose_paths_differ_only_in_bytes_are_two_records() {
 #[test]
 fn an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is() {
     let (root, common, destination) = scene_with_bytes("claim-reap-bytes", b"par\xffnt");
-    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     abandoned_stage(claim.container());
     let container: PathBuf = claim.container().to_path_buf();
     let replacement: PathBuf = PathBuf::from(container.to_string_lossy().into_owned());
     std::fs::create_dir_all(replacement.as_path()).expect("a directory at the replacement spelling");
+    std::fs::set_permissions(replacement.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private decoy");
     std::fs::write(replacement.join("keep"), b"not the stage").expect("marker");
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
     assert!(!container.exists(), "the stage the claim named is removed");

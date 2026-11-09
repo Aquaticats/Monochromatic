@@ -17,6 +17,7 @@
 //! ```
 
 use crate::json_record::quote;
+use crate::path_bytes_in_records::path_of_the_two_fields;
 use crate::private_storage::sync_directory;
 use crate::worktree_add_binding::{Recorded, decode_record};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
@@ -25,7 +26,7 @@ use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
-use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
+use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -184,15 +185,39 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
             return Err(failure_with_cause(message.as_str(), Some(&error)));
         }
     };
-    let mut lines = text.lines();
-    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
+    // The bytes line wins; the first line is the container only for a claim an earlier release wrote.
+    let mut first_line: &str = "";
+    let mut container_hex: Option<&str> = None;
     let mut owner: Option<String> = None;
-    for line in lines {
+    for (index, line) in text.lines().enumerate() {
+        if let Some(hexadecimal) = line.strip_prefix(CONTAINER_HEX_PREFIX) {
+            container_hex = Some(hexadecimal);
+            continue;
+        }
         if let Some(token) = line.strip_prefix(OWNER_LINE_PREFIX) {
-            owner = Some(token.to_string());
-            break;
+            if owner.is_none() {
+                owner = Some(token.to_string());
+            }
+            continue;
+        }
+        if index == 0 {
+            first_line = line;
         }
     }
+    let container: PathBuf = match path_of_the_two_fields(container_hex, Some(first_line)) {
+        Ok(Some(path)) => path,
+        Ok(None) => PathBuf::new(),
+        Err(reason) => {
+            return Err(failure_with_cause(
+                format!(
+                    "monochromatic-git-policy-cli: worktree-copy stage claim {} holds a container in bytes that is not a path ({reason}); remove the file after checking it.",
+                    quote(claim.to_string_lossy().as_ref())
+                )
+                .as_str(),
+                None,
+            ));
+        }
+    };
     let stage_named: bool = match container.file_name() {
         Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
         None => false,
