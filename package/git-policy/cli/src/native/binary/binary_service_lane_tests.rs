@@ -137,7 +137,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         git_dir: git_dir.to_path_buf(),
         reference: format!("refs/heads/{branch}"),
         base: query(&["rev-parse", "HEAD"]),
-        changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
         author: None,
         committer: COMMITTER.to_string(),

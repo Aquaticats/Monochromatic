@@ -1398,6 +1398,17 @@ It runs only when asked;
   A version that arrives after the installed versions are listed,
   which is any concurrent install,
   is never in the plan at all.
+- A concurrent install's `current` link is read just before the prune would remove it,
+  and a link naming a version that still exists and is not one of this run's deletions is left alone.
+  The instant between that read and the unlink is the remaining window:
+  a `current` another command moves inside it can still be removed.
+- The link is likewise read just before the prune would move it:
+  a version that is not on disk at that moment is never what `current` is pointed at,
+  and a link already naming a finished version newer than the one the plan would pick stays.
+  The window left is the instant between that read and the link write,
+  so a version another command deletes inside it can still leave the link naming a directory that is gone;
+  the next `install` repoints it.
+  No lock and no wait is added for it.
 
 ### Migration from the shared `$CARGO_HOME/bin`
 

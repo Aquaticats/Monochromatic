@@ -129,7 +129,9 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
 ///  Panic with the secret as the message.
 /// Why:
 ///   A named function for `catch_unwind`,
-///  because the repository bans anonymous functions.
+///  because `rust/avoidable-closure` reports a closure argument that a named function could replace;
+///  the syntax-only anonymous-function ban once cited here was removed on 2026-10-18
+///  (`doc/decision/rust-closure-lint-dylint.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

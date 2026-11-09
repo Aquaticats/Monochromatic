@@ -7,8 +7,7 @@
 //!  The parsers are pure text functions,
 //!  so their controls run on every host,
 //!  whichever scan
-//!      produced the text (`src/index-lock/index-lock-holders-darwin.ts`,
-//!  `-win32.ts`).
+//!      produced the text.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
