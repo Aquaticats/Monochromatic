@@ -8676,9 +8676,11 @@ neither built:
 Not done here because both are the client's reach and message path (`service/client` and `landing/`),
 not the ceiling and notice this branch changes.
 
-What happened to the two, measured (2026-11-09T10:21:14-05:00):
+What happened to the two,
+measured (2026-11-09T10:21:14-05:00):
 
-- The service sent no place, and this is why.
+- The service sent no place,
+  and this is why.
   `service_server_land_group.rs` told a request where it stood only when it was not the first of its batch
   (`fresh.iter().enumerate().skip(1)`),
   and every request of both runs was alone in its batch.
@@ -8690,7 +8692,8 @@ What happened to the two, measured (2026-11-09T10:21:14-05:00):
   and it could not have been:
   the send whose line the journal holds at `read_ms=78085` had not been read at all,
   so no batch held it.
-- The answer is that it was never sent, not sent and unread:
+- The answer is that it was never sent,
+  not sent and unread:
   a place that is not in a reply reaches no client,
   and every one of the 919 records of both timing-log generations holds `positions: []`.
 
@@ -8752,9 +8755,11 @@ What it cannot say:
   and no count of the telling itself;
   `answered` lines of the service count the places a batch sent.
 
-Found while fixing the three review findings, and not fixed here:
+Found while fixing the three review findings,
+and not fixed here:
 several notes of the commit path still write to standard error on the commit's own thread,
 so a terminal that stopped draining can still hold a commit.
+A line there is not bounded by anything.
 The executable-level control of the notice found one of them:
 with standard error a pipe nobody drains,
 the wrapper stayed in `commit/commit_command.rs`'s `write_stderr`
