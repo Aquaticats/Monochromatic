@@ -441,10 +441,11 @@ fn holder_name(pid: i64, command: Option<&str>) -> String {
 ///  The one standard-error line naming a proven-alive holder.
 /// Why:
 ///   `provenHolderLine`:
-///  the person learns what the wait is for and that it lasts as long as the holder holds the lock;
+///  the person learns what the wait is for and which process holds the lock;
 /// a holder proven alive
 ///  will let go,
-/// so no time is named at which the wait ends.
+/// so this line names no time at which the wait ends;
+/// the ceiling's own line does (`ceiling_line`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -508,7 +509,8 @@ fn evidence_words(evidence: &Evidence) -> String {
 /// and what a person can do.
 /// Why:
 ///   An owner nothing proves alive is waited for like one proven alive,
-/// with no bound,
+/// until the wait's ceiling (`MERGE_LOCK_CEILING` in `index_holder_wait.rs`,
+/// `LANDING_LOCK_CEILING` in `service_index_attempts.rs`),
 /// because the person's own `git commit`
 ///  with its editor open holds the lock exactly so;
 /// the line says what was looked at and names the file to remove if no program

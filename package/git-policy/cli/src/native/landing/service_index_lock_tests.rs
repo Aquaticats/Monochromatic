@@ -2,7 +2,8 @@
 //! exclusive creation with the marker in place,
 //! a wait that ends when the
 //!  holder lets go and is not woken by anything else,
-//! no bound on the wait for a holder proven alive or one nothing proves alive,
+//! the wait for a holder proven alive or one nothing proves alive,
+//!  which ends at its ceiling,
 //! release by rename,
 //! and
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
@@ -299,7 +300,7 @@ fn a_dead_owner_ends_the_wait_at_once() {
     remove(root.as_path());
 }
 
-/// A holder proven alive is waited for with no bound:
+/// A holder proven alive is waited for until it lets go:
 /// the wait names the holder from its Git lock PID file and leaves the lock in place,
 /// the wait goes on through the whole hold with no line that gives up,
 /// and the service's lock is taken once the holder lets go.
@@ -310,7 +311,7 @@ fn a_dead_owner_ends_the_wait_at_once() {
 /// (measured 2026-11-08:
 /// a flush of 10.2 s against a hold of 2.5 s).
 #[test]
-fn a_holder_proven_alive_is_waited_for_with_no_bound() {
+fn a_holder_proven_alive_is_waited_for_until_the_holder_lets_go() {
     let (root, index) = index_in("index-lock-proven-alive");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     // The PID file names this process, which runs and started before the lock was made.
@@ -386,7 +387,7 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     let pid: i64 = i64::from(holder.0.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("running");
     std::fs::write(lock_path_of(&index), marker_of_holder(9, pid, birth.as_str())).expect("a live holder's lock");
-    // The wait has no bound, so it runs on a thread; it must still be waiting after a while and must not have touched the lock.
+    // The wait blocks until the holder lets go, so it runs on a thread; it must still be waiting after a while and must not have touched the lock.
     let (finished, ended) = std::sync::mpsc::channel::<()>();
     let waiter_index: PathBuf = index.clone();
     let waiter = std::thread::spawn(move || {
