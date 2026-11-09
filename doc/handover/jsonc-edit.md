@@ -1,5 +1,28 @@
 # Handover: splitting JSONC out of module-es into module-jsonc-edit
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/jsonc-edit:build` is now `//package/jsonc-edit/core-ts:build`
+> (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit:lint:oxlint` is now
+> `//package/jsonc-edit/core-ts:lint:oxlint` (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit:lint:types` is now `//package/jsonc-edit/core-ts:lint:types`
+> (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit:test:unit` is now `//package/jsonc-edit/core-ts:test:unit`
+> (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit:test:mutation` is now
+> `//package/jsonc-edit/core-ts:test:mutation` (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit.fuzz:test:unit` is now
+> `//package/jsonc-edit/core-ts.fuzz:test:unit` (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit.fuzz:fuzz` is now `//package/jsonc-edit/core-ts.fuzz:fuzz`
+> (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit.fuzz:fuzz:coverage` is now
+> `//package/jsonc-edit/core-ts.fuzz:fuzz:coverage` (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit.bench:bench` is now
+> `//package/jsonc-edit/core-ts.bench:bench` (2026-10-29 `592d78b143`).
+> `//package/module/jsonc-edit.conformance:test:conformance` is now
+> `//package/jsonc-edit/core-ts.conformance:test:conformance` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

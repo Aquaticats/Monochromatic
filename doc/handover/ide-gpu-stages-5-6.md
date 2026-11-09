@@ -1,5 +1,14 @@
 # IDE GPU migration, stages 5 and 6: state at the stop
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/desktop-app/ide:lint` is now `//package/ide/app:lint`
+> (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/src/recorder.rs` is now
+> `package/nested-wayland-session/cli/src/recorder.rs` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:build` is now `//package/ide/app:build`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -64,7 +73,7 @@ section "Stages 5 and 6".
 
 ## Next steps
 
-1. `mise run //package/desktop-app/ide:lint`,
+1. `mise run //package/ide/app:lint`,
    then `test:native` once,
    then `test`,
    `test:bin`,

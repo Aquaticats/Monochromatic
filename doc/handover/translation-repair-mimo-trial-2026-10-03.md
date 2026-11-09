@@ -1,5 +1,29 @@
 # Translation repair: trial handover to MiMo, 2026-10-03
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:build` is now `//package/translation-repair/*:build`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:buildAndTest` is now
+> `//package/translation-repair/*:buildAndTest` carried by each of the packages the split
+> made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:coverage-census` is now
+> `//package/translation-repair/coverage-census:coverage-census` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint` is now `//package/translation-repair/*:lint`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint:types` is now
+> `//package/translation-repair/*:lint:types` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:source-scans` is now
+> `//package/translation-repair/source-scan:source-scans` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:cache-account-audit` is now
+> `//package/translation-repair/slice-cache:cache-account-audit` (2026-10-18 `4bd1aea8d5`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

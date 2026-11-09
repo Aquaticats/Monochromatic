@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-23 to 2026-08-24: keeping the ballots of the refinement recheck and the accept gate
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/corpus-run/slice-cache-store.ts` is now
+> `package/translation-repair/slice-cache/src/corpus-run/slice-cache-store.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:rendering-audit-settled` is now
+> `//package/translation-repair/probe:rendering-audit-settled` (2026-10-18 `4bd1aea8d5`).
+
 The refinement recheck and the accept gate each recording their ballots on the settled artifact,
 why a resumed run cannot be crashed by the new fields,
 how much evidence was being discarded,

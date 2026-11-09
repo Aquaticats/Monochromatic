@@ -1,5 +1,20 @@
 # Lane outcome vocabulary handover: the post-trial queue and the two-lane cost run
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:build` is now `//package/translation-repair/*:build`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint` is now `//package/translation-repair/*:lint`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint:types` is now
+> `//package/translation-repair/*:lint:types` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+
 The run queue decided in advance after the window trial,
 the two-lane cost run and its sublinear cost finding,
 the sweep owed when that run exited and the work that followed it,

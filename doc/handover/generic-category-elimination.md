@@ -1,5 +1,10 @@
 # Handover: generic package category elimination
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/mutation-test/src/container` is now `package/mutation-test/cli/src/container`
+> (2026-10-29 `113633b259`).
+
 Updated 2026-10-29 by session `monochromatic-db`.
 Decisions and mappings live in
 [the plan](../planning/generic-category-elimination.md);

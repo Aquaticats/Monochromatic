@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-21 to 2026-08-23: the ballot reader, a matcher control and the run-exit protocol
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:build` is now `//package/translation-repair/*:build`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+
 The reader built and validated while a live pass ran,
 the finding that both tail preconditions reproduce on the earlier run,
 the control that shows the class-instance matcher can fail,
