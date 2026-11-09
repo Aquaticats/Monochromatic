@@ -398,10 +398,12 @@ which is the same output a clean workspace gives.
 ### The settings refusals, and which commands they stop
 
 Script:
-`repro-3-config-refusals.ts` (the first six) and
+`repro-3-config-refusals.ts` (eight cases,
+each its own fixture) and
 `repro-5-config-reach.ts` (the reach).
 Each case is one commit of one staged edit,
-with one difference in the settings file.
+with one difference in the settings file,
+and the order below is the order that script prints.
 
 ```text
 a symbolic link to a valid file: code 2
