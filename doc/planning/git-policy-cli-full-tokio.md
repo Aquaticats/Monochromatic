@@ -7087,6 +7087,247 @@ The wording of a refusal:
   the container gate (`native:test:container`) was not run,
   and no mutation campaign was started (paused by the owner).
 
+### Step T12, the landing round awaits its push chain, and the merge's second pass is what stops it, 2026-11-09T15:46:16-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-landing-round-awaits-its-push-chain` in
+  `.claude/worktrees/pi-tokio-awaited-push-chain`,
+  from main at `d713744706`,
+  with main merged in at `0ef371ee15` (it had moved to `5045e9c01c`).
+  Not merged into main.
+- The goal:
+  the landing round's move onto `run_ordered_awaiting_on_the_runtime`,
+  which needs the four things the section
+  "Step T12,
+  the landing round:
+  what blocks it and what now pins it" lists.
+  This run did the whole of the second (the awaited maintenance) and the
+  reconcilable part of the first (the awaited push chain),
+  and measured where the first stops being reconcilable.
+- Done,
+  one commit each,
+  every one compiling and passing:
+  - `153b270b7a`,
+    the awaited maintenance.
+    `run_auto_maintenance_with_awaiting` is
+    `run_auto_maintenance_with` with `run_git_awaiting` for its two Git steps,
+    and the decision,
+    the journal lines and the pre-2.47 retry are one code
+    (`config_from_snapshot`,
+    `planned_arguments`,
+    `maintenance_config_of`,
+    `ended`,
+    `reported_fallback`).
+    Controls:
+    `the_wait_for_maintenance_lets_other_tasks_run` and
+    `the_awaited_face_answers_what_the_synchronous_face_answers`,
+    over the file's 16 tests.
+  - `c838d5190a`,
+    the awaited query.
+    `run_query_awaiting` and `git_output_awaiting`
+    (`push/auto_push_single_flight.rs`) ask the same question with the wait on
+    the runtime,
+    and `output_text` holds the one copy of how an answer is read.
+  - `780f8f895e`,
+    the awaited push destination.
+    `read_push_settings_awaiting`,
+    `named_push_awaiting` and
+    `read_destination_awaiting` (`push/auto_push_destination.rs`),
+    with `push_settings_of`,
+    `destination_of`,
+    `mirror_skip`,
+    `named_by_mode`,
+    `refspec_query` and `named_by_refspecs_of` shared with the synchronous
+    faces.
+    Control:
+    `the_awaited_reads_answer_what_the_synchronous_reads_answer` runs both faces
+    over six configurations of one fixture repository.
+  - `6ab80e14b2`,
+    the awaited Git LFS step.
+    `lfs_upload_plan_awaiting.rs` (a sibling file,
+    because both faces of the
+    plan together pass the package's length limit) holds
+    `plan_upload_awaiting`;
+    `read_settings_awaiting` and `current_branch_awaiting` are in
+    `lfs_upload_settings.rs`;
+    `run_upload_bounded_awaiting` is in `lfs_upload.rs`;
+    `run_push_awaiting` and `PushQueryAwaiting` are in `lfs_bounded_push.rs`.
+    `GitQueryAwaiting` is the synchronous `GitQuery` behind a boxed future,
+    because a trait with an `async` method cannot be a `dyn` value.
+    Controls:
+    `the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does`
+    (twelve shapes of a push,
+    two environments,
+    and a failing question) and
+    `the_awaited_upload_answers_what_the_synchronous_upload_answers`.
+  - `021afd91dc`,
+    the filesystem reads of those faces put on the blocking pool.
+    The awaited upload looked `git-lfs` up on the caller's `PATH` and read the
+    worktree's layout on the task,
+    and the awaited push's pre-check scanned that
+    `PATH` the same way,
+    so a filesystem that answers no lookup would have held
+    every other directory of the round.
+    Control:
+    `the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the_path`,
+    which holds the process's only place (`testing/parallel_test_support.rs`) and
+    failed with
+    "the upload read the caller's PATH without asking for a place of the
+    process's bound" when the lookup went back onto the task.
+- Measured,
+  and this is what remains:
+  the awaited push chain cannot be finished without the merge's second pass,
+  and the second pass is a folder of its own.
+  - `push_once` (`push/auto_push.rs:262`) ends a rejected push with
+    `reconcile_divergent_push`,
+    and `integrate_and_push`
+    (`push/auto_push_reconcile.rs:187`) publishes a merge it computes with
+    `commit_merge` (`push/auto_push_reconcile_merge_commit.rs:150`),
+    whose
+    conflicted merge is resolved by `resolve_tree`
+    (`merge/merge_second_pass_tree.rs:359`).
+  - That path runs Git through one trait:
+    `GitRunner::run`
+    (`merge/merge_second_pass_git_runner.rs:35`),
+    a synchronous method,
+    and the reconcile's `PushRunner`
+    (`push/auto_push_reconcile_merge_commit.rs:91`) implements it with
+    `run_bounded_git`.
+    Nine functions take `&dyn GitRunner`
+    (`second_pass`,
+    `merge_attributes`,
+    `read_blobs`,
+    `write_blob`,
+    `tree_with_files` and `install`,
+    plus `resolve_tree` and its two helpers),
+    and the folder that holds them is 14,916 lines
+    (`merge/`),
+    of which `merge_second_pass_worktree.rs` also serves a person's
+    own `git merge`.
+  - So the reconcile is not "about a dozen functions in six files":
+    awaiting it means the second pass's runner hands back a future,
+    and
+    everything that takes `&dyn GitRunner` becomes a future too.
+    Two ways,
+    and the choice is the owner's because it decides how the typed
+    `git merge` path keeps its synchronous face:
+    - A.
+      Await the second pass:
+      `GitRunner::run` hands back a boxed future;
+      `second_pass`,
+      `merge_attributes`,
+      `read_blobs`,
+      `write_blob`,
+      `tree_with_files`,
+      `install` and `resolve_tree` become `async`;
+      the forwarded `git merge` path keeps one synchronous face that enters the
+      runtime once (`run_on_runtime`).
+      No duplication,
+      but it rewrites `merge/`'s seam and every stub runner in
+      its controls.
+    - B.
+      Duplicate the second pass as awaited twins:
+      no comment about the typed path,
+      and two bodies that must not diverge,
+      in a folder whose conflict resolution is the one thing here a person's
+      data depends on.
+  - What the awaited chain still lacks once the second pass is settled,
+    in order:
+    `reconcile_divergent_push_awaiting` and `integrate_and_push_awaiting` with a
+    `MergePusherAwaiting` (`push/auto_push_reconcile.rs`),
+    `fetch_remote_tip_awaiting`,
+    `is_ancestor_awaiting` and
+    `sweep_private_fetch_refs_awaiting`
+    (`push/auto_push_reconcile_basics_and_limits.rs`),
+    `commit_merge_awaiting`,
+    `common_dir_of_awaiting` and
+    `signs_commits_awaiting` (`push/auto_push_reconcile_merge_commit.rs`),
+    `advance_local_branch_awaiting` and its helpers
+    (`push/auto_push_reconcile_branch_advance.rs`),
+    then `push_once_awaiting` (`push/auto_push.rs`) and the two handlers
+    `WorkHandlers::push_awaiting` and `WorkHandlers::maintenance_awaiting`
+    (`landing/service_work.rs`),
+    which must be object-safe methods handing back a boxed future,
+    with the
+    synchronous ones as their default for the doubles.
+  - The push's own synchronous reads are not all covered yet either:
+    `GitHandlers::push_git` (`landing/service_work.rs:380`) calls
+    `read_config_snapshot`,
+    a synchronous filesystem read,
+    and must call
+    `read_config_snapshot_awaiting` inside a job of the pool when the push runs
+    on a task;
+    and `branch_exists` and `branch_is_gone_words` (`:449`,
+    `:481`) read the
+    repository with the synchronous `run_query`.
+  - The third and fourth things the round needs are untouched:
+    `ClaimRenewal`'s `Drop` still waits for its task
+    (`landing/service_claim_renewal_running.rs:275`),
+    and `drain_pending` (`landing/service_work_drain_pending_claims.rs`) still
+    interleaves `claim_all_of`,
+    `settle_all` and the push-failure records with
+    the handler calls on one thread.
+- Checks:
+  - The file selections this run touched,
+    all green:
+    `landing::maintenance_run` 16 of 16,
+    `push::auto_push_single_flight` 5 of 5,
+    `push::auto_push_destination` 7 of 7,
+    `lfs::` 71 of 71 (and `lfs::lfs_upload` 13 of 13 after the pool change),
+    `push::auto_push` 165 of 165.
+  - `native:clippy` clean after the last commit,
+    and `//package/git-policy/cli:lint` 0 errors and 0 warnings on the folders
+    this run touched
+    (`landing/maintenance_run.rs`,
+    `landing/maintenance_run_tests.rs`,
+    `push/auto_push_single_flight.rs`,
+    `push/auto_push_single_flight_tests.rs`,
+    `push/auto_push_destination.rs`,
+    `push/auto_push_destination_tests.rs`,
+    `lfs/`),
+    after `format:monochromatic-lint` wrote the breaks it asked for.
+    The package-wide `//package/git-policy/cli:lint` is not clean on this base
+    and was not made clean here:
+    `worktree_copying/worktree_copy_stage_claim_reaping.rs` is over the
+    package's length limit,
+    and `foundation/lazy_runtime.rs` holds one closure finding,
+    neither of which this run touches.
+  - The whole `native:test:host` suite,
+    once before main was merged
+    (`CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`,
+    the run's own control group at `TasksMax=4000`):
+    5707 run,
+    5703 passed (one slow),
+    4 failed,
+    14 skipped.
+    Three of the four were main's,
+    not this branch's,
+    and the merge fixed them
+    (`c07ee38a08` names the shell shim `health/lfs_shims.rs` writes,
+    which the
+    no-self-invocation guard flagged at `d713744706`).
+    The fourth,
+    `service::service_review::tests::a_silent_gateway_ends_the_review_when_it_has_been_silent_for_the_quiet_window`,
+    took 22.4 s and is the recorded shape of a time window a loaded host
+    reaches.
+    At the merged tip the same suite was run again and
+    `source_guard` is 46 of 47:
+    `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`
+    reports `commit/commit_prepare_part_durations.rs` as a lock outside the
+    inventory,
+    and that file's last change is main's `e6a69463ed`,
+    so it came
+    with the merge and not with this run.
+  - Not run:
+    `native:test:binary:host`,
+    the container gate
+    (`native:test:container`),
+    `native:perf` and any mutation campaign
+    (paused by the owner).
+    None of the files this run changes runs in a commit or in a forwarded
+    command,
+    so `native:perf` was not run to say what it would cost.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
