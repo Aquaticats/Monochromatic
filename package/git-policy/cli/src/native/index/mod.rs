@@ -66,6 +66,18 @@ pub mod index_settings;
 pub mod index_reset;
 
 /// In-process index update:
+/// the names Git refuses under its protection settings,
+/// which the reset leaves to Git.
+#[cfg(unix)]
+pub mod index_reset_path_names;
+
+/// In-process index update:
+/// the worktree's stat data for a path the reset writes,
+/// recorded only where the file provably holds the commit's bytes.
+#[cfg(target_os = "linux")]
+pub mod index_reset_worktree_stat;
+
+/// In-process index update:
 /// the trees a path-limited reset reads.
 #[cfg(unix)]
 pub mod index_reset_tree;
