@@ -8,6 +8,7 @@
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "version": "0.0.1",

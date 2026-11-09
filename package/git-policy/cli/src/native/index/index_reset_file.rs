@@ -25,7 +25,10 @@ use crate::diagnostic_log::debug;
 use crate::index_byte_search::has_nonzero_byte;
 use crate::index_full::{FullIndex, parse_full_index};
 use crate::index_full_write::write_full_index;
+use crate::index_stat::IndexStamp;
 use crate::index_reset::reset_paths;
+use crate::index_reset_worktree_stat::LandingStat;
+use crate::index_reset_worktree_stat_source::WorktreeStat;
 use crate::index_reset_publish::publish;
 use crate::service_index_lock::IndexLock;
 use crate::index_reset_tree::{changed_paths, root_tree, tree_entries_at};
@@ -162,9 +165,9 @@ fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
 }
 
 /// The index of the file,
-/// its modification time in whole seconds,
+/// its modification time to the nanosecond,
 /// or `None` when the checksum or the layout is not plain.
-fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
+fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, IndexStamp)> {
     let bytes: Vec<u8> = crate::private_storage::read_regular_file(file, INDEX_LIMIT).ok()?;
     let hash_length: usize = name_length(format);
     let (body, stored) = bytes.split_at(bytes.len().checked_sub(hash_length)?);
@@ -173,15 +176,72 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
         return None;
     }
     let modified: std::time::SystemTime = std::fs::metadata(file).ok()?.modified().ok()?;
-    let seconds: u64 = modified.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
-    return Some((parse_full_index(bytes.as_slice(), hash_length)?, seconds as u32));
+    let age: std::time::Duration = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+    let stamp: IndexStamp = IndexStamp { seconds: age.as_secs() as u32, nanoseconds: age.subsec_nanos() };
+    return Some((parse_full_index(bytes.as_slice(), hash_length)?, stamp));
+}
+
+/// What:
+///  The directory one path is the `.gitattributes` of,
+/// or nothing when it is another path.
+/// Why:
+///   The directories whose attributes the index can supply are named by the `.gitattributes` entries themselves,
+/// at the root or below one directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attributeDirectory = (path) => path === '.gitattributes' ? '' : path.endsWith('/.gitattributes') ? path.slice(0, -'/'.length - '.gitattributes'.length) : undefined;
+/// ```
+fn attribute_directory(path: &[u8]) -> Option<Vec<u8>> {
+    if path == b".gitattributes" {
+        return Some(Vec::new());
+    }
+    let suffix: &[u8] = b"/.gitattributes";
+    return path.strip_suffix(suffix).map(<[u8]>::to_vec);
+}
+
+/// What:
+///  The directories whose `.gitattributes` the index this update writes holds,
+/// in path order.
+/// Why:
+///   Git reads the index's copy of an attributes file where the worktree's copy is missing
+/// (`attr.c`,
+/// measured on Git 2.56.0:
+/// `git check-attr` still answers from the index after the worktree's `.gitattributes` is removed),
+/// and a
+///  sparse checkout leaves it outside its cone the same way,
+/// so the proof must know which directories could supply one through the index.
+///  The entries before the reset and the tree's entries are both taken,
+/// so a path this reset installs is counted too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directories = [...index.entries, ...tree].map((entry) => entry.path === '.gitattributes' ? '' : entry.path.replace(/\/\.gitattributes$/, '')).filter(defined);
+/// ```
+fn indexed_attribute_directories(index: &FullIndex, tree: &[FlatEntry]) -> Vec<Vec<u8>> {
+    let mut directories: Vec<Vec<u8>> = Vec::new();
+    for entry in index.entries.iter() {
+        if entry.stage() == 0
+            && let Some(directory) = attribute_directory(entry.path.as_slice())
+        {
+            directories.push(directory);
+        }
+    }
+    for entry in tree {
+        if let Some(directory) = attribute_directory(entry.path.as_slice()) {
+            directories.push(directory);
+        }
+    }
+    directories.sort();
+    directories.dedup();
+    return directories;
 }
 
 /// The update,
 /// with every decline as `None`.
 fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<()> {
     let around: Surroundings = surroundings(git, repository)?;
-    let (mut index, timestamp) = read_index(built, around.layout.object_format)?;
+    let (mut index, stamp) = read_index(built, around.layout.object_format)?;
     let new_tree: Vec<u8> = root_tree(&around.database, new, around.layout.object_format)?;
     let names: Vec<Vec<u8>> = names_of(&around.database, &around.layout, new_tree.as_slice(), paths)?;
     // An empty list resets nothing; `reset` with no path would reset the whole index, so the caller never asks it.
@@ -189,7 +249,48 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
         return Some(());
     }
     let tree: Vec<FlatEntry> = tree_entries_at(&around.database, new_tree.as_slice(), names.as_slice(), around.layout.object_format)?;
-    reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, timestamp)?;
+    // What:
+    //  Where the stat data of each entry the reset makes comes from:
+    //  the worktree's own, for a path whose file provably holds the bytes the entry records.
+    // Why:
+    //  Native `git commit` leaves the worktree's stat data on the entries it writes,
+    // and the all-zero value a reset writes makes the
+    //   next commit hash every path the previous commit landed
+    //  (`index_reset_worktree_stat.rs`).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const source = new LandingStat({ worktreeRoot, format, stamp }); resetPaths(index, names, tree, settings, stamp, { recorded: source });
+    // ```
+    // What:
+    //  The worktree held open and the attribute files Git would apply,
+    //  which decide what stat data the reset may record.
+    // Why:
+    //  The proof reads the worktree below a held root,
+    //  so a directory swapped for a link on the way is refused instead of read through,
+    // and it refuses every path a
+    //   conversion could change,
+    // which it learns from the same attributes files the worktree's clean check reads.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const root = openRoot(layout.worktreeRoot); const environment = forContext(git);
+    // const target = { root, gitDir: layout.gitDir, commonDir: layout.commonDir, environment, format };
+    // const source = new LandingStat(root, target, stamp, new Cell(0));
+    // ```
+    let root: std::fs::File = crate::fs_beneath::open_root(around.layout.worktree_root.as_path()).ok()?;
+    let environment: crate::worktree_clean_content_attribute_sources::ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(git);
+    let target: crate::worktree_clean_tree_walk::ContentTarget<'_> = crate::worktree_clean_tree_walk::ContentTarget {
+        root: around.layout.worktree_root.as_path(),
+        git_dir: around.layout.git_dir.as_path(),
+        common_dir: around.layout.common_dir.as_path(),
+        environment: &environment,
+        format: around.layout.object_format,
+    };
+    let hashed: std::cell::Cell<u64> = std::cell::Cell::new(0);
+    let indexed: Vec<Vec<u8>> = indexed_attribute_directories(&index, tree.as_slice());
+    let source: LandingStat<'_> = LandingStat::new(&root, &target, stamp, &hashed, indexed.as_slice());
+    reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, stamp, WorktreeStat::Recorded(&source))?;
     let format: ObjectFormat = around.layout.object_format;
     let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
     let bytes: Vec<u8> = write_full_index(&index, &hash)?;
@@ -254,3 +355,9 @@ mod tests;
 #[cfg(test)]
 #[path = "index_reset_fallback_tests.rs"]
 mod fallback_tests;
+
+/// Controls for the stat data the update records on the entries it writes;
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "index_reset_recorded_stat_tests.rs"]
+mod recorded_stat_tests;

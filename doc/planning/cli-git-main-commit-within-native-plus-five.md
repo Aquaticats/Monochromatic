@@ -313,6 +313,12 @@ from the Git 2.56.0 source:
   (`make_cache_entry` with no refresh,
   `add_index_entry` with the add and replace options),
   so the next status hashes the file.
+  Amended 2026-11-08:
+  a landing records the worktree's stat data for a path whose file provably holds the tree's bytes
+  (`index/index_reset_worktree_stat.rs`),
+  and the all-zero value stands where no proof exists
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "The landing records the stat data it can prove, and the staleness question walks its entries in parallel").
   The skip-worktree bit of a replaced entry is kept;
   the assume-valid bit and the stage are not.
 - The extensions Git keeps (`read-cache.c` `do_write_index`):
