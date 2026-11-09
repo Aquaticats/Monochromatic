@@ -363,8 +363,7 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 }
 
 /// What:
-///  Records the worktree's stat data in the index the landing is about to install,
-/// and answers what became of the refresh.
+///  Records the worktree's stat data in the index the landing is about to install.
 /// Why:
 ///   The copy was made from the live index,
 /// so every entry whose file moved under that index is stale in it,
