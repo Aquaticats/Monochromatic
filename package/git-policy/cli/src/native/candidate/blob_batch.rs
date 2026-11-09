@@ -15,8 +15,9 @@
 
 /// Running real Git.
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-/// `HashMap` maps object IDs to bytes.
-use std::collections::HashMap;
+/// `HashMap` maps object IDs to bytes,
+/// and `HashSet` answers whether a name was requested already.
+use std::collections::{HashMap, HashSet};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -149,6 +150,34 @@ fn is_newline(byte: &u8) -> bool {
 }
 
 /// What:
+///  The requested object names:
+/// each distinct name once,
+/// in first-seen order.
+/// Why:
+///   One batch carries one line per name,
+/// so a repeat is wasted work and a
+///  reorder would answer in another order than the caller asked;
+///  a set answers "already requested" by naming the one collected name the
+///  candidate is compared with,
+/// so the preparation is one pass (`AGENTS.md` `RG2`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const requested = [...new Set(oids)];
+/// ```
+fn requested_object_names(oids: &[String]) -> Vec<String> {
+    let mut requested: Vec<String> = Vec::with_capacity(oids.len());
+    let mut seen: HashSet<&str> = HashSet::with_capacity(oids.len());
+    for oid in oids {
+        crate::collected_elements_looked_at::note_looked_at(1);
+        if seen.insert(oid.as_str()) {
+            requested.push(oid.clone());
+        }
+    }
+    return requested;
+}
+
+/// What:
 ///  Load every distinct requested blob through one batch,
 ///  optionally reading a private
 ///       object store (whose alternates still reach the real one).
@@ -166,13 +195,7 @@ pub fn load_blob_batch(
     oids: &[String],
     object_directory: Option<&Path>,
 ) -> Result<HashMap<String, Vec<u8>>, String> {
-    // `mut` allows collecting distinct IDs in order.
-    let mut requested: Vec<String> = Vec::new();
-    for oid in oids {
-        if !requested.contains(oid) {
-            requested.push(oid.clone());
-        }
-    }
+    let requested: Vec<String> = requested_object_names(oids);
     if requested.is_empty() {
         return Ok(HashMap::new());
     }
