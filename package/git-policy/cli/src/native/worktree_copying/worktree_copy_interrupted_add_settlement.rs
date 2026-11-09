@@ -124,11 +124,25 @@ pub(crate) const UNNAMED_CHILD_GRACE: Duration = Duration::from_secs(60);
 /// return { notice: undefined, keep: young };
 /// ```
 fn unnamed_child_settlement(record: &Path) -> Settlement {
-    let aged: Option<Duration> = std::fs::metadata(record)
-        .and_then(|held| { return held.modified(); })
-        .ok()
-        .and_then(|changed| { return std::time::SystemTime::now().duration_since(changed).ok(); });
-    return Settlement { notice: None, keep: aged.is_some_and(|age| { return age < UNNAMED_CHILD_GRACE; }) };
+    let aged: Option<Duration> = modified_at(record).and_then(age_since);
+    return Settlement { notice: None, keep: matches!(aged, Some(age) if age < UNNAMED_CHILD_GRACE) };
+}
+
+/// The time the watch of `record` last changed,
+/// or nothing when it cannot be read.
+fn modified_at(record: &Path) -> Option<std::time::SystemTime> {
+    return std::fs::metadata(record).ok().and_then(modified_of);
+}
+
+/// The modification time of a metadata reading.
+fn modified_of(held: std::fs::Metadata) -> Option<std::time::SystemTime> {
+    return held.modified().ok();
+}
+
+/// How long ago `changed` was,
+/// or nothing when the clock cannot say.
+fn age_since(changed: std::time::SystemTime) -> Option<Duration> {
+    return std::time::SystemTime::now().duration_since(changed).ok();
 }
 
 /// What:

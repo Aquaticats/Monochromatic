@@ -121,7 +121,7 @@ static HALT: std::sync::OnceLock<std::sync::Arc<Halt>> = std::sync::OnceLock::ne
 /// waits to be let go,
 /// and finds no service.
 fn held_scan_that_finds_nothing(_look: &ServiceLook, _proc_root: &Path) -> Option<Holding> {
-    let Some(halt) = HALT.get() else { return None };
+    let halt: &std::sync::Arc<Halt> = HALT.get()?;
     let _sent = halt.started.send(());
     halt.wait_to_be_let_go();
     halt.finished.store(true, std::sync::atomic::Ordering::SeqCst);
