@@ -1917,6 +1917,45 @@ fn a_switch_in_the_window_to_a_branch_at_the_merge_is_not_put_back() {
     remove(&s.root);
 }
 
+/// What:
+///  The put-back after a switch that landed between the look and the write leaves a staged edit of the person's alone,
+///  when it lies on a path the merge does not change.
+/// Why:
+///   The checkout belongs to another branch,
+/// and restoring its whole tree would replace an edit the forward step never
+///  touched;
+/// only the paths where the merge and the tree it started from differ are this command's to put back.
+#[test]
+fn a_switch_in_the_window_keeps_a_staged_edit_the_merge_does_not_touch() {
+    let s = scenario("ar-ff-window-switch-staged-elsewhere");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The branch the person switches to changes only b.txt, which the merge does not touch.
+    git(&s.local, &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(s.local.join("b.txt"), "topic\n").expect("the branch's own b.txt");
+    git(&s.local, &["commit", "--quiet", "-m", "topic changes b.txt", "--", "b.txt"]);
+    git(&s.local, &["switch", "--quiet", "main"]);
+    let switching = std::path::PathBuf::from(&s.local);
+    // In the window: the switch, then an intentional reversal of b.txt that the person stages.
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+        std::fs::write(switching.join("b.txt"), "base\n").expect("the reversal of b.txt");
+        git(&switching, &["add", "--", "b.txt"]);
+    });
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    drop(_played);
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(std::fs::read_to_string(s.local.join("b.txt")).expect("b.txt"), "base\n", "the person's staged reversal of b.txt is still there");
+    assert_eq!(
+        text_of(&s.local, &["diff", "--cached", "--name-only", "--", "b.txt"]),
+        "b.txt",
+        "and it is still staged"
+    );
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "while the merge's own path is put back");
+    remove(&s.root);
+}
+
 /// The companion control of the test above:
 /// a switch that lands between the look and the write on a branch that does not hold the merge is put back to that
 ///  branch's own commit,

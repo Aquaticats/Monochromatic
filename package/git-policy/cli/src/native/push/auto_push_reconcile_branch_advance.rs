@@ -200,38 +200,28 @@ pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str
         // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
         record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
         // The question again, after the write: a `git switch` that landed inside it was given the merge's files, and they go
-        //  back before the branch moves below. What they go back to is the tree of the commit that checkout shows now, never
-        //  this branch's tip: a switch that landed on a branch already at the merge left the merge's files there, and writing
-        //  this branch's tree over them would stage a reversal of the merge on a branch that still holds it.
+        //  back before the branch moves below. They go back to the tree this fast-forward started from, never to the checkout's
+        //  whole tree: `read-tree -u -m` changes only the paths where the merge and that tree differ, which are exactly the paths
+        //  this command wrote, so a staged edit of the person's on any other path is left alone.
         if !still_on_the_branch(git, branch_ref, local)? {
             let merged: Option<String> = tree_of(git, merge_oid)?;
             let shown_here: Option<String> = tree_of(git, "HEAD")?;
-            match shown_here {
+            if merged.is_some() && merged == shown_here {
                 // The checkout already shows the merge's tree: nothing of this fast-forward is in it.
-                Some(tree) if merged.as_deref() == Some(tree.as_str()) => {
-                    debug(TAG, "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back");
+                debug(TAG, "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back");
+            } else {
+                let put_back = run_query(git, &argv(&["read-tree", "-u", "-m", merge_oid, local]))?;
+                if put_back.code != Some(0) {
+                    return Ok(Err(format!(
+                        "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
+                        refusal_of(&put_back.stderr)
+                    )));
                 }
-                Some(tree) => {
-                    let put_back = run_query(git, &argv(&["read-tree", "-u", "-m", merge_oid, tree.as_str()]))?;
-                    if put_back.code != Some(0) {
-                        return Ok(Err(format!(
-                            "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
-                            refusal_of(&put_back.stderr)
-                        )));
-                    }
-                    record_streams(&["read-tree", "-u", "-m", merge_oid, tree.as_str()], &put_back.stdout, &put_back.stderr);
-                    warn(
-                        TAG,
-                        "another command checked out another branch while the fast-forward wrote its files; they were put back to that branch's own tree and only the branch moved",
-                    );
-                }
-                // Nothing says which tree the checkout shows, so nothing of the merge's is written back over it.
-                None => {
-                    warn(
-                        TAG,
-                        "another command checked out another commit while the fast-forward wrote its files, and that commit's tree could not be read; the files are left as they are",
-                    );
-                }
+                record_streams(&["read-tree", "-u", "-m", merge_oid, local], &put_back.stdout, &put_back.stderr);
+                warn(
+                    TAG,
+                    "another command checked out another branch while the fast-forward wrote its files; the merge's own paths were put back to the tree it started from and only the branch moved",
+                );
             }
         }
     }
