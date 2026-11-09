@@ -138,7 +138,7 @@ fn measure_how_long_dropping_a_watch_takes() {
         command.current_dir(repo.as_path());
         let ledger: LockLedger = LockLedger::before_start(&command);
         let started: Instant = Instant::now();
-        ledger.sweep(&[]);
+        ledger.sweep();
         sweeps.push(started.elapsed().as_micros());
     }
     print_spread("the lock sweep alone, in a repository of forty branches", sweeps);

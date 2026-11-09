@@ -4043,18 +4043,21 @@ in-process reader can) gives every value of the multi-valued keys.
   finding 2).
   A matching number,
   a lock born during the child's life and an empty file fit both writers.
-  What the wrapper does know itself is a lock it saw a member of the stopped tree hold before it signalled that member:
-  the pid file beside the lock named a running member,
-  and the lock is pinned by the device,
-  inode and birth it had then (`Proof::ClaimedBeforeStop`,
-  `src/native/lock/stale_ref_lock_own_ended.rs` and the claim of `src/native/lock/stopped_git_locks.rs`),
-  so another Git's lock made at the same path later is never taken for it.
-  That record needs no view of the whole machine,
-  which a container lacks,
-  and no margin,
-  because the holder is known to have ended;
-  a lock of a stopped child that the wrapper did not see held stays and is named,
-  with the command that clears it.
+  The sweep that follows a stop adds no proof of its own,
+  not even for a lock it saw a member of the stopped tree hold:
+  what the wrapper sees of its own child is the child's process tree,
+  and none of it says whose file a lock at a given path is
+  (cross-vendor review of 2026-11-09,
+  finding 1).
+  A claim read before the stop from the pid file beside the lock rests on the same number as the rule above,
+  and a Git of a sibling namespace that shares the repository makes a lock at the same path look the same,
+  so no claim is made and nothing is removed on one.
+  A lock of a stopped child therefore stays,
+  with the command that clears it,
+  and so does one whose pid file went first (Git removes a lock's pid file and then the lock,
+  so a kill between the two leaves a lock nothing names).
+  The cost is measured below: one incident in the journal this entry was written from,
+  in which two stopped pushes left their tracking-ref locks and every later push of that ref was refused.
   A lock whose pid file names any other process is judged by the proofs below,
   once it is older than the margin;
   a younger
@@ -4617,10 +4620,9 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
   the wrapper's own namespace gave that number to its child,
   and a sibling namespace may have given the same one to a Git that shares the repository
   (cross-vendor review of 2026-11-09,
-  finding 2),
-  so a lock there is removed only on the claim of a file held before the stop.
-  The veto of an open descriptor,
-  the margin and that claim are the only protection beyond that.
+  findings 1 and 2),
+  so a lock there is never removed and is named instead.
+  The veto of an open descriptor and the margin are the only judgement beyond that.
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory):
   the file
   system must be on the fixed local list.

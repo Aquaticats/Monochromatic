@@ -28,7 +28,6 @@ use crate::process_start::{ProcessStart, linux_start, now_ms};
 use crate::process_use::{ProcessUser, UseScan, UseTarget, processes_using_through};
 use crate::git_command_name::names_git_command;
 use crate::stale_ref_lock_found::PidFile;
-pub use crate::stale_ref_lock_own_ended::{ClaimedLock, OwnEnded};
 use crate::stale_ref_lock_nested_numbers::nested_holders_of;
 use crate::stopped_git_locks::pid_named_by;
 use crate::stale_ref_lock_walk::pid_file_beside;
@@ -103,12 +102,6 @@ pub enum Proof {
     /// The staging file `packed-refs.new` has no lock beside it,
     /// and Git creates it only while holding that lock.
     OrphanStaging,
-    /// A member of the tree this wrapper stopped was seen holding the lock,
-    /// by the pid file beside it,
-    /// before the stop signalled it,
-    /// and that member has ended;
-    /// the lock is the same file.
-    ClaimedBeforeStop(i64),
 }
 
 /// What a judgement concluded.
@@ -148,9 +141,6 @@ pub struct Judge {
     pub boot: Option<SystemTime>,
     /// The file system types a lock may sit on.
     pub local_file_systems: Vec<String>,
-    /// The ended processes of a child this wrapper stopped,
-    /// where the judgement follows a stop.
-    pub own_ended: Option<OwnEnded>,
     /// The process numbers a scan for open holders may consider,
     /// where a caller judges one fixture and nothing else.
     /// Every process of the machine is evidence about a lock,
@@ -193,7 +183,6 @@ impl Judge {
             pid_view_complete: current_pid_namespace().as_deref() == Some(INITIAL_PID_NAMESPACE) && proc_hides_no_process(),
             boot: boot_time(),
             local_file_systems,
-            own_ended: None,
             scan_scope: None,
         };
     }
@@ -297,20 +286,9 @@ impl Judge {
     /// a matching number and a birth order do not say who wrote the file
     /// (cross-vendor review of 2026-11-09,
     /// finding 2).
-    /// The one proof the wrapper holds itself is a lock it saw a member of a stopped tree hold,
-    /// pinned by the file's own identity (`Proof::ClaimedBeforeStop`).
     fn incomplete_view_reason(&self, pid: i64) -> String {
-        let only_a_number: String = format!(
-            "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
-        );
-        let Some(own) = self.own_ended.as_ref() else {
-            return only_a_number;
-        };
-        if !own.pids.contains(&pid) {
-            return only_a_number;
-        }
         return format!(
-            "{only_a_number}; that number is one a tree this wrapper stopped had, and a Git of another PID namespace that shares this repository may have the same number, so the number alone does not say which writer made the lock"
+            "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
         );
     }
 
@@ -451,13 +429,7 @@ impl Judge {
             return verdict_with(Verdict::TooNew, pid_file.clone(), identity, born);
         }
         let newest: SystemTime = newest_time(born, &identity);
-        // A lock whose pid file names a process this wrapper stopped and saw end needs no margin: its holder is known to be gone.
-        let claimed: Option<i64> = match self.own_ended.as_ref() {
-            Some(own) => own.holder_of_claimed(lock, &identity),
-            None => None,
-        };
-        let own: bool = claimed.is_some();
-        if !own && SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
+        if SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
             return verdict_with(Verdict::TooNew, pid_file.clone(), identity, born);
         }
         if let Err(reason) = self.local_check(lock) {
@@ -469,10 +441,6 @@ impl Judge {
         }
         if let Some(user) = scan.users.first() {
             return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), pid_file.clone(), identity, born);
-        }
-        // A holder the wrapper itself saw hold this very file, and then saw end, needs no inference about the processes it cannot look into.
-        if let Some(pid) = claimed {
-            return verdict_with(Verdict::Stale(Proof::ClaimedBeforeStop(pid)), pid_file.clone(), identity, born);
         }
         if let Some(reason) = self.unreadable_git(&scan) {
             return verdict_with(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")), pid_file.clone(), identity, born);

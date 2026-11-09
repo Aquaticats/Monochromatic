@@ -78,10 +78,6 @@ pub mod stale_ref_lock_judge_environment;
 /// How one reference lock is judged.
 pub mod stale_ref_lock_judge;
 
-/// What the wrapper itself knows of a child it stopped:
-/// the tree's ended processes and the locks its members held.
-pub mod stale_ref_lock_own_ended;
-
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
 
