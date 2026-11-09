@@ -511,7 +511,10 @@ pub fn convert_action(arguments: &ConvertArguments, cwd: &Path, environment: &[(
     if arguments.help {
         return Action::Exit { code: 0, stdout: String::from(CONVERT_HELP), stderr: String::new() };
     }
-    let code: i32 = execute(Arc::new(LinuxPlatform::forwarding_to(environment, real_git)), arguments, cwd, Arc::new(Interrupt::never()), &mut say_on_standard_error);
+    // The conversion runs as a job of the blocking pool, which is inside the process's runtime, where no child may be
+    //  started through the bridge; so the facts about the Git this command forwards to are settled here, on this thread.
+    let platform: LinuxPlatform = LinuxPlatform::forwarding_to(environment, real_git).with_its_conversion_environment_settled();
+    let code: i32 = execute(Arc::new(platform), arguments, cwd, Arc::new(Interrupt::never()), &mut say_on_standard_error);
     return Action::Exit { code, stdout: String::new(), stderr: String::new() };
 }
 
