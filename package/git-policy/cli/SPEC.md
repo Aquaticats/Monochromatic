@@ -1966,9 +1966,51 @@ write exactly one human summary line to stderr.
 Copy-only failure exits `2`.
 If real Git returned nonzero and synchronization also fails,
 preserve Git's numeric status;
-use `1` when Git ended by signal without a numeric status.
+use `1` when Git ended by signal without a numeric status and the copy failed too.
 If Git failed but synchronization succeeds,
 preserve its status after writing the successful copy summary.
+A command Git was ended by a signal ends the wrapper by that same signal,
+which `forwarding::end_as_git_ended` does by restoring the signal's default action and raising it:
+the caller's `wait` then sees `WIFSIGNALED` with Git's signal,
+and a shell reports 128 + the signal,
+exactly as the plain forward reports it by replacing its process with Git.
+Where that signal cannot end this process the exit status is 128 + the signal.
+So `git log -p | head -1` ends by `SIGPIPE` on this route as it does on native Git
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+finding 3).
+The coordinated route keeps a process around Git for every index writer,
+and a Git it started that a signal ended
+ends the wrapper the same way:
+`run_forwarded_git`,
+the hold retry that runs the command again while the service holds the index,
+its fallback when no place for the kept output could be made,
+and `from_forwarded` keep the signal,
+and `run_coordinated_action` ends by it through `end_as_git_ended`.
+A signal this process blocks is unblocked before it is raised,
+in the calling thread,
+which is the thread `raise` signals:
+a parent that blocked the signal before the wrapper ran left it pending and the wrapper exited
+normally with the status a shell prints for the death (finding 5 of the round-3 review).
+Test:
+`a_blocked_terminating_signal_still_ends_by_it`.
+
+The plain child route is one of those:
+a command the wrapper may not run again (`git add --patch`) starts its Git once,
+through `run_plain`,
+and that route kept the death as a status until 2026-11-09T05:40:00-05:00
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+finding 3 of the round-2 review).
+Before that the death reached the caller as a normal exit with status 128 + the signal,
+so `git add` under `kill -TERM <git child>` told a script that maps signals that nothing was signalled.
+What still ends with a status on that route is the fetch of a pull,
+which ends with `1` as native Git's `cmd_pull` does.
+Tests:
+`a_git_child_that_a_signal_ended_keeps_its_signal_through_the_coordinated_forward`,
+`a_git_child_that_a_signal_ended_keeps_its_signal_when_no_scratch_place_is_given`,
+and
+`a_git_child_of_a_command_that_is_not_run_again_keeps_its_signal`,
+and
+`a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal`.
 
 ### Package-manager repair of a new worktree
 
@@ -3320,8 +3362,18 @@ on the commit path:
 - A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
   journal
   command.
-  A unit the manager reports `inactive` after `START_WAIT` is asked to start,
-  again after each further `START_WAIT`.
+  A unit the manager reports `inactive` is asked to start at the first such answer,
+  again after each further `START_WAIT`,
+  because a stopped unit keeps its socket file and provisioning counts that as in place;
+  asking only
+  after `START_WAIT` made that commit ten seconds slower than native Git.
+  A unit the manager reports `failed` is asked to have
+  that state forgotten,
+  for both of the worktree's units,
+  and then to start,
+  once;
+  a second `failed` answer still ends the wait,
+  so a unit that cannot start fails the commit in seconds.
 - A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
   left to the
   service's retry plan,
@@ -3552,6 +3604,44 @@ and
   retry (Recommended)").
   Test:
   `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+- Provisioning asks the manager for the reload its own writes need,
+  and a kill between writing a template and that reload is repaired
+  by the next commit:
+  the record of the unit texts the manager was told about
+  (`service_provision_loaded_unit_texts.rs`,
+  in the notes folder of the runtime unit directory)
+  is written only after the manager accepted the reload,
+  so a commit that finds the files matching and the record older
+  provisions again and asks for the reload,
+  and the commits after it find the record and take the fast path.
+  Without it the killed upgrade's files look like an installation the manager runs,
+  every later commit reaches the service of the release that was replaced,
+  and ends with "The commit service that is running was started from another release of this git wrapper ...",
+  however often it is run.
+  Test:
+  `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
+  The record alone cannot tell a state the manager disagrees with:
+  an interrupted downgrade writes and reloads the
+    older release and is killed before it records that,
+  and an interrupted upgrade then writes the newer files without a reload,
+  which leaves the files and the record agreeing while the manager runs the release they replaced.
+  The client knows:
+  another release answering at all is proof that the unit the manager loaded and the files on disk
+  disagree,
+  so `reach_current` drops the record
+  (`units_record_dir` in the client's settings) the moment it first sees that answer,
+  not at the retirement deadline:
+  a service that takes the retire and leaves can be followed by a manager trying a cached executable
+  an upgrade removed,
+  which ends the wait with `DidNotStart` and never reaches the deadline
+  (finding 3 of the round-3 review).
+  The next commit then writes the units and asks for the reload.
+  The message says so,
+  and names the restart for a service that still will not stop.
+  Tests:
+  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`,
+  and
+  `a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record`.
 
 
 #### Commands that add commits
@@ -4862,15 +4952,25 @@ the options weighed and the controls.)
   `auto_push_single_flight.rs`,
   and the two starts with a cleared environment,
   `ask_git_var` and `status_git_dir`.
+- The marker also counts the starts of one chain:
+  the fifth field of `CLI_GIT_STARTED_AS_GIT` is one more than the number the marker of
+  the shell that started this process carried,
+  and a marker written without it,
+  as releases before this one wrote,
+  reads as the first start.
 - A monochromatic-git-policy-cli executable stops before it plans anything when the marker says it is the process of a `replace` starter
   (same process number,
   same birth),
   or the child of a `child` starter (the marker names its parent,
-  same birth).
+  same birth),
+  or when one chain holds more than `MOST_STARTS_IN_ONE_CHAIN` starts
+  (`src/native/invocation/started_as_git.rs`).
   A hook,
   an alias or an editor that the real Git starts has another process in between,
   so running an installed
-  wrapper there is not stopped.
+  wrapper there is not stopped,
+  and such a nesting costs one real Git run per level,
+  far below the bound.
   An identity that cannot be read decides by the numbers.
 - The stop is exit status 2 with one message that names this executable,
   the starter and how it started this process,
@@ -4909,15 +5009,136 @@ the options weighed and the controls.)
   so the next wrapper that
   provisions the unit writes it again.
   Its Git starts go through the marked builders.
-- Not covered:
+- Covered since 2026-11-09,
+  where releases before it were not:
   a user script named `git` that starts the wrapper as a child,
   with no launch record and no marker
   string.
   The parent of the arriving wrapper is the script,
-  not the starter;
-  the message of a wrapper that cannot find
-  Git lists every candidate,
-  which shows the script as the entry to remove.
+  not the starter,
+  so the two checks above it match nothing;
+  such a chain starts one wrapper per level,
+  and the count of the marker ends it at
+  `MOST_STARTS_IN_ONE_CHAIN`,
+  whatever number of processes stands between two starts
+  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+  finding 1,
+  measured there at sixteen levels and no end).
+  The bound is 32 starts,
+  and the count means what it meant before the environment of the process above is read:
+  one start of real Git per level.
+  It was 8,
+  which refused a finite chain:
+  nine `!` aliases that each run the next through `git` reach the wrapper once per alias on an install
+  whose Git exec directory offers the wrapper,
+  and the command itself is a tenth start,
+  so the refusal ended them at start 9
+  (the shape the round-1 review reported).
+  On an install where `git` inside an alias is the system Git the chain never reaches the wrapper at all
+  (measured:
+  the marker's count is 1 at every one of nine levels,
+  and the wrapped `git a` answers with real Git's own output),
+  so this count is the only stop only on the install whose `git-core` leads back.
+  It now allows a chain three times the measured one,
+  and a chain that leads back without a real Git of the person's between its levels ends at the 33rd start,
+  measured at 1.3 s from the first wrapper to the refusal.
+  Test:
+  `a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for`.
+  The stop is the same exit status 2 and the same message:
+  it says this is start N of one chain,
+  names the file the previous start chose as Git
+  (`CLI_GIT_NATIVE_FORWARD_TARGET`,
+  which is the script),
+  the `PATH`,
+  and both ways out.
+- Covered since 2026-11-09T03:00:00-05:00,
+  where the count alone did not:
+  a launcher that clears the environment of the wrapper it starts
+  (`env --ignore-environment`).
+  The marker lives in the environment of the start,
+  so a clearer removes it from the arriving wrapper and every level looked like a first start.
+  What survives the wipe is what the wrapper reads about the process above it:
+  this process's own environment first,
+  then the environment of the process that started it and of the one above that
+  (`ANCESTORS_ASKED_FOR_THE_CHAIN`,
+  `chain_marker_and_where`),
+  which the clearer cannot change,
+  and the count continues from there,
+  so the chain ends at `MOST_STARTS_IN_ONE_CHAIN`.
+  The message is written from the environment the marker was read in,
+  so it names that Git and that `PATH`
+  even though the arriving wrapper's own environment held neither.
+  The walk costs 0.18 ms of a forwarded command,
+  measured by alternating two builds that differ only in it
+  (median 4.76 ms without it,
+  300 pairs);
+  it is made only when this process's own environment carries no marker.
+  Test:
+  `a_launcher_that_clears_the_environment_ends_the_chain`.
+- Covered since 2026-11-09T05:00:00-05:00,
+  where neither the marker nor the environment of the process above could see it:
+  a launcher that clears the environment **and replaces itself with the wrapper**
+  (`exec env --ignore-environment ... wrapper`),
+  so one process number runs the launcher,
+  the clearing and the wrapper again
+  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+  finding 1 of the round-2 review).
+  What an `exec` keeps is the open descriptors,
+  so the chain record is one:
+  the first wrapper of a chain makes a memory file with `memfd_create`
+  (`invocation/chain_starts_record.rs`,
+  no close-on-exec flag),
+  every start of real Git writes the marker it gives that Git into the file,
+  and the file records the path it chose,
+  and every child inherits the descriptor.
+  A wrapper reads that record after any marker that does not refuse it,
+  including one an ancestor still holds:
+  a launcher that replaces itself with the wrapper leaves its marker only in the record,
+  and the older marker above names the outer start and matches nothing,
+  so reading the record only when no marker exists let the process start itself without end
+  (finding 1 of the round-3 review).
+  The record continues the chain when its start is this process or a live process above it,
+  four levels deep,
+  which covers a launcher a relay and the relay's own shell (finding 2);
+  a record naming any other process is a command that has ended,
+  so its count starts again at one and a long session of one command after another is never refused.
+  A read of the wrapper's own continues the chain from any process of it,
+  as the marker path refuses it from any process,
+  or the branch a relay starts from a recorded read would be uncounted.
+  A record whose start is further above than four processes starts the count again:
+  that is the shape this bound does not count,
+  and it is written here rather than closed.
+  A memory file has no directory entry and no name to sweep:
+  the kernel frees it with the last process that holds it,
+  so a marked start costs nothing.
+  What the record must never be is one of the three descriptors a child reads and writes as its
+  streams:
+  `memfd_create` takes the lowest free number,
+  which is `0` when standard input is closed,
+  and the wrapper then wrote its marker into it and a child hashed the marker as its input
+  (finding 4 of the round-3 review);
+  the record is moved to `F_DUPFD 3` and the number the kernel gave is closed,
+  so a stream that was closed stays closed.
+  The record costs nothing a forwarded command can feel:
+  measured by alternating two builds that differ only in it,
+  300 pairs,
+  paired median −0.02 ms,
+  mean −0.04 ms,
+  against a 6.3 ms median and a spread of 4.4 to 10.3 ms.
+  Tests:
+  `a_launcher_that_clears_the_environment_and_replaces_itself_ends_the_chain`,
+  `a_record_of_this_process_is_read_even_when_an_older_marker_sits_above`,
+  `a_record_of_a_live_process_above_continues_the_chain_through_relays`,
+  `a_chain_of_relays_between_two_starts_still_ends`,
+  and
+  `a_record_never_takes_the_descriptor_a_child_reads_as_standard_input`.
+- What a cleared environment still hides:
+  a launcher that closes every descriptor it did not open and then `exec`s the wrapper.
+  The record is the descriptor,
+  so a launcher that closes it leaves the next level with no marker and no record,
+  which is a first start again;
+  the forking shape is covered by the environment of the process above,
+  and the `exec` shape only by the record.
 
 ### The wrapper falls back to the Git its commit service was set up with
 
