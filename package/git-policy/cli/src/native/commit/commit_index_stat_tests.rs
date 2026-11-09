@@ -443,6 +443,32 @@ fn prepare_stale_with(context: &GitContext, stale: &Stale) {
     initialize_commit_index(context, stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("the preparation must not fail");
 }
 
+/// A rebuild after the branch moved keeps its refresh in its own private index too,
+/// and leaves the real index alone:
+///  a rebuild runs when other commits land,
+/// which is the moment the real index lock is busiest.
+#[test]
+fn a_retry_keeps_the_refresh_in_the_private_index_and_leaves_the_real_one_alone() {
+    let root: PathBuf = fixture("commit-index-stat-retry-private");
+    let stale: Stale = stale_fixture(root.as_path());
+    let real: PathBuf = stale.repo.join(".git").join("index");
+    let before: Vec<u8> = std::fs::read(real.as_path()).expect("the real index");
+    let tree: String = git_text(stale.repo.as_path(), &["rev-parse", format!("{}^{{tree}}", stale.base).as_str()]);
+    initialize_retry_index(&git_context(), stale.repo.as_path(), real.as_path(), &stale.indexes, tree.as_str()).expect("retry index");
+    assert!(
+        std::fs::read(real.as_path()).expect("the real index") == before,
+        "a rebuild must not write the real index, and the bytes of {} changed",
+        real.display()
+    );
+    let inode: u64 = std::fs::metadata(stale.repo.join("f2.txt")).expect("the file").ino();
+    let listing: String = debug_listing(stale.repo.as_path(), stale.indexes.commit_index.as_path(), "f2.txt");
+    assert!(
+        listing.contains(format!("ino: {inode}").as_str()),
+        "the rebuilt index must record the inode the file has now, {inode}: {listing}"
+    );
+    remove(root.as_path());
+}
+
 /// A refresh Git refuses leaves the private index exactly as the copy and the staging made it,
 /// and the preparation still answers success:
 /// the stat data is a cache,
