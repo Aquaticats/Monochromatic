@@ -8119,6 +8119,7 @@ read from the index and from the Git directory as it is after that step:
 the operation did not finish,
 the files the pass staged as resolved are named,
 and either no file is conflicted or the files that are,
+or that the index could not be read again and which files are conflicted now cannot be said,
 with the sentence that Git stopped again there,
 because a continuation commits the pick it resolved and then stops on the next change's conflict
 (`git rebase --continue` does exactly that).

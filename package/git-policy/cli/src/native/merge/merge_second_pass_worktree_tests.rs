@@ -65,18 +65,18 @@ fn the_closing_words_say_whether_a_conflict_remains() {
     assert!(closing_words("rebase", 0).contains("no conflicted file is left") && closing_words("rebase", 0).contains("finish the rebase"));
     assert!(closing_words("merge", 2).contains("still lists as conflicted") && closing_words("merge", 2).contains("git diff --cached"));
     for (operation, ending) in [("merge", "`git commit`"), ("pull", "`git commit`"), ("rebase", "`git rebase --continue`"), ("cherry-pick", "`git cherry-pick --continue`"), ("revert", "`git revert --continue`")] {
-        let line: String = unfinished_words(operation, "notes.md", &[], ending);
+        let line: String = unfinished_words(operation, "notes.md", Some(&[]), ending);
         assert!(line.contains(format!("the {operation} did not finish").as_str()) && line.contains("the files the second merge pass staged as resolved are notes.md"), "{line}");
         assert!(line.contains("no file is conflicted"), "{line}");
         assert!(line.contains(ending), "{line}");
         assert!(!line.contains("Nothing in the repository changed"), "the last word is not the failing step's sentence about itself: {line}");
     }
     let one: Vec<String> = vec![String::from("notes.md")];
-    let line: String = unfinished_words("rebase", "a.md", one.as_slice(), "`git rebase --continue`");
+    let line: String = unfinished_words("rebase", "a.md", Some(one.as_slice()), "`git rebase --continue`");
     assert!(line.contains("notes.md is conflicted again where the ending step stopped") && line.contains("resolve it"), "{line}");
     assert!(!line.contains("the conflict is gone") && !line.contains("no file is conflicted"), "the state is read, not assumed: {line}");
     let two: Vec<String> = vec![String::from("a.md"), String::from("b.md")];
-    let several: String = unfinished_words("rebase", "c.md", two.as_slice(), "`git rebase --continue`");
+    let several: String = unfinished_words("rebase", "c.md", Some(two.as_slice()), "`git rebase --continue`");
     assert!(several.contains("a.md, b.md are conflicted again") && several.contains("resolve them"), "{several}");
 }
 
@@ -276,4 +276,24 @@ fn a_worktree_file_edited_after_it_was_read_is_left_alone() {
     assert!(kept.files.is_empty(), "nothing is installed over it");
     assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), b"half of my own resolution\n".to_vec());
     remove(world.root.as_path());
+}
+
+/// What:
+///  A line about an index that could not be read again says so,
+/// and never that no file is conflicted.
+/// Why:
+///   The read failing left the list of conflicted paths empty,
+/// so the line claimed a state nobody had
+/// (cross-vendor review round 2, finding 7,
+/// which is outside the ordered list of the round).
+#[test]
+fn a_line_about_an_unread_index_does_not_claim_a_clean_one() {
+    let line: String = unfinished_words("rebase", "a.md", None, "`git rebase --continue`");
+    assert!(line.contains("could not be read"), "{line}");
+    assert!(!line.contains("no file is conflicted"), "{line}");
+    assert!(line.contains("git rebase --continue"), "the command that ends it is still named: {line}");
+    // The known states still say what they hold.
+    assert!(unfinished_words("rebase", "a.md", Some(&[]), "`git rebase --continue`").contains("no file is conflicted"));
+    let one: Vec<String> = vec![String::from("b.md")];
+    assert!(unfinished_words("rebase", "a.md", Some(one.as_slice()), "`git rebase --continue`").contains("b.md is conflicted again"));
 }

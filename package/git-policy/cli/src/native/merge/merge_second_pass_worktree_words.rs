@@ -77,8 +77,12 @@ pub(super) fn ending_command(git_dir: &Path, operation: &str) -> &'static str {
 /// ```ts
 /// const line = (operation, staged, conflicted, ending) => `${LINE_PREFIX}${REPORT_MARK}: the ${operation} did not finish: the files the second merge pass staged as resolved are ${staged}, and ${conflicted.length === 0 ? 'no file is conflicted' : `${conflicted.join(', ')} ${conflicted.length === 1 ? 'is' : 'are'} conflicted again where the ending step stopped`}; run ${ending} to end the ${operation}.`;
 /// ```
-pub(super) fn unfinished_words(operation: &str, staged: &str, conflicted: &[String], ending: &str) -> String {
+pub(super) fn unfinished_words(operation: &str, staged: &str, conflicted: Option<&[String]>, ending: &str) -> String {
     let kept: String = format!("the files the second merge pass staged as resolved are {staged}");
+    let Some(conflicted) = conflicted else {
+        // An index that cannot be read again is not a clean one, and the line must not say it is.
+        return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and the index could not be read again, so which files are conflicted now cannot be said; run {ending} to end the {operation}.");
+    };
     if conflicted.is_empty() {
         return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and no file is conflicted; run {ending} to end the {operation}.");
     }
