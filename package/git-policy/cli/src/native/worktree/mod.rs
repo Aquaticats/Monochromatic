@@ -85,6 +85,9 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// The finish of a removal whose destroy happened and whose registration did not go.
+pub mod worktree_removal_interrupted_destroy;
+
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;

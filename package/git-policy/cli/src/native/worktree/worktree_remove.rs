@@ -56,6 +56,7 @@ use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_path_failure_message::path_failure;
+use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
@@ -532,11 +533,24 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
     }
+    // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
+    // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`
+    // could. A record that cannot be written costs that finish and nothing else, so the destruction goes on.
+    if let Err(reason) = record_destroy(request.common_dir, registration.id.as_os_str(), &held.admin_identity, target) {
+        warn(TAG, format!("the destroy of {} is not recorded, so a command that dies before its registration is removed leaves it to `git worktree prune`: {reason}", target.display()).as_str());
+    }
     if let Err(error) = operations.destroy(&held) {
         debug(TAG, format!("the subvolume of {} was not destroyed ({error}); Git removes it", target.display()).as_str());
+        forget_destroy(request.common_dir, registration.id.as_os_str());
         return RemoveOutcome::LeftToGit;
     }
-    return finish(&held, &registration, request);
+    let outcome: RemoveOutcome = finish(&held, &registration, request);
+    // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
+    // record, which is what the next command finishes.
+    if outcome == RemoveOutcome::Removed {
+        forget_destroy(request.common_dir, registration.id.as_os_str());
+    }
+    return outcome;
 }
 
 /// Subvolume removal controls stay out of the release executable.

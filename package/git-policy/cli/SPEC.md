@@ -1688,6 +1688,26 @@ directory.
 These narrow the window to a few system calls;
 they do not close it.
 
+The destroy is recorded before the kernel call,
+in `<common>/monochromatic-git-policy-cli/recorded-destroys/<id>`,
+holding the identity of the registration and
+the path of the worktree;
+the record is dropped by a removal that finished and by a destroy that failed,
+so a command killed in the window
+between the destroy and the removal of the registration leaves one decidable state.
+Every wrapped command then finishes it:
+the registration is emptied and removed through descriptors opened below `worktrees`,
+only while it is the identity
+the record names and only when nothing below it is a nested subvolume or a mount point,
+and only after the records it
+holds are copied into the removal snapshot the rescue route settles,
+so an unshown push failure in it is shown rather
+than destroyed with it.
+A record whose worktree directory is still there is dropped with nothing changed,
+because the
+destroy did not happen.
+What still fails is reported with its path and with `git worktree prune` as the way forward.
+
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory,
 a registration
 replaced meanwhile),

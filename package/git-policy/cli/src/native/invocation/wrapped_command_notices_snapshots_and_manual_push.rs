@@ -32,6 +32,7 @@ use crate::landed_summary::short_name;
 use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
+use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
 use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
 use crate::repository_facts::RepositoryFacts;
 use crate::worktree_identity::worktree_root;
@@ -116,6 +117,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
     //  for the person is said here, each time, until it can be.
     for problem in settle_removals(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{problem}");
+    }
+    // A removal this program began and its process did not finish (its registration outlived its files) is finished here,
+    // so the path it used is free again without the person being sent to `git worktree prune`.
+    for problem in finish_interrupted_destroys(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }

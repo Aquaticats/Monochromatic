@@ -634,6 +634,15 @@ Read-only commands,
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
    (`git -C <repository> worktree prune`);
      it does not run Git afterwards.
+  The destroy is recorded beside the repository before it is made
+     (`monochromatic-git-policy-cli/recorded-destroys/<name>` under the common Git directory),
+     so a command killed between the destroy and the removal of the registration leaves a state the next command finishes
+   by itself,
+     and only after what the registration still holds is copied into the removal snapshot,
+     so a push failure nobody saw yet is shown instead of dying with it.
+     A destroy that failed,
+     and a removal that finished,
+     drop the record.
   From the main checkout the copy carries the dependencies and builds a new worktree needs to run at once
    (`node_modules`,
      `target/`,

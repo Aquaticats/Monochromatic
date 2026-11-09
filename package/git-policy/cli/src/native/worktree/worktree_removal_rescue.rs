@@ -358,13 +358,35 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
         if !git_dir.is_dir() {
             continue;
         }
-        let notices: Vec<PathBuf> = files_of(notice_directory(git_dir.as_path()).as_path());
-        let work_directory: PathBuf = path_for_reading(git_dir.as_path(), WORK_DIRECTORY);
+        for problem in snapshot_one(common_dir, git_dir.as_path()) {
+            problems.push(problem);
+        }
+    }
+    return problems;
+}
+
+/// What:
+///  The same snapshot for one worktree's Git directory,
+/// which a caller that knows exactly which worktree it means uses.
+/// Why:
+///   The finish of an interrupted destroy copies the records of that one registration before it removes it,
+/// without
+///  reading every other worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const problems: string[] = snapshotOne(commonDir, gitDir)
+/// ```
+pub(crate) fn snapshot_one(common_dir: &Path, git_dir: &Path) -> Vec<String> {
+    let mut problems: Vec<String> = Vec::new();
+    {
+        let notices: Vec<PathBuf> = files_of(notice_directory(git_dir).as_path());
+        let work_directory: PathBuf = path_for_reading(git_dir, WORK_DIRECTORY);
         let pushes: Vec<String> = push_record_names(work_directory.as_path());
         if notices.is_empty() && pushes.is_empty() {
-            continue;
+            return problems;
         }
-        let snapshot: PathBuf = common_dir.join(SNAPSHOT_DIRECTORY).join(instance_of(git_dir.as_path()));
+        let snapshot: PathBuf = common_dir.join(SNAPSHOT_DIRECTORY).join(instance_of(git_dir));
         let mut failures: Vec<String> = Vec::new();
         match create_private_directory_all(snapshot.as_path()) {
             Ok(()) => {
@@ -504,6 +526,27 @@ fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bo
 }
 
 /// What:
+///  Promote what one snapshot kept and remove it when everything went through.
+/// Why:
+///   Two callers settle a snapshot:
+/// the settle of every snapshot,
+/// and the finish of an interrupted destroy,
+/// whose
+///  snapshot is the one it just took.
+/// A failure keeps the snapshot,
+/// which is then the last copy of that record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// promoteSnapshot(commonDir, snapshot, problems)
+/// ```
+pub(crate) fn promote_snapshot(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) {
+    if promote(common_dir, snapshot, problems) {
+        let _settled = std::fs::remove_dir_all(snapshot);
+    }
+}
+
+/// What:
 ///  Settles every snapshot whose removal is decided:
 /// one whose worktree is still registered and whose taker has ended is
 ///  discarded;
@@ -537,11 +580,7 @@ pub fn settle_removals(common_dir: &Path) -> Vec<String> {
             Removal::Refused => {
                 let _discarded = std::fs::remove_dir_all(snapshot.as_path());
             }
-            Removal::Done => {
-                if promote(common_dir, snapshot.as_path(), &mut problems) {
-                    let _settled = std::fs::remove_dir_all(snapshot.as_path());
-                }
-            }
+            Removal::Done => promote_snapshot(common_dir, snapshot.as_path(), &mut problems),
         }
     }
     return problems;

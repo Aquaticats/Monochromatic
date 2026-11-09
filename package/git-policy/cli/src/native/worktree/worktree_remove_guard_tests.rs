@@ -10,7 +10,9 @@
 
 use super::*;
 use crate::fs_beneath::handle_path;
-use crate::test_support::{age, fixture, git, git_context, remove, repository};
+use crate::push_failure_notice::{record_push_failure, take_orphaned_failures};
+use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
+use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy};
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
@@ -283,6 +285,93 @@ fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_remo
     assert!(report.contains(admin.to_str().expect("UTF-8")), "the report names the leftover: {report}");
     assert!(report.contains(worktree.to_str().expect("UTF-8")), "and the removed worktree: {report}");
     assert!(report.contains(format!("git -C {} worktree prune", repo.display()).as_str()), "and the command that finishes: {report}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A removal whose files are gone and whose registration stayed is finished by the next command,
+///  so `git worktree add` at that path works again without the person running `prune`,
+///  and the records the registration still holds are shown instead of dying with it.
+/// Why:
+///   The state is what a kill between the destroy and the removal of the registration leaves:
+/// the destroy is recorded
+///  before the kernel call,
+/// and the worktree directory is gone.
+#[test]
+fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_records() {
+    let root: PathBuf = fixture("remove-finish-interrupted");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    // A push failure nobody has seen yet lives in that registration and would go with it.
+    record_push_failure(admin.as_path(), "refs/heads/topic", "0123456789abcdef0123456789abcdef01234567", "refused by test policy").expect("notice");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    remove(worktree.as_path());
+    let refused = git_output(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);
+    assert!(!refused.status.success(), "a stale registration stops the add, which is the state to repair");
+    let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+    assert!(problems.is_empty(), "{problems:?}");
+    assert!(!admin.exists(), "the registration the destroy left is gone");
+    let shown: Vec<String> = take_orphaned_failures(common.as_path(), &|commit: &str| { return commit.to_string(); });
+    assert!(shown.iter().any(|text: &String| { return text.contains("refused by test policy"); }), "the notice the registration held is shown: {shown:?}");
+    // Git accepts the path again, which is what the person asked for.
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);
+    assert!(worktree.join("tracked.txt").is_file(), "the add at the reused path made the worktree");
+    remove(root.as_path());
+}
+
+/// What:
+///  A removal that destroyed the files but could not remove the registration records its destroy,
+///  so a later command finishes what it could not,
+///  and a removal that finished records nothing.
+#[test]
+fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
+    let root: PathBuf = fixture("remove-finish-records");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let worktrees: PathBuf = repo.join(".git/worktrees");
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555)).expect("read-only registrations");
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restore");
+    assert!(matches!(outcome, RemoveOutcome::Incomplete(_)), "the registration cannot be removed: {outcome:?}");
+    assert!(!worktree.exists() && admin.is_dir(), "the destroy happened and the registration stayed");
+    let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    assert!(record.is_file(), "the destroy this removal made is recorded for the next command");
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty());
+    assert!(!admin.exists() && !record.exists(), "the next command finished it and dropped the record");
+    // A removal that finished leaves nothing behind for a later command to do.
+    let other: PathBuf = clean_worktree(repo.as_path(), root.join("wt2").as_path(), "other");
+    let second: Stand = Stand::new(vec![other.clone()]);
+    assert_eq!(run(&second, repo.as_path(), &plan_named(other.as_path(), "../wt2")), RemoveOutcome::Removed);
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty());
+    assert!(!record.parent().expect("record folder").exists(), "a finished removal records nothing");
+    remove(root.as_path());
+}
+
+/// What:
+///  A destroy that was recorded and then never happened leaves the registration alone and drops the record.
+/// Why:
+///   The record is written before the kernel call,
+/// so a kill in that step leaves a worktree whose directory is still there:
+///  nothing was destroyed,
+/// and emptying its registration would discard the worktree of a person who asked for nothing.
+#[test]
+fn a_recorded_destroy_whose_worktree_is_still_there_changes_nothing() {
+    let root: PathBuf = fixture("remove-finish-not-destroyed");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty());
+    assert!(admin.join("gitdir").is_file() && worktree.join("tracked.txt").is_file(), "nothing was removed");
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty(), "the record is gone, so the next command looks at nothing");
     remove(root.as_path());
 }
 
