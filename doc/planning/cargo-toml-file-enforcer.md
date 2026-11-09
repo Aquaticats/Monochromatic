@@ -121,7 +121,7 @@ Comment-preserving property edits.
   `readme`,
    and `homepage`.
    `homepage` is derived from the crate's path
-   (`https://github.com/Aquaticat/Monochromatic/tree/main/<dir>`).
+   (`https://github.com/Aquaticats/Monochromatic/tree/main/<dir>`).
 
 ### Not owned
 
@@ -206,7 +206,12 @@ Because ownership is self-healing,
   name-rebinding shadow across the fleet.
   The complete fallout ledger,
   one entry per finding,
-  lives in [issue #604](https://github.com/Aquaticat/Monochromatic/issues/604),
+  lives in [issue #604](https://github.com/Aquaticat/Monochromatic/issues/604)
+  (the link keeps the organization name the issue was filed under;
+  GitHub redirects it,
+  and the repository moved to `Aquaticats` before
+  2026-10-15,
+  when `dd0b3afadd` began emitting the new organization),
   along with the Slint generated-code remedy.
 - `file-manager` and `file-manager-gtk-sticky` gain
    `disallowed_methods = "deny"`,
