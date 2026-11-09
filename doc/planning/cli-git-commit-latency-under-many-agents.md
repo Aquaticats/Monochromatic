@@ -1444,6 +1444,7 @@ under the load the host had then:
 other sessions were running their own builds and a performance run of their own,
 and the load average stood between 61 and 115 on eight CPUs.
 Each run makes eight overlapping commits in each of three rounds,
+where run A above made four,
 started together on one branch of a disposable clone of this worktree
 (458 808 objects in packs and 22 556 tracked files),
 with the wrapper's own service,
