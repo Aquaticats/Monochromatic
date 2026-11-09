@@ -75,7 +75,11 @@ fn a_migration_is_refused_while_a_worktree_is_being_converted() {
     use crate::single_owner_claim::plant_claim_for_tests;
     use crate::worktree_convert_journal::CLAIM_PREFIX;
     let (parent, root) = checkout_with_worktree("ownership-conversion-running");
-    let mut conversion: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30")).expect("sleep");
+    // The stand-in must outlive this test however slow the host is: the migration reads the claim's owner when its
+    // preflight reaches it, and a stand-in that has ended by then makes the claim stale, so the migration does not refuse.
+    // Five minutes is six times the longest run seen on a loaded host (53.7 s on 2026-11-09), and the process group is ended
+    // with the test thread anyway.
+    let mut conversion: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("300")).expect("sleep");
     let pid: i64 = i64::from(conversion.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("alive");
     plant_claim_for_tests(root.join(".git/worktrees/wt").as_path(), std::ffi::OsStr::new(CLAIM_PREFIX), 1, pid, birth.as_str());
