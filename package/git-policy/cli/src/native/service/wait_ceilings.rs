@@ -199,21 +199,37 @@ pub const LANDING_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from
     LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT.as_millis() as u64 * CEILING_MARGIN as u64,
 ));
 
-/// The longest `git commit` step of the scratch repository in this repository's commit timing log,
-/// from the per-step records.
-/// Measured on 2026-11-08 over the 14 records of release 0.6.1-alpha.2 onward that name each Git step:
-/// the step took 31 to 1,002 ms,
-/// so the slowest is 1,002 ms.
+/// The slowest `git commit` step of the scratch repository in this repository's commit timing log,
+/// one figure per record,
+/// of the records that do not run past the 16 s the owner chose.
+/// Measured on 2026-11-09 from both generations of the timing log
+/// (`monochromatic-git-policy-cli-commit-timing.jsonl` and its one rotated generation,
+/// 958 records,
+/// 2026-11-08T03:29:55Z to 2026-11-09T04:33:32Z,
+/// releases 0.6.1-alpha.2 to 0.6.1-alpha.5,
+/// 907 of them naming each Git step):
+/// twelve records hold a step past the 3,006 ms ceiling this replaces,
+/// the three slowest hold 26,256,
+/// 36,651 and 171,383 ms,
+/// and the slowest of the rest holds 5,444 ms.
+/// The owner was shown the same figures over the 886 records the log held then and answered
+/// (2026-11-08,
+/// "About 16 seconds"):
+/// "About 16s,
+/// and investigate what happened for those 3 commits.
+/// If we can't figure it out,
+/// then we have a defect and should log more."
+/// The 5,444 ms figure is a step the 3,006 ms ceiling ended,
+/// so it holds the stop's own cost (2.4 s of it),
+/// and the next reading of an unstopped population may be larger.
 /// The owner's signing probe on 2026-11-07 signed a commit in 16 ms against 9 ms unsigned,
 /// and the step runs with every hook off,
-/// so neither signing nor hooks is what makes a step long.
-/// The sample is 14 records,
-/// all from one evening.
+/// so neither signing nor hooks is what makes a step long when nothing competes.
 /// Whole builds that took 11 to 406 s on 2026-11-07 are in the log too,
 /// but they name no step;
 /// a retry's private index without stat data made the scratch commit hash the whole work tree,
 /// and that is fixed (`initialize_retry_index`).
-pub const SLOWEST_MEASURED_COMMIT_STEP: Duration = Duration::from_millis(1_002);
+pub const SLOWEST_MEASURED_COMMIT_STEP: Duration = Duration::from_millis(5_444);
 
 /// How many times the slowest measured step the ceiling of the scratch `git commit` is (owner,
 /// 2026-11-07,
@@ -222,7 +238,10 @@ pub const SLOWEST_MEASURED_COMMIT_STEP: Duration = Duration::from_millis(1_002);
 /// applied to the step's own record (owner,
 /// 2026-11-08,
 /// "About 3 s now":
-/// "Three times the slowest step record (1,002 ms)").
+/// "Three times the slowest step record (1,002 ms)";
+/// and again,
+/// "About 16 seconds":
+/// "three times the slowest ordinary step").
 pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 
 /// The longest the scratch repository's `git commit` runs when the message came with the command (`-m`,
@@ -230,12 +249,14 @@ pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 /// `-C`),
 /// before the wrapper ends it with everything below it:
 /// three times the slowest step record,
-/// 3 x 1,002 ms = 3,006 ms (owner,
-/// 2026-11-08,
-/// "About 3 s now").
+/// 3 x 5,444 ms = 16,332 ms,
+/// which the owner chose as "about 16 s" (2026-11-08,
+/// "About 16 seconds").
 /// The owner chose it knowing its price,
 /// which the option named:
-/// on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s.
+/// on the log of 2026-11-08 it still refuses the three commits whose step ran 26,256,
+/// 36,651 and 171,383 ms,
+/// two of which landed.
 /// With an editor open the step has no ceiling,
 /// only the waiting notice:
 /// the person is the wait,

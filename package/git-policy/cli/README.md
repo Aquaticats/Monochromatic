@@ -2881,13 +2881,15 @@ Each line names what the command waits for,
    and says when the step is stopped.
    When the message came with the command (`-m`,
   `-F`,
-  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (3,006 ms,
-  three times the slowest of the 14 `git commit` step records,
-  1,002 ms;
+  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (16,332 ms,
+  three times the slowest
+  `git commit` step record that is not one of the three over 26 s,
+  5,444 ms,
+  over 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5;
   owner,
   2026-11-08,
-  "About 3 s now",
-  after "limit unless editor" on 2026-11-07;
+  "About 16 seconds",
+  after "About 3 s now" on the same day and "limit unless editor" on 2026-11-07;
   `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds):
    everything below the command is ended,
    nothing is committed,
@@ -2896,6 +2898,10 @@ Each line names what the command waits for,
    The owner chose this knowing that on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s;
    those builds were a retry index without stat data,
    which is fixed.
+   On the log of 2026-11-08 it still refuses three commits,
+   whose steps ran 26,256,
+   36,651 and 171,383 ms,
+   and the owner asked for each of them to be investigated.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
@@ -3017,7 +3023,9 @@ replace refs,
 shallow or grafted history,
 split or sparse indexes,
 an index extension other than the ones Git reads without a word,
+an index offset table that does not name the entries the reader parsed,
 a ref name Git's own rule for a ref name would refuse,
+a ref listing past the 256 refs the listing reader answers,
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,
