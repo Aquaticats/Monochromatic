@@ -137,6 +137,10 @@ Repo uses of single-argument `Array.from` are 2 deliberate string code-point spl
  each suppressing `prefer-spread`
 (`package/git-policy/cli/src/parser/commit-normalise.ts:122`,
  `package/i18n-compose/core/src/render-helpers.ts:147`).
+The first site went with the TypeScript Git policy wrapper,
+ deleted on 2026-10-13,
+ in `642b6d72cb`,
+ and only `package/i18n-compose/core/src/render-helpers.ts:147` is left in the tree.
 
 ## Decisions (2026-09-25)
 

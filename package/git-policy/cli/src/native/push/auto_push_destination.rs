@@ -21,7 +21,8 @@
 //! const named: NamedPush = await namedPush({ git, branchRef }); // push | remote-must-have | skip
 //! ```
 
-use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query, run_query_awaiting};
+use crate::bounded_query::QueryOutput;
 use crate::config_snapshot::{ConfigSnapshot, Lookup};
 use std::ffi::OsString;
 use crate::auto_push_refspec_judging::{Judged, judge, parse_refspec};
@@ -170,6 +171,43 @@ fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSett
     };
     let arguments = argv(&["config", "--list", "-z", "--show-scope"]);
     let listing = run_query(git, &arguments)?;
+    return push_settings_of(&listing, name);
+}
+
+/// What:
+///  The same settings,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push asks where it may send a branch as a task,
+/// and the synchronous read enters the runtime and is refused from there.
+/// The question and the reading of its answer are the synchronous face's,
+/// so the two cannot decide differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readPushSettingsOnTheRuntime({ git, branchRef });
+/// ```
+async fn read_push_settings_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<PushSettings>, SingleFlightError> {
+    let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
+        return Ok(None);
+    };
+    let arguments = argv(&["config", "--list", "-z", "--show-scope"]);
+    let listing = run_query_awaiting(git, &arguments).await?;
+    return push_settings_of(&listing, name);
+}
+
+/// What:
+///  The settings one finished configuration listing answers for `name`,
+/// or nothing for a branch with no remote to push to.
+/// Why:
+///   Both faces of the read turn one listing into one set of settings here,
+/// so a value read by either is judged by the same code.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settingsOf(listing, name); // PushSettings | undefined
+/// ```
+fn push_settings_of(listing: &QueryOutput, name: &str) -> Result<Option<PushSettings>, SingleFlightError> {
     if listing.code != Some(0) {
         return Err(SingleFlightError::Git { arguments: String::from("config --list -z --show-scope"), code: listing.code, stderr: String::from_utf8_lossy(&listing.stderr).into_owned() });
     }
@@ -331,13 +369,47 @@ pub fn read_destination(git: &PushGit, branch_ref: &str) -> Result<Option<Destin
     let Some(settings) = read_push_settings(git, branch_ref)? else {
         return Ok(None);
     };
-    if settings.mirror || !settings.refspecs.is_empty() {
+    return Ok(destination_of(branch_ref, &settings));
+}
+
+/// What:
+///  The same destination,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's reconcile asks where the rejected push went as a task,
+/// and the synchronous read enters the runtime and is refused from there.
+/// The reading is the synchronous face's,
+/// so the two cannot decide differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readDestinationOnTheRuntime({ git, branchRef });
+/// ```
+pub async fn read_destination_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<Destination>, SingleFlightError> {
+    let Some(settings) = read_push_settings_awaiting(git, branch_ref).await? else {
         return Ok(None);
+    };
+    return Ok(destination_of(branch_ref, &settings));
+}
+
+/// What:
+///  The destination one push's settings name,
+/// or nothing when they name none.
+/// Why:
+///   Both faces of `read_destination` decide from the same settings here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settings.mirror || settings.refspecs.length ? undefined : byMode(branchRef, settings).kind === 'target' ? { remote, mergeRef } : undefined;
+/// ```
+fn destination_of(branch_ref: &str, settings: &PushSettings) -> Option<Destination> {
+    if settings.mirror || !settings.refspecs.is_empty() {
+        return None;
     }
-    return Ok(match by_mode(branch_ref, &settings) {
-        ByMode::Target(merge_ref) => Some(Destination { remote: settings.push_remote, merge_ref }),
+    return match by_mode(branch_ref, settings) {
+        ByMode::Target(merge_ref) => Some(Destination { remote: settings.push_remote.clone(), merge_ref }),
         ByMode::Matching | ByMode::Refused(_) => None,
-    });
+    };
 }
 
 /// What:
@@ -363,20 +435,74 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
         return Ok(skip(branch, "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`."));
     };
     if settings.mirror {
-        return Ok(skip(&settings.branch, &format!(
-            "`remote.{0}.mirror` is true: Git mirrors every ref to `{0}` (and deletes the ones it lacks) and refuses a branch pushed by name, \
-             which is all this service pushes. Run `git push` yourself to mirror, or unset `remote.{0}.mirror`.",
-            settings.push_remote
-        )));
+        return Ok(mirror_skip(&settings));
     }
     if !settings.refspecs.is_empty() {
         return named_by_refspecs(git, branch_ref, &settings);
     }
-    return Ok(match by_mode(branch_ref, &settings) {
+    return Ok(named_by_mode(branch_ref, &settings));
+}
+
+/// What:
+///  The same push,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push names both sides of its push as a task,
+/// and the synchronous read enters the runtime and is refused from there.
+/// Every reading and every note is the synchronous face's,
+/// so the two cannot push to different places.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await namedPushOnTheRuntime({ git, branchRef });
+/// ```
+pub async fn named_push_awaiting(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFlightError> {
+    let Some(settings) = read_push_settings_awaiting(git, branch_ref).await? else {
+        let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+        return Ok(skip(branch, "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`."));
+    };
+    if settings.mirror {
+        return Ok(mirror_skip(&settings));
+    }
+    if !settings.refspecs.is_empty() {
+        return named_by_refspecs_awaiting(git, branch_ref, &settings).await;
+    }
+    return Ok(named_by_mode(branch_ref, &settings));
+}
+
+/// What:
+///  The skip of a branch whose remote mirrors every ref.
+/// Why:
+///   Both faces of `named_push` refuse a mirrored remote with the same note.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// skip(settings.branch, `remote.${settings.pushRemote}.mirror is true ...`);
+/// ```
+fn mirror_skip(settings: &PushSettings) -> NamedPush {
+    return skip(&settings.branch, &format!(
+        "`remote.{0}.mirror` is true: Git mirrors every ref to `{0}` (and deletes the ones it lacks) and refuses a branch pushed by name, \
+         which is all this service pushes. Run `git push` yourself to mirror, or unset `remote.{0}.mirror`.",
+        settings.push_remote
+    ));
+}
+
+/// What:
+///  The push `push.default` names,
+/// once the branch has no configured refspec to obey.
+/// Why:
+///   Both faces of `named_push` turn one decision of `push.default` into one push here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const decided = byMode(branchRef, settings);
+/// ```
+fn named_by_mode(branch_ref: &str, settings: &PushSettings) -> NamedPush {
+    return match by_mode(branch_ref, settings) {
         ByMode::Target(target) => NamedPush::Push { remote: settings.push_remote.clone(), targets: vec![target] },
         ByMode::Matching => NamedPush::Matching { remote: settings.push_remote.clone() },
         ByMode::Refused(skipped) => skipped,
-    });
+    };
 }
 
 /// What:
@@ -391,8 +517,42 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
 /// async function namedByRefspecs({ git, branchRef, settings }): Promise<NamedPush>;
 /// ```
 fn named_by_refspecs(git: &PushGit, branch_ref: &str, settings: &PushSettings) -> Result<NamedPush, SingleFlightError> {
-    let branch = settings.branch.as_str();
-    let remote = settings.push_remote.as_str();
+    let query: Vec<String> = refspec_query(settings);
+    let asked = run_query(git, &argv(&query.iter().map(String::as_str).collect::<Vec<&str>>()))?;
+    return named_by_refspecs_of(branch_ref, settings, &asked, &query);
+}
+
+/// What:
+///  The same push,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push obeys the configured refspecs as a task,
+/// and the synchronous face enters the runtime and is refused from there.
+/// The question and the reading of its answer are the synchronous face's,
+/// so the two cannot name different targets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await namedByRefspecsOnTheRuntime({ git, branchRef, settings });
+/// ```
+async fn named_by_refspecs_awaiting(git: &PushGit, branch_ref: &str, settings: &PushSettings) -> Result<NamedPush, SingleFlightError> {
+    let query: Vec<String> = refspec_query(settings);
+    let asked = run_query_awaiting(git, &argv(&query.iter().map(String::as_str).collect::<Vec<&str>>())).await?;
+    return named_by_refspecs_of(branch_ref, settings, &asked, &query);
+}
+
+/// What:
+///  The one `for-each-ref` question the configured refspecs ask,
+/// for the local refs they can name.
+/// Why:
+///   Both faces of `named_by_refspecs` ask Git the same question,
+/// and only about the patterns the refspecs spell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['for-each-ref', '--format=%(refname)', ...patterns];
+/// ```
+fn refspec_query(settings: &PushSettings) -> Vec<String> {
     let mut patterns: Vec<String> = Vec::new();
     for text in &settings.refspecs {
         if let Some(item) = parse_refspec(text)
@@ -403,9 +563,25 @@ fn named_by_refspecs(git: &PushGit, branch_ref: &str, settings: &PushSettings) -
     }
     patterns.sort();
     patterns.dedup();
-    let mut query: Vec<&str> = vec!["for-each-ref", "--format=%(refname)"];
-    query.extend(patterns.iter().map(String::as_str));
-    let asked = run_query(git, &argv(&query))?;
+    let mut query: Vec<String> = vec![String::from("for-each-ref"), String::from("--format=%(refname)")];
+    query.extend(patterns);
+    return query;
+}
+
+/// What:
+///  The push the configured refspecs name,
+/// judged from one finished answer about the local refs.
+/// Why:
+///   Both faces of `named_by_refspecs` judge one answer here,
+/// so a refspec form either face does not interpret is skipped by both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// judge(branchRef, remote, settings.refspecs, localRefs); // push | skip
+/// ```
+fn named_by_refspecs_of(branch_ref: &str, settings: &PushSettings, asked: &QueryOutput, query: &[String]) -> Result<NamedPush, SingleFlightError> {
+    let branch = settings.branch.as_str();
+    let remote = settings.push_remote.as_str();
     if asked.code != Some(0) {
         return Err(SingleFlightError::Git {
             arguments: query.join(" "),

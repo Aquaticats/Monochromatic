@@ -6,10 +6,10 @@
 
 import {
   chmod,
-  mkdtemp,
+  mkdtempDisposable,
+  type DisposableTempDir,
   readdir,
   readFile,
-  rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
@@ -42,12 +42,12 @@ import {
 } from './library.ts';
 
 /**
- Makes a scratch directory.
+ Makes a scratch directory, removed when the caller's scope ends.
  
- @returns its path
+ @returns the directory, which owns its own removal
  */
-async function scratch(): Promise<string> {
-  return await mkdtemp(join(scratchRoot(), 'e2e-library-',),);
+async function scratch(): Promise<DisposableTempDir> {
+  return await mkdtempDisposable(join(scratchRoot(), 'e2e-library-',),);
 }
 
 await describe({
@@ -98,7 +98,8 @@ await describe({
     it({
       name: 'writes the fallback library when the generator is absent: loose files, a middle folder, and the tone folders',
       fn: async ({ expect, }) => {
-        const root = await scratch();
+        await using scratchDirectory = await scratch();
+        const root = scratchDirectory.path;
         const { library, } = await buildLibrary({ root, generatorPath: join(root, 'missing.ts',), },);
         expect(library,).toBe(join(root, 'library',),);
         const top = (await readdir(library,)).toSorted();
@@ -112,14 +113,14 @@ await describe({
         expect(
           (await stat(join(library, TONES_FOLDER, LONG_TONES[0].name,),)).size,
         ).toBe(8 + RIFF_SIZE_OVERHEAD_BYTES + (LONG_TONES[0].seconds * SAMPLE_RATE * BYTES_PER_SAMPLE));
-        await rm(root, { recursive: true, force: true, },);
       },
       timeout: 60_000,
     },),
     it({
       name: 'materializes the library with the generator when it is present, then adds the tone folders',
       fn: async ({ expect, }) => {
-        const root = await scratch();
+        await using scratchDirectory = await scratch();
+        const root = scratchDirectory.path;
         const generator = join(root, 'generator.ts',);
         await writeFile(
           generator,
@@ -135,14 +136,14 @@ await describe({
         const { library, } = await buildLibrary({ root, generatorPath: generator, },);
         expect((await readdir(library,)).toSorted(),).toEqual([TONES_FOLDER, 'Generated Artist', TRASH_FOLDER],);
         expect(await readFile(join(library, 'Generated Artist', 'one.wav',), 'utf8',),).toBe('x',);
-        await rm(root, { recursive: true, force: true, },);
       },
       timeout: 60_000,
     },),
     it({
       name: 'fails with the generator message when the generator fails',
       fn: async ({ expect, }) => {
-        const root = await scratch();
+        await using scratchDirectory = await scratch();
+        const root = scratchDirectory.path;
         const generator = join(root, 'broken.ts',);
         await writeFile(generator, "console.error('no corpus'); process.exit(3);\n",);
         await chmod(generator, 0o644,);
@@ -154,7 +155,6 @@ await describe({
           caught = error;
         }
         expect((caught as Error).message,).toContain('the library generator failed',);
-        await rm(root, { recursive: true, force: true, },);
       },
       timeout: 60_000,
     },),

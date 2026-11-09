@@ -7,6 +7,7 @@ use super::*;
 use crate::path_bytes_in_records::hex_of_path;
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal_encoding_and_validation::*;
+use crate::path_bytes_in_records::hex_of_bytes;
 use crate::worktree_copy_journal_removal::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
@@ -19,13 +20,13 @@ fn sample(root: &Path) -> Journal {
         created_entries: vec![InstalledPath {
             device: 7,
             inode: 42,
-            relative_path: String::from("cache"),
+            relative_path: b"cache".to_vec(),
             selected: true,
         }],
-        intended_entries: vec![String::from("cache")],
+        intended_entries: vec![b"cache".to_vec()],
         destination_root: destination,
         phase: Phase::Installing,
-        selected_roots: vec![String::from("cache")],
+        selected_roots: vec![b"cache".to_vec()],
         source_root: root.join("source"),
         stage_container: stage.clone(),
         stage_root: stage.join("payload"),
@@ -280,7 +281,7 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
     misplaced_payload.stage_root = root.join(".cli-git-worktree-copy-abc/other");
     refuse(&misplaced_payload, relation);
     let mut repeated_intent: Journal = sample(root.as_path());
-    repeated_intent.intended_entries.push(String::from("cache"));
+    repeated_intent.intended_entries.push(b"cache".to_vec());
     refuse(&repeated_intent, duplicates.clone());
     let mut repeated_creation: Journal = sample(root.as_path());
     let first: InstalledPath = repeated_creation.created_entries[0].clone();
@@ -558,6 +559,35 @@ fn only_a_journals_own_temporaries_are_removed() {
     for path in &kept {
         assert!(path.exists(), "{} stays", path.display());
     }
+    remove(root.as_path());
+}
+
+/// The removal's workers are jobs of the process's blocking pool:
+/// a worker asks for the one place of the process's bound before its subtree is removed,
+/// which work on a thread of its own never does.
+#[test]
+fn the_removal_workers_take_places_of_the_processs_bound() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::RecvTimeoutError;
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let root: PathBuf = fixture("journal-split-removal-places");
+    let stage: PathBuf = root.join("stage");
+    for subtree in 0..9 {
+        let directory: PathBuf = stage.join(format!("payload/root/group/subtree{subtree}/deeper"));
+        std::fs::create_dir_all(directory.as_path()).expect("directories");
+        std::fs::write(directory.join("file"), b"x").expect("file");
+    }
+    remove_tree_split(stage.as_path()).expect("removed");
+    assert!(!stage.exists(), "every subtree is removed");
+    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+    //  removals reached the process's bound instead of starting at once.
+    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+        Ok(true) => {}
+        Ok(false) => panic!("the job that holds the only place saw no ask, so no worker of the split removal took a place of the process's bound"),
+        Err(RecvTimeoutError::Timeout) => panic!("no worker of the split removal asked for a place of the process's bound within the patience, so the subtrees were not removed by jobs of the blocking pool"),
+        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+    }
+    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a worker of the removal");
     remove(root.as_path());
 }
 
@@ -870,5 +900,93 @@ fn a_journal_file_that_is_not_text_is_refused_and_kept() {
     let failure: WorktreeCopyError = read_pending_journals(common.as_path()).expect_err("not text");
     assert!(failure.0.contains("it is not text"), "{}", failure.0);
     assert!(path.exists(), "a journal that cannot be read is kept");
+    remove(root.as_path());
+}
+
+/// A journal keeps the bytes of the ignored roots and the claimed paths,
+/// so a recovered installation writes each entry under its own name,
+/// and nothing appears at the spelling a conversion would have made.
+#[cfg(unix)]
+#[test]
+fn recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name() {
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
+    use crate::test_support::dead_copy_owner;
+    use crate::worktree_copy_selection::CopySelection;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("journal-ignored-name-bytes");
+    let source: PathBuf = crate::test_support::repository(root.as_path(), "source");
+    std::fs::write(source.join(".gitignore"), b"cache/\n").expect("gitignore");
+    std::fs::create_dir_all(source.join("cache")).expect("cache");
+    let mut awkward: PathBuf = source.join("cache");
+    awkward.push(std::ffi::OsStr::from_bytes(b"bad\xff.bin"));
+    std::fs::write(awkward.as_path(), b"payload").expect("file that is not text");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let parent: PathBuf = root.join("destinations");
+    std::fs::create_dir_all(parent.as_path()).expect("parent");
+    let named: PathBuf = parent.join("topic");
+    crate::test_support::git(source.as_path(), &["worktree", "add", "--quiet", "-b", "one", named.to_str().expect("utf8")]);
+    let destination: PathBuf = std::fs::canonicalize(named).expect("canonical destination");
+    let canonical_source: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
+    let snapshot: StagedSnapshot = crate::worktree_copy_stage::stage_ignored_snapshot(
+        &crate::test_support::git_context(),
+        canonical_source.as_path(),
+        crate::worktree_copy_stage::new_stage_container(destination.as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let pending: PendingJournal = create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    let text: String = std::fs::read_to_string(pending.path.as_path()).expect("journal file");
+    assert!(
+        text.contains("\"selectedRoots\":[\"cache\"]"),
+        "a root whose name is text keeps the text form the earlier release reads: {text}"
+    );
+    assert!(!text.contains("\"selectedRootsHex\""), "the bytes form is written only where the text is not exact: {text}");
+    let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1, "{report:?}");
+    let mut installed: PathBuf = destination.join("cache");
+    installed.push(std::ffi::OsStr::from_bytes(b"bad\xff.bin"));
+    assert_eq!(std::fs::read(installed.as_path()).expect("copied under its own name"), b"payload");
+    let replacement: PathBuf = destination.join("cache/bad\u{FFFD}.bin");
+    assert!(!replacement.exists(), "nothing is installed at the replacement spelling");
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal whose selected root and claimed path are not text keeps their bytes,
+/// and the release before the bytes form refuses it rather than reading a replacement spelling.
+/// Why:
+///   The earlier release reads those two lists as arrays of text and has no field for their bytes,
+/// so a record that carries bytes only must make it refuse.
+#[cfg(unix)]
+#[test]
+fn a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_that_has_no_text() {
+    let root: PathBuf = fixture("journal-list-bytes");
+    let journal_root: PathBuf = root.join("journals");
+    let path: PathBuf = journal_root.join("id.json");
+    let awkward: Vec<u8> = b"cache/bad\xff.bin".to_vec();
+    let mut journal: Journal = sample(root.as_path());
+    journal.selected_roots = vec![awkward.clone()];
+    journal.intended_entries = vec![awkward.clone()];
+    let text: String = encode_journal(&journal);
+    assert!(
+        text.contains(&format!("\"selectedRootsHex\":[{}]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        "the root's bytes are in the record: {text}"
+    );
+    assert!(
+        text.contains(&format!("\"intendedEntriesHex\":[{}]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        "the claim's bytes are in the record: {text}"
+    );
+    assert!(!text.contains("\"selectedRoots\":["), "a root that is not text has no plain spelling: {text}");
+    assert!(!text.contains("\"intendedEntries\":["), "a claim that is not text has no plain spelling: {text}");
+    let read_back: Journal =
+        parse_journal(text.as_str(), path.as_path(), journal_root.as_path()).expect("a journal whose lists are bytes reads");
+    assert_eq!(read_back.selected_roots, vec![awkward.clone()]);
+    assert_eq!(read_back.intended_entries, vec![awkward.clone()]);
+    let earlier: String = strip_bytes_fields(text.as_str());
+    assert!(
+        parse_journal(earlier.as_str(), path.as_path(), journal_root.as_path()).is_err(),
+        "the earlier release's fields name no list, so it refuses the record: {earlier}"
+    );
     remove(root.as_path());
 }

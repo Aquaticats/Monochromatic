@@ -11,10 +11,15 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
+import {
+  type ChildProcess,
+  spawn,
+} from 'node:child_process';
 import { randomUUID, } from 'node:crypto';
+import { once, } from 'node:events';
 import {
   mkdir,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -44,6 +49,7 @@ import {
   SESSION_NOT_FOUND,
 } from '../handler/claude-spawn/session-finder.ts';
 import { splitWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+import type { ReadonlyDeep, } from 'type-fest';
 
 /**
  TODO: deprecate Optique
@@ -96,86 +102,194 @@ const args = runSync(
 );
 
 /**
- Resolved session identity of the calling Claude instance.
+ Launcher binary the child session is started through.
  */
-const identity = await findCallingSession();
+const LAUNCHER = 'terminal-exec' as const;
 
-if (identity === SESSION_NOT_FOUND) {
-  console.error(
-    'Error: Could not find calling Claude session. Ensure the claude-spawn plugin hooks are active and SessionStart has fired.',
-  );
-  process.exitCode = 1;
+/**
+ Sentinel the launch wait answers with when the launcher started.
+ 
+ A unique symbol rather than a boolean because the failure arm carries an error:
+ one value distinguishes "started" from "failed with this reason".
+ */
+const LAUNCHER_STARTED: unique symbol = Symbol('spawn-claude/launcher-started-the-child-process',);
+
+/**
+ Waits for the launcher to answer the spawn attempt.
+ 
+ `spawn` reports a launch failure (a missing or non-executable binary, a sandbox
+ denial) as an `'error'` event rather than a throw, and an unanswered `'error'`
+ event kills the process with a raw stack trace. Waiting for either answer also
+ means the state file this CLI pre-created is never left behind by a launcher
+ that never ran.
+ 
+ @param proc - child process the launcher was spawned as
+ 
+ @returns {@link LAUNCHER_STARTED} once the launcher is running, otherwise the failure
+ */
+async function firstLauncherFailure(proc: ChildProcess,): Promise<ReadonlyDeep<Error> | typeof LAUNCHER_STARTED> {
+  try {
+    await once(
+      proc,
+      'spawn',
+    );
+    return LAUNCHER_STARTED;
+  }
+  catch (error: unknown) {
+    return Error.isError(error,)
+      ? error
+      : new Error(String(error,),);
+  }
 }
-else {
-  /**
-   Unique identifier for this spawn, used to coordinate state between parent and child.
-   */
-  const spawnId = randomUUID();
-  /**
-   Working directory for the child session, defaulting to the current directory.
-   */
-  const cwd = args.cwd
-    ?? process
-      .cwd();
 
-  /**
-   Extra args split on whitespace, filtering empty strings.
-   */
-  const extraArgs = splitWhitespace(args.extraArguments
-    ?? '',);
-
-  await mkdir(
-    SPAWNS_DIR,
-    { recursive: true, },
-  );
-
-  /**
-   Pre-create the spawn state file before launching the child.
-   
-   `sessionId` starts empty; the first SessionStart that sees it empty
-   claims ownership. Subsequent sessions with stale `CLAUDE_SPAWN_ID`
-   env vars see a non-empty `sessionId` and skip registration.
-   */
-  const initialState: SpawnState = {
+/**
+ Reports a launcher that never started and removes the state file written for it.
+ 
+ The state file records status `running`, and nothing ever rewrites a file for a
+ child that never launched, so leaving it behind means every hook event of every
+ session re-reads it forever.
+ 
+ @param spawnId - identifier of the spawn that failed
+ 
+ @param failure - error the launcher reported
+ */
+async function discardFailedSpawn(
+  {
     spawnId,
-    sessionId: '',
-    transcriptPath: '',
-    parentSessionId: identity.sessionId,
-    status: 'running',
-    lastMessage: '',
-  };
-
-  await writeFile(
+    failure,
+  }: {
+    readonly spawnId: string;
+    readonly failure: ReadonlyDeep<Error>;
+  },
+): Promise<void> {
+  process.stderr
+    .write(`spawn-claude: could not start ${LAUNCHER}, so no child session was spawned; the spawn state file was removed: ${failure.message}\n`,);
+  await rm(
     join(
       SPAWNS_DIR,
       `${spawnId}.json`,
     ),
-    JSON.stringify(initialState,),
+    { force: true, },
+  );
+}
+
+/**
+ Thrown when the calling Claude session cannot be found, so no child session
+ can be tied to a parent.
+ */
+class SessionNotFoundError extends Error {
+  /**
+   @param detail - what the person must check before trying again
+   */
+  constructor(detail: string,) {
+    super(detail,);
+    this.name = 'SessionNotFoundError';
+  }
+}
+
+/**
+ Resolved session identity of the calling Claude instance.
+ */
+const identity = await findCallingSession();
+
+if (identity === SESSION_NOT_FOUND)
+  throw new SessionNotFoundError(
+    'Could not find calling Claude session. Ensure the claude-spawn plugin hooks are active and SessionStart has fired.',
   );
 
-  /**
-   Detached child process running the spawned Claude session in a terminal instance.
-   */
-  const proc = spawn(
-    'terminal-exec',
-    [
-      '--',
-      'claude',
-      ...extraArgs,
-      args.prompt,
-    ],
-    {
-      cwd,
-      env: {
-        ...process.env,
-        CLAUDE_SPAWN_ID: spawnId,
-      },
-      detached: true,
-      stdio: 'ignore',
+/**
+ Unique identifier for this spawn, used to coordinate state between parent and child.
+ */
+const spawnId = randomUUID();
+/**
+ Working directory for the child session, defaulting to the current directory.
+ */
+const cwd = args.cwd
+  ?? process
+    .cwd();
+
+/**
+ Extra args split on whitespace, filtering empty strings.
+ */
+const extraArgs = splitWhitespace(args.extraArguments
+  ?? '',);
+
+await mkdir(
+  SPAWNS_DIR,
+  { recursive: true, },
+);
+
+/**
+ Pre-create the spawn state file before launching the child.
+ 
+ `sessionId` starts empty; the first SessionStart that sees it empty
+ claims ownership. Subsequent sessions with stale `CLAUDE_SPAWN_ID`
+ env vars see a non-empty `sessionId` and skip registration.
+ */
+const initialState: SpawnState = {
+  spawnId,
+  sessionId: '',
+  transcriptPath: '',
+  parentSessionId: identity.sessionId,
+  status: 'running',
+  lastMessage: '',
+};
+
+await writeFile(
+  join(
+    SPAWNS_DIR,
+    `${spawnId}.json`,
+  ),
+  JSON.stringify(initialState,),
+);
+
+/**
+ Detached child process running the spawned Claude session in a terminal instance.
+ */
+const proc = spawn(
+  LAUNCHER,
+  [
+    '--',
+    'claude',
+    ...extraArgs,
+    args.prompt,
+  ],
+  {
+    cwd,
+    env: {
+      ...process.env,
+      CLAUDE_SPAWN_ID: spawnId,
+    },
+    detached: true,
+    stdio: 'ignore',
+  },
+);
+
+/**
+ Whether the launcher started, or why it did not.
+ */
+const launch = await firstLauncherFailure(proc,);
+
+if (launch === LAUNCHER_STARTED) {
+  // A later launcher failure still reaches a listener instead of killing the
+  // CLI with an unhandled 'error' event.
+  proc.once(
+    'error',
+    function reportLateLauncherFailure(error: ReadonlyDeep<Error>,): void {
+      void discardFailedSpawn({
+        spawnId,
+        failure: error,
+      },);
     },
   );
-
   proc.unref();
 
   console.log(JSON.stringify({ spawnId, },),);
+}
+else {
+  await discardFailedSpawn({
+    spawnId,
+    failure: launch,
+  },);
+  process.exitCode = 1;
 }

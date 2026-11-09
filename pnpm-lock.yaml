@@ -1332,6 +1332,9 @@ importers:
       nano-spawn:
         specifier: 'catalog:'
         version: 2.1.0
+      string-dedent:
+        specifier: 'catalog:'
+        version: 3.0.2
       yaml:
         specifier: 'catalog:'
         version: 3.0.0-2
@@ -4261,6 +4264,12 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -4331,6 +4340,9 @@ importers:
 
   package/rolldown-plugin/import-attributes:
     dependencies:
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed

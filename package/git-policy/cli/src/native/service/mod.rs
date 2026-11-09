@@ -106,6 +106,9 @@ pub mod service_server_land_group;
 /// its figures,
 /// and the log line of each answer.
 pub mod service_server_land_group_answer_log;
+/// What a batch of landings owes,
+/// and takes before its branch moves.
+pub mod service_server_land_group_owed_pushes;
 
 /// Handles one client connection of the commit service.
 pub mod service_server_connection_handling;
@@ -175,6 +178,10 @@ pub mod service_instance;
 /// whether it is gone,
 /// and the stop of its units through the manager.
 pub mod service_units_of_removed_worktrees;
+
+/// The journal folder the unit gives an instance,
+/// and the state folder that holds it.
+pub mod service_journal_folder_of_an_instance;
 
 /// A manager that records the stops it is asked for,
 /// for the controls of the units of removed worktrees.

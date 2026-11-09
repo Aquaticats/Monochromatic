@@ -39,8 +39,11 @@ use crate::policy_events::PolicyEvent;
 use crate::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
 use crate::child_environment::environment_with_overlay;
 use crate::journald_native::CLIENT_IDENTIFIER;
-use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
+use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables_on_the_runtime, resolve_tree_on_the_runtime};
 use crate::replay_capture_order::CaptureOrderDecision;
+/// The capture order of every shared path of a replay,
+/// from one walk over the history.
+use crate::service_replay_capture_order::capture_order_of_each;
 use crate::replay_merge::{ReplayMerge, merge_replay_tree};
 use crate::replay_shared_paths::{SharedPath, list_shared_paths};
 use crate::replay_subsumption::{SubsumptionBase, subsume_landed_changes};
@@ -268,11 +271,7 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
             shared.push(entry);
         }
     }
-    let mut order: BTreeMap<Vec<u8>, CaptureOrderDecision> = BTreeMap::new();
-    for entry in &shared {
-        let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_slice())?;
-        order.insert(entry.path.clone(), decision);
-    }
+    let order: BTreeMap<Vec<u8>, CaptureOrderDecision> = capture_order_of_each(site, captured, tip, shared.as_slice())?;
     let compared = subsume_landed_changes(
         site.context,
         site.common_dir,
@@ -376,86 +375,14 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         cwd: top.as_path(),
         without_prefix: true,
         object_directory: Some(site.object_directory),
-        environment: attribute_tree_variables(tip, &probe),
+        environment: attribute_tree_variables_on_the_runtime(tip, &probe),
     };
-    return match resolve_tree(&runner, site.common_dir, tree, conflicts, &probe) {
+    return match resolve_tree_on_the_runtime(&runner, site.common_dir, tree, conflicts, &probe) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
         None => Merged::Conflict(paths),
     };
 }
 
-/// What:
-///  Which of this commit's capture and the landed commits' captures of one path is the later.
-/// Why:
-///   The service remembers the stamps of the commits it landed for this worktree.
-/// When every commit that changed the path
-///  since the base is remembered with a stamp,
-/// and all are earlier than this capture,
-/// this capture holds their edits and
-///  its bytes land;
-/// when all are later,
-/// theirs hold this commit's edit and the landed bytes stay.
-/// Anything else (a commit
-///  the service does not know,
-/// a stamp that is missing,
-/// one earlier and one later) is not decided by order.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await captureOrder(site, captured, tip, path) // 'prepared' | 'landed' | 'unordered'
-/// ```
-fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &[u8]) -> Result<CaptureOrderDecision, TransactionStop> {
-    if captured.captured == 0 {
-        return Ok(CaptureOrderDecision::Unordered);
-    }
-    let exclusion: String = format!("^{}", captured.base);
-    let mut spec_words: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
-    let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
-    pathspec.extend_from_slice(path);
-    spec_words.arguments.push(os_from_path_bytes(pathspec.as_slice()));
-    // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it: literal mode would read
-    // it as a file name, and two glob modes at once make Git refuse the log and end the replay as a failure.
-    let request: GitRequest = spec_words.own_pathspecs();
-    let listed = run_git_checked(site.context, &request)?;
-    let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
-    // The capture stamp of each commit that changed the path, nothing for a commit this service did not land.
-    let mut stamps: Vec<Option<u64>> = Vec::new();
-    for commit in text.lines() {
-        if commit.is_empty() {
-            continue;
-        }
-        let mut stamp: Option<u64> = None;
-        for known in captured.landed.iter() {
-            if known.commit == commit {
-                stamp = Some(known.captured);
-                break;
-            }
-        }
-        stamps.push(stamp);
-    }
-    if stamps.is_empty() || stamps.iter().any(Option::is_none) {
-        return Ok(CaptureOrderDecision::Unordered);
-    }
-    let known: Vec<u64> = stamps.into_iter().flatten().collect();
-    // Every commit was captured before this one, or every commit after it; any mix is unordered.
-    let mut all_before: bool = true;
-    let mut all_after: bool = true;
-    for stamp in &known {
-        if *stamp >= captured.captured {
-            all_before = false;
-        }
-        if *stamp <= captured.captured {
-            all_after = false;
-        }
-    }
-    if all_before {
-        return Ok(CaptureOrderDecision::Prepared);
-    }
-    if all_after {
-        return Ok(CaptureOrderDecision::Landed);
-    }
-    return Ok(CaptureOrderDecision::Unordered);
-}
 
 /// What:
 ///  The first commit after `base`,

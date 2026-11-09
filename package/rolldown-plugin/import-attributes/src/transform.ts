@@ -16,17 +16,20 @@ import {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
-  extractTypeFromAttributes,
   extractTypeFromOptions,
   getStringLiteralValue,
   NO_ATTR_TYPE,
   NON_STRING_NODE,
+  staticDeclAttrType,
 } from './ast-extract.ts';
 import { ATTR_QUERY_KEY, } from './patterns.ts';
 import {
   collectStaticReplacements,
+  findCommaOutsideComments,
   type Replacement,
 } from './transform-helpers.ts';
+
+//region Sentinel and fast-path gate
 
 /**
  Sentinel returned by {@link transformImportAttributes} when the source has
@@ -35,6 +38,98 @@ import {
  the boundary.
  */
 export const NO_TRANSFORM: unique symbol = Symbol('import-attributes/source-has-no-attribute-clause-to-rewrite',);
+
+/**
+ Keywords that introduce an attribute clause: `with`, and the deprecated
+ `assert` spelling rolldown and the elision helper both still accept.
+ */
+const ATTRIBUTE_CLAUSE_KEYWORDS: readonly string[] = [
+  'with',
+  'assert',
+];
+
+/**
+ Reports whether `character` can continue a JavaScript identifier, which
+ decides whether a keyword occurrence is a word of its own.
+ 
+ ASCII letters, digits, `_` and `$` are the cases that matter here: every real
+ clause has whitespace, a brace, a comment or a quote next to its keyword, and
+ none of those continues an identifier. A non-ASCII identifier character beside
+ a keyword only costs one parse the visitor answers with no rewrite.
+ 
+ @param character - one character, or the empty string past either end
+ 
+ @returns whether the character can continue an identifier
+ */
+function isIdentifierCharacter(character: string,): boolean {
+  /**
+   Lowercased character, so the letter test covers both cases.
+   */
+  const lowered = character.toLowerCase();
+  return (character === '$') || (character === '_')
+    || ((lowered >= 'a') && (lowered <= 'z'))
+    || ((lowered >= '0') && (lowered <= '9'));
+}
+
+/**
+ Reports whether one keyword occurs in `code` as a whole word.
+ 
+ One linear forward scan: `indexOf` jumps between occurrences and each is
+ decided by the two characters around it, so no regex backtracking and no
+ recursion touches module source of any length.
+ 
+ @param code - module source to search
+ 
+ @param keyword - keyword to look for
+ 
+ @returns whether a whole-word occurrence exists
+ */
+function mentionsKeyword({
+  code,
+  keyword,
+}: {
+  readonly code: string;
+  readonly keyword: string;
+},): boolean {
+  return (function scan(): boolean {
+    /**
+     Cursor advanced past each rejected occurrence, so the whole pass is linear
+     with one stack frame however many occurrences the module holds.
+     */
+    let from = 0;
+    for (;;) {
+      /**
+       Offset of the next occurrence at or after the cursor; -1 ends the scan.
+       */
+      const at = code.indexOf(
+        keyword,
+        from,
+      );
+      if (at === (-1))
+        return false;
+      /**
+       Character before the occurrence, empty when it starts the source.
+       */
+      const before = code.charAt(at - 1,);
+      /**
+       Character after the occurrence, empty when it ends the source.
+       */
+      const after = code.charAt(
+        at + keyword.length,
+      );
+      if ((!isIdentifierCharacter(before,)) && (!isIdentifierCharacter(after,)))
+        return true;
+      from = at + 1;
+    }
+  })();
+}
+
+//endregion Sentinel and fast-path gate
+
+
+//endregion Sentinel and fast-path gate
+
+//region Transform entry
 
 /**
  Rewrites import/export statements that use `with { type: '...' }` attributes.
@@ -65,7 +160,12 @@ export function transformImportAttributes({
   readonly code: string;
   readonly id: string;
 },): { code: string; } | typeof NO_TRANSFORM {
-  if ((!code.includes(' with ',)) && (!code.includes(' with{',)))
+  if (!ATTRIBUTE_CLAUSE_KEYWORDS.some(function byKeyword(keyword,) {
+    return mentionsKeyword({
+      code,
+      keyword,
+    },);
+  },))
     return NO_TRANSFORM;
 
   /**
@@ -80,19 +180,17 @@ export function transformImportAttributes({
    */
   const replacements: Replacement[] = [];
 
+  //region AST visitor
+
   /**
    AST visitor that records replacements for each kind of attribute-bearing declaration.
    */
   const visitor = new Visitor({
     ImportDeclaration(node: ForeignBorrowed<ESTree.ImportDeclaration>,): void {
-      if (node.attributes
-        .length
-        === 0)
-        return;
       /**
        Attribute type on this static import; gates whether to emit a replacement.
        */
-      const attrType = extractTypeFromAttributes(node.attributes,);
+      const attrType = staticDeclAttrType(node.attributes,);
       if (attrType === NO_ATTR_TYPE)
         return;
       replacements.push(...collectStaticReplacements({
@@ -104,15 +202,16 @@ export function transformImportAttributes({
     },
 
     ExportNamedDeclaration(node: ForeignBorrowed<ESTree.ExportNamedDeclaration>,): void {
-      if ((node.source
-        === null) || (node.attributes
-          .length
-          === 0))
+      /**
+       Declaration without a source names no module to rewrite.
+       */
+      if (node.source
+        === null)
         return;
       /**
        Attribute type on this re-export with source; gates whether to emit a replacement.
        */
-      const attrType = extractTypeFromAttributes(node.attributes,);
+      const attrType = staticDeclAttrType(node.attributes,);
       if (attrType === NO_ATTR_TYPE)
         return;
       replacements.push(...collectStaticReplacements({
@@ -124,14 +223,10 @@ export function transformImportAttributes({
     },
 
     ExportAllDeclaration(node: ForeignBorrowed<ESTree.ExportAllDeclaration>,): void {
-      if (node.attributes
-        .length
-        === 0)
-        return;
       /**
        Attribute type on this wildcard re-export; gates whether to emit a replacement.
        */
-      const attrType = extractTypeFromAttributes(node.attributes,);
+      const attrType = staticDeclAttrType(node.attributes,);
       if (attrType === NO_ATTR_TYPE)
         return;
       replacements.push(...collectStaticReplacements({
@@ -153,50 +248,48 @@ export function transformImportAttributes({
       if (attrType === NO_ATTR_TYPE)
         return;
       /**
-       Literal specifier text; computed sources are skipped because their bytes cannot be rewritten safely.
+       Specifier is skipped when it is not a string literal: a computed source has no bytes to rewrite safely.
        */
-      const sourceValue = getStringLiteralValue(node.source,);
-      if (sourceValue === NON_STRING_NODE)
+      if (getStringLiteralValue(node.source,) === NON_STRING_NODE)
         return;
 
       /**
-       Quote character preserved so the rewritten specifier matches the source's quoting style.
+       Text of the specifier literal spanning both quotes, escape sequences exactly as the source spelled them.
        */
-      const quote = code[node.source
-        .start];
+      const rawLiteral = code.slice(
+        node.source
+          .start,
+        node.source
+          .end,
+      );
       replacements.push({
         start: node.source
           .start,
         end: node.source
           .end,
-        text: `${quote}${sourceValue}?${ATTR_QUERY_KEY}=${attrType}${quote}`,
+        text: `${rawLiteral.slice(
+          0,
+          -1,
+        )}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
       },);
 
-      // Remove the options argument: find the first comma between source and options
       /**
-       Slice between source end and options start, scanned to locate the separating comma.
+       Absolute offset of the comma separating the specifier from its options,
+       found outside comments; -1 means the options follow without one.
        */
-      const between = code.slice(
-        node.source
+      const commaPos = findCommaOutsideComments({
+        code,
+        fromPos: node.source
           .end,
-        node.options
+        toPos: node.options
           .start,
-      );
-      /**
-       Position of the comma within `between`; -1 means no comma was found.
-       */
-      const relCommaIndex = between.indexOf(',',);
-      /**
-       Absolute offset where the options-argument removal span begins.
-       */
-      const commaPos = relCommaIndex === (-1)
-        ? node.options
-          .start
-        : node.source
-          .end
-          + relCommaIndex;
+      },);
       replacements.push({
-        start: commaPos,
+        start: commaPos
+          === (-1)
+          ? node.options
+            .start
+          : commaPos,
         end: node.options
           .end,
         text: '',
@@ -204,7 +297,11 @@ export function transformImportAttributes({
     },
   },);
 
+  //endregion AST visitor
+
   visitor.visit(result.program,);
+
+  //region Replacement application
 
   if (replacements.length
     === 0)
@@ -214,7 +311,7 @@ export function transformImportAttributes({
   replacements.sort(function byStartDesc(
     a,
     b,
-  ) {
+  ): number {
     return b.start
       - a
         .start;
@@ -240,5 +337,9 @@ export function transformImportAttributes({
     code,
   );
 
+  //endregion Replacement application
+
   return { code: transformed, };
 }
+
+//endregion Transform entry

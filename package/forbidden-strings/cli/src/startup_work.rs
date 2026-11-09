@@ -69,6 +69,8 @@ fn run_work(work: StartupWork<'_, '_>) -> StartupOutcome {
             request.rules_entries,
             request.builtin_rules,
             request.quiet_absence,
+            // The standalone command is the owner of this user's cache, so it publishes what it compiles.
+            crate::runtime_cache::CacheAccess::ReadWrite,
             crate::BUILTIN_PRECOMPILED,
             crate::BUILTIN_NAMES,
         )),

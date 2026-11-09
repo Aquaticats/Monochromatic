@@ -46,8 +46,85 @@ and native path.
 
 ## Verification
 
-The Git policy CLI Oxlint task checks every propagated boundary contract.
-Omitting a callback or enclosing contract restores a documented-uncertainty diagnostic naming `handle.writeFile`.
+The audited implementation is `Node.js` `v26.5.0` (`internal/fs/promises`,
+digest above).
+The rule that reports these boundaries is `prefer-readonly-parameter-type` from
+`@monochromatic-dev/oxlint-plugin-prefer-readonly-parameter-type` `0.0.1`,
+run by Oxlint `1.92.0` on `Node.js` `v26.13.0`,
+against this repository at commit `ca82b5f39772a2a12e5893c228f3b9555e065bf3`.
+
+The harness is the plugin's own fixture project,
+`package/test-fixture/oxlint-no-restricted-syntax`,
+whose `.oxlintrc.readonly.fixture.json` loads the built plugin and enables
+`prefer-readonly-parameter-types`,
+`no-opaque-parameter-effects`,
+`no-readonly-parameter-mutations`,
+and `no-invalid-parameter-effect-contracts`.
+Rebuild the plugin with
+`mise run //package/oxlint-plugin/prefer-readonly-parameter-type:build`
+so the bundle under test matches its source,
+put each pattern below in a file under that fixture package's `src/`,
+then lint it from the repository root:
+
+```sh
+oxlint --threads 1 --format json \
+  -c package/test-fixture/oxlint-no-restricted-syntax/.oxlintrc.readonly.fixture.json \
+  package/test-fixture/oxlint-no-restricted-syntax/src/<file>
+```
+
+The TypeScript call sites this record covers are no longer in the tree:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript Git policy wrapper,
+and the boundary contracts it carried went with it.
+The rule and its fixtures remain,
+so both outcomes below are still reproducible.
+
+### Patterns that work cleanly
+
+A boundary whose input is marked as runtime-owned host input and documents its effects returns
+`"diagnostics": []`:
+
+```ts
+import { writeFile } from 'node:fs/promises';
+
+import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+
+/**
+ Persists bytes owned by the runtime.
+ *
+ * @param path - destination path.
+ *
+ * @param bytes - runtime-owned storage whose write implementation stays uninspectable.
+ *
+ * @mutates bytes - The VFS handler or native write receives the storage and may change it.
+ */
+export async function persistBounded(
+  path: string,
+  bytes: ForeignHostCapability<Uint8Array>,
+): Promise<void> {
+  await writeFile(path, bytes,);
+}
+```
+
+Reading primitive leaves from a deeply readonly object never reaches a callable boundary,
+and reports nothing either;
+the fixture's `readonly-valid.ts` is the shipped case.
+
+### Patterns that fail
+
+Each pattern below reports one `prefer-readonly-parameter-type(no-opaque-parameter-effects)`
+diagnostic.
+Its first line names the unresolved call and its site,
+for example
+`The function input named "bytes" is exposed to these unresolved calls: handle.writeFile [.../handle.ts:13].`
+The closing paragraph is identical in every variant:
+`An @mutates block alone documents known effects but cannot make an unresolved implementation safe.`
+
+- `writeFile(path, bytes)` with a caller-owned `Uint8Array` and no contract names `writeFile`.
+- `handle.writeFile(bytes)` through an open `FileHandle` names `handle.writeFile`.
+- `writeFile(path, chunks)` with a caller-owned `AsyncIterable<Uint8Array>` names `writeFile`
+  and marks the `chunks` parameter.
+- The first two patterns with an `@mutates bytes` block alone still report the same diagnostic,
+  which is the documented-uncertainty outcome this record rests on.
 
 ## Upstream filing decision
 

@@ -514,6 +514,15 @@ Read-only commands,
   and a record written by an earlier release is still read.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
+  A copy settles itself against the source:
+  a file the source removed meanwhile has nothing to copy and
+   leaves the stage,
+  a file that changed is copied again twice at most,
+   and a file that keeps changing stays untouched in its source,
+  is not installed,
+  and is named
+   on one line.
+  A file that cannot be copied at all fails the copy with its own path in the message.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,
@@ -636,6 +645,13 @@ Read-only commands,
    Those directories are emptied side by side,
      within the threads and memory the host allows,
      beside the package repair.
+   A directory set aside whole is swept for those containers first,
+     at any depth,
+     a nested worktree and another checkout among them,
+   so nothing of another command's reaches the trash through that route either;
+     the sweep reads no file and follows no link,
+     and a directory it cannot look inside
+   stops the leave-out with that path named instead of counting as one with nothing to sweep.
    Another command's stage container is not put in that trash at all:
      it is removed before the worktree is installed,
      so
@@ -658,7 +674,19 @@ Read-only commands,
    It does decline when a registered nested worktree holds a file the main checkout tracks.
      A trash that cannot be
    emptied is reported with its path and the reason,
-     and the worktree is whole either way.
+     the worktree is whole either way,
+     and the line says that nothing else will
+   empty it:
+     no work item names it,
+     only the person will remove it,
+     and it gives the `rm --recursive --force` command that does
+   when that command deletes exactly what the snapshot made.
+     It gives no removal command when the emptying kept something
+   (a directory the snapshot did not make under the recorded name,
+     an entry that changed,
+     or a file somebody put in the trash),
+     and names the path and the reason instead,
+     because removing that path recursively would delete what the emptying left alone.
      A trash that could not be emptied stays there,
    and the next command run in that worktree names it,
      with its path;
@@ -3201,6 +3229,35 @@ on the blocking pool and never on the landing thread:
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
 
+A commit does not write that cache itself.
+When the cache holds no compiled form of the rules text a command needs,
+the command asks the service of that worktree to compile and publish it,
+with the same one-way `warm` message a worktree-moving command sends,
+and loads the rules without writing:
+the rules it compiled are the ones it scans with,
+and the artifact becomes the service's write rather than the command's.
+The question is asked only when the cache holds no artifact for that text,
+which one `stat` answers,
+so a warm cache pays nothing beside the read it always made.
+
+Two cases keep the write on the command's path,
+because nothing else can make it:
+
+- a machine where no service runs for that worktree,
+  which is the first command after a boot or a fresh home;
+- a rules list the command took from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no
+  rules files,
+  since the service's own environment carries no such variable and it would compile the configuration's files
+  (or the default appendix) instead.
+  A configuration that names files wins over the variable,
+  so a repository with both lists leaves them to the service.
+
+The artifact itself is published without a file or directory sync:
+a reader validates its magic, scanner version, platform, source digest, payload digest and engine digest,
+so a copy a crash tore is rejected and recompiled,
+and forcing the bytes to the device made the writer wait for a file that is derived data
+(6.7 s and 3.0 s of `fsync` in one measured commit, and 1.5 s in its `rename`).
+
 ## Reading the repository in process
 
 The wrapper starts real Git as rarely as it can.
@@ -3534,6 +3591,11 @@ a backquote,
 a quote or a newline in a path expands nothing and splits nothing when the line is pasted into a shell.
 The record stays until the worktree is whole or gone,
 so the same line comes again from every command that runs the recovery.
+A look at the destination that fails,
+rather than finding no pointer,
+keeps the record too:
+a directory the person or another process holds closed for a moment is no evidence
+ that the add left nothing.
 
 A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
 Left out by directory name,

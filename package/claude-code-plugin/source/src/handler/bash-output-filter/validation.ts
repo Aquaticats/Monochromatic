@@ -401,6 +401,13 @@ function shouldSkip(command: string,): boolean {
   if (!analysis.parsed)
     return true;
 
+  /**
+   Parser node kinds the analyzer has no visitor for; any entry leaves the command list unproven.
+   */
+  const { notUnderstoodNodeKinds, } = analysis;
+  if (notUnderstoodNodeKinds.length > 0)
+    return true;
+
   return analysis.hasBackground
     || analysis.hasCommandSubstitution
     || analysis.hasProcessSubstitution

@@ -7,9 +7,12 @@
 use super::*;
 use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, push_once};
 use crate::auto_push_single_flight::PushGit;
+use crate::auto_push_reconcile_basics_and_limits::{fetch_remote_tip, fetch_remote_tip_awaiting, is_ancestor, is_ancestor_awaiting};
 use crate::auto_push_reconcile_branch_advance::status_differs;
+use crate::auto_push_reconcile_merge_commit::{common_dir_of, common_dir_of_awaiting, signs_commits, signs_commits_awaiting};
 use crate::auto_push_reconcile_merge_commit::PushRunner;
 use crate::merge_second_pass::GitRunner;
+use crate::merge_second_pass::tests::await_it;
 use crate::test_support::{fixture, git, remove};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
@@ -2122,10 +2125,10 @@ fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let git: PushGit = push_git(repo.as_path());
     let runner: PushRunner<'_> = PushRunner { git: &git };
-    let positive = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect("positive control: the command runs with a thread");
+    let positive = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None)).expect("positive control: the command runs with a thread");
     assert_eq!(positive.code, Some(0));
     let _refused = crate::scoped_start::RefusedStarts::here();
-    let reported: String = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect_err("no thread to give it its input");
+    let reported: String = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None)).expect_err("no thread to give it its input");
     assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
     crate::test_support::remove(root.as_path());
 }
@@ -2156,7 +2159,7 @@ fn a_second_pass_command_that_stalls_is_stopped_and_named() {
     git.environment.push((OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from(STALLED_WINDOW)));
     let runner: PushRunner<'_> = PushRunner { git: &git };
     let began: std::time::Instant = std::time::Instant::now();
-    let reported: String = runner.run(&["merge-tree", "--write-tree"], None, None).expect_err("a stalled command is stopped, not waited out");
+    let reported: String = await_it(runner.run(&["merge-tree", "--write-tree"], None, None)).expect_err("a stalled command is stopped, not waited out");
     let waited: Duration = began.elapsed();
     assert!(reported.contains("merge-tree"), "{reported}");
     assert!(waited < STALLED_STAND_IN_SLEEP, "the command was stopped at its window: {reported}");
@@ -2312,4 +2315,49 @@ fn a_leaked_private_fetch_ref_is_swept_and_a_live_ones_kept() {
     let _killed = living.kill();
     let _reaped = living.wait();
     remove(&s.root);
+}
+
+/// What:
+///  The awaited faces of the reconcile's own questions answer what the synchronous faces answer,
+/// and a task beside them keeps running while their Git children do.
+/// Why:
+///   The landing round's reconcile asks these as tasks,
+/// and a difference between the faces would relate the branch to
+///  another remote tip,
+/// sign a merge the configuration does not ask for,
+/// or read another directory's scaffolding.
+#[test]
+fn the_awaited_questions_of_the_reconcile_answer_what_the_synchronous_ones_answer() {
+    let scenario: Scenario = scenario("reconcile-awaiting-same-answer");
+    advance_remote(&scenario, "a.txt", "remote a\n");
+    let context: PushGit = push_git(&scenario.local);
+    let behind: String = text_of(&scenario.local, &["rev-parse", "HEAD"]);
+    let ahead: String = text_of(&scenario.other, &["rev-parse", "HEAD"]);
+    let destination = Destination { remote: String::from("origin"), merge_ref: String::from("refs/heads/main") };
+    for (ancestor, descendant) in [(behind.as_str(), ahead.as_str()), (ahead.as_str(), behind.as_str()), (behind.as_str(), behind.as_str())] {
+        let synchronous = is_ancestor(&context, ancestor, descendant);
+        let (awaited, _ticks): (Result<Option<bool>, SingleFlightError>, u32) =
+            crate::ticker_beside_a_wait::with_a_ticker_beside(is_ancestor_awaiting(&context, ancestor, descendant));
+        assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{ancestor} {descendant}");
+        let common = common_dir_of(&context);
+        let (awaited_common, _common_ticks): (Result<PathBuf, SingleFlightError>, u32) =
+            crate::ticker_beside_a_wait::with_a_ticker_beside(common_dir_of_awaiting(&context));
+        assert_eq!(format!("{awaited_common:?}"), format!("{common:?}"));
+    }
+    // Both faces ask the same signing question, and the answer is the same whichever face asks it.
+    for value in ["true", "false"] {
+        git(&scenario.local, &["config", "commit.gpgsign", value]);
+        let synchronous = signs_commits(&context);
+        let (awaited, _ticks): (Result<bool, SingleFlightError>, u32) =
+            crate::ticker_beside_a_wait::with_a_ticker_beside(signs_commits_awaiting(&context));
+        assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{value}");
+    }
+    // The same remote tip is fetched by both faces, and each leaves no private ref behind.
+    let synchronous = fetch_remote_tip(&context, &destination);
+    let (awaited, _ticks): (Result<Result<String, PushAttempt>, SingleFlightError>, u32) =
+        crate::ticker_beside_a_wait::with_a_ticker_beside(fetch_remote_tip_awaiting(&context, &destination));
+    assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"));
+    let left: String = text_of(&scenario.local, &["for-each-ref", "--format=%(refname)", "refs/cli-git/auto-push/"]);
+    assert_eq!(left, "");
+    remove(&scenario.root);
 }

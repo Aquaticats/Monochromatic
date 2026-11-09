@@ -39,6 +39,8 @@ use crate::service_commit_input_notes_and_embedded_commit::managed_client_config
 use crate::service_server::Bind;
 use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
+/// The look for the commit a request that was already sent made.
+use crate::service_commit_looking_for_what_landed::journal_of_request;
 use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
 use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
@@ -318,6 +320,9 @@ pub fn service_commit<F: RepositoryFacts>(
                     native,
                     amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                     unlanded: unlanded.as_slice(),
+                    request_id: id.as_str(),
+                    // Nothing looks for a commit that an answer named.
+                    journal: None,
                     config: config.clone(),
                 });
                 timing.after_landing += after_landing.elapsed();
@@ -403,6 +408,10 @@ pub fn service_commit<F: RepositoryFacts>(
                 return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
             }
             Err(failure) => {
+                // The journal folder of this worktree's service, which a lost answer is looked up in
+                //  (`service_commit_looking_for_what_landed.rs`); it is read here, and not before, so a commit that is answered
+                //  pays nothing for it.
+                let journal: Option<PathBuf> = journal_of_request(&sent);
                 return after_a_silent_or_failed_service(
                     failure,
                     LandedAftermath {
@@ -417,6 +426,8 @@ pub fn service_commit<F: RepositoryFacts>(
                         native,
                         amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                         unlanded: unlanded.as_slice(),
+                        request_id: id.as_str(),
+                        journal: journal.as_deref(),
                         config: config.clone(),
                     },
                 );

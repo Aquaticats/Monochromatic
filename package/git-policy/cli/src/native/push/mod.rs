@@ -57,6 +57,11 @@ pub mod wait_progress;
 /// notices at the cadence and the child stopped at the bound.
 pub mod child_watch;
 
+/// The task a watch runs,
+/// the bound its end is given,
+/// and the refusal a control arms.
+pub mod child_watch_running_task;
+
 /// The classes of Git step a commit starts for itself,
 /// with the bound and the notice grace of each.
 pub mod child_class;
@@ -179,6 +184,11 @@ pub mod manual_push_probe;
 /// which pushed commits a remote does not have.
 pub mod manual_push_range;
 
+/// What a remote has already published:
+/// the commits a prior destination value names,
+/// and the tracking refs Git keeps.
+pub mod manual_push_range_published_tips;
+
 /// An explicit push that lost a race:
 /// run as a child,
 /// merge in what landed on the remote and publish the merge.
@@ -213,6 +223,11 @@ pub mod push_failure_notice_claimed_by_one_command;
 /// and of one
 ///  lost with its worktree.
 pub mod push_failure_notice_words;
+
+/// The record of what a push that succeeded did,
+/// and the name it is kept under.
+pub mod push_failure_notice_reports;
+
 /// The words that say how to change the push deadline,
 /// for the terminal and for the resident commit service.
 pub mod push_deadline_advice;

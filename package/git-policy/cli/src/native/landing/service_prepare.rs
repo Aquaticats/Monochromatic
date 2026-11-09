@@ -43,6 +43,7 @@ use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, norma
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
 use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
+use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use crate::commit_facts::PrivateIndexFacts;

@@ -53,6 +53,13 @@ pub enum PushOutcome {
     UnfinishedWithNoRetry,
 }
 
+/// The words every notice of a push that did not finish carries,
+/// and no notice of a push Git or the server refused:
+/// a stop or a failure that can pass proves nothing about the remote,
+/// so the person is told that and what happens
+///  next instead of being told the push failed for good.
+pub const PUSH_UNFINISHED_NOTE: &str = "did not finish, so the remote may or may not have taken that commit. The commit is saved in this repository and nothing was lost";
+
 /// What:
 ///  The text shown for a failed backup push,
 /// with the commit named as given and Git's words already cleaned.
@@ -142,10 +149,35 @@ pub(crate) fn worded_unfinished(branch: &str, shown: &str, outcome: PushOutcome,
         ),
     };
     return format!(
-        "The backup push of branch {branch} for commit {shown} did not finish, so the remote may or may not have taken that \
-         commit. The commit is saved in this repository and nothing was lost, {next}.\n{detail}\n\
+        "The backup push of branch {branch} for commit {shown} {PUSH_UNFINISHED_NOTE}, {next}.\n{detail}\n\
          That account is what monochromatic-git-policy-cli found and what Git said when the push ended; {closing}."
     );
+}
+
+/// What:
+///  The text shown for what a push that succeeded did,
+/// with the commit named as given and the service's words already cleaned.
+/// Why:
+///   Nothing failed,
+/// so the text is the service's own account of what the push did and nothing about a backup
+///  that did not happen:
+/// it already begins with the tool's name and says which branch was merged,
+/// what became of the local
+///  branch and the command that finishes the move.
+/// The command that ran the push has returned,
+/// so this is the only way
+///  those words reach the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordedReport(branchRef, shown, reason) // the service's words, as they are
+/// ```
+pub(crate) fn worded_report(branch_ref: &str, shown: &str, reason: &str) -> String {
+    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    if reason.is_empty() {
+        return format!("The backup push of branch {branch} for commit {shown} was made, and the commit service gave no account of it.");
+    }
+    return format!("The backup push of branch {branch} for commit {shown} was made, and the commit service said:\n{}", indented(reason));
 }
 
 /// What:

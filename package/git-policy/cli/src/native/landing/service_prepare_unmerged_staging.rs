@@ -1,15 +1,12 @@
 //! What:
-//!  The staging start that puts the working copy of every unmerged file into the commit's own index.
+//!  The staging start that puts every unmerged file's working copy into the commit's own index.
 //! Why:
-//!   A preparation whose commit names no paths stages each unmerged file as `git add` would,
-//!  and the start is a Git command of its own that the preparation only makes once:
-//!  a file of its own keeps the preparation under its line bound
-//!  (`service_prepare.rs`,
-//!  "unmergedFiles").
+//!  An unmerged file has no working copy of its own to add until this start writes one,
+//! so the step is the preparation's own start and is named beside it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await git(['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], { index, objectDirectory });
+//! const request = ownPathspecs(indexedRequest(cwd, ['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects));
 //! ```
 
 use crate::private_index_request::indexed_request;

@@ -8,6 +8,11 @@ so the command never receives that argument.
 No `mise.toml` task triggers it today;
 ad hoc commands such as `timeout 60 command-code --version` do.
 
+Note 2026-11-09T16:55:17-05:00:
+`package/git-policy/cli/src/native/binary_support.rs` is now
+`package/git-policy/cli/src/native/binary/binary_support.rs`,
+moved 2026-11-03 in `3ec1e1201b`.
+
 ## Symptom
 
 A flag that spells one of `timeout-cli`'s own options,

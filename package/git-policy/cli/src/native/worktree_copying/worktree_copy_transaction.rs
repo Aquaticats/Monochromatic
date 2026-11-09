@@ -48,18 +48,18 @@ pub struct TransactionState {
     /// The open append-only log of this stage.
     pub log: InstallLog,
     /// Every selected path claimed so far.
-    pub intended: BTreeSet<String>,
+    pub intended: BTreeSet<Vec<u8>>,
     /// Every path whose creation has been recorded so far.
-    pub created_paths: BTreeSet<String>,
+    pub created_paths: BTreeSet<Vec<u8>>,
 }
 
 impl InstallRecorder for TransactionState {
     /// Records the claims that no earlier record holds,
     /// then remembers them.
-    fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
-        let mut unclaimed: Vec<String> = Vec::new();
+    fn record_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
+        let mut unclaimed: Vec<Vec<u8>> = Vec::new();
         for relative_path in relative_paths {
-            if !self.intended.contains(relative_path.as_str()) {
+            if !self.intended.contains(relative_path.as_slice()) {
                 unclaimed.push(relative_path.clone());
             }
         }
@@ -73,7 +73,7 @@ impl InstallRecorder for TransactionState {
     fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
         let mut unrecorded: Vec<InstalledPath> = Vec::new();
         for entry in entries {
-            if !self.created_paths.contains(entry.relative_path.as_str()) {
+            if !self.created_paths.contains(entry.relative_path.as_slice()) {
                 unrecorded.push(entry.clone());
             }
         }
@@ -118,14 +118,14 @@ pub fn begin_installing(state: &mut TransactionState) -> Result<(), WorktreeCopy
 /// ```ts
 /// const entries = collectEntryManifest(stageRoot, selectedRoots); for (const claim of intended) if (!has(entries, claim)) throw ...; return entries;
 /// ```
-fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, intended: &BTreeSet<String>) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, intended: &BTreeSet<Vec<u8>>) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage_root, pending.journal.selected_roots.as_slice(), &[])?;
-    let mut present: BTreeSet<&str> = BTreeSet::new();
+    let mut present: BTreeSet<&[u8]> = BTreeSet::new();
     for entry in &entries {
-        present.insert(entry.relative_path.as_str());
+        present.insert(entry.relative_path.as_slice());
     }
     for claim in intended {
-        if !present.contains(claim.as_str()) {
+        if !present.contains(claim.as_slice()) {
             let message: String = format!(
                 "monochromatic-git-policy-cli: worktree-copy journal intent is absent from private stage {}.",
                 quote(pending.journal.stage_root.to_string_lossy().as_ref())
@@ -149,7 +149,7 @@ fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, in
 /// ```
 pub fn snapshot_from_journal(
     pending: &PendingJournal,
-    intended: &BTreeSet<String>,
+    intended: &BTreeSet<Vec<u8>>,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let stage_root: &Path = pending.journal.stage_root.as_path();
     let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = stage_entries_holding_intents(pending, stage_root, intended);
@@ -174,6 +174,7 @@ pub fn snapshot_from_journal(
         stage_container: pending.journal.stage_container.clone(),
         stage_root: stage_root.to_path_buf(),
         unreadable: Vec::new(),
+        unsettled: Vec::new(),
     });
 }
 
@@ -219,7 +220,7 @@ pub enum SnapshotSource<'a> {
 impl SnapshotSource<'_> {
     /// The snapshot,
     /// given the paths the journal and the install log say were claimed.
-    fn staged_snapshot(&self, intended: &BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError> {
+    fn staged_snapshot(&self, intended: &BTreeSet<Vec<u8>>) -> Result<StagedSnapshot, WorktreeCopyError> {
         return match self {
             SnapshotSource::Staged(staged) => Ok((*staged).clone()),
             SnapshotSource::FromJournal(pending) => snapshot_from_journal(pending, intended),
@@ -246,9 +247,9 @@ fn install_recorded(
     snapshot: &SnapshotSource<'_>,
 ) -> Result<(PendingJournal, Outcome), WorktreeCopyError> {
     let opened = open_install_log(pending.journal.stage_container.as_path())?;
-    let mut intended: BTreeSet<String> = pending.journal.intended_entries.iter().cloned().collect();
+    let mut intended: BTreeSet<Vec<u8>> = pending.journal.intended_entries.iter().cloned().collect();
     intended.extend(opened.recorded.intended.iter().cloned());
-    let mut created_paths: BTreeSet<String> = BTreeSet::new();
+    let mut created_paths: BTreeSet<Vec<u8>> = BTreeSet::new();
     for entry in &pending.journal.created_entries {
         created_paths.insert(entry.relative_path.clone());
     }
@@ -265,7 +266,7 @@ fn install_recorded(
         created_paths,
     };
     begin_installing(&mut state)?;
-    let claimed: BTreeSet<String> = state
+    let claimed: BTreeSet<Vec<u8>> = state
         .intended
         .union(&state.created_paths)
         .cloned()

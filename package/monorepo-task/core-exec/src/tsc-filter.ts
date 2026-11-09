@@ -45,6 +45,11 @@ import {
 } from './tsc-args.ts';
 import { filterTscOutput, } from './tsc-output-filter.ts';
 import { isFullySuppressedCompilerFailure } from './tsc-suppressed-failure.ts';
+import {
+  isCapturedSubprocessFailure,
+  ToolKilledBySignalError,
+  ToolNotStartedError,
+} from './tool-failure.ts';
 
 //region Incremental cache cleanup
 
@@ -100,6 +105,12 @@ async function removeStaleBuildInfo(): Promise<void> {
  and on failure filters the captured output through {@link filterTscOutput}
  before deciding the exit code.
  
+ @throws {@link ToolKilledBySignalError} when tsc was killed by a signal, so
+ its filtered diagnostics are incomplete.
+ 
+ @throws {@link ToolNotStartedError} when tsc never started, as when its
+ executable is absent from `PATH`.
+ 
  @example
  ```ts
  await main();
@@ -147,89 +158,68 @@ async function main(): Promise<void> {
         .write(result.stderr,);
   }
   catch (error) {
-    if (
-      (error !== null)
-        && ((typeof error) === 'object')
-        && ('exitCode' in error)
-    ) {
-      /* oxlint-disable typescript/no-unsafe-type-assertion -- 'exitCode' in check above narrows to subprocess shape */
-      /**
-       Subprocess failure narrowed to the shape exposed by the bun/node spawn libraries; carries the streams to filter.
-       */
-      const subprocessError = error as {
-        stdout?: string;
-        stderr?: string;
-        exitCode?: number;
-        signalName?: string;
-      };
-      /* oxlint-enable typescript/no-unsafe-type-assertion */
+    if (!isCapturedSubprocessFailure(error,))
+      throw new ToolNotStartedError({
+        task: 'task-tsc',
+        tool: 'tsc',
+        detail: caughtValueText(error,),
+      },);
 
-      /**
-       Filtered stdout payload with low-value tsc diagnostics suppressed; written below when non-empty.
-       */
-      // Filter stdout (where tsc writes diagnostics)
-      const stdoutResult = filterTscOutput(subprocessError.stdout
-        ?? '',);
-      /**
-       Filtered stderr payload with low-value tsc diagnostics suppressed; written below when non-empty.
-       */
-      // Filter stderr as well in case tsc writes diagnostics there
-      const stderrResult = filterTscOutput(subprocessError.stderr
-        ?? '',);
+    /**
+     Filtered stdout payload with low-value tsc diagnostics suppressed; written below when non-empty.
+     */
+    // Filter stdout (where tsc writes diagnostics)
+    const stdoutResult = filterTscOutput(error.stdout
+      ?? '',);
+    /**
+     Filtered stderr payload with low-value tsc diagnostics suppressed; written below when non-empty.
+     */
+    // Filter stderr as well in case tsc writes diagnostics there
+    const stderrResult = filterTscOutput(error.stderr
+      ?? '',);
 
-      if (stdoutResult.filtered
-        .length
-        > 0) {
+    if (stdoutResult.filtered
+      .length
+      > 0) {
+      process.stdout
+        .write(stdoutResult.filtered,);
+      // Ensure trailing newline for clean terminal output
+      if (!stdoutResult.filtered
+        .endsWith('\n',))
         process.stdout
-          .write(stdoutResult.filtered,);
-        // Ensure trailing newline for clean terminal output
-        if (!stdoutResult.filtered
-          .endsWith('\n',))
-          process.stdout
-            .write('\n',);
-      }
+          .write('\n',);
+    }
 
-      if (stderrResult.filtered
-        .length
-        > 0) {
+    if (stderrResult.filtered
+      .length
+      > 0) {
+      process.stderr
+        .write(stderrResult.filtered,);
+      if (!stderrResult.filtered
+        .endsWith('\n',))
         process.stderr
-          .write(stderrResult.filtered,);
-        if (!stderrResult.filtered
-          .endsWith('\n',))
-          process.stderr
-            .write('\n',);
-      }
-
-      // A crash or unexplained failure is not a successful type check merely because it has no TS error header.
-      if (!isFullySuppressedCompilerFailure({
-        stdout: subprocessError.stdout ?? '',
-        stderr: subprocessError.stderr ?? '',
-        filteredStdout: stdoutResult.filtered,
-        filteredStderr: stderrResult.filtered,
-      }))
-        process.exitCode = subprocessError.exitCode
-          ?? 1;
-
-      if ((subprocessError.signalName
-        !== undefined)
-        && (subprocessError.signalName
-          !== ''))
-        {
-        console.error(
-          `[task-tsc] tsc terminated by signal: ${subprocessError.signalName}`,
-        );
-        process.exitCode = 1;
-      }
+          .write('\n',);
     }
-    else {
-      // Non-subprocess error (e.g. tsc not found)
-      console.error(
-        `[task-tsc] failed to execute tsc: ${
-          caughtValueText(error,)
-        }`,
-      );
-      process.exitCode = 1;
-    }
+
+    // A crash or unexplained failure is not a successful type check merely because it has no TS error header.
+    if (!isFullySuppressedCompilerFailure({
+      stdout: error.stdout ?? '',
+      stderr: error.stderr ?? '',
+      filteredStdout: stdoutResult.filtered,
+      filteredStderr: stderrResult.filtered,
+    }))
+      process.exitCode = error.exitCode
+        ?? 1;
+
+    if ((error.signalName
+      !== undefined)
+      && (error.signalName
+        !== ''))
+      throw new ToolKilledBySignalError({
+        task: 'task-tsc',
+        tool: 'tsc',
+        detail: error.signalName,
+      },);
   }
 }
 

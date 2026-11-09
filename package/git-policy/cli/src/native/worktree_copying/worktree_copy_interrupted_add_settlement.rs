@@ -23,6 +23,8 @@ use crate::worktree_add_binding::{Recorded, decode_record};
 use crate::worktree_copy_stage_claim::COMPLETE_SUFFIX;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
+/// `Duration` is the age a record that names no Git is kept for.
+use std::time::Duration;
 
 /// What recovery decided about one add's record.
 pub struct Settlement {
@@ -34,6 +36,11 @@ pub struct Settlement {
     ///  next command reports it again.
     pub keep: bool,
 }
+
+#[path = "worktree_copy_stage_claim_pointer_presence.rs"]
+mod pointer_presence_of_the_destination;
+
+use pointer_presence_of_the_destination::{PointerPresence, pointer_presence};
 
 /// The name of the lock Git takes to write an index,
 /// in the administrative directory of a worktree.
@@ -91,6 +98,109 @@ fn index_entry_count(index: &Path) -> Option<usize> {
     }
     let count: [u8; 4] = header[INDEX_COUNT_AT..INDEX_HEADER_BYTES].try_into().ok()?;
     return Some(u32::from_be_bytes(count) as usize);
+}
+
+/// What:
+///  How long a record that names no Git process may be kept before it settles.
+/// Why:
+///   The name is written a few calls after the spawn,
+/// so a command killed in between leaves a record that names no process
+///  while its Git may still be at work;
+/// nothing proves that Git gone,
+/// so the record is kept while it is younger than this,
+/// and
+///  a minute is far longer than that gap and far shorter than a record that nothing will settle should stay.
+/// Measured on this host on 2026-11-09,
+/// in a scope of four CPUs,
+/// with 200 runs and the same call path the add
+///  uses:
+/// the name reached the record between 5 ms and 1.45 s after the spawn (median 24 ms,
+/// p95 99 ms),
+/// and a real `git worktree add --no-checkout` made its destination between 4.5 ms and 9.1 ms
+///  after its own spawn,
+/// so the whole window this bound covers read 1.45 s at its longest,
+/// which a minute
+///  exceeds about forty times over.
+pub(crate) const UNNAMED_CHILD_GRACE: Duration = Duration::from_secs(60);
+
+/// What:
+///  What a record settles to when it names no Git process,
+/// or the platform will not say whether the one it names runs.
+/// Why:
+///   An add whose Git is not proven gone may still make its destination,
+/// so its record stays and nothing is said;
+/// the age is
+///  the only bound there is,
+/// and past it nothing of that add can still be starting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const young = Math.max(0, Date.now() - stat(record).mtimeMs) < UNNAMED_CHILD_GRACE_MS;
+/// return { notice: undefined, keep: young };
+/// ```
+fn unnamed_child_settlement(record: &Path) -> Settlement {
+    let aged: Option<Duration> = modified_at(record).and_then(age_since);
+    return Settlement { notice: None, keep: matches!(aged, Some(age) if age < UNNAMED_CHILD_GRACE) };
+}
+
+/// The time the watch of `record` last changed,
+/// or nothing when it cannot be read.
+fn modified_at(record: &Path) -> Option<std::time::SystemTime> {
+    return std::fs::metadata(record).ok().and_then(modified_of);
+}
+
+/// The modification time of a metadata reading.
+fn modified_of(held: std::fs::Metadata) -> Option<std::time::SystemTime> {
+    return held.modified().ok();
+}
+
+/// How long ago `changed` was,
+/// or nothing when the clock cannot say.
+fn age_since(changed: std::time::SystemTime) -> Option<Duration> {
+    return std::time::SystemTime::now().duration_since(changed).ok();
+}
+
+/// What:
+///  Whether nothing stands at the destination any more.
+/// Why:
+///   A destination that was removed,
+/// moved or pruned holds no worktree to tell the person about,
+/// and a record whose
+///  worktree is gone settles without a word,
+/// unlike one whose checkout is whole and whose ignored state never arrived.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { lstatSync(destination); return false } catch (e) { return e.code === 'ENOENT' }
+/// ```
+fn destination_is_gone(destination: &Path) -> bool {
+    return matches!(std::fs::symlink_metadata(destination), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
+}
+
+/// What:
+///  The report of an add whose Git checkout finished and whose ignored-state copy was never marked complete.
+/// Why:
+///   The record of an add exists because a copy of the source's ignored state was owed,
+/// and the proof that a checkout is
+///  whole reads Git's own work only:
+/// a kill between real Git's checkout and the copy's completion marker leaves a worktree
+///  that looks ordinary and never received the ignored state,
+/// so a scanner there refuses the repository as
+///  one with no rules file.
+/// The record goes once that is said:
+/// nothing about the worktree can make the copy appear later,
+/// and
+///  saying it on every later command would name a worktree that needs no finishing,
+/// only remaking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `an interrupted \`git worktree add\` left ${shown} registered and its ignored-state copy never finished; ...`
+/// ```
+fn unfinished_copy_notice(shown: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered, and the copy of its source's ignored state never finished, so files that source ignores may be missing there; nothing was changed. `git worktree remove {shown}` removes the worktree and leaves one that holds changes alone, so save them first, and running the same `git worktree add` line again copies the ignored state."
+    );
 }
 
 /// What:
@@ -298,19 +408,42 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         },
         Some(Recorded::Planned(destination)) => {
             // The path is printed inside commands the person runs, so it is quoted for the shell.
-            // The path is printed inside commands the person runs, so it is quoted for the shell.
             let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish.
-            if !destination.join(POINTER).exists() {
-                return Settlement { notice: None, keep: false };
+            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish. A lookup that
+            //  fails otherwise is no answer: a directory the person or another process holds closed for a moment must not read
+            //  as "no pointer" and take the record of a worktree that is still registered. And a destination that is absent is
+            //  no answer either while the Git this add started may still be making it, which the record says: a named Git that
+            //  is proven running keeps the record, a named Git that is gone settles it, and a record too young to have named
+            //  one yet keeps it until the grace has passed.
+            match pointer_presence(destination.as_path()) {
+                PointerPresence::Unknown(why) => {
+                    return Settlement {
+                        notice: Some(format!("monochromatic-git-policy-cli: whether an interrupted `git worktree add` left {shown} cannot be examined ({why}); nothing was changed and the record stays.")),
+                        keep: true,
+                    };
+                }
+                PointerPresence::Absent => {
+                    let Some(child) = crate::worktree_add_binding::running_child_of(text.as_str()) else {
+                        return unnamed_child_settlement(record);
+                    };
+                    return match child.is_alive(record) {
+                        Ok(true) => Settlement { notice: None, keep: true },
+                        Ok(false) => Settlement { notice: None, keep: false },
+                        Err(_unproven) => unnamed_child_settlement(record),
+                    };
+                }
+                PointerPresence::Present => {}
             }
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
             let registered: Option<PathBuf> = registration_directory(destination.as_path());
+            if destination_is_gone(destination.as_path()) {
+                return Settlement { notice: None, keep: false };
+            }
             if let Some(admin) = registered.as_ref()
                 && add_is_finished(destination.as_path(), admin.as_path())
             {
-                return Settlement { notice: None, keep: false };
+                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str())), keep: false };
             }
             let notice: String = match registered.as_ref() {
                 Some(admin) => format!(
@@ -325,10 +458,14 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         }
         Some(Recorded::Registered(binding)) => {
             let shown: String = crate::shell_quote::shell_quote(binding.destination.as_os_str().as_bytes());
-            // A worktree that is whole or gone settles silently; everything else keeps its record so the next command says
-            //  the same again, because nothing else names the worktree, the stage or what finishes them.
-            if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
+            // A destination that is gone holds nothing to finish, and one whose Git checkout is whole is named for the copy
+            //  that recorded no completion; everything else keeps its record so the next command says the same again,
+            //  because nothing else names the worktree, the stage or what finishes them.
+            if destination_is_gone(binding.destination.as_path()) {
                 return Settlement { notice: None, keep: false };
+            }
+            if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
+                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str())), keep: false };
             }
             Settlement {
                 notice: Some(format!(

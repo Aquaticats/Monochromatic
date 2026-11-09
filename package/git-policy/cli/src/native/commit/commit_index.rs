@@ -8,10 +8,16 @@
 //! Why:
 //!  Git's staging and selection run against a private index and the shadow object store,
 //!  so the real index's entries and the object store change only at landing.
-//!  The real index's stat data is refreshed earlier,
-//!  as native `git commit` refreshes it,
-//!  so a stale index costs one refresh and not one on every commit,
-//!  and only an index that no longer describes the worktree is refreshed at all.
+//!  The stat data of the index this commit reads is refreshed in the private copy,
+//!  as native `git commit` refreshes the index it commits,
+//!  so the scratch commit does not read and hash the whole worktree inside its own step,
+//!  and only a copy that no longer describes the worktree is refreshed at all.
+//!  The real index is never written here:
+//!  a commit prepares without the real index's lock
+//!  (`doc/decision/cli-git-concurrent-commits.md`),
+//!  and the landing records the worktree's stat data in the index it installs
+//!  (`service_land_follow.rs`),
+//!  once per batch instead of once per client.
 //!  A copy keeps the real index's timestamps,
 //! because Git re-reads a stat entry
 //!  whose time is not older than the index file (issue #544).
@@ -32,16 +38,20 @@ use crate::commit_staged_additions::{
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
-/// The index copy steps,
-/// kept in a file of their own.
-pub use crate::commit_index_copying::copy_index_with_timestamps;
-use crate::commit_index_copying::{PrivateIndexSeed, copy_index_failure, copy_index_for_reset, private_index_seed};
+/// The one read of the real index every private copy of this commit is written from,
+/// kept in a file of its own,
+/// with the failure a read or a copy reports.
+pub use crate::commit_index_bytes::copy_index_with_timestamps;
+use crate::commit_index_bytes::{IndexBytes, copy_index_failure};
+/// How an index's bytes may seed an explicit-path commit,
+/// and the copy a reset to a tree follows.
+use crate::commit_index_copying::{PrivateIndexSeed, seed_of_index_bytes, write_index_for_reset};
 /// The note of how each build was made,
 /// which the commit's timing record takes.
 use crate::commit_index_builds::{IndexBuildKind, note_index_build};
 /// The stat-data refresh that keeps the scratch commit inside its ceiling,
 /// and when it is asked for.
-use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data, refresh_stat_data_when_stale};
+use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale};
 /// Which paths this commit stages from the worktree,
 /// so their recorded stat data cannot cost the scratch commit a read.
 use crate::commit_index_stat_staleness::WorktreeStaging;
@@ -111,8 +121,8 @@ fn is_tab_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  Refreshes the real index's stat data,
-/// copies or builds the private commit index from it,
+///  Reads the real index once,
+/// writes and builds the private commit index from those bytes,
 /// and snapshots the real index at invocation.
 /// Why:
 ///   Index commits start from the real index,
@@ -120,9 +130,14 @@ fn is_tab_byte(byte: &u8) -> bool {
 ///  explicit-path commits start from the recorded base,
 /// never live `HEAD`,
 ///  because another landing may have moved it since invocation.
-///  The stat data is refreshed first,
-/// because a copy carries it into the scratch commit,
+///  The private copy's stat data is refreshed last,
+/// because that copy is the index the scratch commit reads,
 /// and that refresh is the one native `git commit` makes and writes back (`commit_index_stat_refresh.rs`).
+///  The real index is read here and never written:
+/// the read takes no lock,
+/// so a preparation takes no `index.lock` and a batch of overlapping commits does not serialize on one.
+///  The landing records the worktree's stat data in the index it installs (`service_land_follow.rs`),
+/// once per batch instead of once per client.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,11 +158,6 @@ pub fn initialize_commit_index(
             &indexed_request(cwd, &["read-tree".to_string(), "--empty".to_string()], Some(real_index), None),
         )?;
     }
-    // The real index's stat data is refreshed before anything is copied from it, so the copies carry it and the scratch
-    // commit does not read and hash the whole work tree inside its three-second step (`commit_index_stat_refresh.rs`);
-    // the real index keeps the refresh, so the commit after this one does not pay it again. The refresh asks for Git and
-    // its lock only when the index no longer describes the worktree, so an up-to-date index costs neither
-    // (`commit_index_stat_staleness.rs`).
     // What:
     //  The paths this commit writes into the private index from the worktree,
     //  whose recorded stat data the scratch commit never reads.
@@ -163,24 +173,26 @@ pub fn initialize_commit_index(
         TransactionMode::ExplicitPath => WorktreeStaging::Named(selection.pathspecs),
         TransactionMode::Index => WorktreeStaging::None,
     };
+    stage_into_the_private_index(context, cwd, real_index, real_index_present, indexes, selection)?;
     // What:
-    //  The answer of the refresh step,
-    //  which says whether the private index needs it instead.
+    //  The refresh of the private commit index's stat data,
+    //  which is the index the scratch commit reads.
     // Why:
-    //  Only a refresh that was asked for and not kept leaves the private index needing it.
+    //  A copy that no longer describes the worktree makes the scratch `git commit` read and hash every file it names,
+    //  and that read is what the step's ceiling ends, where a stop fails the commit
+    //  (`commit_index_stat_refresh.rs`).
+    //  The file is the private one, so the refresh takes that file's own lock and never the real index's:
+    //  a commit prepares without the real index lock,
+    //  and the landing records the worktree's stat data in the index it installs, once per batch
+    //  (`service_land_follow.rs`).
+    //  The question costs no Git start and no lock when the copy already describes the worktree
+    //  (`commit_index_stat_staleness.rs`).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const refresh = statRefreshIfStale({ context, cwd, index: realIndex, staging });
+    // const refresh = statRefreshIfStale({ context, cwd, index: commitIndex, staging });
     // ```
-    let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, staging);
-    stage_into_the_private_index(context, cwd, real_index, real_index_present, indexes, selection)?;
-    if refresh == StatRefresh::NotKept {
-        // The real index could not be written: another program held `index.lock`, or the step was ended at its ceiling.
-        // The private index is refreshed here instead, so the scratch commit still finds the work tree's stat data and is
-        // not ended at its own ceiling, where a stop would fail the commit.
-        refresh_stat_data(context, cwd, indexes.commit_index.as_path());
-    }
+    let _outcome: StatRefresh = refresh_stat_data_when_stale(context, cwd, indexes.commit_index.as_path(), staging);
     return Ok(());
 }
 
@@ -188,15 +200,22 @@ pub fn initialize_commit_index(
 ///  Copies the real index into the private commit index and stages the selection into it,
 /// in the order the selection mode needs.
 /// Why:
-///   The refresh of the real index's stat data has to come before the copies and the refresh of the private index after
-/// them,
-/// so the copies are one step and its two refreshes are the other (`initialize_commit_index`).
+///   The copies and the staging are one step,
+/// and the refresh of the private index is the other one, after it
+/// (`initialize_commit_index`).
 /// `real_index_present` is asked by the caller before it makes an empty index for a repository that has none,
 /// because the file exists by the time this runs.
+///  The real index is read one time here,
+///  and both of the copies below and the seed decision are made from those bytes,
+///  so a staging that lands in the real index between this read and the copies reaches neither of them.
+///  A copy is written even when the seed is the base alone,
+///  because the landing compares the person's index against the state this commit saw.
+///  The copy is written from the bytes one read returned,
+///  so neither of them can hold a state the real index reached afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await copyIndexFile(realIndex, commitIndex); await git(['add', '--all', ...selection], { index: commitIndex });
+/// const index = await readIndexOnce(realIndex); await index.writeCopy(capturedIndex); await git(['add', '--all', ...selection], { index: commitIndex });
 /// ```
 fn stage_into_the_private_index(
     context: &GitContext,
@@ -206,10 +225,21 @@ fn stage_into_the_private_index(
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), GitFailure> {
-    copy_index_with_timestamps(real_index, indexes.captured_index.as_path()).map_err(copy_index_failure)?;
+    // What:
+    //  The one read of the real index every private copy of this commit is written from.
+    // Why:
+    //  A copy that read its own source again cost a second and a third read of the same megabytes, and the copy of a
+    //  file this process had just written waited seconds inside the kernel under this host's write pressure
+    //  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const index = await IndexBytes.read(realIndex);
+    // ```
+    let index: IndexBytes = IndexBytes::read(real_index).map_err(copy_index_failure)?;
+    index.write_copy(indexes.captured_index.as_path()).map_err(copy_index_failure)?;
     if selection.mode == TransactionMode::Index {
-        copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
-            .map_err(copy_index_failure)?;
+        index.write_copy(indexes.commit_index.as_path()).map_err(copy_index_failure)?;
         // The commit's index is a copy of the real one, so its entries carry the stat data a real index had to keep.
         note_index_build(IndexBuildKind::First, real_index_present);
         if selection.stage_tracked_changes {
@@ -240,16 +270,16 @@ fn stage_into_the_private_index(
         // slower way, from the base alone. An intent-to-add entry carries no stat data and stops nothing: the copy is
         // made, the marks it holds are cleared, and the reset below writes the base's own entry at each of those paths,
         // replaces a mark whose mode or object name differs and drops one the base does not hold
-        // (`copy_index_for_reset`).
-        let seed: PrivateIndexSeed = private_index_seed(indexes.captured_index.as_path());
+        // (`write_index_for_reset`).
+        let seed: PrivateIndexSeed = seed_of_index_bytes(index.bytes());
         // A private index built without the real index's stat data makes the scratch commit hash every file (233 MB of LFS content
         //  here), so which way it was built goes into the commit's timing record, which is written on every commit.
         note_index_build(IndexBuildKind::First, seed.keeps_stat_data());
         if seed != PrivateIndexSeed::Base {
-            copy_index_for_reset(
+            write_index_for_reset(
                 context,
                 cwd,
-                indexes.captured_index.as_path(),
+                &index,
                 indexes.commit_index.as_path(),
                 indexes.object_directory.as_path(),
                 &seed,
@@ -284,6 +314,20 @@ fn stage_into_the_private_index(
 }
 
 /// What:
+///  Which way an index one read returned may seed a rebuild's private index.
+/// Why:
+///   `Option::map_or` takes a named function where a closure that captures nothing stood,
+///  and the answer is the seed decision asked of the bytes that read returned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seedOfTheReadIndex = (read: IndexBytes) => seedOfIndexBytes(read.bytes());
+/// ```
+fn seed_of_the_read_index(read: &IndexBytes) -> PrivateIndexSeed {
+    return seed_of_index_bytes(read.bytes());
+}
+
+/// What:
 ///  Makes the private index of a retry hold exactly `tree`,
 /// starting from a copy of the real index so every entry the tree shares with it keeps its cached stat data.
 /// Why:
@@ -299,43 +343,46 @@ fn stage_into_the_private_index(
 /// An index that holds an assume-unchanged or skip-worktree mark,
 /// or that cannot be read,
 /// is not copied,
-/// as for the first preparation (`private_index_seed`),
+/// as for the first preparation (`seed_of_index_bytes`),
 /// and the tree is read into a fresh index;
 /// an index whose only marks are intent-to-add entries is copied as it is,
 /// so the commit keeps the real index's stat data,
 ///  and the paths those marks name are cleared before the reset,
-/// as for the first preparation (`copy_index_for_reset`):
+/// as for the first preparation (`write_index_for_reset`):
 /// the reset then writes the requested tree's own entry at each of them,
 /// so a scratch-commit hook that invalidates the cached tree cannot leave one of them out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await copyIndexFile(realIndex, commitIndex); await git(['read-tree', '--reset', tree], { index: commitIndex });
+/// const index = await readIndexOnce(realIndex); await git(['read-tree', '--reset', tree], { index: commitIndex });
 /// ```
 pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
     let mut arguments: Vec<String> = vec![String::from("read-tree")];
-    let seed: PrivateIndexSeed = if real_index.exists() { private_index_seed(real_index) } else { PrivateIndexSeed::Base };
-    note_index_build(IndexBuildKind::Retry, seed.keeps_stat_data());
-    // The real index's stat data is refreshed before the copy below, for the reason the first preparation gives
-    // (`initialize_commit_index`): a rebuild runs when other commits land, so it is the one that can least afford to read
-    // the whole work tree again. A rebuild stages nothing from the worktree, so every entry the copied index holds is
-    // one whose recorded stat data the scratch commit would distrust.
     // What:
-    //  The answer of the refresh step for a rebuild,
-    //  which stages no path from the worktree.
+    //  The one read of the real index a rebuild's seed and copy are made from,
+    //  or nothing when that index cannot be read.
     // Why:
-    //  Only a refresh that was asked for and not kept leaves the private index needing one.
+    //  An index this crate cannot read seeds the private index from the tree alone, as it always has; every other one is
+    //  read once, so the marks and the stat data the copy carries describe one state.
+    //  The read takes no lock of the real index's and refreshes nothing in it:
+    //  a commit prepares without that lock
+    //  (`doc/decision/cli-git-concurrent-commits.md`),
+    //  and the landing records the worktree's stat data in the index it installs (`service_land_follow.rs`).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const refresh = statRefreshIfStale({ context, cwd, index: realIndex, staging: { none: true } });
+    // const index = await IndexBytes.read(realIndex).catch(() => undefined);
     // ```
-    let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, WorktreeStaging::None);
-    if seed != PrivateIndexSeed::Base {
-        copy_index_for_reset(
+    let index: Option<IndexBytes> = IndexBytes::read(real_index).ok();
+    let seed: PrivateIndexSeed = index.as_ref().map_or(PrivateIndexSeed::Base, seed_of_the_read_index);
+    note_index_build(IndexBuildKind::Retry, seed.keeps_stat_data());
+    // The copy is written from the bytes this read returned, so the marks it clears and the stat data it keeps describe
+    // the one state the read saw.
+    if seed != PrivateIndexSeed::Base && let Some(read) = index.as_ref() {
+        write_index_for_reset(
             context,
             cwd,
-            real_index,
+            read,
             indexes.commit_index.as_path(),
             indexes.object_directory.as_path(),
             &seed,
@@ -345,11 +392,18 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     }
     arguments.push(tree.to_string());
     private_git(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), &arguments)?;
-    if refresh == StatRefresh::NotKept {
-        // The real index could not be written, or holds no stat data to keep: the private index is refreshed so the scratch
-        // commit does not read the whole work tree inside its own ceiling.
-        refresh_stat_data(context, cwd, indexes.commit_index.as_path());
-    }
+    // What:
+    //  The refresh of the rebuilt private index's stat data.
+    // Why:
+    //  A rebuild runs when other commits land, so it is the one that can least afford to read the whole worktree inside
+    //  the scratch step's ceiling, and every entry the copy holds that the tree shares keeps the real index's stat data
+    //  (`initialize_commit_index`). A rebuild stages nothing from the worktree, so no entry is exempt from the question.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refresh = statRefreshIfStale({ context, cwd, index: commitIndex, staging: { none: true } });
+    // ```
+    let _outcome: StatRefresh = refresh_stat_data_when_stale(context, cwd, indexes.commit_index.as_path(), WorktreeStaging::None);
     return Ok(());
 }
 

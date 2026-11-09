@@ -8,9 +8,13 @@
 /**
  Narrows `unknown` to a plain object for property access.
  
+ An array is rejected: its named properties are the array's own members, not
+ request fields, so a body of `[]` would otherwise parse as an update that
+ changes nothing instead of failing validation.
+ 
  @param value - Value to check
  
- @returns True when value is a non-null object
+ @returns True when value is a non-null object that is not an array
  
  @example
  ```ts
@@ -18,7 +22,8 @@
  ```
  */
 export function isRecord(value: unknown,): value is Record<string, unknown> {
-  return ((typeof value) === 'object') && (value !== null);
+  return ((typeof value) === 'object') && (value !== null)
+    && (!Array.isArray(value,));
 }
 
 /**

@@ -31,10 +31,13 @@ use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
 use crate::wait_progress::Cadence;
 use crate::inner_git_words::record_words;
 use crate::service_index_lock::IndexLock;
+use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale};
+use crate::commit_index_stat_staleness::WorktreeStaging;
 pub use crate::service_land_copy::PrivateCopy;
 use crate::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_journal::RefFormat;
+use std::ffi::OsString;
 use std::path::Path;
 
 /// How many times the index update is tried again when the lock was gone by the time it was looked at:
@@ -323,13 +326,19 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
 ///  Builds the index the landing will install,
 /// in a file of its own beside the real index:
 /// a copy of the real index with the
-///  commit's paths reset to the commit.
+///  commit's paths reset to the commit and the worktree's stat data recorded.
 /// Why:
 ///   The landing holds Git's `index.lock`,
 /// so Git's own `reset` cannot take it;
 /// the new index is made in another file and then
 ///  moved into place by the lock's release,
 /// which is how Git installs an index.
+///  The stat data is refreshed here and nowhere else:
+/// a preparation never writes the real index
+/// (`commit_index_stat_refresh.rs`),
+/// and the commit after this one copies the index this landing installs,
+/// so a batch pays one refresh, in the step that already holds the lock,
+/// instead of one per client that then waits for the lock the landing needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -339,25 +348,121 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
     let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
     let built: std::path::PathBuf = copy.path().to_path_buf();
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && !reset_in_process(git, repository, new, paths, (lock, &copy)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
-        return Err(code);
+    let mut written: Vec<Vec<u8>> = Vec::new();
+    if !empty {
+        match reset_in_process(git, repository, new, paths, (lock, &copy)) {
+            Some(names) => written = names,
+            None => {
+                reset_once(git, repository, new, paths, Some(built.as_path()))?;
+                written = named_paths(paths);
+            }
+        }
     }
+    keep_the_stat_data(git, repository, written.as_slice(), &copy);
     return Ok(copy);
 }
 
-/// Whether the private copy (made from the live index while `lock` is held) was reset to
-///  the commit without starting Git;
-/// Git's own command follows when it was not.
+/// What:
+///  Records the worktree's stat data in the index the landing is about to install.
+/// Why:
+///   The copy was made from the live index,
+/// so every entry whose file moved under that index is stale in it,
+/// and a commit that copies this index then reads and hashes every such file.
+///  A refresh that fails or is interrupted costs the landing its time and never its result:
+/// stat data is a cache,
+/// the copy is installed either way,
+/// and the step is ended at its class's ceiling
+/// (`transaction_git_step_rerun_and_end_rules.rs`).
+///  The paths the reset just wrote are left out of the question:
+/// their entries hold the commit's own content,
+/// and a path the person has since edited must keep no stat data that would hide the edit,
+/// which is what `update-index --refresh` does with it anyway
+/// (`commit_index_stat_staleness.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await keepTheStatData({ git, repository, written, copy }) // refresh_if_stale(copy, staging = `written`)
+/// ```
+fn keep_the_stat_data(git: &GitContext, repository: &Path, written: &[Vec<u8>], copy: &PrivateCopy) {
+    let left_out: Vec<OsString> = exempt_names(written);
+    // What the copy looked like before the refresh, so the release flushes it only when the refresh rewrote it.
+    let untouched: Option<(u64, std::time::SystemTime)> = file_stamp(copy.path());
+    let _outcome: StatRefresh = refresh_stat_data_when_stale(git, repository, copy.path(), WorktreeStaging::Named(left_out.as_slice()));
+    if file_stamp(copy.path()) != untouched {
+        // Git replaced the copy without flushing it; the release of the lock flushes what it installs (`service_land_finish.rs`).
+        copy.set_flushed(false);
+    }
+}
+
+/// What:
+///  What one file looked like,
+/// so a step that replaced it can be told from one that wrote nothing.
+/// Why:
+///  `git update-index --refresh` writes the index it refreshed only when it has something to record,
+/// and only a copy Git replaced has to be flushed by the release
+/// (`service_land_finish.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stamp = (path) => { const s = statSync(path); return [s.size, s.mtimeMs]; }
+/// ```
+fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
+    return Some((metadata.len(), metadata.modified().ok()?));
+}
+
+/// The names the entries of `written` take in the question about the copy's stat data,
+/// read as operating-system text.
+///  A name that is not text on this platform has no entry exempted,
+/// so the question is asked about it,
+/// which is the conservative answer.
+#[cfg(unix)]
+fn exempt_names(written: &[Vec<u8>]) -> Vec<OsString> {
+    use std::os::unix::ffi::OsStrExt;
+    return written.iter().map(|path| { return std::ffi::OsStr::from_bytes(path.as_slice()).to_os_string(); }).collect();
+}
+
+/// Where a byte path is not operating-system text,
+/// nothing is left out of the question,
+/// and the whole copy is asked about.
+#[cfg(not(unix))]
+fn exempt_names(_written: &[Vec<u8>]) -> Vec<OsString> {
+    return Vec::new();
+}
+
+/// What:
+///  The paths a list or a name list resets,
+/// with nothing for a list derived from the branch.
+/// Why:
+///  Git's own `reset` runs when the in-process update declined,
+/// and a list or a name list is its own pathspecs;
+/// a derived list is Git's to work out,
+/// and the copy is then asked about as a whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = paths.listed ?? paths.named ?? []
+/// ```
+fn named_paths(paths: IndexPaths<'_>) -> Vec<Vec<u8>> {
+    return match paths {
+        IndexPaths::Listed(listed) => listed.iter().map(|name| { return name.as_bytes().to_vec(); }).collect(),
+        IndexPaths::Named(named) => named.to_vec(),
+        IndexPaths::Derived { .. } => Vec::new(),
+    };
+}
+
+/// The names the private copy (made from the live index while `lock` is held) was reset at without starting Git,
+/// or nothing when Git's own command has to run.
 #[cfg(target_os = "linux")]
-fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> bool {
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> Option<Vec<Vec<u8>>> {
     return crate::index_reset_file::reset_index_file(git, repository, new, paths, lock, copy);
 }
 
 /// Without the in-process update on this platform,
 /// Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
-fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> bool {
-    return false;
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> Option<Vec<Vec<u8>>> {
+    return None;
 }
 
 /// The failure a storage error stands for.

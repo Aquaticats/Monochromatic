@@ -37,6 +37,11 @@ pub mod json_record;
 /// Random identifiers in the layout of the incumbent's `randomUUID`.
 pub mod random_id;
 
+/// Bytes as lowercase hexadecimal digits,
+/// the one encoder every record,
+/// claim name and audit line spells bytes with.
+pub mod hexadecimal_of_bytes;
+
 /// Text operations with the exact semantics of JavaScript's built-ins.
 pub mod js_text;
 
@@ -114,6 +119,11 @@ pub mod scoped_start;
 /// Jobs on scoped threads beside each other or beside the calling thread,
 /// each a function and the state it reads.
 pub mod side_by_side_threads;
+
+/// Jobs of the blocking pool beside each other or beside the calling task's own work,
+/// each a function and the state it owns,
+/// under the process's bound on blocking jobs.
+pub mod side_by_side_on_the_runtime;
 
 /// The names this program answers to and keeps on disk,
 ///  each as the current spelling and the one an earlier release used.

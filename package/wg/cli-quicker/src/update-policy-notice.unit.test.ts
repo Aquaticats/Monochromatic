@@ -107,6 +107,7 @@ await describe({
             'OUTSIDE the WireGuard tunnel',
             'Update entry points',
             'mpm-shadow install, update and outdated',
+            'the TypeScript mpm-shadow launcher',
             'Update hosts, for every program including browsers',
             'Why:',
             'must not use this tool',

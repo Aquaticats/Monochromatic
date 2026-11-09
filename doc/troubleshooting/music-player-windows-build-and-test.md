@@ -22,6 +22,9 @@ GNU tar on Windows,
  `turso_sdk_kit`'s build script,
 and Wine.
 
+Note 2026-11-09T16:51:23-05:00:
+`.github/workflows/music-player-windows.yml` left the tree on 2026-10-22 in `4a0994eb2b`.
+
 ## The lib-test build failed everywhere: `libc` is not a Windows dependency
 
 ### Symptom

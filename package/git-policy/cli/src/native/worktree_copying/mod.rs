@@ -17,6 +17,11 @@ pub mod worktree_copy_error;
 /// before and after it ran.
 pub mod worktree_copy_registry;
 
+/// The bytes of one repository path,
+/// how its components are joined and compared,
+/// and the validation every one passes.
+pub mod worktree_copy_repository_path;
+
 /// The ignored source paths a linked-worktree copy selects,
 /// and the path validation every selection passes.
 pub mod worktree_copy_selection;
@@ -43,6 +48,11 @@ pub mod worktree_copy_stage;
 /// one worker per slice of the manifest.
 #[cfg(unix)]
 pub mod worktree_copy_stage_leaf_copying;
+
+/// Settling a staged copy against its source:
+/// the passes that copy a changed entry again and leave a vanished one out.
+#[cfg(unix)]
+pub mod worktree_copy_settling;
 
 /// The exclusive creation of one destination entry from the stage,
 /// and the identity captured after it.

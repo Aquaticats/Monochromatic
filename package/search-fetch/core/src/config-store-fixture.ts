@@ -9,7 +9,7 @@
 
 import {
   chmod,
-  mkdtemp,
+  mkdtempDisposable,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -108,32 +108,38 @@ async function readRecipient(identityPath: string,): Promise<string> {
 }
 
 /**
- Create a disposable root with an age identity.
- 
- @returns fixture root and identity path
- 
+ Create a disposable root with an age identity, removed when the caller's scope
+ ends.
+
+ @returns fixture root, identity path, and an async disposer that removes the root
+
  @throws when sops or age-keygen is unavailable
- 
+
  @example
  ```ts
- const { root, identityPath } = await createIdentityFixture();
+ await using fixture = await createIdentityFixture();
  ```
  */
 async function createIdentityFixture(): Promise<{
   readonly root: string;
   readonly identityPath: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }> {
   await requireTool('sops',);
   await requireTool('age-keygen',);
   /**
-   Local value for root.
+   Disposable fixture root.
    */
-  const root = await mkdtemp(
+  const directory = await mkdtempDisposable(
     join(
       scratchRoot(),
       FIXTURE_PREFIX,
     ),
   );
+  /**
+   Fixture root this helper owns, removed when the caller's scope ends.
+   */
+  const root = directory.path;
   await chmod(
     root,
     FIXTURE_DIRECTORY_MODE,
@@ -163,6 +169,9 @@ async function createIdentityFixture(): Promise<{
   return {
     root,
     identityPath,
+    [Symbol.asyncDispose]: async function removeFixtureRoot(): Promise<void> {
+      await directory.remove();
+    },
   };
 }
 

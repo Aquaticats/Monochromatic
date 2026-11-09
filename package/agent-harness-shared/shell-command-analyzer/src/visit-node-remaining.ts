@@ -182,11 +182,14 @@ function visitRemainingAfterCase(
       ],
     };
   }
-  return visitRedirectsItem({
-    redirects,
-    paramRefs,
-    context,
-  },);
+  return {
+    ...visitRedirectsItem({
+      redirects,
+      paramRefs,
+      context,
+    },),
+    notUnderstoodNodeKinds: [node.type,],
+  };
 }
 
 /**

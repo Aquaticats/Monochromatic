@@ -11,6 +11,13 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+The question this record answers was settled that day:
+committed `.config/mise/conf.d` files now carry the static environment,
+and every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 Research for [`doc/planning/file-enforcer-rust-rewrite.md`](../planning/file-enforcer-rust-rewrite.md),
 gathered 2026-10-29 against mise 2026.10.20 source (tag `v2026.10.20`) and disposable fixtures with positive controls,
 under `${HOME}/temp/agent/fe-rust/confd/`;

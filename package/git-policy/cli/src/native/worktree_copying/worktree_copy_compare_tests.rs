@@ -8,13 +8,15 @@ const LARGE_LENGTH: usize = 64 * 1_024 + 17;
 
 /// One manifest entry for a path and kind,
 /// with the mode the path currently has.
-fn entry_of(root: &Path, kind: EntryKind, relative_path: &str) -> WorktreeCopyEntry {
-    let metadata: std::fs::Metadata =
-        std::fs::symlink_metadata(root.join(relative_path)).expect("metadata");
+fn entry_of(root: &Path, kind: EntryKind, relative_path: &[u8]) -> WorktreeCopyEntry {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(
+        root.join(crate::path_bytes::os_from_path_bytes(relative_path)),
+    )
+    .expect("metadata");
     return WorktreeCopyEntry {
         kind,
         mode: retained_mode(&metadata),
-        relative_path: String::from(relative_path),
+        relative_path: relative_path.to_vec(),
     };
 }
 
@@ -46,7 +48,7 @@ fn absent_entry_never_matches() {
     std::fs::write(stage.join("file"), b"x").expect("staged");
     let target: PathBuf = root.join("target");
     std::fs::create_dir(target.as_path()).expect("target");
-    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, "file");
+    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, b"file");
     assert!(!entry_matches(stage.as_path(), target.as_path(), &staged).expect("compare"));
     remove(root.as_path());
 }
@@ -60,7 +62,7 @@ fn directory_entries_compare_kind_and_mode() {
     std::fs::create_dir_all(stage.join("dir")).expect("stage dir");
     let target: PathBuf = root.join("target");
     std::fs::create_dir_all(target.join("dir")).expect("target dir");
-    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::Directory, "dir");
+    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::Directory, b"dir");
     assert!(entry_matches(stage.as_path(), target.as_path(), &staged).expect("same"));
     std::fs::remove_dir(target.join("dir")).expect("replace");
     std::fs::write(target.join("dir"), b"file").expect("file in place of directory");
@@ -83,7 +85,7 @@ fn file_entries_compare_bytes_and_mode() {
     std::fs::create_dir_all(target.as_path()).expect("target");
     std::fs::write(stage.join("file"), b"same bytes").expect("staged");
     std::fs::write(target.join("file"), b"same bytes").expect("target");
-    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, "file");
+    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, b"file");
     assert!(entry_matches(stage.as_path(), target.as_path(), &staged).expect("equal"));
     std::fs::write(target.join("file"), b"same bytez").expect("one byte differs");
     assert!(!entry_matches(stage.as_path(), target.as_path(), &staged).expect("byte"));
@@ -94,7 +96,7 @@ fn file_entries_compare_bytes_and_mode() {
         .expect("mode");
     std::fs::set_permissions(stage.join("file"), std::fs::Permissions::from_mode(0o644))
         .expect("staged mode");
-    let staged_with_mode: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, "file");
+    let staged_with_mode: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, b"file");
     assert!(!entry_matches(stage.as_path(), target.as_path(), &staged_with_mode).expect("mode"));
     remove(root.as_path());
 }
@@ -111,7 +113,7 @@ fn large_files_are_compared_across_chunks() {
     let mut bytes: Vec<u8> = vec![7; LARGE_LENGTH];
     std::fs::write(stage.join("big"), bytes.as_slice()).expect("staged");
     std::fs::write(target.join("big"), bytes.as_slice()).expect("target");
-    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, "big");
+    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, b"big");
     assert!(entry_matches(stage.as_path(), target.as_path(), &staged).expect("equal"));
     let last: usize = bytes.len() - 1;
     bytes[last] = 8;
@@ -132,7 +134,7 @@ fn symbolic_links_compare_target_text() {
     std::fs::create_dir_all(target.as_path()).expect("target");
     std::os::unix::fs::symlink("../shared", stage.join("link")).expect("staged link");
     std::os::unix::fs::symlink("../shared", target.join("link")).expect("same link");
-    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::Symlink, "link");
+    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::Symlink, b"link");
     assert!(entry_matches(stage.as_path(), target.as_path(), &staged).expect("same target"));
     std::fs::remove_file(target.join("link")).expect("remove");
     std::os::unix::fs::symlink("../other", target.join("link")).expect("other link");
@@ -150,7 +152,7 @@ fn unchanged_source_passes_final_check() {
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/file"), b"x").expect("file");
-    let selected: Vec<String> = vec![String::from("cache")];
+    let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(source.as_path(), selected.as_slice(), &[]).expect("manifest");
     let stage: PathBuf = root.join("stage");
@@ -167,6 +169,44 @@ fn unchanged_source_passes_final_check() {
     remove(root.as_path());
 }
 
+/// The source's manifest walk is a job of the process's blocking pool:
+/// it asks for the one place of the process's bound before it runs,
+/// which a walk on a thread of its own never does.
+#[test]
+fn the_source_walk_takes_a_place_of_the_processs_bound() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::RecvTimeoutError;
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let root: PathBuf = fixture("compare-the-bound");
+    let source: PathBuf = root.join("source");
+    std::fs::create_dir_all(source.join("cache")).expect("cache");
+    std::fs::write(source.join("cache/file"), b"x").expect("file");
+    let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_entry_manifest(source.as_path(), selected.as_slice(), &[]).expect("manifest");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(stage.join("cache")).expect("stage cache");
+    std::fs::write(stage.join("cache/file"), b"x").expect("stage file");
+    assert_final_source_equivalence(
+        source.as_path(),
+        stage.as_path(),
+        selected.as_slice(),
+        &[],
+        entries.as_slice(),
+    )
+    .expect("unchanged");
+    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+    //  source's walk reached the process's bound instead of starting at once.
+    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+        Ok(true) => {}
+        Ok(false) => panic!("the job that holds the only place saw no ask, so the source's walk took no place of the process's bound"),
+        Err(RecvTimeoutError::Timeout) => panic!("the source's walk asked for no place of the process's bound within the patience, so it did not run as a job of the blocking pool"),
+        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+    }
+    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to the source's walk");
+    remove(root.as_path());
+}
+
 /// A source file that changed after the manifest blocks the destination with the changed entry named.
 #[test]
 fn changed_source_entry_fails_final_check() {
@@ -174,7 +214,7 @@ fn changed_source_entry_fails_final_check() {
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/file"), b"x").expect("file");
-    let selected: Vec<String> = vec![String::from("cache")];
+    let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(source.as_path(), selected.as_slice(), &[]).expect("manifest");
     let stage: PathBuf = root.join("stage");
@@ -203,7 +243,7 @@ fn added_source_entry_fails_final_check_by_count() {
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/file"), b"x").expect("file");
-    let selected: Vec<String> = vec![String::from("cache")];
+    let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(source.as_path(), selected.as_slice(), &[]).expect("manifest");
     let stage: PathBuf = root.join("stage");
@@ -235,7 +275,7 @@ fn stamped_pair(name: &str, source_bytes: &[u8], stage_bytes: &[u8]) -> (PathBuf
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/file"), source_bytes).expect("file");
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(source.as_path(), &[String::from("cache")], &[]).expect("manifest");
+        collect_entry_manifest(source.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(stage.join("cache")).expect("stage cache");
     std::fs::write(stage.join("cache/file"), stage_bytes).expect("stage file");
@@ -250,7 +290,7 @@ fn final_check(source: &Path, stage: &Path, entries: &[WorktreeCopyEntry], stamp
     return assert_final_source_equivalence_pruned(
         source,
         stage,
-        &[String::from("cache")],
+        &[b"cache".to_vec()],
         &[],
         entries,
         &FinalCheck { prune: Prune::Never, stamps },

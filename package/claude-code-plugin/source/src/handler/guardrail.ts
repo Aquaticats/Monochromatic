@@ -4,12 +4,21 @@ import type {
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import {
   BUN_TEST_BAN_REASON,
+  hasNotUnderstoodShellSyntax,
   invokesBunTest,
   invokesMutatingGitThroughRealGitPath,
+  NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   PROCESS_NAME_WAIT_BAN_REASON,
   REAL_GIT_MUTATION_BAN_REASON,
   waitsOnProcessName,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
+
+import {
+  makeHookInputParser,
+  makeJsonWriter,
+  type Parser,
+  type JsonWriter,
+} from '../runtime/handler-runtime.ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
 /**
@@ -40,6 +49,17 @@ const PROCESS_NAME_WAIT_DENY_OUTPUT: GuardrailOutput = {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
     permissionDecisionReason: PROCESS_NAME_WAIT_BAN_REASON,
+  },
+};
+
+/**
+ Deny response for shell syntax the analyzer cannot read.
+ */
+const NOT_UNDERSTOOD_SHELL_SYNTAX_DENY_OUTPUT: GuardrailOutput = {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   },
 };
 
@@ -110,6 +130,9 @@ async function guardrailHandler(
       : undefined;
 
     if ((typeof command) === 'string') {
+      if (hasNotUnderstoodShellSyntax(command,))
+        return NOT_UNDERSTOOD_SHELL_SYNTAX_DENY_OUTPUT;
+
       if (invokesBunTest(command,))
         return BUN_TEST_DENY_OUTPUT;
 
@@ -145,39 +168,24 @@ async function guardrailHandler(
  
  Input is trusted; it comes from Claude Code's hook dispatch system.
  
- @param raw - JSON payload from Claude Code stdin
- 
- @returns parsed PreToolUse event
- 
  @example
  ```ts
  const event = guardrailParser(await text(process.stdin));
  ```
  */
-function guardrailParser(raw: string,): PreToolUseInput {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-  return JSON.parse(raw,) as PreToolUseInput;
-}
+const guardrailParser: Parser<PreToolUseInput> = makeHookInputParser<PreToolUseInput>();
 
 /**
  Serializes guardrail output for stdout.
  
  No trailing newline; matches Claude Code's wire convention.
  
- @param output - {@link GuardrailOutput} handler result to serialize
- 
- @returns JSON string for stdout
- 
- @mutates output - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
- 
  @example
  ```ts
  process.stdout.write(guardrailWriter({}));
  ```
  */
-function guardrailWriter(output: GuardrailOutput,): string {
-  return JSON.stringify(output,);
-}
+const guardrailWriter: JsonWriter<GuardrailOutput> = makeJsonWriter<GuardrailOutput>();
 
 export type { GuardrailOutput, };
 

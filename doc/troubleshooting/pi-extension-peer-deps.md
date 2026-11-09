@@ -1,5 +1,9 @@
 # @aliou Pi extensions pin Pi 0.74.0 peers and npm blocks Pi 0.75.3 installs
 
+Note 2026-11-09T16:56:27-05:00:
+`.pi/npm/` is not in the tree;
+its files were deleted on 2026-06-15 in `32b6cd845f`.
+
 ## Symptom
 
 Running npm resolution for a Pi 0.75.3 extension set fails with `ERESOLVE` while npm resolves

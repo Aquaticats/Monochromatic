@@ -5,8 +5,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
+  type DisposableTempDir,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -47,11 +47,12 @@ const TINY_HASH_CAP_BYTES = 4;
  
  @example
  ```ts
- const dir = await makeTmpDir();
+ await using directory = await makeTmpDir();
+ const dir = directory.path;
  ```
  */
-async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(scratchRoot(), 'watch-restart-content-hash-',),);
+async function makeTmpDir(): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(scratchRoot(), 'watch-restart-content-hash-',),);
 }
 
 /**
@@ -144,7 +145,8 @@ await describe({
     it({
       name: 'unlink passes through (true) without touching the cache',
       fn: async function unlinkPassesThrough() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const cache = new HashCache();
         cache.set({
           path: '/abs/file.ts',
@@ -162,13 +164,13 @@ await describe({
         // unlink cleanup (the watcher already removed the entry).
         expect(cache.get('/abs/file.ts',),).toBe('cached-hash',);
 
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'add of a new file fires and records the hash',
       fn: async function addRecordsAndFires() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const file = join(dir, 'fresh.ts',);
         await writeFile(file, 'first-content',);
         const cache = new HashCache();
@@ -191,13 +193,13 @@ await describe({
           await cache.hashFile(file,),
         );
 
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'byte-identical change is skipped (false)',
       fn: async function byteIdenticalSkips() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const file = join(dir, 'same.ts',);
         await writeFile(file, 'unchanged-bytes',);
         const cache = new HashCache();
@@ -220,13 +222,13 @@ await describe({
         expect(passed,).toBe(false,);
         expect(cache.get(file,),).toBe(priorHash,);
 
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'different-bytes change fires and stores the new hash',
       fn: async function differentBytesFires() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const file = join(dir, 'edit.ts',);
         await writeFile(file, 'v1-content',);
         const cache = new HashCache();
@@ -252,13 +254,13 @@ await describe({
         const newHash = nonNullishOrThrow(cache.get(file,),);
         expect(newHash,).not.toBe(oldHash,);
 
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'file exceeding maxHashSize fires (true) without comparing',
       fn: async function tooLargeFires() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const file = join(dir, 'big.ts',);
         // 5 bytes > 4-byte cap → hashFile returns null.
         await writeFile(file, 'hello',);
@@ -278,13 +280,13 @@ await describe({
         // No hash was computable, so the cache must not have been written.
         expect(cache.has(file,),).toBe(false,);
 
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'read error (missing file) fires (true) and does not throw',
       fn: async function readErrorFires() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const missing = join(dir, 'missing.ts',);
         const cache = new HashCache();
 
@@ -301,7 +303,6 @@ await describe({
         expect(passed,).toBe(true,);
         expect(cache.has(missing,),).toBe(false,);
 
-        await rm(dir, { recursive: true, },);
       },
     },),
   ],

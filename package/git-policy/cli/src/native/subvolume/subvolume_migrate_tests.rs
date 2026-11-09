@@ -175,20 +175,50 @@ fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
         ("after-catchup", 0),
         ("after-indexes", 0),
     ];
-    for (index, (point, after)) in points.iter().enumerate() {
-        let (parent, root) = checkout_with_worktree(format!("migrate-kill-{index}").as_str());
-        let platform: PlainPlatform = PlainPlatform::new();
-        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, *after));
-        assert_eq!(code, FAILED, "{point}: {lines:#?}");
-        assert!(lines.join("\n").contains("Run the command again to resume"), "{point}");
-        let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
-        assert_eq!(resumed_code, DONE, "{point}: {resumed_lines:#?}");
-        let layout = layout_of(root.as_path()).expect("layout");
-        assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
-        assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(true), "{point}: nested worktree");
-        assert!(!layout.new_path.exists(), "{point}: the new path is renamed away");
-        remove(parent.as_path());
-    }
+    // A kill point shares nothing with another: each has its own fixture, its own platform and its own journal, so the
+    //  points walk side by side and one point's waits for the disk are another point's chance to work.
+    // What decides this control's own time is the tree pass of each point, which is filesystem latency rather than work
+    //  (`AGENTS.md` rule `SUF`):
+    // measured on 2026-11-09: the twelve points one after another took 384 s with the host's load average at 119 and
+    //  110 s once the durability switch of the stand-in reached the claim and the index rewrites, and the same points
+    //  side by side took 25.2 s at a load average of 115.
+    let mut failed: Vec<&str> = Vec::new();
+    std::thread::scope(|scope| {
+        let handles: Vec<(&str, std::thread::ScopedJoinHandle<'_, ()>)> = points
+            .iter()
+            .enumerate()
+            .map(|(index, killed_at)| {
+                let (stop_at, after): (&str, u64) = *killed_at;
+                let name: String = format!("migrate-kill-{index}");
+                return (stop_at, scope.spawn(move || { return kill_point_at(name.as_str(), stop_at, after); }));
+            })
+            .collect();
+        for (point, handle) in handles {
+            if handle.join().is_err() {
+                failed.push(point);
+            }
+        }
+    });
+    assert!(failed.is_empty(), "the kill points that failed: {failed:?}");
+}
+
+/// One kill point:
+/// a fresh checkout,
+/// the run stopped at `point`,
+/// and the rerun that resumes it and ends migrated.
+fn kill_point_at(name: &str, point: &str, after: u64) {
+    let (parent, root) = checkout_with_worktree(name);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, after));
+    assert_eq!(code, FAILED, "{point}: {lines:#?}");
+    assert!(lines.join("\n").contains("Run the command again to resume"), "{point}");
+    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(resumed_code, DONE, "{point}: {resumed_lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
+    assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(true), "{point}: nested worktree");
+    assert!(!layout.new_path.exists(), "{point}: the new path is renamed away");
+    remove(parent.as_path());
 }
 
 /// Files this user may not read are left in the old tree and listed;
@@ -472,5 +502,80 @@ fn a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once() {
     });
     let Some(message) = read else { panic!("reading the list did not finish within five seconds") };
     assert!(message.contains("not a plain file") && message.contains("unreadable"), "{message}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A resume refuses a subvolume at the stage's name that is not the one the journal recorded creating,
+///  and copies nothing into it.
+/// Why:
+///   The creation step is skipped when the journal records it as done,
+/// and nothing compared the subvolume at that
+///  name with the identity the journal recorded;
+/// the initial copy ran into the other subvolume and the deleting
+///  delta then removed the files it held,
+/// which exist nowhere else.
+#[test]
+fn a_resume_refuses_a_stage_that_is_not_the_subvolume_the_journal_recorded() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("migrate-foreign-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-create", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let aside: PathBuf = parent.join("staged-aside");
+    std::fs::rename(layout.new_path.as_path(), aside.as_path()).expect("move the stage aside");
+    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(resumed_code, REFUSED, "{resumed_lines:#?}");
+    let said: String = resumed_lines.join("\n");
+    assert!(said.contains("not the subvolume this migration created"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
+    assert!(aside.exists(), "the stage this migration made is left where it was moved");
+    remove(parent.as_path());
+}
+
+/// Record the creation step as begun,
+/// and drop the identity of the stage,
+/// as a journal a kill left before that write,
+/// or one an earlier release wrote,
+/// has it.
+fn record_the_creation_without_the_stage(journal: &Path) {
+    let text: String = std::fs::read_to_string(journal).expect("the journal");
+    let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
+    let document = value.as_object_mut().expect("a journal is an object");
+    let steps = document.get_mut("steps").and_then(serde_json::Value::as_object_mut).expect("a journal records steps");
+    let create = steps.get_mut("create").and_then(serde_json::Value::as_object_mut).expect("the journal records the creation");
+    create.insert(String::from("state"), serde_json::Value::String(String::from("started")));
+    let values = document.get_mut("values").and_then(serde_json::Value::as_object_mut).expect("the journal records values");
+    let identity = values.remove(crate::subvolume_journal::STAGE_ROOT);
+    assert!(identity.is_some(), "the control starts from a journal that records the stage");
+    if values.is_empty() {
+        document.remove("values");
+    }
+    std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
+}
+
+/// What:
+///  A resume adopts an empty subvolume at the stage's name when the journal records no identity for it.
+/// Why:
+///   The identity of the stage is a write of its own before the step is marked done,
+/// so a kill before it leaves a journal that records
+///  the creation and no identity;
+/// a copy into an empty subvolume loses nothing,
+/// so that state is finished rather than refused,
+/// and every
+///  other state at that name is left alone.
+#[test]
+fn a_resume_adopts_an_empty_stage_the_journal_records_no_identity_for() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("migrate-unrecorded-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-create", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    record_the_creation_without_the_stage(layout.journal_path.as_path());
+    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(resumed_code, DONE, "{resumed_lines:#?}");
+    assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
     remove(parent.as_path());
 }

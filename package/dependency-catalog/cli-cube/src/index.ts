@@ -34,3 +34,9 @@ export type {
 export { renderHtml, } from './render-html.ts';
 
 export { renderControls, } from './render-controls.ts';
+/**
+ Tooltip fragment renderer, exported for built-artifact verification.
+
+ @internal
+ */
+export { formatTooltipHtml, } from './script/controller-tooltip.ts';
