@@ -46,12 +46,6 @@ use super::parse_output::{
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
 
-/// The first word of a line (up to the first whitespace),
-/// or the empty text.
-fn first_word(line: &str) -> &str {
-    return line.split_whitespace().next().unwrap_or("");
-}
-
 /// What:
 /// The package key under `uv tool list`:
 /// the package id (or tool id) with `-` turned into `_`.
@@ -147,18 +141,75 @@ fn observe_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return parse_uv_tool_list(&outcome.stdout).get(&uv_key(tool)).cloned();
 }
 
-/// `rustup toolchain list`,
+/// What:
+/// The toolchain this row names,
 /// for the rustup-toolchain route:
-/// the listed toolchain whose name starts with the version.
+/// the row's channel when `rustup` resolves it to an installed toolchain,
+/// else `None`.
+/// Why:
+/// `rustup toolchain list` prints a channel followed by the host triple it was installed for,
+/// and a name alone cannot tell that triple from a channel that carries a date:
+/// `nightly-x86_64-unknown-linux-gnu` and `nightly-2026-10-30-x86_64-unknown-linux-gnu` both start with `nightly-`.
+/// `rustup which --toolchain <channel>` is the tool deciding which installed toolchain that channel is,
+/// so no name is guessed and a toolchain for another host is never taken for this one.
+/// `rustup_query` keeps the question from installing a toolchain that is missing,
+/// and a query that failed or printed no path proves nothing.
 fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let outcome: RunOutcome = ctx.run(&ctx.request("rustup", &["toolchain", "list"]));
-    for line in outcome.stdout.lines() {
-        let name: &str = first_word(line);
-        if !name.is_empty() && name.starts_with(&tool.version) {
-            return Some(name.to_string());
-        }
+    let channel: &str = tool.rustup_channel();
+    let rustc: PathBuf = resolved_rustc(ctx, channel)?;
+    // What: a row whose channel text differs from its version also asks that toolchain's compiler which release
+    // it holds.
+    // Why: `which` proves the channel is installed, not that it still holds the release the lock records;
+    // a moving channel (`stable`) can hold a newer release, and a lock pinning `1.90.0` must not read `ok` then.
+    // A locked text that names no release (a dated channel such as `nightly-2026-10-30`) is not compared: the
+    // compiler of such a channel reports `1.9x.0-nightly`, which names no channel date, and the dated channel
+    // text is the identity.
+    if channel != tool.version && names_a_release(&tool.version) && !compiler_reports(ctx, &rustc, &tool.version) {
+        return None;
     }
-    return None;
+    return Some(channel.to_string());
+}
+
+/// What:
+/// The `rustc` a channel resolves to, from `rustup which --toolchain <channel> rustc`,
+/// or `None` when rustup says that channel is not installed.
+/// Why:
+/// The path is what the version question runs, and its absence is the answer that the channel is not installed.
+fn resolved_rustc(ctx: &Context, channel: &str) -> Option<PathBuf> {
+    let outcome: RunOutcome = ctx.run(&ctx.rustup_query(&["which", "--toolchain", channel, "rustc"]));
+    if !outcome.succeeded() {
+        return None;
+    }
+    let path: &str = outcome.stdout.trim();
+    if path.is_empty() {
+        return None;
+    }
+    return Some(PathBuf::from(path));
+}
+
+/// What:
+/// Whether the compiler at `rustc` reports the release `locked` names (`rustc 1.90.0 (hash date)`).
+/// Why:
+/// The installed compiler is the only witness of which release a moving channel holds now.
+fn compiler_reports(ctx: &Context, rustc: &Path, locked: &str) -> bool {
+    let outcome: RunOutcome = ctx.run(&ctx.request(&rustc.to_string_lossy(), &["--version"]));
+    if !outcome.succeeded() {
+        return false;
+    }
+    // `rustc <release> (<hash> <date>)`: the release is the second word.
+    let released: Option<&str> = outcome.stdout.split_whitespace().nth(1);
+    return released.is_some_and(|reported| return version_matches(reported, locked));
+}
+
+/// What:
+/// Whether `text` names a release (`1.90.0`, `v1.90.0`, `1.90.0-beta.1`) rather than a channel
+/// (`stable`, `nightly`, `nightly-2026-10-30`).
+/// Why:
+/// Only a release text is something a compiler can confirm or contradict;
+/// a channel text is the toolchain's identity, which `rustup which` already resolved.
+fn names_a_release(text: &str) -> bool {
+    let without_prefix: &str = text.strip_prefix('v').filter(|rest| return !rest.is_empty()).unwrap_or(text);
+    return without_prefix.starts_with(|first: char| return first.is_ascii_digit());
 }
 
 /// The Android command-line tools directory for the locked version,
@@ -307,6 +358,25 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
 }
 
 /// What:
+/// The text an observation of `tool` is compared against:
+/// the rustup channel a `rustup-toolchain` row names,
+/// else the locked version.
+/// Why:
+/// `rustup` reports its toolchains by channel plus host triple,
+/// while every other route reports the version the lock pins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function comparedWithLock(tool: LockedTool): string
+/// ```
+pub fn compared_with_lock(tool: &LockedTool) -> &str {
+    return match tool.declaration.route {
+        Route::RustupToolchain => tool.rustup_channel(),
+        _ => &tool.version,
+    };
+}
+
+/// What:
 /// Whether an installed version satisfies the lock:
 /// equal for most tools,
 /// equal or newer for a repository-published tool.
@@ -322,7 +392,7 @@ pub fn satisfies_lock(tool: &LockedTool, observed: &str) -> bool {
     if is_repository_published(tool) {
         return compare_versions(observed, &tool.version) != Ordering::Less;
     }
-    return version_matches(observed, &tool.version);
+    return version_matches(observed, compared_with_lock(tool));
 }
 
 /// One line of the status report:

@@ -364,6 +364,78 @@ The old tree kept for the rollback stays until the owner deletes it.
   but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
   and the installed copy answers `android sdk install --help`,
   so issue 2622 was closed as not holding.
+  Run 2 merged main (`904f005a34`) and fixed the two findings of
+  `${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`:
+  `5594cf9b6e` makes the prune refuse a caller-named `--lock` from the read that finds it missing,
+  since a check before the read can be outrun by a concurrent rename;
+  `6319dce3c2` makes observation,
+  the component and target listings and the lock comparison name the rustup channel a row does
+  (`packageId`,
+  else the version),
+  not the locked version;
+  `8a6659eef8` passes `RUSTUP_AUTO_INSTALL=0` to the two parts listings,
+  because the installed rustup 1.29.2 answers a listing for an absent channel by installing it.
+  The third finding,
+  a `packageId` requirement on `cargo-git` rows,
+  stays as it is:
+  no entry uses that route and it goes to the owner as a choice.
+  `7477b4eef0` then makes the rustup observation ask `rustup which --toolchain <channel> rustc`,
+  because a listed name cannot tell a host triple from a channel date
+  and a row naming `nightly` was read as the dated install;
+  `30ca607fe5` makes the prune refuse a `cargo-binstall` row with no `version` text,
+  which it had read as protecting nothing while deleting the crate that row names.
+  Items 3511,
+  3512 and 2623 were checked against the real service and tool:
+  across 17 406 release assets of `cli/cli`,
+  `jj-vcs/jj` and `astral-sh/uv`,
+  7 301 carry a `sha256:` digest of 64 lowercase hex characters,
+  10 105 carry none,
+  and none carry another algorithm
+  (`rust-lang/rustup` publishes no GitHub release:
+  its releases endpoint answered `[]`);
+  the service decodes a percent-encoded tag path segment (`v2%2E103%2E3` answered 200),
+  answers 400 to a raw `%`,
+  and ends the address at a raw `#` (the fragment is never sent,
+  so `v2.103#3` asked for `v2.103` and got 404);
+  `rustup component list --installed --toolchain stable` prints `clippy-x86_64-unknown-linux-gnu`,
+  `rustup which --toolchain nightly-2026-10-30 rustc` prints that toolchain's path,
+  and `RUSTUP_AUTO_INSTALL=0 rustup which --toolchain stable-aarch64-apple-darwin rustc` exits 1.
+  Run 3 merged main again (`0512b66f1b`) and fixed the four findings of
+  `${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`,
+  all in the prune except the last:
+  `96c97c19e3` makes a crate directory the version scan cannot read refuse the prune
+  instead of reading as an empty crate,
+  which removed the whole directory including a locked version;
+  `6db38989cb` lists the installed versions before any lock is read,
+  so an installation that lands while the locks are read is never in the list the run deletes from;
+  `0952976ad5` repoints `current` to the newest finished version before deleting,
+  so a run killed in between leaves a link that resolves;
+  `0059d5e8fc` makes a moving channel (`stable`) prove it still holds the release the lock records
+  by running the `rustc` that `rustup which` resolved,
+  which only a hand-written `packageId` can need,
+  since this plan writes `packageId: "{version}"`.
+  710 of 710 tests and Clippy pass on top of main,
+  the cargo runs inside `systemd-run --user --scope`.
+  Open:
+  the second scan of the prune reaches the same refusal through the same `?`,
+  but an interleaving that makes only that scan fail needs a hook between the deletion loop and the rescan,
+  which the module does not have;
+  a row naming a bare `nightly` with a dated version text still reads `ok`,
+  because the compiler of a bare channel reports no channel date;
+  no real release tag holding `+`,
+  `#` or `/` was found to test the encoder against,
+  so a tag with `/` may still not resolve (it did not before either);
+  the `packageId` requirement on `cargo-git` rows waits for the owner;
+  issue comments for 2623,
+  3511 and 3512 wait for the merge.
+  One probe side effect from run 2:
+  `rustup component list --installed --toolchain 1.79.0` installed that toolchain in the real rustup home
+  before the `RUSTUP_AUTO_INSTALL=0` guard existed,
+  and it was uninstalled again from there;
+  `1.99.0-x86_64-unknown-linux-gnu`,
+  which no step of these rounds installed,
+  appeared in the same home during run 2.
+  Run 3 probed only an installed channel on the real home and an absent one in a throwaway `RUSTUP_HOME`.
   The review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`) names a race on an explicit `--lock`,
   which main has worse because it always deletes,
   and rustup observation and reconciliation looking at different toolchains,
@@ -381,6 +453,36 @@ The old tree kept for the rollback stays until the owner deletes it.
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
   which it uninstalled.
   `1.99.0` also appeared there during the round and no step it reports installed it.
+  Run 2 of its agent reports the first review's findings fixed,
+  run 3 fixed the second review's,
+  and run 4 fixed the four of the third
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`),
+  all in the prune:
+  `78a3967387` removes a crate directory with `remove_dir`,
+  so a version another run installed after the scan is not carried away with it;
+  `19d9fb19ff` repoints an archive's `current` before its old versions go,
+  as the cargo route already did;
+  `afa323c042` removes a crate's `current` link before its versions when no lock names the crate,
+  and still leaves a link that only forwards to the other root alone;
+  `554079b3d9` restates any failure that follows a deletion with what was already removed,
+  instead of the scan's fixed `nothing was deleted`.
+  The fifth finding,
+  a lock another command replaces between this run's read and its deletions,
+  stays as it is under the owner's instruction,
+  and `8beb0b8529` says so beside the prune's rules in the package README,
+  with the fact that a version arriving after the scan is never in the plan.
+  715 of 715 tests and Clippy pass on top of main (`0d77dbaa99`),
+  and every cargo command ran inside `systemd-run --user --scope`.
+  One suite run under load average 86 failed two `never_start_another_shadow` tests on their five-second
+  bound;
+  both pass alone in under a quarter of a second.
+  Open:
+  a row naming a bare `nightly` with a dated version text still reads `ok`,
+  the tag characters `+`,
+  `#` and `/` were never tested against a real release tag,
+  the `packageId` requirement on `cargo-git` rows waits for the owner,
+  and the issue comments for 2623,
+  3511 and 3512 wait for this branch to land.
   `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
   before that,
   a branch outside the wrapper got an empty review.
