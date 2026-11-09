@@ -737,6 +737,11 @@ and symbolic links.
 Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
+A selection that names repository paths asks about each one as `:(top,literal)<path>`,
+and that listing runs real Git with `--no-literal-pathspecs`,
+so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
+`--literal-pathspecs`)
+cannot make the name match nothing and leave the file in the source uncopied.
 A bare repository has no source root and synchronizes an empty set.
 The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
 a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
