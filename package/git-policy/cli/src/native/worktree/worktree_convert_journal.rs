@@ -46,9 +46,6 @@ pub const TEMPORARY_PREFIX: &str = "cli-git-convert.tmp.";
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeConvertJournal";
 
-/// The most bytes of a journal or a small registration file that are read.
-const SMALL_FILE_LIMIT: u64 = 1 << 20;
-
 /// The first line of every journal.
 const JOURNAL_HEADER: &str = "cli-git-convert v1";
 
@@ -119,7 +116,7 @@ impl Phase {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConvertJournal = { phase: Phase; token: string; path: string; oldIdentity: ObjectId; gitFile: Uint8Array; newIdentity?: ObjectId };
+/// type ConvertJournal = { phase: Phase; token: string; path: string; oldIdentity: ObjectId; gitFile: Uint8Array; newIdentity?: ObjectId; syncedMs?: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Journal {
@@ -145,6 +142,14 @@ pub struct Journal {
     /// so a
     ///  directory at the converting name that the journal has no identity for is foreign.
     pub new_identity: Option<ObjectId>,
+    /// When the proving pass that made the copy equal to the original finished,
+    /// in milliseconds after the epoch;
+    /// absent in
+    ///  a journal written by an earlier release.
+    /// The removal compares the contents of a file whose change time is at or
+    ///  after this instant,
+    /// because no other compared field can see such a change.
+    pub synced_ms: Option<i64>,
 }
 
 /// What:
@@ -208,6 +213,16 @@ fn number_from_digits<Number: std::str::FromStr>(digits: String) -> Option<Numbe
 /// ```
 fn sync_directory_of(admin: &Path) -> std::io::Result<()> {
     return crate::subvolume_file_write_steps::sync_directory_to_disk(admin);
+}
+
+/// The clock reading the journal records:
+/// milliseconds after the epoch,
+/// and nothing before it.
+pub fn now_milliseconds() -> i64 {
+    return match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+        Err(_before_epoch) => 0,
+    };
 }
 
 /// What:
@@ -348,7 +363,7 @@ impl Journal {
     /// The journal text.
     fn encode(&self) -> String {
         return format!(
-            "{JOURNAL_HEADER}\nphase={}\ntoken={}\npath={}\nold_identity={}\ngit_file={}\nnew_identity={}\n",
+            "{JOURNAL_HEADER}\nphase={}\ntoken={}\npath={}\nold_identity={}\ngit_file={}\nnew_identity={}\nsynced_ms={}\n",
             self.phase.name(),
             self.token,
             hex(self.path.as_slice()),
@@ -356,6 +371,10 @@ impl Journal {
             hex(self.git_file.as_slice()),
             match self.new_identity {
                 Some(identity) => identity.encode(),
+                None => String::from("-"),
+            },
+            match self.synced_ms {
+                Some(milliseconds) => milliseconds.to_string(),
                 None => String::from("-"),
             }
         );
@@ -387,6 +406,8 @@ impl Journal {
             old_identity,
             git_file: unhex(field_of(text, "git_file").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
             new_identity,
+            // A journal written by an earlier release has no proof time; the removal then compares every file's contents.
+            synced_ms: field_of(text, "synced_ms").and_then(number_from_digits),
         });
     }
 
@@ -453,50 +474,12 @@ impl Journal {
     /// if one exists.
     pub fn load(admin: &Path) -> Result<Option<Journal>, MigrateError> {
         let path: PathBuf = admin.join(JOURNAL_NAME);
-        match read_plain_file(path.as_path(), SMALL_FILE_LIMIT) {
+        match crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT) {
             Ok(bytes) => return Journal::decode(String::from_utf8_lossy(bytes.as_slice()).as_ref()).map(Some),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(MigrateError::io("read the conversion journal", path.as_path(), &error)),
         }
     }
-}
-
-/// What:
-///  The bytes of the plain file at `path`,
-/// opened without blocking and without following a link,
-/// refused when it is anything
-///  else or larger than `limit`.
-/// Why:
-///   Opening a named pipe for reading waits for a writer,
-/// and a command that waits while it owns the conversion blocks every
-///  other command that wants it;
-/// the type is read from the open handle,
-/// and the read is bounded.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function readPlainFile(path: string, limit: number): Buffer; // throws
-/// ```
-pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path)?;
-    if !file.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "it is not a plain file (a named pipe, a device or a directory)"));
-    }
-    let mut bytes: Vec<u8> = Vec::new();
-    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
-    if bytes.len() as u64 > limit {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
-    }
-    return Ok(bytes);
-}
-
-/// The text of the plain file at `path`,
-/// read like `read_plain_file`.
-pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
-    return match String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?) {
-        Ok(text) => Ok(text),
-        Err(_not_text) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text")),
-    };
 }
 
 /// Whether `found` is the object the journal recorded as `recorded`:

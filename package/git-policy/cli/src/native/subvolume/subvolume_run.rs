@@ -24,6 +24,7 @@ use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::Layout;
+use crate::subvolume_pass_report::what_a_pass_could_not_carry;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -33,6 +34,48 @@ use std::time::Instant;
 /// relative to a checkout,
 /// of the lock the migration holds during its last pass.
 pub const INDEX_LOCK: &str = ".git/index.lock";
+
+/// What:
+///  The paths recorded in the plain file at `path`,
+/// read line by line from a handle opened without waiting.
+/// Why:
+///   Both cleanup modes call `Run::open` before they do anything,
+/// and the writer has no bound on how many paths a list
+///  holds,
+/// so a whole-file cap here was a bound the writer did not share:
+/// the migration could write a safeguard it
+///  then refused to reopen,
+/// which blocked the rollback and the removal until a person edited the file.
+/// Reading
+///  line by line holds the same paths the run needs and not the record's bytes twice,
+/// and a named pipe or
+///  device at the name is refused by the plain-file open.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function readUnreadableList(path: string): Promise<Set<string>>;
+/// ```
+fn read_unreadable_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
+    let file: std::fs::File = crate::plain_file::open_plain_file(path)?;
+    let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(file);
+    let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut line: Vec<u8> = Vec::new();
+    loop {
+        line.clear();
+        let read: usize = std::io::BufRead::read_until(&mut reader, b'\n', &mut line)?;
+        if read == 0 {
+            break;
+        }
+        if line.last() == Some(&b'\n') {
+            line.pop();
+        }
+        if line.is_empty() {
+            continue;
+        }
+        listed.insert(PathBuf::from(String::from_utf8_lossy(line.as_slice()).as_ref()));
+    }
+    return Ok(listed);
+}
 
 /// What:
 ///  One command's working state.
@@ -77,16 +120,8 @@ impl Run<'_> {
         say: &'a mut dyn FnMut(&str),
     ) -> Result<Run<'a>, MigrateError> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
-        let unreadable: BTreeSet<PathBuf> = match std::fs::read_to_string(&layout.unreadable_path) {
-            Ok(text) => {
-                let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
-                for line in text.lines() {
-                    if !line.is_empty() {
-                        listed.insert(PathBuf::from(line));
-                    }
-                }
-                listed
-            }
+        let unreadable: BTreeSet<PathBuf> = match read_unreadable_list(layout.unreadable_path.as_path()) {
+            Ok(listed) => listed,
             // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
             // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
@@ -192,26 +227,8 @@ impl Run<'_> {
             )
             .as_str(),
         );
-        for path in &stats.special_skipped {
-            self.line(format!("{label}: not recreated (a socket or device node): {}", path.display()).as_str());
-        }
-        if stats.losses.owner > 0 || stats.losses.extended_attributes > 0 || stats.losses.mode > 0 || stats.losses.times > 0 {
-            self.line(
-                format!(
-                    "{label}: could not set the owner of {} entries, the permission bits of {}, the times of {}, and {} extended attributes (not running as the owner or as root)",
-                    stats.losses.owner, stats.losses.mode, stats.losses.times, stats.losses.extended_attributes
-                )
-                .as_str(),
-            );
-        }
-        for path in &stats.conflicts {
-            self.line(format!("{label}: kept the newer or differently typed entry {} in the destination; it was not replaced", path.display()).as_str());
-        }
-        if stats.left_out > 0 {
-            self.line(format!("{label}: {} entr(ies) absent from the destination were left out because they predate the catch-up", stats.left_out).as_str());
-        }
-        if stats.recopied > 0 {
-            self.line(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied).as_str());
+        for text in what_a_pass_could_not_carry(label, &stats) {
+            self.line(text.as_str());
         }
         return Ok(stats);
     }
@@ -223,7 +240,11 @@ impl Run<'_> {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
-        return MigrateError::from_io_result(std::fs::write(&self.layout.unreadable_path, text), "write the list of unreadable files", self.layout.unreadable_path.as_path());
+        return MigrateError::from_io_result(
+            crate::private_storage::replace_private_file(&self.layout.unreadable_path, text.as_bytes()),
+            "write the list of unreadable files",
+            self.layout.unreadable_path.as_path(),
+        );
     }
 
     /// Stop here when the control asked for a simulated kill at this point.
