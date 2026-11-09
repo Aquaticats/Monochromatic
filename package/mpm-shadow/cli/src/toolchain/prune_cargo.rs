@@ -249,25 +249,34 @@ pub(super) fn named_by_all(
 /// ```ts
 /// function pruneArchives(scope: Scope, named: Map<string, NamedArchive>, dryRun: boolean): string[]
 /// ```
-fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run: bool) -> Result<Vec<PathBuf>, ToolchainError> {
+fn prune_archives(
+    scope: &Scope,
+    named: &BTreeMap<String, NamedArchive>,
+    dry_run: bool,
+    removed: &mut Vec<PathBuf>,
+) -> Result<(), ToolchainError> {
     let present = present_archive_versions(&scope.toolchain_root, named);
     if !dry_run {
         // What: every named archive tool's `current` is repointed before anything is deleted.
         // Why: it names the newest finished version, which is never one of the deletions below,
         // so moving the link first leaves a run killed at any later point with a link that resolves.
         for (id, archive) in named {
-            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)?;
+            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)
+                .map_err(|error| return after_removing(error, removed))?;
         }
     }
-    let mut removed: Vec<PathBuf> = Vec::new();
     for (id, version) in plan_archive_prune(&present) {
-        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)?;
+        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)
+            .map_err(|error| return after_removing(error, removed))?;
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
+            return Err(after_removing(
+                ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())),
+                removed,
+            ));
         }
         removed.push(directory);
     }
-    return Ok(removed);
+    return Ok(());
 }
 
 /// What:
@@ -318,7 +327,20 @@ pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String,
 
 /// The refusal a scan raises for one directory whose contents it could not read.
 fn cannot_walk(directory: &Path, error: &std::io::Error) -> ToolchainError {
-    return ToolchainError::failure(format!("cannot read {}: {error}; nothing was deleted", directory.display()));
+    return ToolchainError::failure(format!("cannot read {}: {error}", directory.display()));
+}
+
+/// What:
+/// `error`, restated with what this run has already removed from the tree.
+/// Why:
+/// The report is the only place a person learns what a failed run deleted,
+/// so a failure after a removal must name what is gone and never say that nothing was deleted.
+pub(super) fn after_removing(error: ToolchainError, removed: &[PathBuf]) -> ToolchainError {
+    if removed.is_empty() {
+        return ToolchainError { kind: error.kind, message: format!("{}; nothing was deleted", error.message) };
+    }
+    let names: String = removed.iter().map(|path| return path.display().to_string()).collect::<Vec<String>>().join(", ");
+    return ToolchainError { kind: error.kind, message: format!("{}; already removed: {names}", error.message) };
 }
 
 /// What:
@@ -343,7 +365,7 @@ pub fn prune_toolchain(
     // What: the versions installed now are listed before any lock is read.
     // Why: a version that finishes installing after this point is not in this list, so this run cannot delete it.
     // Read after the locks, such a version would look like one no lock names, which is exactly what gets deleted.
-    let present = present_versions(&scope.toolchain_root)?;
+    let present = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &[]))?;
     let mut lock_files: Vec<PathBuf> = vec![scope.lock_file.clone()];
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
@@ -382,12 +404,15 @@ pub fn prune_toolchain(
     let mut removed: Vec<PathBuf> = Vec::new();
     for (_crate_name, _version, directory) in planned {
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
+            return Err(after_removing(
+                ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())),
+                &removed,
+            ));
         }
         removed.push(directory);
     }
     if !dry_run {
-        let after = present_versions(&scope.toolchain_root)?;
+        let after = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &removed))?;
         for crate_name in present.keys() {
             let crate_dir: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(crate_name);
             let remaining: bool = match after.get(crate_name) {
@@ -405,11 +430,11 @@ pub fn prune_toolchain(
             // `remove_dir` is what keeps a version installed after the scan above: an empty directory goes,
             // and a directory that is no longer empty stays with whatever another run put there.
             if !remaining && had_versions {
-                remove_crate_directory(&crate_dir)?;
+                remove_crate_directory(&crate_dir).map_err(|error| return after_removing(error, &removed))?;
             }
         }
     }
-    removed.extend(prune_archives(scope, &named_archive_tools, dry_run)?);
+    prune_archives(scope, &named_archive_tools, dry_run, &mut removed)?;
     return Ok(removed);
 }
 

@@ -11,7 +11,8 @@ use std::path::PathBuf;
 use super::cargo_installs::{current_link, running_version, version_directory};
 use super::fakes::Rig;
 use super::fakes_cargo::finish_install;
-use super::prune_cargo::{PresentVersion, named_by_all, named_versions, plan_prune, present_versions, prune_toolchain};
+use super::error::ToolchainError;
+use super::prune_cargo::{PresentVersion, after_removing, named_by_all, named_versions, plan_prune, present_versions, prune_toolchain};
 use super::worktrees::worktree_lock_files;
 
 fn present(entries: &[(&str, &[&str])]) -> BTreeMap<String, Vec<PresentVersion>> {
@@ -296,7 +297,22 @@ fn a_crate_directory_the_scan_cannot_read_is_an_error_and_not_an_empty_crate() {
     set_mode(&crate_dir, 0o755);
     let error = scanned.expect_err("a directory it cannot read proves nothing");
     assert!(error.message.contains(&crate_dir.display().to_string()), "the message names the directory: {error}");
-    assert!(error.message.contains("nothing was deleted"), "{error}");
+}
+
+/// A refusal carries what the run has already removed; with nothing removed it says so instead,
+/// so a failure after a deletion never claims that nothing was deleted.
+#[test]
+fn a_refusal_after_a_removal_names_what_went_and_never_claims_nothing_was_deleted() {
+    let gone: PathBuf =
+        PathBuf::from("/tree/cargo/fd-find/1.1.0");
+    let scan = "cannot read /tree/cargo: Permission denied (os error 13)";
+    let after = after_removing(ToolchainError::failure(scan), std::slice::from_ref(&gone));
+    assert!(after.message.contains(&gone.display().to_string()), "the message names what was removed: {after}");
+    assert!(after.message.contains("already removed"), "{after}");
+    assert!(!after.message.contains("nothing was deleted"), "{after}");
+    let before = after_removing(ToolchainError::failure(scan), &[]);
+    assert!(before.message.contains("nothing was deleted"), "a failure before any removal says so: {before}");
+    assert_eq!(before.kind, ToolchainError::failure("").kind, "the refusal keeps the kind it was raised with");
 }
 
 /// A prune that cannot read a crate directory deletes nothing and says so,
