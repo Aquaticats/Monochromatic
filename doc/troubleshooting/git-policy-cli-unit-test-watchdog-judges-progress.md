@@ -411,6 +411,14 @@ The judge and flush controls after the fixes:
 `20 tests run: 20 passed`
 (`run_progress` 13, `subvolume_file_write_steps` 7).
 
+The moving-run control was then asked the question the review said it could not answer.
+With the child's 4 KiB write removed and its sleeps kept,
+`a_run_that_keeps_moving_past_its_window_is_not_ended` fails as it must:
+`the moving child ended on its own:` and
+`the unit-test run showed no sign of work for 1.0 s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started or ended): a test is stuck`.
+Before the fix the same control passed with the write removed, which is the finding.
+The write was restored and the control passed again (`PASS [ 3.031s]`).
+
 What the review did not measure:
 no test in this crate was run with an exhausted descriptor table,
 so both judge findings are shown by made-up looks and times, not by a real stuck process without descriptors.
