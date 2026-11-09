@@ -20,7 +20,7 @@ import {
 /**
  The encoder adapter entry point, run exactly as the toml-test runner runs it.
  */
-const ENCODER = fileURLToPath(new URL('./encode.ts', import.meta.url,),);
+const ENCODER = fileURLToPath(new URL('encode.ts', import.meta.url,),);
 
 /**
  Run the encoder adapter over `input` on stdin.
@@ -35,7 +35,7 @@ const ENCODER = fileURLToPath(new URL('./encode.ts', import.meta.url,),);
  ```
  */
 function runEncoder({ input, }: { readonly input: string; },): {
-  readonly status: number | null;
+  readonly status: number;
   readonly stdout: string;
   readonly stderr: string;
 } {
@@ -44,9 +44,9 @@ function runEncoder({ input, }: { readonly input: string; },): {
     encoding: 'utf8',
   },);
   return {
-    status: result.status,
-    stdout: result.stdout,
-    stderr: result.stderr,
+    status: result.status ?? (-1),
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
   };
 }
 
@@ -94,7 +94,9 @@ await describe({
     it({
       name: 'rejects a tagged local time that carries a newline',
       fn: async () => {
-        const result = runEncoder({ input: '{"d":{"type":"time-local","value":"10:00:00\\nbad = 1"}}', },);
+        const result = runEncoder({
+          input: String.raw`{"d":{"type":"time-local","value":"10:00:00\nbad = 1"}}`,
+        },);
         expect(result.status,)
           .toBe(1,);
         expect(result.stdout,)

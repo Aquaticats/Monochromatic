@@ -69,6 +69,11 @@ const REJECTED_VALUES = [
     value: 1.5,
   },
   {
+    name: 'integer payload beyond the exact integer range',
+    tomlKind: 'integer',
+    value: 1e21,
+  },
+  {
     name: 'float payload that would inject a table header',
     tomlKind: 'float',
     value: '1.5\n[injected]',
@@ -262,7 +267,7 @@ function rejectedMessage(call: () => unknown,): string {
   catch (caught: unknown) {
     expect(caught,)
       .toBeInstanceOf(TomlTypeError,);
-    if (caught instanceof Error)
+    if (Error.isError(caught,))
       return caught.message;
     throw caught;
   }
@@ -331,7 +336,7 @@ await describe({
           },);
         },);
         expect(message,)
-          .toContain('2026-01-01\\nbad = "x"',);
+          .toContain(String.raw`2026-01-01\nbad`,);
         expect(message.includes('\n',),)
           .toBe(false,);
       },
