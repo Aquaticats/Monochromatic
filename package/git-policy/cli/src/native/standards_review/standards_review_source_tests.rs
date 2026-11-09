@@ -9,12 +9,14 @@ use std::path::PathBuf;
 /// and rejects malformed output.
 #[test]
 fn batch_output_is_read_by_size_with_missing_names_absent() {
-    let names: Vec<String> = vec![String::from("a.ts"), String::from("gone.ts"), String::from("b.rs")];
+    let names: Vec<ChangedPath> = ["a.ts", "gone.ts", "b.rs"].iter().map(|name| return ChangedPath::from_bytes(name.as_bytes().to_vec())).collect();
     let output: &[u8] = b"oid1 blob 5\nx\ny\nz\nHEAD:gone.ts missing\noid2 blob 0\n\n";
-    let texts: BTreeMap<String, String> = parse_batch(output, names.as_slice()).expect("parsed");
-    assert_eq!(texts.get("a.ts").map(String::as_str), Some("x\ny\nz"));
-    assert_eq!(texts.get("b.rs").map(String::as_str), Some(""));
-    assert!(!texts.contains_key("gone.ts"));
+    let texts: BTreeMap<ChangedPath, String> = parse_batch(output, names.as_slice()).expect("parsed");
+    let named = |text: &str| return ChangedPath::from_bytes(text.as_bytes().to_vec());
+    assert_eq!(texts.get(&named("a.ts")).map(String::as_str), Some("x\ny\nz"));
+    assert_eq!(texts.get(&named("b.rs")).map(String::as_str), Some(""));
+    assert!(!texts.contains_key(&named("gone.ts")));
+    assert!(parse_batch(b"oid1 blob 5\nx\ny\nz\noid2 blob 5\nx\ny\nz\n", &names[..1]).is_err(), "a reply nothing asked for is not text for the last name");
     assert!(parse_batch(b"", names.as_slice()).is_err());
     assert!(parse_batch(b"oid1 tree 3\nabc\n", &names[..1]).is_err());
     assert!(parse_batch(b"oid1 blob 9\nabc\n", &names[..1]).is_err());
@@ -37,12 +39,13 @@ fn a_landed_commit_is_read_in_two_starts_worth_of_data() {
     git(root.as_path(), &["add", "--", "keep.ts", "new.mjs"]);
     git(root.as_path(), &["commit", "--quiet", "--message=change"]);
     let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
-    let names: Vec<String> = git_text(root.as_path(), &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"]).split('\n').map(String::from).collect();
+    let names: Vec<ChangedPath> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
     let commit: LandedCommit = read_landed_commit(&git_context(), root.as_path(), sha.as_str(), "change", names.as_slice()).expect("read");
     assert_eq!(commit.patch, git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]) + "\n");
-    assert_eq!(commit.contents.get("keep.ts").map(String::as_str), Some("one\nchanged\n"));
-    assert_eq!(commit.contents.get("new.mjs").map(String::as_str), Some("fresh\n"));
-    assert!(!commit.contents.contains_key("gone.rs"), "a deleted file has no new-side text");
+    let named = |text: &str| return ChangedPath::from_bytes(text.as_bytes().to_vec());
+    assert_eq!(commit.contents.get(&named("keep.ts")).map(String::as_str), Some("one\nchanged\n"));
+    assert_eq!(commit.contents.get(&named("new.mjs")).map(String::as_str), Some("fresh\n"));
+    assert!(!commit.contents.contains_key(&named("gone.rs")), "a deleted file has no new-side text");
     assert_eq!(commit.sha, sha);
     remove(parent.as_path());
 }
@@ -53,7 +56,7 @@ fn an_unknown_commit_fails_with_the_command_named() {
     let parent: PathBuf = fixture("source-unknown");
     let root: PathBuf = repository(parent.as_path(), "repo");
     let missing: String = "0".repeat(40);
-    let failure: String = read_landed_commit(&git_context(), root.as_path(), missing.as_str(), "s", &[String::from("a.ts")]).expect_err("unknown");
+    let failure: String = read_landed_commit(&git_context(), root.as_path(), missing.as_str(), "s", &[ChangedPath::from_bytes(b"a.ts".to_vec())]).expect_err("unknown");
     assert!(failure.contains("git show"), "{failure}");
     remove(parent.as_path());
 }
@@ -73,9 +76,9 @@ fn names_and_message_are_read_raw() {
     }
     git(root.as_path(), &["commit", "--quiet", "--message=feat(a): subject line", "--message=body text"]);
     let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
-    let mut found: Vec<String> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
+    let mut found: Vec<ChangedPath> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
     found.sort();
-    let mut expected: Vec<String> = awkward.iter().map(|name| return String::from(*name)).collect();
+    let mut expected: Vec<ChangedPath> = awkward.iter().map(|name| return ChangedPath::from_bytes(name.as_bytes().to_vec())).collect();
     expected.sort();
     assert_eq!(found, expected);
     let message: String = read_message(&git_context(), root.as_path(), sha.as_str()).expect("message");

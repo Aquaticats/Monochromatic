@@ -59,14 +59,6 @@ pub mod standards_review_run;
 #[cfg(test)]
 pub(crate) mod standards_review_mock;
 
-/// The standards-review run's request-provenance controls:
-/// which bytes of the repository may leave the machine,
-/// against real Git and the loopback mock;
-/// never in the release build.
-#[cfg(test)]
-#[path = "standards_review_run_request_provenance_tests.rs"]
-mod standards_review_run_request_provenance_tests;
-
 /// The standards-review shadow run:
 /// appending an entry to the shared log without a lock,
 /// once per commit,

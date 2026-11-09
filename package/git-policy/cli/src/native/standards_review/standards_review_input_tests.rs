@@ -3,9 +3,10 @@
 
 use super::*;
 
-/// Owned names from literals.
-fn names(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| return String::from(*item)).collect();
+/// Owned names from literals,
+/// as Git's NUL-separated names give them.
+fn names(items: &[&str]) -> Vec<ChangedPath> {
+    return items.iter().map(|item| return ChangedPath::from_bytes(item.as_bytes().to_vec())).collect();
 }
 
 /// A commit whose patch has `patch_lines` lines (no final newline) and whose files are given.
@@ -15,7 +16,7 @@ fn commit_with(patch_lines: usize, files: &[(&str, &str)]) -> LandedCommit {
         sha: String::from("0123456789abcdef"),
         subject: String::from("subject"),
         patch,
-        contents: files.iter().map(|(name, text)| return (String::from(*name), String::from(*text))).collect(),
+        contents: files.iter().map(|(name, text)| return (ChangedPath::from_bytes(name.as_bytes().to_vec()), String::from(*text))).collect(),
     };
 }
 
@@ -30,8 +31,8 @@ fn plan_follows_the_names() {
     assert_eq!(plan_for(&names(&["doc/a.md", TRACKED_LOG_RELATIVE])), Plan::NoCode);
     assert_eq!(plan_for(&names(&["a.tsx.md", "b.TS", "c.json"])), Plan::NoCode);
     for suffix in CODE_SUFFIXES {
-        let name: String = format!("src/x{suffix}");
-        assert_eq!(plan_for(&[name.clone(), String::from("README.md")]), Plan::Review(vec![name]));
+        let name: ChangedPath = ChangedPath::from_bytes(format!("src/x{suffix}").into_bytes());
+        assert_eq!(plan_for(&[name.clone(), ChangedPath::from_bytes(b"README.md".to_vec())]), Plan::Review(vec![name]));
     }
 }
 
@@ -108,7 +109,8 @@ fn excerpts_stop_at_the_file_cap() {
     let many: Vec<String> = (0..=MAX_EXCERPT_FILES).map(|number| return format!("f{number}.rs")).collect();
     let files: Vec<(&str, &str)> = many.iter().map(|name| return (name.as_str(), "x")).collect();
     let commit: LandedCommit = commit_with(1, files.as_slice());
-    let input: ReviewInput = build_input(&commit, many.as_slice());
+    let paths: Vec<ChangedPath> = many.iter().map(|name| return ChangedPath::from_bytes(name.as_bytes().to_vec())).collect();
+    let input: ReviewInput = build_input(&commit, paths.as_slice());
     assert_eq!(input.code_file_count, many.len());
     assert_eq!(input.model_input.matches("// candidate excerpt of").count(), MAX_EXCERPT_FILES);
     assert!(!input.model_input.contains(many[MAX_EXCERPT_FILES].as_str()));

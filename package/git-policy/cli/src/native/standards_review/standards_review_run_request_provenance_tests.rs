@@ -14,6 +14,7 @@
 //! ```
 
 use crate::standards_review_entry::SHORT_SHA_LENGTH;
+use crate::standards_review_input::ChangedPath;
 use crate::standards_review_mock::{ANSWER_WINDOW, Answer, CONTROL_CEILING, Mock, http_reply};
 use crate::standards_review_run::{ReviewOptions, ReviewOutcome, review_landed};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
@@ -83,7 +84,7 @@ fn review_commit(directory: &Path, root: &Path, sha: &str, answer: Answer) -> Re
     let subject: String = commit_subject(read_message(&context, root, sha).expect("the message").as_str());
     let mock: Mock = Mock::start(answer);
     let given: ReviewOptions = options(directory, mock.url.as_str());
-    let read = |files: &[String]| return read_landed_commit(&context, root, sha, subject.as_str(), files);
+    let read = |files: &[ChangedPath]| return read_landed_commit(&context, root, sha, subject.as_str(), files);
     let outcome: ReviewOutcome = review_landed(names.as_slice(), sha, subject.as_str(), &read, &given, &fixed_clock);
     let seen: String = mock.finish().seen;
     let log: String = std::fs::read_to_string(given.log_path.as_path()).unwrap_or_default();

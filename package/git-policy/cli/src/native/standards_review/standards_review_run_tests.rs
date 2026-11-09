@@ -14,8 +14,8 @@ impl<Lookup: Fn(&str) -> Option<String>> EnvironmentVariables for Lookup {
 
 /// A function-like value with the right shape is a reader in these controls:
 /// the shipped caller writes a small struct that holds the state.
-impl<Read: Fn(&[String]) -> Result<LandedCommit, String>> LandedCommitReader for Read {
-    fn read(&self, files: &[String]) -> Result<LandedCommit, String> {
+impl<Read: Fn(&[ChangedPath]) -> Result<LandedCommit, String>> LandedCommitReader for Read {
+    fn read(&self, files: &[ChangedPath]) -> Result<LandedCommit, String> {
         return self(files);
     }
 }
@@ -43,13 +43,14 @@ fn clock() -> impl Fn() -> u64 {
     };
 }
 
-/// One code name.
-fn code_names() -> Vec<String> {
-    return vec![format!("src/a{}", CODE_SUFFIXES[0]), String::from("README.md")];
+/// One code name and one name that is not code,
+/// as `git diff-tree -z` reports them.
+fn code_names() -> Vec<ChangedPath> {
+    return vec![ChangedPath::from_bytes(format!("src/a{}", CODE_SUFFIXES[0]).into_bytes()), ChangedPath::from_bytes(b"README.md".to_vec())];
 }
 
 /// A reader that returns a small commit with the code file's text.
-fn reader(names: &[String]) -> Result<LandedCommit, String> {
+fn reader(names: &[ChangedPath]) -> Result<LandedCommit, String> {
     let mut commit: LandedCommit = LandedCommit { sha: String::from("sha"), subject: String::from("s"), patch: String::from("patch\n"), ..LandedCommit::default() };
     commit.contents.insert(names[0].clone(), String::from("code\n"));
     return Ok(commit);
@@ -73,10 +74,10 @@ fn a_review_sends_the_built_input_and_logs_the_verdict() {
     let answer: &str = r#"{"answers":[{"choice":"partial","probabilities":[{"value":"yes","probability":0.3},{"value":"partial","probability":0.6},{"value":"no","probability":0.1}]}]}"#;
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", answer)));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    let names: Vec<String> = code_names();
+    let names: Vec<ChangedPath> = code_names();
     let commit: LandedCommit = reader(&names[..1]).expect("commit");
     let expected_body: String = request_body(build_input(&commit, &names[..1]).model_input.as_str());
-    let outcome: ReviewOutcome = review_landed(&names, "0123456789abcdefff", "the subject", &|files: &[String]| return reader(files), &opts, &clock());
+    let outcome: ReviewOutcome = review_landed(&names, "0123456789abcdefff", "the subject", &|files: &[ChangedPath]| return reader(files), &opts, &clock());
     assert!(matches!(&outcome, ReviewOutcome::Reviewed(judged) if judged.top == "partial"), "{outcome:?}");
     assert!(mock.finish().seen.ends_with(expected_body.as_str()));
     let log: String = std::fs::read_to_string(opts.log_path.as_path()).expect("log");
@@ -93,15 +94,15 @@ fn a_review_sends_the_built_input_and_logs_the_verdict() {
 #[test]
 fn failures_are_logged_as_entries() {
     let directory: PathBuf = fixture("run-failures");
-    let names: Vec<String> = code_names();
+    let names: Vec<ChangedPath> = code_names();
     for (key, sha) in [(None, "aaaaaaaaaaaa"), (Some(""), "bbbbbbbbbbbb")] {
         let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", key);
-        let outcome: ReviewOutcome = review_landed(&names, sha, "s", &|files: &[String]| return reader(files), &opts, &clock());
+        let outcome: ReviewOutcome = review_landed(&names, sha, "s", &|files: &[ChangedPath]| return reader(files), &opts, &clock());
         assert!(matches!(&outcome, ReviewOutcome::Reviewed(judged) if judged.outcome == format!("Luna failed: {NO_KEY_MESSAGE}")));
     }
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("500 Internal Server Error", "boom")));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    review_landed(&names, "cccccccccccc", "s", &|files: &[String]| return reader(files), &opts, &clock());
+    review_landed(&names, "cccccccccccc", "s", &|files: &[ChangedPath]| return reader(files), &opts, &clock());
     mock.finish();
     let log: String = std::fs::read_to_string(opts.log_path.as_path()).expect("log");
     assert_eq!(log.matches("Named superlinear cost:\n  unjudged\n").count(), 3);
@@ -115,7 +116,7 @@ fn a_silent_gateway_costs_at_most_the_quiet_window() {
     let directory: PathBuf = fixture("run-silent");
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    review_landed(&code_names(), "sha", "s", &|files: &[String]| return reader(files), &opts, &clock());
+    review_landed(&code_names(), "sha", "s", &|files: &[ChangedPath]| return reader(files), &opts, &clock());
     mock.finish();
     assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").contains("Luna failed: The operation was aborted due to timeout"));
     remove(directory.as_path());
@@ -128,11 +129,15 @@ fn a_silent_gateway_costs_at_most_the_quiet_window() {
 fn silent_and_skipped_commits_read_nothing() {
     let directory: PathBuf = fixture("run-skip");
     let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", Some("k"));
-    let forbidden = |_: &[String]| -> Result<LandedCommit, String> { panic!("the reader must not be called") };
+    let forbidden = |_: &[ChangedPath]| -> Result<LandedCommit, String> { panic!("the reader must not be called") };
+    let code_free: ChangedPath = ChangedPath::from_bytes(b"doc/a.md".to_vec());
     assert_eq!(review_landed(&[], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::NoEntry);
-    assert_eq!(review_landed(&[String::from(TRACKED_LOG_RELATIVE)], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::NoEntry);
+    assert_eq!(
+        review_landed(&[ChangedPath::from_bytes(TRACKED_LOG_RELATIVE.as_bytes().to_vec())], "sha", "s", &forbidden, &opts, &clock()),
+        ReviewOutcome::NoEntry
+    );
     assert!(!opts.log_path.exists(), "no entry creates no log");
-    assert_eq!(review_landed(&[String::from("doc/a.md")], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::Skipped);
+    assert_eq!(review_landed(&[code_free], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::Skipped);
     assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").starts_with("- Skipped:\n"));
     remove(directory.as_path());
 }
@@ -144,14 +149,14 @@ fn silent_and_skipped_commits_read_nothing() {
 fn read_and_write_failures_are_outcomes() {
     let directory: PathBuf = fixture("run-faults");
     let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", None);
-    let unread = review_landed(&code_names(), "sha", "s", &|_: &[String]| return Err(String::from("no such commit")), &opts, &clock());
+    let unread = review_landed(&code_names(), "sha", "s", &|_: &[ChangedPath]| return Err(String::from("no such commit")), &opts, &clock());
     assert_eq!(unread, ReviewOutcome::Unread(String::from("no such commit")));
     assert!(!opts.log_path.exists(), "an unread commit creates no log");
     // A file where the log's directory should be: the directory cannot be created, so the log cannot be written.
     std::fs::write(directory.join("not-a-directory"), "").expect("a file in the way");
     let mut blocked: ReviewOptions = opts.clone();
     blocked.log_path = directory.join("not-a-directory").join("log.md");
-    assert!(matches!(review_landed(&code_names(), "sha", "s", &|files: &[String]| return reader(files), &blocked, &clock()), ReviewOutcome::Unwritable(_)));
+    assert!(matches!(review_landed(&code_names(), "sha", "s", &|files: &[ChangedPath]| return reader(files), &blocked, &clock()), ReviewOutcome::Unwritable(_)));
     remove(directory.as_path());
 }
 
@@ -255,11 +260,11 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", r#"{"answers":[{"choice":"no"}]}"#)));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
     assert!(!opts.log_path.exists());
-    let names: Vec<String> = code_names();
-    let first = review_landed(&names, "0123456789abcdefff", "s", &|files: &[String]| return reader(files), &opts, &clock());
+    let names: Vec<ChangedPath> = code_names();
+    let first = review_landed(&names, "0123456789abcdefff", "s", &|files: &[ChangedPath]| return reader(files), &opts, &clock());
     assert!(matches!(first, ReviewOutcome::Reviewed(_)));
     mock.finish();
-    let again = review_landed(&names, "0123456789abcdefff", "s", &|_: &[String]| -> Result<LandedCommit, String> { panic!("a logged commit is not read again") }, &opts, &clock());
+    let again = review_landed(&names, "0123456789abcdefff", "s", &|_: &[ChangedPath]| -> Result<LandedCommit, String> { panic!("a logged commit is not read again") }, &opts, &clock());
     assert_eq!(again, ReviewOutcome::AlreadyLogged);
     let text: String = std::fs::read_to_string(opts.log_path.as_path()).expect("the first entry created the log");
     assert_eq!(text.matches(&"0123456789abcdefff"[..SHORT_SHA_LENGTH]).count(), 1, "the repeated item added nothing");

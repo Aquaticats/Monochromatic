@@ -2,7 +2,7 @@
 //!  The Git reads of the standards-review shadow run,
 //! in as few real-Git starts as the data allows:
 //! one `git show`
-//!  for the patch and one `git cat-file --batch` for the new-side text of the excerpted code files.
+//!  for the patch and one `git cat-file --batch -z` for the new-side text of the excerpted code files.
 //! Why:
 //!  The root `mise.toml` task `shadow-review` starts Git twenty-odd times per landing (`rev-parse`,
 //! `log`,
@@ -16,13 +16,18 @@
 //!  the patch,
 //! and the file texts come in one batch.
 //! A commit with no code files costs no start at all.
+//! A changed path is carried as the bytes Git printed for it:
+//! a path is not text,
+//! and the name Git is asked about must be the name it reported,
+//! or it answers
+//!  with another file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const patch = git('show', '--format=', '--patch', sha); const blobs = catFileBatch(codeFiles.map((name) => `${sha}:${name}`));
+//! const patch = git('show', '--format=', '--patch', sha); const blobs = catFileBatchNul(codeFiles.map((name) => concat(sha, ':', name.bytes, 0)));
 //! ```
 
-use crate::standards_review_input::{LandedCommit, MAX_EXCERPT_FILES};
+use crate::standards_review_input::{ChangedPath, LandedCommit, MAX_EXCERPT_FILES};
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -89,17 +94,23 @@ fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, Str
 /// What:
 ///  Split `git cat-file --batch` output for the requested names into texts;
 /// a name Git reports `missing` has none.
+///  Every byte of the output must belong to one of the requested names,
+/// so a reply nothing asked for is a failure,
+/// not text
+///  hung on the last name.
 /// Why:
 ///   A file the commit deleted has no new-side text,
 /// and a size says where content ends,
-/// never a delimiter.
+/// never a delimiter;
+/// a reply count that differs from the request count means the request named
+///   more or fewer objects than the review meant to ask about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parseBatch({ output, names }): Map<string, string>
+/// parseBatch({ output, names }): Map<ChangedPath, string>
 /// ```
-pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, String>, String> {
-    let mut texts: BTreeMap<String, String> = BTreeMap::new();
+pub fn parse_batch(output: &[u8], names: &[ChangedPath]) -> Result<BTreeMap<ChangedPath, String>, String> {
+    let mut texts: BTreeMap<ChangedPath, String> = BTreeMap::new();
     let mut offset: usize = 0;
     for name in names {
         let Some(relative) = output[offset..].iter().position(is_line_feed_byte) else {
@@ -127,6 +138,9 @@ pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, S
         texts.insert(name.clone(), String::from_utf8_lossy(&output[offset..end]).into_owned());
         offset = end + 1;
     }
+    if offset != output.len() {
+        return Err(format!("git cat-file answered more objects than the {} the review asked for", names.len()));
+    }
     return Ok(texts);
 }
 
@@ -143,7 +157,7 @@ pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, S
 /// ```ts
 /// git('diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha).split('\0').filter(Boolean)
 /// ```
-pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<String>, String> {
+pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<ChangedPath>, String> {
     let request: GitRequest = GitRequest::new(cwd, &["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha]);
     let output = match run_git(context, &request) {
         Ok(done) => done,
@@ -152,10 +166,10 @@ pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<Str
     if !output.succeeded() {
         return Err(format!("git diff-tree {sha} failed: {}", output.error_text()));
     }
-    let mut names: Vec<String> = Vec::new();
+    let mut names: Vec<ChangedPath> = Vec::new();
     for name in output.stdout.split(is_nul_byte) {
         if !name.is_empty() {
-            names.push(String::from_utf8_lossy(name).into_owned());
+            names.push(ChangedPath::from_bytes(name.to_vec()));
         }
     }
     return Ok(names);
@@ -185,26 +199,56 @@ pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<Strin
 }
 
 /// What:
+///  One `git cat-file --batch -z` request body for the objects of `sha` at `names`:
+/// each spec is the commit name,
+/// a colon,
+/// the path's own bytes,
+/// and the NUL byte that ends it.
+/// Why:
+///   A path may contain a line feed,
+/// which would end the request in the middle of a name and let the rest of the name be read as
+///  another object,
+/// and a NUL byte cannot appear in a path,
+/// so NUL is the only framing no name can
+///  reach into.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const specs = names.map((n) => Buffer.concat([utf8(sha), colon, n.bytes, nul]));
+/// ```
+fn batch_request(sha: &str, names: &[ChangedPath]) -> Vec<u8> {
+    let mut specs: Vec<u8> = Vec::new();
+    for name in names {
+        specs.extend_from_slice(sha.as_bytes());
+        specs.push(b':');
+        specs.extend_from_slice(name.as_bytes());
+        specs.push(0);
+    }
+    return specs;
+}
+
+/// What:
 ///  Read the patch and the excerpted files' new-side texts of a landed commit.
 ///  `code_files` are the code names in name order;
-/// only the first `MAX_EXCERPT_FILES` are fetched.
+/// only the first `MAX_EXCERPT_FILES` are fetched,
+/// and each is fetched by its own bytes.
 /// Why:
 ///   It is the whole of the review's Git use:
 /// two starts.
+/// A name Git has no object for (a deleted file,
+/// a name this repository's tree does not hold) is
+///  absent from the texts,
+/// never another object's text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const commit = await readLandedCommit({ context, cwd, sha, subject, codeFiles });
 /// ```
-pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: &str, code_files: &[String]) -> Result<LandedCommit, String> {
+pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: &str, code_files: &[ChangedPath]) -> Result<LandedCommit, String> {
     let patch: String = read_patch(context, cwd, sha)?;
-    let wanted: Vec<String> = code_files.iter().take(MAX_EXCERPT_FILES).cloned().collect();
-    let mut specs: String = String::new();
-    for name in &wanted {
-        specs.push_str(format!("{sha}:{name}\n").as_str());
-    }
-    let mut request: GitRequest = GitRequest::new(cwd, &[OsString::from("cat-file"), OsString::from("--batch")]);
-    request.input = Some(specs.into_bytes());
+    let wanted: Vec<ChangedPath> = code_files.iter().take(MAX_EXCERPT_FILES).cloned().collect();
+    let mut request: GitRequest = GitRequest::new(cwd, &[OsString::from("cat-file"), OsString::from("--batch"), OsString::from("-z")]);
+    request.input = Some(batch_request(sha, wanted.as_slice()));
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(format!("starting git cat-file failed: {error}")),
@@ -212,7 +256,7 @@ pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: 
     if !output.succeeded() {
         return Err(format!("git cat-file failed: {}", output.error_text()));
     }
-    let contents: BTreeMap<String, String> = parse_batch(output.stdout.as_slice(), wanted.as_slice())?;
+    let contents: BTreeMap<ChangedPath, String> = parse_batch(output.stdout.as_slice(), wanted.as_slice())?;
     return Ok(LandedCommit { sha: String::from(sha), subject: String::from(subject), patch, contents });
 }
 
