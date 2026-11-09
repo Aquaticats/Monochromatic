@@ -363,10 +363,12 @@ fn settle_creation(
     let trash: Option<PendingTrash> = finished.trash;
     // Set when the copy deliberately left the destination unfilled, as a source that is still being filled does.
     let mut left_unfilled: bool = false;
+    // Set when the destination is another command's worktree, which carries its proof.
+    let mut another_commands_worktree: bool = false;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
             let copy_ignored_entered: bool = begin_step("copyIgnored");
-            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, copies, &reserved, git.succeeded(), carried.as_deref(), &mut held, &mut left_unfilled, stderr);
+            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, copies, &reserved, git.succeeded(), carried.as_deref(), &mut held, &mut left_unfilled, &mut another_commands_worktree, stderr);
             end_step(copy_ignored_entered);
             match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
@@ -393,6 +395,7 @@ fn settle_creation(
     }
     let unfilled: bool = left_unfilled
         || (copies
+            && !another_commands_worktree
             && !git.succeeded()
             && invocation
                 .destination

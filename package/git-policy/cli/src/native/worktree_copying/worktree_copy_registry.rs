@@ -373,6 +373,34 @@ fn nothing_created(other_commands: Option<String>) -> CreatedWorktrees {
     };
 }
 
+/// What:
+///  Whether the registration at `destination` carries another command's proof.
+/// Why:
+///   A command whose Git failed may find a registration another command made in the directory it reserved,
+/// and that
+///  command's worktree is whole once its proof is there;
+/// the failed command must not keep a record describing that
+///  worktree as unfinished,
+/// because every other command would then refuse to take it as a source.
+/// This only reads the proof and claims nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function registeredByAnother({ commonDir, destination, mine }): Promise<boolean>;
+/// ```
+pub fn registered_by_another(common_dir: &Path, destination: &Path, mine: &str) -> Result<bool, WorktreeCopyError> {
+    let Ok(bound) = bind_registration(common_dir, destination) else {
+        return Ok(false);
+    };
+    let Ok(mut proof) = crate::fs_beneath::open_file_at(&bound.admin, std::ffi::OsStr::new(crate::worktree_add_binding::REGISTRATION_OWNER_NAME)) else {
+        return Ok(false);
+    };
+    let mut recorded: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut proof, &mut recorded).map_err(raw_failure_of)?;
+    let owner: String = String::from_utf8_lossy(recorded.as_slice()).trim().to_string();
+    return Ok(!owner.is_empty() && owner != mine);
+}
+
 /// Registry controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_copy_registry_tests.rs"]

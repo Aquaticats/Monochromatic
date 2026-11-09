@@ -860,6 +860,73 @@ fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
     remove(root.as_path());
 }
 
+/// A refused add leaves no unfinished record for the worktree another command completed in its place,
+/// so a later add from that worktree copies its ignored state instead of being told it is only partly there.
+#[cfg(unix)]
+#[test]
+fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
+    let root: PathBuf = fixture("lifecycle-refused-no-record");
+    let (main, common) = source(root.as_path());
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("taken");
+    let mut stderr: Vec<u8> = Vec::new();
+    let mut second_stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_: &GitStep<'_>| {
+            // The other command registers and fills the worktree inside this command's reserved directory.
+            let other: Invocation = creation_from(main.as_path(), common.as_path(), Some(destination.as_path()));
+            let _settled = run_with_worktree_copy(
+                &other,
+                &mut |_: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice())),
+                &mut Vec::new(),
+            )
+            .expect("settled");
+            // This command's own Git then refuses, because the worktree exists.
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+    let records: Vec<String> = recorded_names(common.as_path());
+    assert!(
+        records.is_empty(),
+        "a refused add leaves no record for a worktree another command completed: {records:?}"
+    );
+    // A later add from that worktree, which is whole, copies its ignored state.
+    let later: PathBuf = canonical_root.join("later");
+    let nested: Invocation = Invocation {
+        identity: WorktreeIdentity::LinkedWorktree {
+            common_dir: common.clone(),
+            git_dir: common.join("worktrees").join("other"),
+            worktree_root: destination.clone(),
+        },
+        effective_cwd: destination.clone(),
+        creates: true,
+        destination: Some(later.clone()),
+        opted_out: false,
+        short_circuit: false,
+        context: git_context(),
+        add_plan: None,
+        repair: crate::package_repair::RepairSwitch::default(),
+    };
+    let _settled = run_with_worktree_copy(
+        &nested,
+        &mut |_: &GitStep<'_>| return Ok(run_real(destination.as_path(), add_arguments("later", later.as_path()).as_slice())),
+        &mut second_stderr,
+    )
+    .expect("settled");
+    assert_eq!(
+        std::fs::read(later.join("cache/data")).ok(),
+        Some(b"payload".to_vec()),
+        "the later add copies from a worktree that is whole: {}",
+        String::from_utf8_lossy(second_stderr.as_slice())
+    );
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();

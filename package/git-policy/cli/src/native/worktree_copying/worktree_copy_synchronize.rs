@@ -352,6 +352,7 @@ pub(crate) fn synchronize_after(
     carried: Option<&Path>,
     recorded: &mut Option<StageClaim>,
     left_unfilled: &mut bool,
+    another_commands_worktree: &mut bool,
     stderr: &mut dyn Write,
 ) -> Result<Vec<PathBuf>, WorktreeCopyError> {
     // A main checkout that names no path hands over nothing: no stage, no journal and no summary line.
@@ -374,11 +375,21 @@ pub(crate) fn synchronize_after(
         return Ok(Vec::new());
     }
     let ownership: DestinationOwnership = ownership_of(reserved, git_succeeded, destination);
+    // This command's own name for the registration: its stage claim's random name, which no other command shares, and the
+    // process, so the person's line can name which process made a worktree this command did not.
+    let mine: String = command_token(recorded.as_ref(), destination)?;
     if ownership != DestinationOwnership::Mine {
         // A Git that never made the destination leaves nothing to explain: its own error is the whole report, and the
         // empty directory this command reserved is removed again below.
         if ownership == DestinationOwnership::GitFailed && nothing_but_a_reservation(destination) {
             return Ok(Vec::new());
+        }
+        // A refused command whose destination carries another command's proof did not make that worktree, and its own
+        // record must not describe the whole worktree as unfinished.
+        if ownership == DestinationOwnership::GitFailed
+            && crate::worktree_copy_registry::registered_by_another(observation.common_dir.as_path(), destination, mine.as_str())?
+        {
+            *another_commands_worktree = true;
         }
         // A destination this command made and no longer holds means the worktree it registered is elsewhere and was
         // never filled, so the record naming it stays for the next command to report.
@@ -391,9 +402,6 @@ pub(crate) fn synchronize_after(
             .map_err(raw_failure_of)?;
         return Ok(Vec::new());
     }
-    // This command's own name for the registration: its stage claim's random name, which no other command shares, and the
-    // process, so the person's line can name which process made a worktree this command did not.
-    let mine: String = command_token(recorded.as_ref(), destination)?;
     // The object the destination was when this command decided it was his: the registration it takes must be that one.
     let expected: Option<crate::fs_beneath::ObjectId> = match reserved {
         Reservation::Mine(made) => made.identity,
