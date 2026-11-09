@@ -138,7 +138,11 @@ The old tree kept for the rollback stays until the owner deletes it.
   `b28c5cca6f` the entry-and-service branch,
   `b3210c70ae` the worktree-copy branch,
   `147f5badc3` the conversion branch,
-  and `30a87b27fd` the push branch's last round.
+  `30a87b27fd` the push branch's last round,
+  `3de639be89` the wrapper-issue branch,
+  `ee8a1db87c` the health branch,
+  `3149b8baae` the literal-pathspec branch,
+  and `82dff2e79a` the intent-to-add branch.
   The first clause of that merge's message names a change it does not contain;
   commit comment 209008614 on it says so.
 - Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
@@ -182,13 +186,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `wrapper-issue-defects-round-3-prompt.md` for `wrapper-issue-defects-and-linear-scans` as run 3
-  (its branch landed as `3de639be89`;
-  a merge message can claim a false tracking relationship,
-  a conflict diagnostic names the wrong branch,
-  a repository path with a newline reads the wrong index,
-  and `published_tips` is quadratic).
-  Issue 6007 stays open until that round reports.
+  `literal-pathspec-round-4-prompt.md` for `literal-pathspec-remaining-starts` as run 4
+  (a commit from a nested directory can leave out staged content,
+  and inherited pathspec modes can fail a commit's completion step),
+  `intent-to-add-round-4-prompt.md` for `intent-to-add-keeps-stat-data` as run 6
+  (a hook restaging an unrelated file can make a retry delete a tracked file nobody named),
+  and `commit-ceiling-follow-ups-round-4-prompt.md` for `commit-ceiling-and-private-index-follow-ups` as run 4
+  (a successful exit reported as a ceiling kill,
+  and a signing program it could not stop going unrecorded).
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
 - The provider ended several runs with `terminated`:
