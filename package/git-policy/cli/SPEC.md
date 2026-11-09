@@ -4180,9 +4180,13 @@ in-process reader can) gives every value of the multi-valued keys.
   (`feature` tracking `origin/main` wrote
   `Merge remote-tracking branch 'origin/main' into feature`),
   and a branch whose name differs from the tracked ref's short name also gets
-  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  `Published to <remote>/<tracked ref>.`
   as a further line of its body,
-  because the commit lands on a branch its subject does not name.
+  because the commit lands on a ref its subject does not name.
+  That ref is the destination of the rejected push,
+  which is not always the branch's upstream
+  (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
+  so the line states where the merge was published and nothing about what the branch tracks.
   A detached `HEAD` has no branch to name and keeps the tracked ref's short name
   (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
