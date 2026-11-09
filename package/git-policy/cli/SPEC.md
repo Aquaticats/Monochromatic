@@ -1504,8 +1504,10 @@ and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
 A regular file whose size and modification time agree is also compared by contents when its change time
-is at or after the instant the proving pass finished,
-which the journal records:
+is at or after the instant the proving pass began,
+which the journal records,
+the instant being taken before the pass rather than after it,
+because an edit made while the pass runs carries a change time before the pass ends:
 an edit can keep the length and put the modification time back,
 and the change time cannot be put back by an ordinary user.
 A journal written by an earlier release records no such instant,
