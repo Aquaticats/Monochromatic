@@ -30,8 +30,8 @@ use crate::recovery_error::{RecoveryError, io_failure};
 /// re-exported so a caller of the recovery keeps one path.
 pub use crate::merge_isolation_index_reading::{entry_of, index_entries, index_standings, standing_of_index};
 pub use crate::merge_isolation_take_asides::{
-    Take, TakenOnDisk, finish_asides, put_back, put_back_stranded_takes, remove_empty_parents, restore_what_git_did_not_write,
-    take_aside,
+    Take, TakeFailure, TakenOnDisk, finish_asides, put_back, put_back_stranded_takes, remove_empty_parents,
+    restore_what_git_did_not_write, take_aside,
 };
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use std::io::Write;
@@ -466,6 +466,7 @@ pub fn install_entries(
     root: &Path,
     changes: &[Change],
     judgements: &[Judged],
+    installed_before: bool,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
     let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
@@ -512,7 +513,7 @@ pub fn install_entries(
                 if !left.is_empty() {
                     refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
                 }
-                let began: bool = failure.stranded.is_some() || !left.is_empty();
+                let began: bool = installed_before || failure.stranded.is_some() || !left.is_empty();
                 return Err(MergeRefusal { error: RecoveryError(refusal), began });
             }
         }
@@ -521,7 +522,7 @@ pub fn install_entries(
         let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
         let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
         refusal.push_str(left.join(", ").as_str());
-        return Err(MergeRefusal { error: RecoveryError(refusal), began: !left.is_empty() });
+        return Err(MergeRefusal { error: RecoveryError(refusal), began: installed_before || !left.is_empty() });
     }
     let mut index_input: Vec<u8> = Vec::new();
     for change in changes {
@@ -538,7 +539,7 @@ pub fn install_entries(
     if let Err(error) = run_git_checked(&place.git, &update) {
         // The files are aside and the index is untouched: put them back rather than leave half a merge.
         let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
-        return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: !left.is_empty() });
+        return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: installed_before || !left.is_empty() });
     }
     // From here the index holds the merge's entries, so a command that stops must not go on reading the checkout.
     let began: bool = true;

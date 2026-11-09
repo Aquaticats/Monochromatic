@@ -126,14 +126,17 @@ pub(crate) fn settle_moved_branch(
         }
     }
     if !staged.is_empty() {
-        return Err(untouched(RecoveryError(format!(
+        return Err(MergeRefusal {
+            error: RecoveryError(format!(
             "A merge in {} lost the branch to a newer commit, and the index holds staged content for these paths that the \
              settling would replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the \
              index. Commit or unstage it, then run any git command again.",
             root.display(),
             staged.join(", "),
             record.display()
-        ))));
+            )),
+            began,
+        });
     }
     let mut foreign: Vec<String> = Vec::new();
     let mut held: Vec<Judged> = Vec::with_capacity(ends.len());
@@ -158,16 +161,19 @@ pub(crate) fn settle_moved_branch(
         held.push(Judged { standing: settled, identity: judged.identity, content: judged.content.clone() });
     }
     if !foreign.is_empty() {
-        return Err(untouched(RecoveryError(format!(
+        return Err(MergeRefusal {
+            error: RecoveryError(format!(
             "A merge in {} lost the branch to a newer commit while Git updated these files, and they now hold neither \
              their old content, the merge's nor the newer commit's: {}. Nothing was changed and the record {} was kept. \
              Save your edits to them elsewhere, restore them with `git restore -- <path>`, then run any git command again.",
             root.display(),
             foreign.join(", "),
             record.display()
-        ))));
+            )),
+            began,
+        });
     }
-    if install_entries(place, root, ends.as_slice(), held.as_slice(), out)? == Installed::IndexHeld {
+    if install_entries(place, root, ends.as_slice(), held.as_slice(), began, out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     remove_record(record).map_err(partly_installed)?;

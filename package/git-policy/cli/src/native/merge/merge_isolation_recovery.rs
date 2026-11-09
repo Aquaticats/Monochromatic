@@ -257,12 +257,22 @@ pub fn settle_failed_merge(
     // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
     //  while the file waits beside it, and would otherwise be read as someone else's.
     put_back_stranded_takes(root, changes.as_slice(), out);
-    let judgements: Vec<Judged> = judge_changes(place, root, changes.as_slice()).map_err(untouched)?;
-    let index_standing: Vec<Standing> = index_standings(place, root, intent.old_oid.as_str(), changes.as_slice()).map_err(untouched)?;
+    // What this worktree already holds of the merge is read once, the index first and the worktree second, before anything can
+    //  refuse; every refusal after this point reports from this one reading, so no path can say nothing is installed while the
+    //  index holds the merge.
+    let index_standing: Vec<Standing> = match index_standings(place, root, intent.old_oid.as_str(), changes.as_slice()) {
+        Ok(found) => found,
+        // An index that cannot be read may hold the merge, so a command must not read the checkout past this.
+        Err(error) => return Err(MergeRefusal { error, began: true }),
+    };
     let index_started: bool = index_standing.iter().any(holds_the_merges_entry);
+    let judgements: Vec<Judged> = match judge_changes(place, root, changes.as_slice()) {
+        Ok(found) => found,
+        // The worktree cannot be read; the index is the evidence of the install that is still there.
+        Err(error) => return Err(MergeRefusal { error, began: index_started }),
+    };
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
     let worktree_started: bool = judgements.iter().any(holds_the_merge);
-    // What the index and the checkout already hold of this merge, which every refusal from here on says.
     let began: bool = index_started || worktree_started;
     let current: Option<String> = resolve_commit(place, root, target).map_err(untouched)?;
     if current.as_deref() == Some(intent.new_oid.as_str()) {
@@ -273,14 +283,17 @@ pub fn settle_failed_merge(
     //  this merge's files and index into a branch it is not for, and move a branch from a checkout that is not its own.
     let checked_out: Option<String> = symbolic_ref(place, root).map_err(untouched)?;
     if checked_out != intent.target_ref {
-        return Err(untouched(RecoveryError(format!(
+        return Err(MergeRefusal {
+            error: RecoveryError(format!(
             "A merge saved for {target} in {} was not finished: this worktree has {} checked out, and finishing the merge would \
              put it into that branch's checkout instead. Nothing was changed, the record {} was kept and the merge's commit is \
              still where it was saved. Check out {target} in this worktree and run any git command again.",
             root.display(),
             checked_out.as_deref().unwrap_or("a detached HEAD"),
             record.display()
-        ))));
+            )),
+            began,
+        });
     }
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
@@ -376,7 +389,7 @@ pub fn settle_failed_merge(
     }
     // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
     //  same merge (the recovery is idempotent).
-    if complete(place, root, intent, &changes, &judgements, out)? == Installed::IndexHeld {
+    if complete(place, root, intent, &changes, &judgements, began, out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     drop_record_and_side_ref(place, root, record, intent).map_err(partly_installed)?;
@@ -403,9 +416,10 @@ fn complete(
     intent: &MergeIntent,
     changes: &[Change],
     judgements: &[Judged],
+    installed_before: bool,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
-    if install_entries(place, root, changes, judgements, out)? == Installed::IndexHeld {
+    if install_entries(place, root, changes, judgements, installed_before, out)? == Installed::IndexHeld {
         return Ok(Installed::IndexHeld);
     }
     // The checkout was checked for its branch before anything was installed; this is the one more look before the branch moves,
