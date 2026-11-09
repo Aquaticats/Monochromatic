@@ -445,3 +445,54 @@ No general safety claim follows for those surfaces.
   (`replay_shared_paths.rs:181`).
   The path-encoding defect is at the later index-record writer,
   not those delimiters.
+
+## Fixes landed, 2026-11-09T07:47:32-05:00
+
+Each finding was reproduced first with real Git `2.56.0` beside the wrapper and against `main` at
+`566be9a823`, then fixed on the branch
+`fix/git-policy-cli-shadow-replay-keeps-distinct-files-and-signing`.
+Every control was also checked by removal: with the fix taken out again,
+the control fails with the wrong result this document quotes for that finding.
+
+### The non-ASCII conflict that reverted another name
+
+Commit `2bb6958077` follows its control, `ae249405ed`.
+A repository path now stays the bytes Git listed from the raw shared-path listing
+through the `update-index --index-info` record,
+so no boundary re-encodes a name.
+The Latin-1 converters the replay used are gone.
+Controls:
+`landing::service_replay::tests::a_conflict_on_one_name_keeps_the_other_names_landed_edit`
+reads both names' bytes and modes from the accepted tree,
+and
+`shadow::replay_shared_paths::tests::raw_records_keep_path_bytes_that_are_not_text`
+keeps a name that is not UTF-8 through the parser.
+
+### The signing request that an exact `gitdir` include lost
+
+Commits `c268e5d579`, `ebfc4c6d99` and `b7a51bd742`.
+The capture's configuration snapshot already holds what Git resolved for the invocation,
+so each key native `git commit` reads now travels to the shadow as a `-c` setting,
+the last entry of a key being the value Git would have used.
+One list, in `src/native/commit/native_commit_configuration.rs`, now says which keys those are,
+and the route to native preparation reads the same list.
+Control:
+`commit::commit_preparation::tests::signing_from_an_exact_gitdir_include_reaches_the_shadow`,
+which requires real Git to sign through the include before it requires the production preparation to sign.
+
+### The non-UTF-8 tag that blocked native preparation
+
+Commit `cba158fe73` follows its control, `b45b936337`.
+A ref name and a symbolic target stay bytes through the listing, the `packed-refs` snapshot,
+the reftable `update-ref --stdin` transaction and the `symbolic-ref` call.
+An object name must still be hexadecimal text, and any other listing shape is still refused whole.
+Controls:
+`shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow`,
+`shadow::shadow_refs::tests::the_files_snapshot_keeps_a_name_that_is_not_text`
+and
+`shadow::shadow_refs::tests::the_reftable_snapshot_keeps_a_name_that_is_not_text`.
+
+The "Not determined" limits of the audit stand unchanged:
+submodules, SHA-256 and reftable commits, custom drivers, attribute combinations,
+interruption before the scratch watch is registered, simultaneous client and service death,
+crash recovery and unresponsive filesystem bounds were not exercised here.

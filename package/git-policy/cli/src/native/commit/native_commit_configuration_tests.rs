@@ -35,11 +35,11 @@ fn the_keys_are_the_signing_and_message_keys_and_trailers() {
     }
 }
 
-/// The last entry of a key is the value Git resolved,
+/// Every entry of a native key travels in the order Git resolved it,
 /// an unrelated key is left out,
 /// and a key written without a value stays valueless.
 #[test]
-fn the_last_entry_of_each_native_key_reaches_the_command_line() {
+fn every_entry_of_a_native_key_reaches_the_command_line_in_order() {
     let found: ConfigSnapshot = snapshot(&[
         ("system", "gpg.format", Some("openpgp")),
         ("local", "commit.gpgsign", Some("false")),
@@ -54,15 +54,19 @@ fn the_last_entry_of_each_native_key_reaches_the_command_line() {
         native_commit_configuration(Some(&found)),
         vec![
             OsString::from("-c"),
+            OsString::from("gpg.format=openpgp"),
+            OsString::from("-c"),
+            OsString::from("commit.gpgsign=false"),
+            OsString::from("-c"),
             OsString::from("commit.gpgsign=true"),
             OsString::from("-c"),
-            OsString::from("commit.verbose"),
+            OsString::from("user.signingkey=/keys/sign"),
             OsString::from("-c"),
             OsString::from("gpg.format=ssh"),
             OsString::from("-c"),
             OsString::from("trailer.reviewed-by.value=Fixture"),
             OsString::from("-c"),
-            OsString::from("user.signingkey=/keys/sign"),
+            OsString::from("commit.verbose"),
         ]
     );
 }

@@ -12,7 +12,8 @@
 //!  would then be missing,
 //!  and the commit would succeed with the person's request dropped.
 //!  The capture's snapshot holds the entries Git resolved for the invocation in precedence order,
-//!  so the last entry of a key is the value Git would have used.
+//!  so carrying every entry of every such key in that order gives the shadow's Git the same answers,
+//!  a key that is read once keeping its last entry and a key that may repeat keeping all of them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,8 +28,6 @@ use std::ffi::OsString;
 /// The bytes of a path,
 /// for a value that is not text.
 use crate::path_bytes::os_from_path_bytes;
-/// Ordered map of the effective value of each key.
-use std::collections::BTreeMap;
 
 /// What:
 ///  The configuration keys native `git commit` reads that change what it writes.
@@ -76,31 +75,29 @@ pub fn is_native_commit_key(key: &str) -> bool {
 }
 
 /// What:
-///  The `-c` arguments that give the shadow's Git every native-commit key at the value the invocation resolved.
+///  The `-c` arguments that give the shadow's Git every native-commit entry the invocation resolved.
 /// Why:
 ///  `-c` is read after every file,
-///  so the value here is the one the person's command used,
-///  and it cannot be overridden by a condition that no longer matches in the shadow.
+///  so these are the values the person's command used,
+///  and they cannot be overridden by a condition that no longer matches in the shadow.
+///  The entries keep Git's precedence order,
+///  so a key read once keeps its last entry and a key that may repeat keeps every one.
 ///  A key written without a value stays valueless,
 ///  which Git reads as a true boolean.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const args = [...effective].flatMap(([key, value]) => ['-c', value === undefined ? key : `${key}=${value.toString()}`]);
+/// const args = snapshot.entries.filter(isNativeCommitKey).flatMap((e) => ['-c', e.value === undefined ? e.key : `${e.key}=${e.value}`]);
 /// ```
 pub fn native_commit_configuration(snapshot: Option<&ConfigSnapshot>) -> Vec<OsString> {
     let Some(found) = snapshot else { return Vec::new() };
-    // `mut` lets a later entry of a key replace an earlier one, which is Git's precedence order.
-    let mut effective: BTreeMap<&str, &Option<Vec<u8>>> = BTreeMap::new();
-    for entry in found.entries() {
-        if is_native_commit_key(entry.key.as_str()) {
-            effective.insert(entry.key.as_str(), &entry.value);
-        }
-    }
     let mut arguments: Vec<OsString> = Vec::new();
-    for (key, value) in effective {
-        let mut setting: Vec<u8> = key.as_bytes().to_vec();
-        if let Some(bytes) = value {
+    for entry in found.entries() {
+        if !is_native_commit_key(entry.key.as_str()) {
+            continue;
+        }
+        let mut setting: Vec<u8> = entry.key.as_bytes().to_vec();
+        if let Some(bytes) = &entry.value {
             setting.push(b'=');
             setting.extend_from_slice(bytes.as_slice());
         }
