@@ -285,6 +285,20 @@ fn install_recorded(
         );
         return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
     }
+    // The record that names this worktree as one whose ignored state is not yet whole goes before the first entry:
+    // a kill at any instruction after it leaves the promise that files are missing, and the installation that
+    // completes removes it. A worktree whose identity cannot be read is not named: nothing could prove the record
+    // still describes it later.
+    let destination_identity: Option<crate::fs_beneath::ObjectId> = crate::worktree_add_binding::path_identity(destination.as_path());
+    if let Some(identity) = destination_identity {
+        crate::worktree_copy_unfilled_record::remember_unfilled(
+            state.pending.path.as_path(),
+            destination.as_path(),
+            identity,
+            state.pending.journal.source_root.as_path(),
+            state.pending.owner_token().as_deref(),
+        )?;
+    }
     let result: Result<usize, WorktreeCopyError> = install_snapshot(
         staged.stage_root.as_path(),
         destination.as_path(),
@@ -293,6 +307,11 @@ fn install_recorded(
         prior.as_slice(),
         &mut state,
     );
+    // A finished installation keeps nothing of that promise, and a removal that fails leaves the journal so the
+    // next command installs nothing twice and tries the removal again.
+    if result.is_ok() && destination_identity.is_some() {
+        crate::worktree_copy_unfilled_record::forget_unfilled(state.pending.path.as_path())?;
+    }
     let TransactionState {
         pending: latest, ..
     } = state;

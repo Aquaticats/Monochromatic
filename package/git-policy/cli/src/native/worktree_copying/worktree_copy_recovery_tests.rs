@@ -13,6 +13,7 @@ use crate::worktree_copy_journal_encoding_and_validation::Journal;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
+use crate::worktree_copy_unfilled_record::{UnfilledCopy, decode_unfilled, unfilled_records_exist};
 use std::os::unix::fs::PermissionsExt;
 
 /// A repository with an ignored `cache` file and a linked worktree at `topic` that the copy would fill.
@@ -37,6 +38,21 @@ fn linked_source(root: &Path) -> (PathBuf, PathBuf) {
         std::fs::canonicalize(source).expect("canonical source"),
         std::fs::canonicalize(topic).expect("canonical topic"),
     );
+}
+
+/// The record of the worktree a recovery left unfilled,
+/// read from the one record the journal root holds.
+fn left_unfilled_record(common: &Path) -> Option<UnfilledCopy> {
+    let root: PathBuf = journal_root(common);
+    for listed in std::fs::read_dir(root.as_path()).ok()?.flatten() {
+        let name: String = listed.file_name().to_string_lossy().into_owned();
+        if !name.ends_with("unfilled") {
+            continue;
+        }
+        let text: String = std::fs::read_to_string(listed.path()).ok()?;
+        return decode_unfilled(text.as_str()).ok();
+    }
+    return None;
 }
 
 /// Creates a staged journal for a destination,
@@ -496,7 +512,8 @@ fn missing_stage_is_discarded_with_notice() {
     remove(root.as_path());
 }
 
-/// A journal left in the installing phase with an intact stage is resumed and completed.
+/// A journal left in the installing phase with an intact stage is resumed and completed,
+/// and the record that named the worktree as unfilled goes with the finished installation.
 #[cfg(unix)]
 #[test]
 fn interrupted_installation_is_resumed() {
@@ -513,6 +530,10 @@ fn interrupted_installation_is_resumed() {
         recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1);
     assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert!(
+        !unfilled_records_exist(common.as_path()).expect("pending check"),
+        "a finished copy leaves no record of an unfilled worktree"
+    );
     assert_eq!(
         std::fs::read(topic.join("cache/data")).expect("resumed copy"),
         b"payload"
@@ -527,10 +548,11 @@ fn interrupted_installation_is_resumed() {
 
 /// A resumption that cannot finish ends the transaction with a notice that names the failure,
 /// keeps the destination's own differing entry,
-/// and is not counted as recovered.
+/// is not counted as recovered,
+/// and leaves the durable record that names the worktree as one whose ignored files are missing.
 #[cfg(unix)]
 #[test]
-fn a_resumed_installation_that_fails_ends_with_a_notice() {
+fn a_resumed_installation_that_fails_ends_with_a_notice_and_leaves_its_record() {
     let root: PathBuf = fixture("recovery-failed-resumption");
     let (source, topic) = linked_source(root.as_path());
     // The destination holds its own entry at a staged path, so finishing the copy would overwrite it.
@@ -546,7 +568,7 @@ fn a_resumed_installation_that_fails_ends_with_a_notice() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. monochromatic-git-policy-cli: ignored-state installation failed for {destination}. Cause: monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry \"cache/data\" in {destination}."
+            "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. monochromatic-git-policy-cli: ignored-state installation failed for {destination}. Cause: monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry \"cache/data\" in {destination}. That worktree stays named as one whose ignored files are missing, by every command in this repository, until it is removed or replaced."
         )]
     );
     assert_eq!(
@@ -558,6 +580,14 @@ fn a_resumed_installation_that_fails_ends_with_a_notice() {
             .expect("pending")
             .is_empty()
     );
+    // The record the copy wrote before its first entry stays, and names this worktree and the source that still holds
+    // what is missing; the line comes again from every later command until the worktree is removed or replaced.
+    let record: UnfilledCopy = left_unfilled_record(common.as_path()).expect("a record that names the unfilled worktree");
+    assert_eq!(record.destination, std::fs::canonicalize(topic.as_path()).expect("topic"));
+    assert_eq!(record.source, source);
+    assert!(unfilled_records_exist(common.as_path()).expect("pending check"));
+    // A copy still running owns its record: the same pass says the failure once and does not repeat its own line.
+    assert_eq!(report.notices.len(), 1);
     remove(root.as_path());
 }
 

@@ -105,6 +105,11 @@ pub mod worktree_copy_interrupted_add_settlement;
 #[cfg(unix)]
 pub mod worktree_copy_stage_binding;
 
+/// The durable record of a worktree left without part of its source's ignored state,
+/// reported by every later command until the worktree is gone or replaced.
+#[cfg(unix)]
+pub mod worktree_copy_unfilled_record;
+
 /// The append-only install log of one stage:
 /// per-batch intents and creations,
 /// with resumption.
