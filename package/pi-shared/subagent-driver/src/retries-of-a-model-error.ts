@@ -67,8 +67,10 @@ export type WaitAskedByProvider =
  The failures another attempt cannot fix, whatever else their text says: a credential Pi does not have, a provider or a model
  that does not exist, a context too large for the model, and an abort someone asked for.
 
- These read before every other shape below, because the words of a transient failure turn up inside them: `Invalid API key for
- upstream provider` holds `upstream`, and `Context length exceeds the limit of 500 tokens` holds a server status as a count.
+ These read before the transient shapes below, because the words of a transient failure turn up inside them: `Invalid API key for
+ upstream provider` holds `upstream`, and `Context length exceeds the limit of 500 tokens` holds a server status as a count. A
+ rate limit reads before them all the same: `429 Too many requests for this API key` names the key it limited, and the limit still
+ passes.
  */
 const TERMINAL_CAUSE_PHRASES: readonly string[] = [
   'api key',
@@ -116,6 +118,9 @@ const QUOTA_REACHED_PHRASES: readonly string[] = [
 
 /**
  A rate limit that passes: the provider asks the caller to slow down, and a later attempt may go through.
+
+ This reads before the terminal causes, because a rate limit names what it limited: `429 Too many requests for this API key` is
+ about the key being asked too often, not about a key that is wrong.
  */
 const THROTTLE_PHRASES: readonly string[] = [
   'ratelimit',
@@ -309,12 +314,6 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
   const text = problem.toLowerCase();
   if (holdsOneOf({
     text,
-    phrases: TERMINAL_CAUSE_PHRASES,
-  },)) {
-    return 'permanent';
-  }
-  if (holdsOneOf({
-    text,
     phrases: QUOTA_REACHED_PHRASES,
   },)) {
     return 'quota-reached';
@@ -325,6 +324,12 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
     statusCodes: [THROTTLE_CODE,],
   },)) {
     return 'throttled';
+  }
+  if (holdsOneOf({
+    text,
+    phrases: TERMINAL_CAUSE_PHRASES,
+  },)) {
+    return 'permanent';
   }
   if (holdsOneOf({
     text,
