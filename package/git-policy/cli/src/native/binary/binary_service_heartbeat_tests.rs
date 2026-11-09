@@ -250,7 +250,10 @@ fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
     let kept: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let (held_sender, held) = mpsc::channel::<()>();
     let (release_sender, release) = mpsc::channel::<()>();
-    let mut stream: StalledStream = StalledStream { held: held_sender, release, kept: Arc::clone(&kept) };
+    let stalled: StalledStream = StalledStream { held: held_sender, release, kept: Arc::clone(&kept) };
+    // The stream the command says its lines to, which is written by a thread of its own: this is the fix the control holds.
+    let mut stream: git_policy_cli::foundation::notice_stream_that_does_not_hold_its_writer::NoticeStreamThatDoesNotHoldItsWriter =
+        git_policy_cli::foundation::notice_stream_that_does_not_hold_its_writer::NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(stalled));
     let (answered_sender, answered) = mpsc::channel::<Result<Submitted, ClientFailure>>();
     let client_config: ClientConfig = config(name.as_str());
     std::thread::spawn(move || {
@@ -275,7 +278,7 @@ fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
     assert_eq!(end, Ok(Submitted::Landed { commit, already: false }));
     drop(release_sender);
     let said: String = kept_within(&kept);
-    assert!(said.contains("this commit stands"), "the line the client said reached the stream: {said:?}");
+    assert!(said.contains("has not started on this commit yet"), "the line the client said reached the stream: {said:?}");
 }
 
 /// A commit that lands at once prints nothing at all,

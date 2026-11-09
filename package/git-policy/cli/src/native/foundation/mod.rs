@@ -176,3 +176,7 @@ pub mod collected_elements_looked_at;
 /// awaited no longer than a ceiling,
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;
+
+/// A stream of a command's notices written by a thread of its own,
+/// so a reader that stopped draining never holds the command.
+pub mod notice_stream_that_does_not_hold_its_writer;
