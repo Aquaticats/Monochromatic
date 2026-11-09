@@ -21,6 +21,7 @@ use crate::json_record::quote;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
+use crate::worktree_copy_stage_binding::{stage_binding, verify_stage_binding};
 use crate::worktree_copy_stage_claim_reaping::{judge_stage_owners, reap_judged_stages};
 use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
 use crate::worktree_copy_journal::{Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals};
@@ -226,6 +227,20 @@ fn recover_transaction(
         ));
     }
     let journal_for_snapshot: PendingJournal = pending.clone();
+    // The stage records the registration the copy was made for; a destination that is another registration now is not
+    // this copy's to fill, and nothing in it is written.
+    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    if let Some(bound) = stage_binding(container.as_path())?
+        && let Err(reason) = verify_stage_binding(common_dir, &bound)
+    {
+        remove_pending_journal(&pending)?;
+        return Ok((
+            false,
+            Some(format!(
+                "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy into {destination}: {reason}. Nothing was written into that worktree; `git worktree list` shows what is registered there now, and a `git worktree add` into the same path copies the ignored state afresh."
+            )),
+        ));
+    }
     // `match` on the outcome: a completed installation is recovered; a failed one becomes a notice.
     match complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot))? {
         Outcome::Installed(_) => return Ok((true, None)),

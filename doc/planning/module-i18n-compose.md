@@ -275,7 +275,7 @@ These are the bits that did not get written down inside the package itself:
 - `ssg-test`'s `package.json` does not yet depend on `@monochromatic-dev/i18n-compose-core`.
    Phase 6 must add `"@monochromatic-dev/i18n-compose-core": "workspace:*"` to `dependencies`
    and remove `"typesafe-i18n"` from `devDependencies`.
-- The existing call sites use `const t = i18nObject(lang); t.siteName()` — across roughly ten files (rg `'i18nObject'`
+- The existing call sites use `const t = i18nObject(lang); t.siteName()` across roughly ten files (rg `'i18nObject'`
 from `package/ssg/aquati.cat/src`).
    The plan's §3 forbids exporting a `bindLocale` / `t(locale)` accessor from the shared package.
    Rewrites must become explicit `i18n.label(lang, 'siteName')` calls;
@@ -300,7 +300,8 @@ from `package/ssg/aquati.cat/src`).
    nothing depends on it semantically.
 - The `build:i18n` mise task (`typesafe-i18n --no-watch`) and the `typesafe-i18n` devDependency both go away.
 - Test the migration via `mise run //package/ssg/aquati.cat:build` (or whatever the equivalent task names are
-when you read this — `mise tasks -C package/ssg/aquati.cat` lists them).
+when you read this;
+  `mise tasks -C package/ssg/aquati.cat` lists them).
    Rendered output diff should either be empty or every diff line should have a one-line explanation.
 
 ## 1. Goal

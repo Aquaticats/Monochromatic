@@ -116,3 +116,17 @@ fn the_environment_the_facts_come_from_is_the_one_kept() {
     assert!(kept.variables.iter().any(|(name, value)| { return name == crate::child_environment::FORWARD_TARGET_VARIABLE && value == "/named/by/the/caller"; }));
     remove(root.as_path());
 }
+
+/// The real platform flushes its writes to disk and a stand-in does not,
+/// which is what decides whether the journal's flushes run at all
+/// (`subvolume_file_write_steps`).
+/// The real answer is the one that keeps a crash-safe write;
+/// a stand-in says no because the control that uses it simulates a kill in the process.
+#[test]
+fn the_real_platform_flushes_its_writes_and_a_stand_in_does_not() {
+    assert!(LinuxPlatform::default().flushes_to_disk(), "the real platform flushes");
+    let stand_in: crate::subvolume_test_support::PlainPlatform = crate::subvolume_test_support::PlainPlatform::new();
+    assert!(!stand_in.flushes_to_disk(), "the stand-in does not");
+    let hooked: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls: u32| {}));
+    assert!(!hooked.flushes_to_disk(), "a hooked stand-in answers as the stand-in it wraps");
+}

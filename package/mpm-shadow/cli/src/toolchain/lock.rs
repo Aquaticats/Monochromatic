@@ -30,6 +30,8 @@ use super::error::ToolchainError;
 use super::hash::sha256_hex;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, decode_lock_entry, lock_entry_value};
+/// Imports the one pretty-JSON renderer the lock and `bin` share.
+use super::model_encode::render_pretty_json;
 /// Imports the shared named helpers.
 use super::util::find_tool;
 
@@ -155,11 +157,7 @@ pub fn lock_digest(lock: &Lock) -> String {
 pub fn render_lock(lock: &Lock) -> String {
     let mut document: Map<String, Value> = body_value(lock);
     document.insert("digest".to_string(), Value::String(lock_digest(lock)));
-    let mut text: String = match serde_json::to_string_pretty(&Value::Object(document)) {
-        Ok(pretty) => pretty,
-        // A map of strings, arrays and objects always serializes; the branch keeps the function total.
-        Err(error) => format!("{{\"error\": \"{error}\"}}"),
-    };
+    let mut text: String = render_pretty_json(&Value::Object(document));
     text.push('\n');
     return text;
 }

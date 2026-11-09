@@ -108,31 +108,6 @@ struct Served {
 }
 
 /// What:
-///  The configuration and attributes files the real Git this add forwards to reads,
-/// for the content decision of the
-///  snapshot's index step.
-/// Why:
-///   Git rewrites a file's bytes on the way into the index where an attribute converts them,
-/// so a file whose stat data
-///  cannot vouch for it is only proven equal by reading it under the attributes Git would apply.
-/// The facts are learned
-///  from the forward-target variable,
-/// which names the Git this command resolved itself,
-/// never from the wrapper's own
-///  environment,
-/// which does not carry it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const environment = ConversionEnvironment.fromVariables({ ...process.env, ...overlay, [FORWARD_TARGET]: realGit });
-/// ```
-fn content_environment(context: &GitContext) -> ConversionEnvironment {
-    let mut variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    variables.extend(crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path()));
-    return ConversionEnvironment::from_variables(variables.as_slice());
-}
-
-/// What:
 ///  Everything before the swap and the swap itself;
 /// the error is the reason the rung could not finish,
 /// and the success is Git's line
@@ -156,7 +131,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let prepare_target_outcome = prepare_target(source, plan, context, bound);
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
-    let environment: ConversionEnvironment = content_environment(context);
+    let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
     let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
     end_step(take_snapshot_entered);

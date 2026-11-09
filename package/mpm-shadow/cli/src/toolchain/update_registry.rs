@@ -94,7 +94,10 @@ pub fn resolve_npm(ctx: &Context, name: &str, wanted: Option<&str>) -> Result<Re
 
 /// crates.io:
 /// `GET https://crates.io/api/v1/crates/<name>`,
-/// then `crate.max_stable_version` (an exact range needs no lookup).
+/// then `crate.max_stable_version`.
+/// Why:
+/// A wanted text, exact version or not, is locked as it stands and needs no lookup;
+/// the request above is made only when nothing is wanted.
 pub fn resolve_crate(ctx: &Context, name: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
     if let Some(version) = wanted {
         return Ok(by_name(version));
@@ -112,6 +115,9 @@ pub fn resolve_crate(ctx: &Context, name: &str, wanted: Option<&str>) -> Result<
 /// `GET https://pypi.org/pypi/<name>/json` for the newest version (`info.version`),
 /// or `.../<name>/<version>/json` for a wanted one.
 /// Why:
+/// A tool that is not a wheel and has a wanted text makes no request at all:
+/// the text is locked as it stands,
+/// exact version or not.
 /// A wheel bootstrap also records the wheel's URL and SHA-256 from the same document's `urls`,
 /// for the four Linux platforms.
 ///

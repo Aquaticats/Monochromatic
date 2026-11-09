@@ -22,14 +22,16 @@ hand-maintained.
     and the largest
    cluster of seven byte-identical files exists despite never being deduped.
 
-Prior audit (`AUDIT.dry.md`) called this duplication "structural and unavoidable"
+Prior audit ([`doc/audit/dry.md`](../audit/dry.md),
+written as `AUDIT.dry.md`) called this duplication
+"structural and unavoidable"
 because each package opts into a different subset of root `task_templates`.
  That
 verdict held for the duplication question alone,
  but it did not weigh the
 missing-task failure mode now surfaced.
 
-`AUDIT.dry.md` is internal;
+The audit is internal;
  churn on that doc is acceptable.
 
 ## Mise constraints surfaced
@@ -56,25 +58,32 @@ Current API (`package/file-enforcer/core/src/index.ts`):
 - `cat`,
    `overwrite`,
    `overwriteEach`,
-   `overwriteIfNotExists` -- byte-level I/O
+   `overwriteIfNotExists`:
+  byte-level I/O
 - `dedup`,
    `getProperty`,
    `exec`,
    `inspect`,
-   `evaluatePredicate` -- pipeline
+   `evaluatePredicate`:
+  pipeline
 - `ensurePackage`,
-   `registerPackages` -- OS-level package install
+   `registerPackages`:
+  OS-level package install
 - `addWatchedPaths`,
    `invalidatePaths`,
-   `reset` -- watch utilities
+   `reset`:
+  watch utilities
 
 Recently added (`src/pipeline/toml.ts`,
  `src/io/write-toml.ts`):
 
-- `getTomlProperty({ path, content })` -- read a value at a structured path
-- `editTomlKey({ content, path, value })` -- set one key,
+- `getTomlProperty({ path, content })`:
+  read a value at a structured path
+- `editTomlKey({ content, path, value })`:
+  set one key,
    splice the rest byte-identically
-- `overwriteTomlKey({ dest, path, value })` -- same but persisted via `overwrite`
+- `overwriteTomlKey({ dest, path, value })`:
+  same but persisted via `overwrite`
 
 Backed by `@monochromatic-dev/toml-edit-core`,
  which preserves comments and
@@ -89,7 +98,7 @@ support is superseded.
 
 ## Options considered
 
-### A -- Validator only
+### A: validator only
 
 `file-enforcer` probes filesystem signals per package,
  asserts the required-task
@@ -105,7 +114,7 @@ purpose is keeping derived files in sync (generation),
  A separate
 linter would be the right tool for pure validation.
 
-### B -- Hybrid generator: kind block + `mise.custom.toml`
+### B: hybrid generator, a kind block plus `mise.custom.toml`
 
 Generator emits the boilerplate `extends` block per kind;
  per-package custom
@@ -123,7 +132,7 @@ investigation point).
 
 Largely superseded by D once TOML-edit primitives are available.
 
-### C -- Full central generator with TS module for customs
+### C: full central generator with a TS module for customs
 
 Per-package `mise.tasks.ts` exports a typed task object;
  file-enforcer renders
@@ -140,7 +149,7 @@ comments live in TS,
 
 Superseded by D once dragon 1 is gone.
 
-### D -- Augment in place via `overwriteTomlKey` (current leading candidate)
+### D: augment in place via `overwriteTomlKey` (current leading candidate)
 
 `file-enforcer.config.ts` walks `package/*/*`,
  probes filesystem signals
@@ -325,31 +334,39 @@ Generator must explicitly never touch `*/mise.local.toml`.
     re-probe on every file-enforcer run,
     or cache?
    **
-   Probing is `glob('package/*/*/<signal-file>')` calls -- cheap.
+   Probing is `glob('package/*/*/<signal-file>')` calls,
+   so the cost is small.
     Probably
    re-probe every run;
     the cost is sub-second.
 
 ## Cross-references
 
-- `AUDIT.dry.md` -- per-package `mise.toml` files (81 total) section;
+- [`doc/audit/dry.md`](../audit/dry.md),
+  written as `AUDIT.dry.md` before the move:
+  per-package `mise.toml` files (81 total) section;
    this plan
   partially supersedes that finding by addressing the missing-task failure mode
-  AUDIT.
-  dry did not weigh.
-- `AUDIT.consistency.md` -- "`mise.toml` task naming" section listing the quoting
+  the audit did not weigh.
+- [`doc/audit/consistency.md`](../audit/consistency.md),
+  written as `AUDIT.consistency.md` before the move:
+  "`mise.toml` task naming" section listing the quoting
   drift and four empty `mise.toml` files.
-- `package/file-enforcer/core/README.md` -- API reference;
+- `package/file-enforcer/core/README.md`:
+  API reference;
    the TOML
   section is the load-bearing change.
-- `package/toml-edit/core/README.md` -- splice vs canonical mode semantics,
+- `package/toml-edit/core/README.md`:
+  splice vs canonical mode semantics,
   v1 limitation on canonical-from-parsed-source.
-- `file-enforcer.config.ts` -- existing root config;
+- `file-enforcer.config.ts`:
+  existing root config;
    D adds a fourth top-level
   function alongside `generateMiseToml`,
    `generateForbiddenStringsRules`,
   `mirrorSkills`.
-- `mise.no-env.toml` -- the source the root `mise.toml` is generated from;
+- `mise.no-env.toml`:
+  the source the root `mise.toml` is generated from;
    lists
   every root `task_templates.*` that per-package kinds would extend.
 
