@@ -133,17 +133,12 @@ fn a_thread_that_cannot_be_started_starts_no_child() {
     let root: std::path::PathBuf = crate::test_support::fixture("captured-run-refused-thread");
     let ran: std::path::PathBuf = root.join("ran");
     let mut command = shell(format!("printf ran > '{}'", ran.display()).as_str());
-    let failure = captured_run_within_bound_starting_with(&mut command, Duration::from_secs(30), &refusing_a_thread)
-        .expect_err("a thread that could not be started is the command's failure");
+    crate::thread_started_before_its_child::refuse_one_start();
+    let failure = output_of_within_bound(&mut command, Duration::from_secs(30)).expect_err("a thread that could not be started is the command's failure");
     let started: bool = ran.exists();
     crate::test_support::remove(root.as_path());
     assert!(!started, "the command ran although nothing could wait for it, so a killed child would be left unreaped");
     assert!(failure.to_string().contains("no thread could be started"), "{failure}");
-}
-
-/// A thread start that the process limit refuses.
-fn refusing_a_thread(_name: &str, _body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
-    return Err(std::io::Error::other("the process limit refused a thread"));
 }
 
 /// What:

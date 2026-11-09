@@ -119,27 +119,30 @@ pub enum PinOutcome {
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
 pub fn pin_of_through(proc_root: &std::path::Path, member: &TreeMember) -> PinOutcome {
-    // The record's own directory is read twice, before and after the descriptor is opened, so the number is proven to have
-    //  named one process throughout.
-    let mut look = || return look_of_through(proc_root, member.pid);
-    return pin_with_look(member, &mut look);
+    return pin_after_two_looks_of(proc_root, proc_root, member);
 }
 
 /// What:
-///  `pin_of_through` over a look the caller supplies,
-/// so a control can make the second look fail without exhausting this process's descriptors.
+///  `pin_of_through` where the two looks read two record roots,
+/// so a control can make the second look fail without exhausting this process's descriptors:
+///  the first reads the real record,
+/// and the second reads a root where that record refuses.
 /// Why:
-///   The two looks answer the same question,
-/// and only their comparison decides whether the descriptor is kept;
-///  a control that could only make both fail could not tell the two apart.
+///   The record's own directory is read twice,
+/// before and after the descriptor is opened,
+/// so the number is proven to have
+///  named one process throughout;
+/// only the two answers together decide whether the descriptor is kept,
+/// and a control
+///  that could only make both fail could not tell the two answers apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function pinWithLook(member, look: () => ProcessLook): PinOutcome;
+/// function pinAfterTwoLooksOf(first: string, second: string, member: Member): PinOutcome;
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-fn pin_with_look(member: &TreeMember, look: &mut dyn FnMut() -> ProcessLook) -> PinOutcome {
-    let started: u64 = match look() {
+fn pin_after_two_looks_of(first: &std::path::Path, second: &std::path::Path, member: &TreeMember) -> PinOutcome {
+    let started: u64 = match look_of_through(first, member.pid) {
         ProcessLook::Alive(found) if found.started == member.started => found.started,
         ProcessLook::Alive(_) | ProcessLook::Gone => return PinOutcome::Gone,
         ProcessLook::Unknown => return PinOutcome::Unreadable,
@@ -160,7 +163,7 @@ fn pin_with_look(member: &TreeMember, look: &mut dyn FnMut() -> ProcessLook) -> 
     };
     // SAFETY: `raw` is a descriptor `pidfd_open` just made for this process alone, and nothing else owns it.
     let descriptor: OwnedFd = unsafe { OwnedFd::from_raw_fd(number) };
-    return match look() {
+    return match look_of_through(second, member.pid) {
         // The number named the process before and after the descriptor was made, so the descriptor is that process's.
         ProcessLook::Alive(found) if found.started == started => {
             PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: Some(descriptor) })

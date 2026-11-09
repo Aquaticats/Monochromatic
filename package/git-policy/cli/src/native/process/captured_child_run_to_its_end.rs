@@ -73,7 +73,7 @@ pub async fn output_of(command: &mut Command) -> std::io::Result<Output> {
 /// const status = await withDeadline(waitFor(child), ceiling) ?? (kill(child), throw ceilingReached());
 /// ```
 pub fn output_of_within_bound(command: &mut Command, ceiling: Duration) -> std::io::Result<Output> {
-    return Ok(captured_run_within_bound_starting_with(command, ceiling, &start_a_named_thread)?.0);
+    return Ok(captured_run_within_bound(command, ceiling)?.0);
 }
 
 /// What:
@@ -97,7 +97,7 @@ pub fn output_of_within_bound(command: &mut Command, ceiling: Duration) -> std::
 /// ```
 pub fn output_of_whole_within_bound(command: &mut Command, ceiling: Duration) -> std::io::Result<Output> {
     let program: String = command.get_program().to_string_lossy().into_owned();
-    let (output, notes): (Output, Vec<String>) = captured_run_within_bound_starting_with(command, ceiling, &start_a_named_thread)?;
+    let (output, notes): (Output, Vec<String>) = captured_run_within_bound(command, ceiling)?;
     if !notes.is_empty() {
         return Err(std::io::Error::other(format!(
             "{program} answered, but what it printed does not fit what this command keeps of one stream: {}. Hint: run the same \
@@ -109,24 +109,17 @@ pub fn output_of_whole_within_bound(command: &mut Command, ceiling: Duration) ->
 }
 
 /// What:
-///  The body of `output_of_within_bound`,
-/// with the start of its waiting thread supplied by the caller,
-/// and the notes of the capture
-///  returned beside the output.
+///  The body of both faces of the bounded run,
+/// with the notes of the capture returned beside the output.
 /// Why:
-///  A control has to make that start fail,
-/// which no real process limit lets it do without starving the whole test process;
-///  and a caller that must have the whole answer judges the notes itself.
+///   A caller that must have the whole answer judges the notes itself,
+/// and one that may show the tail does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function capturedRunWithinBound(command, ceiling, startThread): { output: Output; notes: string[] };
+/// function capturedRunWithinBound(command, ceiling): { output: Output; notes: string[] };
 /// ```
-fn captured_run_within_bound_starting_with(
-    command: &mut Command,
-    ceiling: Duration,
-    start_thread: &dyn Fn(&str, Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>>,
-) -> std::io::Result<(Output, Vec<String>)> {
+fn captured_run_within_bound(command: &mut Command, ceiling: Duration) -> std::io::Result<(Output, Vec<String>)> {
     let program: String = command.get_program().to_string_lossy().into_owned();
     let capture: Capture = Capture::new()?;
     let (standard_output, standard_error) = capture.stdio()?;
@@ -135,7 +128,7 @@ fn captured_run_within_bound_starting_with(
     //  is started before the child, so a refused start costs the command its start and never leaves a killed child unreaped.
     let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
     let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
-    if let Err(error) = start_thread("cli-git-query-wait", Box::new(move || {
+    if let Err(error) = crate::thread_started_before_its_child::start_named_thread("cli-git-query-wait", Box::new(move || {
         // Nothing is handed over when the start below fails, and then there is no child to wait for.
         let Ok(mut child) = taken.recv() else {
             return;
@@ -167,11 +160,6 @@ fn captured_run_within_bound_starting_with(
     }
 }
 
-/// Start a thread of this wrapper by name.
-fn start_a_named_thread(name: &str, body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
-    return std::thread::Builder::new().name(name.to_owned()).spawn(body);
-}
-
 /// What:
 ///  End a query past its ceiling with `SIGKILL`,
 /// through the descriptor taken while the number certainly named it.
@@ -181,7 +169,8 @@ fn start_a_named_thread(name: &str, body: Box<dyn FnOnce() + Send>) -> std::io::
 ///  the query reaps it as soon as it ends.
 /// The descriptor reaches that one process or fails,
 /// and it never reaches a successor.
-///  Says whether the signal was delivered: a host that gave no descriptor proves nothing about what the number names by now,
+///  Says whether the signal was delivered:
+/// a host that gave no descriptor proves nothing about what the number names by now,
 ///  so nothing is signalled and the sentence says so.
 ///
 /// In TS you'd write (pseudocode):

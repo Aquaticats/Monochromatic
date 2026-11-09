@@ -221,25 +221,27 @@ fn signal_name(signal: libc::c_int) -> &'static str {
 #[cfg(unix)]
 pub(crate) fn signal_root(raw: i32, signal: libc::c_int) {
     // The record is read here, at the signal, and not reused from the start of the stop.
-    let mut look = || return look_of(raw);
-    return signal_root_through(&mut look, raw, signal);
+    return signal_root_answering(look_of(raw), raw, signal);
 }
 
 /// What:
-///  `signal_root` over a look the caller supplies,
+///  `signal_root` over the answer of one look,
 /// so a control can read a record that refuses without starving the whole test process.
 /// Why:
-///   The whole decision of a signal is what the look answered,
-/// and the refusal (`ProcessLook::Unknown`) is a branch no
-///  real `/proc` gives a control on demand.
+///   The whole decision of a signal is what one look answered,
+/// and the refusal (`ProcessLook::Unknown`) is a branch
+///  no real `/proc` gives a control on demand.
+/// `signal_root` reads its answer at the signal and passes it here,
+/// so no
+///  caller can reuse an answer taken before a wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function signalRootThrough(look: () => ProcessLook, pid: number, signal: number): void;
+/// function signalRootAnswering(look: ProcessLook, pid: number, signal: number): void;
 /// ```
 #[cfg(unix)]
-pub(crate) fn signal_root_through(look: &mut dyn FnMut() -> ProcessLook, raw: i32, signal: libc::c_int) {
-    match look() {
+pub(crate) fn signal_root_answering(look: ProcessLook, raw: i32, signal: libc::c_int) {
+    match look {
         ProcessLook::Alive(found) => {
             // The member is held by a pidfd where the kernel gives one, so a number reused between the look and the signal is
             //  never reached.

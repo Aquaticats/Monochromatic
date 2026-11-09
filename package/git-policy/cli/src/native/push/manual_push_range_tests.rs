@@ -334,7 +334,8 @@ fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
 ///  that thread in `write_all` for as long as it lives,
 /// so waiting for it after the answer arrived would outlast
 ///  `RANGE_QUERY_CEILING` and hang the command on a query that had already answered.
-/// The helper ends by itself (`sleep`), so the control kills nothing.
+/// The helper ends by itself (`sleep`),
+/// so the control kills nothing.
 #[test]
 fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
     let root: PathBuf = fixture("manual-push-range-held-input");
@@ -393,17 +394,13 @@ fn a_thread_that_cannot_be_started_starts_no_query() {
     std::fs::set_permissions(&program, mode).expect("the stand-in runs");
     let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
     let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
-    let failure: ManualPushRangeError = run_git_bytes_starting_with(&git, arguments.as_slice(), Some("a request"), &refusing_a_thread)
+    crate::thread_started_before_its_child::refuse_one_start();
+    let failure: ManualPushRangeError = run_git_bytes(&git, arguments.as_slice(), Some("a request"))
         .expect_err("a thread that could not be started is the query's failure");
     let started: bool = ran.exists();
     remove(root.as_path());
     assert!(!started, "git ran although nothing could wait for it, so a killed child would be left unreaped");
     assert!(failure.message.contains("no thread could"), "{failure}");
-}
-
-/// A thread start that the process limit refuses.
-fn refusing_a_thread(_name: &str, _body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
-    return Err(std::io::Error::other("the process limit refused a thread"));
 }
 
 /// What:
@@ -416,7 +413,8 @@ fn refusing_a_thread(_name: &str, _body: Box<dyn FnOnce() + Send>) -> std::io::R
 /// that cleanup ran on the successful path of the control as well,
 ///  not only when a stand-in stayed blocked.
 /// The stand-ins end by themselves instead:
-/// a bounded read, a bounded `sleep`.
+/// a bounded read,
+/// a bounded `sleep`.
 #[test]
 fn no_control_of_the_range_signals_a_process_by_its_number() {
     let code: String = include_str!("manual_push_range_tests.rs")

@@ -64,6 +64,10 @@ pub mod pinned_member_signalled_through_a_pidfd;
 /// owned through every failure after its start.
 pub mod child_awaited_through_a_pidfd;
 
+/// A thread of this wrapper started before the child it waits for,
+/// so a refused start starts no child that nothing would reap.
+pub mod thread_started_before_its_child;
+
 /// A command run to its end like `Command::output`,
 /// awaited on the runtime through a pidfd,
 /// with its output read from anonymous files.

@@ -28,7 +28,8 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 /// Pipes for the batch queries' stdin and stdout.
 use std::io::Write;
-/// The child a query starts, handed to the thread that waits for it.
+/// The child a query starts,
+/// handed to the thread that waits for it.
 use std::process::Child;
 use std::process::Stdio;
 /// How long a range query may run.
@@ -111,25 +112,25 @@ pub fn run_git_bytes(
     arguments: &[OsString],
     input: Option<&str>,
 ) -> Result<Vec<u8>, ManualPushRangeError> {
-    return run_git_bytes_starting_with(git, arguments, input, &start_a_named_thread);
+    return run_git_bytes_starting_with(git, arguments, input);
 }
 
 /// What:
 ///  The body of `run_git_bytes`,
-/// with the starts of its two threads supplied by the caller.
+/// where a control's refused thread start is honoured by the shared starter.
 /// Why:
-///  A control has to make one of those starts fail,
-/// which no real process limit lets it do without starving the whole test process.
+///  Both of the query's threads are started before Git is,
+/// so the refusal has to reach the code that starts them
+///  and nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function runGitBytes(git, args, input, startThread): Buffer;
+/// function runGitBytesWithinItsThreads(git, args, input): Buffer;
 /// ```
 fn run_git_bytes_starting_with(
     git: &PushGit,
     arguments: &[OsString],
     input: Option<&str>,
-    start_thread: &dyn Fn(&str, Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>>,
 ) -> Result<Vec<u8>, ManualPushRangeError> {
     let mut command = git_command(git, arguments);
     command
@@ -148,7 +149,7 @@ fn run_git_bytes_starting_with(
     let writing: Option<std::thread::JoinHandle<()>> = match input {
         Some(requests) => {
             let text: String = requests.to_owned();
-            match start_thread("cli-git-range-input", Box::new(move || {
+            match crate::thread_started_before_its_child::start_named_thread("cli-git-range-input", Box::new(move || {
                 // Nothing is handed over when the start below fails, and then there is no request list to write.
                 let Ok(mut stdin) = stdin_taken.recv() else {
                     return;
@@ -167,7 +168,7 @@ fn run_git_bytes_starting_with(
     };
     let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
     let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
-    if let Err(error) = start_thread("cli-git-range-answer", Box::new(move || {
+    if let Err(error) = crate::thread_started_before_its_child::start_named_thread("cli-git-range-answer", Box::new(move || {
         // Nothing is handed over when the start below fails, and then there is no child to wait for.
         let Ok(child) = taken.recv() else {
             return;
@@ -232,11 +233,6 @@ fn run_git_bytes_starting_with(
     return Ok(output.stdout);
 }
 
-/// Start a thread of this wrapper by name.
-fn start_a_named_thread(name: &str, body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
-    return std::thread::Builder::new().name(name.to_owned()).spawn(body);
-}
-
 /// What:
 ///  End a query past its ceiling with `SIGKILL`,
 /// through the descriptor taken while the number certainly named it.
@@ -244,7 +240,8 @@ fn start_a_named_thread(name: &str, body: Box<dyn FnOnce() + Send>) -> std::io::
 ///  A number is a safe address only while its process is this process's own unreaped child,
 /// and the answering thread reaps the
 ///  query as soon as it ends.
-/// The descriptor reaches that one process or fails, and never a successor;
+/// The descriptor reaches that one process or fails,
+/// and never a successor;
 ///  a host that gave
 /// none proves nothing about what the number names by now,
 /// so nothing is signalled and the sentence says so.

@@ -91,7 +91,8 @@ fn a_member_is_held_by_its_pidfd_and_only_that_process_is_signalled() {
 /// so its number may belong to an unrelated process.
 /// A signal
 ///  sent to it would end that process.
-/// The stop waits for such a member instead, and one line says it could
+/// The stop waits for such a member instead,
+/// and one line says it could
 ///  not be stopped.
 ///  The seam is the record's own directory,
 /// as the look's control uses it:
@@ -132,17 +133,13 @@ fn a_member_whose_record_could_not_be_read_is_not_signalled() {
 fn a_second_look_that_fails_keeps_the_pidfd() {
     let mut process: Child = sleeper();
     let member: TreeMember = member_of(&process);
-    // The first look finds the process, as the pin's own does; the second, made after the descriptor is open, could not be
-    //  read, which is what a descriptor limit does to it.
-    let mut looks: u32 = 0;
-    let mut look = || {
-        looks += 1;
-        if looks == 1 {
-            return look_of(member.pid);
-        }
-        return ProcessLook::Unknown;
-    };
-    let outcome: PinOutcome = pin_with_look(&member, &mut look);
+    // The first look reads the real record and finds the process; the second, made after the descriptor is open, reads a root
+    //  where that record refuses, which is what a descriptor limit does to it.
+    let root: PathBuf = crate::test_support::fixture("pinned-member-second-look");
+    let refusing: PathBuf = root.join("refusing");
+    std::fs::create_dir_all(refusing.join(member.pid.to_string()).join("stat").as_path()).expect("a directory where the record should be");
+    let outcome: PinOutcome = pin_after_two_looks_of(std::path::Path::new("/proc"), refusing.as_path(), &member);
+    crate::test_support::remove(root.as_path());
     let held: PinnedProcess = match outcome {
         PinOutcome::Held(pinned) => pinned,
         other => panic!("a look that failed after the descriptor was open lost the pin: {other:?}"),

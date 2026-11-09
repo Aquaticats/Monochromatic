@@ -307,7 +307,8 @@ pub fn look_of(_pid: i32) -> ProcessLook {
 ///   A number that was reused by an unrelated process must never be signalled.
 ///  A member whose record could not be read is not signalled either:
 /// nothing proves which process its number names
-///  now, so a signal to it may end an unrelated one.
+///  now,
+/// so a signal to it may end an unrelated one.
 /// Such a member stays in every wait (`still_running`),
 /// and the
 ///  stop says in one line that it could not be stopped.

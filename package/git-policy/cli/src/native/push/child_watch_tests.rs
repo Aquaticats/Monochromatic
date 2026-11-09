@@ -392,8 +392,7 @@ fn a_root_whose_record_could_not_be_read_is_not_signalled() {
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     assert!(helper_is_running(pid), "the premise: the process runs");
     // The state a stop is in when `/proc/<pid>/stat` could not be read for the root.
-    let mut look = || return crate::process_tree::ProcessLook::Unknown;
-    crate::child_watch_clock_marks_and_stopping::signal_root_through(&mut look, pid, libc::SIGKILL);
+    crate::child_watch_clock_marks_and_stopping::signal_root_answering(crate::process_tree::ProcessLook::Unknown, pid, libc::SIGKILL);
     std::thread::sleep(Duration::from_millis(300));
     let survived: bool = helper_is_running(pid);
     sleeper.kill().expect("the control ends its sleeper");
@@ -409,8 +408,7 @@ fn a_root_whose_record_could_not_be_read_is_not_signalled() {
 fn a_root_a_look_found_gone_is_not_signalled() {
     let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
-    let mut look = || return crate::process_tree::ProcessLook::Gone;
-    crate::child_watch_clock_marks_and_stopping::signal_root_through(&mut look, pid, libc::SIGKILL);
+    crate::child_watch_clock_marks_and_stopping::signal_root_answering(crate::process_tree::ProcessLook::Gone, pid, libc::SIGKILL);
     std::thread::sleep(Duration::from_millis(300));
     let survived: bool = helper_is_running(pid);
     sleeper.kill().expect("the control ends its sleeper");
@@ -500,7 +498,8 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
 /// A program that holds the standard output open still yields no
 ///  answer at all,
 /// which the control above this one checks.
-/// The holder ends by itself (`sleep 4`), so nothing here is signalled.
+/// The holder ends by itself (`sleep 4`),
+/// so nothing here is signalled.
 #[test]
 fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
     let sink: SharedSink = SharedSink::default();
