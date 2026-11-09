@@ -40,8 +40,10 @@ const UID: u32 = 1000;
 const USER_GID: u32 = 1500;
 /// The group of the fake processes.
 const PROCESS_GID: u32 = 1001;
-/// A cgroup inside the user manager's subtree.
-const SCOPE: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/app-ghostty-surface-transient-1.scope";
+/// A cgroup inside the user manager's subtree that the watcher attaches no mark to itself,
+/// so the process watch has to move its processes.
+/// A named terminal scope is not one of them: its own cgroup carries the mark.
+const SCOPE: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash";
 
 /// What the fake adopter was asked to do.
 #[derive(Debug, Eq, PartialEq)]
@@ -515,14 +517,14 @@ fn processes_from_one_origin_share_one_scope() {
 #[test]
 fn different_origins_get_different_scopes() {
     let mut fixture = fixture("two-scopes", vec![]);
-    let claude = "/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash";
+    let other_origin = "/user.slice/user-1000.slice/user@1000.service/app.slice/app-cli\x2dgit.slice/build";
     make_process(&fixture.proc_root, &mise(50));
-    make_process(&fixture.proc_root, &Fake { cgroup: claude, ..mise(51) });
+    make_process(&fixture.proc_root, &Fake { cgroup: other_origin, ..mise(51) });
     assert!(matches!(fixture.routing.consider(50), Outcome::Adopted { .. }));
     assert!(matches!(fixture.routing.consider(51), Outcome::Adopted { .. }));
     let names: Vec<String> = fixture.requests.borrow().iter().map(|request| return request.scope_name.clone()).collect();
     assert_ne!(names[0], names[1]);
-    assert_eq!(names[1], "wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope");
+    assert_eq!(names[1], "wg-quicker-update-app.slice-app\\x2dcli\\x2dgit.slice-build.scope");
 }
 
 /// A scope follows its origin:
@@ -769,4 +771,51 @@ fn a_hung_manager_when_a_scope_is_joined_pauses_the_moves() {
     fixture.routing.begin_pass_at(now);
     let deferred = fixture.routing.consider_at(81, now + Duration::from_millis(1));
     assert!(matches!(&deferred, Outcome::Deferred { why, .. } if why.contains("did not answer in time")), "{deferred:?}");
+}
+
+/// Pi's unit cgroup,
+/// which the user's service manager created with the run's resource limits.
+const PI_UNIT: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/pi-wg-quicker-model-providers-off-the-tunnel.service";
+
+/// The toolchain node Pi runs on,
+/// under the install roots of the fixture user.
+const TOOLCHAIN_NODE: &str = "/var/home/tester/.local/share/monochromatic-dev/toolchain/node/26.13.0/node-v26.13.0-linux-x64/bin/node";
+
+/// The gap the owner measured:
+/// a Pi process is matched by the toolchain path rule,
+/// but the process watch cannot move the main process of a service,
+/// so the socket mark attached to the unit's own cgroup covers it instead.
+#[test]
+fn a_process_in_a_pi_unit_is_covered_by_the_mark_attached_to_its_own_cgroup() {
+    let mut fixture = fixture("pi-unit", vec![]);
+    make_process(&fixture.proc_root, &Fake { pid: 40, exe: TOOLCHAIN_NODE, args: &["pi"], cgroup: PI_UNIT, ..mise(40) });
+    make_process(&fixture.proc_root, &Fake { pid: 41, exe: TOOLCHAIN_NODE, args: &["node", "drive-pi-subagent.ts"], cgroup: PI_UNIT, ..mise(41) });
+    assert_eq!(fixture.routing.consider(40), Outcome::Covered { pid: 40 });
+    assert_eq!(fixture.routing.consider(41), Outcome::Covered { pid: 41 });
+    assert_eq!(fixture.routing.consider(40), Outcome::Ignored, "a covered process is handled once");
+    assert!(fixture.requests.borrow().is_empty(), "a service main process is never handed to the manager");
+}
+
+/// A unit the watcher does not mark is still reported as not moved,
+/// so a gap in the coverage is never silent.
+#[test]
+fn a_process_in_an_unmarked_service_is_still_reported_as_not_moved() {
+    let mut fixture = fixture("unmarked-service", vec![]);
+    let other = "/user.slice/user-1000.slice/user@1000.service/app.slice/other.service";
+    make_process(&fixture.proc_root, &Fake { pid: 42, exe: TOOLCHAIN_NODE, args: &["node", "x.js"], cgroup: other, ..mise(42) });
+    let skipped = fixture.routing.consider(42);
+    assert!(matches!(skipped, Outcome::Skipped { pid: 42, .. }), "{skipped:?}");
+    assert!(skipped.failure_kind().is_some());
+    assert!(fixture.requests.borrow().is_empty());
+}
+
+/// A Pi process outside a marked unit is moved,
+/// through the toolchain path when it runs the toolchain's node and through its own command line otherwise.
+#[test]
+fn a_pi_process_outside_a_marked_unit_is_moved() {
+    let mut fixture = fixture("pi-scope", vec![]);
+    make_process(&fixture.proc_root, &Fake { pid: 43, exe: TOOLCHAIN_NODE, args: &["pi"], ..mise(43) });
+    make_process(&fixture.proc_root, &Fake { pid: 44, exe: "/usr/bin/node", args: &["pi"], ..mise(44) });
+    assert_eq!(fixture.routing.consider(43), Outcome::Adopted { pid: 43, reason: MatchReason::ToolchainPath, count: 1, left_behind: 0 });
+    assert_eq!(fixture.routing.consider(44), Outcome::Adopted { pid: 44, reason: MatchReason::PiAgent, count: 1, left_behind: 0 });
 }
