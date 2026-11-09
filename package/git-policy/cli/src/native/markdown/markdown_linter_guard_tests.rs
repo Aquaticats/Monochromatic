@@ -20,7 +20,7 @@ use super::{GuardFailure, GuardLimits, run_guarded};
 use crate::test_support::{ActionSink, SharedSink};
 use crate::wait_progress::Cadence;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -48,6 +48,109 @@ fn limits(window: Duration) -> GuardLimits {
 const FAST: Cadence = Cadence {
     grace: Duration::from_millis(5),
     interval: Duration::from_millis(5),
+};
+
+
+/// What:
+///  A notice write that never returns does not defeat the guard's ceiling.
+/// Why:
+///  A job that keeps working is abandoned at the ceiling (owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)").
+///  The notice is advisory output to a stream whose reader may have stopped draining it,
+///  which is the state a full still-open stderr pipe has;
+///  waiting for that write would hold the caller past the only deadline that ends such a wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const sink = new ActionSink(shared, 1, () => { entered.send(); release.recv(); });
+/// // const outcome = await onThread(() => runGuarded(blocksForever, { window: 60s, ceiling: 50ms }, cadence(0, 3600s), 'a job', sink));
+/// // expect(await receiveWithin(outcome, ceiling * 10)).toEqual({ kind: 'ceiling' });
+/// ```
+#[test]
+fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
+    let (entered, notice_entered): (Sender<()>, Receiver<()>) = channel();
+    let (release_the_write, held): (Sender<()>, Receiver<()>) = channel();
+    let (finished, outcome): (Sender<Result<(), GuardFailure>>, Receiver<Result<(), GuardFailure>>) = channel();
+    let ceiling: Duration = Duration::from_millis(50);
+    std::thread::spawn(move || {
+        let shared: SharedSink = SharedSink::default();
+        // The write is entered once the first line is finished and then held, as a full stream holds it.
+        let mut sink: ActionSink = ActionSink::new(&shared, 1, move || {
+            let _ = entered.send(());
+            let _ = held.recv_timeout(Duration::from_secs(10));
+        });
+        let stopped: Result<(), GuardFailure> = run_guarded(
+            || {
+                // Blocked, and not quiet for the window this control gives, so only the ceiling can end the wait.
+                std::thread::sleep(Duration::from_secs(30));
+            },
+            GuardLimits { window: LONG_WINDOW, ceiling },
+            NOTICE_AT_ONCE,
+            "a job",
+            &mut sink,
+        );
+        let _ = finished.send(stopped);
+    });
+    notice_entered.recv_timeout(Duration::from_secs(5)).expect("the notice write started");
+    let answered = outcome.recv_timeout(ceiling * 10);
+    // The write is released whatever the answer, so the control leaves no thread holding the sink.
+    let _ = release_the_write.send(());
+    assert!(
+        answered.is_ok(),
+        "a notice write must not defeat the guard ceiling: {answered:?}"
+    );
+    assert_eq!(answered.expect("answered"), Err(GuardFailure::Ceiling(ceiling)));
+}
+
+/// What:
+///  A notice write that never returns does not keep a finished job's result from its caller.
+/// Why:
+///  The job has answered,
+///  and the notice is advisory:
+///  waiting for that write would hold the result past every deadline the caller was promised.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await receiveWithin(outcome, ceiling * 10)).resolves.toBe(7);
+/// ```
+#[test]
+fn audit_a_blocked_notice_write_does_not_hold_a_finished_result() {
+    let (entered, notice_entered): (Sender<()>, Receiver<()>) = channel();
+    let (release_the_write, held): (Sender<()>, Receiver<()>) = channel();
+    let (finished, outcome): (Sender<Result<u8, GuardFailure>>, Receiver<Result<u8, GuardFailure>>) = channel();
+    let ceiling: Duration = Duration::from_millis(50);
+    std::thread::spawn(move || {
+        let shared: SharedSink = SharedSink::default();
+        let mut sink: ActionSink = ActionSink::new(&shared, 1, move || {
+            let _ = entered.send(());
+            let _ = held.recv_timeout(Duration::from_secs(10));
+        });
+        let answered: Result<u8, GuardFailure> = run_guarded(
+            || 7,
+            GuardLimits { window: LONG_WINDOW, ceiling },
+            NOTICE_AT_ONCE,
+            "a job",
+            &mut sink,
+        );
+        let _ = finished.send(answered);
+    });
+    notice_entered.recv_timeout(Duration::from_secs(5)).expect("the notice write started");
+    let answered = outcome.recv_timeout(ceiling * 10);
+    let _ = release_the_write.send(());
+    assert!(
+        answered.is_ok(),
+        "a notice write must not hold a finished result: {answered:?}"
+    );
+    assert_eq!(answered.expect("answered"), Ok(7));
+}
+
+/// A cadence whose first notice is due before the first look at the job,
+///  and whose second is due long after any control ends:
+///  so one notice is written and no control depends on a second.
+const NOTICE_AT_ONCE: Cadence = Cadence {
+    grace: Duration::ZERO,
+    interval: Duration::from_secs(3600),
 };
 
 /// A job's value comes back,
