@@ -172,3 +172,48 @@ fn a_changed_name_git_cannot_decode_never_sends_another_committed_file() {
     assert!(review.seen.contains(NEWLINE_OWN_TEXT), "the changed file's own text is the excerpt");
     remove(directory.as_path());
 }
+
+/// The marker of the ignored,
+/// unstaged file the fixture's converter reads.
+const IGNORED_MARKER: &str = "PROVENANCE_IGNORED_UNSTAGED_MARKER";
+
+/// The marker of the file beside the repository that the fixture's converter reads.
+const OUTSIDE_MARKER: &str = "PROVENANCE_OUTSIDE_REPOSITORY_MARKER";
+
+/// The changed line of the reviewed file,
+/// which is the only text of it the review may carry.
+const CONVERTED_OWN_TEXT: &str = "PROVENANCE_CONVERTED_OWN_TEXT";
+
+/// A `diff.<driver>.textconv` command this repository's `.gitattributes` selects
+/// is a local presentation command:
+/// its output is not committed candidate bytes,
+/// so the patch read may not carry it.
+/// The converter here reads a file the person ignored and did not stage,
+/// and one outside the repository entirely,
+/// so a review that runs it sends both.
+#[test]
+fn a_local_text_converter_never_sends_ignored_or_outside_text() {
+    let directory: PathBuf = fixture("provenance-textconv");
+    let root: PathBuf = repository(directory.as_path(), "repo");
+    // Beside the repository, which is where a saved copy or a sibling checkout sits.
+    std::fs::write(directory.join("outside.txt"), format!("{OUTSIDE_MARKER}\n")).expect("write outside.txt");
+    std::fs::write(root.join("ignored.txt"), format!("{IGNORED_MARKER}\n")).expect("write ignored.txt");
+    std::fs::write(root.join(".gitignore"), "ignored.txt\n").expect("write .gitignore");
+    std::fs::write(root.join(".gitattributes"), "*.ts diff=audit\n").expect("write .gitattributes");
+    std::fs::write(root.join("a.ts"), "before\n").expect("write a.ts");
+    git(root.as_path(), &["add", "--", ".gitignore", ".gitattributes", "a.ts"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(root.join("a.ts"), format!("{CONVERTED_OWN_TEXT}\n")).expect("change a.ts");
+    git(root.as_path(), &["add", "--", "a.ts"]);
+    // The converter is this repository's own configuration, as a person's would be.
+    let config: String = std::fs::read_to_string(root.join(".git/config")).expect("read the fixture config");
+    std::fs::write(root.join(".git/config"), format!("{config}\n[diff \"audit\"]\n\ttextconv = cat ignored.txt ../outside.txt\n")).expect("configure the converter");
+    git(root.as_path(), &["commit", "--quiet", "--message=change"]);
+    let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
+    let review: Reviewed = review_commit(directory.as_path(), root.as_path(), sha.as_str(), Answer::Bytes(http_reply("200 OK", NO_COST_ANSWER)));
+    assert_the_verdict_reached_the_log(&review, sha.as_str());
+    let carried: Vec<&str> = [IGNORED_MARKER, OUTSIDE_MARKER].into_iter().filter(|marker| return review.seen.contains(marker)).collect();
+    assert!(carried.is_empty(), "the review's patch carried {carried:?}, text of no committed file");
+    assert!(review.seen.contains(CONVERTED_OWN_TEXT), "the changed line itself is the review's evidence");
+    remove(directory.as_path());
+}
