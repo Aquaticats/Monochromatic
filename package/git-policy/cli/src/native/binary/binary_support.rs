@@ -24,6 +24,7 @@ pub use crate::support_btrfs_controls::*;
 pub use crate::support_fixture_directories::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_fixture_service_log::*;
+pub use crate::support_fixture_service_readiness::*;
 pub use crate::support_observation::*;
 pub use crate::support_program_names_and_time_bound::*;
 pub use crate::support_resource_limits::*;
@@ -174,6 +175,9 @@ pub fn bounded_for(fixture: &Fixture, program: &Path, path: &OsStr, seconds: &st
     if let Some(runtime) = service_runtime(fixture) {
         command.env("XDG_RUNTIME_DIR", runtime);
     }
+    // The place a waiting commit is told is a line a healthy commit must not print, so it is set past the bound that
+    //  ends this command: a control that checks the line itself sets its own.
+    command.env(git_policy_cli::wait_ceilings::WAITING_NOTICE_VARIABLE, seconds);
     return command;
 }
 

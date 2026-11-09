@@ -207,6 +207,7 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
         withdraw_ceiling: Duration::from_secs(5),
+        waiting_notice_after: Duration::from_secs(60),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
         units_record_dir: None,

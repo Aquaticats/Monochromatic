@@ -377,14 +377,25 @@ fn plan_doctor(
 /// withUnitsNote(action, environment)
 /// ```
 fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> Action {
-    let Action::Exit { code, stdout, stderr } = action else {
-        return action;
-    };
-    if code == ENGINE_FAILURE_EXIT_CODE {
-        return Action::Exit { code, stdout, stderr };
+    // `match` picks the exit shape and gives its report back unchanged;
+    //  `stderr: text` binds the field under a new name.
+    match action {
+        Action::Exit { code, stdout, stderr } => {
+            if code == ENGINE_FAILURE_EXIT_CODE {
+                return Action::Exit { code, stdout, stderr };
+            }
+            let note: String = units_note(environment);
+            return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
+        }
+        Action::ExitBytes { code, stdout, stderr } => {
+            if code == ENGINE_FAILURE_EXIT_CODE {
+                return Action::ExitBytes { code, stdout, stderr };
+            }
+            let note: String = units_note(environment);
+            return Action::ExitBytes { code, stdout, stderr: format!("{stderr}{note}") };
+        }
+        other => return other,
     }
-    let note: String = units_note(environment);
-    return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
 }
 
 /// What:
@@ -400,15 +411,26 @@ fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> Acti
 /// withEarlierBatchesNote(action, globalArguments, environment, realGit)
 /// ```
 fn with_earlier_batches_note(action: Action, global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: &Path) -> Action {
-    let Action::Exit { code, stdout, stderr } = action else {
-        return action;
-    };
-    if code == ENGINE_FAILURE_EXIT_CODE {
-        return Action::Exit { code, stdout, stderr };
+    // `match` picks the exit shape and gives its report back unchanged.
+    match action {
+        Action::Exit { code, stdout, stderr } => {
+            if code == ENGINE_FAILURE_EXIT_CODE {
+                return Action::Exit { code, stdout, stderr };
+            }
+            let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
+            let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
+            return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
+        }
+        Action::ExitBytes { code, stdout, stderr } => {
+            if code == ENGINE_FAILURE_EXIT_CODE {
+                return Action::ExitBytes { code, stdout, stderr };
+            }
+            let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
+            let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
+            return Action::ExitBytes { code, stdout, stderr: format!("{stderr}{note}") };
+        }
+        other => return other,
     }
-    let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
-    let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
-    return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
 }
 
 /// What:
