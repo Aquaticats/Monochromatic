@@ -110,6 +110,10 @@ pub enum ClientFailure {
     /// The branch was no longer where the amended commit was prepared,
     /// so the amend was not made.
     BranchMoved { branch: String },
+    /// The merge,
+    /// cherry-pick or revert this commit concludes changed while the commit was prepared,
+    /// so there was no longer an operation to conclude.
+    ConclusionStateChanged { branch: String },
     /// The branch moved while the person wrote a message;
     /// the message is saved in `file` for them to reuse.
     BranchMovedMessageSaved { branch: String, file: String, amend: bool },
@@ -250,6 +254,11 @@ pub fn render(failure: &ClientFailure) -> String {
             "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one, or one \
              that was written or signed by hand, cannot be moved onto a different last commit, so it was not made. Run the \
              commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::ConclusionStateChanged { branch } => format!(
+            "The merge, cherry-pick or revert this commit was concluding changed while it was being prepared, so it was \
+             not made on the branch {branch}. Another command either finished that operation or abandoned it. Run `git \
+             status` to see what the worktree holds now, then run the commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::BranchMovedMessageSaved { branch, file, amend } => format!(
             "The branch {branch} moved while this commit was being prepared, so it was not made. The message you wrote is saved \

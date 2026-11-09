@@ -325,13 +325,30 @@ fn unfinished_revert(fixture: &Fixture) -> PathBuf {
     write(&repo, "reverted.txt", "changed\n");
     git(fixture, &repo, &["commit", "--quiet", "--all", "--message=change it"]);
     git(fixture, &repo, &["revert", "--no-commit", "HEAD"]);
+    assert!(repo.join(".git/REVERT_HEAD").exists(), "the revert waits for its commit");
     return repo;
 }
 
-/// A revert conclusion lands on the branch as it is now,
-/// as one commit on the new tip.
+/// What:
+///  A revert whose branch moved under it,
+/// where the command that moved the branch is the one Git lets conclude a revert:
+/// the commit of another session's paths.
+/// Why:
+///   Real Git 2.56.0 concludes a revert with a partial commit and removes `REVERT_HEAD` as it does
+/// (measured 2026-11-09:
+/// `git revert --no-commit HEAD` then `git commit -- x.txt` leaves no `REVERT_HEAD`),
+/// and a `git merge` beside it removes the state too and fails.
+/// So no commit can move a revert's branch and leave the revert waiting,
+/// and what the wrapper owes the person is to say that the operation it was concluding is gone,
+/// instead of a line about a branch it could not move or a commit it invented.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = commitPaused('commit -m revert it'); await otherSessionCommits('x.txt'); release(held);
+/// expect(held.stderr).toSayTheRevertIsGone();
+/// ```
 #[test]
-fn a_revert_conclusion_lands_on_a_branch_that_moved_while_it_was_prepared() {
+fn a_revert_whose_branch_moved_says_the_operation_it_concluded_is_gone() {
     let fixture: Fixture = fixture("revert-conclusion-moved");
     let repo: PathBuf = unfinished_revert(&fixture);
     let name: String = format!("rvm-{}", std::process::id());
@@ -343,13 +360,15 @@ fn a_revert_conclusion_lands_on_a_branch_that_moved_while_it_was_prepared() {
     let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
     assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
     let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    assert!(!repo.join(".git/REVERT_HEAD").exists(), "the other session's commit concluded the revert, as real Git does");
     let ended: Ended = release(held);
-    assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(parents(&fixture, &repo), vec![moved], "one commit on the new tip");
-    assert!(!repo.join(".git/REVERT_HEAD").exists(), "the revert is concluded");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:reverted.txt"]), "base\n", "the reverted change is undone");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "landed by another session\n", "nothing the moved commit landed is lost");
-    assert_eq!(git_text(&fixture, &repo, &["status", "--porcelain=v1", "--untracked-files=all"]), "", "the index and worktree agree with the commit");
+    assert_eq!(ended.code, Some(1), "{}", ended.stderr);
+    assert!(ended.stderr.contains("changed while it was being prepared"), "the person is told the operation is gone: {}", ended.stderr);
+    assert!(!ended.stderr.contains("cannot be moved onto a different last commit"), "no line about a commit that cannot be moved: {}", ended.stderr);
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), moved, "nothing else landed");
+    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "landed by another session\n");
+    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:reverted.txt"]), "changed\n", "the other session took only its own path");
+    assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]), "reverted.txt\n", "the reverted change stays staged for its owner");
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();
@@ -427,7 +446,7 @@ fn an_amend_lands_as_a_new_commit_when_the_branch_moved_while_it_was_prepared() 
     assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:b.txt"]), "landed by another session\n", "nothing the moved commit landed is lost");
     assert_eq!(stored(&fixture, &repo, replaced.as_str()), replaced_fields, "the replaced commit is left as it is");
     assert_eq!(stored(&fixture, &repo, moved.as_str()), moved_fields, "the commit that moved the branch is left as it is");
-    assert_eq!(git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]), "3\n", "the replaced commit, the one that moved it, and the amendment");
+    assert_eq!(git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]), "4\n", "the first commit, the replaced commit, the one that moved it, and the amendment");
     assert!(ended.stderr.contains("new commit"), "the person is told what the amend became: {}", ended.stderr);
     assert_eq!(git_text(&fixture, &repo, &["status", "--porcelain=v1", "--untracked-files=all"]), "", "the index and worktree agree with the commit");
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);

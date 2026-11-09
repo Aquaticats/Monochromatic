@@ -263,6 +263,14 @@ pub mod service_message;
 /// message and author.
 pub mod service_amend;
 
+/// The commit an amend makes when the branch moved under it:
+/// the amended commit's own author,
+/// committer,
+/// message and signature,
+/// on the replayed tree,
+/// on top of the branch as it is now.
+pub mod service_amend_replayed;
+
 /// The commits real Git builds for the service:
 /// an editor,
 /// a signature,

@@ -71,6 +71,8 @@ use crate::preparation_notice::deliver_notice;
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::conclusion_copy::conclusion_state_text;
+use crate::service_messages::{ClientFailure, render};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -160,6 +162,7 @@ pub fn prepare<F: RepositoryFacts>(
         SymbolicHead::Detached => String::from("HEAD"),
     };
     let detached: bool = layout.symbolic_head == SymbolicHead::Detached;
+
     let named: bool = selection.mode == TransactionMode::ExplicitPath;
     let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
     part.next("stagedDeletions");
@@ -238,6 +241,18 @@ pub fn prepare<F: RepositoryFacts>(
     //  the copy does not, and those are what the commit must not record.
     let index_witness: crate::service_land_start::IndexWitness = crate::service_land_start::witness_of(capture.layout.real_index_path.as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
     if let Some(again) = retry {
+        // A conclusion is made again only over the state it was prepared over: another session that concluded or
+        //  abandoned the merge, the cherry-pick or the revert meanwhile leaves nothing this commit could conclude, and an
+        //  ordinary commit of the same tree is not what the person asked for (`Captured::conclusion`).
+        if let Some(expected) = again.captured.conclusion.as_deref() {
+            let now: String = conclusion_state_text(context, cwd, capture.layout.git_dir.as_path(), capture.layout.ref_format)
+                .map_err(|error| failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}")))?;
+            if now != expected {
+                return Err(TransactionStop::Message(render(&ClientFailure::ConclusionStateChanged {
+                    branch: reference.trim_start_matches("refs/heads/").to_string(),
+                })));
+            }
+        }
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
             context,
@@ -311,6 +326,15 @@ pub fn prepare<F: RepositoryFacts>(
     for token in &pathspecs {
         pathspec_texts.push(token.to_string_lossy().into_owned());
     }
+    // What a conclusion was prepared over, read here and not when a retry needs it: another command may conclude the
+    //  operation while this commit waits, and the replay must compare against the state this preparation saw.
+    let conclusion_state: Option<String> = match capture.layout.conclusion {
+        Conclusion::Merge | Conclusion::CherryPick | Conclusion::Revert => Some(
+            conclusion_state_text(context, cwd, capture.layout.git_dir.as_path(), capture.layout.ref_format)
+                .map_err(|error| failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}")))?,
+        ),
+        Conclusion::None | Conclusion::Amend => None,
+    };
     // What every `Ready` of this preparation shares; the closures that carried it are the methods of this record.
     let shape: ReadyShape = ReadyShape {
         pathspecs: pathspec_texts,
@@ -324,6 +348,7 @@ pub fn prepare<F: RepositoryFacts>(
         interactive,
         fixed_parents,
         captured_at,
+        conclusion_state,
     };
     // Files still unmerged when the commit names no paths: Git refuses here (`builtin/commit.c:348`, `refresh_cache_or_die`, which
     //  exits with "Committing is not possible because you have unmerged files"). The owner's rule is "Warn and finish the merge"

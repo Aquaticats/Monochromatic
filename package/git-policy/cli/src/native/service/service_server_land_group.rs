@@ -377,6 +377,7 @@ pub(crate) fn land_group(
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
     place_after: Duration,
+    handed_back: &mut std::collections::HashSet<String>,
 ) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
@@ -489,10 +490,16 @@ pub(crate) fn land_group(
                     Outcome::RetryPrepare { base } => {
                         let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
                         stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
+                        // The client prepares the commit again from the change this attempt captured, which it reads from
+                        //  this attempt's own tree: the tree is its client's again, and no landing reads it.
+                        handed_back.insert(request.id.clone());
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
                         stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        // Nothing landed on this tree, and the client reads the change it prepared from it to make the
+                        //  commit on the branch as it is now.
+                        handed_back.insert(request.id.clone());
                         "branch-moved"
                     }
                 };

@@ -241,16 +241,35 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
     std::fs::write(tree.join("conclusion"), b"copies the cleanup reads").expect("a conclusion copy");
     let index: std::path::PathBuf = tree.join("commit.index");
     std::fs::write(&index, b"the private index").expect("a private index");
-    let trees: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
-    assert_eq!(trees, vec![tree.clone()], "a request names its tree in the field it carries for it");
+    let named: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
+    assert_eq!(named, vec![tree.clone()], "a request names its tree in the field it carries for it");
+    let trees: Vec<(String, std::path::PathBuf)> = named.into_iter().map(|path| { return (String::from("a-request"), path); }).collect();
     // The landing reads the tree; only after it is over does the service start the removal.
     assert!(index.exists() && tree.exists(), "the landing has the tree it reads");
-    crate::service_server::remove_the_trees(trees.as_slice());
+    crate::service_server::remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
     let began: std::time::Instant = std::time::Instant::now();
     while tree.exists() {
         assert!(began.elapsed() < std::time::Duration::from_secs(30), "the removal the landing started did not finish");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    remove_short(root.as_path());
+}
+
+/// A tree the service handed back to a request it did not land is left where it is,
+/// so the client can read the change it prepared from it.
+#[test]
+fn a_handed_back_tree_is_not_removed_by_the_service() {
+    let root: std::path::PathBuf = short_directory("handed-back");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    let tree: std::path::PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-1");
+    std::fs::create_dir_all(&tree).expect("the tree a request names");
+    let index: std::path::PathBuf = tree.join("commit.index");
+    std::fs::write(&index, b"the private index a rebuild reads").expect("a private index");
+    let trees: Vec<(String, std::path::PathBuf)> = vec![(String::from("sent-back"), tree.clone())];
+    let handed_back: std::collections::HashSet<String> = [String::from("sent-back")].into_iter().collect();
+    crate::service_server::remove_the_trees(trees.as_slice(), &handed_back);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    assert!(index.exists(), "the client reads the private index of the attempt it makes again");
     remove_short(root.as_path());
 }
 
