@@ -5321,6 +5321,29 @@ disk in the journal the message names.
 A rollback has no such window of its own:
 it decides nothing by reading the destination.
 
+Git loses that same write on its own file replacement,
+so this is not a cost the wrapper adds.
+Read in `git/git` at `master` on 2026-11-09:
+`entry.c`'s `checkout_entry_ca()` takes
+`changed = ie_match_stat(...)` of the file it would write,
+and with `state->force` set - which
+`git checkout -- <path>` and `git checkout <commit> -- <path>` use to discard local changes - it
+runs `unlink(path.buf)` under the comment "We unlink the old file,
+to get the new one with the right
+permissions (including umask,
+...)";
+`write_entry()` then opens the name with `create_file()`,
+which is
+`open(path, O_WRONLY | O_CREAT | O_EXCL, mode)`.
+A writer holding the old inode therefore writes
+into an unlinked file there too,
+and loses that write when its descriptor closes.
+The path that takes
+an explicit output name (`to_tempfile`,
+as `git checkout-index --temp` uses) writes `mkstemp` and
+renames,
+which orphans the old inode in the same way.
+
 #### The journal, and what a later fix does with it
 
 One journal directory per corrected file,
@@ -5366,15 +5389,40 @@ a reading of the destination is not a licence
 to swap,
 and two recoveries can exchange one journal twice.
 So the one removal is the one the record
-proves:
-a `content` that hashes to the recorded replacement holds none of the person's bytes,
-because a
-fix writes exactly those bytes and nothing else there.
+proves,
+by the same judgement the rollback makes of a file it took out of a swap:
+`content` is a regular file,
+read without following a symbolic link,
+whose bytes hash to the recorded replacement and whose permission bits and owner are the ones the
+record names.
+A digest alone would take a file the person saved with the correction's own bytes,
+or the same
+bytes narrowed to `0600`,
+for the fix's own and discard what they chose.
+A name that is not a regular
+file is never opened at all:
+the swap moves whatever stood at the destination into the journal,
+and opening a
+FIFO that no process writes to waits for ever,
+so the type is read first - here,
+in `read_record`,
+and in the
+judgement every other read of this route goes through.
 Everything else stays and is named on every later
 `fix`:
 the person's bytes wait in the named journal until they act on it,
 and no command decides for them
 which of two versions belongs at the path.
+
+What the sweep found reaches the person on every path out of a settled fix,
+not only on the one that
+installs:
+a fix whose installation fails,
+and one that cannot find the worktree or the Git directory,
+report the
+notices beside their own failure,
+because the path in a notice is the only place the person finds the edit an
+interrupted fix displaced.
 
 No lock stands in this route:
 the lock inventory guard covers `candidate/`,
