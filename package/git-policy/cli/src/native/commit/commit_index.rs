@@ -516,14 +516,16 @@ fn selection_items(selection: &IndexSelection) -> Selected {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const namesOneFile = (cwd, token, literal) => !token.startsWith(':') && (literal || !/[*?[\\]/.test(token)) && lstat(join(cwd, token)).isFile();
+/// const namesOneFile = (cwd, token, literal) => !token.startsWith(':') && (literal || !/[*?[]/.test(token)) && lstat(join(cwd, token)).isFile();
 /// ```
 fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
     let bytes: &[u8] = token.as_encoded_bytes();
     if bytes.first() == Some(&b':') {
         return false;
     }
-    if !literal && bytes.iter().any(|byte| { return matches!(*byte, b'*' | b'?' | b'[' | b'\\'); }) {
+    // A backslash is Git's escape and not a pattern character here: `a\\b.txt` names the file of that name when one is
+    // there, and a token whose literal pathname is not there is left to Git as the pattern it may be.
+    if !literal && bytes.iter().any(|byte| { return matches!(*byte, b'*' | b'?' | b'['); }) {
         return false;
     }
     let Ok(held) = std::fs::symlink_metadata(cwd.join(token)) else { return false };

@@ -10558,8 +10558,8 @@ For injected commit-only semantics:
     A selected element that names one file of the worktree is an exact path:
     it carries no pathspec magic,
     no pattern character of a mode in effect (`*`,
-    `?`,
-    `[` and `\\` are ordinary in a literal or a noglob mode),
+    `?` and `[` are ordinary in a literal or a noglob mode;
+    a backslash is Git's escape and names the file whose pathname spells it),
     and a file or a link is at the pathname it gives,
     and it is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
