@@ -377,6 +377,27 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     crate::test_support::remove(root.as_path());
 }
 
+/// What a failed look at the step's own record must not cost: the signal.
+/// A look that fails (a descriptor limit, a permission, an I/O error) says nothing about the process,
+/// so the step's root is signalled all the same;
+/// reading the failure as "the process is gone" signals nothing,
+/// so the ceiling ends nothing and the wait outlasts it.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_root_whose_record_could_not_be_read_is_still_signalled() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    assert!(helper_is_running(pid), "the premise: the process runs");
+    // The state a stop is in when `/proc/<pid>/stat` could not be read for the root: no member was found for it.
+    crate::child_watch_clock_marks_and_stopping::signal_root(&None, true, pid, libc::SIGKILL);
+    let began: Instant = Instant::now();
+    while helper_is_running(pid) {
+        assert!(began.elapsed() < Duration::from_secs(10), "the root of the step kept running: a look that failed was read as a process that was gone");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    sleeper.wait().expect("the sleeper is collected");
+}
+
 /// A command that finishes at once prints nothing;
 /// the grace is an hour,
 /// so no host is slow enough to outlast it.
