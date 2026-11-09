@@ -507,7 +507,8 @@ fn named_source_failure(source_path: &Path, what: &str, error: &WorktreeCopyErro
 /// type SliceCopy = { stamps: (FileStamp | undefined)[]; gone: string[] };
 /// ```
 struct SliceCopy {
-    /// The stamp of every position of the slice, in position order.
+    /// The stamp of every position of the slice,
+    /// in position order.
     stamps: Vec<Option<FileStamp>>,
     /// The entries the source no longer held when their turn came.
     gone: Vec<String>,
