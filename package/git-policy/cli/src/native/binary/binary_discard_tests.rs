@@ -1102,3 +1102,67 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
     assert!(other_line.contains(remote.as_str()), "{other_line}");
     remove(&fixture);
 }
+
+/// A repository whose `tracks` branch holds a file under a directory the ignore rules hide,
+/// and a linked
+///  worktree that holds the person's file where that directory must go.
+fn repository_whose_target_needs_a_directory(fixture: &Fixture) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"private\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::create_dir(repo.join("private")).expect("directory");
+    std::fs::write(repo.join("private/config.txt"), b"the tracked version\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--force", "--", "private/config.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("private"), b"the person file\n").expect("ignored file");
+    return (repo, linked);
+}
+
+/// A forced form whose target needs a directory where the worktree has an ignored file removes that file,
+/// so the guard refuses and names it.
+#[test]
+fn a_forced_form_keeps_an_ignored_file_where_the_target_needs_a_directory() {
+    let fixture: Fixture = fixture("discard-ignored-ancestor");
+    let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&fixture);
+    for arguments in [
+        vec!["reset", "--hard", "tracks"],
+        vec!["checkout", "--force", "tracks"],
+        vec!["switch", "--force", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} removed the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join("private")).expect("ignored file"),
+            b"the person file\n",
+            "{arguments:?} removed the ignored file"
+        );
+        assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // The line names the path the refusal saw.
+    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl"))
+        .expect("the audit file of the repository");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"ignoredAndTracked\":\"private\""), "{last}");
+    // Real Git removes the file to make the directory, so the loss the guard prevents is measured.
+    let removed: Observed = run_direct(&fixture, linked.as_path(), &["reset", "--hard", "tracks"]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
+    assert!(
+        !linked.join("private").is_file(),
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    assert_eq!(
+        std::fs::read(linked.join("private/config.txt")).expect("tracked file"),
+        b"the tracked version\n"
+    );
+    remove(&fixture);
+}

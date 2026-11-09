@@ -9147,13 +9147,20 @@ and asks Git which of them the worktree holds as ignored files,
 then refuses,
 naming the paths,
 while any path is both.
+Every directory on the way to each of those paths is asked about as well,
+because a tree creates the directories it needs,
+and a worktree that holds a file where one of them must go loses that file
+(Git removes it to make the directory);
+an entry Git lists inside such a directory is not counted,
+because writing the tree leaves it alone.
+Only an answer that names exactly one of the asked paths is one.
 Only these three forms are read that way,
 and only in a linked worktree;
 the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
 so no query walks the worktree's ignored files
-(measured on this repository's worktree at 1,860 tracked paths:
-`git ls-tree` 4 to 6 ms and `git ls-files` 9 to 77 ms per start,
-the spread being host load).
+(measured on this repository's worktree at 1,860 tracked paths and their 42 directories:
+`git ls-tree` 4 to 6 ms and `git ls-files` 8 to 11 ms per start,
+in ten-run batches with a load average of 61).
 Every path is named with `:(top,literal)` magic,
 anchored at the top of the worktree and read as itself,
 and the query turns off a caller's `--literal-pathspecs`,

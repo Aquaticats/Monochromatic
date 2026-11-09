@@ -48,7 +48,7 @@ use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_f
 use crate::command_clean::clean_would_delete_from_answer;
 use crate::rule_worktree_dirty::{
     DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries,
+    ignored_paths_queries, requested_answers, with_ancestors,
 };
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
@@ -459,11 +459,14 @@ impl RepositoryFacts for GitFacts {
         if tracked.is_empty() {
             return Ok(Vec::<String>::new());
         }
+        // A tree creates the directories its paths need, so a file the worktree holds where one of them must go
+        //  is lost too: every directory on the way to a tracked path is asked about as well.
+        let asked: Vec<Vec<u8>> = with_ancestors(tracked.as_slice());
         // Git answers for these paths alone, so no query walks the worktree's ignored files.
         let mut shared: Vec<String> = Vec::<String>::new();
-        for query in ignored_paths_queries(self.global_prefix.as_slice(), tracked.as_slice()) {
+        for query in ignored_paths_queries(self.global_prefix.as_slice(), asked.as_slice()) {
             let output: MetadataOutput = self.query(query, "the ignored files")?;
-            for path in ignored_paths_from_answer(&output)? {
+            for path in requested_answers(asked.as_slice(), ignored_paths_from_answer(&output)?.as_slice()) {
                 shared.push(String::from_utf8_lossy(path.as_slice()).into_owned());
             }
         }

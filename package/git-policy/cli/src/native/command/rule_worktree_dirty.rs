@@ -130,6 +130,61 @@ pub const IGNORED_PATHS_QUERY_BYTES: usize = 128 * 1024;
 pub const SHARED_PATHS_NAMED: usize = 5;
 
 /// What:
+///  Every path of `paths` with each directory on the way to it,
+/// each named once.
+///  `&[Vec<u8>]` borrows the paths as their tree holds them.
+/// Why:
+///   A form that writes a tree creates the directories that tree needs,
+///  and a worktree that holds a
+///       file where one of those directories must go loses the file whatever it is:
+///  Git removes it to make
+///  the directory,
+///  so the directory itself is a path the worktree may hold as an ignored file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withAncestors(paths: Buffer[]): Buffer[];
+/// ```
+pub fn with_ancestors(paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    // A set keeps each ancestor and each path once, and its own order keeps the answer the same every run.
+    let mut all: std::collections::BTreeSet<Vec<u8>> = std::collections::BTreeSet::new();
+    for path in paths {
+        for (index, byte) in path.iter().enumerate() {
+            if *byte == b'/' && index > 0 {
+                all.insert(path[..index].to_vec());
+            }
+        }
+        all.insert(path.clone());
+    }
+    return all.into_iter().collect();
+}
+
+/// What:
+///  The answers that name exactly one of the requested paths.
+/// Why:
+///   A request for a directory also lists the ignored files inside it,
+///  which a form writing a tree does
+///       not remove,
+///  so only an entry at the requested path itself is a file the command would replace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function requestedAnswers(requested: Buffer[][], answer: Buffer[]): Buffer[][];
+/// ```
+pub fn requested_answers(requested: &[Vec<u8>], answer: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut named: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for path in answer {
+        for known in requested {
+            if known == path {
+                named.push(path.clone());
+                break;
+            }
+        }
+    }
+    return named;
+}
+
+/// What:
 ///  The queries that list which of `paths` the worktree holds as ignored files,
 /// one argument
 ///       list per bounded start,

@@ -1572,7 +1572,8 @@ The rule is:
   `--keep`) override that token,
   so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
   write tracks,
-  and the rejection names both.
+  or where one of those paths needs a directory,
+  and the rejection names the path.
   The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
