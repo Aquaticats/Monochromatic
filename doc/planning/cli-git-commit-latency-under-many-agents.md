@@ -1442,7 +1442,8 @@ The method is the one the figures above came from,
 run again on 2026-11-09 between 15:12 and 16:20,
 under the load the host had then:
 other sessions were running their own builds and a performance run of their own,
-and the load average stood between 61 and 115 on eight CPUs.
+and the load average read 61 and 74 at one minute in the two samples taken while the runs were going,
+on eight CPUs.
 Each run makes eight overlapping commits in each of three rounds,
 where run A above made four,
 started together on one branch of a disposable clone of this worktree
@@ -1477,10 +1478,18 @@ That change touches the candidates a gate prepares and nothing else about the ga
 it also removes the two copies the preparation itself made,
 so the control's commits are shorter than the record's overall and only its gate is compared here.
 
+The arms were not interleaved:
+the two runs of `77d79100fd` ran first,
+then the two of `b9000c1929`,
+then the control.
+The control therefore ran last and fastest,
+so the effect is not a quieter host.
+
 The documents the runs wrote are `perf/gate-account-2026-11-09-*.json`:
 `baseline-a` and `baseline-b` are the runs of `77d79100fd`,
 `before-a` and `before-b` the runs of `b9000c1929`,
-and `control` the run of the one-change build.
+and `control` the run of the one-change build,
+and `probe` the one-round run cited below.
 Each holds every phase of its commits,
 the gate's spans,
 the four slowest gates with their spans and Git children,
@@ -1512,7 +1521,34 @@ The record's spans name every stretch of a gate in this release:
   which is the facts provider and the pass itself,
   3 ms at the median and 16 ms at the largest.
 
-No step of a gate is worth removing.
+A gate's tail under pressure is not a policy's either.
+A first run of the same method with one round,
+written before the two above and never discarded,
+put `gateMs` at 163 ms at the median and 6 342 ms at its p95:
+the slowest of its eight commits spent 6 298 ms of a 6 342 ms gate in `policy final-newline at post-commit`,
+where its `git diff-tree` of the landed commit ran 6 275 ms,
+while the other seven commits of its batch compiled the scanner's rule cache
+(16 034 ms in that record's `policy security/forbidden-strings at pre-forward`,
+against 14 ms for the same gate's `git ls-tree` later in the same command).
+That is this record's second-ranked entry at work on the gate:
+the rule-cache compile saturates the host inside the preparation,
+and the gate's own Git children queue behind it.
+It costs nothing on a machine whose cache is warm,
+which is why the two three-round runs of the same binary never crossed 251 ms at their p95.
+
+For a commit of one text file,
+no step of a gate is worth removing.
+Two more candidates are named and left:
+
+- the scanner's rules are loaded again at the gate,
+  in a state of its own,
+  which the scanner's own command does in under 10 ms from a warm cache on this host
+  (32.04 s cold,
+  then 0.00 s twice);
+- `markdown/autofix` runs at the gate only to warn in this repository's configuration,
+  and an `error` in another configuration can block there,
+  so skipping it would change a verdict for the 0 ms it costs a commit of one text file.
+
 The one duplication left is the parent tree's listing,
 which the same command's preparation already made for the same commit:
 the preparation lists the base's whole tree to answer the same question,
@@ -1575,15 +1611,26 @@ A measurement of a Markdown commit's gate would need a run whose agents commit M
   and to take the wait off the
   command's path another way.
 - The gate's two figures are settled,
-  and nothing in a gate is worth removing.
+  and no step of a gate is worth removing for a commit of one text file.
   Its p95 was the gate's own copy of the real index,
   which `195f167602` removed before the gate was measured again:
   a build of the record's binary with that one change applied holds the gate at 45 ms at the median,
   against 2 047 to 3 571 ms without it,
   and this worktree's `HEAD` holds it at 72 to 115 ms at the median
   with the landed commit's candidate set and the forbidden-strings scan inside it.
-  The parent tree's listing repeats what the same command's preparation listed for the same commit,
-  worth 25 to 35 ms of that gate,
-  and it stays until such a hand-off is wanted more than the store's rule against process-wide state.
+  Three candidates are named and left:
+  the parent tree's listing,
+  which repeats what the same command's preparation listed for the same commit
+  and is worth 25 to 35 ms of that gate,
+  the scanner's second load of its rules,
+  worth under 10 ms from a warm cache,
+  and `markdown/autofix` at the gate,
+  which can block under a configuration that sets it to `error` and costs nothing to a text-file commit.
+  What a gate still waits on under pressure is the preparation's cold rule-cache compile,
+  which is the second entry above,
+  and the gate's own Git children queue behind it:
+  one run of the same method put a `git diff-tree` of the landed commit at 6 275 ms inside a 6 342 ms gate.
+  A commit that changes Markdown is unmeasured:
+  the embedded linter runs at both lifecycle points for it.
 - The four ranked entries of this record are proposals,
   not work in progress.
