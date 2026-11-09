@@ -156,11 +156,24 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `invocation-route-round-2-prompt.md` for the alias branch's review,
-  whose five findings are cases the guard on main also misses,
-  and `resume-after-wall-clock-prompt.md` for `hook-route-findings-fixed`,
-  whose run 3 reached its time limit while writing wording tests,
-  so that branch has no finished report.
+  `wrapper-tests-that-fail-only-in-a-suite-round-3-prompt.md`.
+  That branch's merge of main is open in its worktree on two conflicts,
+  in `landing/service_push_retry_tests.rs` and `testing/test_support.rs`,
+  and the brief also answers its two questions:
+  split the two long controls per case,
+  and fix `every_call_runs_on_the_same_runtime`.
+- Started:
+  alias run 2 on the review `invocation-route-round-1-sol.txt`,
+  and hook run 4,
+  because hook run 3 reached its time limit while writing wording tests.
+- The intent-to-add branch passed 660 of 661 on top of main.
+  `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on it and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note;
+  the branch's review is running.
+- The conversion branch finished seven findings and its check is running.
+- `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
+  of which index 57.8 s and journal 20.6 s,
+  and said a real commit makes the same writes and flushes.
 - `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
   The branch is not to be merged or landed until that run reports,
   because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
@@ -172,7 +185,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
   an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
   and stalled removal threads with no cap.
-- The intent-to-add branch is being tested on top of main.
 - `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
   and is with `wrapper-tests-that-fail-only-in-a-suite`.
 - The shadow branch has passed its tests on top of main and its round 2 is running:
