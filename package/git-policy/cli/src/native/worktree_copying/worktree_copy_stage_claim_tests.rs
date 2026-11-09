@@ -433,17 +433,40 @@ fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathB
     return (root, repo.clone(), destination, repo.join(".git/worktrees/topic"));
 }
 
-/// An add killed before it was bound deletes nothing,
-/// even when a worktree with a valid pair stands at the recorded path:
-///  a person ran real Git there and may have edited files in it.
+/// What:
+///  An add killed before its binding was recorded deletes nothing,
+/// and its record stays while the worktree it
+///  created is not proven whole.
+/// Why:
+///   Real Git's `--no-checkout` registers the destination before the wrapper writes the binding,
+/// so the kill
+///  between them leaves a planned record and a pointer,
+/// and the pointer is what names the registration the
+///  proof reads.
+/// The stage is gone and the record alone names the worktree,
+/// so one report and a forgetting would leave
+///  a registered,
+/// `.git`-only worktree that nothing ever mentions again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = reap(common); expect(first.length).toBe(1); expect(reap(common)).toEqual(first);
+/// git(destination).resetHard(); expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(false);
+/// ```
 #[test]
-fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_path() {
-    let (root, repo, destination, admin) = killed_add("claim-add-pre-git", false, false);
-    std::fs::write(destination.join("mine.txt"), b"edited by a person").expect("their work");
-    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert!(destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
-    assert_eq!(notices.len(), 1, "{notices:?}");
-    assert!(notices[0].contains("nothing proves it is the add's"), "{}", notices[0]);
+fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() {
+    let (root, repo, destination, admin) = killed_add("claim-add-pre-binding", false, false);
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(destination.join(".git").exists() && admin.exists(), "nothing of the worktree was changed");
+    assert_eq!(first.len(), 1, "{first:?}");
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    assert!(first[0].contains(format!("git -C {shown} reset --hard").as_str()) && first[0].contains(format!("git worktree remove --force {shown}").as_str()), "the report names what finishes or removes it: {}", first[0]);
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays while the worktree is not whole");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), first, "the next command says the same");
+    // The person finishes the checkout the report names.
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and its record goes");
     remove(root.as_path());
 }
 
@@ -784,5 +807,47 @@ fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed(
     let refused: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("an expired foreign temporary stops the sweep");
     assert!(refused.0.contains("31337"), "{}", refused.0);
     assert!(journals.join(dead_name.as_str()).exists(), "nothing was removed before the refusal");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose commit has an empty tree is whole once its checkout wrote the empty index,
+/// so the report
+///  stops and the records go.
+/// Why:
+///   Nothing beside Git's pointer is written by a checkout of an empty tree,
+/// so a proof that asked for a file
+///  beside the pointer could never be satisfied:
+/// the report would name the same worktree in every command for ever,
+///  and the remedy it prints could not end it.
+/// The index's entry count is what tells a tree with nothing to write
+///  from a checkout that never ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimForAdd(common, destination); await git(repo, 'worktree add --no-checkout ...');
+/// expect(reap(common).length).toBe(1);
+/// git(destination).resetHard(); expect(reap(common)).toEqual([]);
+/// ```
+#[test]
+fn an_add_interrupted_in_a_worktree_of_an_empty_tree_settles_once_its_checkout_is_whole() {
+    let root: PathBuf = fixture("claim-add-empty-tree");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    crate::test_support::git(repo.as_path(), &["commit", "--allow-empty", "--quiet", "--message=empty tree"]);
+    let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    let claim: StageClaim = claim_stage_for_add_as(repo.join(".git").as_path(), destination_wanted.as_path(), &dead_copy_owner()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    claim.record_binding(&bound.binding).expect("recorded");
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(first.len(), 1, "an add whose checkout never ran is named: {first:?}");
+    // The person finishes the checkout the report names: an empty tree writes nothing beside the pointer.
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(std::fs::read_dir(destination.as_path()).expect("listing").count(), 1, "the worktree holds only Git's pointer");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy ends the report");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
     remove(root.as_path());
 }

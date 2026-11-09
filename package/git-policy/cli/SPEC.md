@@ -1674,17 +1674,34 @@ and nothing waits for the call the ceiling exists to end.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,
-prints that report for a bound add (or says that nothing proves a leftover is the add's when the add was
-never bound),
+prints that report for an add whose destination Git registered (or says that nothing proves a leftover is the
+add's when nothing at the recorded path names a registration),
 prints the stage it did not remove,
 and keeps the record,
 the marker and the claim while the worktree is
 not proven whole and while that stage still stands:
-a worktree holds nothing but Git's `.git` file until a checkout wrote beside it,
-so every later command
-that runs the recovery prints the same report again,
-and the records go in the command that finds the worktree
-whole (a checkout wrote an index and something beside Git's pointer) or gone.
+so every later command that runs the recovery prints the same report again,
+and the records go in the command that finds the worktree whole or gone.
+The proof is what the two directories say,
+without running Git:
+the destination is gone,
+its administrative directory holds an index,
+no `index.lock` stands there,
+and the index decides what a whole checkout holds beside Git's pointer:
+an index with entries belongs to a tree with files,
+so a destination holding only its `.git` file is not whole,
+while an index with no entries belongs to a tree with nothing to write,
+so a destination holding only its `.git` file is whole,
+which is what a worktree at a commit with an empty tree looks like after every step finished.
+A record written before the add was bound carries only the destination,
+so the `gitdir:` line of the destination's own `.git` file names the registration the proof reads,
+and an add killed between Git's registration and that record is reported and kept like a bound one.
+The proof cannot see a process filling the destination beside an index that was written before it started
+(another program's `git read-tree` without `-u`,
+then a copy),
+and it compares no file's contents;
+Git's own `read-tree -u` and `reset --hard` hold `index.lock` for as long as they write,
+so the lock refuses those while they run.
 The stage is the person's to remove,
 and its claim goes with it.
 When the worktree's administrative directory holds `index.lock`

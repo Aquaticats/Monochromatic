@@ -11,9 +11,12 @@
 //! so that stage is reported and never removed,
 //! and the claim stays so that the
 //!  next command reports it again.
-//! An add's record stays too while the worktree it names is not proven whole:
-//! a line on one
-//!  command's standard error is not a place to keep an obligation a person has to act on.
+//! An add's record stays too while the worktree it names is not proven whole,
+//! whether the add was bound or killed
+//!  before the binding was written:
+//! a line on one command's standard error is not a place to keep an obligation a person has
+//!  to act on,
+//! and the destination's own pointer names the registration that proves the checkout whole or not.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +26,7 @@
 
 use crate::json_record::quote;
 use crate::private_storage::sync_directory;
-use crate::worktree_add_binding::{Binding, Recorded, decode_record};
+use crate::worktree_add_binding::{Recorded, decode_record};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
@@ -49,8 +52,63 @@ pub struct Settlement {
 /// in the administrative directory of a worktree.
 const INDEX_LOCK: &str = "index.lock";
 
+/// The name of the index itself,
+/// in the administrative directory of a worktree.
+const INDEX: &str = "index";
+
+/// The name Git gives the pointer file that makes a directory a worktree.
+const POINTER: &str = ".git";
+
 /// What:
-///  Whether the worktree an add's binding names is proven whole or gone,
+///  How an index file starts:
+/// its magic,
+/// its version and its entry count.
+/// Why:
+///   The count alone answers whether a checkout had anything to write,
+/// and reading it needs no object
+///  name length,
+/// so recovery reads a dozen bytes instead of parsing every entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = readSync(index).subarray(0, 12); // 'DIRC' | version | count
+/// ```
+const INDEX_HEADER_BYTES: usize = 12;
+
+/// The index's magic at the start of its header (`include/git/read-cache-ll.h`).
+const INDEX_MAGIC: [u8; 4] = *b"DIRC";
+
+/// Where the entry count sits in the index header.
+const INDEX_COUNT_AT: usize = 8;
+
+/// The prefix of the only line a worktree's `.git` file holds.
+const POINTER_PREFIX: &str = "gitdir: ";
+
+/// What:
+///  How many entries an index file holds,
+/// or nothing when the file does not start like an index.
+/// Why:
+///   The count is the header's,
+/// so a file that cannot be read or does not begin with the index magic proves nothing,
+/// and a count of zero says the tree the checkout wrote has nothing in it to write into the worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const header = readSync(index).subarray(0, 12); return header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : undefined;
+/// ```
+fn index_entry_count(index: &Path) -> Option<usize> {
+    let mut header = [0_u8; INDEX_HEADER_BYTES];
+    let mut file = std::fs::File::open(index).ok()?;
+    std::io::Read::read_exact(&mut file, &mut header).ok()?;
+    if header[..INDEX_MAGIC.len()] != INDEX_MAGIC {
+        return None;
+    }
+    let count: [u8; 4] = header[INDEX_COUNT_AT..INDEX_HEADER_BYTES].try_into().ok()?;
+    return Some(u32::from_be_bytes(count) as usize);
+}
+
+/// What:
+///  Whether the checkout at the destination is proven whole or gone,
 /// which is when nothing is left for a person
 ///  to finish.
 /// Why:
@@ -58,34 +116,79 @@ const INDEX_LOCK: &str = "index.lock";
 /// so the proof is what the two directories say:
 /// the destination
 ///  is gone,
-/// or it holds a file besides Git's pointer,
 /// its administrative directory holds an index,
-/// and no
-///  `index.lock` stands in the way of the next Git write there.
-/// A destination that holds only its `.git` file is the shape a kill between real Git and
-///  the checkout leaves,
-/// and a lock with no index beside it is the shape a kill inside the index install leaves.
+/// and no `index.lock` stands in the way of the next Git
+///  write there.
+/// Then the index decides what a whole checkout holds beside Git's pointer:
+/// an index with entries belongs to
+///  a tree with files,
+/// so a destination holding only its `.git` file is the shape a kill between real Git and
+///  the checkout leaves;
+/// an index with no entries belongs to a tree with nothing to write,
+/// so a destination holding only its
+///  `.git` file is whole there,
+/// which is what a worktree at a commit with an empty tree looks like after
+///  every step finished.
+/// A lock with no index beside it is the shape a kill inside the index install leaves.
+/// What the proof cannot see:
+/// a process filling the destination beside an index that was written before it started
+///  (another program's `git read-tree` without `-u`,
+/// then a copy),
+/// and the contents of the files it counts.
+/// Git's
+///  own `read-tree -u` and `reset --hard` hold `index.lock` for as long as they write,
+/// so the lock
+///  refuses those while they run,
+/// and one such command writes the index last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && entries(destination).length > 1)
+/// !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && (entryCount(index) === 0 || entries(destination).length > 1))
 /// ```
-fn add_is_finished(binding: &Binding) -> bool {
+fn add_is_finished(destination: &Path, admin: &Path) -> bool {
     // `match` on the lookup: a destination that is gone is nothing to finish, while one that cannot be examined is kept.
-    match std::fs::symlink_metadata(binding.destination.as_path()) {
+    match std::fs::symlink_metadata(destination) {
         Ok(_present) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return true,
         Err(_refused) => return false,
     }
-    if !binding.admin.join("index").exists() || binding.admin.join(INDEX_LOCK).exists() {
+    if !admin.join(INDEX).exists() || admin.join(INDEX_LOCK).exists() {
         return false;
     }
+    // An index with no entries is a tree with nothing to check out, so Git's pointer alone is the whole worktree.
+    if index_entry_count(admin.join(INDEX).as_path()) == Some(0) {
+        return true;
+    }
     // More than the `.git` file Git wrote: a checkout put something beside it.
-    let held_listing = match std::fs::read_dir(binding.destination.as_path()) {
+    let held_listing = match std::fs::read_dir(destination) {
         Ok(listing) => listing,
         Err(_unreadable) => return false,
     };
     return held_listing.count() > 1;
+}
+
+/// What:
+///  The administrative directory the destination's `.git` file names,
+/// when that directory exists.
+/// Why:
+///   A record written before the add was bound carries only the destination,
+/// so the pointer Git wrote is what names the
+///  registration and the index the proof reads;
+/// a pointer that is not a `gitdir:` line,
+/// or one whose target is
+///  not there,
+/// proves nothing and is no registration.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = readFileSync(join(destination, '.git'), 'utf8'); return line.startsWith('gitdir: ') ? resolve(destination, line.slice(8).trim()) : undefined;
+/// ```
+fn registration_directory(destination: &Path) -> Option<PathBuf> {
+    let pointer: String = std::fs::read_to_string(destination.join(POINTER)).ok()?;
+    let named: &str = pointer.lines().next()?.strip_prefix(POINTER_PREFIX)?;
+    let target: &Path = Path::new(named.trim_end());
+    let resolved: PathBuf = if target.is_absolute() { target.to_path_buf() } else { destination.join(target) };
+    return resolved.is_dir().then_some(resolved);
 }
 
 /// What:
@@ -104,9 +207,9 @@ fn add_is_finished(binding: &Binding) -> bool {
 /// const lock = join(admin, 'index.lock')
 /// return exists(lock) ? lockedSentence(lock, finish) : finish
 /// ```
-fn finish_instructions(shown: &str, binding: &Binding) -> String {
+fn finish_instructions(shown: &str, admin: &Path) -> String {
     let finish: String = format!("`git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.");
-    let lock: PathBuf = binding.admin.join(INDEX_LOCK);
+    let lock: PathBuf = admin.join(INDEX_LOCK);
     if !lock.exists() {
         return finish;
     }
@@ -206,24 +309,40 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         },
         Some(Recorded::Planned(destination)) => {
             let shown: String = quote(destination.to_string_lossy().as_ref());
-            let notice: Option<String> = if destination.join(".git").exists() {
-                Some(format!("monochromatic-git-policy-cli: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."))
-            } else {
-                None
+            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish.
+            if !destination.join(POINTER).exists() {
+                return Settlement { notice: None, keep: false };
+            }
+            // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
+            //  plan, so the pointer is what names the administrative directory the proof reads.
+            let registered: Option<PathBuf> = registration_directory(destination.as_path());
+            if let Some(admin) = registered.as_ref() {
+                if add_is_finished(destination.as_path(), admin.as_path()) {
+                    return Settlement { notice: None, keep: false };
+                }
+            }
+            let notice: String = match registered.as_ref() {
+                Some(admin) => format!(
+                    "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. {}",
+                    finish_instructions(shown.as_str(), admin)
+                ),
+                None => format!("monochromatic-git-policy-cli: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."),
             };
-            Settlement { notice, keep: false }
+            // The record stays while something stands at the recorded path that is not proven whole, so every later command
+            //  that runs the recovery says the same instead of leaving the obligation in one command's output.
+            Settlement { notice: Some(notice), keep: true }
         }
         Some(Recorded::Registered(binding)) => {
             let shown: String = quote(binding.destination.to_string_lossy().as_ref());
             // A worktree that is whole or gone settles silently; everything else keeps its record so the next command says
             //  the same again, because nothing else names the worktree, the stage or what finishes them.
-            if add_is_finished(&binding) {
+            if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
                 return Settlement { notice: None, keep: false };
             }
             Settlement {
                 notice: Some(format!(
                     "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. {}",
-                    finish_instructions(shown.as_str(), &binding)
+                    finish_instructions(shown.as_str(), binding.admin.as_path())
                 )),
                 keep: true,
             }
