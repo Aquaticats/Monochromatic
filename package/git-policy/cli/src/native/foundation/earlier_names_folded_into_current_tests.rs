@@ -117,6 +117,8 @@ impl FoldSteps for RecordingSteps {
 /// from a fixture of its own,
 /// so that every kill point can be named.
 fn steps_of_one_fold() -> Vec<&'static str> {
+    // The sweep's subject is the fold's steps and their outcomes, not what a crash leaves, so its syncs are no-ops here.
+    crate::private_storage::skip_the_durability_syncs_here();
     let world: World = world("kill-points");
     let mut recording: RecordingSteps = RecordingSteps { names: Vec::new() };
     let report: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut recording);
@@ -150,6 +152,9 @@ struct KillPoint<'a> {
 /// ```
 fn kill_then_fold(point: KillPoint<'_>) {
     let KillPoint { limit, steps } = point;
+    // The stop this point makes is the fold's own step boundary and not a crash, so what the fold leaves on the disk is not
+    //  what this control asks about, and its syncs are no-ops here.
+    crate::private_storage::skip_the_durability_syncs_here();
     let world: World = world(format!("kill-{limit}").as_str());
     let mut stop: StopAfter = StopAfter { limit, seen: 0 };
     let first: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut stop);
@@ -241,10 +246,14 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
 fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result() {
     let steps: Vec<&'static str> = steps_of_one_fold();
     assert!(!steps.is_empty(), "the fixture's fold has steps to kill it at");
-    // A kill point shares nothing with another: each has its own fixture, its own process table and its own surroundings, and
-    //  each fold's own durability syncs wait on the filesystem's commits, so the points cost one wait between them and not one
-    //  for each (measured 2026-11-08: one after another, 21 points cost 86 to 204 ms each, with ~10 directory syncs in every
-    //  one; the fixtures, the checks and the removals together were under 1 ms per point).
+    // A kill point shares nothing with another: each has its own fixture, its own process table and its own surroundings,
+    //  so the points walk side by side.
+    // Their folds sync nothing, because what a crash leaves is not what this sweep asks:
+    // measured on 2026-11-08 with `strace --summary-only --trace=fsync`,
+    // one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
+    // with single calls 1.755, 1.211 and 1.071 s apart,
+    // and a disk having a bad minute is what once carried the same walk past the run's own 120 s bound.
+    // The fixtures, the checks and the removals together are under 1 ms per point.
     let points: &[&'static str] = steps.as_slice();
     let mut failed: Vec<usize> = Vec::new();
     std::thread::scope(|scope| {

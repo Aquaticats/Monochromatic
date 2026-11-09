@@ -161,9 +161,10 @@ fn a_merge_in_progress_is_copied_to_the_shadow() {
         std::fs::read_to_string(transaction.join("conclusion").join("MERGE_HEAD")).expect("copy"),
         format!("{head}\n")
     );
-    assert_eq!(
-        std::fs::read_to_string(transaction.join("conclusion").join("store-held.json")).expect("record"),
-        "{}\n"
+    // A files-backend ref store holds no conclusion name, so the state names nothing and no record is written.
+    assert!(
+        std::fs::symlink_metadata(transaction.join("conclusion").join("store-held.json")).is_err(),
+        "a record that names nothing is not written"
     );
     remove(root.as_path());
 }
