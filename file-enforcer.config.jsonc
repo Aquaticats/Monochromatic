@@ -80,6 +80,9 @@
         { "absentPath": ["lints", "rust", "unexpected_cfgs"], "text": { "file": ".config/file-enforcer/cargo-dylint.toml" } },
       ],
     },
+    // One cargo-profile rule per release-profile shape. Every manifest whose `[profile.*]` tables exist is in at
+    // least one preset below, so no crate's profile keys can change without the next run reverting them; a crate that
+    // starts declaring profile tables belongs in the preset matching its keys.
     // Release profiles by crate directory. Scanner: full optimization plus fail-closed panic and overflow behavior.
     {
       "kind": "toml-keys",
@@ -96,12 +99,13 @@
       ],
       "blocks": [],
     },
-    // Overflow-checked: full optimization with overflow checks but the default panic strategy.
+    // Overflow-checked: full optimization with overflow checks but the default panic strategy (the session
+    // launcher and the bash-limit hook binary, which checks its own arithmetic).
     {
       "kind": "toml-keys",
       "id": "cargo-profile-overflow",
       "manifests": ["package/*/*/Cargo.toml"],
-      "onlyDirs": ["package/nested-wayland-session/cli"],
+      "onlyDirs": ["package/codex-plugin/bash-limit", "package/nested-wayland-session/cli"],
       "edits": [
         { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
         { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
@@ -111,12 +115,12 @@
       ],
       "blocks": [],
     },
-    // Linter: full optimization, stripped, without panic or overflow overrides.
+    // Full optimization, stripped, without panic or overflow overrides: the linter and the wg watcher ship that way.
     {
       "kind": "toml-keys",
       "id": "cargo-profile-linter",
       "manifests": ["package/*/*/Cargo.toml"],
-      "onlyDirs": ["package/linter/monochromatic-lint"],
+      "onlyDirs": ["package/linter/monochromatic-lint", "package/wg/cli-quicker-exempt"],
       "edits": [
         { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
         { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
@@ -156,10 +160,97 @@
       "kind": "toml-keys",
       "id": "cargo-profile-fuzz",
       "manifests": ["package/*/*/Cargo.toml"],
-      "onlyDirs": ["package/forbidden-strings/core.fuzz", "package/forbidden-strings/cli.fuzz"],
+      "onlyDirs": [
+        "package/forbidden-strings/core.fuzz",
+        "package/forbidden-strings/cli.fuzz",
+        "package/git-policy/cli.fuzz",
+        "package/jsonc-edit/core-rust.fuzz",
+        "package/linter/monochromatic-lint.fuzz",
+        "package/xml-edit/core-rust.fuzz",
+      ],
       "edits": [
         { "guard": ["profile", "release"], "path": ["profile", "release", "panic"], "value": "unwind" },
         { "guard": ["profile", "dev"], "path": ["profile", "dev", "panic"], "value": "unwind" },
+      ],
+      "blocks": [
+        { "absentPath": ["profile", "dev"], "text": { "file": ".config/file-enforcer/cargo-profile-fuzz-dev.toml" } },
+      ],
+    },
+    // Build scripts run at `opt-level = 3` in every profile: a scanner's `build.rs` compiles its baseline there,
+    // and the dev override covers `cargo check`, clippy and debug builds (doc/planning/cargo-toml-file-enforcer.md).
+    // Only crates that already declare a build-override table are owned; the guard keeps the table's absence theirs.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-build-scripts",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": [
+        "package/forbidden-strings/cli",
+        "package/forbidden-strings/cli.fuzz",
+        "package/git-policy/cli",
+        "package/git-policy/cli.fuzz",
+      ],
+      "edits": [
+        {
+          "guard": ["profile", "release", "build-override"],
+          "path": ["profile", "release", "build-override", "opt-level"],
+          "value": 3,
+        },
+        {
+          "guard": ["profile", "dev", "build-override"],
+          "path": ["profile", "dev", "build-override", "opt-level"],
+          "value": 3,
+        },
+      ],
+      "blocks": [],
+    },
+    // Shadowed installers: optimized and stripped binaries that abort on panic, so a failed check exits rather
+    // than unwinding (the cargo, mpm, pnpm and search shadows).
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-shadow",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": [
+        "package/cargo-shadow/cli",
+        "package/mpm-shadow/cli",
+        "package/pnpm-shadow/cli",
+        "package/search-shadow/cli",
+      ],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "opt-level"], "value": 3 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "panic"], "value": "abort" },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "strip"], "value": true },
+      ],
+      "blocks": [],
+    },
+    // The git policy CLI keeps panic backtraces: unwinding, overflow-checked, and stripped of symbols only.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-unwind-checked",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/git-policy/cli"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "panic"], "value": "unwind" },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "overflow-checks"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "strip"], "value": "symbols" },
+      ],
+      "blocks": [],
+    },
+    // The IDE's development profile: its own crate stays unoptimized for fast edit cycles while every dependency
+    // builds optimized, so a debug scroll shows the real frame cadence (package/ide/app/README.md).
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-ide",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/ide/app"],
+      "edits": [
+        { "guard": ["profile", "dev"], "path": ["profile", "dev", "debug"], "value": 0 },
+        {
+          "guard": ["profile", "dev", "package", "*"],
+          "path": ["profile", "dev", "package", "*", "opt-level"],
+          "value": 2,
+        },
       ],
       "blocks": [],
     },
