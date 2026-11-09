@@ -288,7 +288,8 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 ///  outside every repository
 ///  failed with `content-unavailable` before it reached Git.
 ///  Nothing is answered for a command outside every repository:
-///  there the process's own directory stands, and Git refuses the push itself.
+///  there the process's own directory stands,
+/// and Git refuses the push itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

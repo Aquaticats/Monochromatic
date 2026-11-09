@@ -149,14 +149,16 @@ pub struct ScannerState {
 ///  6.7 s and 3.0 s of `fsync` in one measured commit.
 ///  A resident service that already runs for this worktree compiles and publishes it on its own time,
 ///  so the command that needs the rules takes no write at all;
-///  a machine with no service running publishes from this process, as every command did before.
+///  a machine with no service running publishes from this process,
+/// as every command did before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type CachePublisher = { kind: 'service'; gitDir: string; repository: string } | { kind: 'this-process' };
 /// ```
 pub enum CachePublisher<'a> {
-    /// The commit service of this worktree, asked to compile the rules and never waited for.
+    /// The commit service of this worktree,
+    /// asked to compile the rules and never waited for.
     Service {
         /// The worktree's own Git directory,
         ///  which names the service instance and its socket.
@@ -165,12 +167,14 @@ pub enum CachePublisher<'a> {
         ///  whose configuration names the rules files.
         repository: &'a std::path::Path,
     },
-    /// This process, which writes the artifact as the scanner does by default.
+    /// This process,
+    /// which writes the artifact as the scanner does by default.
     ThisProcess,
 }
 
 /// What:
-///  The access a load takes, from whether the cache holds the text and whether someone else publishes.
+///  The access a load takes,
+/// from whether the cache holds the text and whether someone else publishes.
 ///  `bool` is the answer to each.
 /// Why:
 ///   A cache that already holds the compiled text costs no write either way,
@@ -429,8 +433,11 @@ fn service_reads_the_same_rules(
     repository_root: &Path,
     selected: &RulesSource,
 ) -> bool {
-    let configured = rules_source(settings.options.rules_files.as_deref(), None, repository_root);
-    return configured.is_ok_and(|without_variable| return without_variable == *selected);
+    let configured: Result<RulesSource, RulesListError> = rules_source(settings.options.rules_files.as_deref(), None, repository_root);
+    let Ok(without_variable) = configured else {
+        return false;
+    };
+    return without_variable == *selected;
 }
 
 /// What:
