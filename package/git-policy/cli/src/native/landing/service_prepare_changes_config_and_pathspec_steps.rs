@@ -222,10 +222,10 @@ pub(crate) fn the_pathspec_file(
     cwd: &Path,
     standard_input: Option<&[u8]>,
 ) -> Result<Option<PathBuf>, TransactionStop> {
-    let source: Option<String> = match region.pathspec_from_file {
-        Some(value) => Some(names_a_file(arguments, value)),
-        None => None,
-    };
+    let mut source: Option<String> = None;
+    if let Some(value) = region.pathspec_from_file {
+        source = Some(names_a_file(arguments, value));
+    }
     return match pathspec_file_for(scratch, cwd, source.as_deref(), standard_input) {
         Ok(made) => Ok(made),
         Err(error) => Err(crate::commit_transaction::failed(format!("reading the pathspec file failed: {error}"))),
