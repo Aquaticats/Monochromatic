@@ -108,29 +108,31 @@ struct LandedAftermath<'landed> {
 }
 
 /// What:
-///  The command's result for a commit that landed, and the refusal its after-landing report came to if it refused.
+///  The command's result for a commit that landed, with the work after it reported as far as it goes.
 /// Why:
 ///   A commit the branch shows as made is a landed commit even when its answer never arrived,
-/// so both paths report the landing, hand the after-commit work over and exit 0
-/// (finding 6 of the third review).
+/// and the work after a landing is reported by one function for either path,
+/// so neither can fail a commit that landed
+/// (findings 6 of the third review and 3 of the fourth).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [outcome, refused] = theLandedCommit(input);
 /// ```
-fn the_landed_commit(input: LandedAftermath<'_>) -> (ServiceCommit, Option<TransactionStop>) {
-    let reported: Option<TransactionStop> = report_landing(
-        input.invocation,
-        input.ready,
-        input.native_inputs,
-        input.commit,
-        input.first_parent.as_str(),
-        input.fixed_message,
-        input.embedded_in_use,
-        input.native,
-        input.unlanded,
-    )
-    .err();
+fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
+    report_after_a_landing(
+        report_landing(
+            input.invocation,
+            input.ready,
+            input.native_inputs,
+            input.commit,
+            input.first_parent.as_str(),
+            input.fixed_message,
+            input.embedded_in_use,
+            input.native,
+            input.unlanded,
+        ),
+    );
     let handoff: ServiceHandoff = ServiceHandoff {
         config: input.config,
         repository: input.ready.repository.clone(),
@@ -139,7 +141,29 @@ fn the_landed_commit(input: LandedAftermath<'_>) -> (ServiceCommit, Option<Trans
         parent: input.first_parent,
     };
     let result: TransactionResult = TransactionResult { events: input.events, exit_code: 0, landed_oid: Some(input.commit.to_string()), uses_lfs: input.ready.uses_lfs };
-    return (ServiceCommit { result, handoff: Some(handoff) }, reported);
+    return ServiceCommit { result, handoff: Some(handoff) };
+}
+
+/// What:
+///  Take the work a landed commit leaves behind as far as it goes, and report a refusal as a warning.
+/// Why:
+///   The commit landed, and the owner's rule is that commits never fail:
+/// so one function reports the work after a landing for both the acknowledged landing and the silence that ended in one,
+/// and neither can turn a refusal into the command's failure (finding 3 of the fourth review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reportAfterALanding(reportLanding(...));
+/// ```
+fn report_after_a_landing(reported: Result<(), TransactionStop>) {
+    let Err(stop) = reported else {
+        return;
+    };
+    return match stop {
+        TransactionStop::NativeExit(code) => warn("serviceCommit", format!("the commit landed and the work after it exited {code}").as_str()),
+        TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
+        TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
+    };
 }
 
 /// What:
@@ -374,7 +398,7 @@ pub fn service_commit<F: RepositoryFacts>(
         match submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit) {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
-                let (outcome, refused): (ServiceCommit, Option<TransactionStop>) = the_landed_commit(LandedAftermath {
+                let outcome: ServiceCommit = the_landed_commit(LandedAftermath {
                     invocation,
                     ready: &ready,
                     events: ready.events.clone(),
@@ -388,9 +412,6 @@ pub fn service_commit<F: RepositoryFacts>(
                     config: config.clone(),
                 });
                 timing.after_landing += after_landing.elapsed();
-                if let Some(stop) = refused {
-                    return Err(stop);
-                }
                 return Ok(outcome);
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
@@ -468,7 +489,7 @@ pub fn service_commit<F: RepositoryFacts>(
                     // The branch holds the commit this command prepared, so the commit was made: the command succeeds, and only
                     // the work after it can still be refused.
                     let prepared: String = sent.commit.clone().unwrap_or_else(|| { return ready.base.clone(); });
-                    let (outcome, refused): (ServiceCommit, Option<TransactionStop>) = the_landed_commit(LandedAftermath {
+                    let outcome: ServiceCommit = the_landed_commit(LandedAftermath {
                         invocation,
                         ready: &ready,
                         events: ready.events.clone(),
@@ -481,13 +502,6 @@ pub fn service_commit<F: RepositoryFacts>(
                         unlanded: unlanded.as_slice(),
                         config: config.clone(),
                     });
-                    if let Some(stop) = refused {
-                        match stop {
-                            TransactionStop::NativeExit(code) => warn("serviceCommit", format!("the commit landed and the work after it exited {code}").as_str()),
-                            TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
-                            TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
-                        }
-                    }
                     return Ok(outcome);
                 };
                 return Err(TransactionStop::Message(render(&worded)));
