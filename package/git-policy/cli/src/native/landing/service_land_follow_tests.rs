@@ -240,6 +240,34 @@ fn the_index_update_of_derived_paths_leaves_an_unselected_case_twin_alone() {
     remove(root.as_path());
 }
 
+/// A pathspec mode the caller wrote as a global option reaches no reset either:
+/// `--icase-pathspecs` in the prefix makes the generated `:(top,literal)a.txt` match `A.txt`,
+/// and the reset then replaces the staged entry of a path the batch never selected.
+#[test]
+fn the_index_update_of_listed_paths_leaves_an_unselected_case_twin_alone_under_the_callers_option() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-listed-icase-option");
+    let index: PathBuf = repo.join(".git/index");
+    let mut context: GitContext = git_context();
+    context.global_prefix.push(std::ffi::OsString::from("--icase-pathspecs"));
+    update_index(&context, repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Listed(&[String::from("a.txt")])).expect("the listed path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// The same for a list of names read from standard input.
+#[test]
+fn the_index_update_of_named_paths_leaves_an_unselected_case_twin_alone_under_the_callers_option() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-named-icase-option");
+    let index: PathBuf = repo.join(".git/index");
+    let mut context: GitContext = git_context();
+    context.global_prefix.push(std::ffi::OsString::from("--icase-pathspecs"));
+    update_index(&context, repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"a.txt".to_vec()])).expect("the named path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
 /// A removal request whose scratch directory is gone and whose copy was never kept compares nothing,
 /// so it removes nothing and says so:
 /// answering success left the worktree's `MERGE_HEAD` behind,
@@ -360,7 +388,7 @@ fn the_index_update_starts_reset_without_quiet_in_every_form() {
         update_index(&context, repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), paths).expect("updated");
         assert!(!differs(repo.as_path(), second.as_str()), "{paths:?} brings the index to the commit");
     }
-    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("--no-literal-pathspecs reset "); }).collect();
+    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("reset "); }).collect();
     assert_eq!(resets.len(), 3, "one guarded reset for each of the three forms: {resets:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(root.as_path());
@@ -509,7 +537,7 @@ fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
     let held = try_acquire(index.as_path(), 6).expect("the lock is free");
     let built = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 6).expect("built");
     let starts: Vec<String> = recorded_starts(log.as_path());
-    assert!(starts.iter().any(|start| { return start.starts_with("--no-literal-pathspecs reset --no-refresh "); }), "Git was not asked: {starts:?}");
+    assert!(starts.iter().any(|start| { return start.starts_with("reset --no-refresh "); }), "Git was not asked: {starts:?}");
     held.release_with(built.path()).expect("installed");
     assert_eq!(staged_against(repo.as_path(), second.as_str()), vec![String::from("racy.txt")]);
     remove(root.as_path());

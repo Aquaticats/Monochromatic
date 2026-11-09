@@ -46,9 +46,11 @@ use crate::repository_location::{
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
 use crate::command_clean::clean_would_delete_from_answer;
+/// The expression Git resolves for a shorthand only `switch` and `checkout` read.
+use crate::command_discard::previous_branch_expression;
 use crate::rule_worktree_dirty::{
     DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries,
+    ignored_paths_queries, nul_separated_paths, replaced_answers, with_ancestors,
 };
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
@@ -172,21 +174,6 @@ pub trait RepositoryFacts {
     ///  for transaction
     /// and recovery work.
     fn transaction_context(&self) -> GitContext;
-}
-
-/// What:
-///  Whether one byte of a `-z` answer ends a path.
-/// Why:
-///   The NUL-terminated form separates paths with zero bytes,
-/// and a named function keeps that pass free of
-///  a closure that captures nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => byte === 0
-/// ```
-fn is_nul_byte(byte: &u8) -> bool {
-    return *byte == 0;
 }
 
 /// What:
@@ -355,22 +342,22 @@ impl GitFacts {
     /// async treePaths(revision: string): Promise<Buffer[] | undefined>;
     /// ```
     fn tree_paths(&mut self, revision: &OsStr) -> Result<Option<Vec<Vec<u8>>>, String> {
+        // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git does
+        //  resolve wherever an object name is read.
+        let named: OsString = match previous_branch_expression(revision.as_encoded_bytes()) {
+            Some(expression) => OsString::from(String::from_utf8_lossy(expression).into_owned()),
+            None => revision.to_os_string(),
+        };
         let mut arguments: Vec<OsString> = self.global_prefix.clone();
         for token in ["ls-tree", "-r", "-z", "--name-only"] {
             arguments.push(OsString::from(token));
         }
-        arguments.push(revision.to_os_string());
+        arguments.push(named);
         let output: MetadataOutput = self.query(arguments, "the tree of a revision")?;
         if !output.success {
             return Ok(None);
         }
-        let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-        for path in output.stdout.split(is_nul_byte) {
-            if !path.is_empty() {
-                paths.push(path.to_vec());
-            }
-        }
-        return Ok(Some(paths));
+        return Ok(Some(nul_separated_paths(output.stdout.as_slice())));
     }
 }
 
@@ -459,11 +446,18 @@ impl RepositoryFacts for GitFacts {
         if tracked.is_empty() {
             return Ok(Vec::<String>::new());
         }
+        // A tree creates the directories its paths need, so a file the worktree holds where one of them must go
+        //  is lost too: every directory on the way to a tracked path is asked about as well.
+        let asked: Vec<Vec<u8>> = with_ancestors(tracked.as_slice());
         // Git answers for these paths alone, so no query walks the worktree's ignored files.
         let mut shared: Vec<String> = Vec::<String>::new();
-        for query in ignored_paths_queries(self.global_prefix.as_slice(), tracked.as_slice()) {
+        for query in ignored_paths_queries(self.global_prefix.as_slice(), asked.as_slice()) {
             let output: MetadataOutput = self.query(query, "the ignored files")?;
-            for path in ignored_paths_from_answer(&output)? {
+            for path in replaced_answers(
+                asked.as_slice(),
+                tracked.as_slice(),
+                ignored_paths_from_answer(&output)?.as_slice(),
+            ) {
                 shared.push(String::from_utf8_lossy(path.as_slice()).into_owned());
             }
         }
