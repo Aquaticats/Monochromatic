@@ -7,11 +7,8 @@
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
 use std::sync::atomic::AtomicUsize;
+use std::sync::{Condvar, Mutex};
 use std::time::Duration;
-
-/// How long a job of the bound's control holds its place,
-/// long enough for the other jobs of the burst to arrive.
-const HELD_MILLIS: u64 = 40;
 
 /// How many jobs the bound's control starts at once,
 /// three times the bound the control sets.
@@ -23,39 +20,118 @@ const BOUND_HELD_TO: usize = 2;
 /// The longest a control waits for a job that should not wait at all.
 const PATIENCE: Duration = Duration::from_secs(30);
 
-/// How many jobs are inside their work right now,
-/// and the most that ever were at one instant.
+/// What:
+///  How long the bound's control looks for a job beyond the bound once the bound is reached.
+/// Why:
+///  A job the bound does not hold is inside as soon as the blocking pool gives it a thread,
+/// and a job of the burst holds its place until this control has counted the burst,
+///  so this is a liveness guard with room to spare rather than a window the claim rests on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await counted.waitForOneMore(1_000); // false when the bound held
+/// ```
+const BEYOND_THE_BOUND_WINDOW: Duration = Duration::from_millis(1000);
+
+/// What:
+///  How many jobs are inside their work right now,
+///  the most that ever were of them at one instant,
+///  and whether the control has finished counting the burst.
+/// Why:
+///  The bound has to be witnessed by construction:
+///  a job that slept for a fixed time let the burst finish before the bound was reached,
+/// which made the peak an arrival order of six jobs and not a measurement of the bound.
+///  Here every job holds its place until the control has counted the burst,
+/// so the peak is the whole burst's peak,
+/// and the place of a job is given back because the control read the count,
+/// never because time passed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Counted { enter(): number; leave(): void; waitFor(live: number, patience: Duration): boolean; most(): number }
+/// ```
 struct Concurrency {
-    /// How many are inside now.
-    live: AtomicUsize,
+    /// How many jobs are inside now,
+    /// and whether the control has counted the burst.
+    state: Mutex<Held>,
+    /// Woken whenever a job enters,
+    /// leaves,
+    /// or the control has counted the burst.
+    changed: Condvar,
     /// The most that were inside together.
     most: AtomicUsize,
 }
 
+/// What the jobs and the control share under the lock of a `Concurrency`.
+struct Held {
+    /// How many jobs are inside their work right now.
+    live: usize,
+    /// Whether the control has read the peak,
+    /// so every job of the burst may finish.
+    counted: bool,
+}
+
 impl Concurrency {
-    /// A count where nothing is running yet.
+    /// A count where nothing is running yet and nothing has been counted.
     fn new() -> Arc<Self> {
-        return Arc::new(Concurrency { live: AtomicUsize::new(0), most: AtomicUsize::new(0) });
+        return Arc::new(Concurrency { state: Mutex::new(Held { live: 0, counted: false }), changed: Condvar::new(), most: AtomicUsize::new(0) });
     }
 
-    /// Count one job in and keep the most.
+    /// Count one job in and keep the most that were inside together.
     fn enter(&self) -> usize {
-        let now: usize = self.live.fetch_add(1, Ordering::SeqCst) + 1;
-        let _kept: usize = self.most.fetch_max(now, Ordering::SeqCst);
+        let mut held = self.state.lock().expect("lock");
+        held.live += 1;
+        let now: usize = held.live;
+        self.most.fetch_max(now, Ordering::SeqCst);
+        self.changed.notify_all();
         return now;
     }
 
     /// Count one job out.
     fn leave(&self) {
-        let _left: usize = self.live.fetch_sub(1, Ordering::SeqCst);
+        let mut held = self.state.lock().expect("lock");
+        held.live = held.live.saturating_sub(1);
+        self.changed.notify_all();
+    }
+
+    /// Wait until `wanted` jobs are inside together;
+    /// false when they did not all come within `patience`.
+    fn wait_for_live(&self, wanted: usize, patience: Duration) -> bool {
+        let locked = self.state.lock().expect("lock");
+        let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return held.live < wanted; }).expect("wait");
+        drop(released);
+        return !waited.timed_out();
+    }
+
+    /// Hold the job until the control has counted the burst;
+    /// false only when the control never counted,
+    /// which is a control that failed before it could.
+    fn wait_until_counted(&self, patience: Duration) -> bool {
+        let locked = self.state.lock().expect("lock");
+        let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return !held.counted; }).expect("wait");
+        drop(released);
+        return !waited.timed_out();
+    }
+
+    /// Let every job of the burst finish,
+    /// once the peak has been read.
+    fn count_the_burst(&self) {
+        let mut held = self.state.lock().expect("lock");
+        held.counted = true;
+        self.changed.notify_all();
+    }
+
+    /// The most that were inside together.
+    fn most(&self) -> usize {
+        return self.most.load(Ordering::SeqCst);
     }
 }
 
-/// A job that holds its place for `HELD_MILLIS` and says how many were inside with it.
+/// A job that holds its place until the control has counted the burst and says how many were inside with it.
 fn hold_a_place(shared: Arc<Concurrency>) -> impl FnOnce() -> usize + Send + 'static {
     return move || -> usize {
         let with_me: usize = shared.enter();
-        std::thread::sleep(Duration::from_millis(HELD_MILLIS));
+        let _counted: bool = shared.wait_until_counted(PATIENCE);
         shared.leave();
         return with_me;
     };
@@ -76,25 +152,41 @@ fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
 }
 
 /// No more jobs run at once than the budget allows,
-/// however many are started.
+/// however many are started,
+/// and the budget is reached:
+///  every job of the burst is inside its work and held there,
+/// so the peak below is the peak of the whole burst and not its arrival order.
 #[test]
 fn no_more_jobs_run_at_once_than_the_budget_allows() {
     hold_blocking_jobs_to(BOUND_HELD_TO);
     let shared: Arc<Concurrency> = Concurrency::new();
-    let outcome = run_on_runtime(async {
-        let started = tokio::join!(
-            run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&shared))),
-            run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&shared))),
-            run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&shared))),
-            run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&shared))),
-            run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&shared))),
-            run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&shared))),
-        );
-        return [started.0, started.1, started.2, started.3, started.4, started.5];
-    })
-    .expect("the runtime");
+    let burst_shared: Arc<Concurrency> = Arc::clone(&shared);
+    // The burst runs on a thread of its own: the control has to count it while it runs, and a count taken after it is the
+    //  order six jobs arrived in rather than the bound.
+    let burst = std::thread::spawn(move || {
+        return run_on_runtime(async move {
+            let started = tokio::join!(
+                run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
+                run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
+                run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
+                run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
+                run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
+                run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
+            );
+            return [started.0, started.1, started.2, started.3, started.4, started.5];
+        })
+        .expect("the runtime");
+    });
+    // The bound is reached: the burst is three times it, so every place is taken by a job that holds it.
+    assert!(shared.wait_for_live(BOUND_HELD_TO, PATIENCE), "the burst of {BURST} jobs never reached the budget of {BOUND_HELD_TO} places");
+    // And it is not passed: only this control lets a job out of its work, so a job inside beyond the bound is still inside
+    //  when the window ends.
+    let beyond: bool = shared.wait_for_live(BOUND_HELD_TO + 1, BEYOND_THE_BOUND_WINDOW);
+    let most: usize = shared.most();
+    shared.count_the_burst();
+    let outcome = burst.join().expect("the burst's thread");
     assert!(outcome.iter().all(Result::is_ok), "every job of the burst ran: {outcome:?}");
-    let most: usize = shared.most.load(Ordering::SeqCst);
+    assert!(!beyond, "the burst of {BURST} jobs held more than the budget of {BOUND_HELD_TO} places at once");
     assert_eq!(most, BOUND_HELD_TO, "the burst of {BURST} jobs held {most} places at once, and the budget is {BOUND_HELD_TO}");
 }
 

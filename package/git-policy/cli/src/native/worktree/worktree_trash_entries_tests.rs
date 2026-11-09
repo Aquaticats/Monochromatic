@@ -8,7 +8,7 @@
 use super::*;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use crate::fs_beneath::{identity_at, open_root};
-use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
+use crate::parallel_test_support::{PATIENCE, Rendezvous};
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -95,11 +95,12 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     assert!(allowed > 1 && allowed < ENTRIES, "the control needs a bound between one and the entries: {allowed}");
     let running: AtomicUsize = AtomicUsize::new(0);
     let busiest: AtomicUsize = AtomicUsize::new(0);
-    let point: Rendezvous = Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10);
+    // The patience bounds only how long a run that never reaches the bound waits before it fails.
+    let point: Rendezvous = Rendezvous::impatient(allowed, PATIENCE);
     let left = remove_with(&held, root.as_path(), &manifest, &host, &|label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
         let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
         busiest.fetch_max(now, Ordering::SeqCst);
-        point.arrive();
+        point.arrive_at_the_bound(allowed);
         let outcome = remove_tree_beneath(label, parent, name, expected);
         running.fetch_sub(1, Ordering::SeqCst);
         return outcome;

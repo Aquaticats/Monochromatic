@@ -9,7 +9,7 @@
 use super::*;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_with};
-use crate::parallel_test_support::{Rendezvous, SERIAL_PATIENCE};
+use crate::parallel_test_support::Rendezvous;
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -108,11 +108,12 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     assert!(allowed > 1 && allowed < LINKED + 1, "the control needs a bound between one and the indexes: {allowed}");
     let running: AtomicUsize = AtomicUsize::new(0);
     let busiest: AtomicUsize = AtomicUsize::new(0);
-    let point: Rendezvous = Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10);
+    // The patience bounds only how long a run that never reaches the bound waits before it fails.
+    let point: Rendezvous = Rendezvous::impatient(allowed, crate::parallel_test_support::PATIENCE);
     let (_count, lines) = refresh_with(root.as_path(), &host, &|index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
         let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
         busiest.fetch_max(now, Ordering::SeqCst);
-        point.arrive();
+        point.arrive_at_the_bound(allowed);
         let line: String = refresh_index_file_with(index, tree, options);
         running.fetch_sub(1, Ordering::SeqCst);
         return line;
