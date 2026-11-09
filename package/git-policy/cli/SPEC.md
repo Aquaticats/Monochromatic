@@ -3391,8 +3391,8 @@ and
   in the notes folder of the runtime unit directory)
   is written only after the manager accepted the reload,
   so a commit that finds the files matching and the record older
-  asks for the reload again
-  before it touches the bus for anything else.
+  provisions again and asks for the reload,
+  and the commits after it find the record and take the fast path.
   Without it the killed upgrade's files look like an installation the manager runs,
   every later commit reaches the service of the release that was replaced,
   and ends with "The commit service that is running was started from another release of this git wrapper ...",
