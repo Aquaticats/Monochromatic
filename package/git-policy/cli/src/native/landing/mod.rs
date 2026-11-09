@@ -168,6 +168,21 @@ pub mod service_index_watch;
 /// for every command line.
 pub mod service_prepare;
 
+/// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
+pub mod service_scratch_renewal;
+
+/// Which commit scratch trees a later command takes for abandoned,
+/// and which it leaves alone because their owner still runs.
+pub mod service_scratch_abandonment;
+
+/// The staging step of a preparation,
+/// for a control that asks it directly.
+#[cfg(test)]
+pub mod service_prepare_exclude_or_stop_for_test;
+
+/// The file a typed message is kept in when the commit it belonged to cannot be made.
+pub mod service_commit_saved_message;
+
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
 
@@ -193,6 +208,9 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
+
+/// Which end of a commit's scratch tree a submitted request leaves it to.
+pub mod service_commit_tree_ownership;
 
 /// What the branch shows once the commit service went silent after a commit was prepared.
 pub mod service_branch_shows;

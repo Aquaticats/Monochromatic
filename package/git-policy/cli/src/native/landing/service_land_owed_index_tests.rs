@@ -1021,7 +1021,7 @@ fn a_refused_repair_stops_the_preparation_with_its_reason() {
         commit_index: commit_index.clone(),
         object_directory: world.root.join("objects"),
     };
-    let stopped: crate::commit_transaction::TransactionStop = crate::service_prepare::exclude_or_stop_for_test(
+    let stopped: crate::commit_transaction::TransactionStop = crate::service_prepare_exclude_or_stop_for_test::exclude_or_stop_for_test(
         &context,
         &capture,
         &indexes,

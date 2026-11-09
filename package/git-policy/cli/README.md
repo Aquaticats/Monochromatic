@@ -3444,9 +3444,23 @@ its measurements and the evidence needed to change it are in
 
 The wrapper keeps its state beside the repository's Git data under `monochromatic-git-policy-cli*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
-A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` in the worktree's Git directory while it is made;
- the commit service removes it when the command ends,
-however it ends.
+A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>-<attempt>` in the repository scratch directory
+ `monochromatic-git-policy-cli-scratch` while it is made;
+ the commit service removes the tree of an attempt once that attempt's landing is over,
+and a command that no service took the tree from removes it itself as it ends.
+Nothing in a commit waits for that removal:
+ it happens beside the landing loop,
+bounded by `SCRATCH_REMOVAL_CEILING` (thirty seconds),
+ so a device that stalls costs a partial removal and a line in the service journal,
+never a slow commit.
+A tree no request ever named,
+because its command was killed before it submitted,
+goes once nothing has written it for two hours,
+and its command renews it every hour while it lives,
+so a running command never loses it;
+the trees a machine makes while no service answers are bounded by that rule (about 9 MiB each)
+ and by at most eight removed per command sweep;
+ other entries of the directory go once they are a day old.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
@@ -4916,6 +4930,24 @@ all durations in whole milliseconds taken from the monotonic clock:
   leaving the work records and waking the service,
   which reaches the service a second time.
   It is not split into a reach and a wait.
+- `scratchRemovalMs`,
+  `removalsThatDidNotFinish` and `stderrMs`
+  are the two costs measured wherever they fell,
+  so a reading can say which of them a slow `otherMs` was:
+  the time spent removing scratch trees,
+  how many of those removals ended without finishing within their ceiling,
+  and the time spent writing to standard error,
+  which waits for whoever reads it.
+  They were added for the reading in
+  `doc/planning/cli-git-commit-latency-under-many-agents.md`.
+- `prepareParts` splits the preparation by the stretch of work it was in,
+  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  the seams are one line each in `src/native/landing/service_prepare.rs`,
+  each figure is the time that stretch spent without a Git child
+  (the steps are listed apart in `steps`),
+  a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
+  and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
+  It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:

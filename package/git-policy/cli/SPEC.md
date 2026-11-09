@@ -8911,10 +8911,15 @@ any other real ref,
 or shared reflogs.
 It uses:
 
-- a private commit index at `<git-dir>/monochromatic-git-policy-cli-service-<id>/commit.index`,
+- a private commit index at
+  `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/commit.index`,
   in the commit's scratch directory,
-  which the service removes when the command ends,
-  however it ends;
+  which the service removes when the command's connection closes,
+  however the command ends,
+  and which a command that never handed it to a service leaves where the sweep of the repository scratch directory
+  removes it
+  (see "The commit's scratch directory",
+  below);
 - the real object store.
   Every monochromatic-git-policy-cli Git command that writes or reads the private index's objects
   (`read-tree`,
@@ -9055,7 +9060,7 @@ so the built commit is the policy-settled intended tree.
 The service lands the commit as Git made it:
 its first parent must be the tip the wrapper read,
 or for an amend the replaced commit's parents.
-A preparation failure removes the scratch directory and leaves real index,
+A preparation failure leaves the scratch directory to the sweep and leaves real index,
 worktree,
 and real ref bytes unchanged.
 Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
@@ -9212,11 +9217,199 @@ Options that select the whole index (`--all`,
 `--interactive`,
 `--patch`) keep concluding it.
 
+#### The commit's scratch directory
+
+The commit's scratch directory holds the private indexes and,
+when real Git must build the commit,
+the scratch repository.
+It is made at
+`<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>-<attempt>`,
+inside the repository scratch directory,
+and never in the worktree's own Git directory as releases before this one made it.
+The attempt's number is in the name because the service removes the tree of an attempt once that attempt's landing is over,
+and the next attempt of the same command must not be the directory that removal is taking.
+Code:
+`src/native/foundation/scratch_location.rs`,
+`src/native/landing/service_prepare_ready_shapes.rs`,
+`src/native/landing/service_scratch_abandonment.rs`,
+`src/native/landing/service_scratch_renewal.rs`,
+`src/native/service/service_scratch_release_removal.rs`.
+
+Why there:
+a command killed at any instruction,
+and a machine with no service,
+leave trees behind,
+and only the directory the sweep already covers collects them.
+The place is also swept of entries older than `SCRATCH_STALE_AFTER` at every preparation of it,
+which a preparation of a commit now is.
+
+Who removes it,
+and how long anyone waits:
+
+- A request names its tree in the request's own `scratch` field,
+  which the decoder refuses unless it is one of the wrapper's trees of that worktree,
+  so the service never works the tree out from another path the request carries
+  (`index` is the worktree's real index,
+  which is not a tree).
+  The resident service removes that tree once the landing of that request is over,
+  in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
+  with a line at warning priority in the service journal when the removal cannot finish.
+  Neither the client nor the landing loop waits for it.
+  Nothing else in the service removes a tree a request named:
+  the tree holds the private index and the conclusion copies the landing reads,
+  and a client killed while its request waits is not evidence that the landing is over.
+- A command that never submitted its tree,
+  because the service refused it or because the preparation stopped where it was,
+  removes it itself as it goes out of scope,
+  with the same ceiling,
+  so a declined or abandoned commit leaves nothing.
+  A command whose submission got a definite answer that the service never took the request
+  removes its tree the same way:
+  the service confirmed the withdrawal (`StillWithService`),
+  refused the request before queueing it (`Refused`),
+  or could not be reached at all
+  (`the_service_never_took` in `src/native/landing/service_commit.rs`).
+  Every other failure leaves the tree where it is,
+  because an unanswered request is not proof that nothing is running:
+  an unconfirmed withdrawal,
+  a silence and a broken connection can all leave a branch write inside the landing,
+  which reads the private index and the conclusion copies in that tree.
+  Such a tree is the service's to remove when it lands,
+  and otherwise goes by the age rule that follows.
+- A tree no request ever named,
+  because the command was killed before it submitted or before it made the tree at all,
+  goes when nothing has written it for `SCRATCH_TREE_ABANDONED_AFTER` (two hours,
+  six times the longest wait a commit can have).
+  Its command renews the tree's modification time every `SCRATCH_REFRESH_EVERY` (an hour) while it lives,
+  so the age a sweep sees is the liveness of the command that made the tree,
+  not how long its work takes.
+  Age is the only evidence a collection has,
+  and it is enough here because no landing can still be reading a tree nothing has written for two hours.
+- One decision answers which entry may go,
+  for the sweep of a scratch place and for every other collection
+  (`may_go`,
+  `service_scratch_abandonment.rs`):
+  a commit tree at `SCRATCH_TREE_ABANDONED_AFTER`,
+  and every other entry of a scratch place at the age its caller gives,
+  which is `SCRATCH_STALE_AFTER` (a day) for the sweep.
+- At most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) entries go per sweep,
+  oldest first,
+  so a backlog another command left delays this one by that many removals and never by the backlog's length,
+  and the next sweep takes the next eight.
+  That is what bounds the trees a kill leaves:
+  one tree of about 9 MiB per killed command,
+  gone at the first sweep after two hours.
+- A leftover of a command's own earlier attempt whose removal its ceiling cut short is moved aside under a name no
+  commit tree has,
+  where the sweep collects it by age,
+  and the attempt creates its own tree as it always does:
+  a stalled device costs a removal and a debug line,
+  never a failed commit.
+- Every removal of a scratch entry runs on a thread of its own and stops being waited for at
+  `SCRATCH_REMOVAL_CEILING` (thirty seconds,
+  twelve times the slowest single `unlinkat` the timing record holds),
+  so a stalled device costs a partial removal and a reported line,
+  never a command that waits.
+  A removal that outlasted its ceiling holds one of the process's places for blocking work until its thread ends,
+  and a removal that finds every place held takes none and leaves its entry to a later sweep,
+  so stalled removals cannot gather without bound.
+  A name that is not one of the wrapper's scratch trees,
+  and a name that holds a link or a file,
+  is never removed by that rule.
+
+Two linked worktrees of one repository share that repository scratch directory,
+so a client that names **another worktree's** tree is accepted,
+and the tree is removed once the landing of the request that named it is over,
+even though the worktree that owns it still runs.
+The wrapper never sends such a request:
+each one names the index inside the tree the command itself made,
+whose name carries that command's identity and its attempt's number.
+A client that sent one anyway,
+by a defect or on purpose,
+would take another worktree's private index and typed message with it,
+and the service cannot tell the two apart:
+the announced Git directory is the one the client says it serves,
+and the tree's name is one the wrapper makes.
+
+A cleanup a request carries,
+which names the directory of a commit built elsewhere,
+is refused at the decoder unless it is exactly one of those two places,
+holding the wrapper's prefix and an identity of letters,
+digits and dashes,
+with no relative part that could lead elsewhere
+(`is_scratch_path`,
+`service_protocol_messages_and_name_checks.rs`),
+so no request can ask the service to remove a directory the wrapper did not make.
+
+A service of an earlier release does not know the message a client of this one used to announce a tree,
+and the client does not read that refusal;
+such a tree carries nothing a later command reads,
+so it goes at `SCRATCH_TREE_ABANDONED_AFTER`,
+which costs one tree of about 9 MiB per worktree for two hours while an installation switches releases:
+the next commit retires the service of the other release and starts this one.
+
+##### A command stopped for longer than the tree's age
+
+A command that stops running,
+by a stopped process,
+a frozen cgroup,
+or a machine that is not running it,
+stops renewing its tree,
+so the tree's age keeps growing while its command still lives.
+Once the tree is older than `SCRATCH_TREE_ABANDONED_AFTER`,
+the sweep of another command removes it,
+and the stopped command resumes without the private index it was writing:
+its next Git child fails,
+and the commit reports that failure.
+No rule distinguishes a stopped command from a killed one,
+because the only fact that would (a process that still exists)
+is exactly the fact that cannot be acted on:
+the tree of a killed client whose request is queued belongs to a process that is gone,
+and a landing is still reading it.
+The window is therefore the whole of a stop longer than two hours,
+and not only the moment between creating the tree and writing anything into it.
+The wrapper accepts losing that tree.
+What keeps every other live command's tree is the renewal,
+which needs no marker file and no reader of `/proc`.
+
+A queued request loses more than its private index in the same window,
+and the sequence needs a **service** stopped,
+not only a command:
+a client prepares a conclusion commit and the service queues the request;
+the service is frozen before that landing and stays frozen for longer than
+`SCRATCH_TREE_ABANDONED_AFTER`,
+so its queue survives;
+the client is killed,
+so nothing renews the tree and nothing can withdraw the request;
+a commit in another linked worktree then prepares the shared repository scratch directory,
+and the sweep takes the queued request's tree on its age alone,
+because the one decision that removes a commit tree (`may_go`,
+`service_scratch_abandonment.rs`) has no other evidence to go by.
+When the service resumes it lands the request,
+and the conclusion cleanup after the branch move needs the directory the request named:
+`remove_conclusion_state` (`service_land_follow.rs`) finds neither it nor the copy the
+journal keeps,
+which is written only once the landing begins,
+so it removes nothing and writes one warning to the service journal that names the state it
+left as it is.
+What the person sees:
+the commit in the other worktree is unaffected and the request lands with no client left
+to read its answer,
+so nothing on that command's terminal says anything;
+after going back to that worktree,
+`git status` still reports the merge or cherry-pick as in progress,
+because the state the cleanup could not compare was left where it was,
+and the next commit there concludes the same merge again.
+An operating service lands a queued request long before its tree reaches that age,
+so the sequence needs the stop,
+which is why the age rule stays.
+
 #### Scratch repository layout
 
 The scratch repository (the shadow,
 in the code and in this section) is made only when real Git must build the commit.
-It lives in `<git-dir>/monochromatic-git-policy-cli-service-<id>/shadow` and holds these private entries:
+It lives in `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/shadow` and holds
+these private entries:
 
 - The ref store:
   `HEAD`,
@@ -9284,7 +9477,7 @@ The shadow has no `index`;
 The shadow `config` has this layout:
 
 ```ini
-; <git-dir>/monochromatic-git-policy-cli-service-<id>/shadow/config
+; <git-common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/shadow/config
 [core]
   repositoryformatversion = <copied value>
 [extensions]
@@ -10708,6 +10901,23 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+the two costs measured wherever they fell
+(`scratchRemovalMs`,
+`removalsThatDidNotFinish` and
+`stderrMs`:
+time spent removing scratch trees,
+how many of those removals ended without finishing within their ceiling,
+and time spent writing to standard error,
+which waits for whoever reads it;
+each of them lies inside whichever phase it fell in,
+and inside `otherMs` when no phase covers it),
+and `prepareParts`
+(the preparation's stretches by name,
+`{"layout":{"ms":12,"calls":1},...}`,
+each figure the time the stretch spent without a Git child,
+because the steps are recorded apart,
+a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
+at most 64 entries with the rest counted in `preparePartsDropped`),
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:
@@ -10961,17 +11171,21 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 8,
-the first that carries a changed path's bytes.
-The version is what keeps a service built before them from being served,
+The commit request speaks protocol version 9,
+the first that names the commit's scratch tree in a field of its own.
+A service of version 8 works the tree out from the request's index,
+which is the worktree's real index rather than a tree,
+so it lands the commit and leaves the tree to the age sweep.
+The version is what keeps a service built before a field from being served,
 not the release text:
 `reach_current` (`src/native/service/service_client_reach_service.rs`)
 serves only a service whose welcome names its own version and its own release,
 and asks any other to retire before a request is sent.
 Two builds of one crate version name the same release,
-so a service built before this change would pass the release check,
-take the readable spelling of a name that is not text,
-and report a successful commit of another file.
+so a service built before a change to the request would pass the release check.
+Version 8 was the first that carries a changed path's bytes;
+a version 7 service takes the readable spelling of a name that is not text
+and reports a successful commit of another file.
 
 ### Compatibility and degradation
 
