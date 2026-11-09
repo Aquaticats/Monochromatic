@@ -348,10 +348,17 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
     let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
     let built: std::path::PathBuf = copy.path().to_path_buf();
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && !reset_in_process(git, repository, new, paths, (lock, &copy)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
-        return Err(code);
+    let mut written: Vec<Vec<u8>> = Vec::new();
+    if !empty {
+        match reset_in_process(git, repository, new, paths, (lock, &copy)) {
+            Some(names) => written = names,
+            None => {
+                reset_once(git, repository, new, paths, Some(built.as_path()))?;
+                written = named_paths(paths);
+            }
+        }
     }
-    keep_the_stat_data(git, repository, paths, &copy);
+    keep_the_stat_data(git, repository, written.as_slice(), &copy);
     return Ok(copy);
 }
 
@@ -375,75 +382,88 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await keepTheStatData({ git, repository, paths, copy }) // refresh_if_stale(copy, staging = the reset paths)
+/// await keepTheStatData({ git, repository, written, copy }) // refresh_if_stale(copy, staging = `written`)
 /// ```
-fn keep_the_stat_data(git: &GitContext, repository: &Path, paths: IndexPaths<'_>, copy: &PrivateCopy) {
-    let written: Vec<OsString> = written_names(paths);
-    let outcome: StatRefresh = refresh_stat_data_when_stale(git, repository, copy.path(), WorktreeStaging::Named(written.as_slice()));
-    if outcome == StatRefresh::NotKept {
-        // Nothing else follows from a refresh Git did not write: the index still holds the stat data the copy carried, and
-        // the commit lands on it as it is.
-        return;
+fn keep_the_stat_data(git: &GitContext, repository: &Path, written: &[Vec<u8>], copy: &PrivateCopy) {
+    let left_out: Vec<OsString> = exempt_names(written);
+    // What the copy looked like before the refresh, so the release flushes it only when the refresh rewrote it.
+    let untouched: Option<(u64, std::time::SystemTime)> = file_stamp(copy.path());
+    let _outcome: StatRefresh = refresh_stat_data_when_stale(git, repository, copy.path(), WorktreeStaging::Named(left_out.as_slice()));
+    if file_stamp(copy.path()) != untouched {
+        // Git replaced the copy without flushing it; the release of the lock flushes what it installs (`service_land_finish.rs`).
+        copy.set_flushed(false);
     }
-    // Git wrote the copy without flushing it; the release of the lock flushes what it installs (`service_land_finish.rs`).
-    copy.set_flushed(false);
 }
 
 /// What:
-///  The paths whose entries the reset wrote,
-/// as the question about the copy's stat data takes them.
+///  What one file looked like,
+/// so a step that replaced it can be told from one that wrote nothing.
 /// Why:
-///  Those entries hold the commit's own content,
-/// and their stat data is the landing's to leave unrecorded:
-/// a path the person edited after staging holds bytes the commit does not,
-/// and Git's own refresh records nothing for it.
-///  A list derived from the branch names no path here,
-/// and the whole copy is asked about instead,
-/// which costs time and never a wrong answer.
+///  `git update-index --refresh` writes the index it refreshed only when it has something to record,
+/// and only a copy Git replaced has to be flushed by the release
+/// (`service_land_finish.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const names = paths.named.map(osString) // [] for a derived list
+/// const stamp = (path) => { const s = statSync(path); return [s.size, s.mtimeMs]; }
 /// ```
-fn written_names(paths: IndexPaths<'_>) -> Vec<OsString> {
+fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
+    return Some((metadata.len(), metadata.modified().ok()?));
+}
+
+/// The names the entries of `written` take in the question about the copy's stat data,
+/// read as operating-system text.
+///  A name that is not text on this platform has no entry exempted,
+/// so the question is asked about it,
+/// which is the conservative answer.
+#[cfg(unix)]
+fn exempt_names(written: &[Vec<u8>]) -> Vec<OsString> {
+    use std::os::unix::ffi::OsStrExt;
+    return written.iter().map(|path| { return std::ffi::OsStr::from_bytes(path.as_slice()).to_os_string(); }).collect();
+}
+
+/// Where a byte path is not operating-system text,
+/// nothing is left out of the question,
+/// and the whole copy is asked about.
+#[cfg(not(unix))]
+fn exempt_names(_written: &[Vec<u8>]) -> Vec<OsString> {
+    return Vec::new();
+}
+
+/// What:
+///  The paths a list or a name list resets,
+/// with nothing for a list derived from the branch.
+/// Why:
+///  Git's own `reset` runs when the in-process update declined,
+/// and a list or a name list is its own pathspecs;
+/// a derived list is Git's to work out,
+/// and the copy is then asked about as a whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = paths.listed ?? paths.named ?? []
+/// ```
+fn named_paths(paths: IndexPaths<'_>) -> Vec<Vec<u8>> {
     return match paths {
-        IndexPaths::Listed(listed) => listed.iter().map(OsString::from).collect(),
-        IndexPaths::Named(named) => named_of_bytes(named),
+        IndexPaths::Listed(listed) => listed.iter().map(|name| { return name.as_bytes().to_vec(); }).collect(),
+        IndexPaths::Named(named) => named.to_vec(),
         IndexPaths::Derived { .. } => Vec::new(),
     };
 }
 
-/// The names a request wrote, read as operating-system text.
-/// A path that is not text has no entry this landing exempts,
-/// so the question about the copy is asked about it,
-/// which is the conservative answer.
-#[cfg(unix)]
-fn named_of_bytes(named: &[Vec<u8>]) -> Vec<OsString> {
-    use std::os::unix::ffi::OsStrExt;
-    return named.iter().map(|path| { return std::ffi::OsStr::from_bytes(path.as_slice()).to_os_string(); }).collect();
-}
-
-/// Without a byte path on this platform,
-/// no request path is exempt,
-/// and the whole copy is asked about.
-#[cfg(not(unix))]
-fn named_of_bytes(_named: &[Vec<u8>]) -> Vec<OsString> {
-    return Vec::new();
-}
-
-/// Whether the private copy (made from the live index while `lock` is held) was reset to
-///  the commit without starting Git;
-/// Git's own command follows when it was not.
+/// The names the private copy (made from the live index while `lock` is held) was reset at without starting Git,
+/// or nothing when Git's own command has to run.
 #[cfg(target_os = "linux")]
-fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> bool {
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> Option<Vec<Vec<u8>>> {
     return crate::index_reset_file::reset_index_file(git, repository, new, paths, lock, copy);
 }
 
 /// Without the in-process update on this platform,
 /// Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
-fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> bool {
-    return false;
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> Option<Vec<Vec<u8>>> {
+    return None;
 }
 
 /// The failure a storage error stands for.
