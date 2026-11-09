@@ -410,3 +410,47 @@ fn an_isolated_merge_with_one_unresolvable_file_among_resolvable_ones_is_refused
     assert!(merge_lines(&observed).is_empty(), "{said}");
     remove(&fixture);
 }
+
+/// What:
+///  A `.gitattributes` the merge itself left conflicted names no rule,
+/// so a file whose rule is inside that conflict keeps its conflict.
+/// Why:
+///   The worktree copy is Git's marker file, and its last matching line is the second side's rule;
+/// reading it would let a
+///  rule the resolved file does not carry decide the merge
+/// (cross-vendor review of this branch, finding 2).
+/// A rule file that conflicts is the same unknown as the one a merge from objects refuses,
+/// so nothing is merged.
+#[test]
+fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass() {
+    let fixture: Fixture = fixture("word-merge-worktree-conflicted-attributes");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let rule = |ours: &str| -> Vec<u8> { return format!("data.txt {ours}\n").into_bytes(); };
+    std::fs::write(repo.join(".gitattributes"), rule("merge=text flag=old")).expect("the base rule");
+    std::fs::write(repo.join("data.txt"), b"alpha = 0\nbeta = 0\n").expect("the base file");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join(".gitattributes"), rule("merge=text flag=new")).expect("their rule");
+    std::fs::write(repo.join("data.txt"), b"alpha = 0\nbeta = 2\n").expect("their edit");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join(".gitattributes"), rule("merge=binary flag=old")).expect("our rule");
+    std::fs::write(repo.join("data.txt"), b"alpha = 1\nbeta = 0\n").expect("our edit");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    // What Git leaves in the file when it does not merge it by text: our side's bytes, with the stages kept.
+    let by_git: Vec<u8> = std::fs::read(repo.join("data.txt")).expect("the file");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(1), "the merge stays stopped: {said}");
+    let mut conflicted: Vec<String> = unmerged(&fixture, repo.as_path());
+    conflicted.sort();
+    assert_eq!(conflicted, vec![String::from(".gitattributes"), String::from("data.txt")], "both conflicts stay as Git left them: {said}");
+    assert_eq!(std::fs::read(repo.join("data.txt")).expect("the file"), by_git, "the file Git would not merge by text keeps Git's bytes: {said}");
+    assert!(merge_lines(&observed).is_empty(), "nothing is merged from a rule file that conflicts: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no commit is made");
+    remove(&fixture);
+}

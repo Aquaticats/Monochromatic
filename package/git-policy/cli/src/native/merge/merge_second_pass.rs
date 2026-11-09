@@ -205,6 +205,21 @@ fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
 }
 
 /// What:
+///  Whether a conflicted path is a `.gitattributes` file.
+/// Why:
+///   A `.gitattributes` names the rules of its own folder and of everything below it,
+/// so one a merge left conflicted can change any rule that bears on a candidate,
+/// and a copy of it that holds Git's markers is no side's rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAttributesPath = (path: string) => path === '.gitattributes' || path.endsWith('/.gitattributes');
+/// ```
+pub fn is_attributes_path(path: &[u8]) -> bool {
+    return path == b".gitattributes" || path.ends_with(b"/.gitattributes");
+}
+
+/// What:
 ///  The value of the `merge` attribute of each path,
 /// from one `git check-attr` start.
 /// Why:

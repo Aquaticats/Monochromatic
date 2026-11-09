@@ -7333,6 +7333,13 @@ it never drops a byte that either side added or kept,
 and it never orders two insertions at one point,
 so both sides appending different text at one place stays a conflict.
 
+A `.gitattributes` that a merge left conflicted is no rule at all:
+the worktree copy holds Git's markers and a copy in a merge tree the same,
+so a rule read from between them is neither side's rule,
+and every candidate of that merge keeps its conflict
+(`src/native/merge/merge_second_pass_worktree.rs`,
+`src/native/merge/merge_second_pass_tree.rs`).
+
 A conflicted file is a candidate only when all three stages exist with one mode that is a plain file,
 none holds a NUL byte in its
 first 8000 bytes (Git's `FIRST_FEW_BYTES`,

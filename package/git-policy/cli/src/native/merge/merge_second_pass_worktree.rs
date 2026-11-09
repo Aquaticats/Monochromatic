@@ -35,7 +35,7 @@ use crate::child_environment::environment_value;
 use crate::conflict_side_state::conflicted_paths;
 use crate::diagnostic_log::{debug, warn};
 use crate::index_writer_forward::CoordinatedForward;
-use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, is_attributes_path, resolved_record, second_pass, write_blob};
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
@@ -436,7 +436,13 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     };
     // From the top of the worktree, so the paths of the stages mean what they say.
     let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, object_directory: None, environment: Vec::new() };
-    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice(), AttributeSource::Invocation) {
+    // A rule file the merge left conflicted is Git's marker file in the worktree, so no rule of it can be read: the pass re-merges nothing rather than trust a line between the markers.
+    let source: AttributeSource<'_> = if conflicted_paths(entries.as_slice()).iter().any(|path| { return is_attributes_path(path.as_slice()); }) {
+        AttributeSource::Unknown
+    } else {
+        AttributeSource::Invocation
+    };
+    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice(), source) {
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("the second merge pass could not run, so the conflicts stay as Git left them: {reason}").as_str());

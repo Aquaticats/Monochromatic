@@ -39,7 +39,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, INPUTS_HINT, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, INPUTS_HINT, Left, Merged, Verdict, is_attributes_path, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
 use crate::path_bytes::path_message_text;
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_scan::ScopeEnvironment;
@@ -206,19 +206,17 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
 }
 
 /// What:
-///  Whether a conflicted path is a `.gitattributes` file.
+///  Whether one of the conflicts of a merge from objects is a `.gitattributes` file.
 /// Why:
-///   A `.gitattributes` names the rules of its own folder and of everything below it,
-/// so one the merge left conflicted
-///  can change any rule that bears on a candidate.
+///   The tree the merge produced carries Git's markers in a rule file both sides changed,
+/// so no rule of it can be trusted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isConflictedGitattributes = (conflict: Conflict) => conflict.path === '.gitattributes' || conflict.path.endsWith('/.gitattributes');
+/// const anyAttributesConflict = (conflicts: Conflict[]) => conflicts.some((conflict) => isAttributesPath(conflict.path));
 /// ```
-fn is_conflicted_gitattributes(conflict: &Conflict) -> bool {
-    let path: &[u8] = conflict.path.as_slice();
-    return path == b".gitattributes" || path.ends_with(b"/.gitattributes");
+fn any_attributes_conflict(conflicts: &[Conflict]) -> bool {
+    return conflicts.iter().any(|conflict| { return is_attributes_path(conflict.path.as_slice()); });
 }
 
 /// What:
@@ -243,7 +241,7 @@ fn is_conflicted_gitattributes(conflict: &Conflict) -> bool {
 pub fn merge_attribute_source<'a>(tree: &'a str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> AttributeSource<'a> {
     return match attribute_choice(probe) {
         AttributeChoice::ThePerson => AttributeSource::Invocation,
-        AttributeChoice::Free if conflicts.iter().any(is_conflicted_gitattributes) => AttributeSource::Unknown,
+        AttributeChoice::Free if any_attributes_conflict(conflicts) => AttributeSource::Unknown,
         AttributeChoice::Free => AttributeSource::Tree(tree),
     };
 }
