@@ -123,3 +123,53 @@ fn a_deleted_name_with_a_line_feed_is_absent() {
     assert_eq!(commit.contents.len(), 1, "the deleted file has no text: {:?}", commit.contents.keys().map(|name| return name.to_string()).collect::<Vec<String>>());
     remove(parent.as_path());
 }
+
+/// The line of the fixture file a commit changes,
+/// far enough from the head that the head window and the changed window cannot be confused.
+const CHANGED_LINE: usize = 123;
+
+/// Lines in the fixture file whose name Git prints unquoted.
+const LONG_FILE_LINES: usize = 200;
+
+/// What:
+///  A commit that changes one line of a file whose path bytes are not UTF-8,
+/// in a repository whose `core.quotePath` is off,
+/// so Git prints those bytes in the patch header as they are.
+/// Why:
+///   The patch read decodes its text,
+/// and a path that does not decode must still find its own section,
+/// or the
+///  excerpt silently falls back to the head of the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const input = buildInput(readLandedCommit({ ... }), names); expect(input).toContain(`lines 93 to 153 of 201`);
+/// ```
+#[cfg(unix)]
+#[test]
+fn an_unquoted_non_utf8_path_keeps_its_changed_line() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStringExt as _;
+    let parent: PathBuf = fixture("source-unquoted-bytes");
+    let root: PathBuf = repository(parent.as_path(), "repo");
+    let config: String = std::fs::read_to_string(root.join(".git/config")).expect("read the fixture config");
+    std::fs::write(root.join(".git/config"), format!("{config}\n[core]\n\tquotePath = false\n")).expect("configure the fixture");
+    let name: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(vec![b'b', b'a', b'd', b'-', 0xff, b'.', b'r', b's']));
+    let mut lines: Vec<String> = (1..=LONG_FILE_LINES).map(|number| return format!("l{number}")).collect();
+    std::fs::write(root.join(name.as_path()), format!("{}\n", lines.join("\n"))).expect("write the file");
+    git(root.as_path(), &[OsStr::new("add"), OsStr::new("--"), name.as_os_str()]);
+    git(root.as_path(), &["commit", "--quiet", "--message=base"]);
+    lines[CHANGED_LINE - 1] = String::from("changed");
+    std::fs::write(root.join(name.as_path()), format!("{}\n", lines.join("\n"))).expect("change the file");
+    git(root.as_path(), &[OsStr::new("add"), OsStr::new("--"), name.as_os_str()]);
+    git(root.as_path(), &["commit", "--quiet", "--message=change"]);
+    let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
+    let names: Vec<ChangedPath> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
+    let commit: LandedCommit = read_landed_commit(&git_context(), root.as_path(), sha.as_str(), "change", names.as_slice()).expect("read");
+    let input: crate::standards_review_input::ReviewInput = crate::standards_review_input::build_input(&commit, names.as_slice());
+    let changed: i64 = i64::try_from(CHANGED_LINE).expect("a line number that fits");
+    let (from, to) = (changed - crate::standards_review_input::EXCERPT_CONTEXT, changed + crate::standards_review_input::EXCERPT_CONTEXT);
+    let header: &str = input.model_input.lines().find(|line| return line.starts_with("// candidate excerpt")).unwrap_or_default();
+    assert!(input.model_input.contains(&format!("lines {from} to {to} of 201")), "the excerpt is the changed line's window, not {header}");
+    remove(parent.as_path());
+}
