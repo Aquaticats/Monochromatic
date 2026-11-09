@@ -565,3 +565,63 @@ fn a_fix_with_nothing_to_correct_still_reports_a_journal() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A fix whose install fails still names the journal an interrupted fix left.
+/// Why:
+///  The sweep found it and built the notice before the install ran;
+///  the location in that notice is the
+///       only way the person finds the edit the interrupted fix displaced,
+///  so a later failure of this
+///       command must not drop it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // deadJournal(repo); changeFileUnderTheFix(); const failed = runDirectFix(...); expect(failed.events.some(e => e.message.includes('cli-git-direct-fix-'))).toBe(true)
+/// ```
+#[test]
+fn an_installation_failure_still_names_an_interrupted_fix() {
+    let root: PathBuf = fixture("direct-fix-failure-keeps-notice");
+    let repo: PathBuf = untidy_repository(root.as_path());
+    let request: StageRequest = fix_request(PolicyConfig::defaults());
+    // A dead fix's journal, holding bytes the record does not know.
+    let git_dir: PathBuf = repo.join(".git");
+    let kept: crate::direct_fix_install_writes::Kept =
+        crate::direct_fix_install_writes::Kept::of(&std::fs::metadata(repo.join("ok.txt")).expect("ok"));
+    let journal: PathBuf = crate::direct_fix_install_journal::open_journal(
+        git_dir.as_path(),
+        repo.join("ok.txt").as_path(),
+        &kept,
+        b"a correction the fix never wrote\n",
+        None,
+    )
+    .expect("a journal");
+    std::fs::write(
+        crate::direct_fix_install_journal::content_of(journal.as_path()),
+        b"the person's own bytes",
+    )
+    .expect("the displaced bytes");
+    crate::direct_fix_install_journal::mark_writer_gone(journal.as_path());
+    // A selected file changes under this fix, so its install fails.
+    let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    checks
+        .content
+        .prepare(&checks.candidates, &mut checks.facts)
+        .expect("prepared");
+    std::fs::write(repo.join("a.txt"), b"edited meanwhile").expect("edit");
+    let failed: PassResult = run_direct_fix(&request, &mut checks, Some(repo.as_path()));
+    assert_eq!(failed.end, StageEnd::Failed);
+    assert!(
+        failed.events.iter().any(|event| {
+            return match event {
+                PolicyEvent::EngineFailure { message, .. } => {
+                    return message.contains("cli-git-direct-fix-");
+                }
+                _other => false,
+            };
+        }),
+        "the journal's location reaches the person: {:?}",
+        failed.events
+    );
+    remove(root.as_path());
+}

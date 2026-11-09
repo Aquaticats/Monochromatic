@@ -320,14 +320,23 @@ pub fn settled_fix<F: RepositoryFacts>(
     let (Some(top_level), Some(real_index), Some(journal_dir)) =
         (root, checks.content.real_index(), git_dir)
     else {
-        return fix_failure(
-            pass.arguments.as_slice(),
-            EngineFailureCode::TransactionFailed,
-            if root.is_none() || checks.content.real_index().is_none() {
-                NO_WORKTREE_MESSAGE
-            } else {
-                NO_GIT_DIR_MESSAGE
-            },
+        // What: A failure to install says what the sweep found the same way a success does.
+        // Why:  The notice's path is the only place a person finds the edit an interrupted fix displaced, so no path out
+        //       of this function may drop it.
+        //
+        // In TS you'd write (pseudocode):
+        // return withNotices(fixFailure(NO_WORKTREE_MESSAGE), notices);
+        return with_notices(
+            fix_failure(
+                pass.arguments.as_slice(),
+                EngineFailureCode::TransactionFailed,
+                if root.is_none() || checks.content.real_index().is_none() {
+                    NO_WORKTREE_MESSAGE
+                } else {
+                    NO_GIT_DIR_MESSAGE
+                },
+            ),
+            notices,
         );
     };
     let outcome: InstallOutcome = match install_corrections(
@@ -338,10 +347,18 @@ pub fn settled_fix<F: RepositoryFacts>(
     ) {
         Ok(installed) => installed,
         Err(message) => {
-            return fix_failure(
-                pass.arguments.as_slice(),
-                EngineFailureCode::TransactionFailed,
-                message.as_str(),
+            // What: The notices the sweep built reach the person with the installation failure.
+            // Why:  The journal stays where it was, and its location is the only way to find the edit inside it.
+            //
+            // In TS you'd write (pseudocode):
+            // return withNotices(fixFailure(message), notices);
+            return with_notices(
+                fix_failure(
+                    pass.arguments.as_slice(),
+                    EngineFailureCode::TransactionFailed,
+                    message.as_str(),
+                ),
+                notices,
             );
         }
     };
