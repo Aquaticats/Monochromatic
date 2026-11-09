@@ -91,6 +91,9 @@ pub mod service_land_copy;
 
 pub mod service_land_follow;
 
+/// The copy the service keeps of the conclusion state a landed commit removes.
+pub mod conclusion_state_copy;
+
 /// The record of an index update a landed batch owes,
 /// and the repair that repeats it for the entries the landing left.
 pub mod owed_index_update;

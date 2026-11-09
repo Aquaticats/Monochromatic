@@ -62,11 +62,14 @@ fn settled_of(finished: bool) -> Settled {
 /// Removes the conclusion state a landed batch leaves,
 /// when it has one.
 /// Whether it is gone.
-pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
-    return match intent.cleanup.as_ref() {
-        Some(cleanup) => remove_conclusion_state(git, repository, cleanup),
-        None => true,
-    };
+pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent, journal: &Path) -> bool {
+    let Some(cleanup) = intent.cleanup.as_ref() else { return true };
+    // The client's own scratch directory is the service's to remove when that client is gone, so the copy the landing kept in
+    //  the journal is what the comparison reads once it is: a cleanup that failed once would otherwise remove nothing and answer
+    //  success, and the next commit would conclude the same merge again.
+    let kept: std::path::PathBuf = crate::conclusion_state_copy::path_of(journal, intent.seq);
+    let surviving: Option<&Path> = kept.exists().then_some(kept.as_path());
+    return remove_conclusion_state(git, repository, cleanup, surviving);
 }
 
 /// What:
@@ -109,7 +112,7 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
     //  anything tries to install it, so a kill, a failing step or a restart that declines to replay leaves the obligation where
     //  the person's next commit reads it (`owed_index_update.rs`).
     crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
-    let cleaned: bool = cleanup_done(git, repository, intent);
+    let cleaned: bool = cleanup_done(git, repository, intent, journal);
     if crate::service_fault::fails("build-index") {
         return false;
     }
@@ -162,7 +165,7 @@ pub fn finish_after_move(git: &GitContext, intent: &Intent, lock: IndexLock, jou
     return match follows_move {
         Ok(false) if own_index => {
             drop(lock);
-            cleanup_done(git, repository, intent)
+            cleanup_done(git, repository, intent, journal)
         }
         Ok(_) => follow_up(git, repository, intent, lock, journal),
         Err(code) => {
@@ -242,7 +245,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     //  Skipping the index is safe whatever the head does next, so this look needs no lock. A head that cannot be read stops here.
     if own_index {
         match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) {
-            Ok(false) => return settled_of(cleanup_done(git, repository, intent)),
+            Ok(false) => return settled_of(cleanup_done(git, repository, intent, journal)),
             Ok(true) => {}
             Err(code) => {
                 crate::service_error!("batch {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq);
@@ -252,7 +255,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     }
     match indexed_state(journal, intent.seq, intent.new.as_str()) {
         // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
-        Indexed::Installed => return settled_of(cleanup_done(git, repository, intent)),
+        Indexed::Installed => return settled_of(cleanup_done(git, repository, intent, journal)),
         // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
         Indexed::Unreadable => {
             crate::service_error!("batch {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq);
@@ -271,7 +274,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
             Ok(true) => {}
             Ok(false) => {
                 drop(held);
-                return settled_of(cleanup_done(git, repository, intent));
+                return settled_of(cleanup_done(git, repository, intent, journal));
             }
             Err(code) => {
                 drop(held);
@@ -296,7 +299,7 @@ so `git status` shows the commit's paths against the index until then",
                 intent.seq,
                 crate::owed_index_update::path_of(intent.git_dir.as_path(), intent.seq).display()
             );
-            settled_of(cleanup_done(git, repository, intent))
+            settled_of(cleanup_done(git, repository, intent, journal))
         }
     };
 }
@@ -610,8 +613,10 @@ settled from the worktree's own record of it, and the file may be removed once t
                 // The batch will never land, so the scratch reference its killed landing left is removed here; the commit it
                 //  holds is kept first, on the batch's side reference (`service_scratch_ref_of_a_dropped_batch.rs`).
                 clear_after_dropped_batch(&git, intent.repository.as_path(), intent.seq);
-                // A batch that will never land owes no index update, so any record of one is forgotten with it.
+                // A batch that will never land owes no index update, so any record of one is forgotten with it, and so is the copy
+                //  of the conclusion state it would have removed.
                 crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
+                crate::conclusion_state_copy::remove(context.journal.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
                 remove_start(context.journal.as_path(), intent.seq);

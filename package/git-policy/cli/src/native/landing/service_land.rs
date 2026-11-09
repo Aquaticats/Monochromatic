@@ -346,6 +346,11 @@ fn land_batch_body(
             index: first.index.clone(),
             git_dir: first.git_dir.clone(),
         };
+        // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
+        //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
+        if let Some(cleanup) = intent.cleanup.as_ref() {
+            let _kept = crate::conclusion_state_copy::keep(cleanup, context.journal.as_path(), seq);
+        }
         let journal_began: Instant = Instant::now();
         let written = write_intent(context.journal.as_path(), &intent);
         timing.journal += journal_began.elapsed();

@@ -5625,6 +5625,13 @@ Each commit passes through three phases:
     hand the push and the upkeep to the service as work items.
     A blocked gate keeps the commit local and exits `2`.
 
+The service leaves the push work item of a commit it landed itself,
+before it answers that commit's client,
+and wakes its own work thread for it.
+A wrapper that is killed or whose terminal closes between the answer and its hand-off therefore loses no push:
+the record's id is the commit's,
+so the hand-off writes the same record and one of the two is skipped (see "What a landed batch leaves behind").
+
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
 and the only wait is the service's bounded wait for a foreign holder
@@ -5699,6 +5706,63 @@ Init-once cells (`OnceLock`) hold values read at first use (a boot ID,
 the machine ID,
 the Git release,
 the process identity) and wait for nothing after.
+
+### What a landed batch leaves behind
+
+A batch's branch moves before its index is installed,
+so the two can be apart after a kill,
+a failing step,
+or a restart that declines to replay the update.
+Three things outlive the batch's landing for that reason.
+
+The index update the landing still owes is recorded in the worktree's own Git directory,
+at `<git dir>/monochromatic-git-policy-cli/work/owed/<batch>.owed`,
+before anything tries to install the index.
+The record names the index file,
+the branch values,
+the landed commit and the paths,
+and it is a small record of its own so that it does not depend on the journal's intent,
+which holds every field a batch needs and which no reader finishes a batch from when it cannot be parsed.
+The record goes when the index update is installed,
+and with a batch that recovery drops,
+because a batch that never landed owes nothing.
+
+Recovery never removes an open intent it cannot read.
+It names it once per pass,
+with its batch number and its path,
+and keeps it:
+the intent is the only record of a landed commit's branch values,
+paths and request identities,
+so removing it forgets the index update and lands a resent request twice.
+A record that cannot be read is therefore a person's to remove,
+or to open,
+once what its batch owed has been settled from the record above.
+
+The commit that runs next in that worktree settles what is owed before it copies the index:
+each path of the record whose index entry still holds what the landed batch started from is set to the landed
+commit,
+and a path whose entry holds anything else was staged by a program since and is left alone.
+The wrapper says which paths it set.
+The command it makes therefore never records the landed commit's own paths against it,
+so a file that commit added is not a staged deletion the next commit would record,
+and staging that is the person's own is kept.
+A restart that finds the index file is not the one the landing saw finishes the batch,
+leaves the index as its writers left it,
+and keeps the record,
+so the next commit's own step is what puts the entries right.
+
+A landing that concludes a merge,
+a cherry-pick or a revert keeps a copy of the conclusion state the commit removes
+in its journal at `<batch>.cleanup`,
+made before the branch moves.
+The state files are removed only while they still hold the bytes copied at preparation,
+and the copies the comparison reads are the client's own,
+which the service removes when that client is gone.
+With the scratch directory gone the comparison is made against the journal's copy,
+so a cleanup that failed once is finished by the next landing and the worktree's next commit does not conclude
+the same merge again.
+A cleanup whose copy and whose scratch directory are both gone removes nothing and said so:
+no copy of what it compares exists.
 
 ### Repositories of a round run side by side
 

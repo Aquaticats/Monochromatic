@@ -368,19 +368,29 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
 /// ```ts
 /// await removeConclusionState(git, repository, cleanup)
 /// ```
-pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cleanup) -> bool {
-    // The scratch directory is the client's; once the client is gone and its directory with it there is nothing left to compare.
-    if !cleanup.scratch.exists() {
-        return true;
-    }
+pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cleanup, surviving: Option<&Path>) -> bool {
+    // The scratch directory is the client's, and the service removes it when that client is gone; the copy the landing kept in its
+    //  journal is what the comparison reads then, and without either nothing can be compared, so nothing is removed.
+    let Some(compared) = surviving.filter(|kept| { return !cleanup.scratch.exists() && kept.exists(); }).or_else(|| { return cleanup.scratch.exists().then_some(cleanup.scratch.as_path()); }) else {
+        warn(
+            "serviceLandFollow",
+            format!(
+                "the conclusion state of {} was left as it is: the directory it was compared against, {}, is gone and no copy of it was kept",
+                cleanup.git_dir.display(),
+                cleanup.scratch.display()
+            )
+            .as_str(),
+        );
+        return false;
+    };
     let format: RefFormat = if cleanup.reftable { RefFormat::Reftable } else { RefFormat::Files };
-    let shadow = cleanup.scratch.join("shadow");
+    let shadow: std::path::PathBuf = compared.join("shadow");
     // The stash Git stored in the scratch repository when its apply conflicted is stored in the repository before the cleanup
     //  removes the pseudoref that named it; if that fails the state stays, so the cleanup runs again.
     if !carry_stash(git, repository, cleanup) {
         return false;
     }
-    return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), cleanup.scratch.as_path(), format) {
+    return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), compared, format) {
         Ok(()) => true,
         Err(error) => {
             warn("serviceLandFollow", format!("removing the conclusion state failed: {}", error.0).as_str());
