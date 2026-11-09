@@ -139,3 +139,23 @@ fn the_writer_emits_one_line_or_nothing() {
     assert_eq!(nothing.text(), "");
     warn_external_hooks(Some(&snapshot), RefusingStream);
 }
+
+/// What:
+///  A hook disabled with an integer false is already off,
+/// so the report does not name it and the warning does not fire.
+/// Why:
+///  Git reads `hook.<name>.enabled` with its own boolean reader,
+/// which parses `00` as zero;
+/// the report kept
+///  every value it had not modelled,
+/// and told the person to remove a hook that never runs.
+#[test]
+fn a_hook_disabled_with_a_numeric_false_is_not_reported() {
+    let snapshot: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.audit.event\npre-commit"),
+        ("local", "hook.audit.command\necho EXTERNAL-RAN"),
+        ("local", "hook.audit.enabled\n00"),
+    ]);
+    assert_eq!(configured_hooks(&snapshot), Vec::<ConfiguredHook>::new());
+    assert_eq!(external_hooks_warning(Some(&snapshot)), None);
+}
