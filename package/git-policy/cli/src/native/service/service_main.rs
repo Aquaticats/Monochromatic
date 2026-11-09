@@ -257,6 +257,9 @@ pub fn run(arguments: &[String]) -> i32 {
     crate::hooks_off::activate();
     // The runtime is built by the first need (the warm below, or the acceptor): the cap comes before it.
     crate::lazy_runtime::cap_workers(SERVICE_WORKER_CAP);
+    // The blocking jobs of the service are held to the same cap: one service runs per worktree, so the pool is bounded as its workers
+    //  are. A budget that is already made is not resized, so the call comes before the service's first job.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(SERVICE_WORKER_CAP);
     // A signal that ends the service (the manager stops a unit with `SIGTERM`) leaves one line with the signal and the uptime.
     crate::service_signal::install();
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.

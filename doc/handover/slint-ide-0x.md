@@ -69,7 +69,7 @@ See [the pointer lifetime investigation](../troubleshooting/slint-repeater-model
 
 In-file find was implemented on 2026-10-05;
 the "Handoff state" section records its result.
-The following paragraphs are the research record that preceded it.
+Historical record of the Chrome find-in-page research that preceded it:
 Fresh reference reads confirm that editord delegates Ctrl+F to real Chrome's find-in-page,
 rather than implementing another regular-expression search widget.
 `inspect:find-reference` now probes synthetic Unicode/whitespace cases in an isolated browser profile.
@@ -2753,7 +2753,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     would be killed by a reboot,
     which is that session's call.
     Subagent contexts are not saved by a reboot:
-    the notes below are the durable state.
+    the notes in `Current state on 2026-10-06` are the durable state.
     LANDED 2026-10-21 after the reboot:
     both agent branches are merged and pushed as `34a38c9897` on `main` (scratch
     worktree,
@@ -11539,7 +11539,7 @@ IDE 0.1.3 released,
 commit `d1477a13ba`,
 run 40836615403,
 all jobs succeeded):
-- Cause of the earlier block:
+- The `ide-v0.1.3` release was blocked before it could be published:
   the rust-catalog migration (`fd0bd03540`,
   #1800) made cargo refuse `default-features = false` on a `workspace = true` dependency.
   Session `monochromatic-fb` fixed the generator in `d1477a13ba` (each crate's generated `[workspace.dependencies]` entry now carries `default-features = false`);

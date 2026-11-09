@@ -219,7 +219,7 @@ Untried.
 
 ### The probe answered: nothing needs to be lossy
 
-The probe named at the end of the previous section returned,
+The probe named at the end of `The provider refuses AVIF` returned,
 and it overturned the section.
 The byte cap was never the provider's.
 Sent as they are,

@@ -181,7 +181,7 @@ The pass is a tracked
 background task,
 so its exit notifies without polling.
 
-WHAT SURVIVES of the earlier sections:
+WHAT SURVIVES of `Sharpened: the projection is band-aware, and 15 entries probably will not fit`:
 the measured 9.80 min/chunk,
 the
 band-independence of per-chunk cost,

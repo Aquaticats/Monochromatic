@@ -53,7 +53,8 @@ since `completion_tokens` comes from the provider and is channel-agnostic.
 
 ## `#211` diagnosed from logs and source, without spending a call (2026-08-25)
 
-The earlier note recorded this as needing a captured frame from a live call,
+The section headed `qwen3.8-max` books all of its output as thinking (`#211`) recorded this
+as needing a captured frame from a live call,
 and put the count at 13.
 Both were wrong.
 The count is about seventy calls,
