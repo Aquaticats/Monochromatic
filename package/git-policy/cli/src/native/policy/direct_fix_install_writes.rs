@@ -95,7 +95,8 @@ pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
 ///       (a file created by the running user is already theirs),
 ///  and a failure to restore it fails the
 ///       write:
-///  a replacement that belongs to another account is a file handed over, not a
+///  a replacement that belongs to another account is a file handed over,
+/// not a
 ///       correction.
 ///  What a replacement does not
 ///       carry is named beside `InstallChange`.
@@ -146,6 +147,7 @@ pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> Result<(), Wr
 /// ```ts
 /// type Kept = { mode: number; uid: number; gid: number };
 /// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Kept {
     /// The destination's permission bits,
     ///  the set-user-id,
@@ -212,7 +214,8 @@ impl Kept {
 ///  2026-11-09),
 ///  so restoring the bits first would lose them.
 ///  An owner this process may not give is a
-///       failure: the replacement would belong to the user running the fix,
+///       failure:
+/// the replacement would belong to the user running the fix,
 ///  which silently hands the
 ///       person's file to another account.
 ///
