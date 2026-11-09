@@ -516,6 +516,136 @@ await describe({
         expect(resolved?.source).toBe(NEURALWATT_API_KEY_ENV);
       },
     }),
+    it({
+      name: 'keeps the resolved key when a later store read times out',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: function timingOutReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            if (reads === 1) {
+              return Promise.resolve({
+                loaded: true,
+                path: '/store',
+                values: { [NEURALWATT_API_KEY_ENV]: 'store-key-1', },
+              },);
+            }
+            return Promise.reject(new Error('sops could not decrypt (timeout)',));
+          },
+        },);
+        const ctx = fixtureAuthContext({},);
+        const first = await auth.resolve({
+          ctx,
+          signal: new AbortController().signal,
+        },);
+        const second = await auth.resolve({
+          ctx,
+          signal: new AbortController().signal,
+        },);
+        expect(first?.auth.apiKey).toBe('store-key-1');
+        expect(second?.auth.apiKey).toBe('store-key-1');
+        expect(reads).toBe(1);
+      },
+    }),
+    it({
+      name: 'retries a first store read that times out and still resolves the key',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: function flakyReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            if (reads === 1)
+              return Promise.reject(new Error('sops could not decrypt (timeout)',));
+            return Promise.resolve({
+              loaded: true,
+              path: '/store',
+              values: { [NEURALWATT_API_KEY_ENV]: 'store-key-1', },
+            },);
+          },
+        },);
+        const resolved = await auth.resolve({
+          ctx: fixtureAuthContext({},),
+          signal: new AbortController().signal,
+        },);
+        expect(resolved?.auth.apiKey).toBe('store-key-1');
+        expect(reads).toBe(2);
+      },
+    }),
+    it({
+      name: 'stops retrying the store read when the caller aborts',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        const controller = new AbortController();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: function abortedReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            controller.abort(new Error('request cancelled',),);
+            return Promise.reject(new Error('sops decrypt aborted',));
+          },
+        },);
+        const resolved = await auth.resolve({
+          ctx: fixtureAuthContext({},),
+          signal: controller.signal,
+        },);
+        expect(resolved).toBe(undefined);
+        expect(reads).toBe(1);
+      },
+    }),
+    it({
+      name: 'shares one store read between concurrent resolutions',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: async function countingReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            return {
+              loaded: true,
+              path: '/store',
+              values: { [NEURALWATT_API_KEY_ENV]: 'store-key-1', },
+            };
+          },
+        },);
+        const ctx = fixtureAuthContext({},);
+        const signal = new AbortController().signal;
+        const resolvedBoth = await Promise.all([
+          auth.resolve({
+            ctx,
+            signal,
+          },),
+          auth.resolve({
+            ctx,
+            signal,
+          },),
+        ],);
+        expect(reads).toBe(1);
+        expect(resolvedBoth.map(function readKey(resolved,) {
+          return resolved?.auth.apiKey;
+        },)).toEqual([
+          'store-key-1',
+          'store-key-1',
+        ],);
+      },
+    }),
   ],
 });
 
