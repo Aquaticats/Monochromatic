@@ -133,15 +133,14 @@ pub fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -
 }
 
 /// What:
-///  Whether any index entry of a changed path already holds the merge's entry.
+///  Whether every changed path's index entry already holds the merge's entry.
 /// Why:
-///   Only an entry equal to the merged one (or,
-/// for a deleted path,
-/// an absent one) shows that Git had begun to
-///  install the merge's index;
-/// another session's staged change to the same path is not that evidence,
-/// and must
-///  not make a merge that never began look like one that did.
+///   Git installs the index for all the paths of a merge in one step,
+/// so every entry being the merge's is what an install
+///  leaves;
+/// one entry equal to the merged one is just as much what an independent commit of the same content
+///  leaves,
+/// and it must not make a merge that never began look like one that did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,7 +153,7 @@ pub fn index_holds_the_merge(
     changes: &[Change],
 ) -> Result<bool, RecoveryError> {
     let standings: Vec<Standing> = index_standings(place, root, old_oid, changes)?;
-    return Ok(standings.iter().any(is_the_merges_entry));
+    return Ok(!standings.is_empty() && standings.iter().all(is_the_merges_entry));
 }
 
 /// What the worktree holds at a changed path,

@@ -93,7 +93,8 @@ pub(crate) fn settle_moved_branch(
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: index_began }),
     };
-    let worktree_began: bool = worktree.iter().any(holds_the_merge);
+    // Every one of its paths holding the merge is what an install leaves; one is not evidence of one.
+    let worktree_began: bool = !worktree.is_empty() && worktree.iter().all(holds_the_merge);
     let began: bool = index_began || worktree_began;
     if !began {
         if let Err(error) = remove_record(record) {

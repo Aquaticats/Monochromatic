@@ -2076,3 +2076,38 @@ fn a_directory_left_empty_by_a_killed_recovery_is_removed_on_the_retry() {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
     remove(world.parent.as_path());
 }
+
+/// What:
+///  An independent commit of the same content does not make a saved merge look installed,
+///  so the command goes on.
+/// Why:
+///  One index entry or file matching the merge's side was taken as evidence that the merge began,
+/// so a lock holder who
+///  independently committed the same content for one path made every later command stop on a saved merge that had
+///  installed nothing
+///  (a cross-vendor review of the seventh round,
+/// its sixth finding).
+/// The merge changes two other paths that hold nothing of it,
+/// so only every path matching is an install.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = deferredRecord(); write('f.txt', mergeContent); git add f.txt; commit('independent'); const outcomes = await recover(...); expect(outcomes[0].action).toBe('saved-branch-moved'); expect(exists(record)).toBe(false);
+/// ```
+#[test]
+fn an_unrelated_commit_of_the_same_content_does_not_make_a_saved_merge_began() {
+    let world: World = world("merge-recovery-same-content-elsewhere");
+    let record: PathBuf = deferred_record_of(&world, "37373737-0000-4000-8000-000000000037", "refs/cli-git/kept/37");
+    // The holder of the index independently commits the content this merge would give `f.txt`, and nothing else of it.
+    std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the same content");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=independent", "--", "f.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::SavedBranchMoved, "nothing of the merge was installed");
+    assert!(!record.exists(), "the record only goes");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the independent commit");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/37"]), world.new_oid, "the saved merge is kept");
+    remove(world.parent.as_path());
+}

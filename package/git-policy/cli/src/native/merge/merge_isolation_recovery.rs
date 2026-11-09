@@ -273,15 +273,21 @@ pub fn settle_failed_merge(
         // An index that cannot be read may hold the merge, so a command must not read the checkout past this.
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
-    let index_started: bool = index_standing.iter().any(holds_the_merges_entry);
+    // Whether anything of the merge is in the index at all, which is what keeps a record from being only discarded; and whether
+    //  every path the merge changes holds its side in the index, which is what an install leaves because Git writes the entries
+    //  in one step.
+    let any_in_index: bool = index_standing.iter().any(holds_the_merges_entry);
+    let every_entry_is_the_merges: bool = !index_standing.is_empty() && index_standing.iter().all(holds_the_merges_entry);
     let judgements: Vec<Judged> = match judge_changes(place, root, changes.as_slice()) {
         Ok(found) => found,
         // The worktree cannot be read; the index is the evidence of the install that is still there.
-        Err(error) => return Err(MergeRefusal { error, began: index_started }),
+        Err(error) => return Err(MergeRefusal { error, began: every_entry_is_the_merges }),
     };
-    // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
-    let worktree_started: bool = judgements.iter().any(holds_the_merge);
-    let began: bool = index_started || worktree_started;
+    let any_in_worktree: bool = judgements.iter().any(holds_the_merge);
+    let every_file_is_the_merges: bool = !judgements.is_empty() && judgements.iter().all(holds_the_merge);
+    // A merge began when every one of its paths holds its side: one path that matches is what an independent commit of the same
+    //  content leaves, and it is not evidence that recovery installed anything.
+    let began: bool = every_entry_is_the_merges || every_file_is_the_merges;
     let current: Option<String> = match resolve_commit(place, root, target) {
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began }),
@@ -350,7 +356,7 @@ pub fn settle_failed_merge(
     // A merge that was saved on a side ref is finished even though nothing of it is in the checkout yet: the record with a side
     //  ref is what says the merge should land, not the checkout (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
     //  finding 3).
-    if intent.side_ref.is_none() && !index_started && !worktree_started {
+    if intent.side_ref.is_none() && !any_in_index && !any_in_worktree {
         if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
             return Err(MergeRefusal { error, began });
         }
