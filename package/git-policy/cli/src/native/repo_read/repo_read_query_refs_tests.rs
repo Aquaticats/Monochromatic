@@ -277,3 +277,43 @@ fn broken_refs_are_declined() {
     let _ = scope(root.as_path());
     remove(root.as_path());
 }
+
+/// A tag and a branch whose names hold `@` and `+`,
+/// as this repository's own release tags do,
+/// are listed and verified without a Git start:
+/// the ref listing is what the shadow's snapshot and the LFS plan take,
+/// and a name outside the plain alphabet used to end the whole listing.
+#[test]
+fn scoped_tags_and_plus_branches_equal_git() {
+    let root = fixture("repo-read-refs-scoped");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    git(repo.as_path(), &["tag", "-a", "-m", "scoped", "@scope/package@1.0.0"]);
+    git(repo.as_path(), &["tag", "v1+meta"]);
+    git(repo.as_path(), &["branch", "a+b"]);
+    let shapes = |target: &Path| {
+        answered(root.as_path(), target, &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+        for name in ["refs/tags/@scope/package@1.0.0", "refs/tags/v1+meta", "refs/heads/a+b"] {
+            answered(root.as_path(), target, &["rev-parse", "--verify", "--quiet", &format!("{name}^{{commit}}")]);
+        }
+    };
+    shapes(repo.as_path());
+    git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+    shapes(repo.as_path());
+    remove(root.as_path());
+}
+
+/// A name Git refuses is still left to Git,
+/// and so is a listing that holds one:
+/// Git words a broken name on standard error and prints the other refs without it.
+#[test]
+fn refs_git_refuses_stay_declined() {
+    let root = fixture("repo-read-refs-refused");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    let tip = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim_end().to_string();
+    for name in ["refs/heads/a b", "refs/heads/a*b", "refs/heads/a:b", "refs/heads/a?b", "refs/heads/a[b", "refs/heads/a\\b", "refs/heads/a^b", "refs/heads/a~b"] {
+        declined(root.as_path(), repo.as_path(), &["rev-parse", "--verify", "--quiet", &format!("{name}^{{commit}}")]);
+    }
+    std::fs::write(repo.join(".git/refs/heads/refused name"), format!("{tip}\n")).expect("broken name");
+    declined(root.as_path(), repo.as_path(), &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+    remove(root.as_path());
+}
