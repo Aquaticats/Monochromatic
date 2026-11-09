@@ -779,6 +779,62 @@ fn a_staging_file_that_a_process_holds_open_stays() {
     stage.finish();
 }
 
+//region Another ref backend's lock (audit of 2026-11-09, finding 1)
+
+/// The reftable backend keeps its references,
+/// and the lock of its table list,
+/// in the `reftable` directory of the Git directory,
+/// so no `packed-refs.lock`,
+/// `HEAD.lock` or `refs/**/*.lock` exists beside them.
+/// A killed Git's lock of that list is a candidate on the same proof,
+/// and the ref update it blocked works again.
+#[test]
+fn a_reftable_tables_list_lock_left_by_a_killed_git_is_cleared() {
+    let stage: Stage = killed::reftable_stage("stale-refs-reftable-killed", true);
+    let mut held: Held = killed::hold_transaction(&stage, &["create refs/heads/planted HEAD"]);
+    assert!(stage.tables_lock().exists() && stage.tables_pid_file().exists(), "the transaction holds the lock of the reftable table list");
+    held.kill();
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert_eq!(outcome.cleared.len(), 1, "{outcome:?}");
+    assert_eq!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Stale(Proof::PidGone(i64::from(held.pid())))), "{outcome:?}");
+    assert_eq!(leftovers(&stage), Vec::<PathBuf>::new());
+    let created = git_output(stage.repo.as_path(), &["update-ref", "refs/heads/after", "HEAD"]);
+    assert!(created.status.success(), "the ref update the cleared lock blocked still fails: {}", String::from_utf8_lossy(&created.stderr));
+    stage.finish();
+}
+
+/// A reftable Git that runs holds that lock with the pid file beside it,
+/// so the lock stays.
+#[test]
+fn a_live_reftable_gits_tables_list_lock_stays() {
+    let stage: Stage = killed::reftable_stage("stale-refs-reftable-live", true);
+    let held: Held = killed::hold_transaction(&stage, &["create refs/heads/planted HEAD"]);
+    assert!(stage.tables_lock().exists(), "the transaction holds the lock");
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.tables_lock().exists() && stage.tables_pid_file().exists());
+    assert!(matches!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    drop(held);
+    stage.finish();
+}
+
+/// Nothing proves the holder of that lock gone when no pid file names one:
+/// it is left and the notice gives the file and the command that clears it.
+#[test]
+fn a_reftable_lock_that_nothing_proves_gone_is_left_and_named() {
+    let stage: Stage = killed::reftable_stage("stale-refs-reftable-unproven", false);
+    let mut held: Held = killed::hold_transaction(&stage, &["create refs/heads/planted HEAD"]);
+    held.kill();
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.tables_lock().exists());
+    assert!(matches!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(outcome.notice().contains("tables.list.lock") && outcome.notice().contains("rm -- "), "the person is told which file stands in the way: {}", outcome.notice());
+    stage.finish();
+}
+
+//endregion
+
 //region Evidence that is not proof (cross-vendor review of 2026-11-03T11:33:50-05:00, finding S-2)
 
 /// A day,
