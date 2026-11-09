@@ -32,6 +32,12 @@ use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+/// The parents of one commit,
+/// as object names.
+fn parents_of(fixture: &Fixture, repo: &Path, commit: &str) -> Vec<String> {
+    return git_text(fixture, repo, &["rev-list", "--parents", "-n", "1", commit]).split_whitespace().skip(1).map(String::from).collect();
+}
+
 /// The parents of `HEAD`,
 /// as object names.
 fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
@@ -193,6 +199,7 @@ fn killed_after_the_checkout(fixture: &Fixture, repo: &Path, old_oid: &str, merg
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: String::from(old_oid),
         new_oid: String::from(merged),
+        side_ref: None,
     };
     let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
     git(fixture, repo, &["read-tree", "-m", "-u", old_oid, merged]);
@@ -293,4 +300,131 @@ fn a_lock_a_gone_git_left_does_not_end_a_merge() {
         git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
         remove_settled(&fixture);
     }
+}
+
+/// What:
+///  The side ref a deferred merge's line names.
+/// Why:
+///  The control reads the merge commit from the very name the person is given,
+/// so the line and the ref cannot disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const side = /saved on (\S+)/.exec(stderr)?.[1];
+/// ```
+fn side_ref_of(said: &str) -> String {
+    let (_, rest) = said.split_once("saved on ").expect("the line names the side ref");
+    return rest.split_whitespace().next().expect("a ref name").to_string();
+}
+
+/// The side refs the wrapper keeps in `repo`.
+fn kept_refs(fixture: &Fixture, repo: &Path) -> Vec<String> {
+    let listed: String = git_text(fixture, repo, &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept"]);
+    return listed.lines().map(|line| { return line.trim().to_owned(); }).filter(|name| { return !name.is_empty(); }).collect();
+}
+
+/// What:
+///  A merge that meets an index lock it may not clear saves its result on a side ref,
+///  exits 0,
+///  says so,
+///  and the next command in that worktree finishes the checkout once the lock is free,
+///  keeping an edit made meanwhile to a file the merge does not change.
+/// Why:
+///  That is the owner's answer for a live foreign `index.lock` (`SPEC.md:2187`):
+/// "a merge saves its result on a
+///  side ref,
+/// exits 0,
+/// and finishes the checkout when the lock frees,
+/// carrying edits made meanwhile forward",
+/// and "Manual
+///  merge should never fail too.".
+/// The lock holds the whole index beside a PID file of a process that is gone,
+/// which is what a
+///  person's editor-phase `git commit --all` leaves and what the removal proof refuses,
+/// so the wait ends at once
+///  and the control needs no minute of patience.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const saved = await wrapped(['merge', '--no-edit', 'feature']); expect(saved.code).toBe(0);
+/// const side = sideRefOf(saved.stderr); expect(parents(await revParse(side))).toHaveLength(2);
+/// write('u.txt', edit); rm(lock); await wrapped(['status']); expect(await revParse('HEAD')).toEqual(await revParse(side)); expect(read('u.txt')).toEqual(edit);
+/// ```
+#[test]
+fn a_merge_that_may_not_clear_the_lock_saves_itself_and_the_next_command_finishes_it() {
+    let fixture: Fixture = fixture("merge-deferred-save");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(lock.as_path(), b"an index a person's editor-phase commit wrote into the lock").expect("a lock with content");
+    std::fs::write(repo.join(".git/index~pid.lock"), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    let saved = super::commit::run_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
+    assert_eq!(saved.code, Some(0), "a merge that may not clear the lock still exits 0: {said}");
+    assert!(said.contains("saved on refs/cli-git/kept/"), "the side ref is named: {said}");
+    assert!(said.contains("the next git command in this worktree finishes the checkout"), "{said}");
+    let side: String = side_ref_of(said.as_str());
+    let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
+    assert_eq!(parents_of(&fixture, repo.as_path(), merged.as_str()).len(), 2, "the side ref names a merge commit");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), head, "the branch did not move yet");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()).len(), 2, "the merge and its save are both recorded");
+    // The person works on while the lock is held, in a file the merge does not change.
+    std::fs::write(repo.join("u.txt"), b"an edit made while the lock was held\n").expect("the person's edit");
+    std::fs::remove_file(lock.as_path()).expect("the other program lets go");
+    let _pid = std::fs::remove_file(repo.join(".git/index~pid.lock"));
+    // The next command finishes the checkout.
+    let finished = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    let result: String = String::from_utf8_lossy(&finished.stderr).into_owned();
+    assert_eq!(finished.code, Some(0), "{result}");
+    assert!(result.contains("finished an interrupted merge"), "the finish is stated: {result}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch holds the saved merge");
+    assert_eq!(std::fs::read(repo.join("u.txt")).expect("the person's file"), b"an edit made while the lock was held\n", "the edit made meanwhile is kept");
+    assert!(repo.join("dir/new.txt").exists(), "the merge's own files are in the checkout");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "no record stays");
+    assert_eq!(kept_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the side ref goes away when the merge lands");
+    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A merge that meets a lock a running process holds waits its one minute,
+///  then saves its result on a side ref and exits 0,
+///  and the next command finishes the checkout after that process lets go.
+/// Why:
+///  This is the case the owner answered (`SPEC.md:2187`):
+/// a holder that runs is not this command's to remove,
+///  so the merge must not fail,
+/// and its result must not be collectable before it lands.
+/// The lock names this very test process in its PID file,
+/// so it is proven alive and the wait
+///  reaches `MERGE_LOCK_CEILING` instead of ending at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePidFile(process.pid); const saved = await wrapped(['merge', '--no-edit', 'feature']); expect(saved.code).toBe(0); expect(saved.stderr).toContain('did not let go within');
+/// ```
+#[test]
+fn a_merge_that_waits_out_a_live_holder_is_saved_and_not_failed() {
+    let fixture: Fixture = fixture("merge-live-holder-saved");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(lock.as_path(), b"").expect("a running program's lock");
+    std::fs::write(repo.join(".git/index~pid.lock"), format!("pid {}\n", std::process::id())).expect("the PID file of this process, which runs");
+    let saved = super::commit::run_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
+    assert_eq!(saved.code, Some(0), "a merge behind a running holder still exits 0: {said}");
+    assert!(said.contains("did not let go within"), "the wait is reported: {said}");
+    assert!(said.contains("saved on refs/cli-git/kept/"), "{said}");
+    let side: String = side_ref_of(said.as_str());
+    let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
+    assert_eq!(parents_of(&fixture, repo.as_path(), merged.as_str()).len(), 2, "the side ref names a merge commit");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), head, "the branch has not moved");
+    std::fs::remove_file(lock.as_path()).expect("the holder lets go");
+    let _pid = std::fs::remove_file(repo.join(".git/index~pid.lock"));
+    let finished = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    assert_eq!(finished.code, Some(0), "{}", String::from_utf8_lossy(&finished.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch holds the saved merge");
+    assert_eq!(kept_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the side ref goes away when the merge lands");
+    remove_settled(&fixture);
 }

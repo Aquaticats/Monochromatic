@@ -79,6 +79,7 @@ fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -
         target_ref: target_ref.map(String::from),
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
+        side_ref: None,
     };
     return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
 }
@@ -624,6 +625,7 @@ fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
+        side_ref: None,
     };
     let place: RecoveryPlace = place(world);
     let changes: Vec<Change> = merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");

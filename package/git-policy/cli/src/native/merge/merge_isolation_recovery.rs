@@ -316,12 +316,18 @@ pub fn settle_failed_merge(
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
     let current: Option<String> = resolve_commit(place, root, target)?;
     if current.as_deref() == Some(intent.new_oid.as_str()) {
-        remove_record(record)?;
+        drop_record_and_side_ref(place, root, record, intent)?;
         return Ok(MergeRecoveryAction::AlreadyLanded);
     }
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
-        Some(head) => return settle_moved_branch(place, record, intent, head, out),
+        Some(head) => {
+            let action: MergeRecoveryAction = settle_moved_branch(place, record, intent, head, out)?;
+            if action == MergeRecoveryAction::BranchMoved {
+                drop_side_ref(place, root, intent);
+            }
+            return Ok(action);
+        }
         None => {
             return Err(RecoveryError(format!(
                 "{target} names no commit although the interrupted merge in {} expected {}. Nothing was changed and the \
@@ -346,8 +352,11 @@ pub fn settle_failed_merge(
     let index_started: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())?;
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
     let worktree_started: bool = judgements.iter().any(holds_the_merge);
-    if !index_started && !worktree_started {
-        remove_record(record)?;
+    // A merge that was saved on a side ref is finished even though nothing of it is in the checkout yet: the record with a side
+    //  ref is what says the merge should land, not the checkout (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+    //  finding 3).
+    if intent.side_ref.is_none() && !index_started && !worktree_started {
+        drop_record_and_side_ref(place, root, record, intent)?;
         return Ok(MergeRecoveryAction::Discarded);
     }
     let mut foreign: Vec<String> = Vec::new();
@@ -372,8 +381,54 @@ pub fn settle_failed_merge(
     if complete(place, root, intent, &changes, &judgements, out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    remove_record(record)?;
+    drop_record_and_side_ref(place, root, record, intent)?;
     return Ok(MergeRecoveryAction::Completed);
+}
+
+/// What:
+///  Drop a record and,
+/// when it named one,
+/// the side ref that keeps its merge commit from being collected.
+/// Why:
+///   The side ref exists for the window between the save and the finish,
+/// so the merge's landing is what removes it;
+/// a ref that
+///  cannot be deleted stays,
+/// and the log says so,
+/// because nothing of the merge is lost either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function dropRecordAndSideRef({ place, root, record, intent }): Promise<void>;
+/// ```
+fn drop_record_and_side_ref(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> Result<(), RecoveryError> {
+    remove_record(record)?;
+    drop_side_ref(place, root, intent);
+    return Ok(());
+}
+
+/// What:
+///  Delete the side ref a record names,
+/// saying in the log when that fails.
+/// Why:
+///   A merge that lands must not leave a name pointing at its commit,
+/// but a deletion that fails is not a reason to
+///  keep the record or stop the command:
+/// the commit stays,
+/// and the name is what a person can delete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function dropSideRef({ place, root, intent }): Promise<void>;
+/// ```
+fn drop_side_ref(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
+    let Some(name) = intent.side_ref.as_deref() else {
+        return;
+    };
+    let arguments: [&str; 4] = ["update-ref", "--no-deref", "-d", name];
+    if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
+        debug("settleFailedMerge", format!("the side ref {name} of a landed merge could not be deleted: {error}").as_str());
+    }
 }
 
 /// What:

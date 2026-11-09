@@ -53,7 +53,7 @@ use crate::random_id::random_uuid;
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_before_a_merge_that_clears_a_dead_lock};
 /// Removing an index lock a gone process left,
 /// on the commit service's proof of disuse.
-use crate::service_index_unheld_removal::remove_if_the_owner_is_gone;
+use crate::service_index_unheld_removal::{Unheld, remove_if_the_owner_is_gone};
 /// Scanning every readable process for a descriptor on that lock.
 use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The platform whose unlink removes the lock.
@@ -66,6 +66,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 /// A span of time the wait lasted.
 use std::time::Duration;
+/// The clock reading a side ref's number starts from.
+use std::time::SystemTime;
 
 /// What:
 ///  The finished merge with the lines that list the files the second pass merged by word,
@@ -242,6 +244,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         target_ref,
         old_oid: String::from(old_oid),
         new_oid: String::from(new_oid),
+        side_ref: None,
     };
     let record: PathBuf = match write_merge_intent(git_dir, &intent) {
         Ok(written) => written,
@@ -253,15 +256,29 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     //  record is written first, so a wait that ends with the lock still held leaves the next command the work of finishing
     //  this very merge.
     let waited: IndexWait = wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), &mut std::io::stderr());
-    // A lock a gone process left is removed on the proof the commit service acts on, so a merge repairs what a commit
-    //  repairs (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 3).
-    if matches!(waited, IndexWait::OwnerGone(_)) {
-        let _removed = remove_if_the_owner_is_gone(&SYSTEM, git_dir.join("index").as_path(), &scan_platform_holders_bounded);
+    // Some when the wait reached its ceiling; nothing when the lock is one this command may not clear at all.
+    let mut held_for: Option<Duration> = None;
+    let mut still_held: bool = false;
+    match waited {
+        IndexWait::NotHeld | IndexWait::Released(_) => {}
+        IndexWait::GaveUp(waited_for) => {
+            held_for = Some(waited_for);
+            still_held = true;
+        }
+        IndexWait::OwnerGone(_) => {
+            // A lock a gone process left is removed on the proof the commit service acts on, so a merge repairs what a commit
+            //  repairs (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 3). A lock that proof does
+            //  not cover (it holds content, it stands behind a service's marker, a process has it open) stays where it is.
+            still_held = !matches!(
+                remove_if_the_owner_is_gone(&SYSTEM, git_dir.join("index").as_path(), &scan_platform_holders_bounded),
+                Unheld::Removed(_)
+            );
+        }
     }
-    // A holder that is still there at the ceiling is not this command's to remove, and waiting again would only repeat the same
-    //  minute twenty times: the merge says so once, truthfully, and leaves the record for the next command.
-    if let IndexWait::GaveUp(waited_for) = waited {
-        return Err(refused(2, a_held_index_finding(reference.as_str(), git_dir.join("index.lock").as_path(), waited_for)));
+    if still_held {
+        // The owner's answer for a live foreign `index.lock` (`SPEC.md`, "Merges and commits never fail"): the merge saves its
+        //  result on a side ref, exits 0, and the next command finishes the checkout when the lock is free.
+        return save_for_a_later_finish(session, plan, &intent, record.as_path(), reference.as_str(), held_for);
     }
     let mut overlay: Vec<(OsString, OsString)> = input.overlay.to_vec();
     overlay.push((OsString::from("GIT_REFLOG_ACTION"), OsString::from(format!("merge {reference}"))));
@@ -326,31 +343,154 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
 }
 
 /// What:
-///  The line for a merge that met another program's `index.lock` for longer than the wait's ceiling.
+///  How many names are tried when the merge is kept on a side ref.
 /// Why:
-///   The refusal must say what happened and what becomes of the merge,
-/// and must not name a cause that never was:
-///  the wait named the holder above,
-/// the record names the merge,
-/// and the next command in this worktree finishes it.
-/// Wait
-///  advice that could not work,
-/// like "Run the merge again" beside a lock nothing releases,
-/// is what finding 3 of
-///  `doc/planning/cli-git-merge-and-repair-route-findings-on-main.md` recorded.
+///   A name a landing already kept is never written over;
+/// the next number is tried instead,
+/// and a host that
+///  took all of them is a refusal rather than a loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIDE_REF_ATTEMPTS = 8;
+/// ```
+const SIDE_REF_ATTEMPTS: u128 = 8;
+
+/// What:
+///  Keep the merge commit on `refs/cli-git/kept/<number>`,
+/// which only a deletion removes,
+/// and return the name it took.
+/// Why:
+///   The record that names the merge is not enough:
+/// `git gc` collects a commit nothing points at,
+/// and a
+///  deferred merge must still be finishable after the lock frees.
+/// The write is an `update-ref` whose old value is all zeros,
+/// so a name
+///  another command kept is never written over,
+/// and the walk to the next number is bounded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepOnASideRef(session, mergeOid): string | undefined; // update-ref --no-deref refs/cli-git/kept/<ms+n> <oid> 0000...
+/// ```
+fn keep_on_a_side_ref(session: &Session, merge_oid: &str) -> Option<String> {
+    let zeros: String = "0".repeat(merge_oid.len());
+    let first: u128 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).ok()?.as_millis();
+    for step in 0..SIDE_REF_ATTEMPTS {
+        let name: String = format!("refs/cli-git/kept/{}", first + step);
+        let made: GitOutput = session.run(&["update-ref", "--no-deref", name.as_str(), merge_oid, zeros.as_str()]).ok()?;
+        if made.succeeded() {
+            return Some(name);
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Save a merge that met an index lock it may not clear:
+/// keep its commit on a side ref,
+/// record that the checkout is still to be finished,
+/// say so,
+/// and end
+///  with status 0.
+/// Why:
+///   The owner's answer for a live foreign `index.lock` (`SPEC.md`,
+/// "Merges and commits never fail") is that a merge
+///  saves its result on a side ref,
+/// exits 0,
+/// and finishes the checkout when the lock frees.
+/// A second record,
+///  created once like every other,
+/// names the side ref and the merge,
+/// so the next command finishes this very merge even though nothing of it is in the
+///  checkout yet.
+/// A merge whose commit cannot be kept that way is refused instead,
+/// with nothing changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function saveForALaterFinish({ session, plan, intent, record, reference, heldFor }): Promise<IsolatedMerge>;
+/// ```
+fn save_for_a_later_finish(
+    session: &Session,
+    plan: &Plan<'_>,
+    intent: &MergeIntent,
+    record: &Path,
+    reference: &str,
+    held_for: Option<Duration>,
+) -> Result<IsolatedMerge, Bail> {
+    let lock: PathBuf = plan.git_dir.join("index.lock");
+    let Some(side_ref) = keep_on_a_side_ref(session, plan.new_oid) else {
+        return Err(refused(2, a_merge_that_could_not_be_saved(reference, lock.as_path())));
+    };
+    let mut later: MergeIntent = intent.clone();
+    later.owner.transaction_id = match random_uuid() {
+        Ok(id) => id,
+        Err(error) => return Err(Bail::from(error.0)),
+    };
+    later.side_ref = Some(side_ref.clone());
+    if let Err(error) = write_merge_intent(plan.git_dir, &later) {
+        return Err(refused(
+            2,
+            format!(
+                "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({}), and the merge \
+                 could not be recorded for a later finish ({error}); its commit is kept on {side_ref}. Nothing was changed. Run the merge \
+                 again once that program is done.\n",
+                lock.display()
+            ),
+        ));
+    }
+    debug(TAG, format!("the merge is saved on {side_ref} beside its first record {}", record.display()).as_str());
+    return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), held_for) });
+}
+
+/// What:
+///  The line for a merge that is saved on a side ref because another program holds the index.
+/// Why:
+///   The command exits 0 and the branch has not moved,
+/// so the person must be told where the merge is,
+/// what finishes
+///  it,
+/// what happens to their own edits meanwhile,
+/// and how to clear a lock no program uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ...`
 /// ```
-fn a_held_index_finding(reference: &str, lock: &Path, waited_for: Duration) -> String {
+fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &str, held_for: Option<Duration>) -> String {
+    let blocked: String = match held_for {
+        Some(waited) => format!("did not let go within {} seconds", waited.as_secs()),
+        None => String::from("is not one this command may clear"),
+    };
     return format!(
-        "monochromatic-git-policy-cli: git merge {reference}: {} stayed taken by another program for {} seconds, so this merge \
-         was not applied and the branch did not move. Nothing of the merge is in the checkout, and the merge is recorded: the \
-         next git command in this worktree finishes it once that program is done. If no program is using this repository, the \
-         lock was left by a program that was killed, and removing it lets a command run.\n",
-        lock.display(),
-        waited_for.as_secs()
+        "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}) and {blocked}, so the \
+         merge is saved on {side_ref} and this command exits 0. Nothing of the merge is in the checkout yet and the branch has not moved: \
+         the next git command in this worktree finishes the checkout once that lock is free, and the edits you make meanwhile to files the \
+         merge does not change are kept. If no program is using this repository, the lock was left by a program that was killed, and \
+         removing it lets a command run.\n",
+        lock = lock.display()
+    );
+}
+
+/// What:
+///  The line for a merge whose commit could not be kept on a side ref.
+/// Why:
+///   Without that name the commit can be collected,
+/// so the merge is refused with nothing changed rather than
+///  promised for a later finish it may not reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git merge ${reference}: ...`
+/// ```
+fn a_merge_that_could_not_be_saved(reference: &str, lock: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}), and the merge could \
+         not be kept on a side ref for a later finish. Nothing was changed. Run the merge again once that program is done, and if no \
+         program is using this repository, removing that lock lets a command run.\n",
+        lock = lock.display()
     );
 }
 

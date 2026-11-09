@@ -3147,12 +3147,27 @@ on the commit path:
   and only then is it unlinked),
   and the merge goes on.
   A holder that runs,
-  or one nothing proves alive,
-  is not removed:
-  at the bound the wait names it,
-  the merge writes nothing,
-  and the merge exits non-zero saying so and saying that the record it kept
-  lets the next command in that worktree finish the same merge.
+  one nothing proves alive,
+  and a lock the proof of disuse does not cover (one that holds content,
+  one behind the service's marker,
+  one a process has open) are not removed.
+  Such a merge is saved instead (`SPEC.md:2187`,
+  the owner's answer):
+  its commit is written to `refs/cli-git/kept/<number>` (a number no other command kept,
+  by an `update-ref` whose old value is all zeros),
+  a second record naming that ref is written beside the first,
+  the command says where the merge is and what finishes it,
+  and it exits 0.
+  The next git command in that worktree finishes the checkout once the lock is free:
+  the merge's own paths are installed,
+  the branch moves by compare-and-swap against the recorded old commit,
+  the record and the side ref go,
+  and everything the merge does not change is left as it is,
+  so an edit made meanwhile to such a file is carried forward.
+  An edit made meanwhile to one of the merge's own paths is never overwritten:
+  the finish stops and names the file.
+  A merge whose commit cannot be kept on a side ref is refused with nothing changed,
+  never promised for a finish it may not reach.
   The index reconciliation of a commit with no change left ends the same
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,

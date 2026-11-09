@@ -17,6 +17,7 @@ fn intent(namespace: Option<&str>, target: Option<&str>) -> MergeIntent {
         target_ref: target.map(String::from),
         old_oid: String::from("a".repeat(40)),
         new_oid: String::from("b".repeat(40)),
+        side_ref: None,
     };
 }
 

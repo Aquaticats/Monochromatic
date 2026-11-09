@@ -224,6 +224,7 @@ pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, l
         target_ref: Some(branch_ref.to_owned()),
         old_oid: local.to_owned(),
         new_oid: merge_oid.to_owned(),
+        side_ref: None,
     };
     let record: PathBuf = write_merge_intent(dir, &intent).ok()?;
     return Some((record, intent));
