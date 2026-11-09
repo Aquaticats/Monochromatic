@@ -33,7 +33,7 @@
 //! ```
 
 use crate::discard_audit_facts::AuditFact;
-use crate::git_metadata::{MetadataOutput, run_metadata_git};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
 use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
 ///  and `Path`/`PathBuf` owned/borrowed paths.
@@ -258,19 +258,170 @@ pub fn removal_facts(context: &GitContext, target: &Path, typed: &OsStr, force: 
 }
 
 /// What:
-///  The path a `git worktree remove` names,
-///  joined to the directory the command runs in.
+///  The paths of the repository's worktrees,
+///  as `git worktree list --porcelain` prints them,
+///  or nothing when Git cannot be asked.
 /// Why:
-///   `worktree remove` accepts a path relative to the current directory,
-///  and every read of it has to happen
-///       before Git removes it.
+///   Git resolves the name of a removal against the worktrees the repository registers,
+///  and that list is
+///       the only place the resolved path can come from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function targetPath(typed: string, directory: string): string;
+/// const output = await runGit([...global, 'worktree', 'list', '--porcelain', '-z']);
 /// ```
-pub fn target_path(typed: &OsStr, directory: &Path) -> PathBuf {
-    return directory.join(typed);
+fn worktree_paths(context: &GitContext) -> Option<Vec<PathBuf>> {
+    let mut arguments: Vec<OsString> = context.global_prefix.clone();
+    for token in ["worktree", "list", "--porcelain", "-z"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput =
+        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    if !output.success {
+        return None;
+    }
+    // `-z` ends every field with a NUL and every record with one more, so a path holding a line break stays whole.
+    let mut paths: Vec<PathBuf> = Vec::<PathBuf>::new();
+    for field in output.stdout.split(is_nul_byte) {
+        if field.starts_with(WORKTREE_FIELD) {
+            paths.push(path_from_git_bytes(&field[WORKTREE_FIELD.len()..])?);
+        }
+    }
+    return Some(paths);
+}
+
+/// The word a `git worktree list --porcelain -z` field puts before a worktree's path.
+const WORKTREE_FIELD: &[u8] = b"worktree ";
+
+/// What:
+///  Whether a byte of a `-z` answer ends a record.
+/// Why:
+///   The NUL-terminated form separates records with zero bytes,
+/// and a named function keeps that pass free of
+///  a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether `short` names the components `long` ends with.
+/// Why:
+///   Git accepts a unique path suffix of a registered worktree,
+///  so `topic` names
+///  `/r/worktrees/topic` without naming `/r/main/topic`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endsWithComponents(long: string[], short: string[]): boolean;
+/// ```
+fn ends_with_components(long: &Path, short: &Path) -> bool {
+    let tail: Vec<OsString> = short.iter().map(part_text).collect();
+    if tail.is_empty() {
+        return false;
+    }
+    let head: Vec<OsString> = long.iter().map(part_text).collect();
+    if tail.len() > head.len() {
+        return false;
+    }
+    let offset: usize = head.len() - tail.len();
+    return head[offset..] == tail[..];
+}
+
+/// What:
+///  Whether a registered worktree is the directory the name resolved to.
+/// Why:
+///   The same directory can be spelled with `..`,
+///  a link or an absolute path,
+///  and the record has to
+///       name the worktree that spelling means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sameDirectory(worktree: string, resolved?: string): boolean;
+/// ```
+fn same_directory(worktree: &Path, resolved: Option<&Path>) -> bool {
+    let Some(target) = resolved else {
+        return false;
+    };
+    let Ok(other) = std::fs::canonicalize(worktree) else {
+        return false;
+    };
+    return other == target;
+}
+
+/// What:
+///  One path component as owned operating-system text.
+/// Why:
+///   Comparing two paths component by component needs owned parts,
+/// and a named function keeps the
+///  comparison free of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (part: string) => part
+/// ```
+fn part_text(part: &std::ffi::OsStr) -> OsString {
+    return part.to_os_string();
+}
+
+/// What:
+///  The path of the worktree a `git worktree remove` names,
+///  as Git resolves it:
+///  the named path,
+///  or the one registered worktree its
+///  components end.
+///  `&OsStr` is the name as the person typed it and `&Path` the directory Git works in.
+/// Why:
+///   A removal by a name Git resolves as a suffix
+///  (`git worktree remove topic` for
+///       `/r/worktrees/topic`) read against the command's own directory would describe a directory that is not
+///  a worktree at all:
+///  the record then counted the enclosing main worktree and claimed the removal took
+///  nothing.
+///  Every read of the target has to happen before Git removes it,
+///  so the resolution is one list of the registered worktrees,
+///  asked first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removalTarget({ context, typed, directory }): string;
+/// ```
+pub fn removal_target(context: &GitContext, typed: &OsStr, directory: &Path) -> PathBuf {
+    let joined: PathBuf = directory.join(typed);
+    let Some(registered) = worktree_paths(context) else {
+        return joined;
+    };
+    let resolved: Option<PathBuf> = std::fs::canonicalize(&joined).ok();
+    for path in &registered {
+        // An exact path is the worktree itself, whether the name is absolute, relative or holds `..`.
+        if *path == joined || same_directory(path, resolved.as_deref()) {
+            return path.clone();
+        }
+    }
+    let mut found: Option<&PathBuf> = None;
+    let mut several: bool = false;
+    for path in &registered {
+        if !ends_with_components(path, Path::new(typed)) {
+            continue;
+        }
+        several = found.is_some();
+        found = Some(path);
+        if several {
+            break;
+        }
+    }
+    // Git refuses a name that matches several worktrees, so only one resolution is a worktree it will remove.
+    if !several
+        && let Some(path) = found
+    {
+        return path.clone();
+    }
+    return joined;
 }
 
 /// The removal facts and the real-Git controls stay out of the release executable.

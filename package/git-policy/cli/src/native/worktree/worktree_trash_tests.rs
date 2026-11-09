@@ -12,16 +12,11 @@ use crate::claim_time::ClaimTime;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::iso_time::now_iso;
-use crate::service_client::START_WAIT;
-use crate::service_provision::ProvisionHost;
-use crate::service_route::Route;
 use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
-use crate::test_support::{fixture, git, git_context, remove};
+use crate::test_support::{age, fixture, git, git_context, remove, repository};
+use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::work_item::{DONE, state_directory};
-use crate::service_messages::UPDATING_NOTICE;
-use crate::service_protocol::{ClientMessage, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_client, encode_service};
-use crate::service_server::Bind;
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use crate::worktree_snapshot::take_snapshot;
 use crate::worktree_snapshot_source::choose_snapshot_source;
@@ -149,8 +144,10 @@ fn btrfs_the_ordinary_nested_worktree_does_not_block_a_snapshot_of_main() {
     remove(root.as_path());
 }
 
-/// A linked worktree sets nothing aside,
-/// whatever it holds.
+/// A linked worktree sets nothing aside by the main checkout's rule,
+/// whatever it holds,
+/// and the
+///  only thing it moves is the trash an earlier add left.
 #[test]
 fn btrfs_a_linked_source_sets_nothing_aside() {
     let Some(root) = btrfs_fixture("trash-linked") else { return };
@@ -158,16 +155,144 @@ fn btrfs_a_linked_source_sets_nothing_aside() {
     let (stage, mut source, _trash) = snapshot_of(root.as_path(), repo.as_path());
     source.git_dir = repo.join(".git/worktrees/ordinary");
     let before: usize = std::fs::read_dir(stage.join("node_modules")).expect("listing").count();
-    assert_eq!(prune_snapshot(stage.as_path(), &source).expect("pruned").count, 0);
-    assert_eq!(std::fs::read_dir(stage.join("node_modules")).expect("listing").count(), before);
+    let pruned: Pruned = prune_snapshot(stage.as_path(), &source).expect("pruned");
+    assert_eq!(std::fs::read_dir(stage.join("node_modules")).expect("listing").count(), before, "a linked source's dependencies are not set aside");
+    // The one directory that moves is the trash the earlier prune in this control made, which no snapshot may carry on.
+    assert_eq!(pruned.count, 1, "only the trash an earlier add left is moved");
     remove(root.as_path());
 }
 
-/// Without a route to the service the trash is emptied in the foreground,
-/// and the work item written for it is withdrawn once
-///  it is gone.
+/// What:
+///  A stage container of another command is set aside by name,
+/// wherever it sits below the snapshot,
+/// its whole payload with it.
+/// Why:
+///   A container is an ordinary directory holding the ignored state of another worktree
+/// (credentials included),
+/// and its
+///  destination lies below the same folder as this add's,
+/// so a snapshot carries it whole and nothing names it
+///  afterwards:
+/// a `git add --all` in the new worktree would commit it.
+///   The walk needs no btrfs to decide what it leaves out,
+/// so the control builds the snapshot's shape in a disposable directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { count } = await pruneSnapshot(stage, source)
+/// expect(count).toBe(1)
+/// expect(existsSync(join(stage, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543'))).toBe(false)
+/// ```
 #[test]
-fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
+fn a_stage_container_below_the_snapshot_is_set_aside() {
+    let root: PathBuf = fixture("trash-stage-container");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("kept.txt"), b"kept\n").expect("a tracked file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=kept"]);
+    let stage: PathBuf = root.join("stage");
+    let container: PathBuf = stage.join(".claude/worktrees").join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
+    std::fs::create_dir_all(container.join("payload/node_modules/pkg")).expect("the other command's stage");
+    std::fs::write(container.join("payload/node_modules/pkg/index.js"), b"another worktree's dependency\n").expect("the other command's payload");
+    std::fs::write(stage.join("kept.txt"), b"kept\n").expect("the tracked file in the snapshot");
+    let source: SnapshotSource = SnapshotSource {
+        root: repo.clone(),
+        git_dir: repo.join(".git"),
+        common_dir: repo.join(".git"),
+        clean: crate::worktree_clean::CleanSource {
+            head_commit: String::new(),
+            head_tree: Vec::new(),
+            tracked: 0,
+            index_seconds: 0,
+            hash_length: 20,
+            attribute_blobs: Vec::new(),
+            index_bytes: std::fs::read(repo.join(".git/index")).expect("the index"),
+        },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let pruned: Pruned = prune_snapshot(stage.as_path(), &source).expect("the leave-out runs");
+    assert_eq!(pruned.count, 1, "the container is the one directory set aside");
+    assert!(!container.exists(), "the other command's stage container is not carried");
+    assert!(stage.join("kept.txt").exists(), "the tracked file stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A snapshot taken from a linked worktree sets another command's stage container aside,
+/// while everything that worktree
+///  ignores itself stays.
+/// Why:
+///   A linked worktree has no leave-out rule of its own,
+/// so the stage rule is the one thing the leave-out decides there;
+///  the
+///  container holds another worktree's ignored state,
+/// credentials included,
+/// and nothing would name it in the new
+///  worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await takeSnapshot({ source: linkedSource, plan, stage, admin, pointer });
+/// expect(existsSync(join(stage, '.claude/worktrees/.cli-git-worktree-copy-<token>'))).toBe(false);
+/// expect(existsSync(join(stage, 'node_modules/pkg/index.js'))).toBe(true);
+/// ```
+#[test]
+fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
+    let Some(root) = btrfs_fixture("trash-linked-stage") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), "tracked.txt", b"tracked\n");
+    commit_all(repo.as_path(), "first");
+    std::fs::write(repo.join(".git/info/exclude"), b".claude/\nnode_modules/\n").expect("exclude");
+    let linked: PathBuf = root.join("linked");
+    subvolume_create_at(linked.as_path()).expect("the linked worktree is a subvolume");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "linked", "../linked"]);
+    // The checkout wrote every file as new as its index; only an aged tree is provably clean.
+    for name in [".gitignore", "tracked.txt", "shared.txt", "src/deep/leaf.txt", "new/added.txt"] {
+        age(linked.join(name).as_path());
+    }
+    git(linked.as_path(), &["update-index", "--refresh"]);
+    put(linked.as_path(), "node_modules/pkg/index.js", b"module the linked worktree ignores\n");
+    let container: String = format!(".claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(linked.as_path(), format!("{container}/payload/credentials").as_str(), b"another worktree's token\n");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
+    let admin: std::fs::File = crate::fs_beneath::open_root(repo.join(".git/worktrees/topic").as_path()).expect("administrative directory");
+    let identity = crate::worktree_identity::WorktreeIdentity::LinkedWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git/worktrees/linked"), worktree_root: linked.clone() };
+    let plan = plan_to(destination);
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &identity, &plan).expect("a linked worktree is a snapshot source");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-linked");
+    take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    assert!(std::fs::symlink_metadata(stage.join(container.as_str())).is_err(), "the other command's stage container is not carried");
+    assert!(stage.join("node_modules/pkg/index.js").is_file(), "what the linked worktree ignores stays");
+    assert!(linked.join(container.as_str()).join("payload/credentials").is_file(), "the other command's payload is left where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  The trash a snapshot made is emptied before the command returns,
+/// with no service involved and no work
+///  item left behind.
+/// Why:
+///   The trash sits inside the new worktree,
+/// so anything still in it is a path the worktree's Git can list
+///  and `git add --all` can stage once the target commit stops ignoring it,
+/// another command's stage container with its
+///  credentials included.
+/// Nothing is queued for a later run,
+/// because a queued emptying is exactly the window that finding
+///  is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await disposePendingTrash({ destination, gitDir, trash, notices });
+/// expect(existsSync(join(worktree, TRASH_PARENT))).toBe(false); expect(pendingItems(gitDir)).toEqual([]);
+/// ```
+#[test]
+fn the_trash_is_emptied_before_the_command_returns() {
     let root: PathBuf = fixture("trash-fallback");
     let worktree: PathBuf = root.join("topic");
     let git_dir: PathBuf = root.join("admin");
@@ -177,11 +302,12 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     let name: String = "a".repeat(40);
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("emptied here");
-    assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied in the foreground");
+    dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
+    assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied here");
     assert!(!worktree.join(TRASH_PARENT).exists(), "and its parent goes with the last one");
     let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!pending.exists(), "the work item written before the route was tried is withdrawn when the trash is emptied here");
+    assert!(!pending.exists(), "nothing is left for a service to find, because nothing was handed over");
+    assert!(String::from_utf8_lossy(notices.as_slice()).contains("emptying the directories left out"), "the person is told why the command takes longer: {}", String::from_utf8_lossy(notices.as_slice()));
     remove(root.as_path());
 }
 
@@ -262,129 +388,6 @@ fn the_drain_empties_a_trash_item() {
     remove(root.as_path());
 }
 
-/// What a fixture service did:
-/// every line it was sent,
-/// in order.
-#[cfg(target_os = "linux")]
-struct FixtureService {
-    /// Raised to end the accept loop.
-    finished: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    /// The loop,
-    /// returning the non-empty lines it read.
-    thread: std::thread::JoinHandle<Vec<String>>,
-}
-
-/// Serve `name` as a service of a release other than this one;
-/// when `retires` is true it is replaced by a service of this
-///  release as soon as it has been asked to retire,
-/// else it goes on answering as the earlier release.
-#[cfg(target_os = "linux")]
-fn serve_earlier_release(name: &str, retires: bool) -> FixtureService {
-    use std::os::linux::net::SocketAddrExt;
-    use std::io::BufRead;
-    let socket = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
-    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket).expect("bind");
-    listener.set_nonblocking(true).expect("non-blocking");
-    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let thread = std::thread::spawn({
-        let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
-        move || {
-            let mut heard: Vec<String> = Vec::new();
-            let mut replaced: bool = false;
-            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
-                let Ok((stream, _)) = listener.accept() else {
-                    std::thread::sleep(std::time::Duration::from_millis(5));
-                    continue;
-                };
-                stream.set_nonblocking(false).expect("blocking");
-                let release: String = if replaced { String::from(RELEASE) } else { String::from("0.0.1-earlier") };
-                let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release) });
-                greeting.push('\n');
-                let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
-                let mut raw: String = String::new();
-                let _read = std::io::BufReader::new(&stream).read_line(&mut raw);
-                let line: String = raw.trim_end().to_string();
-                if line == encode_client(&ClientMessage::Retire) && retires {
-                    replaced = true;
-                }
-                if !line.is_empty() {
-                    heard.push(line);
-                }
-            }
-            return heard;
-        }
-    });
-    return FixtureService { finished, thread };
-}
-
-/// A worktree with one trash directory in it,
-/// the admin directory it points at,
-/// and the manifest of that trash.
-#[cfg(target_os = "linux")]
-fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
-    let root: PathBuf = fixture(label);
-    let worktree: PathBuf = root.join("topic");
-    let git_dir: PathBuf = root.join("admin");
-    std::fs::create_dir_all(&git_dir).expect("admin");
-    std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
-    let manifest: TrashManifest = plant_trash(worktree.as_path(), name, 1);
-    return (root, worktree, git_dir, manifest);
-}
-
-/// A service of an earlier release that never retires is not given the work item:
-/// it is asked only to retire,
-/// the trash is
-///  emptied here,
-/// and no record is left for a later service to find.
-#[cfg(target_os = "linux")]
-#[test]
-fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() {
-    let name: String = "e".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_trash("trash-earlier-stubborn", name.as_str());
-    let address: String = format!("trash-earlier-stubborn-{}", std::process::id());
-    let service: FixtureService = serve_earlier_release(address.as_str(), false);
-    let mut notices: Vec<u8> = Vec::new();
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: std::time::Duration::from_millis(400) }).expect("emptied here");
-    service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
-    let heard: Vec<String> = service.thread.join().expect("service thread");
-    assert!(!heard.is_empty() && heard.iter().all(|line: &String| { return *line == encode_client(&ClientMessage::Retire); }), "only retires were sent: {heard:?}");
-    assert!(String::from_utf8_lossy(notices.as_slice()).contains(UPDATING_NOTICE), "the person is told the service is being replaced");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "the trash is emptied in the foreground");
-    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!pending.exists(), "no item an earlier service could never claim is left");
-    remove(root.as_path());
-}
-
-/// A service of an earlier release that retires is replaced before the hand-over:
-/// the work item reaches the current service,
-///  after the retire,
-/// and the trash stays for that service to empty.
-#[cfg(target_os = "linux")]
-#[test]
-fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
-    let name: String = "f".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_trash("trash-earlier-retires", name.as_str());
-    let address: String = format!("trash-earlier-retires-{}", std::process::id());
-    let service: FixtureService = serve_earlier_release(address.as_str(), true);
-    let mut notices: Vec<u8> = Vec::new();
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("handed over");
-    service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
-    let heard: Vec<String> = service.thread.join().expect("service thread");
-    let retire: String = encode_client(&ClientMessage::Retire);
-    let work: String = encode_client(&ClientMessage::Work { git_dir: git_dir.clone(), review_key: None });
-    let retired_at: usize = heard.iter().position(|line: &String| { return *line == retire; }).expect("the earlier service was asked to retire");
-    let worked_at: usize = heard.iter().position(|line: &String| { return *line == work; }).expect("the current service was woken");
-    assert!(retired_at < worked_at, "the retire comes first: {heard:?}");
-    assert_eq!(heard.iter().filter(|line: &&String| { return **line == work; }).count(), 1, "the earlier release is never sent the work message: {heard:?}");
-    assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/file").exists(), "the current service empties it, not the wrapper");
-    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(pending.exists(), "the item waits for the current service to claim it");
-    remove(root.as_path());
-}
-
 /// Controls for the findings of the cross-vendor review of the leave-out and its disposal.
 #[path = "worktree_trash_safety_tests.rs"]
 mod safety;
@@ -410,5 +413,107 @@ fn the_trash_location_question_starts_check_ignore_without_quiet() {
     let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("check-ignore"); }).collect();
     assert_eq!(asks.len(), 1, "one start: {asks:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash an earlier add left in the source is not carried into the new snapshot,
+/// whichever add made it.
+/// Why:
+///   An add killed before its emptying leaves `.claude/cli-git-trash` in the worktree,
+/// holding what it left out,
+///  another command's stage container with its credentials among them.
+/// The disposal is handed only the manifest of the add that
+///  runs,
+/// so a carried trash would never be emptied:
+/// the walk skipped the whole trash parent,
+/// and the copy
+///  reached the new worktree,
+/// where a target commit that stops ignoring it makes it stageable.
+/// It is moved into this
+///  add's trash instead,
+/// so the emptying that runs before this command returns covers it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/${"b".repeat(40)}/d0/payload/credentials`, 'token');
+/// const { stage, trash } = await snapshotOf(repo);
+/// expect(existsSync(join(stage, TRASH_PARENT, inherited))).toBe(false); expect(trash.count).toBeGreaterThan(0);
+/// ```
+#[test]
+fn btrfs_a_snapshot_does_not_carry_an_inherited_trash_forward() {
+    let Some(root) = btrfs_fixture("trash-inherited") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let inherited: String = format!("{TRASH_PARENT}/{}", "b".repeat(40));
+    put(repo.as_path(), format!("{inherited}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    assert!(std::fs::symlink_metadata(stage.join(inherited.as_str())).is_err(), "the inherited trash is not carried into the new worktree");
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    assert!(!manifest.entries.is_empty(), "what the inherited trash held was moved into this add's trash, so the emptying covers it");
+    remove(root.as_path());
+}
+
+/// What:
+///  Whether any file named `wanted` lies below `root`,
+/// walked once,
+/// breadth first.
+/// Why:
+///   The trash renames each directory it sets aside to a fresh name,
+/// so a control cannot name the path a
+///  container would have there;
+/// finding its file says whether it reached the trash at all.
+fn holds_a_named_file(root: &Path, wanted: &str) -> bool {
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(listed) = std::fs::read_dir(directory.as_path()) else { continue };
+        for entry in listed.flatten() {
+            if entry.file_name().to_string_lossy() == wanted {
+                return true;
+            }
+            if entry.file_type().is_ok_and(is_dir_kind) {
+                pending.push(entry.path());
+            }
+        }
+    }
+    return false;
+}
+
+/// What:
+///  A stage container of another command is removed before the snapshot is installed,
+/// not renamed into the
+///  trash that waits for its emptying.
+/// Why:
+///   A container holds another worktree's ignored state,
+/// credentials included,
+/// and the trash stands inside the
+///  new worktree from the install until the emptying runs;
+/// a command that runs `git add --all` in that window stages
+///  the credentials,
+/// and emptying the trash afterwards does not take the blobs out of the index.
+/// What the leave-out
+///  moves for the caches,
+/// the other checkouts and the run records still waits for the emptying,
+/// so the add pays only
+///  the container's removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stage, trash } = await snapshotOf(repo); // prune, before the swap
+/// expect(existsSync(join(stage, container))).toBe(false); expect(findIn(join(stage, TRASH_PARENT), 'credentials')).toEqual([]);
+/// expect(existsSync(join(stage, TRASH_PARENT, trash.name))).toBe(true); // the cache still waits there
+/// ```
+#[test]
+fn btrfs_a_stage_container_is_removed_before_the_snapshot_is_installed() {
+    let Some(root) = btrfs_fixture("trash-container-before-install") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let container: String = format!(".claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(repo.as_path(), format!("{container}/payload/credentials").as_str(), b"another worktree's token\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    assert!(std::fs::symlink_metadata(stage.join(container.as_str())).is_err(), "the container is gone before the worktree is installed");
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    let trash_dir: PathBuf = stage.join(TRASH_PARENT).join(&manifest.name);
+    assert!(trash_dir.is_dir(), "the trash waits for the emptying that runs before the command returns");
+    assert!(!holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"), "the container's credentials are nowhere in the trash");
+    assert!(trash_dir.is_dir() && std::fs::read_dir(&trash_dir).expect("listing").count() > 0, "what the leave-out set aside for the cache still waits in the trash");
     remove(root.as_path());
 }

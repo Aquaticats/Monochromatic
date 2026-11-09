@@ -29,6 +29,9 @@
 
 /// Import the conversion of Git's pathname bytes to a path.
 use crate::git_metadata::path_from_git_bytes;
+/// The line a pattern is compiled as,
+///  so a literal brace stays literal (`monochromatic_lint::gitignore_pattern`).
+use monochromatic_lint::gitignore_pattern::for_matcher;
 /// What:
 ///  `Gitignore` is a compiled pattern list;
 ///  `GitignoreBuilder` compiles one.
@@ -78,8 +81,14 @@ pub struct ExcludeMatcher {
 pub fn compile_exclude(patterns: &[String]) -> Result<ExcludeMatcher, String> {
     let mut builder: GitignoreBuilder = GitignoreBuilder::new("");
     for pattern in patterns {
-        // The first argument names a source file for diagnostics; these patterns have none.
-        if let Err(error) = builder.add_line(None, pattern.as_str()) {
+        // What: The pattern reaches the compiler in gitignore syntax, with its literal braces escaped for the glob
+        //       grammar beneath it.
+        // Why:  Git reads a brace as ordinary text, and the compiler would read `{a,b}` as an alternate group and
+        //       refuse an unclosed one.
+        //
+        // In TS you'd write (pseudocode):
+        // builder.addLine(forMatcher(pattern));
+        if let Err(error) = builder.add_line(None, for_matcher(pattern.as_str()).as_str()) {
             return Err(format!(
                 "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern {pattern:?}: {error}"
             ));

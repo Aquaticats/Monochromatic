@@ -56,6 +56,11 @@ pub mod config_discarded;
 /// audit and doctor report.
 pub mod discarded_prune;
 
+/// What the folder of saved copies holds,
+/// and the text the doctor prints for it,
+/// read without moving anything.
+pub mod discarded_report;
+
 /// The audit line one removed directory leaves.
 pub mod discarded_prune_audit_line;
 

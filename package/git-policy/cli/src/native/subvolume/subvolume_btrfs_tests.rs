@@ -66,20 +66,62 @@ fn a_real_migration_makes_subvolumes_and_clones_file_data() {
     remove(parent.as_path());
 }
 
-/// A kill at a step on each side of the exchange is survived on the real platform.
+/// What:
+///  A migration killed at `point` and the migration that follows it,
+///  in a checkout of this control's own.
+/// Why:
+///   The kill is taken on the real platform,
+/// so the point is two real migrations,
+/// each copying the tree into
+///  subvolumes and rewriting the index:
+/// measured on 2026-11-09 on this host,
+/// one point took 96.7 s and another 175.0 s while the
+///  disk was busy,
+/// and the four points in one control took 271.8 s before its third point was reached,
+/// which is the runner's
+///  per-test limit (`slow-timeout` 60 s times `terminate-after` 5 in `.config/nextest.toml`).
+///  A control per point keeps each one's cost to its own two migrations,
+/// and no limit is raised for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [code] = migrate(root, { interruptAt: point }); expect(code).toBe(FAILED);
+/// const [code2] = migrate(root, {}); expect(code2).toBe(DONE);
+/// ```
+fn a_kill_at(point: &str) {
+    let Some((parent, root)) = btrfs_checkout(format!("btrfs-resume-{point}").as_str()) else { return };
+    let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
+    assert_eq!(code, FAILED, "{point}: {lines:#?}");
+    let (code2, lines2) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{point}: {lines2:#?}");
+    assert_eq!(inode(root.as_path()), BTRFS_SUBVOLUME_ROOT_INODE, "{point}");
+    assert_eq!(git_text(root.as_path(), &["status", "--porcelain"]), "", "{point}");
+    assert!(!root.join(".git/index.lock").exists(), "{point}");
+    remove(parent.as_path());
+}
+
+/// A kill after the copy of the tree is survived on the real platform.
 #[test]
-fn a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange() {
-    for point in ["after-copy", "after-lock", "after-exchange", "after-catchup"] {
-        let Some((parent, root)) = btrfs_checkout(format!("btrfs-resume-{point}").as_str()) else { return };
-        let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
-        assert_eq!(code, FAILED, "{point}: {lines:#?}");
-        let (code2, lines2) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
-        assert_eq!(code2, DONE, "{point}: {lines2:#?}");
-        assert_eq!(inode(root.as_path()), BTRFS_SUBVOLUME_ROOT_INODE, "{point}");
-        assert_eq!(git_text(root.as_path(), &["status", "--porcelain"]), "", "{point}");
-        assert!(!root.join(".git/index.lock").exists(), "{point}");
-        remove(parent.as_path());
-    }
+fn a_real_migration_resumes_after_a_kill_after_the_copy() {
+    a_kill_at("after-copy");
+}
+
+/// A kill after the index lock is taken is survived on the real platform.
+#[test]
+fn a_real_migration_resumes_after_a_kill_while_the_lock_is_held() {
+    a_kill_at("after-lock");
+}
+
+/// A kill after the exchange of the trees is survived on the real platform.
+#[test]
+fn a_real_migration_resumes_after_a_kill_after_the_exchange() {
+    a_kill_at("after-exchange");
+}
+
+/// A kill after the catch-up between the two trees is survived on the real platform.
+#[test]
+fn a_real_migration_resumes_after_a_kill_after_the_catchup() {
+    a_kill_at("after-catchup");
 }
 
 /// The rollback on the real platform restores an ordinary directory and removes both subvolumes,

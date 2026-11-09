@@ -16,11 +16,12 @@
 use crate::auto_push_single_flight::{
     PushGit, SingleFlightError, git_command, git_output, run_query,
 };
-use crate::bounded_push::STOP_GRACE;
+use crate::bounded_push::{MAX_PUSH_OUTPUT, STOP_GRACE};
 use crate::bounded_query::{QueryOutput, query_window, run_bounded_git};
-use crate::merge_second_pass::{GitReply, GitRunner, Merged, conflicts_of_merge_tree};
+use crate::merge_second_pass::{GitReply, GitRunner, LARGEST_STAGE_BYTES, Merged, conflicts_of_merge_tree};
 use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables, report, resolve_tree};
 use crate::path_bytes::path_message_text;
+use crate::push_deadline_and_patience_settings::merge_ceiling;
 use std::path::{Path, PathBuf};
 use crate::auto_push_reconcile_basics_and_limits::argv;
 /// The coordinator's Git as a runner for the second pass:
@@ -32,21 +33,60 @@ pub(crate) struct PushRunner<'a> {
     pub(crate) git: &'a PushGit,
 }
 
+/// The bytes one `git cat-file --batch` header may take:
+/// the object name,
+/// its kind,
+/// the size and the line feed.
+const CAT_FILE_HEADER_BYTES: u64 = 128;
+
 /// What:
-///  Run a command of the second pass through the same bounded wait as a query,
-/// with its input on the standard input.
+///  The largest answer one command of the second pass may print.
 /// Why:
-///   These children are not a person's:
-/// the reconcile runs them in the object store of a repository that another program may have wedged,
-///  and a `merge-tree` that never returns holds the push worker,
-/// its claim and the drain of that repository for good.
-/// The meter,
-/// the stop of the service and `STOP_GRACE` are the ones the push and its queries use,
-/// so a stuck command ends and is named like a stopped query.
+///   `cat-file --batch` prints one blob per name it was given and a header for each,
+/// and no stage the pass merges is larger than its own limit,
+/// so the
+///  answer for the names it asks for is bounded and a larger one would be refused after being read:
+/// the ceiling stops the command
+///  instead of holding a blob the pass would not take.
+/// Every other command of the pass prints a line or nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { code, stdout, stderr } = await runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input });
+/// const cap = (args, input) => args[0] !== 'cat-file' ? MAX_PUSH_OUTPUT : Math.max(MAX_PUSH_OUTPUT, names * (LARGEST_STAGE_BYTES + 128));
+/// ```
+fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
+    if arguments.first() != Some(&"cat-file") {
+        return MAX_PUSH_OUTPUT;
+    }
+    let mut asked: u64 = 0;
+    for byte in input.unwrap_or_default() {
+        if *byte == b'\n' {
+            asked += 1;
+        }
+    }
+    return asked.saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES)).max(MAX_PUSH_OUTPUT);
+}
+
+/// What:
+///  Run a command of the second pass through the same bounded wait as a query,
+/// with its input on the standard input,
+/// an answer ceiling of one stage per name it asks for,
+/// and a total ceiling on the step.
+/// Why:
+///   These children are not a person's:
+/// the reconcile runs them in the object store of a repository that another program may have wedged,
+///  and a `merge-tree` or a merge driver that never returns holds the push worker,
+/// its claim and the drain of that repository for good.
+/// The meter,
+/// the stop of the service and `STOP_GRACE` are the ones the push and its queries use,
+/// so a stuck command ends and is named like a stopped query;
+///  a driver that keeps working without returning is ended by the total ceiling alone,
+/// because it shows progress in every sample the
+///  stall window looks at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, stdout, stderr } = await runBoundedGitAwaiting({ command, arguments, windowMs, ceilingMs, graceMs, environment, input, cap });
 /// ```
 impl GitRunner for PushRunner<'_> {
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
@@ -55,13 +95,17 @@ impl GitRunner for PushRunner<'_> {
             command.env("GIT_INDEX_FILE", index);
         }
         let shown: String = arguments.join(" ");
+        let cap: u64 = answer_cap(arguments, input);
+        let ceiling: Option<std::time::Duration> = Some(merge_ceiling(self.git.environment.as_slice()));
         let output: QueryOutput = match run_bounded_git(
             command,
             shown.as_str(),
             query_window(self.git.environment.as_slice()),
+            ceiling,
             STOP_GRACE,
             self.git.environment.as_slice(),
             input.map(<[u8]>::to_vec),
+            cap,
         ) {
             Ok(output) => output,
             Err(refusal) => return Err(could_not_run(shown.as_str(), refusal)),
@@ -148,7 +192,7 @@ pub(crate) fn commit_merge(
             environment: attributed.environment.clone(),
             lfs: attributed.lfs,
         };
-        match resolve_tree(&PushRunner { git: &from_top }, common.as_path(), &tree, &conflicts) {
+        match resolve_tree(&PushRunner { git: &from_top }, common.as_path(), &tree, &conflicts, &probe) {
             Some(resolved) => {
                 tree = resolved.tree;
                 second_pass_files = resolved.merged;

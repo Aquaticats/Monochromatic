@@ -164,3 +164,42 @@ fn a_commit_another_branch_of_the_destination_holds_is_not_scanned_again() {
     assert!(scope.trees.is_empty(), "{:?}", scope.trees);
     remove(repo.parent().expect("root"));
 }
+
+/// What:
+///  Collecting a push's scope looks at each named commit and tip once.
+/// Why:
+///  `AGENTS.md` `RG2`:
+/// a push can publish thousands of commits,
+///  and asking every earlier collected name whether the candidate repeats itself
+///  is quadratic in them.
+///  The seam counts the collected names a question looks at,
+///  which is one per name when a set answers and every earlier name when a scan does
+///  (`foundation/collected_elements_looked_at_tests.rs` proves the count separates the two).
+#[test]
+fn collecting_a_pushed_scope_looks_at_each_name_once() {
+    let width: usize = 512;
+    let mut scopes: Vec<UpdateScope> = Vec::new();
+    // Every name twice, in two updates of the same push: the second update publishes what the first did.
+    for _repeat in 0..2 {
+        let mut commits: Vec<String> = Vec::new();
+        let mut trees: Vec<String> = Vec::new();
+        for number in 0..width {
+            commits.push(format!("{number:040x}"));
+            trees.push(format!("{:040x}", width + number));
+        }
+        scopes.push(UpdateScope::Commits(commits));
+        scopes.push(UpdateScope::FinalTree(format!("{:040x}", 2 * width)));
+        scopes.push(UpdateScope::Commits(trees));
+    }
+    let names: usize = 4 * width + 2;
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let scope = pushed_scope(&scopes).expect("scope");
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert_eq!(scope.commits.len(), 2 * width, "every commit once, in first-seen order");
+    assert_eq!(scope.trees, vec![parse_object_id(format!("{:040x}", 2 * width).as_bytes()).expect("object name")]);
+    assert_eq!(
+        looked,
+        names as u64,
+        "{looked} collected names looked at for {names} named commits and tips; one per name is linear"
+    );
+}

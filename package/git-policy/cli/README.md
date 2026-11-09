@@ -121,6 +121,12 @@ Read-only commands,
    the content policies check the exact bytes,
    and only then does the commit service of the worktree land it on the real index and branch
    by compare-and-swap.
+  That private index is a copy of the real index,
+  so the `git commit` built from it reads no file whose entry it copied;
+   an intent-to-add entry copies as it is and carries no stat data to lose,
+   and an assume-unchanged or skip-worktree entry sends the build to the preparation base instead
+   (`SPEC.md`,
+  "Explicit-path commit").
   The service is started by the operating system on the first commit (socket activation);
    the wrapper never starts it,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
@@ -430,6 +436,10 @@ Read-only commands,
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
+  The merge's message names the branch whose tip is its first parent
+  (`Merge origin/main into feature`),
+  as `git merge` names the branch it is on,
+   and it names the ref the merge is published to when that ref's name differs from the branch's.
   While the merge is computed and pushed,
   the local branch,
   the index,
@@ -545,6 +555,12 @@ Read-only commands,
      and the
      changes stay in the main checkout,
      which is never written.
+     Ignored paths of the source that the new commit does not ignore are carried through the clean and the reset,
+     and the proof accepts them:
+     the same name,
+     a file below a carried directory,
+     or a whole directory Git collapsed into one name whose every path below it is carried.
+     One path the restore did not carry refuses the rung.
      A failed proof falls to Git's own checkout and says why.
      A merge or other operation in progress,
      a held `index.lock`,
@@ -560,6 +576,24 @@ Read-only commands,
      It shares disk but takes about as long as Git's checkout.
   3. Git's own checkout,
      then the ignored-state copy.
+  The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
+     and each has a ceiling of its class (`LADDER_READ_TREE_CEILING`,
+     `LADDER_CHECKOUT_CEILING` in `src/native/service/wait_ceilings.rs`):
+     a smudge filter,
+     a Git LFS process or a filesystem that never answers must not hold the add.
+     The person's own command has no ceiling.
+     Such a step keeps the process group and the terminal the wrapper has,
+     which is what a Git the person starts themselves keeps,
+     so a conversion filter that reads `/dev/tty` runs in the foreground and `Ctrl-C` reaches Git as usual.
+     When the ceiling is reached the wrapper sends `SIGKILL` to Git and nothing else,
+     which is what killing a Git the person started also leaves behind:
+     the filters and helpers Git started are not signalled and may still run,
+     the add returns,
+     and the line says that Git ended (or that it has not exited,
+     when it cannot be collected inside `STOP_GRACE`),
+     that a helper may still be running,
+     and that a caller reading the command's standard error to its end waits for that helper,
+     because a parent cannot close a child's inherited stream.
   A source is clean when no operation is in progress,
      its index equals the tree of its `HEAD`,
      every tracked file has
@@ -585,15 +619,36 @@ Read-only commands,
      it sets those worktrees,
      other checkouts,
      caches
-   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards,
+   and run records aside in a trash directory under `.claude/`,
+     and the add empties that trash before it returns,
      deleting
    only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
    Those directories are emptied side by side,
-     within the threads and memory the host allows.
+     within the threads and memory the host allows,
+     beside the package repair.
+   Another command's stage container is not put in that trash at all:
+     it is removed before the worktree is installed,
+     so
+   nothing it holds is in the new worktree while an `git add --all` could stage it
+     (a container of 20,000 one-kilobyte
+   files takes about half a second to remove on this host,
+     against a tenth of a millisecond to rename).
+   Nothing the leave-out set aside is left in the new worktree when the command ends:
+     a commit that stops ignoring
+   `.claude/cli-git-trash` would otherwise let `git add --all` stage another command's stage container,
+     credentials
+   included.
+   A trash an earlier add left in the source under `.claude/cli-git-trash` is moved into this add's trash,
+     so the
+   emptying that runs before this command returns covers it too,
+     whichever add made it:
+     a kill before that emptying otherwise
+   left another command's stage container to be carried into the next worktree,
+     where nothing would dispose of it.
    It does decline when a registered nested worktree holds a file the main checkout tracks.
      A trash that cannot be
    emptied is reported with its path and the reason,
-     and its work item stays for the service.
+     and the worktree is whole either way.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:
@@ -1576,7 +1631,8 @@ The rule is:
   `--keep`) override that token,
   so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
   write tracks,
-  and the rejection names both.
+  or where one of those paths needs a directory,
+  and the rejection names the path.
   The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
@@ -1779,7 +1835,11 @@ the release,
 the process and its parent,
  the worktree kind and the worktree's Git directory (`gitDir`),
 the form,
-the working directory and the arguments
+the working directory and the arguments,
+ each path field and each argument written beside its text as its bytes (`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+ so a name that is not UTF-8 still names the command that was run
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
@@ -1894,7 +1954,9 @@ when all of these hold:
    `-q`,
   `-v`,
   `--stat`,
+  `--summary` (Git's synonym for it),
   `--no-stat`,
+  `--no-summary`,
   `-n`,
   `--log`,
   `--no-log`,
@@ -2966,6 +3028,14 @@ Each line names what the command waits for,
    and does not hash the work tree again (measured:
    233,618,538 bytes of LFS content cleaned and 3.6 s with an index built by a plain `read-tree`,
    against 0.1 s with the real index's stat data).
+   An intent-to-add entry copies as it is,
+   and the paths it names are written as the requested tree's own entries before the reset,
+   so a scratch-commit hook that restages an unrelated file cannot leave one of them out of the tree the index writes
+   (native Git's reset leaves the mark,
+  and its tree then omits that path);
+   an index that holds an assume-unchanged or skip-worktree mark,
+   or one the wrapper cannot read,
+   is built from the tree alone instead.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
@@ -3312,6 +3382,20 @@ The wrapper records that directory's name in the common Git directory before it 
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
+
+A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
+ common Git directory.
+Every command that runs the recovery before it prints one line on standard error about that worktree,
+with `git -C <path> reset --hard` to finish the checkout and `git worktree remove --force <path>` to remove it,
+and names the worktree's `index.lock` first when a Git killed inside the index install left one,
+because that command cannot start while the lock stands.
+Every path in those commands is quoted the way a shell reads a word back
+(`src/native/worktree/shell_quote.rs`),
+so a `$`,
+a backquote,
+a quote or a newline in a path expands nothing and splits nothing when the line is pasted into a shell.
+The record stays until the worktree is whole or gone,
+so the same line comes again from every command that runs the recovery.
 
 A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
 Left out by directory name,
@@ -4710,6 +4794,8 @@ all durations in whole milliseconds taken from the monotonic clock:
   `kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
   and `statDataKept` says whether that build started from a copy of the real index,
   so every entry its tree shares with the real index kept its cached stat data.
+  An index whose only marks are intent-to-add entries is copied as well,
+  so its build keeps the stat data too.
   A build from the base or the tree alone holds none,
   and the scratch `git commit` then hashes every file of the work tree
   (233,618,538 bytes of LFS content cleaned and 3.6 s,
