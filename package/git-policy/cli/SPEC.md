@@ -8909,6 +8909,13 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   The reader therefore answers an `IEOT` body only when it is version 1,
   names at least one block,
   and every block begins where this reader parsed an entry and together they cover all of them;
+  in a version 4 index every block must also begin an entry that carries its whole pathname,
+  because Git reads a block with no preceding entry,
+  so a block that starts on a compressed pathname would give that entry another name
+  (measured on Git 2.56.0 with a hand-built index whose second block begins on the entry written as the suffix `z`
+  of `a/z`:
+  `index.threads=3` lists `a/a` and `z`,
+  where `index.threads=1` lists `a/a` and `a/z`);
   any other body is a decline,
   so Git answers it.
   An unknown lower-case signature is a required extension,

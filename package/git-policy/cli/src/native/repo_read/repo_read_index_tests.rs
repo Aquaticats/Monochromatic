@@ -214,8 +214,8 @@ fn extension(signature: &[u8; 4], body: &[u8]) -> Vec<u8> {
 /// The path of every record of a `git ls-files --stage -z` listing.
 fn staged_paths(listing: &[u8]) -> Vec<String> {
     let mut paths: Vec<String> = Vec::new();
-    for record in listing.split(|byte| *byte == 0) {
-        let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+    for record in listing.split(|byte| return *byte == 0) {
+        let Some(tab) = record.iter().position(|byte| return *byte == b'\t') else {
             continue;
         };
         paths.push(String::from_utf8_lossy(&record[tab + 1..]).into_owned());
