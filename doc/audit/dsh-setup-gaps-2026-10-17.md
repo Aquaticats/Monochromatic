@@ -14,6 +14,11 @@
 > `package/mcp/search-fetch` is now `package/search-fetch/mcp`;
 > `package/dsh-plugin/search-fetch` is now `package/search-fetch/dsh-plugin`.
 
+> Replaced 2026-10-31 by the Rust file-enforcer rewrite (`e7b5130459`);
+> the name below this note is historical:
+> `file-enforcer.config.ts` is now `file-enforcer.config.jsonc`,
+> so its line citations count from a file the tree no longer holds.
+
 Date:
 2026-10-17.
 Runtime:

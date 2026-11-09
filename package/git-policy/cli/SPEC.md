@@ -6669,6 +6669,73 @@ private file,
 so Git's `core.fsync` governs only that fallback;
 the in-process write always flushes the file,
 as Git's default does.
+The entries the update makes from the tree record the worktree's stat data where the file provably holds the tree's bytes
+(`index_reset_worktree_stat.rs`),
+and the all-zero value `git reset --no-refresh` writes everywhere else.
+A path's file proves it when all of these hold:
+
+- It is a regular file whose every directory on the way is a real one on the worktree's device,
+  reached below a root held open without following a link.
+  A symbolic link is left to Git:
+  it is rare,
+  and a link read across a swap of its parent directory cannot be proven to be the one examined.
+- Its raw bytes hash to the entry's object name read as a blob.
+- No attribute Git applies converts these bytes,
+  and the bytes hold no carriage return.
+  A clean filter,
+  `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another blob,
+  and a line-ending rule may strip a carriage return on the way into the index.
+  The attributes are read in process,
+  from the same files Git would read (`ContentJudge::conversion_is_the_identity`),
+  and a fact that cannot be established refuses the record.
+- The state of the one inode read is the same before,
+  during and after the read and the path still names it,
+  and the file is older than the index file being written,
+  compared to the nanosecond as Git's `is_racy_stat` compares them.
+
+An entry that is as new as the index is racily clean to Git,
+so it keeps the zero value and both Git and the wrapper's own staleness question hash it;
+a path of another kind,
+a file above `CONTENT_LIMIT`,
+a file that changed while it was read,
+and a path no file holds keep the zero value too.
+The proof never waits:
+ the open does not block (`O_NONBLOCK`),
+so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
+One landing reads at most `CONTENT_LIMIT` bytes in all,
+and every byte read is charged,
+including a read the stability checks later refuse,
+so a commit that lands a whole worktree never reads it again inside the landing's index lock.
+The attribute facts cost one `git var GIT_ATTR_SYSTEM` the first time a given real Git has no cache entry for them,
+and nothing after that;
+the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
+and the whole proof 2.9 to 3.1 ms,
+on the release build of 2026-11-09.
+The attribute files the proof reads are charged to the same bound,
+each at most `ATTRIBUTES_LIMIT` and never more than the room that is left,
+so a path whose attributes do not fit keeps the zero stat data and costs a refresh.
+A directory whose `.gitattributes` the index holds while the worktree's copy is missing refuses the record:
+Git reads the index's copy there (`attr.c`,
+measured on Git 2.56.0),
+and a sparse checkout leaves the file outside its cone the same way.
+A read has no time bound,
+which is native Git's own behaviour for the same files under `index.lock`;
+what bounds the person is the client's answer ceiling,
+after which it withdraws the request and the commit is reported as not landed.
+The 4,000 newest non-merge commits of this repository change a median of 27 KB
+(p90 209 KB,
+p99 3.3 MB,
+largest 23.1 MB,
+`package/git-policy/cli/e2e/commit-shape-trace.json`),
+so no commit there spends the bound,
+and 32 MiB of SHA-1 costs 10 to 20 ms on this host.
+The next commit's staleness question finds the recorded entries clean and starts no Git for them,
+where the zero value cost one Git start and one hash of each file the previous commit landed.
+That question reads the index's bytes and `lstat`s each entry in contiguous slices on several threads above
+`STAT_WALK_BREAK_EVEN_ENTRIES` (`commit_index_stat_staleness.rs`),
+with the worker count of `parallel_budget.rs`,
+and it takes no lock:
+it asks about the file the index names and never writes the index.
 The rename that installs the copy has the durability native Git's has,
 by default and when the user opts in.
 The index can be rebuilt from `HEAD`,

@@ -37,6 +37,45 @@ const BASE: [(&str, &[u8], bool); 6] = [
     ("z", b"z one\n", false),
 ];
 
+/// What:
+///  `bytes` as the index holds it,
+/// with the stat data of every entry set to zero.
+/// Why:
+///  The landing records the worktree's stat data where a path's file provably holds the tree's bytes
+/// (`index_reset_worktree_stat.rs`),
+/// where `git reset --no-refresh` writes the all-zero value;
+/// everything else
+///  must still be Git's,
+/// so a comparison that ignores exactly that one difference keeps its value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withoutStat = (bytes: Uint8Array) => { const index = parseFullIndex(bytes, 20); for (const entry of index.entries) entry.stat = zero; return index; };
+/// ```
+fn without_stat_data(bytes: &[u8]) -> crate::index_full::FullIndex {
+    let mut index: crate::index_full::FullIndex = crate::index_full::parse_full_index(bytes, 20).expect("an index this reader takes");
+    for entry in index.entries.iter_mut() {
+        entry.stat = crate::index_stat::StatData::default();
+    }
+    return index;
+}
+
+/// The two index files after the same reset by Git and in process,
+/// equal in everything but the stat data of the entries the landing records,
+/// which also must be Git's own values where they are recorded,
+/// `label`
+///  names the case.
+fn same_as_git_but_for_the_recorded_stat_data(scene: &Scene, paths: IndexPaths<'_>, names: &[Vec<u8>], label: &str) {
+    let copy: PathBuf = copy_of(scene);
+    let before: Vec<u8> = index_bytes(scene.repo.as_path());
+    git_reset(scene.repo.as_path(), scene.new.as_str(), names);
+    let done: bool = landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), paths);
+    assert!(done, "{label}: the in-process update declined");
+    let (git_bytes, our_bytes) = (index_bytes(scene.repo.as_path()), index_bytes(copy.as_path()));
+    assert!(git_bytes != before, "{label}: the case changes nothing, so it proves nothing");
+    assert_eq!(without_stat_data(git_bytes.as_slice()), without_stat_data(our_bytes.as_slice()), "{label}: the index files differ beyond the stat data\nGit:\n{}\nin process:\n{}", listing(scene.repo.as_path()), listing(copy.as_path()));
+}
+
 /// Added,
 /// changed,
 /// removed and renamed paths,
@@ -189,7 +228,9 @@ fn extended_and_assume_unchanged_flags_equal_git() {
     git(scene.repo.as_path(), &["update-index", "--skip-worktree", "a", "d/x"]);
     git(scene.repo.as_path(), &["update-index", "--assume-unchanged", "b", "z"]);
     assert_eq!(&index_bytes(scene.repo.as_path())[4..8], &[0, 0, 0, 3], "extended flags make a version 3 file");
-    same_as_git(&scene, &named(&["a", "b", "added-later", "z"]), "flags");
+    // The worktree file of `added-later` holds the bytes of the entry the commit names, so the landing records its stat data
+    // where `git reset --no-refresh` writes zeros; everything else is Git's.
+    same_as_git_but_for_the_recorded_stat_data(&scene, IndexPaths::Named(&named(&["a", "b", "added-later", "z"])), &named(&["a", "b", "added-later", "z"]), "flags");
     finish(scene);
 }
 
@@ -281,13 +322,12 @@ fn paths_derived_from_two_commits_equal_git() {
 fn a_root_commit_resets_every_path_it_holds() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
     let scene: Scene = scene("index-reset-root", &Plan { files: &BASE, edits: edits.as_slice(), ..Plan::default() });
-    let copy: PathBuf = copy_of(&scene);
     let listed: String = git_text(scene.repo.as_path(), &["ls-tree", "-r", "--name-only", scene.new.as_str()]);
     let names: Vec<Vec<u8>> = listed.lines().map(|line| { return line.as_bytes().to_vec(); }).collect();
-    git_reset(scene.repo.as_path(), scene.new.as_str(), names.as_slice());
     let zero: String = "0".repeat(scene.new.len());
-    assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Derived { old: zero.as_str() }));
-    assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()), "root commit differs\n{}\n{}", listing(scene.repo.as_path()), listing(copy.as_path()));
+    // The worktree still holds the bytes of every path of this tree, so the landing records the worktree's stat data where
+    //  `git reset --no-refresh` writes zeros; everything else is Git's.
+    same_as_git_but_for_the_recorded_stat_data(&scene, IndexPaths::Derived { old: zero.as_str() }, names.as_slice(), "root commit");
     finish(scene);
 }
 
