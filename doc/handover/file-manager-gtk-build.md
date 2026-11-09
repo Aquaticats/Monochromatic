@@ -1,5 +1,18 @@
 # Building the real GTK4 file manager (Niri column-strip UI) — handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/file-manager/src` is now `package/file-manager/app/src`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager:run` is now `//package/file-manager/app:run`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager:test` is now `//package/file-manager/app:test`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager:lint:rust` is retired (2026-10-06 `0b49ae109e`) and
+> `mise run //:lint:monochromatic-lint -- package/file-manager/app` lints that Rust today.
+> `//package/desktop-app/file-manager:lint:clippy` is now
+> `//package/file-manager/app:lint:clippy` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

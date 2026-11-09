@@ -1,5 +1,10 @@
 # Handover: porting music-player to Android (Jetpack Compose + Kotlin)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/music-player/android-app:build:media3` is not a task this repository defined
+> and the Android app has one engine and one variant today.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
@@ -27,7 +32,7 @@ handover adds the working state,
    the build phase has started.
    The derisking milestone (toolchain + scaffold + Media3
   skeleton playing real audio on the Pixel 6) is DONE and committed.
-   See "Build progress" below.
+   See "Build progress (this session)".
 - The real Media3 variant is well underway:
    the pure logic is ported to Kotlin (56 tests),
    the real Compose UI is
@@ -108,7 +113,7 @@ handover adds the working state,
   plays correctly (the human-ears check the volume-0 tests could not provide;
    channel order / glitch-free output now
   verified by the user).
-   The Media3-vs-Rust metric comparison (#13) is DONE and decisive (below):
+   The Media3-vs-Rust metric comparison (#13) is DONE and decisive (the `Metric comparison (#13)` block records the numbers):
    rust is ~86-187x
   faster at the same decode + true-peak operation on the same tracks.
    WINNER:
@@ -202,7 +207,7 @@ Session redesign features (later session,
 `doc/decision/music-player-{session-source-root,jit-shuffle,live-update-rescan}.md`,
  each "applies to both") is now
 ported to Android.
- The deferred Session persistence seam (below) is wired,
+ The deferred Session persistence seam is wired,
  and restore auto-correction + live updating
 are built.
  Five commits:

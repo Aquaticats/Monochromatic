@@ -1,5 +1,10 @@
 # Translation repair handover close: 2026-08-26
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+
 Part of the [current translation repair handover](translation-repair.md).
 
 ## Current stop condition

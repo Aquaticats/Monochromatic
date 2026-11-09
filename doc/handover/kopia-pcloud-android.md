@@ -50,7 +50,7 @@ VM,
    WorkManager plus a dataSync foreground service runs the kopia snapshot.
 - kopia:
    the stock arm64 binary,
-   bundled and exec'd (see constraints below).
+   bundled and exec'd (see the hard-constraints list).
 
 ## Why this shape (how we got here)
 
@@ -592,7 +592,7 @@ Installed and intentionally kept:
 - Termux storage set up:
    `~/storage` points to `/sdcard`.
 - Termux:
-  Boot launcher `~/.termux/boot/30-start-vm.sh` (the VM autostart fallback above).
+  Boot launcher `~/.termux/boot/30-start-vm.sh` (the VM autostart fallback).
 
 Changed and not yet reverted:
 

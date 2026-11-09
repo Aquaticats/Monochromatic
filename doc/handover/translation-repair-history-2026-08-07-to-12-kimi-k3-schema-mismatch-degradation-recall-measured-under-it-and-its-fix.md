@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-07 to 2026-08-12: the Kimi-K3 schema-mismatch degradation, the recall figure measured under it, its cause and its fix
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:model-health` is now
+> `//package/translation-repair/bench:model-health` (2026-10-18 `4bd1aea8d5`).
+
 The silent failures of the naturalness lane and the editor ensemble in run 013,
 the recall re-measure
 and its correction as a degraded-ensemble figure,
@@ -281,7 +286,7 @@ Still the user's call.
 
 ### CORRECTION, within the hour: 0.889 was measured on a degraded ensemble
 
-The first version of the entry above,
+The first version of the "Task 51 is measured" entry,
 and of the README paragraph,
 presented
  0.889 as the current roster's recall.

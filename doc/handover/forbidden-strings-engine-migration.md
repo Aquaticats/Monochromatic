@@ -1,5 +1,10 @@
 # Handover: forbidden-strings engine migration orchestration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/cli/forbidden-strings:build` is now `//package/forbidden-strings/cli:build`
+> (2026-10-29 `113633b259`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -913,7 +918,7 @@ Running (completion notifications arrive automatically):
 - #376 rule-file port,
    opus.
    RETURNED;
-   see URGENT section above.
+   see the "URGENT context for the post-compact session" section.
   Bench sidecar plus data files plus repo-root append file plus review doc.
   Settled semantics in the issue:
   512 quantifier caps,

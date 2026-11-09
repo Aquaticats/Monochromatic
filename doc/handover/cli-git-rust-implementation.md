@@ -1,5 +1,12 @@
 # cli-git implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+> is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+> `package/file-enforcer/core/src/watch/notify.ts` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/core-rust` serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.
@@ -825,7 +832,7 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   so the reviewer works and the input was too heavy.
   A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
   (`~/temp/agent/issue-6261/sol-review-after-fixes/`).
-  The fourth run answered (see the release blockers below) and
+  The fourth run answered (see the release blockers entry dated 2026-11-07T02:03:01-05:00) and
   its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`;
   no cross-vendor review of that fix has
   run.
@@ -3092,11 +3099,13 @@ In practice it's 16."
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
-
-- The wizard skill emits TypeScript root scripts (owner:
-  "Wizard writes TypeScript").
-- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
-  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
+The two items this section listed are gone:
+the wizard-skill TypeScript conversion became void once the owner asked for the skill itself to go
+("Remove and Blocklist the wizard skill.",
+recorded under "Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00" in
+[`questions-for-the-owner.md`](questions-for-the-owner.md)),
+and the `zbus` and `turso_sync_engine` compile question closed,
+as `### Known flakes and failures not yet fixed` records for the pinned `nightly-2026-11-08`.
 Only these wait on the repository move's last stages:
 the merge named first in the list of ordered work,
 the checksum and the IDE check themselves,
@@ -3111,6 +3120,34 @@ Converting the remaining worktrees waits on a defect instead:
 and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
+
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` told the reader to run `mpm update -g <tool id>`
+for the machine-global lock.
+Measured 2026-11-08 and fixed on branch `fix/mpm-shadow-printed-global-update-reaches-the-shadow`:
+what decides is the program the shell starts,
+not the verb.
+`toolchain-global/exposure/mpm` is a link to `~/.local/bin/mpm`,
+the uv tool `meta-package-manager`,
+which the global plan's `mpm` entry exposes;
+no scope but a worktree's `PATH` ever makes `mpm` the shadow,
+through `.cache/mpm-shadow-bin/mpm`,
+the `mpm-shadow` entry's postinstall link.
+Started as `mpm`,
+the real program maps `update` onto its own `upgrade` and refuses `-g`;
+started as `mpm-shadow`,
+the shadow runs the verb (`names_a_declared_verb`,
+`src/main.rs`).
+The sentence and the README now name `mpm-shadow`,
+and `tests/printed_remedy.rs` runs the warning's own command in a disposable home.
+
+Still open,
+because it is the owner's file under the config directory:
+the machine-global plan declares no `mpm-shadow` entry,
+so `mpm-shadow` is not on the machine `PATH` either.
+Adding the entry the repository plan carries (`route: archive`,
+`bins: ["mpm-shadow"]`,
+`tagPrefix: monochromatic-mpm-shadow-v`,
+then `mpm-shadow install -g`) exposes it in the global exposure directory.
 
 Ordered behind other work rather than waiting for a slot:
 
@@ -3229,6 +3266,283 @@ Also unmeasured:
 how the locked-index fallback behaves while the service lands another commit,
 which is the case that reaches it.
 
+### The refresh of a stale index asks for Git and the real index's lock only when it is stale (2026-11-08T17:50:00-05:00)
+
+The refresh `cd1755d728` added ran `git update-index --refresh` on the real index before the private copies were made,
+and Git takes `index.lock` on every one of those runs,
+even the refresh of an index that already describes the worktree
+(measured on 2026-11-08 in throwaway repositories:
+the lock file is created on every run and renamed over the index
+only when the run writes,
+so an up-to-date index paid the lock and wrote nothing).
+So every commit paid one Git start,
+one hold of the real index's lock and a stat pass of the whole index:
+the six `budget::` controls counted one `update-index` more than their constants,
+and
+`commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+saw the client create and rename the real `index.lock`,
+which that control forbids.
+Both were reproduced on 2026-11-08 with
+`mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast budget:: commit_timing::`
+(7 failures,
+25 passes).
+
+Fixed on branch `fix/git-policy-cli-commit-budget-after-index-refresh` (`b841aa178f`,
+style in `8909ecd6e7`):
+`commit/commit_index_stat_staleness.rs` answers the question in process from the index's own bytes,
+an entry is stale when the stat data it records is not the file's,
+and only then does `refresh_stat_data_when_stale` run Git's refresh.
+The entries of the paths the commit stages from the worktree are left out,
+because `git add` writes their stat data into the private index afresh.
+The question reads the index it is given,
+so a form it does not understand answers "stale" and Git's own refresh decides.
+Entries Git calls racily clean are not asked for:
+three refreshes of an index written in the same second as its entry left the index's bytes identical (the same SHA-1),
+so such a refresh writes nothing the private copies could carry,
+and native `git commit` reads those entries too.
+
+Neither a budget constant nor a control assertion changed:
+the six `budget::` counts are back to the values `cd1755d728` was measured on
+and the upgrade control's statements hold as written.
+Its doc comment now states the boundary it relies on
+(the client takes the real `index.lock` only to write a stale index's stat data,
+before it makes its request),
+and `binary_budget_tests.rs` says why its `update-index` counts are the pre-refresh ones.
+
+Measured on 2026-11-08 with the release build of this branch on this host,
+a throwaway repository whose clean filter sleeps 100 ms per file,
+and this checkout (22,161 entries):
+
+- Fresh index,
+  12 files:
+  the in-process question 0 ms (under a millisecond),
+  Git's own refresh 2 ms.
+- Stale index,
+  12 files (every file with a new inode and its modification time kept):
+  the question 0 ms (it stops at the first stale entry),
+  Git's refresh 1,152 ms and it keeps it.
+  A `git commit` over a copy of the stale index cost 1,368 ms,
+  which is what the code before `cd1755d728` paid inside the scratch step's 3,006 ms ceiling;
+  with the refresh the copies carry the worktree's stat data and the same commit over them costs 216 ms.
+- Fresh index,
+  1,000 files:
+  the question 5 ms,
+  Git's own refresh 8 ms.
+- This checkout's 22,161 entries:
+  the question 47 to 58 ms warm
+  (a whole pass over the same paths,
+  one `lstat` each,
+  56 to 58 ms relative to the worktree root and 96 ms with
+  absolute paths),
+  against `git --no-optional-locks diff-files` 10 ms on the same worktree,
+  whose stat pass Git preloads across threads (`core.preloadIndex`).
+  So the commit pays about the stat pass native `git commit` also makes,
+  single-threaded,
+  and saves one Git start and the real index's lock;
+  against the code before `cd1755d728` it adds that pass.
+- The six `budget::` controls and all 32 `budget::` and `commit_timing::` tests pass
+  (`mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast budget:: commit_timing::`,
+  32 of 32),
+  and the new controls are `commit_index_stat_staleness_tests.rs`
+  (an index Git has just written needs no refresh,
+  a file whose inode changed does,
+  only a change the commit does not stage does,
+  an entry without stat data does,
+  an assume-unchanged entry does not,
+  an unreadable index does,
+  a missing one does not)
+  and `commit_index_stat_refresh_tests.rs`
+  (an up-to-date index is answered without starting Git,
+  a stale one asks it,
+  and a refresh that meets another program's lock is not kept,
+  leaves the index as it was and does not wait for it).
+
+Checked on the final tree at 2026-11-08T18:40:00-05:00:
+the whole native library suite passed (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`,
+4,731 tests run,
+4,731 passed,
+8 skipped),
+the 69 `budget::`,
+`commit_timing::` and `commit::` binary tests passed,
+`native:clippy` and `monochromatic-lint --max-warnings 0` were clean,
+and `native:perf` kept both owner bounds on the release binary:
+`commit-service` paired delta median 22.6 ms,
+p95 318.6 ms,
+max 348.2 ms against the 5,000 ms bound,
+and every forwarded command's added p95 under 2.1 ms against the 2,000 ms bound.
+Two `standards_review_client` tests failed and one ended at the 300 s nextest timeout in a loaded
+7-minute run of the same suite,
+and all twelve of that module pass alone in 3 s,
+so they are host-load flakes that this change does not touch.
+
+Corrected 2026-11-08T21:55:00-05:00,
+branch `fix/git-policy-cli-standards-review-client-order-not-time`:
+"host-load flake" was a label and not a cause,
+and a capped run found two defects in the controls themselves.
+
+Reproduced with the module's own allowance capped:
+twelve processes,
+one per control,
+sharing `CPUQuota=3%`
+(the runner is `${HOME}/temp/agent/standards-review-client-flakes/run-tests-in-parallel.sh`,
+which runs the built test binary once per control,
+as nextest does).
+Eight of the twelve failed,
+seven of them with the client's own wording,
+`reply: "The operation was aborted due to timeout"`,
+because the 400 ms quiet window elapsed before a starved process read a reply that had already
+arrived,
+and a ninth,
+`a_silent_server_ends_after_the_quiet_window`,
+was still running when the run's 320 s stop reached it:
+its call was aborted by the window before it connected,
+and `Mock::finish` then waited unbounded on the mock's `accept` for a call that never came.
+That is the shape of the 300 s nextest stop:
+waits with no bound of their own,
+under a one-hour ceiling (`ROOMY = 3,600 s`),
+so nothing inside the control ends the wait.
+That cap slows the controls:
+the module takes 3.0 s alone at `CPUQuota=500%`,
+and each control took 10 to 25 s at 3%.
+With the changes below all twelve pass at 3%.
+
+What each control claims and what decides it:
+
+- `the_request_carries_method_headers_and_body`,
+  `an_error_status_is_a_reply`,
+  `a_chunked_body_is_read_whole`,
+  `a_redirect_is_not_followed`:
+  the reply's bytes are what the client returns.
+  A 400 ms window against a starved read decided them before.
+  They take `ANSWER_WINDOW` (10 s) now and judge the reply and that the mock wrote its answer whole.
+- `a_silent_server_ends_after_the_quiet_window`:
+  a silent server ends the call at the window with the timeout wording.
+  It also asserted `elapsed >= 400 ms`,
+  a clock,
+  and could hang in `Mock::finish`.
+  It reads the order of events now:
+  the call reached the server,
+  and the server was still holding when the call closed it
+  (`AnswerEnded::CallerClosedTheSilence`).
+  `Mock::finish` panics naming `CONNECTION_DEADLINE` where no call connected.
+- `a_refused_connection_names_the_cause`:
+  a closed port is a transport failure.
+  The same window decided it before;
+  the mock's answer ending is asserted first now.
+- `an_unreadable_authority_is_refused`:
+  no clock;
+  unchanged.
+- `a_reply_that_keeps_arriving_is_never_cut_off`:
+  the window judges quiet time and not wall time.
+  It asserted `elapsed > 2 * window`,
+  a clock,
+  and failed the other way under load (more than 1.2 s between two bytes of a reply).
+  It asserts the body length and that no byte was left unsent now,
+  with `TRICKLE_WINDOW` (5 s) and a cadence a fiftieth of it.
+- `a_reply_that_keeps_arriving_is_ended_at_the_ceiling`:
+  the ceiling ends a reply that keeps arriving.
+  It asserted `elapsed >= ceiling && elapsed < 4 * ceiling`.
+  It asserts that the ceiling's wording names the call and its figure,
+  and that the reply was still arriving (`AnswerEnded::CallerLeft` with unsent bytes).
+- `the_client_is_built_on_hyper_and_no_longer_on_ureq`:
+  source text;
+  unchanged.
+- `a_tls_server_is_reached_only_through_a_trusted_authority`:
+  a trusted authority is reached and the embedded roots are refused.
+  `serve_tls` waited unbounded on its second `accept`,
+  and the control started `openssl` without a bound.
+  Both are bounded now (`CONNECTION_DEADLINE`,
+  `OPENSSL_DEADLINE`),
+  and it asserts that both calls reached the server:
+  a refused handshake is still a call that arrived.
+- `the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread`:
+  the ledger figure for the call comes from the call's own bytes.
+  It asserted `kept < 800 ms` against a measurement whose own sampling interval is 500 ms,
+  so the host's scheduling decided it
+  (measured under the cap:
+  `the call kept a quiet gap of 1.800001758s though a byte arrived every 100ms`).
+  It checks what a look at a thread that moves nothing of its own saw while the call's bytes moved
+  on the process's sockets,
+  and on its own counters alone,
+  and keeps only `kept >= PAUSE` from the figure itself.
+
+The name-lookup controls of the same module pair
+(`standards_review_client_name_lookup_on_the_blocking_pool_tests.rs`)
+still wait with no bound of their own:
+`to_socket_addrs` on the blocking pool,
+and two child processes started with `Command::output`.
+They did not fail in the loaded run,
+and this change does not touch them.
+`standards_review_run_tests.rs`,
+`service/service_review_tests.rs` and
+`landing/service_work_tests.rs` take `ANSWER_WINDOW` and `CONTROL_CEILING`
+in place of a 400 ms window and a one-hour ceiling,
+but their own timing assertions
+(`the_runner_stops_waiting_for_a_job_at_its_ceiling` asserts `waited < ceiling * 20`)
+are the same class of wall-clock bound and are left for their own change.
+
+Checked on the final tree of this branch (2026-11-08T22:40:00-05:00):
+`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast` ran 4,768 tests,
+4,766 passed,
+8 skipped,
+and two failed outside this module:
+`landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+got an empty list where it expected a wait (`service_index_lock_tests.rs:232`),
+and `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+hit the unit-test watchdog at 120 s (`the unit-test run exceeded 120s: a test is stuck`).
+Both pass alone (2.5 s and 21.6 s),
+which is the same contention shape this section corrected in the standards-review controls,
+and neither module is changed here.
+
+Owner question:
+`package/git-policy/cli/SPEC.md:5471` says a commit prepares
+"in parallel with other commits and without the real index lock",
+and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
+The step here takes that lock when the index is stale,
+which the two controls this branch fixed do not see,
+because their repositories have an index Git has just written.
+It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
+and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
+so concurrent commits still never fail on it and nothing waits on it in preparation.
+Two readings are open:
+
+- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
+  which is what this branch does and what keeps the scratch step inside its ceiling.
+- Keep preparation lock-free,
+  and hand the write to the landing,
+  which already holds `index.lock`:
+  it would build its private copy,
+  answer the same in-process staleness question over the live index,
+  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
+  and install that copy.
+  Then nothing outside the landing writes the real index,
+  and the cost moves to the landing,
+  inside its lock,
+  on every commit after the worktree moved.
+  The first commit after the move would still pay the refresh on its private copy in preparation,
+  as the locked-index fallback does today.
+
+Still to do:
+
+- The landing's in-process index reset writes the commit's paths with all-zero stat data
+  (`index/index_reset.rs` `StatData::default()`,
+  as `git reset --no-refresh` does),
+  where native `git commit` leaves the worktree's stat data.
+  The next commit therefore finds those paths stale and refreshes them once,
+  through the question here,
+  one Git start and one hash per path the previous commit landed and this one does not name.
+  Native Git pays nothing for them.
+- The question's pass is single-threaded;
+  preloading it across threads as Git's `core.preloadIndex` does would cut the 56 ms above to about Git's 10 ms.
+- A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
+  (Git answers a held lock at once,
+  measured 0.00 s,
+  and the private index is refreshed instead),
+  and the landing still waits for that lock as it always has,
+  bounded by `LANDING_LOCK_CEILING`.
+- The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
+  `native:perf` compares paired commit deltas and is the run for it.
+
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
 Found 2026-11-08 when the move to the 860 stopped on one
@@ -3252,7 +3566,7 @@ then the rung's own snapshot.
 The new worktree then lists `.cli-git-worktree-copy-<id>` at inode 2 on a device of its own:
 empty,
 and `btrfs subvolume show` answers `Not a Btrfs subvolume` for it.
-The cause is the one read above:
+The cause is the one the `worktree/worktree_snapshot.rs:237-243` reading gives:
 `remove_stubs` named the registered worktrees and the destination,
 and a stage container in flight is neither.
 An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:
@@ -3424,6 +3738,72 @@ the stage keeps;
 The saving is real where such a fixture appears:
 a create is 4.1 ms against a snapshot's 52 ms here,
 and every one of them forces a commit its neighbours wait for.
+
+### The fold's kill-point sweep walks its kill points side by side (2026-11-08T19:31:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog in a whole-suite run,
+and passed alone in 72.3 s and in 5.4 s in the same tree.
+That swing is the defect the owner named with "Fix flaky tests properly.":
+the measurement below found it in the control's own durability work.
+
+Before any change,
+with the crate's own recorder counting the syncs
+(`~/temp/agent/fold-kill-cost/`,
+per-iteration and per-step timings read through `crate::private_storage::take_directory_syncs`):
+the control walks 21 limits over 20 steps of the whole fold
+(6 for the folder pair,
+7 for each log:
+`before-journal-lock`,
+`before-move-aside`,
+`before-journal-record`,
+`before-append`,
+`after-append`,
+`before-remove-moved-log`,
+`before-remove-journal`),
+and one iteration cost 86 to 204 ms (the whole control 2.44 s at that moment).
+Inside one iteration the fixture cost 0.35 to 0.75 ms,
+`assert_folded` about 60 µs and the fixture's removal 0.25 to 0.4 ms;
+the two folds took the rest and recorded 10 to 13 directory syncs in every iteration,
+each of them a filesystem commit for the fold's own journal record,
+its move aside,
+the appended bytes,
+the moved log's removal and the journal's removal,
+with a file sync inside the journal record and inside the append.
+So the control's cost is the number of kill points times the commits one fold needs,
+and it paid them one after another:
+under this host's usual contention that is the 72.3 s sample and the watchdog stop.
+No iteration was redundant (every limit stops at a different step),
+and the fixture measured under 1 ms,
+so neither fewer kill points nor a cheaper fixture is the fix.
+
+`steps_of_one_fold` and `kill_then_fold` in that control now walk the kill points side by side:
+each has its own fixture,
+its own process table and its own surroundings,
+so a kill point shares nothing with another,
+and concurrent commits serve them all at once instead of one at a time.
+The steps of one fold are recorded first,
+so each limit is checked against the step it must land on and the last limit must stop nowhere,
+which the control did not claim before.
+
+Measured at the test's own cap (`CPUQuota=200%`,
+`MemoryMax=2G`,
+`TasksMax=512`,
+`IOWeight=10`),
+nothing changed between the arms but the build:
+one after another 9.954 s and 5.674 s,
+side by side 0.688 s and 1.699 s,
+over the same 21 kill points.
+With the per-point timings in place the side-by-side control reported `failed=[]`,
+with each limit's stop step equal to the recorded step and every other test of that module green
+(`Summary [1.046s] 8 tests run: 8 passed`).
+
+Its control still bites:
+make an interrupted fold of a log that already moved its log aside never resume
+(`(earlier && current) || leftovers` read as `(earlier && current)`),
+and the sweep fails the four kill points that land there,
+`the kill points that failed: [8, 9, 15, 16]`,
+each with `left: "current-push\n"` against `right: "current-push\nearlier-push\n"`.
 
 ### Verify 0.5.26 against native Git
 
@@ -4333,12 +4713,20 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
+- the summary's skipped count is zero beside lines that say a worktree is already a subvolume,
+  and no counter names an undone conversion:
+  `ConversionReport::on_event` (`worktree/worktree_convert_command.rs`) counts `WouldConvert` and a
+  `Skipped` verdict but neither `AlreadySubvolume` nor `Abandoned`.
+  Measured 2026-11-08T18:54:31-05:00:
+  the third run of `all_worktrees_are_listed_then_converted` printed
+  "2 worktree(s) looked at,
+  0 converted or completed,
+  0 skipped."
+  under two lines saying the worktree is already a subvolume.
+  Not fixed;
+  the owner's wording call:
+  count both in the skipped count,
+  or give each its own counter in the summary;
 - the `node_modules` links that point nowhere are counted (read only,
   nothing relinked,
   2026-11-08T17:10:51-05:00):
@@ -4400,6 +4788,30 @@ Two small fixes this section listed are done:
   the other half of this line was already done when it was written:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
+
+The summary's own counts were wrong in two more places,
+found while converting the remaining worktrees and fixed in `23b2ab2540`:
+a worktree that is a subvolume already said it was skipped in the line beside its name and was counted in none of the
+summary's counts (a second run over the same worktrees said "0 skipped"),
+and an undone conversion (`--abandon`) was counted nowhere either.
+`ConversionReport` now counts the first in the summary's skips,
+and the second in a count of its own that the summary says as "undone",
+while a real refusal stays the only thing that ends a run of named worktrees with status 1:
+counting `AlreadySubvolume` as a refusal instead makes
+`a_worktree_named_twice_is_converted_once_and_then_skipped` fail on that status change,
+which was measured before the two counters were written.
+The controls are `a_worktree_that_is_a_subvolume_already_is_counted_as_skipped` and
+`the_undone_conversions_are_counted_in_the_summary` in `worktree_convert_command_tests.rs`.
+
+Converting the remaining worktrees no longer waits on a defect either:
+the conversion compared a registration's text with the real path and refused a worktree spelled
+through the repository link,
+which 301 of the 353 registrations did at 2026-11-08T16:24
+(`--all` looked at 15 of them without saying so).
+Merge `1486f5c112` (2026-11-08T17:37:33-05:00,
+branch `fix/git-policy-cli-registration-compared-as-the-same-file`)
+compares registrations by the file each one names
+(`package/git-policy/cli/src/native/subvolume/subvolume_registered_worktrees.rs`).
 
 ### Worktree add follow-ups
 
@@ -4582,6 +4994,86 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
 
+### The disposal's notice stream and the thread it did not need (2026-11-08T18:54:15-05:00)
+
+Two questions were left by `b1e1818bab`,
+on branch `fix/git-policy-cli-worktree-add-disposal-notices-and-thread`.
+
+The first was whether a notice is lost or misplaced because the emptying of a snapshot's trash wrote to the
+process's standard error while the rest of the add's report went to the writer the command was given
+(`worktree_copy_after_lock.rs`,
+`dispose_timed`).
+It is misplaced,
+and only for a caller that hands in its own stream:
+the shipped caller passes `&mut std::io::stderr()` (`worktree_copy_forward.rs`,
+`run_settled`),
+so the person at a terminal reads the line,
+but a caller that passes another writer reads the repair's findings and never the one line that says why the
+add is taking longer.
+The controls in `worktree_copy_after_lock_tests.rs` show that,
+and their positive control beside a real repair
+shows the same line missing there too.
+The fix gives both threads the command's stream through one lock (`foundation/shared_notice_stream.rs`):
+a line is rendered first,
+then written whole while the lock is held,
+and the lock is never held across the file work either thread does,
+so neither waits for the other's work and no line can be split.
+The notice keeps the place `SPEC.md` gives it ("after one plain line on standard error that names the worktree
+and says why the service could not take it over"),
+before the emptying and not after it.
+The stream the public entry asks for is now `&mut (dyn Write + Send)`,
+because a thread writes through it.
+The add's timing record is unchanged:
+the work `disposeTrash`,
+the step `disposeTrashWait` and the step `repair` mean what they meant.
+What was not changed is the second place that writes a report line beside the writer:
+`finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
+output Git's checkout line goes to,
+so that note needs a second writer plumbed through the ladder,
+which is a change of its own,
+since made ("The snapshot note's stream and the index-lock wake control" in this file).
+
+The second question was whether a background thread starts where nothing overlaps it,
+and what that costs.
+Today the early return answers the case the sentence names most literally:
+with no trash there is no thread at all (`finish_trash_and_repair`,
+the `let Some(pending) = after.trash.as_ref()
+else` arm).
+The case left is the one where a trash exists and the package repair beside it has nothing to do:
+a bare repository has no source to repair from,
+a copy that failed leaves no whole worktree to repair,
+and `--no-checkout` asked for no checkout (the add plan declines that form,
+so a snapshot never carries one).
+A snapshot of a successful add always carries one created worktree,
+so this is a path of failures,
+not of the common add.
+It now empties the trash on the calling thread,
+timed as before,
+with a panic of the disposal reported and not failing the add,
+as the thread's join reported it.
+Measured on 2026-11-08T18:54:07-05:00 at load average 53 to 57 on eight CPUs,
+with a program that copies `in_thread_scope` and `start_or_run_with` line for line and times them against
+calling the job directly (seven alternating repetitions,
+2000 calls each,
+run-to-run spread first):
+the scoped thread with its slot costs a median 37.66 µs per call (every reading from 35.74 to 41.81,
+a spread of 1.2 times),
+and the job on the calling thread is below the timer's resolution.
+So it costs 37.66 µs of the person's time and one thread slot per occurrence,
+which is 0.0002 percent of the 16.6 s add this section measured,
+and it is gone.
+Not measured,
+because the path is not reachable from a successful add:
+an end-to-end add delta for this case.
+Not done,
+because it puts the service's preparation on the critical path and that cost was not measured:
+splitting the hand-over from the foreground emptying,
+so that a trash the service takes over costs no thread at
+all rather than a thread that runs to the service and back.
+That reading of the question was left open,
+since a wedged service would then delay the repair by its start
+wait.
+
 Not done:
 parallelism audit of loops over independent items (branch `perf/git-policy-cli-parallel-independent-work` merged the
 first round;
@@ -4621,6 +5113,59 @@ On the built binary at a disposable btrfs checkout:
 a dry run printed none,
 a real run and a `--remove-old` each printed it once as the first line of standard error,
 and a refused `--rollback` printed none.
+
+### The snapshot note's stream and the index-lock wake control (2026-11-08T19:45:57-05:00)
+
+Two follow-ups of the branch `fix/git-policy-cli-snapshot-note-on-the-commands-stream-and-wake-control`.
+
+The first closes the item "The disposal's notice stream and the thread it did not need" left open.
+`finish_snapshot` wrote the note a snapshot of the main checkout publishes to `std::io::stderr()`,
+because the ladder's `out` is the standard output Git's checkout line goes to.
+The ladder now takes the command's note stream beside `out` (`Ladder::finish`),
+and both lines of that block go there:
+the snapshot note and the one naming the uncommitted changes left out.
+`settle_creation` hands in the stream the command was given (`worktree_copy.rs`).
+It is one plain writer and no lock:
+those lines are written before `finish_trash_and_repair` starts the disposal thread,
+so no second thread exists while either is written,
+and the lock the disposal's stream needs would buy nothing here.
+The control is `btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in`
+(`worktree_copy_lifecycle_tests.rs`):
+with the note put back on the process's standard error the control fails,
+its own stream empty and the line on the harness's standard error.
+
+The control `a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself`
+claimed two things from one stopwatch over a 400 ms hold.
+The count of placement attempts is now the order of the placements:
+the `rename` stand-in records whether the foreign lock stood at each of them,
+so the verdict is that only the first met the holder.
+A wait woken by a file of its own meets the holder over and over;
+no clock enters that claim.
+With the wait made to block for one millisecond instead of for the removal,
+the control fails naming every placement that met the holder,
+one for each millisecond of the hold.
+
+How soon the wake came is the one claim no order can show,
+so it stays one clock reading,
+taken from the wait's own line instead of from before the staging a slow flush can stretch
+(10.2 s against a 400 ms hold,
+measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
+The bound is half of the interval that repeats the holder's line:
+over ten runs the wake came 400.35 to 400.51 ms after the line,
+and 10.0018 to 10.0090 s over three runs with the watch blinded to the lock's removal.
+The old bound sat at the whole interval,
+which is where the blinded arm lands,
+so it was a knife edge of about a millisecond rather than a separation.
+A fifth of that interval was tried first and failed once,
+in a run of the thirty-six controls beside it with other agents building on this host,
+and that failure's message carried no reading of the interval,
+so the bound sits at the half,
+which reads a stall of up to 4.6 s as an event and still refuses the timer.
+
+A witness that the line did not repeat cannot replace that reading:
+the line was said once in both arms,
+because a wake from the interval's timer places the lock before it repeats anything,
+which the blinded arm measured three times.
 
 ### Service follow-ups
 
@@ -4867,14 +5412,67 @@ and each is fixed now:
   Red first:
   the assertion `no scratch branch is left` failed with
   `left: "8739469b3585d5e9d29e4f5608ac70dbe5ef607b commit refs/worktree/cli-git-service/1"` and `right: ""`.
-  Open:
-  a `SIGKILL` between the import of the objects and the intent write leaves the reference with no journal record,
-  and nothing runs to clear it:
+  A `SIGKILL` between the import of the objects and the intent write left the reference with no journal record,
+  and nothing ran to clear it:
   `after-objects` is one of `service_fault::FAULT_POINTS`,
-  and the binary-level control that kills a service there and restarts it does not check the reference.
-  Clearing it needs a sweep by something that knows the worktree (the next landing of the same worktree,
-  or a marker the landing writes before the import),
-  because a service instance cannot turn its instance hash back into a worktree path.
+  and a service instance cannot turn its instance hash back into a worktree path,
+  so recovery had nothing to look the reference up by.
+  The landing now leaves that lookup before the reference can exist (`b90c2b88be`,
+  `417c103ee0`):
+  `<seq>.scratch` in the service's journal,
+  one unsynced file published whole,
+  naming the worktree root and the worktree's own Git directory (`service_scratch_ref_marker_of_a_batch.rs`).
+  Recovery sweeps it (`recover_selected` in `service_land_finish.rs`,
+  over this service's own journal only,
+  before the service accepts a connection and again before each landing):
+  a batch an open intent names is left to that intent,
+  and for every other record the commit the reference holds is kept at `refs/cli-git/kept/<seq>` first,
+  the reference is removed,
+  and the record goes only when the reference is gone.
+  A keep Git refused,
+  a kept reference that names another commit,
+  a reference Git cannot read and a record that cannot be read all leave the reference and the record where they are,
+  and the journal then keeps that batch number out of use (`244f0014fc`),
+  because the next import of that number would move the reference.
+  A landing that ends still drops its own record,
+  so a healthy commit writes one small unsynced file and removes it,
+  and `clear_after_dropped_batch` now answers whether the reference is gone
+  (the restart's own intent recovery ignores the answer).
+  Controls:
+  `a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch`
+  ends a landing at the `after-objects` test hook,
+  the disk state a `SIGKILL` there leaves,
+  and checks that the branch did not move,
+  no intent exists,
+  recovery reports nothing to settle,
+  the scratch reference is gone,
+  the commit is at `refs/cli-git/kept/1` with the batch's own subject,
+  it survives `git prune --expire=now`,
+  and the record is gone;
+  `a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_record` proves the safe side.
+  Red first:
+  the assertion `no scratch branch is left` failed with
+  `left: "fff5276fdafe0d71b9b4d763141701c3386f6c7f commit refs/worktree/cli-git-service/1"` and `right: ""`.
+  The binary-level control (`a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once`)
+  now reads both side namespaces at every point it kills the service at:
+  it failed before the fix with
+  `left: [("refs/worktree/cli-git-service/1794175649293749", "e293acc4bb497cf3d8aa36ebe367bea9351eea78")]`,
+  `right: []`,
+  and it now checks that no scratch reference survives the restart,
+  and that the killed batch's commit is kept (with its own message) exactly at the points before the branch moved.
+  Limits:
+  the record is not flushed,
+  so a power loss rather than a kill can lose it and leave the reference where it was,
+  which is the answer for anything that cannot be proven safe;
+  references left in an earlier release's journal directory (`cli-git/service/<instance>`) are not swept,
+  because the record only ever exists in this release's journal;
+  a record whose landing is still in flight on a second service instance of the same worktree
+  (an upgrade handover,
+  which shares one journal) is swept like a dropped batch:
+  its commit is kept before the reference goes,
+  and the landing that continues deletes a reference that is already gone.
+  The recovery of open intents takes the same risk there today,
+  so this adds no new one.
 - The `claimed/` scan that was quadratic for a drain of N claims (`7ae9113b61`).
   `claim_next_of` listed and sorted `pending` for each claim,
   and `current_name` listed the whole of `claimed` for each claim it checked or settled,
@@ -4892,16 +5490,47 @@ and each is fixed now:
   The old `current_name` listed `claimed` with its own `read_dir` at every check and settlement,
   which that count did not see and which the fix removes
   (`service_claim_renewal.rs` has no listing of its own now).
+  The same backlog,
+  cost from the producer's side,
+  is fixed too (`c533c6837a`):
+  `enqueue` listed `claimed` and `recovering` to answer "already known" for every item,
+  so a producer of N items cost N listings.
+  `enqueue_all` answers a whole round from one listing per directory,
+  `enqueue` is that round of one item,
+  and the commit's handoff builds its records and queues them in one round (`service_handoff.rs`).
+  Control:
+  `a_producer_of_many_items_lists_the_state_directories_once` counts the listings at rounds of 4,
+  24 and 96 items.
+  Red first:
+  `the listings of a producer's round do not grow with its items: [(4, 8), (24, 48), (96, 192)]`.
+  The round's listing is taken once at its start,
+  so an item another consumer claims after it is queued again,
+  where the per-item listing of the old code narrowed that window;
+  nothing reads the queue back,
+  so the window is written into `enqueue_all`'s contract.
   Untouched:
-  `enqueue` still lists `claimed` and `recovering` to answer "already known",
-  so a producer that enqueues N items costs N listings,
-  and the one shared listing of a round is refilled when a renewal renamed a claim it must settle.
+  the one shared listing of a drain round is refilled when a renewal renamed a claim it must settle.
 
 `started` and `ready` service lines now carry distinct journal times;
 lines of a retiring older service still share one stream timestamp (nothing to fix).
 
 ### Gate and tooling
 
+- `native:test:binary:host` fails nine controls on this machine for reasons that predate the branch
+  and are the host,
+  not the code (measured 2026-11-08 on a clean checkout of `8520518962`,
+  the commit the two leftovers above were fixed on):
+  the five `budget::*` controls that count Git starts report one extra
+  `git update-index --refresh` (`starts of git update-index: observed 1, budget 0`),
+  `fixture_guard::a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_is_serving`
+  and `service_mode::the_same_start_with_the_real_git_listens` fail because the fixture's socket path
+  under `CARGO_TARGET_DIR` (`/var/mnt/encrypted/cargo-build/toolchain/<toolchain>/<two>/<hash>/tmp/...`)
+  is longer than `SUN_LEN` (`path must be shorter than SUN_LEN`,
+  and the service ends before it listens),
+  and `commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+  reports the client's own lock rename.
+  The container gate is the authority for all nine;
+  a host run of the rest of that suite passed 720 of 729 (three skipped) with the full lib suite at 4725 of 4725.
 - Gate-slot and campaign-lock claim files are merged,
   with the 2026-11-03 liveness and signal fixes (see "Open review findings" for what remains).
 - Mutation campaigns for wrapper code merged since the last recorded campaigns (conversion,
@@ -4949,11 +5578,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   with its reason
   (why the line is otherwise invisible:
   `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
-- Older umbrella items from October,
-  reconciled against Git state on 2026-11-08T16:49:36-05:00 (read only;
-  no campaign,
+- The October umbrella items were reconciled against Git state again on
+  2026-11-08T19:33:30-05:00 (read only;
+  no code changed and no campaign,
   fuzz run or Windows check was started).
-  Each entry gives its verdict and where its evidence or its open work lives.
+  One of them closes:
+  the linter cutover,
+  whose closure and wiring commit now sit in `doc/handover/unified-linter-cutover.md`.
+  The rest are paused by an owner sentence,
+  answered in part,
+  or open,
+  and each entry says which,
+  what settled it,
+  and where its evidence or its open work lives.
 - The scanner's pathname mutation scope on Windows is paused,
   not closed.
   `doc/handover/scanner-native-verification.md`,
@@ -4963,28 +5600,43 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and that the guest was destroyed with nothing run.
   The one timeout the 2026-10-06 Windows campaign ended with is still unverified
   (the timeout mutant in `count_prefix_parts`,
-  `src/path_name_bytes.rs` line 59,
-  as that section locates it),
+  `package/forbidden-strings/cli/src/path_name_bytes.rs` line 59,
+  which that section locates as `src/path_name_bytes.rs:59:35`),
   so the item resumes there in that section when the owner lifts the pause.
-- The Windows checks are paused by that same sentence:
-  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not installed,
+- The Windows and macOS checks are paused by that same sentence,
+  not closed.
+  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not
+  installed,
   and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
   Windows branch without ever running it.
-  The release-artifact performance gate is closed instead of paused.
-  It is the `native:perf` task,
-  which measures the added latency of the release binary against paired direct Git within the limits its
-  description states (added p95 under 2,000 ms on forwarded commands,
-  every paired delta under 5,000 ms on commits),
-  and its figures are recorded in
-  `doc/planning/one-release-each-batch-2026-11.md`,
-  the release record of 2026-11-07T22:11:47-05:00,
-  under its "Latency" bullet,
+  The macOS results are the last recorded ones:
+  it is not a release target (the GitHub release carries Linux assets only),
+  its `native_binary` tests fail there (`/dev/full` is absent,
+  several fixture spawns fail with NotFound),
+  and its lib tests pass on `m1`.
+  The release-artifact performance gate is answered in part.
+  `native:perf` measures the release binary's added latency,
+  its limits are its own task description,
+  and its figures are the release records of `doc/planning/one-release-each-batch-2026-11.md`,
   with the same-binary spread the comparison needs.
-  A search of `doc/` and `.github/workflows` for `release-artifact`,
-  `release performance` and `perf` found no other definition of that gate,
-  so `native:perf` is the gate the older item named.
-- Long fuzz campaigns stay open.
-  Neither recorded pause names them:
+  The binary it measures comes out of the published archive,
+  which `toolchain.lock.json` names as the tarball and sha256 mpm installs,
+  so the latency gate does run on a packaged binary;
+  no record defines a check of the archive's own contents,
+  so whether the older entry also meant one stays open.
+  The Windows and macOS checks resume when the owner lifts the pause.
+- Long fuzz campaigns are open,
+  and another agent is running one now.
+  It works on branch `test/git-policy-cli-fuzz-long-campaign-results`
+  (worktree `.claude/worktrees/pi-fuzz-long-campaign-results`,
+  at `13e215b5a5` when this entry was read)
+  and runs `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900`
+  through the gate slot under `GIT_POLICY_NATIVE_IMAGE_TAG=pi-fuzz-long-campaign-20261108`,
+  writing `${HOME}/temp/agent/fuzz-campaign-20261108T1818-0500.log`.
+  It was still running at 2026-11-08T19:33:30-05:00,
+  so this entry reports no totals,
+  and its result belongs in `doc/handover/cli-git-native-replay-core.md`.
+  Neither recorded pause names fuzzing:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
   the other covers wrapper mutation campaigns
   (`doc/handover/questions-for-the-owner.md`,
@@ -5031,12 +5683,6 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and the signals and automatic-maintenance scope
   (`doc/handover/cli-git-native-signals.md`,
   "Trailing gates").
-- The linter cutover task is closed.
-  It landed on 2026-10-10 as the fast-forward merge `b111c0ca39`,
-  the five incumbent packages were deleted in `5bc05682e`,
-  and `main` holds both,
-  while the root lint and format tasks have run `monochromatic-lint` since `0b49ae109e`.
-  The durable record is `doc/handover/unified-linter-cutover.md`.
 - The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
   2026-11-04 pause.
   The rerun was waiting on a multi-pass control,
@@ -5045,13 +5691,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `snapshots_equal` through two corrections,
   and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
   Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
-  so the pause is the only thing that keeps this open,
-  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
+  so the pause is the only thing that stops the rerun from starting,
+  and what the rerun would show remains unverified;
+  the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
   so what those numbers cover beyond this item is unverified here.
-- macOS is not a release target (the GitHub release carries Linux assets only);
-  the `native_binary` tests still fail there (`/dev/full` is absent,
-  several fixture spawns fail with NotFound);
-  the lib tests pass on `m1`.
 - Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
   Closed 2026-11-08T15:41:28-05:00:
   the Android-target build is no longer blocked.
@@ -6712,6 +7355,34 @@ are in append mode now).
   and the cause inside the claim tests is not measured.
   Not the four fixes on that branch:
   none of them is in `landing/`.
+- `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+  aborted one host full-suite run on
+  `fix/git-policy-cli-service-home-and-convert-dry-run-count`
+  (2026-11-08T19:08:21-05:00,
+  4768 tests,
+  1181 tests run;
+  1180 passed,
+  1 failed,
+  the run stopped after the failure)
+  through the crate's own watchdog:
+  "the unit-test run exceeded 120s:
+  a test is stuck",
+  `SIGABRT` at 123.2 s.
+  Measured alone in the same tree:
+  72.3 s,
+  then 5.4 s,
+  both passing,
+  so this test's cost varies by more than a factor of ten on this host,
+  and its slow end alone sits only 1.7 times under the `RUN_LIMIT` of
+  `testing/test_support.rs` that a full suite's concurrency eats.
+  Not the branch's two comment-only edits,
+  which touch neither `src/native/foundation` nor the watchdog.
+  Not fixed:
+  what makes one iteration expensive is not measured,
+  and the shape of a fix is open
+  (a shorter loop,
+  a cheaper fixture,
+  or its own bound).
 
 ### Questions waiting for the owner
 
@@ -6868,8 +7539,36 @@ the btrfs ladder replaced the copy on btrfs hosts,
 but main still has the older lock-based copy modules,
 which no review covers.
 No later decision to merge or drop it is recorded.
+The audit of those modules on main,
+with a verdict per finding and the branch's options,
+is `doc/planning/cli-git-copy-route-findings-on-main.md`
+(2026-11-09;
+main at `64596b62f4`),
+and it records two reachable defects there
+(a lost copy with no notice,
+and a copy into a registration the command did not create),
+so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
+
+No review covers the publishing route either:
+the push record a landing or a merge leaves,
+the queue,
+the retry plan and the reconcile.
+Its audit,
+with twelve findings ranked by what they risk losing,
+four of them reproduced,
+one of those in part,
+is `doc/planning/cli-git-push-route-findings-on-main.md`
+(2026-11-09;
+main at `554f973343`).
+The first two leave a branch of a landed commit unpublished with no record that says so:
+a push record keyed by the commit alone
+(the second branch reaching a commit is never queued),
+and a retry notice written before the retry plan is durable.
+The waits that no ceiling ends,
+the one move that can advance a branch the reconcile never checked,
+and the notice deleted before it is shown are there with `path:line` and suggested fixes.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
@@ -8955,6 +9654,62 @@ what the ten minutes is worth and what the three ceilings now rest on.
   so that basis would make it two minutes rather than the twenty it ships.
   Another change owns the constant;
   it was not touched here.
+
+### The lock ceilings' waits read again with the service journal (2026-11-08T18:43-05:00)
+
+The citations beside the lock ceilings now carry the count,
+median,
+95th and 99th percentile and maximum
+of the wait each bounds,
+from the timing log and the service journal together.
+No value changed.
+The entry before this one answered the same question from the timing log alone.
+
+- Read:
+  both generations of the commit timing log (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z,
+  134 worktrees,
+  releases 0.5.34 to 0.6.1-alpha.5)
+  and the service journal (4,386 `answered` lines,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
+  read-only,
+  by a scratch script under `${HOME}/temp/agent/lock-ceiling-journal` (not committed).
+- The journal needs both identifiers:
+  `cli-git-service` before the program was renamed and `monochromatic-git-policy-cli-service` after.
+  A read with the current identifier alone returns 1,429 of the 4,386 answers.
+- Figures:
+  the landing's wait for the index (`lock_wait_ms`) has 3,777 zeros in 4,386 answers,
+  median 0 ms,
+  95th percentile 6 ms,
+  99th percentile 158 ms,
+  longest 600,718 ms;
+  609 landings waited at all and 20 waited over a second;
+  14 of those landed (largest 11,490 ms counted with the wrapper's own staging of a cold index,
+  8,000 ms at the holder's place),
+  one more landed only when a person removed the lock,
+  and five were refused by the lock that never went.
+  The settle's 99th percentile is 17 ms and its longest 172 ms over the same 4,386 answers,
+  and the service's own hold of the index is 119,721 ms at most.
+  The whole command is 1,228,797 ms at most and the answer wait 1,200,776 ms.
+- What the values rest on:
+  one minute still holds at 7.5 times the longest place wait and 5.2 times the longest acquisition,
+  the settle's whole-minute rounding still gives one minute,
+  and the ten minutes is 52 times the longest whole lock acquisition;
+  no wait takes it.
+  The merge and the reconciliation still have no sample of their own:
+  none of the 1,608 records is a merge and none names a `git reset` step.
+- Section:
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceilings' waits read again from the service journal".
+- Open,
+  for the owner:
+  `FOREIGN_OWNER_PATIENCE` (1,200 s) is 28,797 ms shorter than the longest whole command in the log
+  (1,228,797 ms,
+  one of the commits that stopped at the lock that never went),
+  and the log times a command rather than a record's hold,
+  so it does not prove the patience too short.
+  Another change owns that constant;
+  nothing was changed here.
 
 ### Design stance
 

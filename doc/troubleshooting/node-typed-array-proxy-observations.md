@@ -38,6 +38,12 @@ catch (error) {
 }
 ```
 
+The paths this record names under `package/module/translation-repair/src/` were removed on
+2026-09-15 in `cbedea3574` (refactor(translation-repair):
+remove the provider-free preparation
+infrastructure no pass reaches);
+no file in the working tree carries them now.
+
 Consequently,
 throwing prototype traps bypass the catch,
 and throwing iterator getters carrying an `Error` pass through its non-`TypeError` branch.

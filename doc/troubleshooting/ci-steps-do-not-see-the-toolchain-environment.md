@@ -226,19 +226,12 @@ An earlier session with a build of the first version of the fix read lower media
 60.6 ms for that build),
 so the absolute values follow the host's load while the shape of the difference did not change.
 
-### What the workflow keeps until a release with the fix is locked
+### What the workflow kept until a release with the fix was locked
 
-The Rust step of `music-player-release.yml` installs the triples itself,
-with the two lines
-`mapfile -t targets <<< "$lock_targets"` and
-`rustup target add --toolchain "$toolchain" "${targets[@]}"`.
-They can go once `toolchain.lock.json` pins an `mpm-shadow` release that carries this fix,
-because `task-run prepare:android` then adds the row's triples itself.
-The `jq` read above them and the `rustup target list --installed` guard below them exist only to feed and
-prove those two lines,
-so removing them is one decision about the whole block and its comment,
-not three.
-That release also installs the lock's four `rustComponents` in this job for the first time,
-which nothing there compiles with;
-the block's comment says the opposite today
-and has to change with the two lines.
+The Rust step of `music-player-release.yml` installed the triples itself until `toolchain.lock.json` pinned `mpm-shadow` 0.2.7-alpha.7
+(`b539f97c9c`).
+Since then `task-run prepare:android` adds the row's triples,
+so the step no longer reads the row,
+adds the targets or checks them.
+That release also installs the lock's four `rustComponents` in this job,
+which nothing there compiles with.

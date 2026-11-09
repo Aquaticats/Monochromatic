@@ -5,204 +5,69 @@
  and the guard has to read it as that,
  not as an `env` invocation with arguments.
  
+ The stripped layers are reported rather than discarded:
+ a caller needs the assignments they carried,
+ the command lines they split and run,
+ and whether they left the program on a search path other than the caller's.
+ 
+ A wrapper that hands the program to another host reports that too,
+ because the caller's search path and its installed wrappers never reach it.
+ 
+ Programs that run a command named among their own arguments (`find -exec`)
+ contribute each of those command lines as well.
+ 
  @module
  */
 
+import { COMMAND_WRAPPERS, } from './command-wrappers.ts';
+import { lastPathSegment, } from './executable-path-words.ts';
+import { nestedCommandLines, } from './nested-command-lines.ts';
 import {
-  COMMAND_WRAPPERS,
-  type CommandWrapper,
-} from './command-wrappers.ts';
+  dropLeadingAssignments,
+  type WrapperAssignment,
+} from './shell-assignment-words.ts';
 import {
-  lastPathSegment,
-  looksLikeExecutablePath,
-} from './executable-path-words.ts';
+  type WrapperScan,
+  wrappedCommandWords,
+} from './wrapper-word-scan.ts';
 
-//region Constants
-
-/**
- Sentinel returned when an option spelling carries no attached command line.
- */
-const NO_ATTACHED_PAYLOAD: unique symbol = Symbol('option spelling carries no attached command line',);
-
-//endregion Constants
-
-//region Shell assignments
+//region Types
 
 /**
- Reports whether a word is a shell variable assignment prefix.
- 
- The parser already separates `X=1 cmd` assignments;
- this reads the same shape among `env` arguments and after `env --`,
- where they are ordinary words.
- 
- @param word - command argument word
- 
- @returns whether the word spells `NAME=value`
- 
- @example
- ```ts
- isVariableAssignment('X=1'); // true
- isVariableAssignment('/usr/bin/git'); // false
- ```
+ Everything the wrapper layers around one command revealed.
  */
-function isVariableAssignment(word: string,): boolean {
+type WrappedCommand = {
   /**
-   Offset of the first `=`, or -1 when the word carries none.
+   Words of the innermost program the shell ultimately executes.
    */
-  const equalsIndex = word.indexOf('=',);
-  if (equalsIndex <= 0)
-    return false;
+  readonly words: readonly string[];
   /**
-   Text before `=`, which a shell assignment spells as a variable name.
+   Command lines wrappers split and run, outermost layer first.
    */
-  const name = word.slice(
-    0,
-    equalsIndex,
-  );
-  return (!name.startsWith('-',)) && (!looksLikeExecutablePath(name,));
-}
+  readonly payloads: readonly string[];
+  /**
+   Assignments the wrappers and the shell apply before the program runs.
+   */
+  readonly assignments: readonly WrapperAssignment[];
+  /**
+   Whether a wrapper runs the program on the platform default search path
+   instead of the caller's.
+   */
+  readonly usesDefaultSearchPath: boolean;
+  /**
+   Variable names a wrapper removes from the program's environment.
+   */
+  readonly unsetVariables: readonly string[];
+  /**
+   Whether a wrapper runs the program on another host,
+   whose search path this command text does not carry.
+   */
+  readonly reachesAnotherHost: boolean;
+};
 
-/**
- Drops shell assignment prefixes before the invoked program.
- 
- @param words - command words starting at a possible assignment
- 
- @returns words starting at the first non-assignment word
- 
- @example
- ```ts
- dropLeadingAssignments(['X=1', 'git', 'commit']); // ['git', 'commit']
- ```
- */
-function dropLeadingAssignments(words: readonly string[],): readonly string[] {
-  /**
-   Offset of the first word that is not an assignment, or -1 when every word is one.
-   */
-  const firstCommandWord = words
-    .findIndex(function isCommandWord(word,): boolean {
-      return !isVariableAssignment(word,);
-    },);
-  return firstCommandWord === (-1)
-    ? []
-    : words.slice(firstCommandWord,);
-}
-
-//endregion Shell assignments
+//endregion Types
 
 //region Wrapper stripping
-
-/**
- Reads a command line carried by an attached option spelling such as `--split-string=...`.
- 
- @param word - option word being inspected
- 
- @param wrapper - wrapper whose payload options are consulted
- 
- @returns carried command line, or {@link NO_ATTACHED_PAYLOAD} when the spelling carries none
- 
- @example
- ```ts
- attachedPayload({ word: '--split-string=git commit', wrapper });
- // 'git commit'
- ```
- */
-function attachedPayload({
-  word,
-  wrapper,
-}: {
-  readonly word: string;
-  readonly wrapper: CommandWrapper;
-},): string | typeof NO_ATTACHED_PAYLOAD {
-  for (const option of wrapper.payloadOptions) {
-    /**
-     Separator between an option name and its attached value.
-     */
-    const prefix = `${option}=`;
-    if (!word.startsWith(prefix,))
-      continue;
-
-    /**
-     Command line after the separator.
-     */
-    const payload = word.slice(prefix.length,);
-    return payload.length > 0
-      ? payload
-      : NO_ATTACHED_PAYLOAD;
-  }
-  return NO_ATTACHED_PAYLOAD;
-}
-
-/**
- Drops a wrapper's own options and leading words, keeping the wrapped command words.
- 
- @param words - wrapper name followed by its arguments
- 
- @param wrapper - wrapper specification applied to those words
- 
- @param payloads - collected command lines the wrapper splits and runs
- 
- @returns words starting at the wrapped program
- 
- @example
- ```ts
- wrappedCommandWords({
-   words: ['sudo', '-u', 'root', 'git', 'commit'],
-   wrapper: sudoWrapper,
-   payloads: [],
-});
-// ['git', 'commit']
- ```
- */
-function wrappedCommandWords({
-  words,
-  wrapper,
-  payloads,
-}: {
-  readonly words: readonly string[];
-  readonly wrapper: CommandWrapper;
-  readonly payloads: string[];
-},): readonly string[] {
-  for (let index = 1; index < words.length; index += 1) {
-    /**
-     Argument word inspected as wrapper option or wrapped program.
-     */
-    const word = words[index];
-    if (word === undefined)
-      break;
-    if (word === '--')
-      return words.slice((index + 1) + wrapper.leadingWordsToSkip,);
-    if (!word.startsWith('-',))
-      return words.slice(index + wrapper.leadingWordsToSkip,);
-
-    /**
-     Command line carried by an attached payload option spelling.
-     */
-    const attached = attachedPayload({
-      word,
-      wrapper,
-    },);
-    if (attached !== NO_ATTACHED_PAYLOAD) {
-      payloads.push(attached,);
-      continue;
-    }
-    if (wrapper.payloadOptions
-      .has(word,)) {
-      /**
-       Command line following a separate payload option.
-       */
-      const payload = words[index + 1];
-      if (payload !== undefined) {
-        payloads.push(payload,);
-        index += 1;
-      }
-      continue;
-    }
-    if (wrapper.optionsWithValue
-      .has(word,))
-      index += 1;
-  }
-  return [];
-}
 
 /**
  Removes every wrapper around the invoked program, keeping the innermost command words.
@@ -212,37 +77,45 @@ function wrappedCommandWords({
  
  @param words - command name followed by its arguments
  
- @param payloads - collected command lines wrappers split and run
- 
- @returns words starting at the program the shell ultimately executes
+ @returns innermost command words with everything the stripped wrappers revealed
  
  @example
  ```ts
- unwrapWrappers({ words: ['env', 'X=1', 'sudo', 'git', 'commit'], payloads: [] });
+ unwrapWrappers({ words: ['env', 'X=1', 'sudo', 'git', 'commit'] }).words;
  // ['git', 'commit']
  ```
  */
-function unwrapWrappers({
-  words,
-  payloads,
-}: {
-  readonly words: readonly string[];
-  readonly payloads: string[];
-},): readonly string[] {
-  return (function unwrapLayers(): readonly string[] {
+function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): WrappedCommand {
+  /**
+   Payloads, assignments and environment effects every stripped layer contributed.
+   */
+  const scan: WrapperScan = {
+    payloads: [],
+    assignments: [],
+    usesDefaultSearchPath: false,
+    unsetVariables: [],
+    reachesAnotherHost: false,
+  };
+
+  /**
+   Innermost program words after every layer is stripped.
+   */
+  const unwrapped = (function unwrapLayers(): readonly string[] {
     /**
      Command words of the outermost layer still to strip.
      */
     let remaining = words;
     for (;;) {
       /**
-       Words after dropping shell assignment prefixes.
+       Words after dropping shell assignment prefixes, and those prefixes.
        */
       const withoutAssignments = dropLeadingAssignments(remaining,);
+      scan.assignments
+        .push(...withoutAssignments.assignments,);
       /**
        Command word that may name a wrapper.
        */
-      const [first,] = withoutAssignments;
+      const [first,] = withoutAssignments.words;
       if (first === undefined)
         return [];
 
@@ -256,19 +129,39 @@ function unwrapWrappers({
             .has(lastPathSegment(first,),);
         },);
       if (wrapper === undefined)
-        return withoutAssignments;
+        return withoutAssignments.words;
+
+      if (wrapper.launchesOnAnotherHost === true)
+        scan.reachesAnotherHost = true;
 
       remaining = wrappedCommandWords({
-        words: withoutAssignments,
+        words: withoutAssignments.words,
         wrapper,
-        payloads,
+        scan,
       },);
     }
   })();
+
+  /**
+   Command lines the innermost program runs from among its own arguments,
+   as `find -exec` does.
+   */
+  const nestedLines = nestedCommandLines({ words: unwrapped, },);
+
+  return {
+    words: unwrapped,
+    payloads: [
+      ...scan.payloads,
+      ...nestedLines,
+    ],
+    assignments: scan.assignments,
+    usesDefaultSearchPath: scan.usesDefaultSearchPath,
+    unsetVariables: scan.unsetVariables,
+    reachesAnotherHost: scan.reachesAnotherHost,
+  };
 }
 
 //endregion Wrapper stripping
 
-export {
-  unwrapWrappers,
-};
+export { unwrapWrappers, };
+export type { WrappedCommand, };

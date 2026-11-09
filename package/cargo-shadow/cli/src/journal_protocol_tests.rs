@@ -1858,8 +1858,10 @@ fn a_recovery_manifest_barrier_that_fails_on_its_own_is_mandatory_and_keeps_the_
 /// syscall observation):
 /// the directory that lists the completion marker is synchronized by the kernel after the rename that publishes it,
 /// and before the journal is removed.
-/// The helper process runs the production `finish_journal` under `strace`, so no in-process
-/// trace can stand in for the barrier: a regression that keeps the failpoint and the trace event but drops the
+/// The helper process runs the production `finish_journal` under `strace`,
+/// so no in-process
+/// trace can stand in for the barrier:
+/// a regression that keeps the failpoint and the trace event but drops the
 /// `sync_directory` call removes the fsync that this test requires between the rename and the removal.
 #[test]
 fn the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journal_is_removed() {

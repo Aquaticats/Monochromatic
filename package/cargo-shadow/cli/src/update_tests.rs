@@ -1886,7 +1886,8 @@ fn an_update_whose_run_cannot_show_quiescence_stops_without_rollback_or_acceptan
 /// and cargo is not asked anything.
 /// The journal of the earlier run is kept,
 /// and its snapshot is untouched.
-/// The guard at the update call site is what does this: without it the update would recover again,
+/// The guard at the update call site is what does this:
+/// without it the update would recover again,
 /// begin its own transaction and ask cargo,
 /// and the assertions on the journal set and the runner's calls fail.
 #[test]

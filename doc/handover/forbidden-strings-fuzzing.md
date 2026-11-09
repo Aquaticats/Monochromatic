@@ -1,5 +1,26 @@
 # Forbidden-strings fuzzing handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/forbidden-strings/mise.toml` is now `package/forbidden-strings/cli/mise.toml`
+> (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:build` is now `//package/forbidden-strings/cli:build`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:test` is now `//package/forbidden-strings/cli:test`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:lint` is now `//package/forbidden-strings/cli:lint`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:lint:clippy` is now
+> `//package/forbidden-strings/cli:lint:clippy` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings.fuzz/Cargo.lock` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.lock` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/lib.rs` is now
+> `package/forbidden-strings/cli/src/lib.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/fuzz_api.rs` is now
+> `package/forbidden-strings/cli/src/fuzz_api.rs` (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

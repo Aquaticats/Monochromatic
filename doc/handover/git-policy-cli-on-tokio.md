@@ -175,7 +175,8 @@
   Host runs of the two askpass controls are skipped (`-- -- --skip askpass`),
   because they need `GIT_ASKPASS` unset.
 - Not started:
-  T11 (callers: the commit command and the policy run as `async fn`),
+  T11 (callers:
+  the commit command and the policy run as `async fn`),
   T12 (parallel runner),
   T13 (removal,
   lint).
@@ -405,6 +406,333 @@
   5127 passed (1 slow),
   8 skipped;
   Clippy clean.
+
+## Step T12, its first part, 2026-11-08T18:40:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-steps-12-and-13` in
+  `.claude/worktrees/pi-tokio-step-t12`,
+  from main at `1a907ccfb9`.
+  Not merged into main.
+  Corrected 2026-11-08T21:05:00-05:00:
+  this work is on main now,
+  merged as `6c3d3ef739` from `feat/git-policy-cli-tokio-async-git-leaf-and-its-callers`;
+  the branch name above is the one the record was written with.
+- Done,
+  and the whole of what T12 could be from this tree:
+  the process's one bound on blocking jobs
+  (`foundation/blocking_jobs_within_the_budget.rs`),
+  and the ordered runner with each item as a job of the runtime under that bound
+  (`foundation/parallel_runner_on_the_runtime.rs`),
+  with `runtime_plan::budgeted_workers` as the one derivation of the worker count the
+  runtime plan and the bound share.
+  Commits `2b1f830568` and `c1e6a78a4c`.
+  Details,
+  the controls,
+  the planted controls and the checks:
+  the plan,
+  "Step T12,
+  the runner's jobs on the runtime".
+- Not done,
+  and blocked,
+  with the evidence in the plan:
+  the per-call-site conversion of the seven `run_ordered` sites and the nine
+  `run_all_side_by_side`/`run_beside_caller` sites.
+  Each must hand its items,
+  lanes and work over as shared values (`Arc`) because a `spawn_blocking` job must own what it reads,
+  and the service round (`landing/service_round.rs`) runs Git inside those jobs,
+  so it needs the leaf-first `async` Git first.
+  That leaf does not exist:
+  `transaction/transaction_git.rs` has `pub fn run_git`,
+  not an `async fn`,
+  and T11 wrote down why it stopped there.
+- The one thing this step found that the plan did not have:
+  a refused `spawn_blocking` pushes the job into the pool's queue and then panics,
+  and the queued job keeps everything it captured for the life of the process.
+  A permit inside the job is therefore lost for good,
+  and a sending end inside it keeps a channel open forever.
+  Both were measured as planted controls (30 s and a 300 s timeout).
+  The design that carries it:
+  the place is held by the awaiting frame,
+  and the consumer ends when every job has returned (a counter and a `Notify`),
+  then drains what was already sent.
+  The next agent must keep that shape in any new job helper.
+- Exact next steps,
+  in order:
+  1. The leaf-first `async` Git:
+     an `async fn` beside `run_git` in `transaction/transaction_git.rs`
+     (`run_git_once`/`run_git_watched`/`run_git_once_with`/`run_git_pausing` become
+     `async` cores over the async pipe reader and `OwnedChild::wait`,
+     with the synchronous
+     faces kept as bridges),
+     then its callers one folder at a time.
+  2. Then `landing/service_round.rs` (`drain_directories`) onto
+     `run_ordered_on_the_runtime`,
+     and the pure-file sites
+     (`worktree/worktree_trash_entries.rs`,
+     `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+     `worktree/worktree_convert_command.rs`,
+     the copy and repair sites of `side_by_side_threads.rs`) once their state is shared.
+  3. Then T13's removals and lint:
+     no `std::thread`,
+     no `std::process::Command` outside the guarded start,
+     no `thread::sleep`,
+     and the hand D-Bus wire format with its fuzz target.
+     None of the three guards can be tightened before step 2 lands,
+     because `foundation/scoped_start.rs`,
+     `foundation/side_by_side_threads.rs` and the rest still start threads and sleep.
+- Not run,
+  for the next agent:
+  the container gate of this branch (no gate image was made),
+  `native:perf`,
+  and the mutation campaign.
+
+## Step T12, the leaf-first asynchronous Git and the awaited runner, 2026-11-08T19:29:56-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-steps-12-and-13` in
+  `.claude/worktrees/pi-tokio-async-git-leaf`,
+  from `6240b51a7a`.
+  Not merged into main.
+  Corrected 2026-11-08T21:05:00-05:00:
+  this work is on main now,
+  merged as `6c3d3ef739` from `feat/git-policy-cli-tokio-async-git-leaf-and-its-callers`;
+  the branch name above is the one the record was written with.
+- Done:
+  a Git step can now be awaited by a task of the runtime
+  (`transaction/transaction_git_awaiting.rs`:
+  `run_git_awaiting`,
+  `run_git_checked_awaiting`,
+  `push/child_watch_output_watched_on_the_runtime.rs`,
+  `push/start_retry.rs`'s `RefusableAwaitingStart`),
+  and an ordered round can run items that await one
+  (`foundation/parallel_runner_on_the_runtime_awaiting.rs`:
+  each lane as a task,
+  a lane's items one after another,
+  storage work on the blocking pool inside the item,
+  the reporting shared with the blocking form through `finish_the_run`).
+  Commits `e0359dc84c` and `a2f901dd92`.
+  Details,
+  controls,
+  the measurement and the checks:
+  the plan,
+  "Step T12,
+  the leaf-first asynchronous Git and the ordered runner that awaits".
+- The synchronous faces are unchanged and stay that way until their last
+  caller goes:
+  a step with an `Unbounded` or `LeaveRunning` bound makes no pipes,
+  so the synchronous `run_git` works today from inside the runtime for a
+  branch write,
+  and a bridge around the whole runner would take that from every pool job
+  that moves a branch.
+- The one rule this step measured,
+  for any later helper:
+  a synchronous `Drop` that waits for a task holds a worker,
+  and while the workers of a small runtime are all inside such waits the tasks
+  that would end them cannot run.
+  Four awaited Git steps took 38.2 s that way and 10.8 ms through
+  `ChildWatch::close_awaiting`,
+  and one awaited step alone took the whole 19.1 s of `WATCHER_END_BOUND`.
+- Not done:
+  every production call site.
+  None was converted,
+  so no command changed behaviour.
+  Converting one makes its function `async`,
+  which makes its callers `async` or a bridge that enters the runtime,
+  and that chain runs to the command or to the service loop.
+  The 67 production files that call `run_git` are converted one folder at a
+  time from the top of each chain.
+- Exact next steps,
+  in order:
+  1. Convert one folder whose chain to a boundary is short,
+     keeping the package's tests green at each commit.
+     The leaf files are `transaction/`,
+     `push/` and `foundation/`,
+     and a converted step calls `run_git_awaiting` where it called `run_git`.
+  2. Convert the landing's handlers and then `landing/service_round.rs`
+     (`drain_directories`) onto `run_ordered_awaiting_on_the_runtime`,
+     with each item's storage work inside
+     `run_blocking_job_within_the_budget`.
+  3. Then the pure-file sites of the blocking runner
+     (`worktree/worktree_trash_entries.rs`,
+     `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+     `worktree/worktree_convert_command.rs`)
+     and the `run_all_side_by_side`/`run_beside_caller` sites.
+  4. Then T13's removals and lint.
+- Checks,
+  the whole suites once at the end:
+  `native:test:host` 4794 run,
+  4794 passed (one slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  733 passed (two slow),
+  3 skipped;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+  Both suites ran with `CLI_GIT_TEST_ROOT` under a short path,
+  without which `service_mode::the_same_start_with_the_real_git_listens` fails
+  on this host for the `SUN_LEN` reason
+  `doc/handover/cli-git-rust-implementation.md` already records,
+  and both with the run's own control group at `TasksMax=4000`,
+  because a smaller one refused `git-lfs`'s filter process to two LFS
+  controls.
+- Not run,
+  for the next agent:
+  the container gate of this branch,
+  `native:perf`,
+  and the mutation campaign (paused).
+
+## Step T12, the first production folder on the awaited Git runner, 2026-11-08T21:05:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-call-sites-from-the-top-of-each-chain` in
+  `.claude/worktrees/pi-tokio-convert-the-first-call-sites`,
+  from main at `bbadfac560`.
+  Not merged into main.
+- Done:
+  `health/` is the first production folder whose Git reads are awaited on the
+  runtime,
+  and the report of `git monochromatic-git-policy-cli doctor` is built
+  by one task instead of by steps that each enter the runtime for their pipes.
+  Commits `a669e2a59a` (the control that does not compile) and `ae4e1a57c7`
+  (the conversion).
+  The scripts that measured the chains are
+  `${HOME}/temp/agent/tokio-callsite-measure-20261109/callgraph.ts` (the call
+  graph over the production sources),
+  `ancestors.ts` (one function's ancestors,
+  one level at a time) and
+  `chains.ts` (the ancestor set of every site).
+  Details,
+  the measurement of every other folder's chain,
+  the controls and the
+  checks:
+  the plan,
+  "Step T12,
+  the first production folder on the awaited Git runner".
+- The shape a later conversion copies:
+  the leaf functions become futures and call `run_git_awaiting`;
+  the outermost synchronous function of the chain enters the runtime once
+  (`doctor_action`,
+  and `plan_doctor` in `invocation/management.rs`);
+  a shared read that has callers in reserved folders gets a second face beside
+  its synchronous one (`config_snapshot::read_config_snapshot_awaiting`) rather
+  than a conversion that would reach `landing/` and `worktree_copying/`.
+- Why `health/` and not another folder,
+  measured:
+  its chain is six functions above the folder
+  (`run_process` > `plan_invocation` > `plan_management` >
+  `plan_management_with_section` > `plan_doctor` >
+  `doctor_action_with_section`) and then three functions inside it,
+  and its
+  three Git readouts are called by nothing but each other,
+  the folder's own
+  controls and `plan_doctor`.
+  Every other folder that the brief does not reserve has either a longer chain
+  through the commit path (`conflict/`,
+  `commit/`,
+  `merge/`,
+  `push/`,
+  `invocation/`),
+  a caller in a reserved folder (`config/`,
+  `repair/`,
+  `shadow/`,
+  `standards_review/`,
+  `candidate/`),
+  or items of the blocking runner (`worktree/`).
+- What stays as it is,
+  with the reason in the plan:
+  `invocation/forwarded_command.rs::read_config_value`,
+  because converting it
+  builds the runtime on the forwarded-command path the owner's lazy-runtime
+  choice and `binary_forwarded_command_makes_no_thread_tests.rs` keep free.
+- Exact next steps,
+  in order:
+  1. Item 3's pure-file sites,
+     and read the plan's list of what they need
+     first:
+     each of the three lends the blocking runner state that has to be
+     owned before the awaited runner can take it (`IndexLock<'a>`,
+     `RewriteOne<'a>`,
+     `&dyn Platform`,
+     `&Interrupt`),
+     and each says lines while
+     it works,
+     which a `'static` blocking job cannot do through the sink the
+     awaited runner lends it.
+     Decide that line path first;
+     it is one decision for all three.
+  2. Then item 2:
+     the landing's handlers and `landing/service_round.rs`.
+  3. Then item 4 (T13's guards),
+     unchanged.
+- Checks,
+  both whole suites at the tip:
+  `native:test:host` 4807 run,
+  4807 passed (1 slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  733 passed (10 slow),
+  3 skipped;
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+  A lib run before the last two commits showed one failure,
+  in a folder this branch does not touch,
+  and the tip run of the same suite passed everything:
+  `worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`
+  asserts that a file written this instant is still inside the timestamp
+  granularity,
+  which a run of the whole suite under load cannot promise;
+  the same binary passes it three times out of three when it is asked alone,
+  from the same fixture root,
+  which is three samples and not a measured cause:
+  the suspected cause is the twenty milliseconds the control allows between the
+  write and the clone,
+  against the load of the whole suite.
+  The folder is one another agent is changing,
+  and three observations are what there is:
+  it failed once inside a full run,
+  passed three times out of three alone,
+  and passed in the full run at the tip.
+  Both suites ran with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`
+  and with the run's own control group at `TasksMax=4000`,
+  the conditions the section above records,
+  with one addition the next agent needs:
+  the fixture root has **two** length limits,
+  not one.
+  It must be short enough for a Unix socket under it to fit `SUN_LEN`,
+  and it must be at least six path segments deep,
+  because `worktree_add_binding`'s control `a_relative_pointer_without_links_is_bound`
+  resolves `../../../../../../..` from a fixture directory and fails when that
+  lands above `/`.
+  Measured on this tree:
+  `/var/tmp/cg-fixtures` (three segments) fails that control and
+  `/var/tmp/cg/cli-git/fixtures/root` (six) passes it,
+  the same test binary both times.
+  `native:perf`,
+  compared with the numbers the T11 section records,
+  is in the plan's section for this step.
+- Not run,
+  for the next agent:
+  the container gate of this branch (no gate image was made) and the mutation
+  campaign (paused by the owner).
+
+## Step T13, not started, 2026-11-08T18:40:00-05:00
+
+Nothing of T13 is done and nothing of it can be done first:
+its three source guards fail today
+(35 files start threads through `foundation/scoped_start.rs`,
+`foundation/side_by_side_threads.rs` and their callers,
+and the remaining sleeps are listed in the plan,
+"What T11 did not convert,
+and why"),
+and its removals (the hand wire format `service/systemd_dbus_wire_format.rs` and the fuzz
+target `dbus_reply`,
+the thread helpers,
+the poll constants) wait for their last caller to go.
+The `format:monochromatic-lint` fixer and the package lint are clean on this branch,
+so the tree is ready for whoever takes the guards once the call sites are converted
+("Step T12,
+the leaf-first asynchronous Git and the awaited runner",
+"Exact next steps").
 
 ## Rules that bit during this work
 

@@ -1,5 +1,21 @@
 # Handover: 2026-10-31 full-repository review sweep
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/rust-module` is gone (2026-10-29 `592d78b143`) and its packages sit at
+> `package/<name>/<variant>` such as `package/or-throw/core` today.
+> `package/desktop-app` is gone (2026-10-29 `592d78b143`) and its packages sit at
+> `package/ide/app` `package/file-manager/app` and `package/terminal/app` today.
+> `doc/design-commitments-votes-repairs-and-run-offs.md` is now
+> `package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`
+> (2026-10-21 `fc17e226b2`).
+> `package/module` is gone (2026-10-29 `592d78b143`);
+> its packages sit at `package/<name>/<variant>` such as `package/kv-store/core` and
+> `package/llm/llm-type` today.
+> `package/build/css` is now `package/css/cli` (2026-10-29 `592d78b143`).
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 ## Task (user instructions)
 
 "Review our entire repo.
@@ -7071,7 +7087,7 @@ comments) and then hit GitHub's secondary rate limit mid-run:
 Repair,
 all applied and verified:
 
-1. `file-issues.ts` hardened (see the pipeline section above).
+1. `file-issues.ts` hardened (see the `Filing pipeline` section).
 2. `filed-log.jsonl` stripped from 671 to the 500 good entries;
    the 171 bad entries are in
    `filed-log.jsonl.bak-batch2`.
@@ -7362,8 +7378,10 @@ then files.
 
 Thirty-two children were created for the sweep.
 Twenty-seven died in the 2026-10-31 outage
-and are structurally unkillable and unrevivable (see the kill investigation above);
-their
+and are structurally unkillable and unrevivable;
+see the section
+`2026-10-31 kill investigation (user request: "kill all the failed subagents")`.
+Their
 work is relayed to the five live children.
 The live children are the worker pool now.
 

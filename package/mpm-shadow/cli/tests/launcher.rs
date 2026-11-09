@@ -455,6 +455,21 @@ fn a_launcher_that_finds_no_program_under_current_names_both_versions_and_the_on
     let _ = &moved.directory;
 }
 
+/// The machine-global advice names the program that owns the verb:
+/// `mpm-shadow`,
+/// because the machine-wide `mpm` is the real mpm and refuses `-g`.
+#[test]
+fn a_global_launchers_missing_program_advice_names_mpm_shadow_because_the_machine_wide_mpm_is_the_real_one() {
+    let moved = MovedArchive::in_scope(ScopeKind::Global, "0.1.4", "0.1.4", "0.1.5");
+    fs::remove_file(moved.program_of("0.1.5")).expect("remove the program");
+    let launched = run(&moved.launcher, &[], &[]);
+    assert_eq!(launched.status.code(), Some(NOT_FOUND_EXIT_CODE));
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    assert!(stderr.contains("`mpm-shadow install -g`"), "the machine-global links come back from the shadow itself: {stderr}");
+    assert!(!stderr.contains("`mpm install -g`"), "`mpm` is the real mpm outside a worktree: {stderr}");
+    let _ = &moved.directory;
+}
+
 #[test]
 fn a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads() {
     let moved = MovedArchive::new("0.1.5", "0.1.4", "0.1.5");
@@ -501,7 +516,7 @@ fn a_global_launcher_whose_recorded_version_was_deleted_names_the_path_it_starts
     assert_eq!(launched.stdout, direct.stdout);
     let warning = format!(
         "mpm-shadow: warning: demo-release is locked at 0.1.4 in this machine's global lock, {}, but 0.1.5 runs, because older repository \
-         tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g demo-release`; starting ",
+         tools are never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g demo-release`; starting ",
         moved.lock_file.display()
     );
     let started = moved.program_of("0.1.5");

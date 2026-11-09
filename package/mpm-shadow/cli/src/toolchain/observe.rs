@@ -25,17 +25,16 @@ use serde_json::Value;
 use std::cmp::Ordering;
 /// Imports `fs` from `std`.
 use std::fs;
-/// Imports `PathBuf` from `std::path`.
-use std::path::PathBuf;
-
+/// Imports what this module uses from `std::path`.
+use std::path::{Path, PathBuf};
 /// Imports `winning_version` from `super::across_roots`.
 use super::across_roots::winning_version;
 /// Imports what this module uses from `super::cargo_installs`.
 use super::cargo_installs::{is_repository_published, observed_cargo_version};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
-/// Imports what this module uses from `super::layout`.
-use super::layout::{applies_to_family, tool_directory, tool_install_dir};
+/// Imports `is_executable` and what else this module uses from `super::layout`.
+use super::layout::{applies_to_family, go_bin_dir_of, is_executable, tool_directory, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{Declaration, LockedTool, Origin, Route};
 /// Imports what this module uses from `super::published_archive`.
@@ -169,16 +168,12 @@ fn observe_android_sdk(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return None;
 }
 
-/// The tool's own install directory,
-/// for routes that leave no record elsewhere (archive,
-/// cargo-git,
-/// go-install):
-/// the locked version when its directory exists,
-/// otherwise the first other version directory,
-/// otherwise `None`.
-fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let tool_root: PathBuf = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id).ok()?;
-    let entries = fs::read_dir(&tool_root).ok()?;
+/// The names of the version directories directly inside one tool's directory,
+/// sorted (a missing or unreadable directory has none).
+fn version_directory_names(tool_root: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(tool_root) else {
+        return Vec::new();
+    };
     let mut names: Vec<String> = Vec::new();
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
@@ -187,10 +182,92 @@ fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String>
         }
     }
     names.sort();
+    return names;
+}
+
+/// What:
+/// The tool's own install directory,
+/// for routes that leave no record elsewhere (archive,
+/// cargo-git,
+/// rustup-components):
+/// the locked version when its directory exists,
+/// otherwise the first other version directory,
+/// otherwise `None`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function observeVersionDirectory(ctx: Context, tool: LockedTool): string | undefined
+/// ```
+fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String> {
+    let tool_root: PathBuf = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id).ok()?;
+    let names: Vec<String> = version_directory_names(&tool_root);
     if names.contains(&tool.version) {
         return Some(tool.version.clone());
     }
     return names.into_iter().next();
+}
+
+/// Whether the `bin` directory of one Go-installed version holds what `go install` writes there:
+/// every executable the declaration names,
+/// or any executable file when it names none.
+fn go_bins_present(bin_dir: &Path, tool: &LockedTool) -> bool {
+    if tool.declaration.bins.is_empty() {
+        let Ok(entries) = fs::read_dir(bin_dir) else {
+            return false;
+        };
+        for entry in entries.flatten() {
+            if is_executable(&entry.path()) {
+                return true;
+            }
+        }
+        return false;
+    }
+    for name in &tool.declaration.bins {
+        if !is_executable(&bin_dir.join(name)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+/// The version a Go-installed tool is at,
+/// for the go-install route:
+/// the locked version when the `bin` directory this route gives `go install` as `GOBIN` holds the executables it was
+/// to write,
+/// otherwise the first other version whose `bin` directory does,
+/// otherwise `None`.
+/// Why:
+/// A Go install writes no record anywhere:
+/// its executables are the whole record,
+/// in the same way cargo's record is the whole record of a cargo install.
+/// The version directory is not a record at all,
+/// because the installer creates it before `go` runs,
+/// so reading it would report a tool with no binaries as installed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function observeGoInstall(ctx: Context, tool: LockedTool): string | undefined
+/// ```
+fn observe_go_install(ctx: &Context, tool: &LockedTool) -> Option<String> {
+    let mut candidates: Vec<String> = vec![tool.version.clone()];
+    let Ok(tool_root) = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id) else {
+        return None;
+    };
+    for name in version_directory_names(&tool_root) {
+        if name != tool.version {
+            candidates.push(name);
+        }
+    }
+    for name in candidates {
+        let Ok(bin_dir) = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &name) else {
+            continue;
+        };
+        if go_bins_present(&bin_dir, tool) {
+            return Some(name);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -211,13 +288,14 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
         Route::CargoBinstall => return observe_cargo_binstall(ctx, tool),
         Route::MpmPnpm => return observe_mpm_pnpm(ctx, tool),
         Route::MpmUvx => return observe_mpm_uvx(ctx, tool),
+        Route::GoInstall => return observe_go_install(ctx, tool),
         Route::RustupToolchain => return observe_rustup_toolchain(ctx, tool),
         Route::AndroidSdk => return observe_android_sdk(ctx, tool),
         // A release archive of this repository: the newest finished version, as for a `monochromatic-` crate.
         Route::Archive if is_published_archive(tool) => {
             return winning_version(ctx.scope, tool);
         }
-        Route::Archive | Route::CargoGit | Route::GoInstall | Route::RustupComponents => {
+        Route::Archive | Route::CargoGit | Route::RustupComponents => {
             return observe_version_directory(ctx, tool);
         }
     }

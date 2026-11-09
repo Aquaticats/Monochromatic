@@ -10,7 +10,8 @@
 //!  so the real index's entries and the object store change only at landing.
 //!  The real index's stat data is refreshed earlier,
 //!  as native `git commit` refreshes it,
-//!  so a stale index costs one refresh and not one on every commit.
+//!  so a stale index costs one refresh and not one on every commit,
+//!  and only an index that no longer describes the worktree is refreshed at all.
 //!  A copy keeps the real index's timestamps,
 //! because Git re-reads a stat entry
 //!  whose time is not older than the index file (`index-file-timestamps.ts`,
@@ -39,8 +40,12 @@ use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
 /// The note of how each build was made,
 /// which the commit's timing record takes.
 use crate::commit_index_builds::{IndexBuildKind, note_index_build};
-/// The stat-data refresh that keeps the scratch commit inside its ceiling.
-use crate::commit_index_stat_refresh::refresh_stat_data;
+/// The stat-data refresh that keeps the scratch commit inside its ceiling,
+/// and when it is asked for.
+use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data, refresh_stat_data_when_stale};
+/// Which paths this commit stages from the worktree,
+/// so their recorded stat data cannot cost the scratch commit a read.
+use crate::commit_index_stat_staleness::WorktreeStaging;
 /// The selection a commit names,
 /// and the `git add` arguments it stages with.
 use crate::commit_index_selection::selection_arguments;
@@ -141,10 +146,37 @@ pub fn initialize_commit_index(
     }
     // The real index's stat data is refreshed before anything is copied from it, so the copies carry it and the scratch
     // commit does not read and hash the whole work tree inside its three-second step (`commit_index_stat_refresh.rs`);
-    // the real index keeps the refresh, so the commit after this one does not pay it again.
-    let refreshed: bool = refresh_stat_data(context, cwd, real_index);
+    // the real index keeps the refresh, so the commit after this one does not pay it again. The refresh asks for Git and
+    // its lock only when the index no longer describes the worktree, so an up-to-date index costs neither
+    // (`commit_index_stat_staleness.rs`).
+    // What:
+    //  The paths this commit writes into the private index from the worktree,
+    //  whose recorded stat data the scratch commit never reads.
+    // Why:
+    //  An explicit-path commit stages its named paths with `git add --all`,
+    //  and an index commit takes what the index holds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const staging = selection.mode === 'explicit-path' ? { named: selection.pathspecs } : { none: true };
+    // ```
+    let staging: WorktreeStaging<'_> = match selection.mode {
+        TransactionMode::ExplicitPath => WorktreeStaging::Named(selection.pathspecs),
+        TransactionMode::Index => WorktreeStaging::None,
+    };
+    // What:
+    //  The answer of the refresh step,
+    //  which says whether the private index needs it instead.
+    // Why:
+    //  Only a refresh that was asked for and not kept leaves the private index needing it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refresh = statRefreshIfStale({ context, cwd, index: realIndex, staging });
+    // ```
+    let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, staging);
     stage_into_the_private_index(context, cwd, real_index, real_index_present, indexes, selection)?;
-    if !refreshed {
+    if refresh == StatRefresh::NotKept {
         // The real index could not be written: another program held `index.lock`, or the step was ended at its ceiling.
         // The private index is refreshed here instead, so the scratch commit still finds the work tree's stat data and is
         // not ended at its own ceiling, where a stop would fail the commit.
@@ -264,15 +296,26 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     note_index_build(IndexBuildKind::Retry, seeded);
     // The real index's stat data is refreshed before the copy below, for the reason the first preparation gives
     // (`initialize_commit_index`): a rebuild runs when other commits land, so it is the one that can least afford to read
-    // the whole work tree again.
-    let refreshed: bool = real_index.exists() && refresh_stat_data(context, cwd, real_index);
+    // the whole work tree again. A rebuild stages nothing from the worktree, so every entry the copied index holds is
+    // one whose recorded stat data the scratch commit would distrust.
+    // What:
+    //  The answer of the refresh step for a rebuild,
+    //  which stages no path from the worktree.
+    // Why:
+    //  Only a refresh that was asked for and not kept leaves the private index needing one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refresh = statRefreshIfStale({ context, cwd, index: realIndex, staging: { none: true } });
+    // ```
+    let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, WorktreeStaging::None);
     if seeded {
         copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
         arguments.push(String::from("--reset"));
     }
     arguments.push(tree.to_string());
     private_git(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), &arguments)?;
-    if !refreshed {
+    if refresh == StatRefresh::NotKept {
         // The real index could not be written, or holds no stat data to keep: the private index is refreshed so the scratch
         // commit does not read the whole work tree inside its own ceiling.
         refresh_stat_data(context, cwd, indexes.commit_index.as_path());

@@ -130,7 +130,8 @@ This is the same shape as the blocked exit's vacuous check,
 and it is here for
 what it costs rather than for what it catches.
 
-`winnerChangedText`'s wiring is still unpinned for the reason recorded above.
+`winnerChangedText`'s wiring is still unpinned,
+for the reason the `winnerChangedText` reading gives.
 
 ### Two measurements taken while fixing, both zero quota
 

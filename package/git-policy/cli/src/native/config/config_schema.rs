@@ -222,7 +222,8 @@ pub struct HooksConfig {
 /// Why:
 ///   `indexLock.unprovenOwnerTimeoutMs` was how long the wrapper backed off for an `index.lock` whose owner is dead or
 ///  unproven.
-/// The commit service waits for a foreign `index.lock` for as long as the lock stays there,
+/// The commit service waits for a foreign `index.lock` until `LANDING_LOCK_CEILING` passes (one minute,
+///  `wait_ceilings.rs`),
 /// whether its owner is
 ///  proven to hold it or not,
 /// and reads no such value,

@@ -1,5 +1,15 @@
 # Issue 610 fix in progress: module-test failure values as a difference
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/test-diagnostic/src/value-representation.ts` is now
+> `package/test-harness/core-diagnostic/src/value-representation.ts`
+> (2026-10-29 `592d78b143`).
+> `//package/module/test-diagnostic:lint:types` is now
+> `//package/test-harness/core-diagnostic:lint:types` (2026-10-29 `592d78b143`).
+> `package/module/test-diagnostic/src/format-error.ts` is now
+> `package/test-harness/core-diagnostic/src/format-error.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

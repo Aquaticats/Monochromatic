@@ -1,5 +1,10 @@
 # cli-git native policy engine
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:lint:rust` is retired (2026-10-06 `0b49ae109e`) and
+> `mise run //:lint:monochromatic-lint -- package/git-policy/cli` lints that Rust today.
+
 Note 2026-11-08:
 these tasks this document names no longer exist:
 `//package/git-policy/cli:native:lint:rust` went on 2026-10-06 (`0b49ae109e`),

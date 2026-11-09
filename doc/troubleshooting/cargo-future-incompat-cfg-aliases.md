@@ -341,6 +341,11 @@ The repository applies that update in these standalone lockfiles:
 - `package/music-player/desktop-app/Cargo.lock`;
 - `package/music-player/truepeak-core/Cargo.lock`.
 
+`package/linter/rust/Cargo.lock` was removed on 2026-10-06 in `5bc05682ec` (chore(*):
+delete the
+five linter packages monochromatic-lint replaces);
+no file in the working tree carries it now.
+
 For the terminal's incompatible 0.1 family,
 pin `portable-pty` to WezTerm revision
 `f78f72f2f18bf459561e3681f016365273d3e281`.

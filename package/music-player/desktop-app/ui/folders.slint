@@ -43,6 +43,9 @@ export component FolderPickerPane inherits Rectangle {
     in property <string> current-cell;
     // Invoked with the folder name when a name is tapped.
     callback select-folder(string);
+    // Invoked with the folder name and the kind of pointer event (`down`, `up`, `move` or `cancel`) that the name's
+    // target received, so the app's log can say a press reached the picker and which name it landed on.
+    callback name-pointer-event(string, string);
     // Invoked with the cell key when a rail cell is tapped, after the names scroll to that cell.
     callback select-cell(string);
     // Name of the folder the keyboard ring is on; empty for none. The Rust side moves it with the list keys.
@@ -82,6 +85,20 @@ export component FolderPickerPane inherits Rectangle {
     function request-scroll(key: string) {
         root.scroll-key = key;
         root.scroll-tick += 1;
+    }
+
+    // Names a pointer event kind for the log line above: the Slint enum has no text of its own.
+    pure function pointer-kind-name(kind: PointerEventKind) -> string {
+        if kind == PointerEventKind.down {
+            return "down";
+        }
+        if kind == PointerEventKind.up {
+            return "up";
+        }
+        if kind == PointerEventKind.move {
+            return "move";
+        }
+        return "cancel";
     }
 
     // Takes keyboard focus when asked, and when the pane is created for a request (the folded layout creates it when the
@@ -295,6 +312,7 @@ export component FolderPickerPane inherits Rectangle {
                             // The scrollbars of the other lists follow the kind of input the names saw last (D22).
                             pointer-event(event) => {
                                 LastInput.touch = event.touch-finger-id != 0;
+                                root.name-pointer-event(row.name, root.pointer-kind-name(event.kind));
                             }
                             clicked => {
                                 Focus.ring-visible = false;

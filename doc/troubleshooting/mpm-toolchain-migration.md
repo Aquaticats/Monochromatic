@@ -51,6 +51,23 @@ Workaround:
  an existing configuration file is left alone,
  so an empty `$HOME/.bin/config.json` still wins and a human must remove it.
 
+`package/file-enforcer/core/src/toolchain` is not in the working tree;
+the newest commit touching
+it is `5f5debe2f0` (chore(toolchain):
+move the branch pins up to the newest releases,
+monochromatic-lint 0.4.0 to 0.5.0 among them) on 2026-11-01.
+`package/file-enforcer/core/src/toolchain/providers.ts` was removed on 2026-10-31 in `e7b5130459`
+(feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own
+generator);
+no file in the working tree carries it now.
+`package/file-enforcer/core/src/toolchain/plan.artifacts.ts` was removed on 2026-10-29 in
+`71ff15994f` (refactor(file-enforcer-core):
+name the toolchain plan data modules *.data.ts and
+render the artifacts lint-clean);
+no file in the working tree carries it now.
+
 ### `bin install` prompts for an asset on multi-file archives
 
 Surface:

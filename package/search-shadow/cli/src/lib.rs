@@ -56,6 +56,12 @@ pub mod policy_find;
 /// lowering the process's disk priority.
 pub mod priority;
 
+/// What a tool's standard input is attached to:
+/// nothing,
+/// a file,
+/// a pipe or a socket.
+pub mod stdin_kind;
+
 /// Where a tree walk would start:
 /// a repository root,
 /// the home directory,

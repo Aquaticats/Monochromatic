@@ -1,5 +1,27 @@
 # HANDOVER.no-regex
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/deps-cube/src/scripts/filter.ts` is now
+> `package/dependency-catalog/cli-cube/src/script/filter.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/watch-restart/src/cli-helpers.ts` is now
+> `package/watch-restart/cli/src/cli-helpers.ts` (2026-10-29 `592d78b143`).
+> `package/module/test-expect/src/expect.unit.test.ts` is now
+> `package/test-harness/core-expect/src/expect.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/fuzz/Cargo.toml` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.toml` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/fuzz/dictionaries/forbidden-strings.dict` is now
+> `package/forbidden-strings/cli.fuzz/dictionary/forbidden-strings.dict`
+> (2026-10-29 `113633b259`).
+> `package/pi-plugin/auto-mode/src/constants.ts` is deleted (2026-10-19 `7ac15b19b4`) and no
+> path of that name exists today.
+> `package/pi-plugin/auto-mode/src/budget-model-version.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and the package was rebuilt from scratch then.
+> `package/module/test-expect/src/expect-matchers.ts` is now
+> `package/test-harness/core-expect/src/expect-matchers.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -76,8 +98,9 @@ Three packages are paused at the user's direction;
 - `package/webapp-forge/server` -- 13 sites
 
 To resume any of those,
- apply the patterns documented below (the
+ apply the patterns in the
 "Patterns established this session for common refactors" section
+(it
 covers every refactor shape used in this sweep) and remove the
 paused-status block from the README.
 
@@ -85,7 +108,7 @@ paused-status block from the README.
 
 All 114 errors from `/tmp/pi-bash-25cddcf1ce4714e4.log` plus the
 follow-on packages surfaced by repeated `mise //:lint` runs are
-addressed (modulo the 3 paused packages above).
+addressed (modulo the three paused packages).
  Tests pass for every
 package that has a `test:unit` task and was directly touched.
 

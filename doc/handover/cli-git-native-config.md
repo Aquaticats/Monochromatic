@@ -1,5 +1,15 @@
 # cli-git native repository configuration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:interop` is retired (2026-11-01 `cd67a90f6c`) and no
+> interop task exists today.
+> `//package/git-policy/cli:native:config:differential` is retired (2026-10-13 `a2b56c548c`)
+> and no task of that name exists today.
+> `package/module` is gone (2026-10-29 `592d78b143`);
+> its packages sit at `package/<name>/<variant>` such as `package/kv-store/core` and
+> `package/llm/llm-type` today.
+
 Note 2026-11-08:
 these tasks this document names no longer exist:
 `//package/git-policy/cli:native:interop` went on 2026-11-01 (`cd67a90f6c`);

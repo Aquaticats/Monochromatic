@@ -2,7 +2,7 @@
   "src/basic-escape.ts": 155,
   "src/build-comments.ts": 191,
   "src/build-document.ts": 315,
-  "src/build-input.ts": 128,
+  "src/build-input.ts": 135,
   "src/build-value.ts": 104,
   "src/comments.ts": 118,
   "src/delete-value.ts": 101,
@@ -42,9 +42,10 @@
   "src/toml-set-header-comment.ts": 39,
   "src/toml-set.ts": 167,
   "src/toml-stringify.ts": 22,
-  "src/types.ts": 145,
-  "src/value-encoders.ts": 87,
+  "src/types.ts": 151,
+  "src/value-encoders.ts": 310,
   "src/value-materialize.ts": 301,
-  "src/values.ts": 304,
+  "src/values.ts": 305,
+  "src/wrapped-scalar-grammar.ts": 451,
   "src/wrappers.ts": 85
 }

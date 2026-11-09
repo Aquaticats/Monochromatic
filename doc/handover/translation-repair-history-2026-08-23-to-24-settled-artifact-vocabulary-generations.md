@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-23 to 2026-08-24: the settled artifact's index vocabulary across generations 3 and 4
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src` is now split across the `src/` folders of the 36
+> packages under `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 The rename of the shipped and withdrawn index arrays and the critics record as generation 3,
 the rename of the stamped index as generation 4 and the name collision it exposed,
 how both generations are read and verified at the boundary,
@@ -143,7 +148,7 @@ and each was corrected by measuring before acting.
 The keys hash positional arrays,
 and `repair-slice-key.ts` records
 that the slice index was removed from the key at version 26.
-The earlier note in the `#94` section is corrected above.
+The `#94` note that said it reaches cache keys is the one this measurement corrects.
 
 ### The name was already taken, by a different concept
 

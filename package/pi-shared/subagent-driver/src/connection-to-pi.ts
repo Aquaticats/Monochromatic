@@ -44,6 +44,11 @@ export type ConnectionListeners = {
 export type ConnectionRequest = {
   readonly piArguments: readonly string[];
   readonly workingFolder: string;
+
+  /**
+   Pi's environment, passed as given: this seam starts one process and applies no policy. `supervisePiRun` is where the
+   credential rule runs, so a caller of this function that builds its own environment keeps whatever it passes.
+   */
   readonly environment: NodeJS.ProcessEnv;
   readonly standardErrorFile: string;
   readonly listeners: ConnectionListeners;
@@ -122,7 +127,7 @@ export type ConnectionToPi = {
 
  @param workingFolder - folder Pi starts in
 
- @param environment - Pi's environment
+ @param environment - Pi's environment, passed as given; the credential rule lives in `supervisePiRun`
 
  @param standardErrorFile - file for Pi's standard error
 

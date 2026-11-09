@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-15 to 2026-08-19: the window trial's pre-flight and plumbing, its blockers, the comments filed on the wrong tracker and the state the next session inherits
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint` is now `//package/translation-repair/*:lint`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+
 The pre-flight and plumbing for running production selection with a wider window,
 the review finding that the two-arm design does not measure the window,
 the missing verdict at document scale,
@@ -425,7 +433,8 @@ these instructions live HERE,
 in this section,
 and nowhere else.
 They are not on any GitHub issue:
-the numbering incident recorded below means
+the task-tracker numbering was reused,
+so
 GitHub `#108` is a dependency audit,
 and task-tracker item 108 carries a pointer
 back to this section rather than a copy.
@@ -511,7 +520,7 @@ and the two findings those
 comments carried that this document did not already hold,
 the `PROBE_ENTRY`
 step and the document-scale gap,
-are recorded above.
+are recorded in this handover.
 
 ONLY `#431` AND `#432` ARE REAL GITHUB ISSUES for this work,
 because they were
@@ -539,8 +548,7 @@ not carried forward from earlier in the night:
 -   `mise run //package/module/translation-repair:lint` (moved on 2026-10-18 to
     `//package/translation-repair/<package>:lint`) reports 0 warnings and
     0 errors.
--   Working tree is clean except four generated artifacts,
-    described below.
+-   Working tree is clean except four generated artifacts.
 -   `HEAD` equals `origin/translation-repair-rebased`;
     auto-push is doing its
     job and nothing is stranded locally.

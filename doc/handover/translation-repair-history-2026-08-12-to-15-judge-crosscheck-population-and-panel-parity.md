@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-12 to 2026-08-15: the judge crosscheck, its population and the panel-parity ceiling
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:score-crosscheck` is now
+> `//package/translation-repair/probe:score-crosscheck` (2026-10-18 `4bd1aea8d5`).
+
 Enumerating the claims the judge crosscheck could use,
 the join and attribution details the measurement settled,
 the bound on how many verdicts a single removed vote can flip,

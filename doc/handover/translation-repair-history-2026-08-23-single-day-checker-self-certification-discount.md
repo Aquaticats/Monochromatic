@@ -243,13 +243,13 @@ e796d2956.
 
 ## Task 187, corrections found while covering the wire
 
-Three corrections to the section above.
+Three corrections to "Also fixed on the way".
 None of them change what shipped;
 two change what a later session should believe about it.
 
 ### "Reachable path" was true of the code and false of production
 
-The heading above says the discount missed the author "on a reachable path".
+The "Reachable path" heading says the discount missed the author "on a reachable path".
 Reachable in code,
 yes.
 Reachable in a corpus pass,
@@ -319,7 +319,7 @@ zero import errors on the probe.
 
 ### Test files are exempt from max-lines
 
-The section above splits a test file at the 300-line budget.
+A test file was also split at the 300-line budget.
 That split is fine to keep,
 but it was self-imposed:
 `package/config/oxlint/src/overrides.ts:161` turns `eslint/max-lines` off for `**/*.{test,bench}.ts`.
@@ -333,7 +333,7 @@ Commits:
 3922cba3b,
 f3c444458.
 
-### Correction to the section above: the unreachability was already recorded
+### Correction to the "Reachable path" section: the unreachability was already recorded
 
 `doc/decision/translation-repair-question-answers.md` lines 130 to 140 already say it,
 and say it as a deliberate state rather than a defect:

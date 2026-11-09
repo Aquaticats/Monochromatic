@@ -67,6 +67,14 @@ The wrapper runs a post-commit lifecycle after native Git succeeds.
 as an immutable candidate,
 but labeled every candidate `unchanged`.
 
+The paths this record names under `package/git-policy/cli/src/policy-engine/` were removed on
+2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins
+and trust workflow);
+no file in the working tree carries them now.
+
 `package/git-policy/cli/src/policy-engine/final-newline-policy.ts` then read every regular candidate.
 Each lazy byte read invoked `git cat-file` separately.
 The landed tree therefore turned one changed-file commit into repository-wide subprocess fan-out.

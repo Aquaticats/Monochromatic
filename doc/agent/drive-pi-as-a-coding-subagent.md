@@ -555,3 +555,39 @@ Pi ran `git push origin main` after the commit although the prompt said the comm
 and the push found nothing to send.
 It also found a leftover the prompt had not named:
 a sentence in `## The unassisted run` that pointed at the removed section.
+
+## Many agents at once, recorded 2026-11-08T17:18:47-05:00
+
+Run with up to sixteen Pi agents in their own worktrees through the driver.
+
+### Prove a merge landed
+
+A coordinator reported two branches as merged when they were not.
+`git merge ... | tail` exited 0 because `tail` was the last command of the pipe,
+which hid `would be overwritten by merge`.
+The check that holds is the count of the branch's commits main lacks,
+which must be zero after the merge.
+
+### An agent in a worktree can still work in the main checkout
+
+One agent given a worktree ran its builds and edits in the main checkout,
+so those builds did not test its worktree's code,
+and the uncommitted files it left there blocked merges of other branches.
+Its feed proved it.
+The prompt now names the worktree and tells the agent to stay inside it,
+as `.agents/skills/pi-as-subagent/SKILL.md` says.
+Reading the feed needs a regular expression,
+because the feed truncates tool arguments and so a line is not always valid JSON.
+
+### The unit count can exceed the agents
+
+An agent may start capped helper units of its own.
+One documentation agent started some inside its worktree,
+and they counted towards `systemctl --user list-units 'pi-*'`,
+so the count of active units is not the count of agents.
+
+### An agent can spend its time limit on one command
+
+One agent lost two hours in `du -sh` over a build directory.
+Another ended at its wall-clock limit with its commits pushed and no report.
+Resuming its session with a short deadline and the order to report recovered the report.

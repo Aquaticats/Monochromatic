@@ -16,6 +16,7 @@ import {
   runtimeDependencyCommand,
   userCreationCommand,
 } from './distro.ts';
+import { pnpmStoreMountArguments, } from './pnpm-store-mount.ts';
 import {
   runtimeExecCommand,
   runtimeInstallCommand,
@@ -334,7 +335,12 @@ export function resolveImage({
  2048 processes is what `podman run --help` prints as the default, so the cell's effective cap does not change and
  becomes explicit; cells install packages and start runtimes, which start many threads, and threads count against the
  limit.
- It is adopted, not measured.
+ No bounded run of this workload has been measured.
+ The one matrix cell reachable from a task today, `env-local-json`'s `test:container`, could not start its workload on
+ 2026-11-08T19:18:31-05:00: the container's node could not resolve a dependency because this checkout's `node_modules`
+ links into `${HOME}/.local/share/pnpm/store`, which the cell's checkout mount did not contain. The cell now mounts that
+ store read-only at the path the links name, and the workload ran on 2026-11-09T01:32:39Z in both combinations
+ (`doc/handover/container-limits-everywhere.md`, section The shared pnpm store inside a container).
  */
 export const CELL_LIMITS: ContainerLimits = {
   memory: '2g',
@@ -345,13 +351,18 @@ export const CELL_LIMITS: ContainerLimits = {
 /**
  Arguments after `podman` that run one matrix cell.
 
+ The cell mounts the checkout at `/workspace` and the shared pnpm store at the absolute path this checkout's
+ `node_modules` links name, read-only, so an installed package resolves inside the cell
+ ({@link pnpmStoreMountArguments}). Labels stay off the cell: the store is a directory every worktree shares, so a
+ `:Z` relabel would rewrite it, and an unlabelled read-only store mount is denied under an enforcing SELinux.
+
  @param image - fully tagged image reference
 
  @param monorepoRoot - absolute path to the monorepo root on the host
 
  @param command - single shell string passed to `sh -c`
 
- @returns `run` with the cell's limits and the lowest disk weight ahead of the volume and the image
+ @returns `run` with the cell's limits and the lowest disk weight ahead of the mounts and the image
 
  @example
  ```ts
@@ -373,8 +384,11 @@ export function containerRunArguments({
     // AGENTS.md RXI bounds for host-exhausting runs, and rule HXR's lowest disk weight: a container sits in its own
     // cgroup scope and ignores the launcher's IOWeight.
     ...containerLimitArguments(CELL_LIMITS,),
+    '--security-opt',
+    'label=disable',
     '-v',
-    `${monorepoRoot}:/workspace:Z`,
+    `${monorepoRoot}:/workspace`,
+    ...pnpmStoreMountArguments(),
     image,
     'sh',
     '-c',

@@ -1,208 +1,34 @@
 /**
- Programs that run another program given after their own options.
+ Programs that run another program named in their arguments.
  
  A guard that reads only the command name misses a mutation hidden behind
- `sudo`, `env`, `timeout`, or a shell script string,
- so each wrapper contributes the option words that belong to it.
+ one of these,
+ so the table says which words of a wrapper belong to the wrapper
+ and which ones hand a program to it.
+ 
+ The entries live in two files, one per shape of wrapper:
+ `program-wrappers-that-own-only-options.ts` holds the wrappers whose words
+ before the program are their own options,
+ and `program-wrappers-that-own-leading-words.ts` holds the ones that also
+ consume a positional word of their own first.
  
  @module
  */
 
-//region Types
-
-/**
- Program that runs another program given after its own options.
- */
-type CommandWrapper = {
-  /**
-   Executable names that introduce the wrapper.
-   */
-  readonly names: ReadonlySet<string>;
-  /**
-   Options whose value is the next word and belongs to the wrapper.
-   */
-  readonly optionsWithValue: ReadonlySet<string>;
-  /**
-   Options whose value is a command line the wrapper splits and runs.
-   */
-  readonly payloadOptions: ReadonlySet<string>;
-  /**
-   Leading non-option words consumed before the wrapped program,
-   as `timeout` does with its duration.
-   */
-  readonly leadingWordsToSkip: number;
-};
-
-//endregion Types
+import type { CommandWrapper, } from './command-wrapper-record.ts';
+import { PROGRAM_WRAPPERS_THAT_OWN_LEADING_WORDS, } from './program-wrappers-that-own-leading-words.ts';
+import { PROGRAM_WRAPPERS_THAT_OWN_ONLY_OPTIONS, } from './program-wrappers-that-own-only-options.ts';
 
 //region Wrapper table
-
-/**
- Empty option set reused by wrappers that take none.
- */
-const NO_OPTIONS: ReadonlySet<string> = new Set();
 
 /**
  Wrappers that agent command lines use to launch another program.
  */
 const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
-  {
-    names: new Set(['env',],),
-    optionsWithValue: new Set([
-      '-C',
-      '-S',
-      '-u',
-      '--chdir',
-      '--split-string',
-      '--unset',
-    ],),
-    payloadOptions: new Set([
-      '-S',
-      '--split-string',
-    ],),
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set([
-      'doas',
-      'sudo',
-    ],),
-    optionsWithValue: new Set([
-      '-C',
-      '-D',
-      '-R',
-      '-T',
-      '-U',
-      '-g',
-      '-h',
-      '-p',
-      '-r',
-      '-t',
-      '-u',
-      '--chdir',
-      '--chroot',
-      '--close-from',
-      '--command-timeout',
-      '--group',
-      '--host',
-      '--other-user',
-      '--prompt',
-      '--role',
-      '--type',
-      '--user',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set([
-      'builtin',
-      'command',
-      'nohup',
-      'setsid',
-    ],),
-    optionsWithValue: NO_OPTIONS,
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set(['exec',],),
-    optionsWithValue: new Set([
-      '-a',
-      '--argv0',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set(['time',],),
-    optionsWithValue: new Set([
-      '-f',
-      '-o',
-      '--format',
-      '--output',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set(['nice',],),
-    optionsWithValue: new Set([
-      '-n',
-      '--adjustment',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set(['ionice',],),
-    optionsWithValue: new Set([
-      '-c',
-      '-n',
-      '-p',
-      '-P',
-      '-u',
-      '--class',
-      '--classdata',
-      '--pgid',
-      '--pid',
-      '--uid',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set(['stdbuf',],),
-    optionsWithValue: new Set([
-      '-e',
-      '-i',
-      '-o',
-      '--error',
-      '--input',
-      '--output',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
-  {
-    names: new Set(['timeout',],),
-    optionsWithValue: new Set([
-      '-k',
-      '-s',
-      '--kill-after',
-      '--signal',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 1,
-  },
-  {
-    names: new Set(['xargs',],),
-    optionsWithValue: new Set([
-      '-E',
-      '-I',
-      '-L',
-      '-P',
-      '-a',
-      '-d',
-      '-n',
-      '-s',
-      '--arg-file',
-      '--delimiter',
-      '--eof',
-      '--max-args',
-      '--max-chars',
-      '--max-lines',
-      '--max-procs',
-      '--process-slot-var',
-      '--replace',
-    ],),
-    payloadOptions: NO_OPTIONS,
-    leadingWordsToSkip: 0,
-  },
+  ...PROGRAM_WRAPPERS_THAT_OWN_ONLY_OPTIONS,
+  ...PROGRAM_WRAPPERS_THAT_OWN_LEADING_WORDS,
 ];
 
 //endregion Wrapper table
-
-export type { CommandWrapper, };
 
 export { COMMAND_WRAPPERS, };

@@ -456,7 +456,8 @@ list functions) and `commit_args.rs` (three mutants:
 and `==` to `!=`
 and `&&` to `||` in `private_explicit_commit_args`).
 The 7 misses were all in `shadow_links.rs` and `shadow_create.rs`,
-and tests were added for each (below),
+and tests were added for each,
+named under the second run's `437837d82b` list,
 except the equivalent mutant described next.
 
 Justified equivalent mutant:
@@ -476,7 +477,7 @@ timed out 0.
 The 6 misses were `remove_entry` (2 mutants),
 the `NotFound` guard in `regular_file_exists`,
 the `NotFound` guard in `link_shadow_entries`,
-`set_private_directory` (the same Windows equivalent as above),
+`set_private_directory` (the same Windows equivalent the justified-equivalent note describes),
 and `set_private_file` in `shadow_create.rs`.
 Tests were then added at `437837d82b` for every non-equivalent one:
 `existing_shadow_entries_are_replaced_by_links`,

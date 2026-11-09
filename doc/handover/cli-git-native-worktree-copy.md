@@ -1,5 +1,12 @@
 # Native worktree-copy lane (slice 11)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/native-interop` is deleted (2026-11-01 `cd67a90f6c`) and the
+> old-format interop harness has no replacement.
+> `package/git-policy/cli/bin/native-planted-controls.mjs` is now
+> `package/git-policy/cli/bin/native-planted-controls.ts` (2026-10-29 `418c4dcc54`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

@@ -23,6 +23,14 @@ one `index`,
 and none of the `FORBIDDEN_PATCH_PREFIXES`.
 Retrying reproduces it exactly.
 
+`package/git-policy/cli/src/policy-engine/commit-transaction-patch.ts` was removed on 2026-10-13 in
+`642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust
+workflow);
+no file in the working tree carries it now.
+
 ## Cause
 
 The patch under validation is not the one the working tree holds.

@@ -1,5 +1,14 @@
 # MiMo lint handoff
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/pi-plugin/auto-mode:test:native:phases` is retired (2026-10-19 `ff55ced353`)
+> and no native test task exists today.
+> `//package/pi-plugin/auto-mode:test:native:decision-fallback` is retired
+> (2026-10-19 `ff55ced353`) and no native test task exists today.
+> `//package/pi-plugin/auto-mode:test:native:execution` is retired (2026-10-19 `ff55ced353`)
+> and no native test task exists today.
+
 ## Objective and scope
 
 MiMo's task is to clear the complete maintained lint scope for `package/pi-plugin/auto-mode`

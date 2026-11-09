@@ -63,9 +63,14 @@ run = """
 execFileSync('mise', ['run', 'prepare:playwright'], { cwd: monorepoRoot, stdio: 'inherit' })
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// The shared pnpm store, mounted read-only at the path this checkout's node_modules links name, so `npx playwright`
+// resolves the workspace's own Playwright instead of nothing (package/test-harness/core-matrix/src/pnpm-store-mount.ts).
+const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../core-matrix/src/pnpm-store-mount.ts')).href)
 // 2048 processes is what podman run --help prints as the default, so today's effective cap becomes explicit (browsers start many
-// threads, and threads count). Adopted, not measured.
-execFileSync('podman', ['run', '--rm', ...containerLimitArguments({ memory: '2g', cpus: 2, pidsLimit: 2048 }), '--security-opt', 'label=disable', '--volume', `${monorepoRoot}:/work`, '--workdir', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', 'playwright.browser.config.ts', 'package/test-harness/core/src/sinon.browser.test.ts', '--workers=1', ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+// threads, and threads count).
+// Measured 2026-11-09T01:52:37Z: the browsers start and every test runs once the store is mounted; before that mount the
+// run failed before any browser started (doc/handover/container-limits-everywhere.md, section Measured runs on this host).
+execFileSync('podman', ['run', '--rm', ...containerLimitArguments({ memory: '2g', cpus: 2, pidsLimit: 2048 }), '--security-opt', 'label=disable', '--volume', `${monorepoRoot}:/work`, ...pnpmStoreMountArguments(), '--workdir', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', 'playwright.browser.config.ts', 'package/test-harness/core/src/sinon.browser.test.ts', '--workers=1', ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
 """
 
 [tasks.buildAndTest]

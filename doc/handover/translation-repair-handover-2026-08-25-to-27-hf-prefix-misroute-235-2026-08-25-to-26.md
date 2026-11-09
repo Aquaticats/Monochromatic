@@ -1,5 +1,10 @@
 # Translation repair handover snapshots: the hf-prefix misroute that halved the roster, 2026-08-25 to 2026-08-26
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/corpus-run/run-config.ts` is now
+> `package/translation-repair/run/src/corpus-run/run-config.ts` (2026-10-18 `4bd1aea8d5`).
+
 The diagnosis of the defect tracked as 235,
 kept for its evidence:
 five Charm Hyper models sent to Synthetic and failing on every call,

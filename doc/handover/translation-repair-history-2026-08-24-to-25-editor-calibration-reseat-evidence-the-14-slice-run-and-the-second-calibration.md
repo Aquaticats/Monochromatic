@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-24 to 2026-08-25: the editor calibration's reseat evidence, the 14-slice run and the second calibration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:editor-calibrate` is now
+> `//package/translation-repair/bench:editor-calibrate` (2026-10-18 `4bd1aea8d5`).
+
 The provenance note of 2026-08-26 that says this file's sections moved unedited from the working handover,
 what settled artifacts already say about the editor seat,
 the cases where zero rounds does not mean nothing was repaired,
@@ -19,7 +24,7 @@ and the stop condition in the index applies.
 
 ## Aged out of the current handover on 2026-08-26 (register item A-5)
 
-The sections below moved here verbatim from `doc/handover/translation-repair.md` on 2026-08-26,
+The sections of this handover moved here verbatim from `doc/handover/translation-repair.md` on 2026-08-26,
 when that file stood 1586 lines over its cap.
 Nothing in them was edited;
 each is closed work whose

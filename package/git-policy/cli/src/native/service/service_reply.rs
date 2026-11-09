@@ -4,9 +4,8 @@
 //! and the loop that writes
 //!  them to the client's connection together with a heartbeat while nothing else is to say.
 //! Why:
-//!  A client waits for its answer with no clock of its own (`service_client.rs`),
-//! so the only thing that ends its wait is
-//!  silence.
+//!  A client's wait for an answer ends when the service goes silent (`service_client.rs`),
+//! so what the service sends is the only sign that it is alive and working.
 //! The task that read the request has nothing else to do while the request is queued or landing,
 //! so it writes
 //!  the heartbeats,

@@ -1,5 +1,19 @@
 # Handover: file-manager native drag-and-drop
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/file-manager/src/dnd_native.rs` is not a path this repository held;
+> the drag-and-drop code is `package/file-manager/app/src/dnd.rs` today
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/file-manager/src/dnd_wayland.rs` is not a path this repository held;
+> the drag-and-drop code is `package/file-manager/app/src/dnd.rs` today
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/file-manager/src/app.rs` is not a path this repository held;
+> the file manager's Rust entry is `package/file-manager/app/src/main.rs` today
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager:run` is now `//package/file-manager/app:run`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -271,7 +285,9 @@ Committed:
 
 ### RESOLVED: the co-bound wl_data_device inbound path works (automated test)
 
-The automated nested-compositor test (below) settles the open question.
+The automated nested-compositor test settles the open question;
+the "Automated inbound DnD test in the nested compositor (BUILT,
+PASSING)" section records it.
  Driving a
 scripted,
  compositor-originated drag onto the hosted file-manager produces the full

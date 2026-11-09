@@ -1,5 +1,14 @@
 # Catalog specifier policy
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dependency-catalog/core-specifier-policy` is not a path this repository held;
+> the specifier policy is `package/catalog-specifier/core-rust` today
+> (2026-11-01 `d3a44a3f6a`).
+> `package/dependency-catalog/cli-specifier-policy` is not a path this repository held;
+> the specifier policy is `package/catalog-specifier/core-rust` today
+> (2026-11-01 `d3a44a3f6a`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -95,7 +104,7 @@ the user has not confirmed the shared understanding.
   one shared check,
   run by a mise lint task and by the `.pnpmfile.mjs` hook.
 - Package home (the hook-facing validator must stay dependency-free,
-  see the probes below):
+  see the "Pre-implementation probes" section):
   new `package/dependency-catalog/core-specifier-policy` (pure validator and manifest enumeration)
   and a thin `package/dependency-catalog/cli-specifier-policy` for the mise task.
   `core-pnpm` stays parsing-only.
@@ -763,7 +772,6 @@ a `check` subcommand that CI and a mise lint task call without pnpm.
   the crate also needs a git work tree to apply `.gitignore` by default,
   which is unmeasured here.
   Probe `~/temp/agent/compare-enumeration.ts` (its worktree-list step failed,
-  see below,
   so where linked worktrees live relative
   to the repo root is not established;
   a worktree inside the tree and not ignored would add its manifests to the walk).
@@ -985,7 +993,7 @@ a `check` subcommand that CI and a mise lint task call without pnpm.
   the merged rules-list feature and cutover config switch for forbidden-strings and git-policy),
   and a translation session.
   Which one owns git-policy was not known when the messages were sent;
-  see the log below.
+  see the "Progress log" section.
 
 ## Last design round (user answers) and the peers' replies
 
@@ -1356,7 +1364,7 @@ faster walk) and wrapper-first delivery (its marginal value dropped once the com
 
 ## Confirmation and the review-driven decisions (user answers, 2026-11-01)
 
-The user confirmed the shared understanding and the order below,
+The user confirmed the shared understanding and the decision order,
 after the third review was folded in.
 
 - CI bootstrap:
@@ -1370,7 +1378,8 @@ after the third review was folded in.
   runner installs it from the lock into an isolated directory before the check;
   a stale lock turns CI red for infrastructure reasons.
   The review also asked CI to force the policy at `error` or verify it is error-enabled;
-  not yet designed (see not measured below).
+  not yet designed,
+  and not measured.
 - Other manifest formats:
   the policy also rejects tracked `package.json5`,
   `package.yaml` and `package.yml` (the recommended option).
@@ -1609,7 +1618,7 @@ after the third review was folded in.
     yes,
     it does,
     and it fetched this same
-  release archive in 2.8 s in the probe above.
+  release archive in 2.8 s in the `~/temp/agent/cs-ci-bootstrap/Containerfile` probe.
     The 6m47s was only the compile of cargo-binstall itself (`cargo install`,
     the
   music-player precedent),

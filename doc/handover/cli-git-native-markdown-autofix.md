@@ -1,5 +1,13 @@
 # cli-git native Markdown autofix
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint/src/cli.ts` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/git-policy/markdown-lint/src/rewrite-candidates.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.
@@ -51,7 +59,7 @@ The implementation is complete on this branch.
 The final gated commit is recorded in "Final gated commit";
 the gate,
 the scoped mutation campaign and the fuzz smoke run pass on it.
-The earlier records (merge commit `db2857189` and the first campaigns) are kept below for history.
+The earlier records (merge commit `db2857189` and the first campaigns) stay in this handover for history.
 The one surviving mutant that a test should kill (`markdown_exclude.rs:95:39`) is killed by commit `2e10ab6fb2`,
 and the two base64 `|` to `^` survivors are equivalent mutants.
 `main` changed `package/git-policy/cli/Cargo.lock` and `package/git-policy/cli.fuzz/Cargo.lock`
@@ -372,7 +380,7 @@ driver `differential.ts` beside it):
 39 commands,
 25 matched in every field,
 30 differing fields,
-and the same differing commands and reasons as the record above;
+and the same differing commands and reasons as `differential-final.txt`;
 the only text that differs from `differential-final.txt` is the root directory's name.
 The run's differing fields are the intentional differences listed under "Differences",
 so the run shows the comparison can report a difference.
@@ -795,7 +803,7 @@ per lane:
 - Lane b (5 modules):
   the four-lane run failed its unmutated baseline
   (`forwarding::version_is_identical_to_native_git` hit its 5-second bound,
-  the flake recorded above).
+  the `markdown_exclude.rs` rerun's baseline flake).
   Rerun alone,
   the lane tested 95 mutants:
   81 caught,

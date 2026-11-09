@@ -53,6 +53,14 @@ const candidates = await context.git
   .candidates();
 ```
 
+The paths this record names under `package/git-policy/cli/src/policy-engine/` were removed on
+2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins
+and trust workflow);
+no file in the working tree carries them now.
+
 ### Step 1: a new ref scanned the whole history
 
 `pushedCommits` built the commit range with no exclusion when the destination ref was absent

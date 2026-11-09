@@ -1,5 +1,11 @@
 # Translation repair history 2026-08-12 to 2026-08-15: the translate stage and three voting rules the user changed
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/translate-stage.ts` is now
+> `package/translation-repair/translate-stage/src/translate-stage.ts`
+> (2026-10-18 `4bd1aea8d5`).
+
 The stage that renders a slice instead of repairing it,
 the user's rulings that no stage waits for its whole roster
 and that producers may judge with self-votes counted at half weight,

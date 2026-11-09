@@ -320,6 +320,9 @@ Its regression test proves ordinary `toString`,
 conversion-property accessors,
 and proxy property traps are not invoked.
 
+`package/page-weight/cli/src/error-format.ts` is not in the working tree and no commit in this
+repository carries it.
+
 If object coercion is intentional,
 use an explicit complete contract:
 

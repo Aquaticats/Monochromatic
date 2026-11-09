@@ -1,5 +1,25 @@
 # Unified-linter cutover handoff
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/rust-module/jsonc-edit:lint:types` is now
+> `//package/jsonc-edit/core-rust:lint:types` (2026-10-29 `592d78b143`).
+> `//package/rust-module/jsonc-edit:test` is now `//package/jsonc-edit/core-rust:test`
+> (2026-10-29 `592d78b143`).
+> `//package/rust-module/jsonc-edit:package` is now `//package/jsonc-edit/core-rust:package`
+> (2026-10-29 `592d78b143`).
+> `//package/rust-module/jsonc-edit.fuzz:test` is now
+> `//package/jsonc-edit/core-rust.fuzz:test` (2026-10-29 `592d78b143`).
+> `//package/git-policy/cli:build:js:node` is retired (2026-10-13 `642b6d72cb`) and the
+> package builds only Rust through `//package/git-policy/cli:build` today.
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/cli/markdown-lint/src/cli.ts` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/rust-module/rust-linter-core` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/rust-module/rust-linter-pattern` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -254,6 +274,16 @@ The order that avoided a window in which commits failed:
 The user approved the trust step.
 Commits made on the branch used `--no-enforce-markdown/autofix` while the installed wrapper still ran the deleted CLI.
 
+Note 2026-11-08T19:33:30-05:00:
+the October umbrella item "the linter cutover task"
+(`doc/handover/cli-git-rust-implementation.md`) named no closing record,
+so this record now carries its closure.
+`b111c0ca39` landed the cutover on 2026-10-10 and `5bc05682e` deleted the five incumbent packages;
+`0b49ae109e` (2026-10-06T18:38:11-04:00,
+`feat(*): run monochromatic-lint from the root lint and format tasks and the Markdown commit policy`)
+is the wiring the item asked about.
+All three are ancestors of `main` at `c6cc850c6d`.
+
 ## Cutover change
 
 The `markdown/autofix` options in `cli-git.config.ts` now take the policy defaults:
@@ -407,7 +437,7 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
   and 46 probe findings.
   The 83 `monochromatic-lint` findings stay,
    because the owner has to decide whether that package
-  is inside the gate (see below).
+  is inside the gate (see "Left for step 8").
 
 ## Deleted paths
 
@@ -479,7 +509,7 @@ The git-policy packages named `markdown-lint` (`package/git-policy/markdown-lint
    and the owner decision of 2026-10-05 keeps it a warning.
 - `markdown/semantic-line-breaks` inside fenced Rust doc comments:
    123 errors in 32 files.
-  This is the new-linter over-report described above.
+  This is the new-linter over-report.
 - Shared Markdown errors,
    reported by the incumbent too (group b,
    not fixed here):

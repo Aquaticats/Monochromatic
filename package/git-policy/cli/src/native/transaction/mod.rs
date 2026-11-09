@@ -24,6 +24,9 @@ pub mod transaction_journal;
 ///  recovery and landing work.
 pub mod transaction_git;
 
+/// Running real Git for a caller that is itself a task of the runtime.
+pub mod transaction_git_awaiting;
+
 /// The request,
 /// reply and failure types of the Git runner and the text of a command line.
 pub mod transaction_git_request_and_reply_types;
