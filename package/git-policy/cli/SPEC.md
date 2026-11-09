@@ -1014,6 +1014,24 @@ so the ignored-state copy skips that destination.
 Leaving out of a snapshot:
 before the stage is made private and its stubs removed,
 the wrapper prunes a snapshot with the rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
+A trash directory that an earlier add left under `.claude/cli-git-trash` in the source is not carried:
+the walk
+ skips the trash parent so that this add's own trash is not moved into itself,
+so every other directory the
+ parent holds is moved into this add's trash first,
+whichever add made it,
+and the emptying that runs before this
+ command returns covers it.
+Without that,
+a kill before its emptying left a trash that the next snapshot carried into a
+ new worktree,
+where nothing would ever dispose of it because the record names only the add that ran,
+and a target
+ commit that stops ignoring the path makes another command's stage container stageable there.
+A directory the
+ index tracks under that parent is never moved.
+A directory of that name outside the trash parent is no trash and is never
+ touched.
 A source whose Git directory is its common directory,
 the main checkout,
 gets the main-checkout rule below.

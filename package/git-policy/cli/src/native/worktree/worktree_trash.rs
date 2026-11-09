@@ -363,6 +363,15 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
         None
     };
     let mut aside: Aside = Aside { root, stage: stage.to_path_buf(), trash, entries: Vec::new(), count: 0 };
+    // A trash an earlier add left is not this add's, and nothing would ever empty it once the snapshot became a worktree: the
+    //  disposal is handed only this add's manifest. Its directories go into this add's trash, so the emptying that runs before
+    //  this command returns covers them and no snapshot carries a trash folder forward.
+    for inherited in inherited_trash_entries(stage, &aside)? {
+        if tracked.contains(inherited.as_os_str().as_bytes()) {
+            continue;
+        }
+        aside.put(inherited.as_path())?;
+    }
     for relative in &nested_copies {
         unlink_pointer(stage.join(relative).as_path())?;
         aside.put(relative.as_path())?;
@@ -424,6 +433,76 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     };
     debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
     return Ok(Pruned { count, trash: manifest });
+}
+
+/// What:
+///  The name of the trash this add made,
+/// for the caller that has to tell its own from an earlier add's.
+/// Why:
+///   The own name is the one entry of the trash parent that this add must not move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const trashName = (trash: Trash) => trash.name;
+/// ```
+fn trash_name(trash: &Trash) -> &str {
+    return trash.name.as_str();
+}
+
+/// What:
+///  Whether a listed entry is a directory.
+/// Why:
+///   Only directories are trash entries;
+/// a file the person put there is none of this add's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isDirectoryEntry = (entry: DirEntry) => entry.fileType().isDirectory();
+/// ```
+fn is_directory_entry(entry: &std::fs::DirEntry) -> bool {
+    return entry.file_type().is_ok_and(is_dir_kind);
+}
+
+/// Whether a file type is a directory's.
+fn is_dir_kind(kind: std::fs::FileType) -> bool {
+    return kind.is_dir();
+}
+
+/// What:
+///  The directories an earlier add left in the trash parent of the snapshot,
+/// as paths below the snapshot,
+///  except this add's own trash.
+/// Why:
+///   A kill before the emptying leaves them there,
+/// and the walk skips the trash parent so that this add's own trash is
+///  not moved into itself;
+/// naming them from the parent's listing is what tells the two apart.
+/// The parent is reached through the
+///  held handle of the snapshot and listed once,
+/// so a name that is not text is carried by its bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readdir(join(stage, TRASH_PARENT)).filter((name) => name !== trash?.name).map((name) => join(TRASH_PARENT, name));
+/// ```
+fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, String> {
+    let parent: PathBuf = stage.join(TRASH_PARENT);
+    let mut found: Vec<PathBuf> = Vec::new();
+    let listed = match std::fs::read_dir(parent.as_path()) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(found),
+        Err(error) => return Err(format!("{} cannot be listed ({error})", parent.display())),
+    };
+    let own: Option<&str> = aside.trash.as_ref().map(trash_name);
+    for entry in listed {
+        let entry: std::fs::DirEntry = path_failure(entry, parent.as_path(), "cannot be listed")?;
+        let name: OsString = entry.file_name();
+        if own == name.to_str() || !is_directory_entry(&entry) {
+            continue;
+        }
+        found.push(Path::new(TRASH_PARENT).join(name));
+    }
+    return Ok(found);
 }
 
 /// Unlink the `.git` file of a copied directory,

@@ -614,6 +614,13 @@ Read-only commands,
    `.claude/cli-git-trash` would otherwise let `git add --all` stage another command's stage container,
      credentials
    included.
+   A trash an earlier add left in the source under `.claude/cli-git-trash` is moved into this add's trash,
+     so the
+   emptying that runs before this command returns covers it too,
+     whichever add made it:
+     a kill before that emptying otherwise
+   left another command's stage container to be carried into the next worktree,
+     where nothing would dispose of it.
    It does decline when a registered nested worktree holds a file the main checkout tracks.
      A trash that cannot be
    emptied is reported with its path and the reason,

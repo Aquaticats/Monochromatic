@@ -144,8 +144,10 @@ fn btrfs_the_ordinary_nested_worktree_does_not_block_a_snapshot_of_main() {
     remove(root.as_path());
 }
 
-/// A linked worktree sets nothing aside,
-/// whatever it holds.
+/// A linked worktree sets nothing aside by the main checkout's rule,
+/// whatever it holds,
+/// and the
+///  only thing it moves is the trash an earlier add left.
 #[test]
 fn btrfs_a_linked_source_sets_nothing_aside() {
     let Some(root) = btrfs_fixture("trash-linked") else { return };
@@ -153,8 +155,10 @@ fn btrfs_a_linked_source_sets_nothing_aside() {
     let (stage, mut source, _trash) = snapshot_of(root.as_path(), repo.as_path());
     source.git_dir = repo.join(".git/worktrees/ordinary");
     let before: usize = std::fs::read_dir(stage.join("node_modules")).expect("listing").count();
-    assert_eq!(prune_snapshot(stage.as_path(), &source).expect("pruned").count, 0);
-    assert_eq!(std::fs::read_dir(stage.join("node_modules")).expect("listing").count(), before);
+    let pruned: Pruned = prune_snapshot(stage.as_path(), &source).expect("pruned");
+    assert_eq!(std::fs::read_dir(stage.join("node_modules")).expect("listing").count(), before, "a linked source's dependencies are not set aside");
+    // The one directory that moves is the trash the earlier prune in this control made, which no snapshot may carry on.
+    assert_eq!(pruned.count, 1, "only the trash an earlier add left is moved");
     remove(root.as_path());
 }
 
@@ -409,5 +413,42 @@ fn the_trash_location_question_starts_check_ignore_without_quiet() {
     let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("check-ignore"); }).collect();
     assert_eq!(asks.len(), 1, "one start: {asks:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash an earlier add left in the source is not carried into the new snapshot,
+/// whichever add made it.
+/// Why:
+///   An add killed before its emptying leaves `.claude/cli-git-trash` in the worktree,
+/// holding what it left out,
+///  another command's stage container with its credentials among them.
+/// The disposal is handed only the manifest of the add that
+///  runs,
+/// so a carried trash would never be emptied:
+/// the walk skipped the whole trash parent,
+/// and the copy
+///  reached the new worktree,
+/// where a target commit that stops ignoring it makes it stageable.
+/// It is moved into this
+///  add's trash instead,
+/// so the emptying that runs before this command returns covers it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/${"b".repeat(40)}/d0/payload/credentials`, 'token');
+/// const { stage, trash } = await snapshotOf(repo);
+/// expect(existsSync(join(stage, TRASH_PARENT, inherited))).toBe(false); expect(trash.count).toBeGreaterThan(0);
+/// ```
+#[test]
+fn btrfs_a_snapshot_does_not_carry_an_inherited_trash_forward() {
+    let Some(root) = btrfs_fixture("trash-inherited") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let inherited: String = format!("{TRASH_PARENT}/{}", "b".repeat(40));
+    put(repo.as_path(), format!("{inherited}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    assert!(std::fs::symlink_metadata(stage.join(inherited.as_str())).is_err(), "the inherited trash is not carried into the new worktree");
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    assert!(!manifest.entries.is_empty(), "what the inherited trash held was moved into this add's trash, so the emptying covers it");
     remove(root.as_path());
 }

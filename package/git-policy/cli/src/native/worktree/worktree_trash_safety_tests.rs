@@ -98,29 +98,47 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
     remove(root.as_path());
 }
 
-/// Finding 11:
-/// a directory in the trash parent that the leave-out did not make (the main checkout's own,
-/// carried by the
-///  snapshot) is not the snapshot's trash and is never emptied,
-/// whatever its name looks like.
+/// What:
+///  A directory under the trash parent that the current leave-out did not make is an earlier add's trash,
+/// so it
+///  is emptied with this add's,
+/// while a directory of the same name outside the trash parent is never touched.
+/// Why:
+///   The trash parent is this wrapper's own namespace,
+/// and a kill before the emptying leaves its content there;
+///  a snapshot that carried it forward would keep another command's stage container with its credentials,
+/// and
+///  nothing would ever dispose of it,
+/// because the record names only the add that runs.
+/// The identity the manifest
+///  recorded is what the emptying checks,
+/// so a name alone still never removes a directory the leave-out did not move here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/${earlier}/d0/payload`, 'token'); put(repo, `.claude/${earlier}/keep`, 'mine');
+/// const { manifest } = await snapshotOf(repo); await disposePendingTrash(...);
+/// expect(existsSync(join(stage, TRASH_PARENT, earlier))).toBe(false); expect(existsSync(join(stage, '.claude', earlier, 'keep'))).toBe(true);
+/// ```
 #[test]
-fn btrfs_a_hex_named_directory_the_snapshot_carried_is_never_emptied() {
+fn btrfs_an_earlier_adds_trash_is_emptied_with_this_adds() {
     let Some(root) = btrfs_fixture("trash-carried") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
-    let carried: String = "a".repeat(40);
-    put(repo.as_path(), format!("{TRASH_PARENT}/{carried}/d0/precious").as_str(), b"main's own ignored file\n");
+    let earlier: String = "a".repeat(40);
+    put(repo.as_path(), format!("{TRASH_PARENT}/{earlier}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    put(repo.as_path(), format!(".claude/{earlier}/keep").as_str(), b"a directory the leave-out never made\n");
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
     let parent: PathBuf = stage.join(TRASH_PARENT);
-    assert_ne!(manifest.name, carried, "the trash is not the carried directory");
-    assert!(parent.join(&manifest.name).exists() && parent.join(&carried).exists(), "both are in the trash parent");
+    assert_ne!(manifest.name, earlier, "the trash is not the directory the earlier add left");
+    assert!(!parent.join(&earlier).exists(), "the earlier trash is not carried as itself");
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::write(stage.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect("pointer");
     let mut notices: Vec<u8> = Vec::new();
     dispose_pending_trash(&git_context(), stage.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
-    assert!(parent.join(&carried).join("d0/precious").exists(), "the directory the main checkout carried is untouched");
-    assert!(!parent.join(&manifest.name).exists(), "the trash the leave-out made is emptied");
+    assert!(!parent.exists(), "both trashes are emptied");
+    assert!(stage.join(".claude").join(&earlier).join("keep").exists(), "a directory with that name outside the trash parent is untouched");
     remove(root.as_path());
 }
 
