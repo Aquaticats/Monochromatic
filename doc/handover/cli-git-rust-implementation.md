@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:03:11-05:00)
+#### Reviews and landings in progress (2026-11-09T04:04:40-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -235,8 +235,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
   among them an interrupted upgrade that leaves every command reaching the old service,
   and a launcher that clears its environment and so defeats both recursion guards.
-  Not ready to merge.
-  Run 2 of its agent is on them.
+  Run 2 of its agent reports all four fixed;
+  its tests on top of main and the review `entry-and-service-round-2` are running.
+  A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
+  because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
   The agent `controls-witness-their-race-by-ordering` ended on a provider error,
   "Stream ended without finish_reason",
@@ -253,8 +255,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and nesting that exhausts the stack.
   Not ready to merge.
   Waits for a free agent slot,
-  since all twenty are taken,
-  after the driver round:
+  since all twenty are taken:
   resume the run `dependent-version-publish-list-fixed` as run 3,
   with `dependent-version-publish-list-round-3-prompt.md` and the session file named in run 2's `summary.json`.
   That round picks a rule that ends this class of misread:
@@ -348,10 +349,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the review (`${HOME}/temp/agent/reviews/driver-retries-round-1-sol.txt`) names a retry sent into a run an inbox message started,
   and a failure that a handled prompt turns into a clean finish.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume it as run 2,
-  with `driver-retries-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
 - Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
   Rerun those tests after merging main before judging a branch by them.
 
