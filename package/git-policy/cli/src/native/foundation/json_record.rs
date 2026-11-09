@@ -300,6 +300,21 @@ impl ObjectWriter {
     pub fn finish(&self) -> String {
         return format!("{}}}", self.text);
     }
+
+    /// What:
+    ///  Whether no field was added yet.
+    /// Why:
+    ///   A record whose fields are all optional says nothing when it stays empty;
+    ///  its writer can then skip the write,
+    /// and the file's absence stands for the same answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// Object.keys(record).length === 0
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        return self.text.len() == 1;
+    }
 }
 
 /// What:

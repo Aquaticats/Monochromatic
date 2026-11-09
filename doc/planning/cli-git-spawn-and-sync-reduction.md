@@ -547,7 +547,10 @@ and the listings were updated to match.
   (empty and half before the ref moves),
   `landing-1.json` and `ref-updated.json` (empty and half),
   `store-held.json`
-  after the ref moved,
+  after the ref moved
+  (in a reftable repository,
+  the only backend whose store can hold one,
+  since 2026-11-09T03:26:44Z),
   and the `owner.json` of `landing.lock`.
   Their messages are fail-closed by design.
 - Silent inconsistency:
@@ -618,6 +621,13 @@ and the unsynced
 `store-held.json` is benign before the
 ref moves and sticks after it,
 so it can lose its own sync only if the landing barrier makes it durable.
+Note 2026-11-09T03:26:44Z:
+the writer now leaves the record out when its backend's ref store can hold no conclusion value,
+which is every files-backend repository,
+and its reader takes an absent record as naming nothing there.
+The condition above therefore holds where values exist (a reftable repository) and has no subject elsewhere,
+and the flush it removes is measured in
+`doc/planning/cli-git-commit-latency-under-many-agents.md`.
 Everything else listed in the torn snapshots bullet and in the records that are synced today bullet stays.
 
 #### Outcomes by phase

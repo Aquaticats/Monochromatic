@@ -118,6 +118,12 @@ fn the_writer_matches_json_stringify() {
          \"no\":false,\"negative\":-5,\"list\":[\"x\",\"y\\\"\"],\"empty\":[]}"
     );
     assert_eq!(ObjectWriter::new().finish(), "{}");
+    // A writer with no field added says so, and one with any field does not, whatever the field's kind.
+    assert!(ObjectWriter::new().is_empty());
+    let mut one_field: ObjectWriter = ObjectWriter::new();
+    one_field.boolean("yes", false);
+    assert!(!one_field.is_empty());
+    assert_eq!(one_field.finish(), "{\"yes\":false}");
 }
 
 /// Quoting escapes exactly what `JSON.stringify` escapes.
