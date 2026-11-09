@@ -4,22 +4,30 @@
 //!  and answers whether the step itself was signalled.
 //! Why:
 //!  Three answers have to stay apart:
-//! the step ended by itself,
-//! so the commit lands;
-//! a signal was really taken,
-//! so the step was stopped;
-//! and the look that came with the ceiling failed,
-//! so nothing is decided and the ceiling stays armed.
-//!  Reading a failed look as an empty one takes the ceiling away from a step that is still running
-//! (P1 of the 2026-11-09 review),
-//! and recording a stop that no signal was taken for refuses a commit that landed
-//! (P2 of the same review).
+//! the step ended by itself, so the commit lands;
+//! a signal was really taken, so the step was stopped;
+//! and nothing could be proven, so nothing is decided and the ceiling stays armed.
+//!  The step is named by the descriptor the kernel made the moment it started
+//! (`ChildNumber::descriptor`),
+//! never by a read of its number at the ceiling:
+//! a read then proves the process found then,
+//! and a step that ended and had its number reused would be signalled through the successor
+//! (finding 1 of the second review).
+//!  Its children are read only while the descriptor says the step is still that process,
+//! because that is the only moment the number still names it:
+//! a number that cannot be reused is the one a live process holds.
+//!  A record that could not be read proves nothing (finding 3),
+//! and a stop is recorded only when a signal was really sent (finding 5 of the first review).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const came = ceilingCame(step); // 'the-step-ended' | 'stopped' | 'unknown'
 //! ```
 
+/// The step,
+/// published when it started,
+/// and the descriptor that names it for good.
+use crate::child_number_told_at_start::ChildNumber;
 /// The processes below the step,
 /// read for the stop.
 use crate::process_tree::descendants_of_read;
@@ -27,21 +35,18 @@ use crate::process_tree::descendants_of_read;
 /// and whether it could be read.
 use crate::process_tree::{MemberRead, member_read};
 /// The signal that ends the step,
-/// and what it came to.
-use crate::member_signalled_through_its_pidfd::{Delivered, kill_members};
+/// what it came to,
+/// and whether the step is still there.
+use crate::member_signalled_through_its_pidfd::{Delivered, has_ended, kill_members, signal_through};
 
 /// What:
 ///  What the ceiling came to when it came.
 /// Why:
-///   Three answers the notice must keep apart:
-/// the step ended by itself,
-/// so the commit lands;
-/// a signal was really sent,
-/// so the step was stopped;
-/// and the look that came with the ceiling failed,
-/// so nothing is decided and the ceiling stays armed.
-///  Treating a failed look as an empty one takes the ceiling away from a step that is still running,
-/// which is how a commit lands after a long step.
+///  Three answers the notice must keep apart:
+/// the step ended by itself, so the commit lands;
+/// a signal was really sent, so the step was stopped;
+/// and nothing could be proven or read, so nothing is decided and the ceiling stays armed.
+///  Treating a failed look as an empty one takes the ceiling away from a step that is still running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,45 +57,64 @@ pub enum CeilingCame {
     /// Nothing is below this process any more:
     /// the step ended by itself.
     TheStepEnded,
-    /// The kernel took a signal for the step or a program below it.
+    /// The kernel took a signal for the step.
     Stopped,
     /// The processes below this one could not be read at all,
+    /// or nothing about them could be proven,
     /// so nothing is concluded:
     /// the ceiling stays armed and the look is made again.
     Unknown,
 }
 
 /// What:
-///  End what the ceiling's look found below this process,
+///  End the step the ceiling watches and what it started,
 /// and answer what that came to.
 /// Why:
-///   A stop is recorded only when a signal was really sent:
-/// a step that ended between the look and the signal landed,
-/// and refusing it as stopped would fail a commit that succeeded.
-///  A look that failed is not an empty tree:
-/// answering "the step ended" there takes the ceiling away from a step that is still running.
+///   The step is signalled through the descriptor made at its start,
+/// so no read of its number can name a successor.
+/// Its children are read only while that descriptor says it is still there,
+/// which is the only moment its number is still its own.
+///  A step that ended is not signalled and its old number is not walked:
+/// children it left behind are another process's business now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const came = ceilingCame(step); // an unreadable tree: 'unknown'
 /// ```
-pub fn ceiling_came(step: i32) -> CeilingCame {
-    let Some(below) = descendants_of_read(step) else {
+pub fn ceiling_came(step: &ChildNumber) -> CeilingCame {
+    let Some(number) = step.number() else {
+        // A step that never started has nothing to end, and nothing is concluded about it.
         return CeilingCame::Unknown;
     };
-    let stopped_the_step: bool = match member_read(step) {
-        MemberRead::Found(member) => match kill_members(std::slice::from_ref(&member)).first() {
-            Some(Delivered::Sent) => true,
-            // Nothing could be proven about the step, so nothing is concluded about it either.
-            Some(Delivered::Unproven) => return CeilingCame::Unknown,
-            _ => false,
+    let stopped_the_step: bool = match step.descriptor() {
+        Some(descriptor) => {
+            if has_ended(descriptor) {
+                return CeilingCame::TheStepEnded;
+            }
+            // The step is still that process, so its number still names it and its children can be read below it.
+            let Some(below) = descendants_of_read(number) else {
+                return CeilingCame::Unknown;
+            };
+            let answer: Delivered = signal_through(descriptor, libc::SIGKILL);
+            let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
+            match answer {
+                Delivered::Sent => true,
+                Delivered::Gone => false,
+                Delivered::Unproven => return CeilingCame::Unknown,
+            }
+        }
+        // A start whose descriptor the kernel refused: the step is proven by its record and then pinned,
+        // and a step nothing can be proven about keeps the ceiling armed.
+        None => match member_read(number) {
+            MemberRead::Found(member) => match kill_members(std::slice::from_ref(&member)).first() {
+                Some(Delivered::Sent) => true,
+                Some(Delivered::Unproven) => return CeilingCame::Unknown,
+                _ => false,
+            },
+            MemberRead::Gone => false,
+            MemberRead::Unreadable => return CeilingCame::Unknown,
         },
-        MemberRead::Gone => false,
-        MemberRead::Unreadable => return CeilingCame::Unknown,
     };
-    // The signing program and everything else the step started goes with it,
-    // whether or not the step itself was still there to be signalled.
-    let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
     if stopped_the_step {
         return CeilingCame::Stopped;
     }

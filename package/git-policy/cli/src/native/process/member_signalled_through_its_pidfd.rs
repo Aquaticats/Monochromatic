@@ -135,7 +135,7 @@ fn a_descriptor_is_refused() -> bool {
 /// The descriptor the kernel makes for `pid`,
 /// or nothing where it refuses one at a limit or under a sandbox.
 #[cfg(target_os = "linux")]
-fn pidfd_of(pid: i32) -> Option<std::os::fd::OwnedFd> {
+pub(crate) fn pidfd_of(pid: i32) -> Option<std::os::fd::OwnedFd> {
     #[cfg(test)]
     if a_descriptor_is_refused() {
         return None;
@@ -216,16 +216,52 @@ impl PinnedMember {
     /// Send `signal` to the pinned process,
     /// and to no other.
     pub fn signal(&self, signal: i32) -> Delivered {
-        let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
-            // A signal this build cannot name to the kernel: nothing is sent, and a real-time signal is the only case.
-            return Delivered::Unproven;
-        };
-        return match rustix::process::pidfd_send_signal(&self.descriptor, named) {
-            Ok(()) => Delivered::Sent,
-            // The kernel took the descriptor but the process it names has ended: nothing of the person's was reached.
-            Err(_) => Delivered::Gone,
-        };
+        return signal_through(&self.descriptor, signal);
     }
+}
+
+/// What:
+///  Send `signal` through a descriptor the kernel made for one process,
+///  and answer what it came to.
+/// Why:
+///   The descriptor names one process for good,
+/// so a signal sent through it reaches that process or fails,
+/// and never one that took its number later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// signalThrough(descriptor, 'SIGKILL');
+/// ```
+#[cfg(target_os = "linux")]
+pub fn signal_through(descriptor: &std::os::fd::OwnedFd, signal: i32) -> Delivered {
+    let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
+        // A signal this build cannot name to the kernel: nothing is sent, and a real-time signal is the only case.
+        return Delivered::Unproven;
+    };
+    return match rustix::process::pidfd_send_signal(descriptor, named) {
+        Ok(()) => Delivered::Sent,
+        // The kernel took the descriptor but the process it names has ended: nothing of the person's was reached.
+        Err(_) => Delivered::Gone,
+    };
+}
+
+/// What:
+///  Whether the kernel says the process a descriptor names has ended.
+/// Why:
+///   A descriptor is readable once that process exits,
+/// and a look that must know before it walks the process's children asks this rather than reading a number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hasEnded(descriptor); // poll(POLLIN, 0)
+/// ```
+#[cfg(target_os = "linux")]
+pub fn has_ended(descriptor: &std::os::fd::OwnedFd) -> bool {
+    use std::os::fd::AsRawFd;
+    let mut ask: libc::pollfd = libc::pollfd { fd: descriptor.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+    // SAFETY: `ask` is one valid `pollfd` and the count says so; a zero timeout makes the call return at once.
+    let ready: libc::c_int = unsafe { libc::poll(&raw mut ask, 1, 0) };
+    return ready > 0;
 }
 
 /// What:

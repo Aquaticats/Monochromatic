@@ -57,6 +57,7 @@ fn a_member_the_kernel_refuses_a_descriptor_for_is_not_signalled() {
         sleeper.kill().expect("cleanup");
         sleeper.wait().expect("reaped");
     }
+    assert_eq!(delivered, vec![Delivered::Unproven], "a stop without a descriptor answers that it proved nothing, and nothing was sent");
     assert!(ended.is_none(), "the member was signalled by its number after the kernel refused a descriptor for it: {ended:?}");
 }
 

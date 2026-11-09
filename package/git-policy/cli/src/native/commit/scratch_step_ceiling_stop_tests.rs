@@ -44,9 +44,11 @@ fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
 fn a_step_whose_record_could_not_be_read_keeps_the_ceiling_armed() {
     let mut step: Child = a_step();
     let pid: i32 = i32::try_from(step.id()).expect("a process number");
-    // The read the caller makes answers, and the one the pin makes fails:
+    // A start whose descriptor the kernel refused, and a record that answers until the pin reads it.
+    let watched: ChildNumber = ChildNumber::not_started();
+    watched.publish(pid);
     crate::process_tree::unreadable_after_the_next_reads(pid, 1);
-    let came: CeilingCame = ceiling_came(pid);
+    let came: CeilingCame = ceiling_came(&watched);
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -62,7 +64,9 @@ fn a_step_whose_record_could_not_be_read_keeps_the_ceiling_armed() {
 fn a_step_that_can_be_read_is_stopped_at_the_ceiling() {
     let mut step: Child = a_step();
     let pid: i32 = i32::try_from(step.id()).expect("a process number");
-    let came: CeilingCame = ceiling_came(pid);
+    let watched: ChildNumber = ChildNumber::not_started_pinned();
+    watched.publish(pid);
+    let came: CeilingCame = ceiling_came(&watched);
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");
@@ -88,8 +92,10 @@ fn a_step_that_can_be_read_is_stopped_at_the_ceiling() {
 fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number() {
     let mut step: Child = a_step();
     let pid: i32 = i32::try_from(step.id()).expect("a process number");
+    let watched: ChildNumber = ChildNumber::not_started_pinned();
+    watched.publish(pid);
     crate::process_tree::unreadable_after_the_next_reads(pid, 0);
-    let came: CeilingCame = ceiling_came(pid);
+    let came: CeilingCame = ceiling_came(&watched);
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
     if ended.is_none() {
         step.kill().expect("cleanup");

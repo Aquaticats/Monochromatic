@@ -439,8 +439,8 @@ pub(crate) fn identity_of(pid: i32) -> Option<(u64, bool)> {
 // the notice's own thread reads identities too.
 #[cfg(all(test, target_os = "linux"))]
 thread_local! {
-    /// The armed reuse,
-    /// taken by the first identity read of the number it names.
+    // The armed reuse,
+    // taken by the first identity read of the number it names.
     static REUSED_AFTER_THE_NEXT_READ: std::cell::Cell<Option<(i32, u64)>> = const { std::cell::Cell::new(None) };
 }
 
@@ -464,8 +464,8 @@ pub(crate) fn reused_after_the_next_read(pid: i32, started: u64) {
 // the notice's own thread reads identities too.
 #[cfg(all(test, target_os = "linux"))]
 thread_local! {
-    /// The number whose read fails,
-    /// and how many of its reads answer normally first.
+    // The number whose read fails,
+    // and how many of its reads answer normally first.
     static UNREADABLE_AFTER_THE_NEXT_READ: std::cell::Cell<Option<(i32, usize)>> = const { std::cell::Cell::new(None) };
 }
 

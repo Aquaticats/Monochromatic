@@ -390,7 +390,7 @@ impl NativeCommitNotice {
         // The writer's own copy of the time it spends, so the notice thread's figures can say it without waiting for a write.
         let spending: std::sync::Arc<Mutex<Duration>> = wrote.clone();
         let began: Instant = Instant::now();
-        let step: ChildNumber = ChildNumber::not_started();
+        let step: ChildNumber = ChildNumber::not_started_pinned();
         let watched: ChildNumber = step.clone();
         // The lines are written here and never on the thread that enforces the ceiling:
         // a reader that stopped reading then holds this thread, and the commit does not wait for it.
@@ -445,11 +445,11 @@ impl NativeCommitNotice {
                     None => Duration::ZERO,
                 };
                 // The ceiling can only have been counted from a look that found the step, so its number is known here.
-                if let Some(number) = watched.number()
+                if watched.number().is_some()
                     && seen_at.is_some()
                     && since_seen >= ceiling
                 {
-                    match ceiling_came(number) {
+                    match ceiling_came(&watched) {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
                             break 'notice;
