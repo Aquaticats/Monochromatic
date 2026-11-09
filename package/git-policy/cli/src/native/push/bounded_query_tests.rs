@@ -244,3 +244,33 @@ fn a_query_where_nothing_is_measured_ends_at_its_window() {
     let mut unjudged: Clock = query_clock(0, window).unmeasured().without_wall_fallback();
     assert!(unjudged.check().is_none(), "the same window ends nothing when the run may not be ended by wall time");
 }
+
+/// What:
+///  The thread that gives a second-pass command its input gives up when the command takes none of it.
+/// Why:
+///   A command the kernel holds without reading keeps its end of the pipe open,
+/// and a writer that waits in a full pipe would
+///  hold the request and its thread for as long as that lasts;
+/// the bound is the query's own quiet window applied to the
+///  input instead of the output.
+#[cfg(unix)]
+#[test]
+fn an_input_writer_gives_up_when_the_command_takes_nothing() {
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("exec sleep 10").stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null());
+    let mut child: Child = command.spawn().expect("a child that never reads");
+    let pipe: Option<ChildStdin> = child.stdin.take();
+    let window: Duration = Duration::from_millis(200);
+    let writer: std::thread::JoinHandle<()> = feed_standard_input(pipe, vec![b'x'; 1 << 20], window).expect("a thread to write the input");
+    // The join is bounded here too: a writer that waited for the child would outlast this wait.
+    let (done, waited) = std::sync::mpsc::channel::<()>();
+    let observer = std::thread::spawn(move || {
+        let _ = writer.join();
+        let _ = done.send(());
+    });
+    let gave_up: bool = waited.recv_timeout(Duration::from_secs(3)).is_ok();
+    let _killed = child.kill();
+    let _reaped = child.wait();
+    observer.join().expect("the observer ends");
+    assert!(gave_up, "the writer gave up on a command that took none of its input");
+}

@@ -34,6 +34,9 @@ use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
 /// The clock a wait is judged by,
 /// and its reading of the signs of work.
 use crate::push_progress::Clock;
+/// How long the writer of a second-pass command's input waits while the command takes none of it.
+const FEEDING_PAUSE: Duration = std::time::Duration::from_millis(10);
+
 /// The longest quiet gap of each step,
 /// kept for the timing records.
 use crate::quiet_ledger;
@@ -51,6 +54,9 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
+/// The pipe's own descriptor, for a write that must not wait in a full pipe.
+use std::os::fd::AsFd;
+use std::os::fd::AsRawFd;
 /// The anonymous output files and their reading back.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -265,7 +271,7 @@ pub async fn run_bounded_git_awaiting(
     let mut started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     if let Some(bytes) = input
-        && let Err(error) = feed_standard_input(started.stdin.take(), bytes)
+        && let Err(error) = feed_standard_input(started.stdin.take(), bytes, window)
     {
         // The command never got its request, so it is stopped here and the failure names why. The stop is the one every stopped
         //  query gets: asked to end, forced past the grace, and bounded, so a child the kernel does not release is handed to the
@@ -339,18 +345,86 @@ fn flood_of(arguments: &str) -> SingleFlightError {
 /// # Errors
 ///
 /// A thread that cannot be started.
-fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>) -> Result<(), String> {
-    let Some(mut open) = pipe else {
-        return Ok(());
+fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duration) -> Result<std::thread::JoinHandle<()>, String> {
+    let Some(open) = pipe else {
+        // No input was asked of the command, so there is nothing to write and its standard input is not piped.
+        return match crate::scoped_start::spawn_named("cli-git-second-pass-input", || {}) {
+            Ok(writer) => Ok(writer),
+            Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
+        };
     };
     return match crate::scoped_start::spawn_named("cli-git-second-pass-input", move || {
-        if let Err(error) = open.write_all(bytes.as_slice()) {
-            crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("the input of a second-pass command was not taken: {error}").as_str());
-        }
+        write_within_the_window(open, bytes.as_slice(), window);
     }) {
-        Ok(_writer) => Ok(()),
+        Ok(writer) => Ok(writer),
         Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
     };
+}
+
+/// What:
+///  Writes `bytes` into `open` while the command keeps taking them,
+/// and gives up when it takes none for `window`.
+/// Why:
+///   The command may answer before it has read all of its input,
+/// so a blocking write can wait on a full pipe for as long as
+///  the command holds its end open,
+/// and a command the kernel does not release would keep that thread for good.
+/// The pipe's
+///  writing end is made non-blocking,
+/// so the thread sees a full pipe instead of waiting in it,
+/// and it holds the
+///  request only until nothing has been taken for the window the query itself is judged by;
+/// a request of ours that a
+///  stopped command never read has nothing left to say.
+///  The writing end is closed when this returns,
+/// so the command reads the end of its input.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setNonBlocking(fd); while (written < bytes.length) { const n = tryWrite(fd, bytes.subarray(written)); if (n > 0) { written += n; last = Date.now() } else if (Date.now() - last > windowMs) return; else await sleep(POLL) }
+/// ```
+fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration) {
+    // The writing end is the only place that waits: making it non-blocking turns a full pipe into a report of it, and the
+    //  command's own end is a different description of the same pipe.
+    let descriptor: std::os::fd::RawFd = open.as_fd().as_raw_fd();
+    // SAFETY: `fcntl` reads and writes an integer of the descriptor's own flags and touches no memory of this process.
+    let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        crate::diagnostic_log::debug("monochromatic-git-policy-cli", "the input of a second-pass command could not be written without blocking");
+        return;
+    }
+    let mut written: usize = 0;
+    let mut last_taken: std::time::Instant = std::time::Instant::now();
+    while written < bytes.len() {
+        match open.write(&bytes[written..]) {
+            // The command closed its end: nothing more is taken, and nothing is reported of it.
+            Ok(0) => break,
+            Ok(taken) => {
+                written += taken;
+                last_taken = std::time::Instant::now();
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                if last_taken.elapsed() >= window {
+                    crate::diagnostic_log::debug(
+                        "monochromatic-git-policy-cli",
+                        format!(
+                            "a second-pass command took none of its input for {} seconds, so the rest of it was not written",
+                            window.as_secs()
+                        )
+                        .as_str(),
+                    );
+                    break;
+                }
+                std::thread::sleep(FEEDING_PAUSE);
+            }
+            Err(error) => {
+                crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("the input of a second-pass command was not taken: {error}").as_str());
+                break;
+            }
+        }
+    }
+    // Closing our end tells the command that its input has ended.
+    let _closed = open.flush();
 }
 
 /// Query windows are controlled in the test module.
