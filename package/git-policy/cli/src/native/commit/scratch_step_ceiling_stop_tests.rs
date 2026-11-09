@@ -113,28 +113,24 @@ fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number
 }
 
 /// What:
-///  A step whose start gave no descriptor is not signalled at all.
+///  A step whose start gave no descriptor is never signalled by this ceiling,
+///  and the ceiling concludes nothing about it.
 /// Why:
-///   Without a descriptor the step can only be named by its number,
-/// and a number read at the ceiling may belong to a process that took it after the step ended,
-/// so the one honest answer is that nothing is known and nothing is sent
-/// (findings 1 and 4 of the third review).
-/// The step here is alive and its record reads perfectly:
+///   Finding 5 of the fifth review:
+/// a step with no descriptor was found by its number and a descriptor was opened for that number afterwards,
+/// so a step that ended and was reaped in the interval left a number another process could hold,
+/// and the signal that followed reached that process.
+///  The rule for this package is that a process number is safe only while the process is this command's own
+/// unreaped child,
+/// and proving that and opening a descriptor for it are two operations,
+/// so nothing here sends a signal to a number at all.
+///  The commit stays bounded without this path:
+/// the wait that owns the step ends the child it holds (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+/// The step here is alive and its record reads perfectly;
 /// only the missing descriptor stands between it and a signal.
-/// What:
-///  A step whose start gave no descriptor is ended while its number is provably this process's own unreaped child.
-/// Why:
-///   Finding 1 of the fourth review:
-/// a start whose `pidfd_open` was refused disabled the ceiling for good,
-/// so the commit waited with no bound over a step nothing would ever end.
-///  A number cannot be reused while the child that holds it has not been reaped,
-/// so while the record says the number names this process's own living child,
-/// a descriptor made now,
-/// or a signal to that number,
-/// cannot reach another process.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_step_without_a_descriptor_is_ended_while_its_number_is_this_process_s_child() {
+fn a_step_without_a_descriptor_is_never_signalled() {
     let mut step: Child = a_step();
     let watched: ChildNumber = ChildNumber::not_started();
     watched.publish(i32::try_from(step.id()).expect("a process number"));
@@ -144,39 +140,43 @@ fn a_step_without_a_descriptor_is_ended_while_its_number_is_this_process_s_child
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(came, CeilingCame::Stopped, "a step whose number is this process's own unreaped child was not ended");
-    assert!(ended.is_some(), "the step ran on although its number was provably this process's own unreaped child");
+    assert_eq!(came, CeilingCame::Unknown, "the ceiling read a number and opened a descriptor for it afterwards, which a reuse can be behind");
+    assert!(ended.is_none(), "the step was signalled through a number the ceiling read: {ended:?}");
 }
 
 /// What:
-///  A number that names a process this one did not start is never signalled.
+///  A number that names a process this command did not start is never signalled either,
+///  and proves nothing.
 /// Why:
-///   The safety of the no-descriptor path is the child relationship,
-/// not the number:
-/// a number whose record names another parent is a process this command has no claim on,
-/// and the step that used to hold that number has been reaped and ended.
+///   The ceiling reads no number at all now,
+/// so a process of another command is never a candidate for its signal,
+/// and nothing is concluded about the step from such a number.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_number_that_names_another_process_s_child_is_never_signalled() {
+fn a_number_that_names_another_process_s_child_is_never_read() {
     // The init process: alive, and nobody's child of this command.
     let watched: ChildNumber = ChildNumber::not_started();
     watched.publish(1);
     let came: CeilingCame = ceiling_came(&watched).came;
-    assert_eq!(came, CeilingCame::TheStepEnded, "a number another command's process holds proves the step ended, and nothing is sent");
+    assert_eq!(came, CeilingCame::Unknown, "a number was read for a step whose start gave no descriptor");
 }
 
-/// A step that started without a descriptor and has been reaped is gone,
-/// and nothing is read as if it were still there.
+/// What:
+///  A step that started without a descriptor and has been reaped proves nothing about its number.
+/// Why:
+///   A reaped step's number can belong to another process in the next instant,
+/// so nothing may be concluded from it,
+/// and the ceiling stays armed until the wait that owns the step has ended it.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_step_without_a_descriptor_that_was_reaped_has_ended() {
+fn a_step_without_a_descriptor_that_was_reaped_proves_nothing() {
     let mut step: Child = a_step();
     let watched: ChildNumber = ChildNumber::not_started();
     watched.publish(i32::try_from(step.id()).expect("a process number"));
     step.kill().expect("the step ends");
     step.wait().expect("reaped");
     let came: CeilingCame = ceiling_came(&watched).came;
-    assert_eq!(came, CeilingCame::TheStepEnded, "a reaped step has ended");
+    assert_eq!(came, CeilingCame::Unknown, "a number was read for a step that was already reaped");
 }
 
 /// What:

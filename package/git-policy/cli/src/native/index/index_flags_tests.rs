@@ -3,6 +3,7 @@
 //!  `git ls-files -v` tags an assume-unchanged entry with a lower-case letter and a skip-worktree entry with `S`.
 
 use super::*;
+use crate::path_bytes::os_from_path_bytes;
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 
@@ -94,23 +95,58 @@ fn git_says_intent_to_add(repo: &Path) -> bool {
     return git_text(repo, &["status", "--porcelain"]).lines().any(|line| { return line.starts_with(" A "); });
 }
 
-/// An intent-to-add entry marks the index,
+/// The paths three intent-to-add entries name:
+/// one plain,
+/// one with a byte that is not UTF-8,
+/// and one with spaces,
+/// a quote and a backslash in it,
+/// in the order Git sorts them.
+fn odd_names(repo: &Path) -> Vec<Vec<u8>> {
+    use std::os::unix::ffi::OsStringExt as _;
+    let latin: std::ffi::OsString = std::ffi::OsString::from_vec(b"latin-\xe9.txt".to_vec());
+    let odd: &str = "spaces, \"quotes\" and \\ a backslash.txt";
+    std::fs::write(repo.join("added.txt"), "new\n").expect("new file");
+    std::fs::write(repo.join(&latin), "new\n").expect("a name that is not UTF-8");
+    std::fs::write(repo.join(odd), "new\n").expect("a name with the characters Git quotes");
+    for name in [std::ffi::OsString::from("added.txt"), latin.clone(), std::ffi::OsString::from(odd)] {
+        git(repo, &[std::ffi::OsString::from("add"), std::ffi::OsString::from("--intent-to-add"), std::ffi::OsString::from("--"), name]);
+    }
+    return vec![b"added.txt".to_vec(), latin.into_vec(), odd.as_bytes().to_vec()];
+}
+
+/// An intent-to-add entry names its path,
 /// in both entry layouts that carry extended flags,
-/// and clearing it unmarks it.
+/// and clearing it makes the index plain again.
 #[test]
-fn an_intent_to_add_entry_marks_the_index() {
+fn an_intent_to_add_entry_marks_the_index_with_its_paths() {
     let root: PathBuf = fixture("index-flags-intent");
     let repo: PathBuf = populated_repository(root.as_path());
-    std::fs::write(repo.join("added.txt"), "new\n").expect("new file");
-    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    let paths: Vec<Vec<u8>> = odd_names(repo.as_path());
     assert!(git_says_intent_to_add(repo.as_path()), "the scenario sets what it says it sets");
     for version in ["3", "4"] {
         git(repo.as_path(), &["update-index", "--index-version", version]);
-        assert_eq!(read(repo.as_path()), IndexFlags::Marked, "version {version}");
+        assert_eq!(read(repo.as_path()), IndexFlags::IntentToAdd(paths.clone()), "version {version}");
     }
-    git(repo.as_path(), &["add", "--", "added.txt"]);
+    for path in &paths {
+        git(repo.as_path(), &[std::ffi::OsString::from("add"), std::ffi::OsString::from("--"), os_from_path_bytes(path.as_slice())]);
+    }
     assert!(!git_says_intent_to_add(repo.as_path()));
     assert_eq!(read(repo.as_path()), IndexFlags::Plain);
+    remove(root.as_path());
+}
+
+/// An assume-unchanged or skip-worktree entry sends the whole index to the slower build,
+/// so it answers that the index is marked even where an intent-to-add entry is there too.
+#[test]
+fn a_hidden_entry_wins_over_an_intent_to_add_one() {
+    let root: PathBuf = fixture("index-flags-intent-hidden");
+    let repo: PathBuf = populated_repository(root.as_path());
+    odd_names(repo.as_path());
+    git(repo.as_path(), &["update-index", "--skip-worktree", "--", "n"]);
+    assert_agrees(repo.as_path(), true);
+    git(repo.as_path(), &["update-index", "--no-skip-worktree", "--", "n"]);
+    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "n"]);
+    assert_agrees(repo.as_path(), true);
     remove(root.as_path());
 }
 

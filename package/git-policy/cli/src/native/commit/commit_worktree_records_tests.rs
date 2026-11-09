@@ -80,6 +80,48 @@ fn selected_corrections_are_recorded_only_while_the_worktree_holds_the_original(
     remove(root.as_path());
 }
 
+/// The entry is asked about by its repository-relative name,
+/// and `git ls-files` answers relative to the working directory unless it is told otherwise:
+/// a selected correction below the top is recorded only while the listing names the path it was asked about.
+#[test]
+fn a_correction_below_the_top_is_recorded_by_its_repository_relative_name() {
+    let root: PathBuf = fixture("worktree-records-nested-cwd");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::create_dir(repo.join("sub")).expect("sub directory");
+    std::fs::write(repo.join("sub/a.txt"), b"old").expect("a");
+    git(repo.as_path(), &["add", "--", "sub/a.txt"]);
+    let index: PathBuf = repo.join(".git/index");
+    // The private index holds the corrected bytes, and the worktree copy still holds the original.
+    let corrected: String = {
+        let mut child = std::process::Command::new(REAL_GIT)
+            .current_dir(&repo)
+            .args(["hash-object", "-w", "--stdin"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("hash-object");
+        std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"old\n").expect("write");
+        String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
+    };
+    git(repo.as_path(), &["update-index", "--cacheinfo", "100644", corrected.as_str(), "sub/a.txt"]);
+    let records: Vec<AddedPath> = selected_worktree_records(
+        &context(),
+        repo.join("sub").as_path(),
+        repo.as_path(),
+        index.as_path(),
+        &[InstallChange {
+            path: b"sub/a.txt".to_vec(),
+            mode: CandidateMode::Regular,
+            original: Rc::from(b"old".as_slice()),
+            replacement: Rc::from(b"old\n".as_slice()),
+        }],
+    )
+    .expect("records");
+    assert_eq!(records.len(), 1, "the selected correction is recorded: {records:?}");
+    assert_eq!(records[0].path, b"sub/a.txt", "the record names the path it was asked about");
+    remove(root.as_path());
+}
+
 /// A symbolic link or submodule correction is never recorded.
 #[test]
 fn non_ordinary_modes_get_no_completion() {

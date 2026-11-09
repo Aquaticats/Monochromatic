@@ -73,6 +73,10 @@ pub struct GitRequest {
     pub arguments: Vec<OsString>,
     /// Whether the invocation's global prefix is left out (shadow and private-store commands).
     pub without_prefix: bool,
+    /// Whether every pathspec in this request is the wrapper's own,
+    ///  so no pathspec mode the caller set reaches it,
+    /// from the environment or from the global options the request forwards.
+    pub own_pathspecs: bool,
     /// Private index,
     ///  as `GIT_INDEX_FILE`.
     pub index: Option<PathBuf>,
@@ -113,7 +117,10 @@ impl GitRequest {
     }
 
     /// What:
-    ///  This request with every pathspec-mode variable of the caller's environment removed.
+    ///  This request with its pathspecs declared the wrapper's own:
+    /// every pathspec-mode variable is removed from its environment and,
+    /// when it forwards the caller's global options,
+    /// every option that sets a mode is left out of them.
     /// Why:
     ///   A pathspec the wrapper writes is the wrapper's own,
     /// so no mode the caller set may change which paths it selects:
@@ -131,17 +138,41 @@ impl GitRequest {
     ///  `GIT_ICASE_PATHSPECS=1` alone makes `git ls-tree` refuse every pathspec
     ///  ("pathspec magic not supported by this command:
     /// 'icase'").
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const withoutPathspecModes = (request: GitRequest) => ({ ...request, unset: [...request.unset, ...PATHSPEC_MODE_VARIABLES] });
-    /// ```
-    pub fn without_pathspec_modes(mut self) -> Self {
+    ///  A mode the caller wrote as a global option reaches a generated pathspec no more than a variable does,
+    ///  so `full_arguments` drops those options here.
+    pub fn own_pathspecs(mut self) -> Self {
+        self.own_pathspecs = true;
         for name in crate::conflict_side_modes::MODE_VARIABLES {
             self.unset.push(OsString::from(name));
         }
         return self;
     }
+
+    /// What:
+    ///  The complete argument list Git receives:
+    /// the caller's global options,
+    /// then this request's own.
+    /// Why:
+    ///   One place decides which of the caller's globals reach a start,
+    ///  so no route can forget that a generated pathspec must not run under a mode the caller chose.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const fullArguments = (request: GitRequest, prefix: string[]) => [...(request.withoutPrefix ? [] : request.ownPathspecs ? withoutPathspecModeOptions(prefix) : prefix), ...request.arguments];
+    /// ```
+    pub fn full_arguments(&self, global_prefix: &[OsString]) -> Vec<OsString> {
+        let mut arguments: Vec<OsString> = Vec::new();
+        if !self.without_prefix {
+            if self.own_pathspecs {
+                arguments.extend(crate::global_arguments::without_pathspec_mode_options(global_prefix));
+            } else {
+                arguments.extend(global_prefix.iter().cloned());
+            }
+        }
+        arguments.extend(self.arguments.iter().cloned());
+        return arguments;
+    }
+
 }
 
 /// What:

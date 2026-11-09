@@ -50,7 +50,9 @@ fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
 
 /// A linked worktree of the repository is registered;
 /// a removed or re-pointed one is not,
-/// and a pointer that names a directory which is not there proves nothing either way.
+/// and a pointer that names a directory which is not there,
+/// or that is no whole pointer at all,
+/// proves nothing either way.
 #[cfg(unix)]
 #[test]
 fn registration_follows_the_linked_pointer() {
@@ -78,7 +80,7 @@ fn registration_follows_the_linked_pointer() {
     std::fs::write(plain.join(".git"), b"not a pointer\n").expect("plain pointer");
     assert_eq!(
         destination_registration(common.as_path(), plain.as_path()).expect("plain"),
-        Registration::Unregistered
+        Registration::PointerUnfollowable
     );
     remove(root.as_path());
 }
@@ -154,6 +156,88 @@ fn registration_answers_a_pointer_that_names_nothing_and_one_that_names_elsewher
         destination_registration(without_worktrees.as_path(), foreign.as_path()).expect("no worktrees directory"),
         Registration::Unregistered
     );
+    remove(root.as_path());
+}
+
+/// How long an answer that must not wait may take in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt;
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// A command killed while it rewrote the pointer of a registered worktree leaves the file empty,
+/// and the worktree and its registration under the common directory are still there:
+/// recovery is told nothing it can act on,
+/// so it keeps the pending copy and reports the unknown state.
+#[test]
+fn a_pointer_left_empty_by_an_interrupted_rewrite_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-pointer-empty");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    std::fs::write(topic.join(".git"), b"").expect("a pointer cut off before its path");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be followed"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy that is still registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// A `.git` that another command replaced with a named pipe must be answered without waiting:
+/// the pending check runs before every forwarded command,
+/// so a pipe with no writer would stick a command in an unrelated worktree.
+#[test]
+fn a_pointer_that_is_a_named_pipe_is_answered_without_waiting() {
+    let root: PathBuf = fixture("recovery-pointer-pipe");
+    let (source, _topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let destination: PathBuf = root.join("piped");
+    std::fs::create_dir(destination.as_path()).expect("destination");
+    make_pipe(destination.join(".git").as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Registration>();
+    std::thread::spawn(move || {
+        let answer: Registration = match destination_registration(common.as_path(), destination.as_path()) {
+            Ok(answer) => answer,
+            Err(failure) => panic!("the registration is answered: {}", failure.0),
+        };
+        sender.send(answer).expect("sent");
+    });
+    let answer: Registration = receiver
+        .recv_timeout(PATIENCE)
+        .expect("the registration is answered without waiting for a writer");
+    assert_eq!(answer, Registration::PointerUnfollowable);
+    remove(root.as_path());
+}
+
+/// A pointer an interrupted rewrite left half written proves nothing about the registration either:
+/// the file holds part of a pointer,
+/// so neither its absence nor a registration elsewhere can be read from it.
+#[test]
+fn registration_answers_a_pointer_left_half_written() {
+    let root: PathBuf = fixture("recovery-registration-half-written");
+    let (source, _topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    for (name, content) in [("cut-in-the-word", b"gitdir".as_slice()), ("cut-before-the-prefix", b"g".as_slice())] {
+        let destination: PathBuf = root.join(name);
+        std::fs::create_dir(destination.as_path()).expect("destination");
+        std::fs::write(destination.join(".git"), content).expect("a pointer cut off mid-word");
+        assert_eq!(
+            destination_registration(common.as_path(), destination.as_path()).expect("answered"),
+            Registration::PointerUnfollowable,
+            "{name}"
+        );
+    }
     remove(root.as_path());
 }
 
@@ -519,7 +603,8 @@ fn incumbent_written_journal_is_recovered_natively() {
 }
 
 /// A destination under something that is not a directory is unregistered,
-///  while a destination whose pointer cannot be read for any other reason is a fault to report.
+///  while a pointer that cannot be read as a plain file proves nothing either way:
+///  it neither discards a copy nor stops the command that found it.
 #[cfg(unix)]
 #[test]
 fn registration_tells_a_missing_destination_from_an_unreadable_one() {
@@ -534,9 +619,10 @@ fn registration_tells_a_missing_destination_from_an_unreadable_one() {
     );
     let unreadable: PathBuf = root.join("unreadable");
     std::fs::create_dir_all(unreadable.join(".git")).expect("a directory where the pointer file belongs");
-    let failure: WorktreeCopyError =
-        destination_registration(common.as_path(), unreadable.as_path()).expect_err("a directory is not a pointer");
-    assert!(failure.0.contains("could not read worktree registration"), "{}", failure.0);
+    assert_eq!(
+        destination_registration(common.as_path(), unreadable.as_path()).expect("a directory is not a pointer"),
+        Registration::PointerUnfollowable
+    );
     remove(root.as_path());
 }
 

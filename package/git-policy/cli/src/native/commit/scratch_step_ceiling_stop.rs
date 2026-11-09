@@ -16,11 +16,17 @@
 //! a read then proves the process found then,
 //! and a step that ended and had its number reused would be signalled through the successor
 //! (finding 1 of the second review).
+//!  A step whose start gave no descriptor is not signalled here at all:
+//! finding a number and opening a descriptor for it are two operations,
+//! so the signal is not own-child-safe,
+//! and the wait that owns the step ends it at the ceiling instead
+//! (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
 //!  Its children are read only while the descriptor says the step is still that process,
 //! because that is the only moment the number still names it:
 //! a number that cannot be reused is the one a live process holds.
 //!  A record that could not be read proves nothing (finding 3),
-//! and a stop is recorded only when a signal was really sent (finding 5 of the first review).
+//! a stop is recorded only when a signal was really sent (finding 5 of the first review),
+//! and no signal travels to a number this command read (finding 5 of the fifth review).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -148,40 +154,29 @@ pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
         // A step that never started has nothing to end, and nothing is concluded about it.
         return TheCeiling { came: CeilingCame::Unknown, below_listed: true };
     };
-    // A start whose descriptor the kernel refused is taken again here, while the step is provably this process's own
-    // unreaped child: the kernel keeps an unreaped child's number, so it is the one moment no other process can hold it
-    // (finding 1 of the fourth review).
-    let mut made_now: Option<std::os::fd::OwnedFd> = None;
-    if step.descriptor().is_none() {
-        match crate::process_tree::member_read(number) {
-            crate::process_tree::MemberRead::Found { parent, .. } if parent == i32::try_from(std::process::id()).unwrap_or(0) => {
-                made_now = crate::member_signalled_through_its_pidfd::pidfd_of(number);
-            }
-            // The number names no process, or one this command did not start: the child that held it has been reaped,
-            // so the step ended, and nothing is sent.
-            crate::process_tree::MemberRead::Found { .. } | crate::process_tree::MemberRead::Gone => {
-                return TheCeiling { came: CeilingCame::TheStepEnded, below_listed: true };
-            }
-            // Nothing can be proven about the step: the ceiling stays armed and is taken again at the next look.
-            crate::process_tree::MemberRead::Unreadable => return TheCeiling { came: CeilingCame::Unknown, below_listed: true },
-        }
-    }
-    // No descriptor here means the number was just proven to be this process's own unreaped child.
-    let descriptor: Option<&std::os::fd::OwnedFd> = step.descriptor().or(made_now.as_ref());
+    // What:
+    //  A start the kernel refused a descriptor for names nothing here for good,
+    //  so nothing is signalled and nothing is concluded.
+    // Why:
+    //   A number is safe only while the process is this command's own unreaped child,
+    //   and proving that and opening a descriptor for it are two operations:
+    //   a step that ended and was reaped in the interval leaves a number another process can hold,
+    //   which is finding 5 of the fifth review.
+    //  The commit stays bounded without this path:
+    //  the wait that owns the step ends the child it holds (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`),
+    //  so a ceiling is never lost with this answer.
+    let Some(descriptor) = step.descriptor() else {
+        return TheCeiling { came: CeilingCame::Unknown, below_listed: true };
+    };
     let walked: Option<Vec<TreeMember>> = walk_below(number);
     let below_listed: bool = walked.is_some();
-    if let Some(held) = descriptor
-        && has_ended(held)
-    {
+    if has_ended(descriptor) {
         // The step ended while its children were being read, so that read proves nothing and nothing from it is signalled.
         return TheCeiling { came: CeilingCame::TheStepEnded, below_listed };
     }
     // The step is signalled whatever the walk came to: the descriptor names it, and a walk that could not be made says
     // nothing about it (finding 2 of the fourth review).
-    let answer: Delivered = match descriptor {
-        Some(held) => signal_through(held, libc::SIGKILL),
-        None => crate::member_signalled_through_its_pidfd::signal_through_number(number, libc::SIGKILL),
-    };
+    let answer: Delivered = signal_through(descriptor, libc::SIGKILL);
     let _ended_below: Vec<Delivered> = match walked {
         Some(below) => kill_members(below.as_slice()),
         None => Vec::new(),

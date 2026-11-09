@@ -45,8 +45,7 @@
 use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::diagnostic_log::debug;
 use crate::discard_audit::{AUDIT_FILE, append_line, check_appendable};
-use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};
-use std::ffi::OsStr;
+use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 pub use crate::discarded_prune_audit_line::{Removed, audit_line, prune_line};
@@ -70,7 +69,7 @@ pub struct PruneOutcome {
 }
 
 /// What:
-///  Every directory of the folder that is named like the wrapper's own,
+///  Every directory of the folder at `relative` below a Git directory,
 /// oldest first,
 /// with its size and what it was when
 ///  listed,
@@ -86,14 +85,32 @@ pub struct PruneOutcome {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// const { entries, problems } = await listStampedBelow(commonDir, SAVED_DIRECTORY);
+/// ```
+pub(crate) fn list_stamped_below(common_dir: &Path, relative: &str) -> Listing {
+    return match Store::open(common_dir, relative) {
+        Ok(Some(store)) => list_in(&store, common_dir.join(relative).as_path()),
+        Ok(None) => Listing::default(),
+        Err(failure) => Listing { problems: vec![unusable(common_dir.join(relative).as_path(), &failure)], ..Listing::default() },
+    };
+}
+
+/// What:
+///  Every directory of the folder that is named like the wrapper's own,
+/// oldest first,
+/// with its size and what it was when
+///  listed,
+/// and what could not be read.
+/// Why:
+///  The pruning pass works on the folder the current name holds,
+/// because it is the pass that may write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
 /// const { entries, problems } = await listStamped(commonDir);
 /// ```
 pub fn list_stamped(common_dir: &Path) -> Listing {
-    return match Store::open(common_dir, SAVED_DIRECTORY) {
-        Ok(Some(store)) => list_in(&store, common_dir.join(SAVED_DIRECTORY).as_path()),
-        Ok(None) => Listing::default(),
-        Err(failure) => Listing { problems: vec![unusable(common_dir.join(SAVED_DIRECTORY).as_path(), &failure)], ..Listing::default() },
-    };
+    return list_stamped_below(common_dir, SAVED_DIRECTORY);
 }
 
 /// The problem that says why the folder cannot be used.
@@ -427,78 +444,10 @@ pub fn directory_name_of(saved_root: &Path, copy: &Path) -> Option<String> {
     return Some(first.as_os_str().to_string_lossy().into_owned());
 }
 
-/// What the folder holds,
-/// for `git monochromatic-git-policy-cli doctor`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Report {
-    /// Bytes of every copy.
-    pub bytes: u128,
-    /// How many files the copies are.
-    pub copies: usize,
-    /// How many saves (directories) they came from.
-    pub saves: usize,
-    /// The name of the oldest save,
-    /// empty when no save could be read.
-    pub oldest: String,
-    /// What could not be read.
-    pub problems: Vec<Problem>,
-}
-
-/// The folder's size,
-/// copy count and oldest save and what could not be read,
-/// or nothing when it holds no copy and nothing
-/// went wrong.
-pub fn report(common_dir: &Path) -> Option<Report> {
-    let listing: Listing = list_stamped(common_dir);
-    if listing.entries.is_empty() && listing.problems.is_empty() {
-        return None;
-    }
-    let mut total_bytes: u128 = 0;
-    for entry in &listing.entries {
-        total_bytes += entry.bytes;
-    }
-    return Some(Report {
-        bytes: total_bytes,
-        copies: listing.files,
-        saves: listing.entries.len(),
-        oldest: match listing.entries.first() {
-            Some(entry) => entry.name.clone(),
-            None => String::new(),
-        },
-        problems: listing.problems,
-    });
-}
-
-/// The doctor's text for the folder:
-/// empty when it holds no copy and nothing went wrong,
-/// otherwise one block with the size,
-/// the count,
-/// the oldest save and the limits that apply,
-/// then a sentence for each thing that could not be read.
-pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
-    let Some(found) = report(common_dir) else {
-        return String::new();
-    };
-    let mut text: String = String::new();
-    if found.saves > 0 {
-        text = format!(
-            "git monochromatic-git-policy-cli doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
-             are removed, and the oldest are removed past {} bytes, never one younger than a day (`discardedCopies.maxAgeDays` and \
-             `discardedCopies.maxSize` in monochromatic-git-policy-cli.config.jsonc change the limits).\n",
-            common_dir.join(SAVED_DIRECTORY).display(),
-            found.bytes,
-            found.copies,
-            found.saves,
-            found.oldest,
-            limits.max_age_days,
-            limits.max_bytes,
-        );
-    }
-    for problem in &found.problems {
-        text.push_str(problem.message().replacen("monochromatic-git-policy-cli: ", "git monochromatic-git-policy-cli doctor: discarded copies: ", 1).as_str());
-    }
-    return text;
-}
+/// What the folder of saved copies holds,
+/// for `git monochromatic-git-policy-cli doctor`,
+/// and the report's own text.
+pub use crate::discarded_report::{Report, doctor_section, report};
 
 /// Pruning is controlled in the test module.
 #[cfg(test)]
