@@ -649,13 +649,15 @@ Read-only commands,
      A trash that cannot be
    emptied is reported with its path and the reason,
      and the worktree is whole either way.
-     A trash the service gave up on is tried again by the next
-   command run in that worktree,
-     which withdraws the record once the trash is gone and names it when it still cannot be emptied;
+     A trash that could not be emptied stays there,
+   and the next command run in that worktree names it,
+     with its path;
      the same command
    names,
      without deleting,
-     every directory in `.claude/cli-git-trash` that no record of that worktree accounts for.
+     every directory in `.claude/cli-git-trash` that nothing will empty,
+     which is
+   one no record names and one only a record the service gave up on names.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:

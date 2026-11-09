@@ -33,7 +33,7 @@ use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
-use crate::worktree_trash_dispose::retry_given_up_trash;
+use crate::worktree_trash_dispose::name_unaccounted_trash;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
 use crate::policy_audited::record_audited;
@@ -146,13 +146,13 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
-    // The trash of the worktree this command runs in is tried again here: a disposal the commit service gave up on is
-    // settled as failed and nothing else would ever try it, and a trash no record accounts for is named to the person.
+    // The trash of the worktree this command runs in is named here when no record accounts for it: the add that made it
+    // empties it before it returns, so a trash still there is one that could not be emptied, and nothing else mentions it.
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        retry_given_up_trash(git_dir.as_path(), worktree, &mut stderr);
+        name_unaccounted_trash(git_dir.as_path(), worktree, &mut stderr);
     }
     // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
     //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.

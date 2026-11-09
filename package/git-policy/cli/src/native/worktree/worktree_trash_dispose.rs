@@ -122,37 +122,32 @@ pub fn dispose_pending_trash(_context: &GitContext, destination: &Path, git_dir:
 }
 
 /// What:
-///  Try again every trash of this worktree whose record a later command gave up on,
-///  and name every trash in the worktree's trash parent that no record accounts for.
+///  Name every trash in this worktree that nothing will empty.
 /// Why:
-///   The commit service settles a failed trash item as failed,
-/// so nothing tries it again,
-/// and the words of the
-///  inline fallback ("the commit service empties it when it next runs") hold only for its first try.
-/// The trash of a worktree
-///  is a full copy of the directories the snapshot left out,
-/// so one that stays is disk a person cannot find without being
-///  told:
-/// each record that still fails is named with its reason and its path,
-/// and so is a directory in the trash
-///  parent that no record names,
-/// which nothing can prove is a trash and nothing deletes.
-/// Nothing here deletes
-///  what a manifest does not name,
-/// and a record disappears only when its trash is gone.
+///   A command empties the trash of its own snapshot before it returns (`empty_before_returning`),
+/// so a trash that could not be emptied stays in the worktree,
+/// and nothing else would ever mention it again.
+/// The trash is a full copy of the directories the snapshot left out,
+/// so one that stays is disk a person cannot find without being told.
+/// A record an earlier release wrote accounts for its trash while the service still works on it,
+/// because its own handler empties that one (`empty_trash`);
+/// the service settles a trash it cannot empty as failed and never tries it again,
+/// so a failed record accounts for nothing here.
+/// This scan deletes nothing:
+/// a directory nothing recorded cannot be proven to be one the leave-out moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// retryGivenUpTrash(gitDir, worktree, notices);
+/// nameUnaccountedTrash(gitDir, worktree, notices);
 /// ```
-pub fn retry_given_up_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
-    // A worktree whose trash parent is gone has nothing to try or name, and that is the ordinary case.
+pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
+    // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     if std::fs::symlink_metadata(&parent).is_err() {
         return;
     }
     let work: PathBuf = work_directory(git_dir);
-    let mut recorded: Vec<String> = Vec::new();
+    let mut accounted: Vec<String> = Vec::new();
     for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
         let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
         for entry in listing.flatten() {
@@ -165,58 +160,32 @@ pub fn retry_given_up_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn W
             if item.kind != WorkKind::Trash {
                 continue;
             }
-            recorded.push(item.oid.clone());
-            if state != FAILED {
-                // A pending or claimed record is work of the service, which tries it itself.
+            // A record the service still works on accounts for its trash: its own handler empties that one, and naming
+            // it here would send the person to look at work that is not theirs. A failed record is settled for good,
+            // so the trash it names is left to the scan below, which names it and deletes nothing.
+            if state == FAILED {
                 continue;
             }
-            retry_one_trash(&item, record.as_path(), notices);
+            accounted.push(item.oid.clone());
         }
     }
-    name_unrecorded_trash(worktree, &recorded, notices);
+    name_trash_nothing_will_empty(worktree, &accounted, notices);
 }
 
-/// One record the service gave up on:
-/// empty its trash,
-/// or say why it still stays.
-fn retry_one_trash(item: &WorkItem, record: &Path, notices: &mut dyn Write) {
-    let shown: PathBuf = item.repository.join(TRASH_PARENT).join(item.oid.as_str());
-    match empty_trash(item) {
-        Verdict::Done => {
-            // The trash is gone, so its record must not stay as work for a service to find.
-            let _withdrawn = std::fs::remove_file(record);
-            let _told = writeln!(
-                notices,
-                "monochromatic-git-policy-cli: emptied the directories left out of the new worktree {} that an earlier emptying could not remove ({}).",
-                item.repository.display(),
-                shown.display()
-            );
-        }
-        Verdict::Failed(reason) | Verdict::Retry(reason) | Verdict::Skipped(reason) => {
-            let _told = writeln!(
-                notices,
-                "monochromatic-git-policy-cli: the directories left out of the new worktree {} are still at {}: {reason}. They are a copy of what the snapshot left out; look at them, and remove them yourself if nothing in them is wanted.",
-                item.repository.display(),
-                shown.display()
-            );
-        }
-    }
-}
-
-/// Say what sits in the trash parent of `worktree` that no record names.
-/// A directory nobody recorded cannot be proven to be one the leave-out moved,
+/// Say what sits in the trash parent of `worktree` that nothing will empty.
+/// A directory nothing recorded cannot be proven to be one the leave-out moved,
 /// so it is only named.
-fn name_unrecorded_trash(worktree: &Path, recorded: &[String], notices: &mut dyn Write) {
+fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices: &mut dyn Write) {
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     let Ok(listing) = std::fs::read_dir(&parent) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if recorded.contains(&name) {
+        if accounted.contains(&name) {
             continue;
         }
         let _told = writeln!(
             notices,
-            "monochromatic-git-policy-cli: {} holds directories no record of this worktree names, so it is left as it is: look at them, and remove them yourself if they are copies you do not want.",
+            "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
             entry.path().display()
         );
     }
@@ -240,7 +209,7 @@ fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashMa
     let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, so nothing another command was filling stays in it; this can take a while.", destination.display());
     return match delete_trash(destination, git_dir, manifest) {
         Ok(()) => Ok(()),
-        Err(reason) => Err(format!("the directories left out of the new worktree {} were not emptied ({reason}); the trash {} stays there and is named by the commit service when it next runs for this worktree", destination.display(), manifest.name)),
+        Err(reason) => Err(format!("the directories left out of the new worktree {} were not emptied ({reason}); the trash {} stays there, and a later command in this worktree names it", destination.display(), manifest.name)),
     };
 }
 

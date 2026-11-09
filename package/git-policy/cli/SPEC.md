@@ -1220,18 +1220,15 @@ The service settles a trash item it cannot empty as failed,
 so it never tries it again.
 Every command later run in that worktree,
 unless its output is read by a program,
-therefore tries the
-trash of each failed record again,
-withdraws the record once the trash is gone,
-and names a trash that still
-cannot be emptied on standard error with its path and the reason.
-It also names,
-without deleting,
-every directory
-in the worktree's trash parent that no record of that worktree accounts for,
-because a directory nobody recorded cannot
-be proven to be one the leave-out moved;
-a worktree with no trash parent costs the command one lookup.
+therefore names every directory
+in the worktree's trash parent that nothing will empty,
+on standard error,
+with its path:
+a trash whose emptying failed has no record at all,
+and one a failed record names has no record that will be tried again,
+while a directory nothing recorded cannot be proven to be one the leave-out moved;
+nothing there is deleted,
+and a worktree with no trash parent costs the command one lookup.
 The race with other processes is a risk the person accepts by using the command:
 a directory of the new worktree that another
 process replaces,
