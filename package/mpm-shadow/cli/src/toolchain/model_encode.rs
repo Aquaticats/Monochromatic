@@ -150,3 +150,19 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
     map.insert("artifacts".to_string(), Value::Object(rows));
     return Value::Object(map);
 }
+
+/// What:
+/// The pretty-printed JSON text of `document`:
+/// two-space indentation,
+/// no trailing newline.
+/// Why:
+/// Serializing an in-memory `Value` cannot fail (there is no I/O, and every text is valid UTF-8),
+/// so the impossible error panics here instead of being written into a file as an error document.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function renderPrettyJson(document: Value): string  // throws
+/// ```
+pub fn render_pretty_json(document: &Value) -> String {
+    return serde_json::to_string_pretty(document).expect("an in-memory JSON value always serializes");
+}

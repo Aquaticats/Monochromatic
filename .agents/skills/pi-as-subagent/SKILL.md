@@ -76,8 +76,16 @@ I said "be okay with pi committing directly to main",
 not that they have to."
 
 The owner on how many can run at once:
-"Pi doesn't have a limit to number of concurrent subagents.
-In practice it's 16."
+"Pi doesn't have a limit to number of concurrent subagents."
+The practical limit is 20:
+the owner said
+"Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20,"
+and a trial at 20 agents on 2026-11-09 met no rate-limit error.
+On going higher the owner said:
+"no,
+that's definitely going to blow up."
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.

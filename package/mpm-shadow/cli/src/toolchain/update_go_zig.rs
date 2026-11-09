@@ -24,6 +24,8 @@ use super::context::Context;
 use super::model::Artifact;
 /// Imports the shared resolver helpers.
 use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, by_name, get_json, is_arm64, text_at};
+/// Imports the crate's one version comparison, which also orders pre-releases.
+use crate::version::compare_versions;
 
 /// One Go release's Linux archive for an architecture (`amd64` or `arm64`):
 /// the file name and its SHA-256.
@@ -112,27 +114,6 @@ pub fn resolve_go_module(ctx: &Context, module: &str, wanted: Option<&str>) -> R
         Some(tag) => Ok(by_name(tag.trim_start_matches('v'))),
         None => Err(ResolveError::Failed(format!("{url}: the proxy reports no version for {module}"))),
     };
-}
-
-/// A version segment as a number (0 when it is not one).
-fn number_or_zero(part: &str) -> u64 {
-    return part.parse::<u64>().unwrap_or(0);
-}
-
-/// Compares two dotted version keys numerically,
-/// segment by segment (a missing segment counts as 0).
-fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
-    let left_parts: Vec<u64> = left.split('.').map(number_or_zero).collect();
-    let right_parts: Vec<u64> = right.split('.').map(number_or_zero).collect();
-    let length: usize = left_parts.len().max(right_parts.len());
-    for at in 0..length {
-        let one: u64 = left_parts.get(at).copied().unwrap_or(0);
-        let other: u64 = right_parts.get(at).copied().unwrap_or(0);
-        if one != other {
-            return one.cmp(&other);
-        }
-    }
-    return std::cmp::Ordering::Equal;
 }
 
 /// A field of one platform entry of one release in the Zig download index.
