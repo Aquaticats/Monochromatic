@@ -725,6 +725,37 @@ fn a_rollback_does_not_delete_a_directory_that_replaced_the_staged_subvolume() {
 }
 
 /// What:
+///  A rollback preview refuses the stage that is not a subvolume,
+/// in the words the real rollback uses.
+/// Why:
+///   The preview answered the refusals of the mode it previews,
+/// but the stage-type guard lives in the rollback
+///  itself,
+/// so the preview promised a restore the real command refuses,
+/// on state it could have read.
+#[test]
+fn a_rollback_preview_names_the_stage_that_is_not_a_subvolume() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-preview-stage-type");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    std::fs::create_dir_all(layout.new_path.as_path()).expect("a replacement directory");
+    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..rollback_arguments() };
+    let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(preview_code, REFUSED, "{preview_lines:#?}");
+    let said: String = preview_lines.join("\n");
+    assert!(said.contains("not a subvolume") && said.contains("the subvolume the migration created"), "{said}");
+    assert!(!said.contains("would restore"), "a preview promises nothing the run refuses: {said}");
+    let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(real_code, REFUSED, "{real_lines:#?}");
+    assert_eq!(said, real_lines.join("\n"), "the preview says what the real run says");
+    assert!(layout.new_path.join("..").exists());
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A rollback preview of a migration stopped before the exchange is not refused,
 ///  because the real rollback can perform it.
 /// Why:
