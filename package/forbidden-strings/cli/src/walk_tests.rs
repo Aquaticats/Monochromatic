@@ -1,5 +1,4 @@
-// What:     Integration-style tests for `list_files` and the private
-//           `detect_index_hash_kind` helper. Each test creates a temporary
+// What:     Integration-style tests for `list_files`. Each test creates a temporary
 //           git repository, populates it with a fixture file set, then
 //           calls the function under test and asserts on the result. This
 //           sidecar file is pulled in by
@@ -126,7 +125,7 @@ fn list_files_includes_force_added_gitignored_file() {
         &["commit", "-q", "-m", "initial", ".gitignore", "tracked.ignored", "normal.txt"],
     );
 
-    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files");
+    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
     // What:     Collect basenames of returned paths into a Vec for
     //           the diagnostic message; the assertion is on
     //           membership, not order.
@@ -204,7 +203,7 @@ fn list_files_excludes_submodule_gitlink_entries() {
         &["commit", "-q", "-m", "initial", "real.txt"],
     );
 
-    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files");
+    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
     let normalized: Vec<String> = files
         .iter()
         .map(|p| return p.trim_start_matches("./").to_string())
@@ -223,91 +222,6 @@ fn list_files_excludes_submodule_gitlink_entries() {
     let _ = fs::remove_dir_all(&dir);
 }
 
-// What:     Helper `write_config(dir, contents)` materialises a
-//           `.git/config` file under `dir` with the given contents.
-//           Used by the `detect_index_hash_kind` unit tests below.
-// Why:      Each test exercises a different config shape; a helper
-//           keeps the test bodies focused on the shape they test.
-fn write_config(dir: &Path, contents: &str) {
-    let git_dir = dir.join(".git");
-    fs::create_dir_all(&git_dir).expect("create .git");
-    fs::write(git_dir.join("config"), contents).expect("write .git/config");
-}
-
-#[test]
-fn detect_sha256_in_standard_config_shape() {
-    let dir = unique_tmp("detect-sha256-standard");
-    write_config(
-        &dir,
-        "[extensions]\n\tobjectformat = sha256\n[core]\n\tbare = false\n",
-    );
-    assert_eq!(super::detect_index_hash_kind(&dir), gix_hash::Kind::Sha256);
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn detect_sha1_when_extensions_absent() {
-    let dir = unique_tmp("detect-sha1-default");
-    write_config(&dir, "[core]\n\tbare = false\n[user]\n\temail = t@t\n");
-    assert_eq!(super::detect_index_hash_kind(&dir), gix_hash::Kind::Sha1);
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn detect_sha1_when_config_missing() {
-    let dir = unique_tmp("detect-sha1-noconfig");
-    // No .git/config written -- read_to_string returns Err, helper
-    // must default to Sha1.
-    assert_eq!(super::detect_index_hash_kind(&dir), gix_hash::Kind::Sha1);
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn detect_sha256_with_comments_and_irregular_whitespace() {
-    let dir = unique_tmp("detect-sha256-comments");
-    write_config(
-        &dir,
-        // What:     Mixed-case section, `#` and `;` comments,
-        //           tab and space variation, mid-line comment.
-        // Why:      Git config tolerates all of these; our parser
-        //           must too.
-        "# comment line\n[Extensions]\n  ObjectFormat=  sha256  ; trailing\n[core]\n",
-    );
-    assert_eq!(super::detect_index_hash_kind(&dir), gix_hash::Kind::Sha256);
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn detect_sha1_when_objectformat_is_outside_extensions_section() {
-    let dir = unique_tmp("detect-sha1-wrong-section");
-    // What:     `objectformat` lives under `[core]` here; our
-    //           parser must NOT treat that as a Sha256 signal.
-    // Why:      Bogus configs should default-to-Sha1 rather than
-    //           silently break parsing on real Sha1 indexes.
-    write_config(
-        &dir,
-        "[core]\n\tobjectformat = sha256\n",
-    );
-    assert_eq!(super::detect_index_hash_kind(&dir), gix_hash::Kind::Sha1);
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn detect_sha256_with_extensions_subsection() {
-    let dir = unique_tmp("detect-sha256-subsection");
-    // What:     `[extensions "foo"]` is a subsection; our parser
-    //           treats it as `extensions` proper (`split_whitespace`
-    //           strips the subsection name).
-    // Why:      Git itself reads `extensions.objectformat` under
-    //           any subsection; our detection should match.
-    write_config(
-        &dir,
-        "[extensions \"weird\"]\n\tobjectformat = sha256\n",
-    );
-    assert_eq!(super::detect_index_hash_kind(&dir), gix_hash::Kind::Sha256);
-    let _ = fs::remove_dir_all(&dir);
-}
-
 #[test]
 fn list_files_handles_sha256_repo_force_added_gitignored() {
     // What:     End-to-end test on a fresh `git init
@@ -315,7 +229,7 @@ fn list_files_handles_sha256_repo_force_added_gitignored() {
     //           gitignored file. `list_files` must return both the
     //           ordinary tracked file AND the force-added one;
     //           gix-index must parse the Sha256 index correctly via
-    //           our `detect_index_hash_kind` plumbing.
+    //           our `git_working_tree::index_hash_kind` plumbing.
     // Why:      Pre-fix the in-process index reader was hard-wired
     //           to Sha1, so a Sha256 index either failed to parse
     //           (Err fall-through to walker-only, missing the
@@ -336,7 +250,7 @@ fn list_files_handles_sha256_repo_force_added_gitignored() {
         &["commit", "-q", "-m", "initial", ".gitignore", "tracked.ignored", "normal.txt"],
     );
 
-    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files");
+    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
     let basenames: Vec<String> = files
         .iter()
         .filter_map(|p| {
@@ -397,14 +311,18 @@ fn seed_repository(repository: &Path, ignored: &[&str]) {
 }
 
 // What:     `fn listed(root)` lists one directory through `list_files`.
-// Why:      One call site keeps every test below on the same entry point.
+// Why:      One call site keeps every test below on the same entry point,
+//           and the tracked-file union's diagnostic stays out of the paths
+//           each assertion compares.
 //
 // In TS you'd write (pseudocode):
 // ```ts
 // function listed(root: string): string[] { return listFiles(root); }
 // ```
 fn listed(root: &Path) -> Vec<String> {
-    return list_files(root.to_str().expect("root utf8")).expect("list_files")
+    return list_files(root.to_str().expect("root utf8"))
+        .expect("list_files")
+        .files
 }
 
 // What:     `fn relative_listing(root)` reports each listed path relative to
@@ -667,4 +585,138 @@ fn list_files_scans_a_directory_without_a_repository_of_its_own() {
     );
 
     let _ = fs::remove_dir_all(&directory);
+}
+
+/// The union's absence is a value, not a silent loss:
+/// a repository whose index was removed still scans its whole working tree,
+/// and the listing carries the reason the tracked files are missing.
+#[test]
+fn list_files_reports_a_missing_index_and_keeps_scanning() {
+    let repository = unique_tmp("missing-index");
+    seed_repository(&repository, &["tracked.ignored"]);
+    fs::remove_file(repository.join(".git/index")).expect("remove the index");
+
+    let listing = list_files(repository.to_str().expect("repository utf8")).expect("list_files");
+    let paths: Vec<String> = listing
+        .files
+        .iter()
+        .map(|path| return relative_to(&repository, path))
+        .collect();
+    assert!(
+        paths.iter().any(|path| return path == "plain.txt"),
+        "a missing index must not stop the working-tree scan; got {:?}",
+        paths
+    );
+    let gap: String = listing.union_gap.expect("a missing index inside a repository must be reported");
+    assert!(
+        gap.contains("index") && gap.contains("git reset"),
+        "the diagnostic must name the missing index and its remedy; got {:?}",
+        gap
+    );
+
+    let _ = fs::remove_dir_all(&repository);
+}
+
+/// An index that cannot be opened,
+///  which a corrupt index reports,
+///  keeps the working-tree scan and reports why the union is unavailable.
+#[test]
+fn list_files_reports_an_unparseable_index_and_keeps_scanning() {
+    let repository = unique_tmp("unparseable-index");
+    seed_repository(&repository, &["tracked.ignored"]);
+    fs::write(repository.join(".git/index"), b"not an index").expect("corrupt the index");
+
+    let listing = list_files(repository.to_str().expect("repository utf8")).expect("list_files");
+    let paths: Vec<String> = listing
+        .files
+        .iter()
+        .map(|path| return relative_to(&repository, path))
+        .collect();
+    assert!(
+        paths.iter().any(|path| return path == "plain.txt"),
+        "an unparseable index must not stop the working-tree scan; got {:?}",
+        paths
+    );
+    let gap: String = listing
+        .union_gap
+        .expect("an unparseable index inside a repository must be reported");
+    assert!(
+        gap.contains("index") && gap.contains("git reset"),
+        "the diagnostic must name the index it could not parse and its remedy; got {:?}",
+        gap
+    );
+
+    let _ = fs::remove_dir_all(&repository);
+}
+
+/// An index that cannot be read at all,
+///  which an unreadable file reports,
+///  keeps the working-tree scan and reports the operating system's reason.
+///
+/// Unix-only: the fixture needs a permission bit the process is not allowed
+/// to read through.
+#[cfg(unix)]
+#[test]
+fn list_files_reports_an_unreadable_index_and_keeps_scanning() {
+    use std::os::unix::fs::PermissionsExt;
+    let repository = unique_tmp("unreadable-index");
+    seed_repository(&repository, &["tracked.ignored"]);
+    let index: PathBuf = repository.join(".git/index");
+    fs::set_permissions(&index, fs::Permissions::from_mode(0o000)).expect("make the index unreadable");
+
+    let listing = list_files(repository.to_str().expect("repository utf8")).expect("list_files");
+    let paths: Vec<String> = listing
+        .files
+        .iter()
+        .map(|path| return relative_to(&repository, path))
+        .collect();
+    assert!(
+        paths.iter().any(|path| return path == "plain.txt"),
+        "an unreadable index must not stop the working-tree scan; got {:?}",
+        paths
+    );
+    let gap: String = listing
+        .union_gap
+        .expect("an unreadable index inside a repository must be reported");
+    assert!(
+        gap.contains("index") && gap.contains("Permission denied"),
+        "the diagnostic must carry the operating system's reason; got {:?}",
+        gap
+    );
+
+    // Restore permissions so the fixture can be removed.
+    fs::set_permissions(&index, fs::Permissions::from_mode(0o644)).expect("restore the index permissions");
+    let _ = fs::remove_dir_all(&repository);
+}
+
+/// A scan of a subfolder inside a repository whose index is gone still walks
+/// the subfolder and says the tracked-file union is unavailable there.
+#[test]
+fn list_files_reports_a_missing_index_from_a_repository_subfolder() {
+    let repository = unique_tmp("subfolder-missing-index");
+    seed_repository(&repository, &[]);
+    let subfolder: PathBuf = repository.join("sub");
+    fs::create_dir_all(&subfolder).expect("create subfolder");
+    fs::write(subfolder.join("visited.txt"), "ordinary content").expect("write visited.txt");
+    run_git(&repository, &["add", "-f", "sub/visited.txt"]);
+    run_git(&repository, &["commit", "-q", "-m", "sub", "sub/visited.txt"]);
+    fs::remove_file(repository.join(".git/index")).expect("remove the index");
+
+    let listing = list_files(subfolder.to_str().expect("subfolder utf8")).expect("list_files");
+    let paths: Vec<String> = listing
+        .files
+        .iter()
+        .map(|path| return relative_to(&subfolder, path))
+        .collect();
+    assert!(
+        paths.iter().any(|path| return path == "visited.txt"),
+        "a subfolder scan must still walk the subfolder; got {:?}",
+        paths
+    );
+    assert!(
+        listing.union_gap.is_some(),
+        "a subfolder scan inside a repository whose index is missing must say so"
+    );
+
+    let _ = fs::remove_dir_all(&repository);
 }
