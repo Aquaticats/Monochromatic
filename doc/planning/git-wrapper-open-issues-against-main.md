@@ -931,7 +931,7 @@ and they are the reason a missing path is not a missing defect:
  and carries no `RegExp`,
   so the reached-and-red site is gone,
  but the coverage gap stands:
-  52 of the 271 package `mise.toml` files declare no `lint:oxlint` task,
+  43 of the 271 package `mise.toml` files mention no `lint:oxlint` task at all,
  so the fanout in root `mise.toml` still cannot reach them.
  Adding the task and covering `doc/**` is the same work it was.
 - `#680`:
