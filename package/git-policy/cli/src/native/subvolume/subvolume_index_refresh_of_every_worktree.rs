@@ -216,9 +216,9 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
                         self.gave_no_result.never_started.fetch_add(1, Ordering::SeqCst);
                         format!("not rewritten ({refused})")
                     }
-                    // The kinds of end that leave the index unknown: the job started after the report gave up on it,
-                    //  it panicked, or it was cut off.
-                    BlockingJobError::NoThreadToStart | BlockingJobError::Panicked | BlockingJobError::Cancelled => {
+                    // The kinds of end that leave the index unknown: the job started on another thread after the report gave
+                    //  up on it (or took this item's own claim first), it panicked, or it was cut off.
+                    BlockingJobError::NoThreadToStart | BlockingJobError::StartedAfterItsThreadWasRefused | BlockingJobError::Panicked | BlockingJobError::Cancelled => {
                         self.gave_no_result.ended_without_a_result.fetch_add(1, Ordering::SeqCst);
                         format!("ended without a known result, so this index may have been written or may be as it was ({refused})")
                     }

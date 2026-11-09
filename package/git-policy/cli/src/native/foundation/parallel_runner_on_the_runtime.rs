@@ -92,12 +92,14 @@ pub struct OrderedRunOfOwned<'run, T, R> {
 #[derive(Debug)]
 pub enum OrderedRunError {
     /// The system refused a thread for a job,
-    /// so that job's own item had not run when the run answered,
-    ///  and the items after it in its lane were not run.
-    /// The pool queues a job before it asks for a thread,
-    /// so the item it held may still run later,
-    ///  and nothing of this error says what that item then did.
+    ///  so the items after it in its lane were not run,
+    /// and the item it held will not run either.
     NoThreadToStart,
+    /// The system refused a thread for a job,
+    ///  and the pool then ran it on another thread,
+    /// so the items after it in its lane were not run,
+    ///  and whether the item it held finished is not known from here.
+    StartedAfterItsThreadWasRefused,
     /// A job panicked,
     /// so the items after it in its lane were not run.
     Panicked,
@@ -113,10 +115,16 @@ impl std::fmt::Display for OrderedRunError {
         return match self {
             OrderedRunError::NoThreadToStart => write!(
                 formatter,
-                "the system refused a thread for a step of this run, so the items after it in its lane were not run, and the \
-                 item it held had not run when this was reported; the pool had already queued that step, so it may still run \
-                 later. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, free some, and run the \
-                 command again"
+                "the system refused a thread for a step of this run, so the items after it in its lane were not run and the \
+                 item it held will not run. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, \
+                 free some, and run the command again"
+            ),
+            OrderedRunError::StartedAfterItsThreadWasRefused => write!(
+                formatter,
+                "the system refused a thread for a step of this run, and the pool then ran that step on another thread: the \
+                 items after it in its lane were not run, and whether the item it held finished is not known from here. Hint: \
+                 check the process limit (`ulimit -u`) and the control group's `pids.max`, and check what that worktree looks \
+                 like before running the command again"
             ),
             OrderedRunError::Panicked => write!(formatter, "a step of this run panicked, so the items after it in its lane were not run"),
             OrderedRunError::Cancelled => write!(formatter, "a step of this run was cancelled because the runtime was ending"),
@@ -129,6 +137,7 @@ impl From<BlockingJobError> for OrderedRunError {
     fn from(error: BlockingJobError) -> Self {
         return match error {
             BlockingJobError::NoThreadToStart => OrderedRunError::NoThreadToStart,
+            BlockingJobError::StartedAfterItsThreadWasRefused => OrderedRunError::StartedAfterItsThreadWasRefused,
             BlockingJobError::Panicked => OrderedRunError::Panicked,
             BlockingJobError::Cancelled => OrderedRunError::Cancelled,
         };

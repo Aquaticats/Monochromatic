@@ -20,13 +20,17 @@
 /// Why a blocking job did not give its value.
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockingJobError {
-    /// The system refused a thread and the pool had none to run the job on then.
-    ///  The pool queues a job before it asks for a thread,
-    /// so the job has not run *yet*:
-    /// nothing here says it never will,
-    ///  and callers that promise a file is unchanged must take a claim first
-    /// (`the_claim_a_job_takes_before_running_it.rs`).
+    /// The system refused a thread and the pool had none to run the job on,
+    /// and the job will do nothing:
+    ///  a caller that takes the claim on the job's work
+    /// (`the_claim_a_job_takes_before_running_it.rs`)
+    ///  before this answer is what makes that sure.
     NoThreadToStart,
+    /// The system refused a thread for the job's start,
+    ///  and the pool then ran the job on another thread:
+    /// it has started,
+    ///  and whether it finished is not known from here.
+    StartedAfterItsThreadWasRefused,
     /// The job ran and panicked.
     Panicked,
     /// The runtime ended before the job did.
@@ -38,9 +42,14 @@ impl std::fmt::Display for BlockingJobError {
         return match self {
             BlockingJobError::NoThreadToStart => write!(
                 formatter,
-                "the system refused a thread for a blocking step, so it had not started when that was reported; the pool had \
-                 already queued it, so it may still run later. Hint: check the process limit (`ulimit -u`) and the control \
-                 group's `pids.max`, free some, and run the command again"
+                "the system refused a thread for a blocking step, and the step will not run, so it changed nothing. Hint: check \
+                 the process limit (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
+            ),
+            BlockingJobError::StartedAfterItsThreadWasRefused => write!(
+                formatter,
+                "the system refused a thread for a blocking step, and the pool then ran that step on another thread: it has \
+                 started, and whether it finished is not known from here. Hint: check the process limit (`ulimit -u`) and the \
+                 control group's `pids.max`, and check what the step was doing before running the command again"
             ),
             BlockingJobError::Panicked => write!(formatter, "a blocking step panicked; this is a defect of monochromatic-git-policy-cli"),
             BlockingJobError::Cancelled => write!(formatter, "a blocking step was cancelled because the runtime was ending"),

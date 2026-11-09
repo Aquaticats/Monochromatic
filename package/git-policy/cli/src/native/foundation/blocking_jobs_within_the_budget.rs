@@ -201,12 +201,43 @@ where
         Err(failed) => {
             // The place goes back here only when the job will never run: a job that took the claim holds it until its
             //  work ends, so the process's bound keeps covering every running job.
-            if claimed.the_reporter_takes_it() {
-                held.give_it_back();
-            }
+            let answered: BlockingJobError = a_refused_thread_start(failed, &claimed, &held);
             call.settled = true;
-            Err(failed)
+            Err(answered)
         }
+    };
+}
+
+/// What:
+///  The error a refused start is,
+///  from what the claim on the job's work decided.
+/// Why:
+///  This is the only place that knows which of two things happened,
+/// because it takes the claim:
+///  a reporter's claim proves the queued closure will do nothing,
+/// and a claim the job took first proves the job started on another thread
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`,
+///  which queues the job before it asks for a thread).
+/// A message that says the step had not started is false in the second case,
+///  and for a conversion the worktree may already have been changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = aRefusedThreadStart(failed, claim, place); // NeverRuns | StartedAnyway
+/// ```
+fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWork, held: &ThePlaceOfOneJob) -> BlockingJobError {
+    if claimed.the_reporter_takes_it() {
+        held.give_it_back();
+        return match failed {
+            BlockingJobError::NoThreadToStart => BlockingJobError::NoThreadToStart,
+            other => other,
+        };
+    }
+    // The job took the claim, so it runs or has run, and this answer says only what is known.
+    return match failed {
+        BlockingJobError::NoThreadToStart => BlockingJobError::StartedAfterItsThreadWasRefused,
+        other => other,
     };
 }
 
