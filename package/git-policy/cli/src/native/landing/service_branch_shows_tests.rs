@@ -15,12 +15,13 @@ fn what_the_branch_shows_is_read_from_the_branch() {
     let made: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
     let other: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD~0"]).trim().to_string();
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
+    // An object that is not there at all: Git answers 128, which is neither "yes" nor "no", so nothing is claimed.
     let at_the_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", made.as_str());
-    let not_at_the_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", "0000000000000000000000000000000000000000");
+    let no_such_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", "0000000000000000000000000000000000000000");
     let no_such_branch: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/absent", other.as_str());
     crate::test_support::remove(root.as_path());
-    assert_eq!(at_the_commit, WhatTheBranchShows::Made, "the branch is at the commit this command prepared");
-    assert_eq!(not_at_the_commit, WhatTheBranchShows::NotMade, "the branch is not at that commit");
+    assert_eq!(at_the_commit, WhatTheBranchShows::Made, "the branch holds the commit this command prepared");
+    assert_eq!(no_such_commit, WhatTheBranchShows::Unread, "a commit that is not there is not a fact either way");
     assert_eq!(no_such_branch, WhatTheBranchShows::Unread, "a branch that cannot be read is not a fact either way");
 }
 

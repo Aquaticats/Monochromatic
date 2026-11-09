@@ -16,8 +16,8 @@
 
 /// The context a Git read runs in.
 use crate::transaction_git::GitContext;
-/// The one required Git start and its output.
-use crate::transaction_git::run_git_checked;
+/// Git, started once and answered without failing the command when Git says no.
+use crate::transaction_git::run_git;
 /// A request with the private index and object directory of a capture.
 use crate::private_index_request::indexed_request;
 /// What the branch shows,
@@ -33,7 +33,7 @@ use crate::commit_transaction::TransactionStop;
 use crate::service_messages::render;
 
 /// What:
-///  Read the branch once and say whether it is at the commit this command prepared.
+///  Read the branch once and say whether it holds the commit this command prepared.
 /// Why:
 ///   The silence message told the person it was not known whether the commit was made,
 /// while the service still held the commit and landed it later
@@ -47,15 +47,18 @@ use crate::service_messages::render;
 /// const shows = whatTheBranchShows(context, cwd, reference, prepared);
 /// ```
 pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &str, prepared: &str) -> WhatTheBranchShows {
-    let read = run_git_checked(context, &indexed_request(cwd, &["rev-parse", "--verify", reference], None, None));
-    let Ok(output) = read else {
+    // Whether the branch holds the commit, which the tip itself does and so does every commit under it:
+    // `merge-base --is-ancestor` answers 0 for both, 1 for a commit the branch does not hold, and anything else is a read
+    // that failed (finding 5 of the third review).
+    let asked = run_git(context, &indexed_request(cwd, &["merge-base", "--is-ancestor", prepared, reference], None, None));
+    let Ok(output) = asked else {
         return WhatTheBranchShows::Unread;
     };
-    let head: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
-    if head.is_empty() {
-        return WhatTheBranchShows::Unread;
-    }
-    return if head == prepared { WhatTheBranchShows::Made } else { WhatTheBranchShows::NotMade };
+    return match output.code {
+        Some(0) => WhatTheBranchShows::Made,
+        Some(1) => WhatTheBranchShows::NotMade,
+        _ => WhatTheBranchShows::Unread,
+    };
 }
 
 /// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
