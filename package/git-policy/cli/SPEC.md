@@ -4858,19 +4858,48 @@ the options weighed and the controls.)
   it is made only when this process's own environment carries no marker.
   Test:
   `a_launcher_that_clears_the_environment_ends_the_chain`.
-- What a cleared environment still hides:
-  a launcher that both clears it and replaces itself with the wrapper
+- Covered since 2026-11-09T05:00:00-05:00,
+  where neither the marker nor the environment of the process above could see it:
+  a launcher that clears the environment **and replaces itself with the wrapper**
   (`exec env --ignore-environment ... wrapper`),
-  which leaves one process number running the wrapper,
-  the launcher and the wrapper again with no
-  environment of its own to read and no second process to ask.
-  Nothing in the process survives that `exec` but its number,
-  its open descriptors and its limits,
-  and the wrapper carries none of them as a record,
-  so the level after that one starts again from a first start and no chain of it is counted.
-  The reported shape,
-  whose levels wait for their children,
-  is covered above.
+  so one process number runs the launcher,
+  the clearing and the wrapper again
+  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+  finding 1 of the round-2 review).
+  What an `exec` keeps is the open descriptors,
+  so the chain record is one:
+  the first wrapper of a chain makes a memory file with `memfd_create`
+  (`invocation/chain_starts_record.rs`,
+  no close-on-exec flag),
+  every start of real Git writes the marker it gives that Git into the file,
+  and the file records the path it chose,
+  and every child inherits the descriptor.
+  A wrapper that finds no marker anywhere reads that record:
+  a marker whose start was its own process is the launcher that replaced itself with it,
+  and one whose start was the process that started it is the launcher that waits for it,
+  and either is refused with the words the guard already writes,
+  naming the file the record kept.
+  A record naming any other process is a command that has ended,
+  so its count starts again at one and a long session of one command after another is never refused.
+  A memory file has no directory entry and no name to sweep:
+  the kernel frees it with the last process that holds it,
+  and the guard reads it only when no marker exists,
+  so a marked start costs nothing.
+  The record costs nothing a forwarded command can feel:
+  measured by alternating two builds that differ only in it,
+  300 pairs,
+  paired median −0.02 ms,
+  mean −0.04 ms,
+  against a 6.3 ms median and a spread of 4.4 to 10.3 ms.
+  Test:
+  `a_launcher_that_clears_the_environment_and_replaces_itself_ends_the_chain`.
+- What a cleared environment still hides:
+  a launcher that closes every descriptor it did not open and then `exec`s the wrapper.
+  The record is the descriptor,
+  so a launcher that closes it leaves the next level with no marker and no record,
+  which is a first start again;
+  the forking shape is covered by the environment of the process above,
+  and the `exec` shape only by the record.
 
 ### The wrapper falls back to the Git its commit service was set up with
 

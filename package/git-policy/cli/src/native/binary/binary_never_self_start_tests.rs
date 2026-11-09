@@ -555,7 +555,9 @@ fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
 /// ```ts
 /// writeExecutable(launcher, `#!/bin/sh\nlevel=$(( ${LEVEL:-0} + 1 )); echo $level >> counter; if [ $level -gt cap ]; then exit 97; fi\nenv --ignore-environment HOME=... PATH=... LEVEL=$level wrapper "$@"`);
 /// ```
-fn launcher_that_clears_the_environment(path: &Path, counter: &Path, path_variable: &OsStr, wrapper: &Path, cap: usize) {
+fn launcher_that_clears_the_environment(path: &Path, counter: &Path, path_variable: &OsStr, wrapper: &Path, cap: usize, replaces_itself: bool) {
+    // A launcher that `exec`s leaves one process running the launcher, the clearing and the wrapper again.
+    let start: &str = if replaces_itself { "exec /usr/bin/env" } else { "/usr/bin/env" };
     let script: String = format!(
         "#!/bin/sh\n\
          level=$(( ${{{CHAIN_LEVEL_VARIABLE}:-0}} + 1 ))\n\
@@ -564,12 +566,58 @@ fn launcher_that_clears_the_environment(path: &Path, counter: &Path, path_variab
          echo 'stand-in: start cap reached' >&2\n\
          exit {STAND_IN_STOP_CODE}\n\
          fi\n\
-         /usr/bin/env --ignore-environment HOME=\"$HOME\" PATH='{path_variable}' {CHAIN_LEVEL_VARIABLE}=$level '{wrapper}' \"$@\"\n",
+         {start} --ignore-environment HOME=\"$HOME\" PATH='{path_variable}' {CHAIN_LEVEL_VARIABLE}=$level '{wrapper}' \"$@\"\n",
         counter = counter.display(),
         path_variable = path_variable.to_string_lossy(),
         wrapper = wrapper.display(),
     );
     executable(path, script.as_bytes());
+}
+
+/// What:
+///  The reported launcher that clears the environment **and replaces itself with the wrapper**,
+/// so that one process runs the
+///  launcher,
+/// the clearing and the wrapper again.
+/// Why:
+///  No second process and no environment of its own are left,
+/// so the environment marker and the environment of the process
+///  above both say nothing,
+/// and the wrapper started itself without end
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 1 of the round-2
+///  review).
+/// What survives an `exec` is the descriptor the chain record lives in,
+/// and the pair of the start that
+///  wrote it,
+/// so the same process arriving as the wrapper again reads its own pair and stops.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [bin, launchers] }).code).toBe(2); expect(deepestLevel(counter)).toBe(1);
+/// ```
+#[test]
+fn a_launcher_that_clears_the_environment_and_replaces_itself_ends_the_chain() {
+    let fixture: Fixture = fixture("launcher-exec-clears-environment");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let launchers: PathBuf = directory(&fixture, "launchers");
+    let counter: PathBuf = fixture.root.join("starts");
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(launchers.as_os_str());
+    launcher_that_clears_the_environment(launchers.join("git").as_path(), counter.as_path(), path.as_os_str(), fixture.wrapper.as_path(), CHAIN_CAP, true);
+    let observed: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        b"",
+    );
+    let text: String = words(&observed);
+    let deepest: usize = deepest_level(counter.as_path());
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
+    assert_eq!(deepest, 1, "the launcher runs once and the wrapper it started stops: {text}");
+    assert!(text.contains("started as Git"), "{text}");
+    assert!(text.contains("replaced with this program"), "says how the start arrived: {text}");
+    assert!(text.contains(launchers.join("git").to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
+    remove(&fixture);
 }
 
 /// What:
@@ -603,7 +651,7 @@ fn a_launcher_that_clears_the_environment_ends_the_chain() {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(launchers.as_os_str());
-    launcher_that_clears_the_environment(launchers.join("git").as_path(), counter.as_path(), path.as_os_str(), fixture.wrapper.as_path(), CHAIN_CAP);
+    launcher_that_clears_the_environment(launchers.join("git").as_path(), counter.as_path(), path.as_os_str(), fixture.wrapper.as_path(), CHAIN_CAP, false);
     let observed: Observed = observe(
         bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
         b"",

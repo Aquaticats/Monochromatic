@@ -98,6 +98,9 @@ pub fn git_command(
     }
     // Every real-Git start says it is one, so a monochromatic-git-policy-cli executable that arrives as "Git" stops (`started_as_git.rs`).
     mark_real_git_start(&mut command, StartMode::Child);
+    // The chain record names the file this start runs as Git, so a refusal a launcher leaves behind can name it
+    //  (`chain_starts_record.rs`).
+    crate::chain_starts_record::remember_chosen(real_git.as_os_str());
     return command;
 }
 
