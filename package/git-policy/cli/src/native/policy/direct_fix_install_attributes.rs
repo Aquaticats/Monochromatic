@@ -201,6 +201,209 @@ fn named(name: &&[u8]) -> bool {
 }
 
 /// What:
+///  A system call's answer as a length,
+///  or the system's own error.
+/// Why:
+///  Every call here answers a byte count and a negative number as a failure,
+///  so the length question and
+///       the reading are read the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answerOf = (count) => count < 0 ? { error: lastError() } : { bytes: count };
+/// ```
+#[cfg(unix)]
+fn answer_of(count: libc::ssize_t) -> std::io::Result<usize> {
+    if count < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(usize::try_from(count).unwrap_or(usize::MAX));
+}
+
+/// What:
+///  One two-call reading:
+/// how many bytes the answer needs,
+///  then the answer itself.
+///  `length` asks,
+///  `read` copies at most `buffer.len()` bytes and reports how many the answer needs.
+/// Why:
+///   The values,
+/// the names and the descriptor's list are all read this way,
+///  so the retry is written once;
+///  the state travels as one argument because the calls are plain functions,
+///  which keeps them out of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readUntilItFits(state, length, read) { for (let attempt = 0; attempt < ATTEMPTS; attempt++) { const buffer = Buffer.alloc(length(state)); const reported = read(state, buffer); if (reported > buffer.length) continue; return buffer.subarray(0, reported) } throw new Error('kept changing') }
+/// ```
+#[cfg(unix)]
+fn read_until_it_fits<State>(
+    state: &mut State,
+    changing: &str,
+    length: fn(&mut State) -> std::io::Result<usize>,
+    read: fn(&mut State, &mut [u8]) -> std::io::Result<usize>,
+) -> std::io::Result<Vec<u8>> {
+    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
+        let wanted: usize = length(state)?;
+        let mut buffer: Vec<u8> = vec![0; wanted];
+        let reported: usize = match read(state, buffer.as_mut_slice()) {
+            Ok(count) => count,
+            Err(error) if error.raw_os_error() == Some(libc::ERANGE) => continue,
+            Err(error) => return Err(error),
+        };
+        // What: The kernel reads a zero-sized buffer as another length question, so an answer above the buffer means
+        //       nothing was copied and the value or list has grown since the question was asked.
+        // Why:  Truncating the empty buffer to that length cannot grow it, and the person's nonempty value would then be
+        //       read as empty, which a displaced file compares equal on.
+        //
+        // In TS you'd write (pseudocode):
+        // if (reported > buffer.length) continue;
+        if reported > buffer.len() {
+            continue;
+        }
+        buffer.truncate(reported);
+        return Ok(buffer);
+    }
+    return Err(std::io::Error::other(changing));
+}
+
+/// What:
+///  How many bytes the list of the file at `path` needs.
+/// Why:
+///  This is the length question of the two-call reading of a pathname's list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lengthOfList = (path) => llistxattr(path, null, 0);
+/// ```
+#[cfg(unix)]
+fn length_of_list_on_path(path: &mut CString) -> std::io::Result<usize> {
+    // SAFETY: a null buffer with size 0 asks the system for the length of the list.
+    let length: libc::ssize_t = unsafe { libc::llistxattr(path.as_ptr(), std::ptr::null_mut(), 0) };
+    return answer_of(length);
+}
+
+/// What:
+///  Fill `buffer` with the list of the file at `path`,
+///  and report how many bytes the list needs.
+/// Why:
+///  This is the reading itself;
+///  a buffer too small for a list that grew answers `ERANGE`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fillList = (path, buffer) => llistxattr(path, buffer, buffer.length);
+/// ```
+#[cfg(unix)]
+fn fill_list_on_path(path: &mut CString, buffer: &mut [u8]) -> std::io::Result<usize> {
+    // SAFETY: `buffer` holds `buffer.len()` writable bytes, and the pathname outlives the call.
+    let filled: libc::ssize_t =
+        unsafe { libc::llistxattr(path.as_ptr(), buffer.as_mut_ptr().cast(), buffer.len()) };
+    return answer_of(filled);
+}
+
+/// What:
+///  How many bytes the list of the open file at `descriptor` needs.
+/// Why:
+///  This is the length question of the two-call reading of the replacement's own list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lengthOfList = (fd) => flistxattr(fd, null, 0);
+/// ```
+#[cfg(unix)]
+fn length_of_list_on_descriptor(descriptor: &mut libc::c_int) -> std::io::Result<usize> {
+    // SAFETY: a null buffer with size 0 asks the system for the length of the list.
+    let length: libc::ssize_t = unsafe { libc::flistxattr(*descriptor, std::ptr::null_mut(), 0) };
+    return answer_of(length);
+}
+
+/// What:
+///  Fill `buffer` with the list of the open file at `descriptor`,
+///  and report how many bytes the list needs.
+/// Why:
+///  The descriptor cannot be redirected by a swap of the name,
+///  so this is the replacement's own list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fillList = (fd, buffer) => flistxattr(fd, buffer, buffer.length);
+/// ```
+#[cfg(unix)]
+fn fill_list_on_descriptor(descriptor: &mut libc::c_int, buffer: &mut [u8]) -> std::io::Result<usize> {
+    // SAFETY: `buffer` holds `buffer.len()` writable bytes, and the descriptor is this file's.
+    let filled: libc::ssize_t =
+        unsafe { libc::flistxattr(*descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
+    return answer_of(filled);
+}
+
+/// What:
+///  The pathname and the name of one extended attribute,
+///  as the two calls that read its bytes want them.
+/// Why:
+///  One reading takes its state as one value,
+///  so the pathname and the attribute's name travel together.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ValueOnDisk = { path: Buffer; name: Buffer };
+/// ```
+#[cfg(unix)]
+struct ValueOnDisk {
+    /// The pathname,
+    ///  NUL-terminated.
+    path: CString,
+    /// The attribute's name,
+    ///  NUL-terminated.
+    name: CString,
+}
+
+/// What:
+///  How many bytes the value of `asked`'s attribute needs.
+/// Why:
+///  This is the length question of the two-call reading of one value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lengthOfValue = ({ path, name }) => lgetxattr(path, name, null, 0);
+/// ```
+#[cfg(unix)]
+fn length_of_value(asked: &mut ValueOnDisk) -> std::io::Result<usize> {
+    // SAFETY: a null buffer with size 0 asks the system for the length of the value.
+    let length: libc::ssize_t = unsafe {
+        libc::lgetxattr(asked.path.as_ptr(), asked.name.as_ptr(), std::ptr::null_mut(), 0)
+    };
+    return answer_of(length);
+}
+
+/// What:
+///  Fill `buffer` with the value of `asked`'s attribute,
+///  and report how many bytes it needs.
+/// Why:
+///  A buffer too small for a value that grew answers `ERANGE`,
+///  and a zero-sized buffer makes
+///       the call a length question again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fillValue = ({ path, name }, buffer) => lgetxattr(path, name, buffer, buffer.length);
+/// ```
+#[cfg(unix)]
+fn fill_value(asked: &mut ValueOnDisk, buffer: &mut [u8]) -> std::io::Result<usize> {
+    // SAFETY: `buffer` holds `buffer.len()` writable bytes, and both names outlive the call.
+    let read: libc::ssize_t = unsafe {
+        libc::lgetxattr(
+            asked.path.as_ptr(),
+            asked.name.as_ptr(),
+            buffer.as_mut_ptr().cast(),
+            buffer.len(),
+        )
+    };
+    return answer_of(read);
+}
+
+/// What:
 ///  The names of every extended attribute of the regular file at `path`,
 ///  in the order the kernel
 ///       lists them.
@@ -216,34 +419,18 @@ fn named(name: &&[u8]) -> bool {
 /// ```
 #[cfg(unix)]
 fn names_of_attributes(path: &Path) -> std::io::Result<Vec<Vec<u8>>> {
-    let text: CString = name_of(path)?;
-    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
-        // SAFETY: a null buffer with size 0 asks the system for the length of the list.
-        let length: libc::ssize_t = unsafe { libc::llistxattr(text.as_ptr(), std::ptr::null_mut(), 0) };
-        if length < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        let mut names: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
-        // SAFETY: `names` holds `names.len()` writable bytes, and the path outlives the call.
-        let filled: libc::ssize_t =
-            unsafe { libc::llistxattr(text.as_ptr(), names.as_mut_ptr().cast(), names.len()) };
-        if filled < 0 {
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ERANGE) {
-                continue;
-            }
-            return Err(error);
-        }
-        names.truncate(usize::try_from(filled).unwrap_or(0));
-        return Ok(names
-            .split(is_zero)
-            .filter(named)
-            .map(<[u8]>::to_vec)
-            .collect());
-    }
-    return Err(std::io::Error::other(
+    let mut text: CString = name_of(path)?;
+    let listed: Vec<u8> = read_until_it_fits(
+        &mut text,
         "the list of its extended attributes kept changing while it was read",
-    ));
+        length_of_list_on_path,
+        fill_list_on_path,
+    )?;
+    return Ok(listed
+        .split(is_zero)
+        .filter(named)
+        .map(<[u8]>::to_vec)
+        .collect());
 }
 
 /// What:
@@ -261,33 +448,18 @@ fn names_of_attributes(path: &Path) -> std::io::Result<Vec<Vec<u8>>> {
 /// ```
 #[cfg(unix)]
 fn names_on_descriptor(descriptor: libc::c_int) -> std::io::Result<Vec<Vec<u8>>> {
-    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
-        // SAFETY: a null buffer with size 0 asks the system for the length of the list.
-        let length: libc::ssize_t = unsafe { libc::flistxattr(descriptor, std::ptr::null_mut(), 0) };
-        if length < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        let mut names: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
-        // SAFETY: `names` holds `names.len()` writable bytes, and the descriptor is this file's.
-        let filled: libc::ssize_t =
-            unsafe { libc::flistxattr(descriptor, names.as_mut_ptr().cast(), names.len()) };
-        if filled < 0 {
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ERANGE) {
-                continue;
-            }
-            return Err(error);
-        }
-        names.truncate(usize::try_from(filled).unwrap_or(0));
-        return Ok(names
-            .split(is_zero)
-            .filter(named)
-            .map(<[u8]>::to_vec)
-            .collect());
-    }
-    return Err(std::io::Error::other(
+    let mut asked: libc::c_int = descriptor;
+    let listed: Vec<u8> = read_until_it_fits(
+        &mut asked,
         "the list of its extended attributes kept changing while it was read",
-    ));
+        length_of_list_on_descriptor,
+        fill_list_on_descriptor,
+    )?;
+    return Ok(listed
+        .split(is_zero)
+        .filter(named)
+        .map(<[u8]>::to_vec)
+        .collect());
 }
 
 /// What:
@@ -303,37 +475,16 @@ fn names_on_descriptor(descriptor: libc::c_int) -> std::io::Result<Vec<Vec<u8>>>
 /// ```
 #[cfg(unix)]
 fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
-    let text: CString = name_of(path)?;
-    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
-        // SAFETY: a null buffer with size 0 asks the system for the length of the value.
-        let length: libc::ssize_t =
-            unsafe { libc::lgetxattr(text.as_ptr(), name.as_ptr(), std::ptr::null_mut(), 0) };
-        if length < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        let mut value: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
-        // SAFETY: `value` holds `value.len()` writable bytes, and both names outlive the call.
-        let read: libc::ssize_t = unsafe {
-            libc::lgetxattr(
-                text.as_ptr(),
-                name.as_ptr(),
-                value.as_mut_ptr().cast(),
-                value.len(),
-            )
-        };
-        if read < 0 {
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ERANGE) {
-                continue;
-            }
-            return Err(error);
-        }
-        value.truncate(usize::try_from(read).unwrap_or(0));
-        return Ok(value);
-    }
-    return Err(std::io::Error::other(
+    let mut asked: ValueOnDisk = ValueOnDisk {
+        path: name_of(path)?,
+        name: CString::from(name),
+    };
+    return read_until_it_fits(
+        &mut asked,
         "its value kept changing while it was read",
-    ));
+        length_of_value,
+        fill_value,
+    );
 }
 
 /// What:

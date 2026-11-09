@@ -13,7 +13,7 @@
 //! ```
 
 /// The module under test.
-use super::{Attribute, AttributeRefusal, attributes_of, give_to};
+use super::{ATTRIBUTE_ATTEMPTS, Attribute, AttributeRefusal, attributes_of, give_to, read_until_it_fits};
 /// A disposable fixture and its removal.
 use crate::test_support::{fixture, remove};
 /// `CString` names the attribute the control plants.
@@ -248,4 +248,175 @@ fn an_attribute_the_original_never_had_is_taken_off_the_replacement() {
         .collect();
     assert_eq!(user, Vec::<&Attribute>::new(), "the inherited attribute is gone: {found:?}");
     remove(root.as_path());
+}
+
+/// What:
+///  One answer as another process can leave it between the length question and the reading call:
+///  empty when
+///       the length is asked,
+///  and holding the person's bytes by the time the reading runs.
+/// Why:
+///  A value that grows after the size question is exactly what makes a zero-sized buffer come back with a
+///  length instead of bytes,
+///  and the control plants that growth rather than racing a real writer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GrowingAnswer = { after: Buffer; asked: number };
+/// ```
+struct GrowingAnswer {
+    /// The bytes the answer holds once it has grown.
+    after: Vec<u8>,
+    /// How many times the length was asked.
+    asked: u32,
+}
+
+/// What:
+///  The length question of a growing answer:
+///  nothing before the first reading,
+///  the grown length after it.
+/// Why:
+///  This is what the kernel answers when the attribute was empty at the first question and nonempty at the
+///  second.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const growingLength = (answer) => ++answer.asked === 1 ? 0 : answer.after.length;
+/// ```
+fn growing_length(answer: &mut GrowingAnswer) -> std::io::Result<usize> {
+    answer.asked += 1;
+    if answer.asked == 1 {
+        return Ok(0);
+    }
+    return Ok(answer.after.len());
+}
+
+/// What:
+///  The reading of a growing answer:
+///  a buffer that cannot hold it copies nothing and reports the length it needs.
+/// Why:
+///  A zero-sized buffer is another length question to the kernel,
+///  which is the answer the loop must not
+///  mistake for an empty value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const growingRead = (answer, buffer) => buffer.length < answer.after.length ? answer.after.length : copy(buffer);
+/// ```
+fn growing_read(answer: &mut GrowingAnswer, buffer: &mut [u8]) -> std::io::Result<usize> {
+    if buffer.len() < answer.after.len() {
+        return Ok(answer.after.len());
+    }
+    buffer[..answer.after.len()].copy_from_slice(answer.after.as_slice());
+    return Ok(answer.after.len());
+}
+
+/// What:
+///  A value that grows between the length question and the reading call is read whole.
+/// Why:
+///  Truncating the empty buffer to the length the second call reports cannot grow it,
+///  so the person's
+///       nonempty value would come back as empty,
+///  and a displaced file holding newer data would compare equal to the
+///       state the fix recorded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await readUntilItFits({ after: 'only-copy-of-draft', asked: 0 })).toEqual('only-copy-of-draft')
+/// ```
+#[test]
+fn a_value_that_grows_between_the_length_question_and_the_read_is_read_whole() {
+    let mut answer: GrowingAnswer = GrowingAnswer {
+        after: DRAFT_VALUE.to_vec(),
+        asked: 0,
+    };
+    let read: Vec<u8> = read_until_it_fits(
+        &mut answer,
+        "its value kept changing while it was read",
+        growing_length,
+        growing_read,
+    )
+    .expect("the value is read once its length fits");
+    assert_eq!(read, DRAFT_VALUE, "the grown value is the one that comes back");
+    assert_eq!(answer.asked, 2, "the length was asked again after the buffer did not fit");
+}
+
+/// What:
+///  A list that grows between the length question and the reading call is read whole.
+/// Why:
+///  The names of a file's attributes are read with the same two calls,
+///  and an empty answer that grows would
+///  otherwise read as a file with no attributes at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await readUntilItFits({ after: 'user.draft\0', asked: 0 })).toEqual('user.draft\0')
+/// ```
+#[test]
+fn a_list_that_grows_between_the_length_question_and_the_read_is_read_whole() {
+    const LISTED: &[u8] = b"user.draft\0";
+    let mut answer: GrowingAnswer = GrowingAnswer {
+        after: LISTED.to_vec(),
+        asked: 0,
+    };
+    let read: Vec<u8> = read_until_it_fits(
+        &mut answer,
+        "the list of its extended attributes kept changing while it was read",
+        growing_length,
+        growing_read,
+    )
+    .expect("the list is read once its length fits");
+    assert_eq!(read, LISTED, "the grown list is the one that comes back");
+    assert_eq!(answer.asked, 2, "the length was asked again after the buffer did not fit");
+}
+
+/// What:
+///  The length question of an answer that is always larger than the buffer it was given.
+/// Why:
+///  A file whose attributes never settle has no list and no value this process can name,
+///  so the reading
+///       must stop rather than ask for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const neverFittingLength = () => 0;
+/// ```
+fn never_fitting_length(_answer: &mut GrowingAnswer) -> std::io::Result<usize> {
+    return Ok(0);
+}
+
+/// The reading of an answer that is always larger than the buffer it was given.
+fn never_fitting_read(answer: &mut GrowingAnswer, buffer: &mut [u8]) -> std::io::Result<usize> {
+    answer.asked += 1;
+    return Ok(buffer.len() + answer.after.len() + 1);
+}
+
+/// What:
+///  An answer that never fits its buffer is refused after the attempts the reading allows.
+/// Why:
+///  A file whose attributes keep changing must cost a refusal,
+///  never a loop;
+///  the count is the constant the
+///       reading is built on,
+///  so a change to it shows here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await readUntilItFits(neverFitting)).rejects.toThrow('kept changing'); expect(attempts).toBe(ATTEMPTS)
+/// ```
+#[test]
+fn an_answer_that_never_fits_is_refused_after_the_attempts_it_allows() {
+    let mut answer: GrowingAnswer = GrowingAnswer {
+        after: b"still growing".to_vec(),
+        asked: 0,
+    };
+    let refusal: std::io::Error = read_until_it_fits(
+        &mut answer,
+        "its value kept changing while it was read",
+        never_fitting_length,
+        never_fitting_read,
+    )
+    .expect_err("an answer that never fits is refused");
+    assert_eq!(refusal.to_string(), "its value kept changing while it was read");
+    assert_eq!(answer.asked, ATTRIBUTE_ATTEMPTS, "the reading stops at its own bound");
 }
