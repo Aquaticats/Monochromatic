@@ -15,6 +15,15 @@ The package moved on 2026-10-20:
  and moves the advisor-specific selection wrapper into that core.
  Planned moves below that are not part of that series stay open.
 
+The absence convention changed on 2026-05-31
+ (commit `3bb4ce7f8c`,
+`2026-05-31T11:38:59-04:00`):
+ the generic `ABSENT` symbol and `Maybe<T>` alias,
+ which the original plan collected in `src/maybe.ts`,
+ became one exported `unique symbol` per expected miss,
+ and `src/maybe.ts` was deleted.
+ The decisions here and the `Absence convention` section state the current convention.
+
 ## Decisions captured here
 
 - Keep the package at `package/agent-harness-shared/model-selection/` with package name
@@ -24,7 +33,9 @@ The package moved on 2026-10-20:
 - Move the full planned surface,
    including budget-model strategy orchestration.
 - Leave only registry authentication and extension-host adapters in consumers.
-- Use `ABSENT` and `Maybe<T>` for non-exceptional absence in shared APIs.
+- Signal a non-exceptional absence in shared APIs with one exported `unique symbol` per expected miss,
+   returning `T | typeof SENTINEL` and narrowing with `=== SENTINEL`;
+   this replaced the `ABSENT` and `Maybe<T>` pair on 2026-05-31 (commit `3bb4ce7f8c`).
 - Preserve lightweight consumers by keeping dependency-free helpers out of platform-coupled modules.
 
 ## Problem
@@ -91,6 +102,9 @@ Some files contain consumer-specific adapters that become thinner rather than di
   - `maybe.ts`,
      44 lines:
      `ABSENT` and `Maybe<T>` sentinel.
+     The file was removed on 2026-05-31 by commit `3bb4ce7f8c`,
+      which replaced it with the per-purpose sentinels the absence section lists;
+      the line count is the 2026-05-26 measurement.
   - `types.ts`,
      273 lines:
      advisor config,
@@ -269,15 +283,42 @@ narrowed `api` typing is explicit at the call site.
 
 ## Absence convention
 
-Shared APIs use `ABSENT` and `Maybe<T>` for expected misses.
-This avoids `T | undefined` unions while keeping no-match flows non-exceptional.
+Shared APIs report an expected miss with one exported `unique symbol`,
+ returning `T | typeof SENTINEL` and narrowing with `=== SENTINEL`.
+This avoids a banned `T | undefined` union while keeping no-match flows
+ non-exceptional.
+Name each sentinel after the miss it reports;
+ a word that fits any miss,
+such as `ABSENT`,
+names none.
+Declare it in the module that first returns it,
+ unless a callback crosses the package boundary,
+ where it belongs in a module both sides import without a cycle,
+ as `NO_AUTH` does in `types.ts`.
 
-Use `Maybe<T>` for:
+Sentinels the package exports today:
 
-- exact match helpers.
-- pattern parse helpers when no model matches.
-- budget auth callbacks when a candidate lacks usable credentials.
-- registry lookup adapters that may not find a model.
+- `NO_EXACT_MATCH`:
+   no unambiguous exact model reference.
+- `MALFORMED_SLUG`:
+   a slug is not a `provider/model` pair.
+- `NO_ARGV_MODELS`:
+   argv holds no `--models` value.
+- `NO_LIVE_SCOPE`:
+   the runtime exposes no usable live model scope.
+- `NO_CANDIDATE`:
+   no budget candidate survives version filtering.
+- `NO_MAJOR_VERSION`:
+   a model id holds no parseable major version.
+- `NO_AUTH`:
+   the budget auth callback finds no usable credentials for a model.
+- `NO_OVERRIDE_MODEL`:
+   a registry lookup finds no model for a budget override slug.
+
+Three more stay internal to the module that raises them:
+ `NO_PATTERN_MATCH`,
+ `NO_THINKING_LEVEL`,
+ and `NO_SETTINGS_FILE`.
 
 Use thrown errors for invalid inputs,
  impossible internal states,
@@ -289,8 +330,10 @@ Use optional object fields for optional metadata,
 
 ### Core modules
 
-- `maybe.ts`:
-   move `ABSENT` and `Maybe<T>` from advisor.
+- one exported `unique symbol` per expected miss,
+   declared in the module that returns it,
+   as the `Absence convention` section requires;
+   the planned `maybe.ts` was dropped on 2026-05-31 (commit `3bb4ce7f8c`).
 - `types.ts`:
    define structural model,
    scope,
@@ -388,10 +431,10 @@ Move budget selection strategy into shared while keeping host-specific auth in a
 Budget selection must accept callbacks instead of importing auto-mode context directly:
 
 ```typescript
-// package/agent-harness-shared/model-selection/src/budget-selection.ts
+// package/agent-harness-shared/model-selection/src/types.ts
 export type ResolveBudgetAuth<TModel> = (
   options: { readonly model: TModel; },
-) => Promise<Maybe<BudgetModelAuth>>;
+) => Promise<BudgetModelAuth | typeof NO_AUTH>;
 
 export type BudgetModelSelectionOptions<TModel extends ModelPricing> = {
   readonly activeModel: TModel;
@@ -404,7 +447,7 @@ export type BudgetModelSelectionOptions<TModel extends ModelPricing> = {
 ```
 
 Auto-mode keeps the adapter that calls `ctx.modelRegistry.getApiKeyAndHeaders`,
- translates failures to `ABSENT`,
+ returns `NO_AUTH` when the registry reports no usable credentials,
 and passes registry-backed callbacks into shared budget selection.
 
 ## Consumer responsibilities after migration
