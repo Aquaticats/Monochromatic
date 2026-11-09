@@ -153,6 +153,47 @@ fn a_query_that_floods_and_ends_is_not_a_success() {
     }
 }
 
+/// What:
+///  A query whose input thread cannot start is stopped with the same bounded stop as any stopped query.
+/// Why:
+///   The command never got its request,
+/// and the end of a child the kernel will not release is not waited for:
+/// the
+///  stop asks it to end,
+/// forces the end past the grace,
+/// and hands what it cannot collect to the sweep.
+/// The
+///  fixture takes no polite stop,
+/// so the grace is what bounds the answer.
+#[cfg(unix)]
+#[test]
+fn a_query_whose_input_cannot_be_given_is_stopped_within_its_grace() {
+    let grace: Duration = Duration::from_millis(400);
+    let root: std::path::PathBuf = crate::test_support::fixture("query-input-thread-refused");
+    let shim: std::path::PathBuf = root.join("git-that-ignores-the-polite-stop");
+    std::fs::write(shim.as_path(), "#!/bin/sh\ntrap '' TERM\nexec sleep 30\n").expect("stand-in");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    let _refused = crate::scoped_start::RefusedStarts::here();
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure: SingleFlightError = run_bounded_git(
+        Command::new(shim.as_path()),
+        "hash-object --stdin",
+        Duration::from_secs(60),
+        grace,
+        scratch_environment().as_slice(),
+        Some(b"x".to_vec()),
+    )
+    .expect_err("the command never got its request");
+    let waited: Duration = began.elapsed();
+    assert!(failure.to_string().contains("no thread could be started"), "{failure}");
+    assert!(waited >= grace, "the command was asked to end and given its grace before the kill: {waited:?}");
+    assert!(waited < Duration::from_secs(10), "the stop is bounded, not a wait for the child: {waited:?}");
+    crate::test_support::remove(root.as_path());
+}
+
 /// A program that cannot start is a start failure.
 #[test]
 fn a_program_that_cannot_start_is_a_start_failure() {

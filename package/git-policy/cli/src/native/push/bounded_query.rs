@@ -267,9 +267,10 @@ pub async fn run_bounded_git_awaiting(
     if let Some(bytes) = input
         && let Err(error) = feed_standard_input(started.stdin.take(), bytes)
     {
-        // The command never got its request, so it is stopped here and the failure names why.
-        let _stopped = started.kill();
-        let _reaped = started.wait();
+        // The command never got its request, so it is stopped here and the failure names why. The stop is the one every stopped
+        //  query gets: asked to end, forced past the grace, and bounded, so a child the kernel does not release is handed to the
+        //  sweep instead of being waited for.
+        stop_push(adopt(started), grace, locks).await;
         return Err(SingleFlightError::Start(std::io::Error::other(error)));
     }
     let mut child: OwnedChild = adopt(started);
