@@ -1,5 +1,8 @@
 # Recursive directory enumeration follows directory symlinks
 
+Note 2026-11-09T16:46:15-05:00:
+`package/pi-plugin/auto-mode/native/build-reuse.ts` left the tree on 2026-10-19 in `ff55ced353`.
+
 ## Measured behavior and deciding source
 
 On Node `26.12.0`,

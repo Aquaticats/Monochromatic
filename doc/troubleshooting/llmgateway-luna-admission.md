@@ -1,5 +1,17 @@
 # LLM Gateway Luna Decisions returns complete answers without complete native admission
 
+Note 2026-11-09T16:46:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/native/contract/integration/action-policy/permission-review-scope.ts`
+left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/contract/integration/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/src/request-material-obligations.ts` left the tree on 2026-10-19 in `7ac15b19b4`.
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+
 ## Permission review receives unrelated agent guidance on 2026-10-16
 
 ### Symptom and evidence

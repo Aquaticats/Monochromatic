@@ -1,5 +1,9 @@
 # Drex API full-policy routing and request compatibility
 
+Note 2026-11-09T16:46:15-05:00:
+`package/pi-plugin/auto-mode/native/contract/lifecycle/claim-evidence-batch-selection/selection.mjs`
+left the tree on 2026-10-19 in `ff55ced353`.
+
 ## Drex 2.0 backend rejects rows below its published context limit
 
 ### Symptom
