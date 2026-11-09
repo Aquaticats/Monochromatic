@@ -378,8 +378,8 @@ fn a_landed_merge_only_loses_its_record() {
     git(saved.repo.as_path(), &["merge", "--ff-only", "--quiet", saved.new_oid.as_str()]);
     let side_ref: &str = "refs/cli-git/kept/2";
     let side_record: PathBuf = deferred_record_of(&saved, "44444444-0000-4000-8000-000000000044", side_ref);
-    let outcomes = recover_interrupted_merges(&place(&saved), saved.git_dir.as_path(), &mut Vec::new()).expect("recovery");
-    assert_eq!(the_action_for(&outcomes, side_record.as_path()), Some(MergeRecoveryAction::AlreadyLanded));
+    let saved_outcomes = recover_interrupted_merges(&place(&saved), saved.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    assert_eq!(the_action_for(&saved_outcomes, side_record.as_path()), Some(MergeRecoveryAction::AlreadyLanded));
     assert!(!side_record.exists(), "the record is gone");
     assert_eq!(
         git_text(saved.repo.as_path(), &["for-each-ref", "--format=%(refname)", side_ref]),
@@ -853,12 +853,11 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     )
     .expect("the PID file of a process that runs");
     let mut installed_said: Vec<u8> = Vec::new();
-    let refused = crate::index_holder_wait::RECOVERY_LOCK_CEILING_FOR_THIS_THREAD
-        .with(|shortened| {
-            shortened.set(Some(std::time::Duration::from_millis(100)));
-            settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said)
-        });
-    let refused = refused.expect_err("an installed merge behind a held index stops the command");
+    let settled = crate::index_holder_wait::RECOVERY_LOCK_CEILING_FOR_THIS_THREAD.with(|shortened| {
+        shortened.set(Some(std::time::Duration::from_millis(100)));
+        return settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said);
+    });
+    let refused: MergeRefusal = settled.expect_err("an installed merge behind a held index stops the command");
     assert!(refused.began, "it reports that the merge is installed");
     assert!(installed_record.exists(), "the record stays");
     remove(installed.parent.as_path());
