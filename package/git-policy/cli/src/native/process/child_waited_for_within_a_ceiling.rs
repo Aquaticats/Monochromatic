@@ -40,12 +40,6 @@ thread_local! {
     static A_KILL_IS_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// Refuse the next kill.
-#[cfg(test)]
-pub(crate) fn refuse_the_next_kill() {
-    let _armed = A_KILL_IS_REFUSED.with(|refused| { refused.set(true); });
-}
-
 /// Ask a child to end,
 /// unless a control refuses the signal.
 fn kill(child: &mut Child) -> std::io::Result<()> {
@@ -213,14 +207,19 @@ pub fn wait_within(child: Child, ceiling: Duration) -> std::io::Result<ExitStatu
 ///  back as what was read of it,
 /// with a line naming the program,
 /// because the answer itself was read whole.
+///  Each stream is handed over as it is read and kept up to `STEP_OUTPUT_LIMIT`,
+/// the most bytes of one stream the
+///  captured run keeps,
+/// so nothing this command keeps can grow without bound and a reader that is no longer wanted
+///  is ended rather than left to gather.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [out, err, status] = await withDeadline(readAll(child.stdout), readAll(child.stderr), child.exited);
 /// ```
 pub fn output_within(mut child: Child, ceiling: Duration) -> std::io::Result<Output> {
-    let (answers, answered) = std::sync::mpsc::channel::<OneStream>();
-    let (complaints, complained) = std::sync::mpsc::channel::<OneStream>();
+    let (answers, answered) = std::sync::mpsc::channel::<FromAReader>();
+    let (complaints, complained) = std::sync::mpsc::channel::<FromAReader>();
     let mut readers: Vec<std::thread::JoinHandle<()>> = Vec::new();
     if let Some(pipe) = child.stdout.take() {
         readers.push(start_reader(Box::new(pipe), "standard output", answers, &mut child)?);
@@ -230,38 +229,94 @@ pub fn output_within(mut child: Child, ceiling: Duration) -> std::io::Result<Out
     }
     let status: ExitStatus = wait_within(child, ceiling)?;
     // The streams end when the child's write ends close; a program the child started can hold one past that, so each read is
-    //  taken with a bound of its own and what it read is judged by where it stopped.
-    let stdout: Vec<u8> = match answered.recv_timeout(DRAIN_AFTER_EXIT) {
-        Ok(ended) => match ended.failed {
-            Some(error) => return Err(error),
-            None => ended.bytes,
-        },
-        Err(_cut) => return Err(std::io::Error::other(cut_short_text("standard output"))),
-    };
-    let stderr: Vec<u8> = match complained.recv_timeout(DRAIN_AFTER_EXIT) {
-        Ok(ended) => match ended.failed {
-            Some(error) => return Err(error),
-            None => ended.bytes,
-        },
-        Err(_cut) => {
-            crate::diagnostic_log::warn("queryOutput", cut_short_text("standard error").as_str());
-            Vec::new()
-        }
-    };
+    //  taken with a bound of its own and what was read before that bound is kept.
+    let answers: std::sync::mpsc::Receiver<FromAReader> = answered;
+    let complaints: std::sync::mpsc::Receiver<FromAReader> = complained;
+    let (stdout, stdout_cut): (Vec<u8>, bool) = gather(answers)?;
+    if stdout_cut {
+        return Err(std::io::Error::other(cut_short_text("standard output")));
+    }
+    let (stderr, stderr_cut): (Vec<u8>, bool) = gather(complaints)?;
+    if stderr_cut {
+        // The answer was read whole, so it comes back with what the query wrote to its standard error before the read stopped.
+        crate::diagnostic_log::warn("queryOutput", cut_short_text("standard error").as_str());
+    }
     // A reader whose stream no program holds open has sent what it read and ended. One whose stream a program the query
-    //  started still holds is still blocked in its read, and joining it would wait for that program's life: nothing joins the
-    //  readers, and each ends when its stream does.
+    //  started still holds sends nothing more, and dropping its receiver ends it at its next chunk: nothing joins the readers,
+    //  and each ends when its stream does or when this command stops wanting it.
     drop(readers);
     return Ok(Output { status, stdout, stderr });
 }
 
 /// What:
-///  Starts the thread that reads one stream of the query to its end,
+///  What one reader tells the wait about its stream.
+/// Why:
+///  A stream a program holds open past the query's end never reaches its end,
+/// and the bytes read before that are the query's
+///  diagnostics,
+/// so they are handed over as they are read rather than kept in the reader until an end that may not come
+///  (the third review's finding 6).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FromAReader = { kind: 'read'; chunk: Buffer } | { kind: 'ended' } | { kind: 'failed'; error: Error };
+/// ```
+enum FromAReader {
+    /// Bytes just read.
+    Read(Vec<u8>),
+    /// The stream ended.
+    Ended,
+    /// The read failed.
+    Failed(std::io::Error),
+}
+
+/// What:
+///  The bytes one stream gave until it ended,
+/// the drain bound passed,
+/// or the cap was reached,
+/// and whether the stream was cut before its end.
+/// Why:
+///   What is kept is bounded by `STEP_OUTPUT_LIMIT`,
+/// the same figure every captured step of the wrapper uses for one
+///  stream,
+/// and a wait that stops wanting the rest drops its receiver,
+/// which ends the reader at its next chunk instead
+///  of letting it gather for as long as a program writes (the third review's finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gather(from: Receiver<FromAReader>): { bytes: Buffer; cut: boolean };
+/// ```
+fn gather(from: std::sync::mpsc::Receiver<FromAReader>) -> std::io::Result<(Vec<u8>, bool)> {
+    let mut kept: Vec<u8> = Vec::new();
+    loop {
+        match from.recv_timeout(DRAIN_AFTER_EXIT) {
+            Ok(FromAReader::Read(chunk)) => {
+                let room: usize = crate::output_capture::STEP_OUTPUT_LIMIT.saturating_sub(kept.len());
+                let taken: usize = room.min(chunk.len());
+                kept.extend_from_slice(&chunk[..taken]);
+                if taken < chunk.len() {
+                    return Ok((kept, true));
+                }
+            }
+            Ok(FromAReader::Ended) => return Ok((kept, false)),
+            Ok(FromAReader::Failed(error)) => return Err(error),
+            Err(_drain_ended) => return Ok((kept, true)),
+        }
+    }
+}
+
+/// What:
+///  Starts the thread that reads one stream of the query,
+/// handing over each chunk as it is read,
 /// or ends and reaps the child and says why none could start.
 /// Why:
 ///   A pipe a child fills before it exits needs a reader of its own,
 /// and a refusal must cost the query its run rather than
 ///  leave a child nothing reads.
+/// The reader stops when the wait that wanted it drops its receiver,
+/// so an abandoned stream costs
+///  one blocked read and no more.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -270,15 +325,31 @@ pub fn output_within(mut child: Child, ceiling: Duration) -> std::io::Result<Out
 fn start_reader(
     pipe: Box<dyn std::io::Read + Send>,
     name: &'static str,
-    reporting: std::sync::mpsc::Sender<OneStream>,
+    reporting: std::sync::mpsc::Sender<FromAReader>,
     child: &mut Child,
 ) -> std::io::Result<std::thread::JoinHandle<()>> {
     let started = std::thread::Builder::new().name(format!("cli-git-query-{name}")).spawn(move || {
         let mut reading = pipe;
-        let mut bytes: Vec<u8> = Vec::new();
-        let failed: Option<std::io::Error> = reading.read_to_end(&mut bytes).err();
-        // Nobody reads this when the wait has gone; the bytes it read are lost with it.
-        let _abandoned = reporting.send(OneStream { bytes, failed });
+        let mut chunk: Vec<u8> = vec![0; READ_CHUNK];
+        loop {
+            match reading.read(&mut chunk) {
+                Ok(0) => {
+                    let _abandoned = reporting.send(FromAReader::Ended);
+                    return;
+                }
+                Ok(read) => {
+                    // A wait that stopped wanting this stream has dropped its receiver, and this reader ends here.
+                    if reporting.send(FromAReader::Read(chunk[..read].to_vec())).is_err() {
+                        return;
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) => {
+                    let _abandoned = reporting.send(FromAReader::Failed(error));
+                    return;
+                }
+            }
+        }
     });
     return match started {
         Ok(reader) => Ok(reader),
@@ -290,22 +361,19 @@ fn start_reader(
     };
 }
 
-/// One stream of a query,
-/// read to its end or to the drain that ended it.
-struct OneStream {
-    /// The bytes read before the stream ended.
-    bytes: Vec<u8>,
-    /// Why the read stopped,
-    /// when it did not stop at the end of the stream.
-    failed: Option<std::io::Error>,
-}
+/// The most bytes one read hands over,
+/// so a reader's own buffer is bounded and a stream is handed over as it arrives.
+const READ_CHUNK: usize = 64 * 1024;
 
 /// What:
-///  The sentence for a query whose stream a program it started still holds open after it ended.
+///  The sentence for a query whose stream was cut before its end:
+/// a program the query started still held it,
+/// or it outgrew what this command keeps of one stream.
 /// Why:
 ///  The person has to know that what was read may be incomplete,
 ///  which stream it was,
-/// and which program to look for.
+/// and which program to look for,
+/// so the message names the stream and the drain bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -313,9 +381,11 @@ struct OneStream {
 /// ```
 fn cut_short_text(stream: &str) -> String {
     return format!(
-        "the query ended, but a program it started still holds its {stream} open, so what this command read may be incomplete: \
-         the read ended {} seconds after the query did. Check with `ps` what that program is, and run the command again.",
-        DRAIN_AFTER_EXIT.as_secs()
+        "the query ended, but a program it started still holds its {stream} open, or that stream outgrew what this command keeps \
+         of one, so what this command read may be incomplete: the read ended {} seconds after the query did, or at {} bytes. Check \
+         with `ps` what that program is, and run the command again.",
+        DRAIN_AFTER_EXIT.as_secs(),
+        crate::output_capture::STEP_OUTPUT_LIMIT
     );
 }
 
@@ -324,9 +394,8 @@ fn cut_short_text(stream: &str) -> String {
 /// and reaps it,
 /// so nothing is left running and no zombie is left behind.
 /// Why:
-///   A stop of a step's streams must not outlast the step's own ceiling,
-/// so the kill is asked for and the child is reaped only while it is there.
-///  A child in an uninterruptible call is handed to a reaper by `wait_within` instead.
+///   A start that no reader could be given must not leave the child running,
+/// and a child that has already exited is reaped by the same wait.
 fn end_and_reap(child: &mut Child) {
     // A kill of a child that has already exited fails harmlessly; the wait reaps either way.
     let _ = kill(child);

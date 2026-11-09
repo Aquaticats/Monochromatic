@@ -149,3 +149,55 @@ fn a_standard_output_held_open_is_not_an_answer() {
     assert!(failure.to_string().contains("still holds"), "{failure}");
     assert!(waited < Duration::from_secs(3), "the wait outlasted the query by {waited:?}, as long as the holder lived");
 }
+
+/// What:
+///  A stream that outgrows what this command keeps of one ends the read at the cap,
+/// rather than being gathered for as long as the program writes.
+/// Why:
+///  A program the query started can keep writing into a stream it holds open after the query exited,
+/// and a reader
+///  that gathers it without a cap grows for as long as that program writes.
+/// The third review's finding 4: the
+///  reader stayed alive and kept growing after the wait had given up.
+/// What is kept is bounded by `STEP_OUTPUT_LIMIT`,
+/// and once it is reached the wait stops wanting the
+///  rest,
+/// which ends the reader,
+/// so the read returns at the cap and not at the drain bound.
+#[test]
+fn a_stream_that_outgrows_the_cap_ends_the_read_at_the_cap() {
+    // The helper writes without end into the query's standard output, which it inherits, and the query exits at once.
+    let child: Child = piped("yes 0123456789 2>/dev/null & printf answer");
+    let began: Instant = Instant::now();
+    let failure: std::io::Error = output_within(child, Duration::from_secs(30)).expect_err("a cut standard output is not an answer");
+    let waited: Duration = began.elapsed();
+    assert!(failure.to_string().contains("standard output"), "{failure}");
+    assert!(
+        failure.to_string().contains(format!("{} bytes", crate::output_capture::STEP_OUTPUT_LIMIT).as_str()),
+        "the failure names the cap that ended the read: {failure}"
+    );
+    assert!(
+        waited < Duration::from_millis(900),
+        "the read waited for the drain rather than ending at the cap: {waited:?}"
+    );
+}
+
+/// What:
+///  The diagnostics a query wrote before a program held its standard error open come back with the answer.
+/// Why:
+///  A query that fails writes its explanation to standard error,
+/// so throwing that away leaves the caller a failure with
+///  nothing to give the person.
+/// The third review's finding 6: the reader kept what it read until an end of stream that never
+///  came.
+#[test]
+fn diagnostics_written_before_the_standard_error_was_held_come_back() {
+    // The helper holds the standard error alone; the query writes its explanation there and fails.
+    let child: Child = piped("sleep 6 >/dev/null & printf explained >&2; exit 1");
+    let began: Instant = Instant::now();
+    let output: Output = output_within(child, Duration::from_secs(30)).expect("the exit status is the answer");
+    let waited: Duration = began.elapsed();
+    assert_eq!(output.status.code(), Some(1), "the query's own status comes back");
+    assert_eq!(output.stderr, b"explained".to_vec(), "what the query wrote to its standard error comes back");
+    assert!(waited < Duration::from_secs(3), "the wait outlasted the query by {waited:?}");
+}
