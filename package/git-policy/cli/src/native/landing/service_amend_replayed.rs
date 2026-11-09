@@ -59,7 +59,7 @@ const SIGNATURE_HEADERS: [&str; 2] = ["gpgsig ", "gpgsig-sha256 "];
 /// const source = embedded?.source;
 /// ```
 fn source_of<'a>(embedded: Option<&'a Embedded>) -> Option<&'a crate::service_amend::AmendSource> {
-    let Some(made) = embedded else { return None };
+    let made: &'a Embedded = embedded?;
     return made.source.as_ref();
 }
 
@@ -73,7 +73,7 @@ fn source_of<'a>(embedded: Option<&'a Embedded>) -> Option<&'a crate::service_am
 /// const made = embedded?.source ? embedded : undefined;
 /// ```
 fn embedded_with_a_source<'a>(embedded: Option<&'a Embedded>) -> Option<&'a Embedded> {
-    let Some(source) = source_of(embedded) else { return None };
+    let source: &crate::service_amend::AmendSource = source_of(embedded)?;
     let _: &crate::service_amend::AmendSource = source;
     return embedded;
 }

@@ -208,10 +208,9 @@ pub(crate) fn the_pathspec_file(
     cwd: &Path,
     standard_input: Option<&[u8]>,
 ) -> Result<Option<PathBuf>, TransactionStop> {
-    let source: Option<String> = match region.pathspec_from_file {
-        Some(value) => Some(String::from_utf8_lossy(crate::command_options_query::value_bytes(arguments, value)).into_owned()),
-        None => None,
-    };
+    let source: Option<String> = region
+        .pathspec_from_file
+        .map(|value| { return String::from_utf8_lossy(crate::command_options_query::value_bytes(arguments, value)).into_owned(); });
     return match pathspec_file_for(scratch, cwd, source.as_deref(), standard_input) {
         Ok(made) => Ok(made),
         Err(error) => Err(crate::commit_transaction::failed(format!("reading the pathspec file failed: {error}"))),
