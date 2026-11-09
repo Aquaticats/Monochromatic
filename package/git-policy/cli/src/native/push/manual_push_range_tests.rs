@@ -339,8 +339,10 @@ fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
 fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
     let root: PathBuf = fixture("manual-push-range-held-input");
     let program: PathBuf = root.join("stand-in-git");
-    // The helper inherits the query's input and reads none of it; the answer is written and the query exits at once.
-    std::fs::write(&program, "#!/bin/sh\nsleep 8 >/dev/null 2>&1 &\nprintf 'answered\\n'\n").expect("the stand-in");
+    // The helper holds a copy of the query's input and reads none of it. A plain background job of a non-interactive shell
+    //  gets `/dev/null` as its input (measured: writing 200 KB to one returned at once, and to this form after the helper's
+    //  three seconds), so the input is duplicated to another number first and the helper takes that copy.
+    std::fs::write(&program, "#!/bin/sh\nexec 9<&0\nsleep 8 <&9 9<&- >/dev/null 2>&1 &\nprintf 'answered\\n'\n").expect("the stand-in");
     let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
     std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
     std::fs::set_permissions(&program, mode).expect("the stand-in runs");
@@ -402,4 +404,29 @@ fn a_thread_that_cannot_be_started_starts_no_query() {
 /// A thread start that the process limit refuses.
 fn refusing_a_thread(_name: &str, _body: Box<dyn FnOnce() + Send>) -> std::io::Result<std::thread::JoinHandle<()>> {
     return Err(std::io::Error::other("the process limit refused a thread"));
+}
+
+/// What:
+///  No control of this module signals a process by a number,
+/// and none reads a process number from a file in order to signal it.
+/// Why:
+///  A number names a process only until that process is reaped,
+/// and a control that ended a stand-in by the number the stand-in wrote to a file
+///  killed whatever process held that number by then;
+/// that cleanup ran on the successful path of the control as well,
+///  not only when a stand-in stayed blocked.
+/// The stand-ins end by themselves instead:
+/// a bounded read, a bounded `sleep`.
+#[test]
+fn no_control_of_the_range_signals_a_process_by_its_number() {
+    let code: String = include_str!("manual_push_range_tests.rs")
+        .lines()
+        .filter(|line| { return !line.trim_start().starts_with("//"); })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    // The needle is built at run time, so this control's own text does not contain it.
+    let kill: String = format!("libc::{}", "kill");
+    let recorded: String = format!("pid{}", "file");
+    assert!(!code.contains(kill.as_str()), "a control of the range still signals a process by its number");
+    assert!(!code.contains(recorded.as_str()), "a control of the range still reads a process number to signal it");
 }
