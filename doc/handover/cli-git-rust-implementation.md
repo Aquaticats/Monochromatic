@@ -178,7 +178,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   the conversion branch,
   the suite-failures branch,
   the lock branch,
-  and the landing branch's run 10.
+  the landing branch's run 10,
+  and the ref-listing branch.
+- The review `mpm-shadow-open-issues-round-6-sol.txt` of what landed as `341f966762` names two findings:
+  prune removes `current` when the newer finished version it would have to skip is itself being deleted,
+  and a repointing failure leaves out links the same run already removed.
+  All 20 agent slots were in use when it returned,
+  so `mpm-shadow-open-issues` run 7 with `mpm-shadow-round-7-prompt.md` is next when one frees,
+  on the branch `fix/mpm-shadow-open-issues-batch`.
+  The next mpm-shadow release follows that run.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
