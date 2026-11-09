@@ -377,6 +377,119 @@ fn the_wait_for_a_service_push_holds_past_five_stall_windows() {
     assert!(began.elapsed() >= HELD_PUSH, "the work really took that long: {:?}", began.elapsed());
 }
 
+/// What:
+///  A push of a branch the person deleted settles with one notice and is not planned again,
+/// and the notice names the
+///  commit and the ref that still holds it.
+/// Why:
+///   Nothing was sent and every later attempt would fail the same way before anything is,
+/// so the item has a terminal
+///  state rather than an endless retry;
+/// the commit is not on that branch any more because the person removed the branch,
+///  and the words say where it still lives.
+#[test]
+fn a_push_of_a_branch_the_person_deleted_settles_with_one_notice() {
+    let (root, git_dir, work, item, gone): (PathBuf, PathBuf, PathBuf, WorkItem, String) = deleted_branch_world("push-deleted-branch", false);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is planned for a branch that is gone");
+    assert_eq!(settled_names(work.as_path()), vec![item.id()], "the push settles as done, not as a failure to retry");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("no longer exists"), "the person is told the branch is gone: {record}");
+    assert!(record.contains(gone.as_str()), "with the commit named: {record}");
+    assert!(record.contains("refs/remotes/origin/feature"), "and the ref that still holds it: {record}");
+    // Nothing is tried again: a second round plans nothing and writes no second record.
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "a second round plans nothing either");
+    assert_eq!(std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").count(), 1, "one notice, not one per attempt");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit no ref of the repository holds any more is said to be in the object store alone,
+/// and is named.
+/// Why:
+///   The person deleted the branch and the commit went with it,
+/// so the only remaining word about that commit must say
+///  that,
+/// or they would look for it on a branch that does not exist.
+#[test]
+fn a_push_of_a_commit_no_ref_holds_says_so() {
+    let (root, git_dir, work, item, gone): (PathBuf, PathBuf, PathBuf, WorkItem, String) = deleted_branch_world("push-deleted-branch-everywhere", true);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is planned for a branch that is gone");
+    assert_eq!(settled_names(work.as_path()), vec![item.id()], "the push settles as done");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("no ref of this repository"), "the person is told no ref holds the commit: {record}");
+    assert!(record.contains(gone.as_str()), "and it is named: {record}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository with a commit on `feature`, pushed once, whose branch is then deleted.
+/// Why:
+///   The push's own failure is what the service must read,
+/// so the fixture is a real repository and a real remote;
+/// `everywhere` also deletes the branch on the remote and its tracking ref,
+/// so no ref of the repository holds
+///  the commit any more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, remote } = await repositoryWithBranch('feature');
+/// ```
+fn deleted_branch_world(name: &str, everywhere: bool) -> (PathBuf, PathBuf, PathBuf, WorkItem, String) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("b.txt"), b"gone\n").expect("file");
+    git(repo.as_path(), &["add", "--", "b.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=two"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "feature"]);
+    let gone: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    git(repo.as_path(), &["branch", "--delete", "--force", "feature"]);
+    if everywhere {
+        git(repo.as_path(), &["push", "--quiet", "origin", "--delete", "feature"]);
+        git(repo.as_path(), &["update-ref", "-d", "refs/remotes/origin/feature"]);
+    }
+    let git_dir: PathBuf = repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: String::from("refs/heads/feature"),
+        oid: gone.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-09T08:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work.as_path(), &item).expect("enqueue");
+    return (root, git_dir, work, item, gone);
+}
+
+/// The names a work directory holds as done,
+/// sorted.
+fn settled_names(work: &Path) -> Vec<String> {
+    let done: PathBuf = crate::work_item::state_directory(work, crate::work_item::DONE);
+    let mut names: Vec<String> = std::fs::read_dir(done.as_path())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    names.sort();
+    return names;
+}
+
 /// What a hook that declines every push says;
 /// the person is shown it.
 const DECLINE_MESSAGE: &str = "protected: pushes to main need a review";

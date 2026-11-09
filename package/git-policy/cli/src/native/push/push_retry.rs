@@ -224,6 +224,35 @@ pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
     };
 }
 
+/// The words with which Git says the branch a push names is not there to push.
+pub const NO_SUCH_SOURCE_REF: &str = "does not match any";
+
+/// What:
+///  Whether the push's output says that the branch it names no longer exists in the repository.
+/// Why:
+///   The person deleted the branch,
+/// and every later attempt would fail the same way before anything is sent,
+/// so
+///  the item has a terminal state rather than an endless retry.
+///  Git prints it per refused refspec
+/// (`builtin/push.c`,
+/// `refspec matches no source`), as `error: src refspec <ref> does not
+///  match any`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// output.split('\n').some((line) => line.trim().startsWith('error: src refspec') && line.includes('does not match any'))
+/// ```
+pub fn source_branch_is_gone(output: &str) -> bool {
+    for line in output.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with("error: src refspec") && trimmed.contains(NO_SUCH_SOURCE_REF) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Whether a failed push's output says something stopped it that only the person can resolve.
 pub fn needs_the_person(output: &str) -> bool {
     return final_failure(output).is_some();

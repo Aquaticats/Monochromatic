@@ -41,7 +41,7 @@ use crate::lfs_pre_push::uses_lfs;
 use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
-use crate::push_retry::{Retrying, final_failure, plain_words, unrecognised_rejection};
+use crate::push_retry::{Retrying, final_failure, plain_words, source_branch_is_gone, unrecognised_rejection};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -335,6 +335,61 @@ impl GitHandlers {
     }
 }
 
+/// What:
+///  The words for a push whose branch the person deleted:
+/// what happened,
+/// which commit it named,
+/// and every ref
+///  that still holds that commit.
+/// Why:
+///   Nothing was sent and nothing can pass by waiting,
+/// so the person is told once that the branch is gone;
+/// the commit
+///  is not on that branch any more because the person removed the branch,
+/// and when no ref holds it any more they are told
+///  that,
+/// with the commit named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refs = await git.for_each_ref(['--contains', item.oid, '--format=%(refname)']);
+/// `... the branch ${branch} no longer exists ... ${refs.length ? `Commit ${oid} is still on ${refs.join(', ')}.` : `Commit ${oid} is on no ref of this repository any more, ...`}`
+/// ```
+fn branch_is_gone_words(git: &PushGit, item: &WorkItem) -> String {
+    let branch: &str = item.branch_ref.strip_prefix("refs/heads/").unwrap_or(item.branch_ref.as_str());
+    let asked = crate::auto_push_single_flight::run_query(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["for-each-ref", "--contains", item.oid.as_str(), "--format=%(refname)"]));
+    let mut holding: Vec<String> = Vec::new();
+    if let Ok(answer) = asked
+        && answer.code == Some(0)
+    {
+        for line in String::from_utf8_lossy(answer.stdout.as_slice()).lines() {
+            let named: String = line.trim().to_owned();
+            if !named.is_empty() {
+                holding.push(named);
+            }
+        }
+    }
+    const NAMED_AT_MOST: usize = 5;
+    let where_it_lives: String = if holding.is_empty() {
+        format!(
+            "Commit {} is on no ref of this repository any more, so only its object store keeps it and nothing was pushed for it.",
+            item.oid
+        )
+    } else {
+        let shown: Vec<&str> = holding.iter().take(NAMED_AT_MOST).map(String::as_str).collect();
+        let more: usize = holding.len().saturating_sub(shown.len());
+        format!(
+            "Commit {} is still on {}{}.",
+            item.oid,
+            shown.join(", "),
+            if more == 0 { String::new() } else { format!(" and {more} more refs") }
+        )
+    };
+    return format!(
+        "monochromatic-git-policy-cli: the branch {branch} no longer exists in this repository, so this push was not made: the branch was deleted. {where_it_lives}          Nothing is retried for it; a commit you want on a branch again can be pushed by hand after naming it with `git branch`."
+    );
+}
+
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
     fn push(&self, items: &[WorkItem]) -> Verdict {
@@ -346,6 +401,9 @@ impl WorkHandlers for GitHandlers {
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
+            // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
+            //  the commit is named for the person with wherever it still lives.
+            Ok(result) if source_branch_is_gone(result.shown.as_str()) => Verdict::Skipped(branch_is_gone_words(&git, newest)),
             // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
             //  (a stall, the network, an LFS server error, a held lock).
             Ok(result) => match final_failure(result.shown.as_str()) {
