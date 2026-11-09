@@ -6257,7 +6257,8 @@ section "Owner questions for revision 12"):
   what a command promises when it leaves is forced to disk first;
   a power cut while it still waits loses that attempt,
   as with native Git).
-  The coordinator applies the same rule to today's landing (the integration agent named under "Agents and gates running",
+  The coordinator applies the same rule to today's landing
+  (the integration agent named under "Agents and gates running",
   a subsection this page dropped on 2026-11-08).
 
 ### Commit protocol question 8 answer
