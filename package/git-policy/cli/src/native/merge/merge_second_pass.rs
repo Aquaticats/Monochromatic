@@ -61,6 +61,13 @@ pub const OPERATION_FIELD: &str = "CLI_GIT_WORD_MERGE_OPERATION";
 /// The journal field that counts the parts of the file that were merged by word.
 pub const PARTS_FIELD: &str = "CLI_GIT_WORD_MERGE_PARTS";
 
+/// The journal field that names the three inputs of a merged file,
+/// so `git cat-file blob <oid>` reaches each of them after the stages are gone.
+pub const BLOBS_FIELD: &str = "CLI_GIT_WORD_MERGE_BLOBS";
+
+/// The sentence that says how to read an input a part line names.
+pub const INPUTS_HINT: &str = "Each part line ends with the three blobs it came from; `git cat-file blob <oid>` shows one.";
+
 /// The number of leading bytes in which Git looks for a NUL byte to call a file binary:
 /// `FIRST_FEW_BYTES` in Git 2.56.0's
 ///  `xdiff-interface.c` line 197,
@@ -496,15 +503,39 @@ fn excerpt(merged: &[u8]) -> String {
     };
 }
 
+/// What:
+///  The words that name one input of a part as a blob that outlives the pass.
+/// Why:
+///   The stages the part was merged from are gone from the index once the file is staged as resolved,
+/// so
+///  `git show :2:<path>` answers nothing;
+/// the object name is the one handle a person can still open.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const blobText = (stage?: Stage) => (stage ? `blob ${stage.oid}` : 'no blob');
+/// ```
+fn blob_text(stage: Option<&Stage>) -> String {
+    return match stage {
+        Some(found) => format!("blob {}", found.oid),
+        None => String::from("no blob"),
+    };
+}
+
 /// One part as a sentence fragment:
-/// where it was in the three texts and what it became.
-pub fn part_text(part: &MergedPart) -> String {
+/// where it was in the three texts,
+/// what it became,
+/// and the three blobs those texts are.
+pub fn part_text(part: &MergedPart, stages: &Conflict) -> String {
     return format!(
-        "base {}, ours {}, theirs {} became {}",
+        "base {}, ours {}, theirs {} became {} from base {}, ours {}, theirs {}",
         span_text(&part.base),
         span_text(&part.ours),
         span_text(&part.theirs),
-        excerpt(part.merged.as_slice())
+        excerpt(part.merged.as_slice()),
+        blob_text(stages.base.as_ref()),
+        blob_text(stages.ours.as_ref()),
+        blob_text(stages.theirs.as_ref())
     );
 }
 
@@ -526,7 +557,7 @@ pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
     }
     let mut lines: Vec<String> = Vec::new();
     for (at, part) in merged.parts.iter().enumerate() {
-        lines.push(format!("{prefix}{REPORT_MARK}: {path}: part {} of {}: {}", at + 1, merged.parts.len(), part_text(part)));
+        lines.push(format!("{prefix}{REPORT_MARK}: {path}: part {} of {}: {}", at + 1, merged.parts.len(), part_text(part, &merged.stages)));
     }
     return lines;
 }
@@ -545,7 +576,22 @@ pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
 pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static str, String)>) {
     let path: String = path_message_text(merged.path.as_slice());
     let message: String = report_lines("", merged).join("; ");
-    return (message, vec![(FILE_FIELD, path), (OPERATION_FIELD, operation.to_owned()), (PARTS_FIELD, merged.parts.len().to_string())]);
+    let blobs: String = format!(
+        "base={},ours={},theirs={}",
+        blob_oid(merged.stages.base.as_ref()),
+        blob_oid(merged.stages.ours.as_ref()),
+        blob_oid(merged.stages.theirs.as_ref())
+    );
+    return (
+        message,
+        vec![(FILE_FIELD, path), (OPERATION_FIELD, operation.to_owned()), (PARTS_FIELD, merged.parts.len().to_string()), (BLOBS_FIELD, blobs)],
+    );
+}
+
+/// The object name of one input,
+/// or `none` when the merge had no such stage.
+fn blob_oid(stage: Option<&Stage>) -> String {
+    return stage.map_or_else(|| String::from("none"), |found| { return found.oid.clone(); });
 }
 
 /// What:

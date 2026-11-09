@@ -308,23 +308,28 @@ fn the_union_attribute_of_the_landed_tip_applies_without_a_worktree_file() {
     remove(attributed_world.root.as_path());
 }
 
-/// The notice for a replayed commit lists every merged part and is absent when nothing was merged by word.
+/// The notice for a replayed commit lists every merged part,
+/// says how to read the blobs it names,
+/// and is absent when nothing was merged by word.
 #[test]
 fn the_notice_lists_each_merged_part_and_is_absent_without_one() {
-    use crate::merge_second_pass::{Conflict, Merged as MergedFile};
+    use crate::merge_second_pass::{Conflict, Merged as MergedFile, Stage};
     use crate::word_merge::{LineSpan, MergedPart};
     assert_eq!(word_merge_notice(&[]), None);
     let span = LineSpan { first: 2, count: 1 };
+    let stage = |oid: &str| { return Some(Stage { mode: 0o100_644, oid: String::from(oid) }); };
     let file = MergedFile {
         path: b"notes.md".to_vec(),
         mode: 0o100_644,
         bytes: Vec::new(),
         parts: vec![MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() }],
-        stages: Conflict { path: b"notes.md".to_vec(), base: None, ours: None, theirs: None },
+        stages: Conflict { path: b"notes.md".to_vec(), base: stage("aa12"), ours: stage("bb34"), theirs: stage("cc56") },
     };
     let Some(PolicyEvent::WordMerged { lines }) = word_merge_notice(&[file]) else { panic!("expected the event") };
-    assert_eq!(lines.len(), 1);
+    assert_eq!(lines.len(), 2, "the part and the sentence that says how to read its blobs: {lines:?}");
     assert!(lines[0].contains("word-level merge") && lines[0].contains("notes.md") && lines[0].contains("joined"), "{lines:?}");
+    assert!(lines[0].ends_with("from base blob aa12, ours blob bb34, theirs blob cc56"), "{lines:?}");
+    assert!(lines[1].contains("git cat-file blob"), "{lines:?}");
 }
 
 /// A merge-driver attribute of a path below a directory is honoured when the commit was run from a subdirectory of the

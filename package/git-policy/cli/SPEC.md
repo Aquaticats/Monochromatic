@@ -7288,11 +7288,25 @@ which replaces the conflict stages) and written to the worktree with `git checko
 so the repository's filters apply;
 if the checkout fails the conflict stages are put back.
 Standard error gets one line per part,
-`monochromatic-git-policy-cli: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`.
+`monochromatic-git-policy-cli: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>" from base blob <oid>, ours blob <oid>, theirs blob <oid>`,
+and one sentence for the reader:
+the part lines end with the three blobs they came from,
+and `git cat-file blob <oid>` shows one.
+The spans locate the part in the three texts,
+and the object names are the whole stage blobs those spans index into:
+the pass replaces the stages when it stages the file as resolved,
+so `git show :1:<path>`,
+`:2:` and `:3:` answer nothing afterwards,
+while the blobs stay readable,
+which is the handle a person needs to check what the merge did,
+for a merge a person finishes and for the merges from objects that leave no stage at all.
 Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli`,
 with the fields
 `CLI_GIT_WORD_MERGE_FILE`,
-`CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+`CLI_GIT_WORD_MERGE_OPERATION`,
+`CLI_GIT_WORD_MERGE_PARTS` and
+`CLI_GIT_WORD_MERGE_BLOBS`
+(`base=<oid>,ours=<oid>,theirs=<oid>`, with `none` for a stage the merge had not).
 
 When every conflicted file of the command resolved,
 the operation is finished the way Git finishes it after a clean run

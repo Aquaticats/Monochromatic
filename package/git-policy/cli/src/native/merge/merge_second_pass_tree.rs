@@ -39,7 +39,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, INPUTS_HINT, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
 use crate::path_bytes::path_message_text;
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_scan::ScopeEnvironment;
@@ -347,16 +347,22 @@ fn left_words(why: &Left) -> String {
 }
 
 /// The lines that list the parts of the merged files,
+/// and the sentence that says how to read an input they name,
 /// without sending anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lines = merged.flatMap((file) => reportLines(prefix, file));
+/// const lines = [...merged.flatMap((file) => reportLines(prefix, file)), ...(merged.some((file) => file.parts.length > 0) ? [`${prefix}${INPUTS_HINT}`] : [])];
 /// ```
 pub fn report(prefix: &str, merged: &[Merged]) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
+    let mut parts: usize = 0;
     for file in merged {
+        parts += file.parts.len();
         lines.extend(report_lines(prefix, file));
+    }
+    if parts > 0 {
+        lines.push(format!("{prefix}{INPUTS_HINT}"));
     }
     return lines;
 }

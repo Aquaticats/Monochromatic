@@ -148,6 +148,21 @@ pub(super) fn merge_lines(observed: &Observed) -> Vec<String> {
     return stderr_of(observed).lines().filter(|line| { return line.contains(MERGE_LINE_MARK); }).map(String::from).collect();
 }
 
+/// The blob names a part line gives,
+/// in the order it gives them.
+fn blobs_named(line: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut words = line.split_whitespace();
+    while let Some(word) = words.next() {
+        if word == "blob"
+            && let Some(oid) = words.next()
+        {
+            found.push(oid.trim_end_matches(',').to_owned());
+        }
+    }
+    return found;
+}
+
 /// The entries that reached a journal stand-in,
 /// as field maps.
 fn journal_entries(receiver: &std::os::unix::net::UnixDatagram) -> Vec<std::collections::BTreeMap<String, String>> {
@@ -292,6 +307,7 @@ fn an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed() {
     assert_eq!(String::from_utf8_lossy(&parents.stdout).split_whitespace().count(), 3, "a merge commit with two parents");
     assert!(std::fs::read(repo.join(tracked(ADJACENT))).expect("the file") == corpus(ADJACENT, "word.out"), "{said}");
     assert!(merge_lines(&observed).iter().any(|line| { return line.contains(tracked(ADJACENT).as_str()); }), "{said}");
+    assert!(said.contains("git cat-file blob"), "a merge from objects says how to read an input after the fact: {said}");
     let status = git(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert!(String::from_utf8_lossy(&status.stdout).contains("A  staged.txt"), "the staged work stays staged");
     remove(&fixture);
@@ -330,6 +346,32 @@ fn a_merge_rule_the_merge_itself_introduces_keeps_the_isolated_merge_from_mergin
     assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
     assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "{said}");
+    remove(&fixture);
+}
+
+/// A part line names its three inputs as blobs,
+/// which is what a person can still read once the pass has replaced the stages:
+/// `git show :2:<path>` no longer answers,
+/// and `git cat-file blob <oid>` answers each side's bytes.
+#[test]
+fn a_part_line_names_each_input_as_a_blob_that_survives_the_resolution() {
+    let fixture: Fixture = fixture("word-merge-part-blobs");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice());
+    let said: String = stderr_of(&observed);
+    let lines: Vec<String> = merge_lines(&observed);
+    let line: &String = lines.first().expect("the one merged file is listed");
+    let named: Vec<String> = blobs_named(line);
+    assert_eq!(named.len(), 3, "base, ours and theirs are named: {line}");
+    assert!(said.contains("git cat-file blob"), "the output says how to read an input: {said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "{said}");
+    let staged: Observed = run_direct(&fixture, repo.as_path(), &["show", format!(":2:{}", tracked(ADJACENT)).as_str()]);
+    assert_ne!(staged.code, Some(0), "the stage the list used to point at is gone");
+    let sides: [Vec<u8>; 3] = [corpus(ADJACENT, "base"), corpus(ADJACENT, "ours"), corpus(ADJACENT, "theirs")];
+    for (oid, bytes) in named.iter().zip(sides.iter()) {
+        let blob: Vec<u8> = git(&fixture, repo.as_path(), &["cat-file", "blob", oid.as_str()]).stdout;
+        assert_eq!(blob, *bytes, "the blob {oid} is one input of the part");
+    }
     remove(&fixture);
 }
 
