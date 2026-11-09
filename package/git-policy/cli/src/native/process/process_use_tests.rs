@@ -106,7 +106,7 @@ fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
     std::fs::write(root.join("index.lock"), b"").expect("lock");
     std::fs::hard_link(root.join("index.lock"), root.join("alias")).expect("alias");
     let metadata: std::fs::Metadata = std::fs::metadata(root.join("index.lock")).expect("lock metadata");
-    let target: UseTarget = UseTarget::File { mount: mount_of(root.join("index.lock").as_path()), inode: metadata.ino() };
+    let target: UseTarget = UseTarget::File { device: metadata.dev(), inode: metadata.ino() };
     assert!(processes_using(&target).users.is_empty());
     let holder: Sleeper = Sleeper::start(root.as_path(), Some(root.join("alias").as_path()));
     let scan: UseScan = processes_using(&target);
@@ -115,18 +115,63 @@ fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
     remove(root.as_path());
 }
 
-/// A file system is found in the mount table by the device number of its files,
-/// and a descriptor is recognised by the mount number and the inode the kernel writes for it,
-/// so no descriptor of another process is ever resolved on its own disk.
+/// A descriptor is matched to the file by the device number and the inode the file has.
+/// Why:
+///  The mount number and inode the kernel writes for a descriptor are neither unique nor
+///  complete (audit of 2026-11-09,
+///  finding 4):
+///  a bind mount of the same file has another mount number,
+///  so that holder was not found at all,
+///  and two files of two btrfs subvolumes reached through one mount share both numbers.
+///  The record's inode number is the cheap test that comes first; the descriptor's own open
+///  link is the answer.
 #[test]
-fn a_descriptor_is_named_by_its_mount_and_inode_rather_than_by_resolving_it() {
+fn a_descriptor_is_matched_by_device_and_inode() {
     let root: PathBuf = fixture("process-use-fdinfo");
-    std::fs::write(root.join("fdinfo"), "pos:\t0\nflags:\t0100000\nmnt_id:\t40\nino:\t4242\n").expect("one descriptor");
-    let described: PathBuf = root.join("fdinfo");
-    assert!(descriptor_is_the_file(described.as_path(), 40, 4242).expect("a descriptor of this mount"), "the descriptor on the mount is the file");
-    assert!(!descriptor_is_the_file(described.as_path(), 40, 4243).expect("a descriptor of this mount"), "another inode on the same mount is another file");
-    assert!(!descriptor_is_the_file(described.as_path(), 41, 4242).expect("a descriptor of another mount"), "the same inode number on another mount is another file");
-    assert!(!descriptor_is_the_file(described.as_path(), 0, 4242).expect("a descriptor without a mount"), "a file whose mount is not known matches no descriptor");
+    let lock: PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("lock");
+    let other: PathBuf = root.join("other");
+    std::fs::write(&other, b"x").expect("another file");
+    let metadata: std::fs::Metadata = std::fs::metadata(&lock).expect("lock metadata");
+    let (device, inode): (u64, u64) = (metadata.dev(), metadata.ino());
+    let record: PathBuf = root.join("fdinfo");
+    std::fs::write(&record, format!("pos:\t0\nflags:\t0100000\nmnt_id:\t{}\nino:\t{inode}\n", u64::from(u32::MAX))).expect("one record");
+    std::os::unix::fs::symlink(&lock, root.join("fd-lock")).expect("link to the lock");
+    assert!(descriptor_is_file(record.as_path(), root.join("fd-lock").as_path(), device, inode).expect("read"), "the same file is the same file through any mount");
+    std::os::unix::fs::symlink(&other, root.join("fd-other")).expect("link to another file");
+    assert!(!descriptor_is_file(record.as_path(), root.join("fd-other").as_path(), device, inode).expect("read"), "another file is not the lock, whatever its record names");
+    std::fs::write(&record, "pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t2\n").expect("another record");
+    assert!(!descriptor_is_file(record.as_path(), root.join("fd-lock").as_path(), device, inode).expect("read"), "a record that names another inode is not resolved");
+    remove(root.as_path());
+}
+
+/// Two files of two btrfs subvolumes that share an inode number on one mount are two files:
+/// a process holding one is not a user of the other,
+/// and the same scan does find that process when it is asked about the file it holds
+/// (audit of 2026-11-09,
+/// finding 4).
+#[cfg(target_os = "linux")]
+#[test]
+fn two_subvolumes_that_share_an_inode_number_are_two_files() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("process-use-subvolumes") else { return };
+    let first: PathBuf = root.join("sv-a");
+    let second: PathBuf = root.join("sv-b");
+    crate::fs_btrfs_ioctl::subvolume_create_at(first.as_path()).expect("the first subvolume");
+    crate::fs_btrfs_ioctl::subvolume_create_at(second.as_path()).expect("the second subvolume");
+    let lock: PathBuf = first.join("index.lock");
+    let held: PathBuf = second.join("held");
+    std::fs::write(&lock, b"").expect("lock");
+    std::fs::write(&held, b"x").expect("the file the other subvolume holds");
+    let lock_metadata: std::fs::Metadata = std::fs::metadata(&lock).expect("lock metadata");
+    let held_metadata: std::fs::Metadata = std::fs::metadata(&held).expect("held metadata");
+    assert_eq!(lock_metadata.ino(), held_metadata.ino(), "the two subvolumes number their first file alike");
+    assert_ne!(lock_metadata.dev(), held_metadata.dev(), "and give it a device number of its own");
+    let holder: Sleeper = Sleeper::start(root.as_path(), Some(held.as_path()));
+    let own: UseScan = processes_using(&UseTarget::File { device: held_metadata.dev(), inode: held_metadata.ino() });
+    assert!(own.users.iter().any(|user| { return user.pid == holder.pid(); }), "the scan finds the process that holds the file: {own:?}");
+    let lock_users: UseScan = processes_using(&UseTarget::File { device: lock_metadata.dev(), inode: lock_metadata.ino() });
+    assert!(!lock_users.users.iter().any(|user| { return user.pid == holder.pid(); }), "a process holding another subvolume's file is no user of the lock: {lock_users:?}");
+    drop(holder);
     remove(root.as_path());
 }
 
@@ -137,7 +182,7 @@ fn the_scanning_process_is_not_reported() {
     let root: PathBuf = fixture("process-use-self").canonicalize().expect("canonical root");
     let held: std::fs::File = std::fs::File::create(root.join("held")).expect("held");
     let metadata: std::fs::Metadata = held.metadata().expect("metadata");
-    let scan: UseScan = processes_using(&UseTarget::File { mount: mount_of(root.join("held").as_path()), inode: metadata.ino() });
+    let scan: UseScan = processes_using(&UseTarget::File { device: metadata.dev(), inode: metadata.ino() });
     assert!(!scan.users.iter().any(|user| { return user.pid == i64::from(std::process::id()); }), "{scan:?}");
     drop(held);
     remove(root.as_path());

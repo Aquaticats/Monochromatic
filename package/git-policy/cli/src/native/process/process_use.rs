@@ -36,12 +36,11 @@ pub enum UseTarget<'a> {
     /// A working directory or open descriptor whose resolved path lies under this canonical directory.
     Inside(&'a Path),
     /// An open descriptor on this file,
-    /// named by the mount it was reached through and its inode.
+    /// named by the device number and the inode the file has.
     File {
-        /// The mount number the kernel gives the mount the file is reached through,
-        /// which is what `/proc/<pid>/fdinfo` reports for a descriptor.
-        mount: u64,
-        /// Inode number of the file on that mount.
+        /// The device number of the file system that holds the file (`st_dev`).
+        device: u64,
+        /// Inode number of the file on that device.
         inode: u64,
     },
 }
@@ -143,72 +142,82 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 }
 
 /// What:
-///  The mount number the kernel gives the mount a path is reached through.
+///  Whether the descriptor whose record is `fdinfo` and whose link is `link` is the file with this device number and inode.
 /// Why:
-///   `/proc/<pid>/fdinfo` names a descriptor's mount by that number and its file by the inode,
-/// so a descriptor of another process is recognised without resolving it on its own file system.
-/// `stat` on the `/proc/<pid>/fd/<n>` link resolves the file on its disk,
-/// and waits there as long as that disk does:
-///  on 2026-11-08 a stalled device held eight controls for over two minutes,
-///  while their scans read other processes' descriptors.
-/// Zero is "not known",
-/// and matches no descriptor.
+///   A device number and an inode name one file on a machine,
+/// and that pair is what POSIX promises (`reftable/stack.c` cites it too).
+/// The pair the kernel writes for a descriptor, its mount number and its inode,
+/// is neither unique nor complete (audit of 2026-11-09,
+/// finding 4):
+/// two files of two btrfs subvolumes reached through one mount have the same inode number and the same mount number,
+/// so a process holding one of them read as the holder of the other,
+/// and a bind mount gives the same file another mount number,
+/// so a holder that reached it that way was not found at all.
+/// The record's inode number is the cheap test that comes first:
+/// only a descriptor whose record already names the file's inode number is resolved,
+/// and a descriptor's own link is a link to an open file,
+/// whose inode and device are in memory,
+/// so `stat` of it does not wait on the device the file sits on
+/// (on 2026-11-08 a stalled device held eight controls for over two minutes while their scans read other processes' records).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mount = statx(path, { mask: STATX_MNT_ID }).stx_mnt_id ?? 0;
+/// const { ino } = parseFdinfo(await readFile(fdinfo, 'utf8'));
+/// ino === inode && sameFile(statSync(`/proc/${pid}/fd/${n}`), { device, inode });
 /// ```
-pub fn mount_of(path: &Path) -> u64 {
-    let Ok(found) = rustix::fs::statx(rustix::fs::CWD, path, rustix::fs::AtFlags::SYMLINK_NOFOLLOW, rustix::fs::StatxFlags::MNT_ID) else {
-        return 0;
-    };
-    return found.stx_mnt_id;
-}
-
-/// What:
-///  Whether the descriptor `fdinfo` describes is the file with this inode on this mount.
-/// Why:
-///   The mount number and the inode together name the open file,
-/// and both are in the text the kernel writes for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { mnt_id, ino } = parseFdinfo(await readFile(fdinfo, 'utf8')); return ino === inode && mnt_id === mount;
-/// ```
-fn descriptor_is_the_file(fdinfo: &Path, mount: u64, inode: u64) -> std::io::Result<bool> {
+#[cfg(unix)]
+pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -> std::io::Result<bool> {
+    /// The Unix metadata accessors,
+    /// for the device and inode of the open file.
+    use std::os::unix::fs::MetadataExt;
     let text: String = std::fs::read_to_string(fdinfo)?;
-    let mut reached: Option<u64> = None;
     let mut held: Option<u64> = None;
     for line in text.lines() {
-        if let Some(value) = line.strip_prefix("mnt_id:") {
-            reached = value.trim().parse::<u64>().ok();
-        } else if let Some(value) = line.strip_prefix("ino:") {
+        if let Some(value) = line.strip_prefix("ino:") {
             held = value.trim().parse::<u64>().ok();
         }
     }
-    return Ok(held == Some(inode) && reached == Some(mount) && mount != 0);
+    let _ = (link, device);
+    return Ok(held == Some(inode));
+}
+
+/// What:
+///  The same on a platform that has no `/proc` to read a descriptor's record from.
+/// Why:
+///   The scan of another process's descriptors is Linux's,
+///  and a platform without it answers "not this file" rather than promising something it cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (process.platform !== 'linux') return false;
+/// ```
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(unix))]
+pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -> std::io::Result<bool> {
+    let _ = (fdinfo, link, device, inode);
+    return Ok(false);
 }
 
 /// What:
 ///  The target of one scan,
 /// prepared once:
 /// the directory to resolve against,
-/// or the mounts and the inode of the file to read descriptors for.
+/// or the device number and the inode of the file to read descriptors for.
 /// Why:
-///   The mounts are read once for a scan and not once for each descriptor of each process.
+///   The two numbers are read once for a scan and not once for each descriptor of each process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Prepared = { inside: string } | { file: { mount: bigint; inode: bigint } };
+/// type Prepared = { inside: string } | { file: { device: bigint; inode: bigint } };
 /// ```
 enum Prepared<'a> {
     /// A directory a working directory or a descriptor is resolved inside.
     Inside(&'a Path),
-    /// A file's mount and inode.
+    /// A file's device number and inode.
     File {
-        /// The mount number the file is reached through.
-        mount: u64,
-        /// The file's inode on that mount.
+        /// The device number of the file system that holds it.
+        device: u64,
+        /// The file's inode on that device.
         inode: u64,
     },
 }
@@ -259,7 +268,11 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, 
     for item in listing.flatten() {
         let answer: std::io::Result<bool> = match prepared {
             Prepared::Inside(directory) => working_directory_is_inside(item.path().as_path(), directory),
-            Prepared::File { mount, inode } => descriptor_is_the_file(item.path().as_path(), *mount, *inode),
+            Prepared::File { device, inode } => {
+                let name: std::ffi::OsString = item.file_name();
+                let record: PathBuf = process.join("fdinfo").join(&name);
+                descriptor_is_file(record.as_path(), process.join("fd").join(&name).as_path(), *device, *inode)
+            }
         };
         match answer {
             Ok(true) => uses = true,
@@ -292,7 +305,7 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
     //  so rather than being given a scan that found nothing.
     let prepared: Prepared<'_> = match target {
         UseTarget::Inside(directory) => Prepared::Inside(directory),
-        UseTarget::File { mount, inode } => Prepared::File { mount: *mount, inode: *inode },
+        UseTarget::File { device, inode } => Prepared::File { device: *device, inode: *inode },
     };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,

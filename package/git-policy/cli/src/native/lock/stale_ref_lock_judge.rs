@@ -243,16 +243,13 @@ impl Judge {
 
     /// The processes that may use `identity`'s file,
     /// among every process of the table or only among the numbers this judge was given.
-    /// A file whose mount the kernel does not name is not looked for,
-    /// because a scan cannot recognise it in any process.
+    /// A file is looked for by the device number and the inode it has,
+    /// which a descriptor of any process carries whatever mount it was reached through.
     /// A reason about a process outside the scope is dropped with the process it names:
     /// what the scan could not read of another program cannot be a holder this judgement is about.
     fn users_of(&self, identity: &Identity) -> UseScan {
-        let target: UseTarget = UseTarget::File { mount: identity.mount, inode: identity.inode };
+        let target: UseTarget = UseTarget::File { device: identity.device, inode: identity.inode };
         let mut scan: UseScan = processes_using_through(self.proc_root.as_path(), &target, std::process::id());
-        if identity.mount == 0 {
-            scan.unavailable = Some(String::from("the kernel reported no mount number for the file, so no descriptor can be matched to it"));
-        }
         let Some(scope) = self.scan_scope.as_ref() else {
             return scan;
         };

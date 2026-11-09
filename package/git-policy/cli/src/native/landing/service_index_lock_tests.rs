@@ -815,11 +815,10 @@ fn the_scan_for_open_holders_stops_at_its_deadline_and_says_so() {
         std::thread::sleep(Duration::from_millis(5));
     }
     let metadata = std::fs::metadata(&lock_path).expect("lock");
-    // The scan compares the mount number the kernel writes in `fdinfo` with the one the lock's path is on, as the service's own scan does.
-    let mount: u64 = crate::process_use::mount_of(lock_path.as_path());
-    let unbounded = scan_proc_fd_holders_until(Path::new("/proc"), mount, metadata.ino(), std::process::id(), None);
+    // The scan matches a descriptor to the lock by the device number and inode the lock has, as the service's own scan does.
+    let unbounded = scan_proc_fd_holders_until(Path::new("/proc"), metadata.dev(), metadata.ino(), std::process::id(), None);
     assert!(unbounded.holders.iter().any(|found| { return found.pid == i64::from(pid); }), "{unbounded:?}");
-    let bounded = scan_proc_fd_holders_until(Path::new("/proc"), mount, metadata.ino(), std::process::id(), Some(Instant::now()));
+    let bounded = scan_proc_fd_holders_until(Path::new("/proc"), metadata.dev(), metadata.ino(), std::process::id(), Some(Instant::now()));
     assert!(bounded.holders.is_empty(), "a scan past its deadline looks at nothing: {bounded:?}");
     assert!(bounded.partial.iter().any(|reason| { return reason.contains("time bound"); }), "{bounded:?}");
     drop(holder);
