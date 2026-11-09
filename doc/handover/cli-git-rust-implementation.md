@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:47:54-05:00)
+#### Reviews and landings in progress (2026-11-09T03:51:25-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -207,10 +207,18 @@ The old tree kept for the rollback stays until the owner deletes it.
   its agent fixes what the audit `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md` found.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
   its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
-  Its tests on top of main and the review `worktree-add-round-1` are running.
+  On top of main 661 of 664 selected tests pass:
+  two snapshot tests fail in about 0.2 seconds beside what it changed,
+  and the third is the tokio branch's order control.
+  The review (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`) names a snapshot of a linked worktree that still carries another command's credentials,
+  and a ceiling that also kills the person's own command.
   By its own report,
-  the repeated line about an interrupted add still reaches a person only with `MONOCHROMATIC_VERBOSE` set,
-  so the fix does not yet reach anyone who has not set it.
+  the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `worktree-add-findings-fixed` as run 2,
+  with `worktree-add-round-2-prompt.md` and the session file named in run 1's `summary.json`.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
@@ -274,12 +282,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   That takes another program changing the mode inside the add,
   and main keeps no such record at all,
   so the branch landed and the fix follows it.
-  Run 8 of its agent reports it fixed,
+  Run 8 of its agent fixed it and landed on main as `555855ddc1`:
   the review `copy-records-round-8` found no defects,
-  and 259 of 260 selected tests pass on top of main.
-  The failing test is `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
-  a wall-clock bound that another branch without this change also fails,
-  and the agent on tests that fail only in a suite now has it.
+  and 259 of 260 selected tests passed on top of main.
+  The one failure,
+  `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
+  passes alone in 17 seconds,
+  and the agent on tests that fail only in a suite has it.
   The same review names a non-Linux build break in `other::Ladder::finish`,
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
