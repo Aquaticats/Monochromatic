@@ -236,7 +236,7 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     release.join().expect("thread");
     let placements: Vec<bool> = met.lock().expect("lock").clone();
     assert_eq!(placements.first(), Some(&true), "the first placement meets the foreign holder: {placements:?}");
-    assert!(placements[1..].iter().all(|stood| !stood), "every placement after the first follows the holder's removal, so the wait woke for nothing else: {placements:?}");
+    assert!(placements[1..].iter().all(|stood| return !stood), "every placement after the first follows the holder's removal, so the wait woke for nothing else: {placements:?}");
     assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
     // The holder let go a hold after the wait's line, so a wait that returned before the foreign lock was gone is caught by the placements and here.
     let since_said: Duration = said.expect("the wait said what it waits for").elapsed();
