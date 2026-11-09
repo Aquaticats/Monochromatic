@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use std::io::ErrorKind;
 
 /// Names of the paths in a list,
 /// for compact comparison.
@@ -1041,7 +1042,8 @@ fn a_hook_whose_path_is_not_utf8_is_named_by_its_bytes() {
 /// so a text explanation named a shim
 ///  nothing had inspected.
 ///  The list of other hooks on standard output already keeps its bytes
-///  (`health/doctor.rs`, `render_hooks`);
+///  (`health/doctor_hook_entries.rs`,
+/// `render_hooks`);
 /// this is the same rule for the second stream.
 #[cfg(unix)]
 #[test]
