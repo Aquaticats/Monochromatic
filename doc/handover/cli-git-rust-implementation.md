@@ -4795,13 +4795,17 @@ on branch `fix/git-policy-cli-worktree-add-disposal-notices-and-thread`.
 
 The first was whether a notice is lost or misplaced because the emptying of a snapshot's trash wrote to the
 process's standard error while the rest of the add's report went to the writer the command was given
-(`worktree_copy_after_lock.rs`, `dispose_timed`).
-It is misplaced, and only for a caller that hands in its own stream:
-the shipped caller passes `&mut std::io::stderr()` (`worktree_copy_forward.rs`, `run_settled`),
+(`worktree_copy_after_lock.rs`,
+`dispose_timed`).
+It is misplaced,
+and only for a caller that hands in its own stream:
+the shipped caller passes `&mut std::io::stderr()` (`worktree_copy_forward.rs`,
+`run_settled`),
 so the person at a terminal reads the line,
 but a caller that passes another writer reads the repair's findings and never the one line that says why the
 add is taking longer.
-The controls in `worktree_copy_after_lock_tests.rs` show that, and their positive control beside a real repair
+The controls in `worktree_copy_after_lock_tests.rs` show that,
+and their positive control beside a real repair
 shows the same line missing there too.
 The fix gives both threads the command's stream through one lock (`foundation/shared_notice_stream.rs`):
 a line is rendered first,
@@ -4813,26 +4817,33 @@ and says why the service could not take it over"),
 before the emptying and not after it.
 The stream the public entry asks for is now `&mut (dyn Write + Send)`,
 because a thread writes through it.
-The add's timing record is unchanged: the work `disposeTrash`,
+The add's timing record is unchanged:
+the work `disposeTrash`,
 the step `disposeTrashWait` and the step `repair` mean what they meant.
 What was not changed is the second place that writes a report line beside the writer:
 `finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
 output Git's checkout line goes to,
-so that note needs a second writer plumbed through the ladder, which is a change of its own.
+so that note needs a second writer plumbed through the ladder,
+which is a change of its own.
 
 The second question was whether a background thread starts where nothing overlaps it,
 and what that costs.
 Today the early return answers the case the sentence names most literally:
-with no trash there is no thread at all (`finish_trash_and_repair`, the `let Some(pending) = after.trash.as_ref()
+with no trash there is no thread at all (`finish_trash_and_repair`,
+the `let Some(pending) = after.trash.as_ref()
 else` arm).
 The case left is the one where a trash exists and the package repair beside it has nothing to do:
 a bare repository has no source to repair from,
 a copy that failed leaves no whole worktree to repair,
-and `--no-checkout` asked for no checkout (the add plan declines that form, so a snapshot never carries one).
+and `--no-checkout` asked for no checkout (the add plan declines that form,
+so a snapshot never carries one).
 A snapshot of a successful add always carries one created worktree,
-so this is a path of failures, not of the common add.
-It now empties the trash on the calling thread, timed as before,
-with a panic of the disposal reported and not failing the add, as the thread's join reported it.
+so this is a path of failures,
+not of the common add.
+It now empties the trash on the calling thread,
+timed as before,
+with a panic of the disposal reported and not failing the add,
+as the thread's join reported it.
 Measured on 2026-11-08T18:54:07-05:00 at load average 53 to 57 on eight CPUs,
 with a program that copies `in_thread_scope` and `start_or_run_with` line for line and times them against
 calling the job directly (seven alternating repetitions,
@@ -4844,12 +4855,16 @@ and the job on the calling thread is below the timer's resolution.
 So it costs 37.66 µs of the person's time and one thread slot per occurrence,
 which is 0.0002 percent of the 16.6 s add this section measured,
 and it is gone.
-Not measured, because the path is not reachable from a successful add:
+Not measured,
+because the path is not reachable from a successful add:
 an end-to-end add delta for this case.
-Not done, because it puts the service's preparation on the critical path and that cost was not measured:
-splitting the hand-over from the foreground emptying, so that a trash the service takes over costs no thread at
+Not done,
+because it puts the service's preparation on the critical path and that cost was not measured:
+splitting the hand-over from the foreground emptying,
+so that a trash the service takes over costs no thread at
 all rather than a thread that runs to the service and back.
-That reading of the question was left open, since a wedged service would then delay the repair by its start
+That reading of the question was left open,
+since a wedged service would then delay the repair by its start
 wait.
 
 Not done:
