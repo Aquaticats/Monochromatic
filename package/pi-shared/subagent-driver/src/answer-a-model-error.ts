@@ -6,7 +6,10 @@
  */
 
 import { MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS, } from './driver-constants.ts';
-import type { RunProgress, } from './driver-types.ts';
+import type {
+  RetryTaken,
+  RunProgress,
+} from './driver-types.ts';
 import {
   answerMillisecondsBefore,
   millisecondsLeftUntil,
@@ -38,7 +41,46 @@ export type RetryWaiting = {
 };
 
 /**
- Sends the continuation prompt that answers a model error with another attempt.
+ What the attempt after a model error is: which one this is, how long it waited, and the failure it answers.
+
+ Read where the attempt is sent, so the attempt a run counts is one it made, and the wait it was scheduled for is the wait the
+ feed records.
+
+ @param watch - watch request
+
+ @param problem - what the model said when its message ended in the error this attempt answers
+
+ @returns the attempt as the feed and the summary carry it
+ */
+function attemptAfterTheError({
+  watch,
+  problem,
+}: {
+  readonly watch: WatchRequest;
+  readonly problem: string
+},): RetryTaken {
+  /**
+   Which attempt this is, counting from one.
+   */
+  const attempt = watch.record
+    .retriesTaken() + 1;
+  return {
+    attempt,
+    of: watch.options
+      .retryCap,
+    delayMilliseconds: retryDelayMilliseconds({
+      problem,
+      retryNumber: attempt,
+      baseSeconds: watch.options
+        .retryBaseSeconds,
+    },),
+    kind: kindOfModelError(problem,),
+    problem,
+  };
+}
+
+/**
+ Sends the continuation prompt that answers a model error with another attempt, and counts the attempt once it has gone.
 
  @param watch - watch request
 
@@ -66,6 +108,13 @@ async function answerWithAnotherAttempt(
       },
       answerMilliseconds: answerMillisecondsBefore(watch.deadline,),
     },);
+  // The attempt is counted here rather than when it was scheduled: a wait the wall clock, the stop file or Pi's exit cuts short
+  // leaves a model error standing with no attempt behind it, and the summary must not name an attempt nobody made.
+  watch.record
+    .countRetry(attemptAfterTheError({
+      watch,
+      problem,
+    },),);
   /**
    What Pi did with the prompt.
    */
@@ -185,21 +234,10 @@ export async function answerModelError(
   /**
    How long this attempt waits.
    */
-  const delayMilliseconds = retryDelayMilliseconds({
+  const delayMilliseconds = attemptAfterTheError({
+    watch,
     problem: failure.problem,
-    retryNumber: taken + 1,
-    baseSeconds: watch.options
-      .retryBaseSeconds,
-  },);
-  watch.record
-    .countRetry({
-      attempt: taken + 1,
-      of: watch.options
-        .retryCap,
-      delayMilliseconds,
-      kind,
-      problem: failure.problem,
-    },);
+  },).delayMilliseconds;
   retry.at = Date.now() + Math.min(
     delayMilliseconds,
     millisecondsLeftUntil(watch.deadline,),
