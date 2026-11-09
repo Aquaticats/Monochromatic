@@ -10310,6 +10310,18 @@ is read from the directory Git runs in after the caller's ordered `-C` chain,
 which is why that chain is walked rather than guessed;
 an empty `--exec-path=` adds no directory,
 as Git adds none.
+The `git` a shell alias starts searches from another directory:
+Git changes to the top of the working tree before it starts that shell
+(`git.c:388` to `git.c:407`),
+so a relative entry names there the directory the shell searches,
+and the caller's `-C` moves neither.
+A repository Git found by walking up to it is the case that changes directory;
+with no repository to walk to,
+and with one `--git-dir` or `GIT_DIR` named,
+Git changes to nothing and the shell searches where `-C` left it.
+The reading tells the two apart by the prefix Git reports for the directory it was started in,
+which it writes only in the case that changes directory
+(`alias_run_directory` in `src/native/invocation/external_git_command.rs`).
 An answer the reading cannot prove leaves the alias to Git,
 which then decides.
 The endings that reach that answer are starts of Git that fail for the exec path question,
@@ -10318,6 +10330,25 @@ environment and directory,
 so it fails with them and there is no alias to read.
 A failure that hits only the first start can still leave an alias to Git,
 and that is this reading's remaining limit.
+A second window needs another process:
+those relative entries are made absolute from a pathname the reading captures once,
+before any probe,
+rather than read again from where the process is when the probe runs,
+so a program that renames that directory within the few instructions between the capture and the probe
+and puts an executable `git-<word>` where the stale pathname still reaches
+is read as carrying the name,
+while Git,
+whose working directory is the renamed one,
+expands the alias instead
+(`is_executable_file` in `src/native/invocation/external_git_command.rs`,
+reached with the pathname captured in `resolve_forwarded_command`).
+The person then sees the command run through the alias,
+not the installed program the wrapper answered with:
+`git -c 'alias.wipe=reset --hard' wipe` prints `HEAD is now at <commit>`
+and the uncommitted changes to their tracked files are gone,
+with no guard notice and no refusal.
+No command renames a working directory inside those few instructions,
+so the window takes a second program working against the same path.
 No fact of the caller then describes a repository the command never runs in,
 and the audit names what Git runs.
 A built-in word is decided without reading any configuration,

@@ -21,6 +21,10 @@
 //!  and a word that holds a directory separator run from the path as it
 //!  stands,
 //! without any search.
+//!  For the `git` a `!` alias starts,
+//!  the search happens in the directory Git runs the alias in:
+//!  the top of the working tree when Git found the repository by walking up to it,
+//!  so a relative entry names there the directory the shell searches too.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -61,6 +65,9 @@ const OWNER_EXECUTE_BIT: u32 = 0o100;
 ///  `Option<&Path>` is the directory the wrapper was started in,
 ///  which the caller's
 ///       `-C` options move,
+///  `Option<&Path>` is the directory Git's command word runs in,
+///  those options already applied,
+///  and nothing to apply them to the directory the wrapper was started in,
 ///  and nothing when it cannot be read.
 /// Why:
 ///  The wrapper substitutes the expansion it resolved,
@@ -74,20 +81,21 @@ const OWNER_EXECUTE_BIT: u32 = 0o100;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dashedExternalSelected({ context, environment, globals, currentDirectory, word }): boolean;
+/// function dashedExternalSelected({ context, environment, globals, currentDirectory, runDirectory, word }): boolean;
 /// ```
 pub fn dashed_external_selected(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     globals: &[OsString],
     current_directory: Option<&Path>,
+    run_directory: Option<&Path>,
     word: &OsStr,
 ) -> bool {
     // UNTESTED ON WINDOWS: the crate does not build for Windows (README, Requirements); this answer keeps the alias
     //  unchecked there rather than guessing at `PATHEXT` and the extension Git would run.
     #[cfg(not(unix))]
     {
-        let _ = (context, environment, globals, current_directory, word);
+        let _ = (context, environment, globals, current_directory, run_directory, word);
         return true;
     }
     #[cfg(unix)]
@@ -98,7 +106,7 @@ pub fn dashed_external_selected(
         if candidate.as_encoded_bytes().contains(&b'/') {
             return is_executable_file(Path::new(candidate.as_os_str()));
         }
-        let Some(directories) = search_directories(context, environment, globals, current_directory) else {
+        let Some(directories) = search_directories(context, environment, globals, current_directory, run_directory) else {
             debug(
                 "dashedExternalSelected",
                 format!("cannot read the search directories, so {}", candidate.to_string_lossy()).as_str(),
@@ -123,6 +131,9 @@ pub fn dashed_external_selected(
 ///  its exec path first and then every `PATH` entry,
 /// or
 ///       nothing when the directory Git runs in or its exec path cannot be read.
+///  `Option<&Path>` is the directory Git's command word runs in,
+///  the caller's directory options already applied,
+///  and nothing to apply those options to the directory the wrapper was started in.
 /// Why:
 ///  `setup_path` puts the exec path in front of `PATH` once,
 ///  before any command runs
@@ -139,19 +150,26 @@ pub fn dashed_external_selected(
 ///  so that directory is read first;
 ///  a relative exec path is made absolute against it as well
 ///  (`exec-cmd.c:325` to `exec-cmd.c:330`).
+///  The directory Git runs a word in is not always the one its options reach:
+///  it runs a `!` alias from the top of the working tree,
+///  which `aliasRunDirectory` answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function searchDirectories({ context, environment, globals, currentDirectory }): string[] | undefined;
+/// function searchDirectories({ context, environment, globals, currentDirectory, runDirectory }): string[] | undefined;
 /// ```
 fn search_directories(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     globals: &[OsString],
     current_directory: Option<&Path>,
+    run_directory: Option<&Path>,
 ) -> Option<Vec<PathBuf>> {
     let start: &Path = current_directory?;
-    let directory: PathBuf = effective_directory(start, globals);
+    let directory: PathBuf = match run_directory {
+        Some(directory) => directory.to_path_buf(),
+        None => effective_directory(start, globals),
+    };
     let mut directories: Vec<PathBuf> = Vec::new();
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     for entry in std::env::split_paths(path.as_os_str()) {
@@ -183,18 +201,129 @@ fn search_directories(
 ///  `Path::join` keeps a value as written,
 ///  so a `..` or a link in it resolves
 ///  exactly as the kernel resolves it when Git changes into it.
+///  A frame that already starts in a directory Git moved to,
+///  the shell of a `!` alias,
+///  reads its own options from there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const effectiveDirectory = (start: string, globals: string[]) =>
 ///   directoryChanges(globals).reduce((at, change) => join(at, change), start);
 /// ```
-fn effective_directory(start: &Path, globals: &[OsString]) -> PathBuf {
+pub fn effective_directory(start: &Path, globals: &[OsString]) -> PathBuf {
     let mut directory: PathBuf = start.to_path_buf();
     for change in directory_changes(globals) {
         directory = directory.join(change);
     }
     return directory;
+}
+
+/// What:
+///  The directory Git runs an alias in:
+///  the top of the working tree when Git found the repository by walking up to it,
+///  and the directory the caller's `-C` options reach otherwise,
+///  or nothing when the directory Git was started in cannot be read or Git cannot be asked.
+///  `&[OsString]` borrows the globals of the Git process that reached the alias;
+///  `Option<&Path>` is the directory that process was started in,
+///  the caller's `-C` options not yet applied.
+/// Why:
+///  A `!` alias runs its shell after `setup_git_directory_gently`
+///  (`git.c:388` to `git.c:407`),
+///  which changes to the top of the working tree when discovery walked up from below that top
+///  (`setup.c:1959` to `setup.c:1962`),
+///  and changes to nothing when there was no repository to walk to,
+///  a repository named by `--git-dir` or `GIT_DIR` included;
+///  so the shell searches a relative `PATH` entry from that top and not from the
+///  directory the caller's `-C` named.
+///  Git writes the prefix of the directory it was started in below that top only in the
+///  case that changes directory,
+///  so an empty prefix answers the directory the caller's options reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function aliasRunDirectory({ globals, start }): string | undefined {
+///   const [top, prefix] = await git(start, [...globals, 'rev-parse', '--path-format=absolute', '--show-toplevel', '--show-prefix']).split('\n');
+///   return prefix === '' ? effectiveDirectory(start, globals) : top;
+/// }
+/// ```
+pub fn alias_run_directory(
+    context: &GitContext,
+    globals: &[OsString],
+    current_directory: Option<&Path>,
+) -> Option<PathBuf> {
+    let start: &Path = current_directory?;
+    let mut arguments: Vec<OsString> = globals.to_vec();
+    arguments.push(OsString::from("rev-parse"));
+    arguments.push(OsString::from("--path-format=absolute"));
+    arguments.push(OsString::from("--show-toplevel"));
+    arguments.push(OsString::from("--show-prefix"));
+    // Git's own `-C` options in the globals apply from the directory this process was started in and nowhere else, so
+    //  the question is asked there.
+    let mut request: GitRequest = GitRequest::new(start, arguments.as_slice());
+    request.without_prefix = true;
+    let Ok(output) = run_git(context, &request) else {
+        debug("aliasRunDirectory", "Git could not be asked where an alias runs");
+        return None;
+    };
+    // A bare repository, and a repository Git could not read at all, have no top to change to, so Git runs the alias
+    //  where its options left it; so does a directory outside every repository.
+    if !output.succeeded() {
+        debug(
+            "aliasRunDirectory",
+            "Git names no top of a working tree, so an alias runs where Git was started",
+        );
+        return Some(effective_directory(start, globals));
+    }
+    let mut lines = output.stdout.split(is_record_break);
+    let top: Option<&[u8]> = lines.next();
+    // Git writes the prefix of the directory it was started in below that top, an empty line when it was started at
+    //  the top, which is the only case that changes directory.
+    let prefix: Option<&[u8]> = lines.next();
+    let changes_directory: bool = matches!(prefix, Some(line) if !line.is_empty());
+    if !changes_directory {
+        return Some(effective_directory(start, globals));
+    }
+    return top.map(printed_path);
+}
+
+/// What:
+///  Whether a byte ends one line of what Git printed.
+/// Why:
+///  `rev-parse` writes one answer per line,
+///  and a line is read up to its newline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isRecordBreak = (byte: number) => byte === 0x0a;
+/// ```
+fn is_record_break(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  A path Git printed,
+///  from the bytes it printed,
+///  decoded only where the platform has no other way.
+/// Why:
+///  The top of a working tree is arbitrary bytes on Unix,
+///  and a path that round-trips exactly is the one Git changes to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(printed).toString('latin1') // exact bytes, no decoding
+/// ```
+fn printed_path(printed: &[u8]) -> PathBuf {
+    #[cfg(unix)]
+    {
+        /// The Unix byte-to-native-string conversion for a printed path.
+        use std::os::unix::ffi::OsStringExt;
+        return PathBuf::from(OsString::from_vec(printed.to_vec()));
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return PathBuf::from(String::from_utf8_lossy(printed).into_owned());
+    }
 }
 
 /// What:
