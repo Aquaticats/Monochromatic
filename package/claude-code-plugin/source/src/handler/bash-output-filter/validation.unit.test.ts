@@ -143,6 +143,23 @@ await describe({
       ],
     },),
     describe({
+      name: 'shouldSkip: shell syntax the analyzer cannot read',
+      children: [
+        it({
+          name: 'skips a parameter operation the analyzer cannot read',
+          fn: async () => {
+            expect(shouldSkip(`printf %s \${value;text}`,),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'does not skip a parameter operation the analyzer reads',
+          fn: async () => {
+            expect(shouldSkip(`printf %s \${value:-text}`,),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'shouldSkip: long-input scans stay linear',
       children: [
         it({

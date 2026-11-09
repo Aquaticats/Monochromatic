@@ -220,6 +220,32 @@ await describe({
       ],
     },),
     describe({
+      name: 'Bash: unread shell syntax blocking',
+      children: [
+        it({
+          name: 'denies "bun test" hidden inside brace expansion',
+          fn: async ({ expect: e, },) => {
+            const result = await guardrailHandler(makeBashEvent('printf %s {a,$(bun test)}',),);
+            e(isDeny(result,),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'denies a parameter operation the analyzer cannot read',
+          fn: async ({ expect: e, },) => {
+            const result = await guardrailHandler(makeBashEvent(`printf %s \${value;text}`,),);
+            e(isDeny(result,),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'allows a parameter operation the analyzer reads',
+          fn: async ({ expect: e, },) => {
+            const result = await guardrailHandler(makeBashEvent(`printf %s \${value:-text}`,),);
+            e(isDeny(result,),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'Bash: process-name wait loop blocking',
       children: [
         it({

@@ -4,8 +4,10 @@ import type {
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import {
   BUN_TEST_BAN_REASON,
+  hasNotUnderstoodShellSyntax,
   invokesBunTest,
   invokesMutatingGitThroughRealGitPath,
+  NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   PROCESS_NAME_WAIT_BAN_REASON,
   REAL_GIT_MUTATION_BAN_REASON,
   waitsOnProcessName,
@@ -40,6 +42,17 @@ const PROCESS_NAME_WAIT_DENY_OUTPUT: GuardrailOutput = {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
     permissionDecisionReason: PROCESS_NAME_WAIT_BAN_REASON,
+  },
+};
+
+/**
+ Deny response for shell syntax the analyzer cannot read.
+ */
+const NOT_UNDERSTOOD_SHELL_SYNTAX_DENY_OUTPUT: GuardrailOutput = {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   },
 };
 
@@ -110,6 +123,9 @@ async function guardrailHandler(
       : undefined;
 
     if ((typeof command) === 'string') {
+      if (hasNotUnderstoodShellSyntax(command,))
+        return NOT_UNDERSTOOD_SHELL_SYNTAX_DENY_OUTPUT;
+
       if (invokesBunTest(command,))
         return BUN_TEST_DENY_OUTPUT;
 
