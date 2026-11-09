@@ -215,18 +215,19 @@ fn remove_attribute(handle: Handle<'_>, name: &CStr) -> bool {
 ///  Whether the handle already holds `value` under `name`,
 /// so a set the system refused loses nothing.
 /// Why:
-///   A mount that forces one security context (`context=` on a container's overlay) reports the same label on every inode
-/// it creates, and a process may not set that label at all:
-/// the copy's own creation is what gave the replacement
-/// the value,
-/// so counting the refusal as a loss would report data that is present as missing.
+///   A mount that forces one security context (`context=` on a container's overlay) reports the same label on every
+/// inode it creates,
+/// and a process may not set that label at all:
+/// the copy's creation gives the replacement that value,
+/// so counting a refusal as a loss would report data that is present as missing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const alreadyCarries = (handle, name, value) => bufEquals(getxattr(handle, name), value);
 /// ```
 fn already_carries(destination: Handle<'_>, name: &CStr, value: &[u8]) -> bool {
-    return attribute_value(destination, name).is_some_and(|held| { return held == value; });
+    let Some(held) = attribute_value(destination, name) else { return false };
+    return held == value;
 }
 
 /// What:
