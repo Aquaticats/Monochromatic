@@ -336,11 +336,12 @@ the `run` bodies are as listed.
   `update`,
   `list` and `bin`;
   `README.md:251` names the deleted directory.
-- `AGENTS.md:869` (rule `WC2`):
+- `AGENTS.md`,
+  rule `WC2`:
   "check `file-enforcer.config.ts` before editing or adding one" becomes `file-enforcer.config.jsonc`.
-  `CLAUDE.md:918` is generated from it,
+  `CLAUDE.md` is generated from it,
   so `file-enforcer write` regenerates it in the same commit.
-  `AGENTS.md:549` (`UPN`) and `:767` (`CM7`) name tasks that keep their names.
+  Rules `UPN` and `CM7` in the same file name tasks that keep their names.
 
 The `mpm-shadow` and `file-enforcer` programs must be found on `PATH` when a task runs.
 Today `node` is.
