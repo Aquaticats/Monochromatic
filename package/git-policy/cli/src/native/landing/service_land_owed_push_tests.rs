@@ -59,150 +59,59 @@ fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
     remove(world.root.as_path());
 }
 
-/// A held push of a command that is still deciding is never promoted by another one:
-/// the owner is this live process,
-/// so a blocked gate still wins.
+/// A push whose command died before its verdict stays held through a service restart:
+/// nothing releases it by judging a process,
+/// and nothing drains it,
+/// so nothing is pushed.
 #[test]
-fn a_held_push_of_a_living_command_is_not_promoted() {
-    let world: World = world("service-land-owed-push-owner");
-    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
-        kind: WorkKind::Push,
-        repository: world.repo.display().to_string(),
-        git_dir: world.repo.join(".git").display().to_string(),
-        branch_ref: String::from("refs/heads/main"),
-        oid: String::from("0".repeat(40)),
-        parent: String::from("0".repeat(40)),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
-    };
-    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
-    crate::work_item::claim(work_dir.as_path(), item.id().as_str());
-    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 0, "a living command's gate is not overtaken");
-    assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
-    // The command is gone when its owner names a process that is not there: the next command may finish its push.
-    let owner: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id()));
-    std::fs::write(owner.as_path(), "999999\n0#0#0\n").expect("an owner that is gone");
-    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 1, "a dead owner's record is finished by the next command");
-    assert!(state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "the push is runnable");
-    remove(world.root.as_path());
-}
-
-/// A batch that landed and whose service was killed before it held the pushes leaves recovery to hold them.
-#[test]
-fn recovery_holds_the_push_of_a_batch_it_finishes() {
-    let world: World = world("service-land-owed-push-recovery");
+fn a_held_push_stays_held_when_the_service_restarts() {
+    let world: World = world("service-land-owed-push-restart");
     let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
     land_with_failed_index(&world, 1, &[landed]);
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let record: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("push-{commit}"));
-    // The kill came before the landing held it.
-    let _gone: std::io::Result<()> = std::fs::remove_file(record.as_path());
-    assert!(!record.exists());
-    let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }), "{reports:?}");
-    assert!(record.exists(), "the push of the landed commit is held by recovery");
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s"]), "message of landed");
+    let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("push-{commit}"));
+    assert!(held.exists(), "the landing held the push");
+    // The restart: the queue is drained as a service start does, and nothing about an owner is judged.
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(crate::test_support::git_context());
+    let _drained = crate::service_work::drain(world.repo.join(".git").as_path(), &handlers, &crate::claim_time::ClaimTime::read());
+    assert!(held.exists(), "the held push is still held after the restart");
+    assert!(!state_directory(work_dir.as_path(), PENDING).join(format!("push-{commit}")).exists(), "nothing was made runnable");
     remove(world.root.as_path());
 }
 
-/// A service started without an instance name recovers an approved held push:
-/// its worktrees are the ones it remembers,
-/// and a start is a moment when no command of them is deciding.
+/// The next command in the worktree says once,
+/// in one line,
+/// which commit is held.
 #[test]
-fn a_service_with_no_instance_promotes_the_held_push_of_a_worktree_it_remembers() {
-    let world: World = world("service-land-owed-push-no-instance");
-    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
-        kind: WorkKind::Push,
-        repository: world.repo.display().to_string(),
-        git_dir: world.repo.join(".git").display().to_string(),
-        branch_ref: String::from("refs/heads/main"),
-        oid: String::from("0".repeat(40)),
+fn the_next_command_says_which_commit_is_held() {
+    let world: World = world("service-land-owed-push-notice");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let handoff: crate::service_handoff::ServiceHandoff = crate::service_handoff::ServiceHandoff {
+        config: crate::service_client::ClientConfig {
+            address: crate::service_server::Bind::Path(world.root.join("no-service.sock")),
+            activation: crate::service_client::Activation::Managed,
+            start_wait: std::time::Duration::from_millis(100),
+            heartbeat_silence: std::time::Duration::from_secs(1),
+            start_watch: None,
+            keep_fresh: None,
+            answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
+            withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
+            extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
+            start_ceiling: crate::wait_ceilings::START_CEILING,
+        },
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        reference: String::from("refs/heads/main"),
         parent: String::from("0".repeat(40)),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
     };
-    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
-    // Its command is gone: the owner names a process that is not there.
-    let owner: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id()));
-    std::fs::write(owner.as_path(), "999999\n0#0#0\n").expect("an owner that is gone");
-    // No instance name: the worktree is one this service remembers, not one it can name from its unit.
-    let promoted: usize = crate::service_server_work_loop::promote_held_at_start(None, std::slice::from_ref(&world.repo.join(".git")));
-    assert_eq!(promoted, 1, "the approved push of a remembered worktree is promoted");
-    assert!(state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "the push is runnable");
-    remove(world.root.as_path());
-}
-
-/// A worktree the service does not remember is not promoted by its start.
-#[test]
-fn a_service_start_leaves_the_held_push_of_a_worktree_it_does_not_remember() {
-    let world: World = world("service-land-owed-push-unknown-worktree");
-    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
-        kind: WorkKind::Push,
-        repository: world.repo.display().to_string(),
-        git_dir: world.repo.join(".git").display().to_string(),
-        branch_ref: String::from("refs/heads/main"),
-        oid: String::from("0".repeat(40)),
-        parent: String::from("0".repeat(40)),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
-    };
-    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
-    let owner: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id()));
-    std::fs::write(owner.as_path(), "999999\n0#0#0\n").expect("an owner that is gone");
-    assert_eq!(crate::service_server_work_loop::promote_held_at_start(None, &[]), 0, "nothing is promoted for a worktree nothing named");
-    assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
-    remove(world.root.as_path());
-}
-
-/// A held push whose wrapper is alive but has not claimed it yet is not promoted:
-/// the service publishes the owner with the record,
-/// and a claim is judged from the file this promotion takes.
-#[test]
-fn a_held_push_the_service_published_is_not_promoted_while_the_service_lives() {
-    let world: World = world("service-land-owed-push-service-owner");
-    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
-        kind: WorkKind::Push,
-        repository: world.repo.display().to_string(),
-        git_dir: world.repo.join(".git").display().to_string(),
-        branch_ref: String::from("refs/heads/main"),
-        oid: String::from("0".repeat(40)),
-        parent: String::from("0".repeat(40)),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
-    };
-    // The service holds it: the owner names this live process, published before the record.
-    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
-    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 0, "a living owner is never overtaken");
-    assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
-    remove(world.root.as_path());
-}
-
-/// A blocked gate keeps its commit local through a later recovery:
-/// the verdict is a durable record that a fresh hold honours.
-#[test]
-fn a_blocked_verdict_keeps_its_push_from_being_held_again() {
-    let world: World = world("service-land-owed-push-blocked");
-    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
-        kind: WorkKind::Push,
-        repository: world.repo.display().to_string(),
-        git_dir: world.repo.join(".git").display().to_string(),
-        branch_ref: String::from("refs/heads/main"),
-        oid: String::from("0".repeat(40)),
-        parent: String::from("0".repeat(40)),
-        created: crate::iso_time::now_iso(),
-        tries: 0,
-    };
-    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
-    crate::work_item::block(work_dir.as_path(), item.id().as_str());
-    // A later recovery holds the batch's pushes again; the verdict is what stops it.
-    crate::work_item::hold(work_dir.as_path(), &item).expect("held again");
-    assert!(!state_directory(work_dir.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked commit is not held again");
-    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 0, "and nothing promotes it");
+    crate::service_handoff::notice_held_pushes(&handoff, "0".repeat(40).as_str());
+    let shown: Vec<String> = crate::push_failure_notice::take_push_failures(world.repo.join(".git").as_path());
+    assert_eq!(shown.len(), 1, "one line: {shown:?}");
+    assert!(shown[0].contains(commit.as_str()), "{}", shown[0]);
+    assert!(shown[0].contains("held") && shown[0].contains("checks") && shown[0].contains("next push"), "{}", shown[0]);
+    assert!(crate::push_failure_notice::take_push_failures(world.repo.join(".git").as_path()).is_empty(), "said once");
     remove(world.root.as_path());
 }

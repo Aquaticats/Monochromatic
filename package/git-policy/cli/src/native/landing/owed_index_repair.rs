@@ -110,32 +110,6 @@ fn moved_since(git: &GitContext, repository: &Path, live_index: &Path, commit_in
 /// removing whatever it held there and below them first,
 /// and leaves the file exactly as it was when any step fails.
 /// Why:
-///   A path the landing added can stand beside entries a program staged below it
-/// (`p` and `p/child`),
-/// and the head holds one of
-///  the two:
-/// an index that holds both cannot be written to a tree,
-/// so the commit's own index takes the head's shape for
-///  the path.
-/// The removal is forced,
-/// because the entry may hold neither the head's content nor the worktree's,
-/// which is
-///  exactly what a failed index update leaves.
-/// The two steps are not atomic,
-/// so the file is copied first and put back when either
-///  fails:
-/// a removal that outlived a refused reset would make the commit record a deletion the person never made.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await setToHead(owed, index, paths) // copy aside; rm --cached -r --force; reset HEAD; restore on failure
-/// ```
-fn set_to_head(git: &GitContext, owed: &Owed, index: &Path, paths: &[Vec<u8>]) -> Result<(), FailureCode> {
-    return set_to_head_with(git, owed.repository.as_path(), index, paths, index);
-}
-
-/// `set_to_head` with the repository given,
-/// for a caller whose index is not the record's own.
 fn set_to_head_with(git: &GitContext, repository: &Path, index: &Path, paths: &[Vec<u8>], _named: &Path) -> Result<(), FailureCode> {
     if paths.is_empty() {
         return Ok(());
@@ -243,6 +217,12 @@ pub fn exclude_what_a_landed_commit_left(
     captured: &crate::service_land_start::IndexWitness,
 ) -> Result<Vec<String>, String> {
     let mut left: Vec<String> = Vec::new();
+    let owed_records: Vec<Owed> = records_of(git_dir);
+    // Nothing at all is done unless this worktree has an owed record: a commit that owes nothing is never compared, so no staging of
+    //  its own can be mistaken for a move.
+    if owed_records.is_empty() {
+        return Ok(left);
+    }
     // What the commit copied is not what the index holds any more: the paths whose live entry moved since the copy are left out,
     //  because what the snapshot would record there is not the person's current intent. The copy, not the commit's staged index, is
     //  what the live index is compared with: the commit's own staging (`--all`) is the person's and must never be reported as moved.
@@ -265,7 +245,7 @@ pub fn exclude_what_a_landed_commit_left(
             }
         }
     }
-    for owed in records_of(git_dir) {
+    for owed in owed_records {
         // The record names the index file whose update it owes; a commit of another one is another question.
         if owed.index != live_index {
             continue;
@@ -275,11 +255,11 @@ pub fn exclude_what_a_landed_commit_left(
             Ok(names) => names,
             Err(code) => return Err(format!("the paths of the index update batch {} owes cannot be read ({code:?})", owed.seq)),
         };
-        let replaced: BTreeMap<Vec<u8>, Entry> = match tree_entries(git, &owed, names.as_slice()) {
+        let replaced: BTreeMap<Vec<u8>, Entry> = match tree_entries(git, repository, owed.old.as_str(), names.as_slice()) {
             Ok(entries) => entries,
             Err(code) => return Err(format!("the tree the landing of batch {} replaced cannot be read ({code:?})", owed.seq)),
         };
-        let held: BTreeMap<Vec<u8>, Entry> = match index_entries(git, &owed, snapshot, names.as_slice()) {
+        let held: BTreeMap<Vec<u8>, Entry> = match index_entries(git, repository, snapshot, names.as_slice()) {
             Ok(entries) => entries,
             Err(code) => return Err(format!("the commit's own index cannot be read for the paths of batch {} ({code:?})", owed.seq)),
         };
@@ -305,8 +285,10 @@ pub fn exclude_what_a_landed_commit_left(
                 continue;
             }
             let theirs: bool = match (entry, worktree_object(git, repository, name.as_slice())) {
-                (Some((_, object)), Some(mine)) => *object == mine,
-                (None, None) => true,
+                (Some((mode, object)), Ok(Some((worktree_mode, mine)))) => *object == mine && *mode == worktree_mode,
+                // A file that is not there is what the person staged as absent.
+                (None, Ok(None)) => true,
+                // A file that could not be read is no evidence either way: the landed content stays, and the path is said.
                 _ => false,
             };
             if !theirs {
@@ -316,7 +298,7 @@ pub fn exclude_what_a_landed_commit_left(
         if excluded.is_empty() {
             continue;
         }
-        if let Err(code) = set_to_head(git, &owed, snapshot, excluded.as_slice()) {
+        if let Err(code) = set_to_head_with(git, repository, snapshot, excluded.as_slice(), snapshot) {
             return Err(format!("the commit's own index cannot be set to the head for the entries batch {} owes ({code:?})", owed.seq));
         }
         for path in &excluded {
@@ -344,14 +326,34 @@ pub fn exclude_what_a_landed_commit_left(
 /// ```ts
 /// worktreeObject(name) // `git hash-object -- <path>`
 /// ```
-fn worktree_object(git: &GitContext, repository: &Path, name: &[u8]) -> Option<String> {
+fn worktree_object(git: &GitContext, repository: &Path, name: &[u8]) -> Result<Option<(String, String)>, FailureCode> {
     let path: OsString = <OsString as std::os::unix::ffi::OsStringExt>::from_vec(name.to_vec());
-    let request: GitRequest = GitRequest::new(repository, &[OsStr::new("hash-object"), OsStr::new("--"), path.as_os_str()]);
-    return match run_git(git, &request) {
-        // A path the worktree does not hold has no object of its own.
-        Ok(answer) if answer.succeeded() => Some(String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_string()),
-        _ => None,
+    let held: std::path::PathBuf = repository.join(path.as_os_str());
+    // A file that is not there is absent, which is evidence; one that is there and cannot be read is no evidence at all.
+    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(held.as_path()) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(FailureCode::Unavailable),
     };
+    let request: GitRequest = GitRequest::new(repository, &[OsStr::new("hash-object"), OsStr::new("--"), path.as_os_str()]);
+    let object: String = match run_git(git, &request) {
+        Ok(answer) if answer.succeeded() => String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_string(),
+        _ => return Err(FailureCode::Unavailable),
+    };
+    #[cfg(unix)]
+    let mode: String = {
+        use std::os::unix::fs::PermissionsExt as _;
+        if metadata.file_type().is_symlink() {
+            String::from("120000")
+        } else if metadata.permissions().mode() & 0o111 != 0 {
+            String::from("100755")
+        } else {
+            String::from("100644")
+        }
+    };
+    #[cfg(not(unix))]
+    let mode: String = String::from("100644");
+    return Ok(Some((mode, object)));
 }
 
 /// What:

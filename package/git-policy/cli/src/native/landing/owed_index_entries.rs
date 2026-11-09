@@ -18,7 +18,6 @@
 //! const [mode, object, stage] = frontFields(record); const entries = await indexEntries(index, names);
 //! ```
 
-use crate::owed_index_update::Owed;
 use crate::service_protocol::{FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
@@ -132,11 +131,11 @@ pub(crate) fn with_specs(git: &GitContext, repository: &Path, index: Option<&Pat
 /// ```ts
 /// treeEntries(old, names) // `ls-tree -z --full-tree <old> -- :(top,literal)<name>...`
 /// ```
-pub(crate) fn tree_entries(git: &GitContext, owed: &Owed, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    if names.is_empty() || is_zero_object(owed.old.as_str()) {
+pub(crate) fn tree_entries(git: &GitContext, repository: &Path, old: &str, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+    if names.is_empty() || is_zero_object(old) {
         return Ok(BTreeMap::new());
     }
-    let output = with_specs(git, owed.repository.as_path(), None, &["ls-tree", "-z", "--full-tree", owed.old.as_str()], names)?;
+    let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", old], names)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
         // A tree line is `<mode> <type> <object> TAB <path>`.
@@ -157,11 +156,11 @@ pub(crate) fn tree_entries(git: &GitContext, owed: &Owed, names: &[Vec<u8>]) -> 
 /// ```ts
 /// indexEntries(index, names) // `ls-files -s -z -- :(top,literal)<name>...`
 /// ```
-pub(crate) fn index_entries(git: &GitContext, owed: &Owed, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+pub(crate) fn index_entries(git: &GitContext, repository: &Path, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if names.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let output = with_specs(git, owed.repository.as_path(), Some(index), &["ls-files", "-s", "-z"], names)?;
+    let output = with_specs(git, repository, Some(index), &["ls-files", "-s", "-z"], names)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
         // An index line is `<mode> <object> <stage> TAB <path>`; a stage other than zero is a conflict.

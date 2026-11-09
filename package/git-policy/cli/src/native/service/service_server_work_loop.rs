@@ -165,32 +165,3 @@ pub fn work_loop(receiver: &mut UnboundedReceiver<Wake>, handlers: &GitHandlers,
         busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
-
-/// What:
-///  Makes runnable the held pushes of a worktree whose command is proven gone,
-/// at a service start.
-/// Why:
-///   A held record is a push whose command died before its post-commit gate decided,
-/// and nothing drains it.
-/// A start is a moment when no command of that worktree is deciding,
-/// and it is the one moment a service with no instance name has,
-/// because its worktrees are the ones it remembers.
-/// Only an owner that is absent or proven gone is promoted,
-/// so a gate that is still running elsewhere is never overtaken.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// promoteHeldAtStart(ownGitDir, remembered) // the count promoted
-/// ```
-pub fn promote_held_at_start(own_git_dir: Option<&std::path::Path>, remembered: &[std::path::PathBuf]) -> usize {
-    let mut directories: Vec<std::path::PathBuf> = remembered.to_vec();
-    if let Some(git_dir) = own_git_dir {
-        directories.push(git_dir.to_path_buf());
-    }
-    let mut promoted: usize = 0;
-    for directory in directories {
-        let work_dir: std::path::PathBuf = crate::service_work::work_directory(directory.as_path());
-        promoted += crate::work_item::promote_held(work_dir.as_path());
-    }
-    return promoted;
-}

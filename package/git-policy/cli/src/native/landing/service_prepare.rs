@@ -229,22 +229,7 @@ pub fn prepare<F: RepositoryFacts>(
     //  live index: this commit's own index is set to the head for the paths whose entry disagrees with it, and the person is told
     //  (`owed_index_repair.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`). An explicit-path commit names
     //  its own selection, so only the notice is given for it.
-    let excluded: Vec<String> = match crate::owed_index_update::exclude_what_a_landed_commit_left(
-        context,
-        capture.layout.repository_root.as_path(),
-        capture.layout.git_dir.as_path(),
-        capture.layout.real_index_path.as_path(),
-        match selection.mode {
-            TransactionMode::Index => Some(indexes.commit_index.as_path()),
-            TransactionMode::ExplicitPath => None,
-        },
-        Some(indexes.captured_index.as_path()),
-        &index_witness,
-    ) {
-        Ok(excluded) => excluded,
-        // A change this commit decided on and cannot make is not a reason to record stale content: the commit stops and says why.
-        Err(reason) => return Err(failed(reason)),
-    };
+    let excluded: Vec<String> = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
     if inputs.first
         && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())
     {
@@ -379,4 +364,17 @@ pub fn prepare<F: RepositoryFacts>(
     ready.committed_conflicted.extend(unmerged_files);
     ready.leaves_open = leaves_open;
     return Ok(Prepared::Ready(ready));
+}
+
+/// The step above,
+/// for a control that asks it directly.
+#[cfg(test)]
+pub(crate) fn exclude_or_stop_for_test(
+    context: &GitContext,
+    capture: &InvocationCapture,
+    indexes: &CaptureIndexes,
+    mode: TransactionMode,
+    captured: &crate::service_land_start::IndexWitness,
+) -> Result<Vec<String>, TransactionStop> {
+    return crate::owed_index_update::exclude_or_stop(context, capture, indexes, mode, captured);
 }

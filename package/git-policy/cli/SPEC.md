@@ -5693,13 +5693,23 @@ and recovery holds them for a batch it finds landed;
 every path on which a batch does not land forgets them.
 Nothing drains a held item,
 so no round can publish a commit whose post-commit gate has not decided.
-The wrapper claims its own record with its process number and birth identity before its gate runs,
-and another command and the service's start promote only records whose owner is absent or proven gone,
-compared through `process_birth_identity`:
-a living gate is never overtaken,
-a dead one never strands a push,
-and a start covers a service started without an instance name,
-whose worktrees are the ones it remembers.
+Nothing releases a held record by judging a process:
+a push whose command died before its checks ran stays
+held,
+and the question of whether it should ever be pushed is open with the owner
+(`doc/handover/questions-for-the-owner.md`).
+A held commit is not stranded by that:
+the queue pushes a branch,
+`git push <remote> <branch>:<target>`,
+so the next push from that branch carries it.
+The next command in the worktree says so once,
+in one line,
+through the notice a worktree's push failures
+use:
+which commit is held,
+that its command stopped before its checks ran,
+and that it goes out with the
+next push from that branch.
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,

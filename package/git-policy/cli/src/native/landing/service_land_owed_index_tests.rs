@@ -372,6 +372,7 @@ fn a_snapshot_older_than_the_live_index_is_left_out_after_another_command_remove
     let commit_index: PathBuf = commit_index_of(&world);
     git(world.repo.as_path(), &["add", "one.txt"]);
     crate::owed_index_update::settle(world.repo.join(".git").as_path(), 1);
+    keep_one_record(&world);
     assert_eq!(git_text(world.repo.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "");
     // Nothing in the record covers it now; the commit's own index is still older than the index, so its entry is left out.
     // The record is gone, and the commit's copy is older than the index: that is all the guard needs.
@@ -615,6 +616,7 @@ fn a_check_that_cannot_be_made_still_leaves_the_moved_paths_out() {
     // The record is settled, so the record's own comparison cannot be what leaves the path out: only the check that the copied index
     //  is older than the live one can.
     crate::owed_index_update::settle(world.repo.join(".git").as_path(), 1);
+    keep_one_record(&world);
     // A path in conflict in the live index: `write-tree` refuses it, so the check falls back to the listings.
     let stage = |content: &str| -> String {
         std::fs::write(world.root.join("stage-content"), content).expect("write");
@@ -647,6 +649,26 @@ fn a_check_that_cannot_be_made_still_leaves_the_moved_paths_out() {
         "the commit cannot record the landed file as deleted"
     );
     remove(world.root.as_path());
+}
+
+
+/// A second owed record of an unrelated path,
+/// so the repair has work to do at all:
+/// with no record it compares nothing.
+fn keep_one_record(world: &World) {
+    let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 99,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        index: real_index_of(world),
+        reference: String::from("refs/heads/main"),
+        old: commit.clone(),
+        new: commit,
+        paths: vec![String::from("elsewhere.txt")],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("an unrelated record");
 }
 
 /// A concurrent command that writes the index does not remove what `git commit --all` staged:
@@ -804,5 +826,138 @@ fn a_restoration_the_worktree_matches_is_committed() {
     assert_eq!(left, Vec::<String>::new(), "their restoration is not left out");
     let blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^:f"]);
     assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "f"]), format!("100644 {blob} 0\tf"), "the commit records their restoration");
+    remove(world.root.as_path());
+}
+
+/// A commit that owes nothing is not compared at all:
+/// a concurrent write of the index never drops an edit `git commit --all` selected,
+/// because no record names a path here.
+#[test]
+fn a_commit_with_no_owed_record_is_never_compared() {
+    let world: World = world("service-land-owed-nothing");
+    std::fs::write(world.repo.join("f"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "f"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let capture: PathBuf = world.root.join("capture.index");
+    std::fs::copy(real_index_of(&world), capture.as_path()).expect("the copy a commit makes");
+    let commit_index: PathBuf = commit_index_of(&world);
+    std::fs::write(world.repo.join("f"), "B\n").expect("write");
+    index_run(&world, commit_index.as_path(), &["add", "--", "f"]);
+    // Another command puts that same content into the live index, and the copy is older than it.
+    git(world.repo.as_path(), &["add", "f"]);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(capture.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect("nothing is compared, so nothing fails");
+    assert_eq!(left, Vec::<String>::new(), "no record names a path, so none is moved");
+    let expected: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "f"]), format!("100644 {expected} 0\tf"), "the command's own staging stands");
+    remove(world.root.as_path());
+}
+
+/// A landed executable-bit change is not taken for the person's staging:
+/// the mode is part of the entry,
+/// so the stale entry is left out and the landed mode is committed.
+#[test]
+fn a_landed_mode_change_is_left_out() {
+    let world: World = world("service-land-owed-mode");
+    std::fs::write(world.repo.join("f"), "X\n").expect("write");
+    git(world.repo.as_path(), &["add", "f"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::set_permissions(world.repo.join("f"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("mode");
+    let mut landed: CommitRequest = request(&world, "landed", "f", "X\n");
+    landed.changes = vec![crate::service_protocol::Change { path: String::from("f"), mode: 0o100755, blob: Some(git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"])) }];
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    assert_eq!(exclude(&world, Some(commit_index.as_path())), vec![String::from("f")], "the stale mode is left out");
+    let object: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "f"]), format!("100755 {object} 0\tf"), "the commit records the landed mode");
+    remove(world.root.as_path());
+}
+
+/// A worktree file that cannot be read is no evidence:
+/// the landed content stays,
+/// and the path is said.
+#[test]
+fn an_unreadable_worktree_file_is_not_an_absent_one() {
+    let world: World = world("service-land-owed-unreadable");
+    let landed: CommitRequest = request(&world, "landed", "p", "p\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The landing added p; the index still lacks it, and the file is there but cannot be read.
+    std::fs::set_permissions(world.repo.join("p"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("no read");
+    let commit_index: PathBuf = commit_index_of(&world);
+    let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
+    std::fs::set_permissions(world.repo.join("p"), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
+    assert_eq!(left, vec![String::from("p")], "the path is left out and said");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "p"]), format!("100644 {} 0\tp", git_text(world.repo.as_path(), &["rev-parse", "HEAD:p"])), "the commit cannot record the landed file as deleted");
+    remove(world.root.as_path());
+}
+
+/// A linked worktree that was moved is still repaired:
+/// the Git questions are asked in the repository preparation has,
+/// not in the one an old record remembers.
+#[test]
+fn a_moved_worktree_is_repaired_where_it_now_stands() {
+    let world: World = world("service-land-owed-moved-worktree");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The record remembers the repository as it was; the worktree is asked about where it stands now.
+    let moved: PathBuf = world.root.join("moved");
+    std::fs::create_dir_all(moved.as_path()).expect("moved");
+    std::fs::copy(world.repo.join("one.txt"), moved.join("one.txt")).expect("the file");
+    let mut records: Vec<crate::owed_index_update::Owed> = crate::owed_index_update::records_of(world.repo.join(".git").as_path());
+    assert_eq!(records.len(), 1);
+    records[0].repository = world.root.join("gone-away");
+    crate::owed_index_update::write(&records[0]).expect("the record");
+    let commit_index: PathBuf = commit_index_of(&world);
+    let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
+    assert_eq!(left, vec![String::from("one.txt")], "the record's stale path is left out even though its old repository is gone");
+    remove(world.root.as_path());
+}
+
+/// A repair that cannot be made stops the command with its own message:
+/// the wiring between the repair and the preparation is asked here,
+/// end to end through `service_prepare`'s own step.
+#[test]
+fn a_refused_repair_stops_the_preparation_with_its_reason() {
+    let world: World = world("service-land-owed-prepare-stops");
+    std::fs::write(world.repo.join("f"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "f"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let landed: CommitRequest = request(&world, "landed", "f", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.real_git = git_refusing(&world, &["reset", "update-index"]);
+    let capture: crate::capture_invocation::InvocationCapture = crate::capture_invocation::capture_invocation_base(
+        &world.context.git,
+        world.repo.as_path(),
+        crate::capture_invocation::capture_invocation_layout(&world.context.git, world.repo.as_path(), false).expect("layout"),
+    )
+    .expect("capture");
+    let indexes: crate::private_index_request::CaptureIndexes = crate::private_index_request::CaptureIndexes {
+        captured_index: commit_index.clone(),
+        commit_index: commit_index.clone(),
+        object_directory: world.root.join("objects"),
+    };
+    let stopped: crate::commit_transaction::TransactionStop = crate::service_prepare::exclude_or_stop_for_test(
+        &context,
+        &capture,
+        &indexes,
+        crate::transaction_journal::TransactionMode::Index,
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect_err("a refused repair stops the command");
+    let text: String = match stopped {
+        crate::commit_transaction::TransactionStop::Failed { message, .. } => message,
+        other => panic!("{other:?}"),
+    };
+    assert!(text.contains("batch 1"), "{text}");
     remove(world.root.as_path());
 }

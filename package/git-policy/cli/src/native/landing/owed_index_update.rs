@@ -31,7 +31,12 @@
 //! await writeOwed({ gitDir, index, old, new, paths }); const left = await leftovers(owed, realIndex); await reset(left);
 //! ```
 
+use crate::capture_invocation::InvocationCapture;
+use crate::commit_transaction::TransactionStop;
+use crate::private_index_request::CaptureIndexes;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::transaction_git::GitContext;
+use crate::transaction_journal::TransactionMode;
 pub use crate::owed_index_repair::{exclude_what_a_landed_commit_left, excluded_notice};
 use crate::service_journal::Intent;
 use crate::work_item::WORK_DIRECTORY;
@@ -335,5 +340,46 @@ pub fn batch_number_of_path(path: &Path) -> String {
     return match path.file_stem() {
         Some(stem) => stem.to_string_lossy().into_owned(),
         None => String::new(),
+    };
+}
+
+/// What:
+///  What this commit does about a landed batch's owed index update,
+/// or the stop that ends the command when the repair it decided on cannot be made.
+/// Why:
+///   The repair returns a reason,
+/// and a commit that would otherwise record the content the landing replaced must not
+///  be made:
+/// the reason becomes the command's own message.
+/// This is the whole of the wiring between two files,
+/// so it is
+///  asked here rather than inlined.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// excludeOrStop(context, capture, indexes, mode, witness)
+/// ```
+pub fn exclude_or_stop(
+    context: &GitContext,
+    capture: &InvocationCapture,
+    indexes: &CaptureIndexes,
+    mode: TransactionMode,
+    captured: &crate::service_land_start::IndexWitness,
+) -> Result<Vec<String>, TransactionStop> {
+    let repair: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        context,
+        capture.layout.repository_root.as_path(),
+        capture.layout.git_dir.as_path(),
+        capture.layout.real_index_path.as_path(),
+        match mode {
+            TransactionMode::Index => Some(indexes.commit_index.as_path()),
+            TransactionMode::ExplicitPath => None,
+        },
+        Some(indexes.captured_index.as_path()),
+        captured,
+    );
+    return match repair {
+        Ok(excluded) => Ok(excluded),
+        Err(reason) => Err(crate::commit_transaction::failed(reason)),
     };
 }

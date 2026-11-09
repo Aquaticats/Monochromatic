@@ -150,35 +150,38 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 }
 
 /// What:
-///  Promotes the held pushes of earlier commands,
-/// whose post-commit gate never decided because their process died.
+///  Says once,
+/// in one line,
+/// that a commit of this worktree is held with no verdict.
 /// Why:
-///   A held record is drained by nothing.
-/// The next command in the worktree can finish what a killed one started,
-/// and it
-///  leaves its own record alone:
-/// its gate is still deciding.
+///   A push whose command died before its checks ran is not released by anything,
+/// and the next push of this branch carries that commit.
+/// The next command in the worktree says which commit it is,
+/// through the notice the worktree's push failures use,
+/// so it is shown once and removed as the person reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// promoteStrandedPushes(handoff, landed)
+/// noticeHeldPushes(handoff, landed)
 /// ```
-pub fn promote_stranded_pushes(handoff: &ServiceHandoff, landed: &str) {
+pub fn notice_held_pushes(handoff: &ServiceHandoff, landed: &str) {
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     let mine: String = push_item(handoff, landed).id();
-    // This command's own record is claimed by this process before anything else looks at the held records, so no later command can
-    //  promote it while this one's gate is still deciding.
-    crate::work_item::claim(work_dir.as_path(), mine.as_str());
     let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
         return;
     };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".owner") || name == mine {
+        if name == mine {
             continue;
         }
-        if crate::work_item::promote_proven(work_dir.as_path(), name.as_str()) {
-            crate::service_log!("promoted the push record {name}, whose command is gone");
+        let Some(commit) = name.strip_prefix(format!("{}-", WorkKind::Push.name()).as_str()) else { continue };
+        let said: String = format!(
+            "the commit {commit} is held: its command stopped before its checks ran, and it goes out with the next push from {}",
+            handoff.reference
+        );
+        if let Err(reason) = crate::push_failure_notice::record_push_skip(handoff.git_dir.as_path(), handoff.reference.as_str(), commit, said.as_str()) {
+            crate::diagnostic_log::warn("noticeHeldPushes", format!("the held push of {commit} cannot be said ({reason})").as_str());
         }
     }
 }

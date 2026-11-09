@@ -319,14 +319,6 @@ pub fn run(arguments: &[String]) -> i32 {
             return EXIT_NOT_LISTENING;
         }
     };
-    // A push whose command died between this service's answer and its post-commit gate waits in the queue's held state, and no round
-    //  drains it. A start is a moment when no command of this worktree is gating, so those records become runnable here.
-    let remembered: Vec<std::path::PathBuf> =
-        crate::service_claim_watch::ClaimWatch::restored(journal.join(crate::service_claim_watch::WATCH_DIRECTORY).as_path(), named_instance.as_deref()).directories();
-    let promoted: usize = crate::service_server_work_loop::promote_held_at_start(own_git_dir.as_deref(), remembered.as_slice());
-    if promoted > 0 {
-        crate::service_log!("promoted {promoted} held push records of the worktrees this service remembers at start");
-    }
     let context: LandContext = LandContext {
         git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
