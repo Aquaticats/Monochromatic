@@ -99,12 +99,16 @@ function sharedHeaders(): Headers {
 
  @param status - HTTP status
 
+ @param extraHeaders - headers this response adds beyond the shared set, such as
+   the `Allow` a 405 advertises
+
  @returns response carrying the shared headers plus the text media type
  */
 function plainTextResponse({
   body,
   omitBody,
   status,
+  extraHeaders,
 }: PlainTextResponseParams,): Response {
   /**
    Encoded body, used for its byte length.
@@ -122,6 +126,9 @@ function plainTextResponse({
     'Content-Length',
     String(bytes.byteLength,),
   );
+  for (const [name, value,] of Object.entries(extraHeaders ?? {},)) {
+    headers.set(name, value,);
+  }
   return new Response(
     omitBody ? null : body,
     {
@@ -147,6 +154,11 @@ type PlainTextResponseParams = {
    HTTP status.
    */
   readonly status: number;
+  /**
+   Headers this response adds beyond the shared set, such as the `Allow` a 405
+   advertises.
+   */
+  readonly extraHeaders?: Readonly<Record<string, string>>;
 };
 
 //endregion Helpers
@@ -309,37 +321,13 @@ export type MethodNotAllowedResponseParams = {
  ```
  */
 export function methodNotAllowedResponse({ method, }: MethodNotAllowedResponseParams,): Response {
-  /**
-   Explanation naming the refused method.
-   */
-  const message = `${method} is not served; allowed methods are ${ALLOWED_METHODS}\n`;
-  /**
-   Encoded body, used for its byte length.
-   */
-  const bytes = new TextEncoder().encode(message,);
-  /**
-   Headers for this response.
-   */
-  const headers = sharedHeaders();
-  headers.set(
-    'Allow',
-    ALLOWED_METHODS,
-  );
-  headers.set(
-    'Content-Type',
-    PLAIN_TEXT,
-  );
-  headers.set(
-    'Content-Length',
-    String(bytes.byteLength,),
-  );
-  return new Response(
-    message,
-    {
-      status: METHOD_NOT_ALLOWED,
-      headers,
-    },
-  );
+  return plainTextResponse({
+    body: `${method} is not served; allowed methods are ${ALLOWED_METHODS}\n`,
+    // HEAD is served, so a refusal can never arrive with a body to omit.
+    omitBody: false,
+    status: METHOD_NOT_ALLOWED,
+    extraHeaders: { Allow: ALLOWED_METHODS, },
+  },);
 }
 
 //endregion Responses
