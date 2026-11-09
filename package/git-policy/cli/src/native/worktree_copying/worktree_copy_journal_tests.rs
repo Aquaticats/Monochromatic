@@ -941,11 +941,11 @@ fn a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_tha
     journal.intended_entries = vec![awkward.clone()];
     let text: String = encode_journal(&journal);
     assert!(
-        text.contains(&format!("\"selectedRootsHex\":[\"{}\"]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        text.contains(&format!("\"selectedRootsHex\":[{}]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
         "the root's bytes are in the record: {text}"
     );
     assert!(
-        text.contains(&format!("\"intendedEntriesHex\":[\"{}\"]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        text.contains(&format!("\"intendedEntriesHex\":[{}]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
         "the claim's bytes are in the record: {text}"
     );
     assert!(!text.contains("\"selectedRoots\":["), "a root that is not text has no plain spelling: {text}");
