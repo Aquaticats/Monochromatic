@@ -167,11 +167,21 @@ export function startReadingPiRecords(
    */
   function noteCompaction(record: PiRecord,): void {
     if (record.type === 'compaction_start') {
+      /**
+       Whether this record begins the compaction rather than reporting one already under way.
+       */
+      const {
+        compaction: { compacting: alreadyCompacting },
+      } = state;
       state.compaction = {
         compacting: true,
         reason: textOf(record.reason,),
         since: Date.now(),
       };
+      if (alreadyCompacting) {
+        // A second report of the same compaction is no new silence to stop counting, so no wait hears of it twice.
+        return;
+      }
       for (const waiting of waitingForAnswer.values()) {
         waiting.pauseSilence();
       }
@@ -184,7 +194,16 @@ export function startReadingPiRecords(
      Why the compaction failed, when it did.
      */
     const compaction = compactionOutcomeOf(record,);
+    /**
+     Whether a compaction was reported under way, whose end the waits are counting from.
+     */
+    const {
+      compaction: { compacting: wasCompacting },
+    } = state;
     state.compaction = { compacting: false, };
+    if (!wasCompacting) {
+      return;
+    }
     for (const waiting of waitingForAnswer.values()) {
       waiting.resumeSilence(compaction,);
     }
