@@ -163,7 +163,7 @@ impl Tally {
         let Ok(tasks) = std::fs::read_dir(format!("/proc/{number}/task")) else { return };
         for task in tasks.flatten() {
             let name: std::ffi::OsString = task.file_name();
-            let Some(tid) = name.to_str().and_then(|name| { return name.parse::<i32>().ok(); }) else { continue };
+            let Some(tid) = name.to_str().and_then(|text| { return text.parse::<i32>().ok(); }) else { continue };
             if Some(tid) == skip {
                 continue;
             }
