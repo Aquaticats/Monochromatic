@@ -233,10 +233,10 @@ fn unchecked_without_path(trigger: &str, reason: &str) -> String {
 fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
     let fixture: Fixture = fixture("markdown-unchecked");
     let path: OsString = plain_path(&fixture);
-    let repo: PathBuf = lfs_repository(&fixture, "[\"warn\", { \"exclude\": [\"a{b\"] }]");
+    let repo: PathBuf = lfs_repository(&fixture, "[\"warn\", { \"exclude\": [\"[z-a].md\"] }]");
     std::fs::write(repo.join("a.md"), RELATIVE).expect("markdown");
     std::fs::write(repo.join("b.txt"), b"text\n").expect("text");
-    let reason: String = git_policy_cli::markdown_exclude::compile_exclude(&[String::from("a{b")])
+    let reason: String = git_policy_cli::markdown_exclude::compile_exclude(&[String::from("[z-a].md")])
         .map(|_| { return String::new(); })
         .expect_err("the pattern does not compile");
     let stopped: Observed = run_with(&fixture, &path, &repo, &["add", "--", "a.md"]);
