@@ -143,27 +143,48 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(format!("writing the plan failed: {error}")),
     }
-    remove_files_of(directory, &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())], Some(name.as_str()));
+    remove_files_of(directory, plan.git_dir.as_path(), plan.item.branch_ref.as_str(), &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())], Some(name.as_str()));
     return Ok(());
 }
 
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], None);
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], None);
 }
 
-/// Removes the plan files of one branch,
+/// Removes the plan files of one branch of `git_dir`,
 /// whose keys are `keys`,
-/// except the one named `keep`.
-fn remove_files_of(directory: &Path, keys: &[String], keep: Option<&str>) {
+/// except the one named `keep`,
+/// and leaves every file whose record names another directory or another branch.
+/// Why:
+///   The key an earlier release wrote was built from the text of the path,
+/// and two directories whose names differ only in a byte that is not text have one text,
+/// so that key alone can name both;
+/// the record inside the file says which directory the plan is for,
+/// and a plan of another directory is neither done nor cancelled.
+fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: Option<&str>) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if names_the_branch(keys, name.as_str()) && keep != Some(name.as_str()) {
-            let _removed = std::fs::remove_file(entry.path());
+        if keep == Some(name.as_str()) || !names_the_branch(keys, name.as_str()) {
+            continue;
         }
+        let path: PathBuf = entry.path();
+        if names_another_branch(path.as_path(), git_dir, branch_ref) {
+            continue;
+        }
+        let _removed = std::fs::remove_file(path);
     }
+}
+
+/// Whether the plan in `path` names a branch other than `git_dir` and `branch_ref`;
+/// nothing when the file holds no plan,
+/// which `load` judges and says.
+fn names_another_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> bool {
+    let Ok(text) = std::fs::read_to_string(path) else { return false };
+    let Ok(found) = decode(text.as_str()) else { return false };
+    return found.git_dir != git_dir || found.item.branch_ref != branch_ref;
 }
 
 /// Whether a plan file's name begins with the key of one of the branch's plans.

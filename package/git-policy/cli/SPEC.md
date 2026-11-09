@@ -2309,8 +2309,13 @@ with doubling pauses from
 until it lands or the person must act (`src/native/push/push_retry.rs`).
 Its plan is kept in a file whose name is a hash of the branch and of the bytes of the worktree's Git directory
 (`src/native/push/push_retry_store.rs`),
-so two directories whose paths differ only in a byte that is not text keep a plan each,
-and a file an earlier release keyed by the path's text is still removed with its branch.
+so two directories whose paths differ only in a byte that is not text keep a plan each.
+A file an earlier release keyed by the path's text is removed with its branch only when the record inside it names that
+branch,
+because that key was built from the text,
+and the text of a name that holds a byte which is not text shows the replacement character:
+a directory named with that character itself has the same text,
+and its plan is neither done nor cancelled, so it stays.
 The person must act for a conflict,
 for a login the service does not have,
 and for a hook on the server that declined the push

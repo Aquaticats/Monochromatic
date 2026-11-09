@@ -143,6 +143,35 @@ fn a_plan_file_of_an_earlier_release_is_removed_with_its_branch() {
     remove_fixture(root.as_path());
 }
 
+/// What:
+///  A plan of another directory survives the cleanup of the key an earlier release wrote.
+/// Why:
+///   That key was built from the text of the path,
+/// and the text of a name that holds a byte which is not text shows the replacement character,
+/// so a directory named with that character itself and one named with the byte get one key;
+/// saving a plan for one must not delete the other's, whose push is neither done nor cancelled.
+#[test]
+fn a_legacy_key_does_not_remove_another_directorys_plan() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("retry-store-legacy-collision");
+    let replacement: StoredPlan = StoredPlan { git_dir: root.join("r\u{fffd}").join(".git"), ..plan("refs/heads/main", FIRST_OID, 1) };
+    let other: StoredPlan = StoredPlan { git_dir: root.join(OsStr::from_bytes(b"r\xff")).join(".git"), ..plan("refs/heads/main", SECOND_OID, 2) };
+    assert_eq!(replacement.git_dir.display().to_string(), other.git_dir.display().to_string(), "the two names have one text, which is what the earlier key was made of");
+    let legacy: PathBuf = root.join(format!(
+        "{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}",
+        earlier_branch_key(replacement.git_dir.as_path(), replacement.item.branch_ref.as_str()),
+        1,
+        crate::push_failure_notice::fnv_hex(FIRST_OID)
+    ));
+    std::fs::write(legacy.as_path(), encode(&replacement)).expect("a plan an earlier release wrote");
+    save(root.as_path(), &other).expect("saved");
+    let mut loaded: Vec<StoredPlan> = load(root.as_path());
+    loaded.sort_by(|left, right| { return left.git_dir.cmp(&right.git_dir); });
+    assert_eq!(loaded, vec![replacement, other], "the other directory's plan is still there");
+    remove_fixture(root.as_path());
+}
+
 /// A plan saved for a branch replaces the earlier plan of that branch,
 /// with another try number or another commit.
 #[test]
