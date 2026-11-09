@@ -101,7 +101,7 @@ await describe({
          */
         const follower: Plugin = {
           name: 'record-transform-input',
-          transform(code, id,) {
+          transform(code, id,): null {
             seenByFollower.push({ id, code, },);
             return null;
           },
