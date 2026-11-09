@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:52:07-05:00)
+#### Reviews and landings in progress (2026-11-09T02:54:54-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -223,6 +223,17 @@ The old tree kept for the rollback stays until the owner deletes it.
   Run 2 of its agent is on them.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
   The agent `controls-witness-their-race-by-ordering` is on them.
+- `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
+  111 of 111 selected tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-1-sol.txt`) names three defects,
+  among them that a missing publish configuration fails a commit,
+  against the agent's report that commits were unaffected.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  and goes ahead of the reader round:
+  resume the run `dependent-version-publish-list-fixed` as run 2,
+  with `dependent-version-publish-list-round-2-prompt.md` and the session file named in run 1's `summary.json`.
 - `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
   Waits for a free agent slot,
   since all twenty are taken:
