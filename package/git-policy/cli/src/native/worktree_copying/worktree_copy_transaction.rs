@@ -272,6 +272,20 @@ fn install_recorded(
         .cloned()
         .collect();
     let destination: PathBuf = PathBuf::from(state.pending.journal.destination_root.as_str());
+    // The last moment before the first entry: every entry is written through this path, and the registration the stage
+    // was made for is the only destination this copy may fill. A check earlier in the command cannot cover a destination
+    // that another command moved and made again since.
+    let container: PathBuf = PathBuf::from(state.pending.journal.stage_container.as_str());
+    if let Some(bound) = crate::worktree_copy_stage_binding::stage_binding(container.as_path())?
+        && crate::worktree_add_binding::path_identity(bound.destination.as_path()) != Some(bound.destination_id)
+    {
+        let message: String = format!(
+            "monochromatic-git-policy-cli: the ignored state for {} was not installed: the worktree is no longer the registration the copy was made for ({}). Nothing in it was changed; `git worktree list` shows what is registered there now.",
+            quote(destination.to_string_lossy().as_ref()),
+            bound.admin.display()
+        );
+        return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
+    }
     let result: Result<usize, WorktreeCopyError> = install_snapshot(
         staged.stage_root.as_path(),
         destination.as_path(),

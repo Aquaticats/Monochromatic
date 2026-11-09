@@ -7,7 +7,7 @@ use super::*;
 use crate::worktree_copy_journal::create_journal;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
-use crate::test_support::{fixture, git_context, remove, repository};
+use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::worktree_copy_install_entry::capture_installed_path;
 use crate::worktree_copy_install_log::{INSTALL_LOG_NAME, open_install_log};
 use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
@@ -268,5 +268,39 @@ fn beginning_the_installation_persists_the_installing_phase() {
     assert_eq!(written[0].journal.phase, Phase::Installing);
     begin_installing(&mut state).expect("already begun");
     assert_eq!(state.pending.journal.phase, Phase::Installing);
+    remove(root.as_path());
+}
+
+/// A destination another command moved and made again after the binding was checked receives nothing:
+/// the identity of the registration the stage was made for is checked again where the first entry is written.
+#[cfg(unix)]
+#[test]
+fn a_destination_replaced_after_the_check_is_not_installed_into() {
+    use crate::worktree_add_binding::{bind_registration, path_identity};
+    use crate::worktree_copy_stage_binding::record_stage_binding;
+    let root: PathBuf = fixture("transaction-destination-replaced");
+    let (source, destination) = ignored_source(root.as_path());
+    git(source.as_path(), &["worktree", "add", "--quiet", "-b", "topic", destination.to_str().expect("utf8")]);
+    let destination_canonical: PathBuf = std::fs::canonicalize(&destination).expect("canonical destination");
+    let common: PathBuf = common_of(source.as_path());
+    let binding = bind_registration(common.as_path(), destination_canonical.as_path()).expect("binding").binding;
+    let snapshot: StagedSnapshot = stage(source.as_path(), destination_canonical.as_path());
+    record_stage_binding(snapshot.stage_container.as_path(), &binding).expect("recorded");
+    let pending: PendingJournal = create_journal(common.as_path(), destination_canonical.as_path(), &snapshot).expect("journal");
+    // Another command moves this worktree away and registers a different one at the same path.
+    let moved: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("moved");
+    git(source.as_path(), &["worktree", "move", destination_canonical.to_str().expect("utf8"), moved.to_str().expect("utf8")]);
+    git(
+        source.as_path(),
+        &["worktree", "add", "--quiet", "--no-checkout", "-b", "replacement", destination_canonical.to_str().expect("utf8")],
+    );
+    assert_ne!(
+        path_identity(destination_canonical.as_path()),
+        Some(binding.destination_id),
+        "the path holds another directory now"
+    );
+    let failure: WorktreeCopyError = complete_journal(pending.clone(), &SnapshotSource::FromJournal(&pending)).expect_err("the registration is gone");
+    assert!(failure.0.contains("no longer the registration the copy was made for"), "{}", failure.0);
+    assert!(!destination_canonical.join("cache").exists(), "the replacement registration received nothing");
     remove(root.as_path());
 }
