@@ -118,8 +118,15 @@ pub mod command_config;
 /// Pure decision of the require-root policy.
 pub mod rule_require_root;
 
-/// Whether a `git worktree` invocation changes worktree registrations (an add or a move).
+/// Whether a `git worktree` invocation changes worktree registrations (an add or a move),
+///  and which directory a removal takes.
 pub mod command_worktree;
+
+/// Which branches a `git branch` region deletes.
+pub mod command_branch_delete;
+
+/// The facts one audit line of a deleted branch carries.
+pub mod branch_delete_audit;
 
 /// Pure decision of the linked-worktree-only policy.
 pub mod rule_linked_worktree;

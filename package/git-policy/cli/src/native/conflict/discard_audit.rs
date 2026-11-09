@@ -28,7 +28,7 @@ use crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG;
 use crate::diagnostic_log::debug;
 use generations::{Retention, install_generation, retention_of, trim_generations};
 use crate::discard_audit_facts::AuditFact;
-use crate::discard_audit_record::{AuditRecord, audit_line};
+use crate::discard_audit_record::{AuditRecord, DecidedForm, audit_line};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 use crate::rule_linked_worktree::GuardedCommand;
@@ -104,6 +104,12 @@ pub enum AuditOutcome {
     Hatch,
     /// The command took a side of conflicted files after the wrapper saved a copy of each.
     SavedConflict,
+    /// The form is recorded and was never refused:
+    ///  it runs as Git runs it,
+    ///  by the owner's decision,
+    ///  and this
+    ///       line says what it took.
+    Logged,
 }
 
 impl AuditOutcome {
@@ -115,6 +121,7 @@ impl AuditOutcome {
             AuditOutcome::Exempt => return "exempt",
             AuditOutcome::Hatch => return "hatch",
             AuditOutcome::SavedConflict => return "saved-conflict",
+            AuditOutcome::Logged => return "logged",
         }
     }
 }
@@ -205,7 +212,7 @@ pub fn record_audit(
 /// ```
 pub fn record_audit_with_facts(
     identity: &WorktreeIdentity,
-    form: GuardedCommand,
+    form: impl Into<DecidedForm>,
     outcome: AuditOutcome,
     arguments: &[OsString],
     dirty: Option<bool>,
@@ -249,7 +256,7 @@ pub fn record_audit_with_copies(
 /// ```
 pub fn record_audit_with_copies_and_facts(
     identity: &WorktreeIdentity,
-    form: GuardedCommand,
+    form: impl Into<DecidedForm>,
     outcome: AuditOutcome,
     arguments: &[OsString],
     dirty: Option<bool>,
@@ -270,7 +277,7 @@ pub fn record_audit_with_copies_and_facts(
         time_millis,
         process: std::process::id(),
         parent: parent_process(),
-        form,
+        form: form.into(),
         outcome,
         place: &place,
         git_dir,

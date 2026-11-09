@@ -74,6 +74,8 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
     let command = match decide_linked_worktree(stripped.arguments.as_slice()) {
         LinkedWorktreeDecision::Pass => return,
         LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => command,
+        // The audited forms answer their own hatch decision by running anyway; the audit line of the run already says so.
+        LinkedWorktreeDecision::Audited(_) => return,
     };
     if let Ok(location) = checks.facts.location() {
         record_audit(&location.identity, command, AuditOutcome::Hatch, stripped.arguments.as_slice(), None);

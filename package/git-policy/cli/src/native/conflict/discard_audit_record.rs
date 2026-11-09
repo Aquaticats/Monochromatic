@@ -19,10 +19,77 @@ use crate::rule_linked_worktree::GuardedCommand;
 use crate::service_protocol::RELEASE;
 /// The outcome word an audit record carries.
 use crate::discard_audit::AuditOutcome;
+/// The form the wrapper records without refusing it.
+use crate::rule_linked_worktree::AuditedCommand;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
 use std::path::{Path, PathBuf};
+
+/// What:
+///  The form one record is about:
+///  a guarded one,
+///  or one the wrapper only records.
+///  An `enum` is a closed set of named
+///       alternatives.
+/// Why:
+///   Both land in the same file and a reader sortes them by this word,
+///  so one type covers both and
+///       nothing has to guess which list a word came from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DecidedForm = { kind: 'guarded'; command: GuardedCommand } | { kind: 'audited'; command: AuditedCommand };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DecidedForm {
+    /// A form the policy decides.
+    Guarded(GuardedCommand),
+    /// A form the policy only records.
+    Audited(AuditedCommand),
+}
+
+impl DecidedForm {
+    /// The word written to the record.
+    pub fn word(self) -> String {
+        return match self {
+            DecidedForm::Guarded(command) => format!("{command:?}"),
+            DecidedForm::Audited(command) => format!("{command:?}"),
+        };
+    }
+}
+
+/// What:
+///  A guarded command as the form of a record.
+/// Why:
+///   Every record of a decided form is written by the same function,
+///  so the conversion lives here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// DecidedForm.fromGuarded(command)
+/// ```
+impl From<GuardedCommand> for DecidedForm {
+    fn from(command: GuardedCommand) -> Self {
+        return DecidedForm::Guarded(command);
+    }
+}
+
+/// What:
+///  An audited command as the form of a record.
+/// Why:
+///   A recorded form that is never refused lands in the same file,
+///  so it converts the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// DecidedForm.fromAudited(command)
+/// ```
+impl From<AuditedCommand> for DecidedForm {
+    fn from(command: AuditedCommand) -> Self {
+        return DecidedForm::Audited(command);
+    }
+}
 
 /// What:
 ///  Everything one record states.
@@ -42,8 +109,8 @@ pub struct AuditRecord<'record> {
     pub process: u32,
     /// The process that started it.
     pub parent: u32,
-    /// The guarded form.
-    pub form: GuardedCommand,
+    /// The form the decision was about.
+    pub form: DecidedForm,
     /// What the policy decided.
     pub outcome: AuditOutcome,
     /// The common Git directory and the worktree kind.
@@ -109,7 +176,7 @@ pub fn audit_line(record: &AuditRecord) -> String {
         record.parent,
         quote(record.place.1),
         quote(&record.git_dir.to_string_lossy()),
-        quote(&format!("{:?}", record.form)),
+        quote(&record.form.word()),
         quote(record.outcome.word()),
         quote(&record.directory.to_string_lossy()),
         string_array(&rendered),

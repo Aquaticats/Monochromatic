@@ -8184,6 +8184,45 @@ what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
+#### The two forms that are recorded and never refused
+
+Two commands run exactly as Git runs them,
+by the owner's decision,
+and leave one audit line each
+(outcome `logged`):
+
+- `git worktree remove` in any worktree.
+  The owner's words:
+  "This one is pretty intentional because agents are just as likely to run a rm rf,
+  so preventing git worktree remove buys us nothing."
+  The line's `facts` hold `worktree` (the path as typed),
+  `force` (whether `-f` or `--force` was given),
+  `head` (the removed worktree's `HEAD` ref,
+  read from its own Git directory),
+  `changed` (how many tracked paths differed from that `HEAD`,
+  from one `git status --untracked-files=no` in the target),
+  and `counted`,
+  which says `tracked changes only`.
+  Untracked and ignored files are deliberately not counted:
+  walking them is what would make a removal of a large worktree slow,
+  and the record says what it counted rather than claiming the worktree was clean.
+- `git branch -d`,
+  `git branch -D` and `git branch --delete` from the main worktree.
+  The owner's choice is "Allow,
+  add audit line".
+  One line per branch that exists,
+  with `facts` holding `branch`,
+  `commit` (the full object name,
+  so `git branch <branch> <commit>` restores it) and `merged`
+  (whether that commit is an ancestor of the command's `HEAD`,
+  which is what Git's own `-d` means).
+  A name with no local branch writes no line:
+  it deletes nothing and Git's own error is the answer.
+  `--delete-merged` is not read,
+  because it deletes only branches a merged branch already contains.
+  An abbreviation of `--delete` is not read either:
+  every one of them is ambiguous with `--delete-merged` in Git 2.56.0.
+
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 
 The owner's decision of 2026-11-02 (choice "save,

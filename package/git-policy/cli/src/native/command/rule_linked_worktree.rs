@@ -36,7 +36,9 @@
 /// ```ts
 /// import { cleanChangesWorktree, parseCleanRegion } from './command_clean.ts';
 /// ```
+use crate::command_branch_delete::branch_deletions;
 use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_region};
+use crate::command_worktree::worktree_removal;
 use crate::command_discard::{
     Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
     restores_index_only, switch_discard,
@@ -147,6 +149,33 @@ pub enum GuardedCommand {
 }
 
 /// What:
+///  The forms the wrapper records and never refuses.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///   The owner decided these two run exactly as Git runs them and leave one audit line:
+///  `git worktree remove`
+///       ("This one is pretty intentional because agents are just as likely to run a rm rf,
+///  so preventing
+///       git worktree remove buys us nothing") and
+///       `git branch -D` from the main worktree ("Allow,
+///  add audit line").
+///  A refusal here would only move the same loss to `rm -rf` or `update-ref -d`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AuditedCommand = 'worktree-remove' | 'branch-delete';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuditedCommand {
+    /// `git worktree remove`,
+    ///  which deletes a whole worktree at once.
+    WorktreeRemove,
+    /// `git branch -d`,
+    /// `git branch -D` or `git branch --delete`.
+    BranchDelete,
+}
+
+/// What:
 ///  The outcome of looking at the argument list only.
 /// Why:
 ///   Most commands are not guarded and need no repository query at all.
@@ -172,6 +201,9 @@ pub enum LinkedWorktreeDecision {
     /// the main one included,
     /// only while the worktree is dirty.
     WhenDirty(GuardedCommand),
+    /// The form runs whatever its worktree holds,
+    /// and the caller records what it takes.
+    Audited(AuditedCommand),
 }
 
 /// What:
@@ -330,6 +362,18 @@ fn guarded_decision(
             GuardedCommand::RestoreWorktree
         };
         return Ok(decided(command, restore_discard(region)));
+    }
+    if word == b"worktree" {
+        if worktree_removal(region).is_some() {
+            return Ok(LinkedWorktreeDecision::Audited(AuditedCommand::WorktreeRemove));
+        }
+        return Ok(LinkedWorktreeDecision::Pass);
+    }
+    if word == b"branch" {
+        if branch_deletions(region).is_some() {
+            return Ok(LinkedWorktreeDecision::Audited(AuditedCommand::BranchDelete));
+        }
+        return Ok(LinkedWorktreeDecision::Pass);
     }
     if word == b"rm" {
         return Ok(decided(GuardedCommand::Remove, force_discard(region)));

@@ -15,7 +15,7 @@
 /// The record,
 /// its line and the writer.
 use super::{
-    AUDIT_FILE, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, RotationStep, append_line, audit_line, audit_place, move_aside_between,
+    AUDIT_FILE, AuditOutcome, AuditRecord, DecidedForm, ROTATE_AT_BYTES, RotationStep, append_line, audit_line, audit_place, move_aside_between,
     move_aside_if_still_named, parent_process, record_audit,
 };
 use crate::command_test_support::{fixture, os_arguments, remove};
@@ -43,7 +43,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
         time_millis: 1_700_000_000_123,
         process: 42,
         parent: 7,
-        form: GuardedCommand::RestoreWorktree,
+        form: DecidedForm::Guarded(GuardedCommand::RestoreWorktree),
         outcome: AuditOutcome::Rejected,
         place: &place,
         git_dir: Path::new("/r/.git/worktrees/w"),
@@ -74,7 +74,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
         time_millis: 1,
         process: 1,
         parent: 1,
-        form: GuardedCommand::Stash,
+        form: DecidedForm::Guarded(GuardedCommand::Stash),
         outcome: AuditOutcome::Hatch,
         place: &place,
         git_dir: Path::new("/r/.git/worktrees/w"),
@@ -105,7 +105,7 @@ fn each_outcome_has_its_own_word() {
             time_millis: 1,
             process: 1,
             parent: 1,
-            form: GuardedCommand::Clean,
+            form: DecidedForm::Guarded(GuardedCommand::Clean),
             outcome,
             place: &place,
         git_dir: Path::new("/r/.git/worktrees/w"),

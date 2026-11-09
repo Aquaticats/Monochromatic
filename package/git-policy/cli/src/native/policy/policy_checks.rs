@@ -80,6 +80,8 @@ use crate::rule_add_explicit::{BULK_ADD_CODE, decide_add_explicit};
 /// The branch-worktree-only check,
 /// one policy of its own file.
 use crate::policy_branch_worktree::check_branch_worktree;
+/// The two commands that are recorded and never refused.
+use crate::policy_audited::record_audited;
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
@@ -357,6 +359,14 @@ fn check_linked_worktree(
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match forwarded.decision {
         LinkedWorktreeDecision::Pass => return clean(),
+        // The two audited forms run as Git runs them and leave one line saying what they took; nothing is refused.
+        LinkedWorktreeDecision::Audited(audited) => {
+            // Outside a repository there is no audit file to write, and nothing to name.
+            if let Ok(location) = facts.location() {
+                record_audited(facts, seen, audited, &location);
+            }
+            return clean();
+        }
         LinkedWorktreeDecision::NeedsEffectiveTarget(command) => (command, false),
         LinkedWorktreeDecision::WhenDirty(command) => (command, true),
     };

@@ -681,3 +681,88 @@ fn an_exempted_repository_says_which_variable_exempted_it() {
     assert!(last.contains("\"exemptedBy\":\"MISE_DATA_DIR\""), "{last}");
     remove(&fixture);
 }
+
+/// The audit lines of a repository's common Git directory,
+/// newest last.
+fn audit_lines_of(repo: &std::path::Path) -> Vec<String> {
+    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl")).unwrap_or_default();
+    return text.lines().map(str::to_owned).collect();
+}
+
+/// `git worktree remove` runs as it always did,
+/// and one audit line says what the removal took.
+#[test]
+fn a_worktree_removal_records_the_worktree_force_and_what_it_took() {
+    let fixture: Fixture = fixture("audit-worktree-remove");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    keep_ignored_work(linked.as_path());
+    let removal: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "--force", linked.to_str().expect("utf-8 fixture path")],
+    );
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree");
+    let lines: Vec<String> = audit_lines_of(repo.as_path());
+    let last: &str = lines.last().expect("one audit line for the removal");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"outcome\":\"logged\"",
+        "\"worktree\":\"<the path>\"",
+        "\"force\":true",
+        // The whole ref, so the branch is restored by name without a second lookup.
+        "\"head\":\"refs/heads/side\"",
+        // A count is text, like every fact, so a reader never has to guess a JSON type per field.
+        "\"changed\":\"1\"",
+        "\"counted\":\"tracked changes only\"",
+    ] {
+        let rendered: String = field.replace("<the path>", linked.to_str().expect("utf-8 fixture path"));
+        assert!(last.contains(rendered.as_str()), "{rendered} missing from {last}");
+    }
+    remove(&fixture);
+}
+
+/// `git branch -D` runs as it always did,
+/// and one audit line names the branch,
+/// its commit and whether it was merged.
+#[test]
+fn a_branch_deletion_records_the_branch_its_commit_and_whether_it_was_merged() {
+    let fixture: Fixture = fixture("audit-branch-delete");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // One branch whose commit nothing else reaches, and one already merged into `main`.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "gone"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=gone", "--", "tracked.txt"]);
+    let commit: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &["rev-parse", "gone"]).stdout.as_slice(),
+    ).trim().to_owned();
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    git(&fixture, repo.as_path(), &["branch", "kept"]);
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "gone"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let last: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"outcome\":\"logged\"",
+        "\"branch\":\"gone\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+        "\"merged\":false",
+    ] {
+        assert!(last.contains(field), "{field} missing from {last}");
+    }
+    // A branch that `main` already contains says so, so a reader can tell the two apart.
+    let merged: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "kept"]);
+    assert_eq!(merged.code, Some(0), "{}", stderr_of(&merged));
+    let merged_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("a second audit line");
+    assert!(merged_line.contains("\"branch\":\"kept\""), "{merged_line}");
+    assert!(merged_line.contains("\"merged\":true"), "{merged_line}");
+    // Deleting nothing (a name that does not exist) writes no line and stays Git's own error.
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    let missing: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "no-such-branch"]);
+    assert_ne!(missing.code, Some(0));
+    assert_eq!(audit_lines_of(repo.as_path()).len(), before);
+    remove(&fixture);
+}

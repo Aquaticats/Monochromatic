@@ -1603,6 +1603,22 @@ which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
 
+Two commands are never rejected and always leave one audit line (outcome `logged`),
+by the owner's decision:
+
+- `git worktree remove`,
+  because agents are as likely to run `rm -rf`;
+  the line names the worktree,
+  whether `--force` was given,
+  the `HEAD` it was on,
+  and how many tracked paths differed from it
+  (and says that it counted tracked changes only).
+- `git branch -d`,
+  `git branch -D` and `git branch --delete` from the main worktree;
+  one line per branch names the branch,
+  its commit and whether it was already merged,
+  so `git branch <branch> <commit>` brings it back.
+
 Every rejection names the form,
  what it would destroy,
  the alternative that fits the most likely intent,
