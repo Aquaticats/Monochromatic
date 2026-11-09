@@ -77,10 +77,15 @@ pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_secon
 /// started once its lock exists.
 /// The commit leads a process group of its own that dies with the test.
 ///
-/// It names `b.txt`, and only `b.txt`: `--all` would stage every change in the worktree, including the file the control
-///  commits while the editor is open, so the control's own change would land in the foreign commit and the landing that is
+/// It names `b.txt`,
+/// and only `b.txt`:
+/// `--all` would stage every change in the worktree,
+/// including the file the control
+///  commits while the editor is open,
+/// so the control's own change would land in the foreign commit and the landing that is
 ///  built again after the branch moved would meet the same file changed on both sides and refuse the commit
-///  (`concurrent-commit/replay-conflict`, 2026-11-08).
+///  (`concurrent-commit/replay-conflict`,
+/// 2026-11-08).
 fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str) -> Child {
     let editor: PathBuf = fixture.root.join("holding-editor");
     executable(editor.as_path(), format!("#!/bin/sh\n{editor_body}printf 'foreign\\n' > \"$1\"\n").as_bytes());

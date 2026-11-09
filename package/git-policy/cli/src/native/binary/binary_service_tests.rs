@@ -58,11 +58,20 @@ const PATIENCE: Duration = Duration::from_secs(60);
 
 /// How long the client of a killed service waits on the restarted one before it calls it stopped.
 /// The restart settles the batch the kill left open before it accepts a connection (`serve_in_a_landing` calls
-///  `settle_open_batches` before `start_acceptor_or_exit`), and that settle waits up to `SETTLE_LOCK_CEILING` for the
-///  `index.lock` the killed service left; `LANDING_LOCK_CEILING` bounds the first landing after it. Both are a minute, which is
-///  exactly this control's `PATIENCE`, so a settle that used its whole ceiling ended the client's wait (`ServiceSilent` after
-///  60 s, 2026-11-08). The event a killed-service control waits for is the answer; a service that never answers is ended by the
-///  per-test limit (five minutes), so the client's silence bound is above every ceiling the service can meet.
+///  `settle_open_batches` before `start_acceptor_or_exit`),
+/// and that settle waits up to `SETTLE_LOCK_CEILING` for the
+///  `index.lock` the killed service left;
+/// `LANDING_LOCK_CEILING` bounds the first landing after it.
+/// Both are a minute,
+/// which is
+///  exactly this control's `PATIENCE`,
+/// so a settle that used its whole ceiling ended the client's wait (`ServiceSilent` after
+///  60 s,
+/// 2026-11-08).
+/// The event a killed-service control waits for is the answer;
+/// a service that never answers is ended by the
+///  per-test limit (five minutes),
+/// so the client's silence bound is above every ceiling the service can meet.
 const RESTART_PATIENCE: Duration = Duration::from_secs(240);
 
 /// The text of a Git query,
@@ -135,7 +144,8 @@ fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
 }
 
-/// The client of a control whose service is killed and started again: `config` with `RESTART_PATIENCE` as its silence bound.
+/// The client of a control whose service is killed and started again:
+/// `config` with `RESTART_PATIENCE` as its silence bound.
 fn restarted_service_client(name: &str) -> ClientConfig {
     return ClientConfig { heartbeat_silence: RESTART_PATIENCE, ..config(name) };
 }

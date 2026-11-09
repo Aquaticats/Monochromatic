@@ -7169,6 +7169,77 @@ they and the scratch files that hold a child's standard error,
 used by the LFS upload and the held-lock retry,
 are in append mode now).
 
+- Five binary controls of this crate failed once in whole-suite runs on 2026-11-08
+  (logs `~/temp/agent/pi-printed-waits/full-binary.log` and `binary-rest.log`,
+  host load average above 100;
+  four of them passed alone in 7.2 s).
+  Each cause was measured,
+  and each fix,
+  its failing output and its plant are in the commits of
+  `fix/git-policy-cli-binary-suite-holds-under-contention`.
+  - `service_mode::the_same_start_with_the_real_git_listens` bound its socket at
+    `<fixture root>/real.sock`.
+    The fixture root under this host's build directory makes that name 135 bytes,
+    and a Unix socket name must fit `SUN_LEN` (107 bytes),
+    so the start was refused and
+    the control failed with "the service ended before it listened" after 1.028 s.
+    Measured:
+    the same start with a 170-byte `--path` answers "cannot listen:
+    path must be shorter than
+    SUN_LEN" and exits 3,
+    and the pre-fix control failed with this host's root and passed with one 54 bytes shorter.
+    The socket is now in `short_runtime_directory` (the directory the fixture's own services use)
+    and the service's own error stream goes into the failure (`kept_stderr_pipe`).
+    No production path reaches the limit:
+    `socket_for` names a socket by a 32-digit hash of the Git directory,
+    never by its path,
+    and `service_instance_tests::the_name_is_short_and_plain_for_any_directory` holds a
+    400-segment directory's socket under 108 bytes.
+  - `service_landing_lock::a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_it`
+    and `service_landing_lock::a_foreign_holder_proven_alive_is_waited_for_until_it_lets_go_and_the_commit_lands_on_top`
+    failed with the wrapper's `concurrent-commit/replay-conflict` finding
+    (`left: Some(1)`,
+    `right: Some(0)`):
+    the foreign holder ran `git commit --all`,
+    which staged the `a.txt` the control writes while the holder's editor is open,
+    so the holder landed the control's own change,
+    and the landing built again after the branch moved met the same file changed on both sides.
+    The holder now names `b.txt`,
+    and a new assertion requires the holder's commit to change only that file;
+    with `--all` restored it fails with `left: "a.txt\nb.txt"`,
+    `right: "b.txt"`.
+  - `service_heartbeat::a_waiting_command_keeps_its_scratch_directory_from_being_swept` failed with
+    `answer: Os { code: 32, kind: BrokenPipe }` after 2.884 s.
+    Its client calls the service stopped after `QUICK_SILENCE` (300 ms) without a beat,
+    and the control does its own work (aging two directories,
+    then the sweep) between two beats,
+    so a stall longer than that closed the connection before the answer went out.
+    The control's client now has `PATIENCE` as its silence bound,
+    and an answer that cannot be written reports what the client ended with;
+    with `renew_scratch` made a no-op the control fails in 15.2 s with
+    "the waiting command's directory was swept".
+  - `service::a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once` failed with
+    "the client is answered after the restart:
+    ServiceSilent" after 108.98 s,
+    and its amend sibling passed that run in 235 s.
+    The client's silence bound was 60 s,
+    which is `SETTLE_LOCK_CEILING`,
+    the wait of the restart's `settle_open_batches` for the `index.lock` the killed service left;
+    `serve_in_a_landing` settles before `start_acceptor_or_exit`,
+    so a settle that used its whole ceiling kept the restarted service from greeting until the client
+    had given up.
+    Both controls' clients now wait `RESTART_PATIENCE` (240 s,
+    below the per-test limit) and report the
+    notices they printed instead of `submit_quietly`'s silence;
+    with the service restarted at another address the control fails in 75.4 s with
+    "the client ended before the restarted service answered:
+    DidNotStart".
+    Not observed directly:
+    that the settle waited for that lock.
+    The failing run logged `ready` and then nothing for 60 s;
+    a `settle_ms` line for that restart would settle it,
+    and the journal writes no such line while the settle waits.
+
 - `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in the
   gate of the repository-lint branch at `d75d5a2d91`:
   the service logged `cannot start the thread for the after-commit work: Resource temporarily unavailable (os error 11)`
