@@ -6962,6 +6962,34 @@ are in append mode now).
   and the cause inside the claim tests is not measured.
   Not the four fixes on that branch:
   none of them is in `landing/`.
+- `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+  aborted one host full-suite run on
+  `fix/git-policy-cli-service-home-and-convert-dry-run-count`
+  (2026-11-08T19:08:21-05:00,
+  4768 tests,
+  1181 tests run;
+  1180 passed,
+  1 failed,
+  the run stopped after the failure)
+  through the crate's own watchdog:
+  "the unit-test run exceeded 120s:
+  a test is stuck",
+  `SIGABRT` at 123.2 s.
+  Measured alone in the same tree:
+  72.3 s,
+  then 5.4 s,
+  both passing,
+  so this test's cost varies by more than a factor of ten on this host,
+  and its slow end alone sits only 1.7 times under the `RUN_LIMIT` of
+  `testing/test_support.rs` that a full suite's concurrency eats.
+  Not the branch's two comment-only edits,
+  which touch neither `src/native/foundation` nor the watchdog.
+  Not fixed:
+  what makes one iteration expensive is not measured,
+  and the shape of a fix is open
+  (a shorter loop,
+  a cheaper fixture,
+  or its own bound).
 
 ### Questions waiting for the owner
 
