@@ -555,10 +555,40 @@ fn the_service_pushes_after_the_commit_returned() {
     let landed: String = tip(&fixture, &repo, "HEAD");
     let branch: String = format!("refs/heads/{}", git_text(&fixture, &repo, &["branch", "--show-current"]).trim_end());
     eventually("the push", || { return tip(&fixture, &remote, branch.as_str()) == landed; });
-    eventually("the records settling", || { return states(&repo, "done") == git_policy_cli::service_handoff::HANDED_OVER.len(); });
-    assert_eq!(states(&repo, "pending") + states(&repo, "claimed") + states(&repo, "recovering") + states(&repo, "failed"), 0);
+    settle_every_work_record(&repo);
     drop(service);
     finish(&fixture, runtime.as_path());
+}
+
+/// Waits until every work record the commit left has settled to `done`:
+/// the maintenance item the hand-off names,
+/// and the push record the gate promoted,
+/// which the service runs in its own time after the commit returned.
+/// Why:
+///  The records settle after the answer,
+/// so a control that reads them once races the service's own work;
+///  a record that never settles has to name the state it stayed in,
+/// and the wait is bounded so it never waits for ever.
+/// A `done` record is retained for a long time (`DONE_RETAINED`),
+/// so the wait is for at least one per handed-over kind and never for exactly that many.
+fn settle_every_work_record(repo: &Path) {
+    let wanted: usize = git_policy_cli::service_handoff::HANDED_OVER.len();
+    let began: Instant = Instant::now();
+    loop {
+        let unfinished: Vec<&str> = ["pending", "claimed", "recovering", "failed"]
+            .into_iter()
+            .filter(|state| { return states(repo, state) > 0; })
+            .collect();
+        if unfinished.is_empty() && states(repo, "done") >= wanted {
+            return;
+        }
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the work records settling: done {} of {wanted}, and records left in {unfinished:?}",
+            states(repo, "done")
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// A push that cannot succeed does not fail the commit;
