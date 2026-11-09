@@ -57,6 +57,14 @@ use std::time::Duration;
 const CONNECT_DEADLINE: Duration = Duration::from_secs(15);
 
 /// What:
+///  The idle seconds a server this client starts gets when nothing overrides them.
+/// Why:
+///  The README documents this default,
+/// and the malformed-value diagnostic quotes it,
+/// so both read the same value.
+pub const DEFAULT_IDLE_SECONDS: u64 = 120;
+
+/// What:
 ///  The environment variable that overrides the idle seconds of servers this client starts.
 /// Why:
 ///  Containers and CI need a short,
@@ -76,13 +84,23 @@ pub const IDLE_SECONDS_VARIABLE: &str = "FILE_ENFORCER_IDLE_SECONDS";
 /// deterministic shutdown;
 /// people want a server that stays warm.
 ///
+/// A malformed value is a usage error rather than a silent fall back to the default,
+/// because a container or CI job that typos its idle time would otherwise keep servers alive for
+///  `DEFAULT_IDLE_SECONDS` with nothing to show why.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function idleSeconds(): number
 /// ```
-fn idle_seconds() -> u64 {
-    let Ok(text) = std::env::var(IDLE_SECONDS_VARIABLE) else { return 120 };
-    return text.parse::<u64>().unwrap_or(120);
+fn idle_seconds() -> Result<u64, Diagnostic> {
+    let Ok(text) = std::env::var(IDLE_SECONDS_VARIABLE) else { return Ok(DEFAULT_IDLE_SECONDS) };
+    let Ok(seconds) = text.parse::<u64>() else {
+        let message = format!(
+            "{IDLE_SECONDS_VARIABLE} is set to '{text}', which is not a whole number of seconds; unset it or give a number such as {DEFAULT_IDLE_SECONDS}"
+        );
+        return Err(Diagnostic::new("idle-seconds-invalid", &message));
+    };
+    return Ok(seconds);
 }
 
 /// What:
@@ -121,7 +139,8 @@ fn client_options(endpoint: &Endpoint, user: bool) -> Result<ClientOptions, Diag
     args.push(OsString::from("--socket"));
     args.push(endpoint.socket.clone().into_os_string());
     args.push(OsString::from("--idle-seconds"));
-    args.push(OsString::from(idle_seconds().to_string()));
+    let seconds = idle_seconds()?;
+    args.push(OsString::from(seconds.to_string()));
     if user {
         args.push(OsString::from("--user"));
     }

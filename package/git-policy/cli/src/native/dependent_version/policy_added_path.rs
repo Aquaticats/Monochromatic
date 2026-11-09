@@ -15,6 +15,9 @@
 //!      and its direct-fix message),
 //! checked in its order.
 //!
+//! `commit-transaction-added-paths.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/policy-engine/commit-transaction-added-paths.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // await assertAddablePath({ ..., path, oid, lifecycle: 'direct-fix' }); // throws AddedPathPreconditionError
