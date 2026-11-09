@@ -19,7 +19,9 @@
 
 import type { TranscriptRecord, } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 
-import { open, } from 'node:fs/promises';
+import { createReadStream, } from 'node:fs';
+import { stat, } from 'node:fs/promises';
+import { buffer, } from 'node:stream/consumers';
 
 /**
  Marker identifying this hook's own forced-continuation feedback in a transcript.
@@ -294,6 +296,47 @@ type TranscriptTail = {
 };
 
 /**
+ Builds a tail result from the bytes the transcript stream delivered.
+ 
+ Split from {@link readTranscriptTail} so the accounting is exercised without a
+ filesystem that must shrink a file between two syscalls.
+ 
+ @param tailBytes - bytes the stream delivered, decoded as transcript text
+ 
+ @param expectedBytes - bytes the size lookup promised, which a transcript
+   truncated after the lookup undercuts
+ 
+ @param skippedEarlierBytes - whether the read began after the start of the file
+ 
+ @returns tail lines oldest first plus whether the tail is incomplete
+ 
+ @example
+ ```ts
+ const tail = buildTranscriptTail({ tailBytes: Buffer.from('{"a":1}\n'), expectedBytes: 8, skippedEarlierBytes: false });
+ ```
+ */
+function buildTranscriptTail(
+  {
+    tailBytes,
+    expectedBytes,
+    skippedEarlierBytes,
+  }: {
+    readonly tailBytes: Buffer;
+    readonly expectedBytes: number;
+    readonly skippedEarlierBytes: boolean;
+  },
+): TranscriptTail {
+  return {
+    lines: tailBytes.toString('utf8',)
+      .split('\n',),
+    // Fewer bytes than the size promised means the file shrank after the
+    // lookup: bytes this reader expected are missing, so callers must treat
+    // the tail like any other that does not start at the beginning.
+    truncated: skippedEarlierBytes || (tailBytes.length < expectedBytes),
+  };
+}
+
+/**
  Reads the tail of a transcript as lines.
  
  Separated from the counters so one stop reads the file once and answers both
@@ -316,16 +359,9 @@ type TranscriptTail = {
 async function readTranscriptTail(transcriptPath: string,): Promise<TranscriptTail> {
   try {
     /**
-     Open transcript handle, closed by scope exit even when reading throws.
-     */
-    await using handle = await open(
-      transcriptPath,
-      'r',
-    );
-    /**
      Byte length of the transcript, used to read only its tail.
      */
-    const { size, } = await handle.stat();
+    const { size, } = await stat(transcriptPath,);
     /**
      Offset of the first byte read; clamped so small transcripts read whole.
      */
@@ -334,22 +370,20 @@ async function readTranscriptTail(transcriptPath: string,): Promise<TranscriptTa
       size - TAIL_BYTES,
     );
     /**
-     Destination for the tail bytes.
+     Every tail byte, consumed to the end of the file. A stream consumer reads
+     until the file ends and joins the chunks, so a partial read cannot leave
+     an unfilled buffer behind: there is no buffer to leave unfilled.
      */
-    const buffer = Buffer.alloc(size
-      - start,);
-
-    await handle.read(
-      buffer,
-      0,
-      buffer.length,
-      start,
-    );
-    return {
-      lines: buffer.toString('utf8',)
-        .split('\n',),
-      truncated: start > 0,
-    };
+    const tailBytes = await buffer(createReadStream(
+      transcriptPath,
+      { start, },
+    ),);
+    return buildTranscriptTail({
+      tailBytes,
+      expectedBytes: size
+        - start,
+      skippedEarlierBytes: start > 0,
+    },);
   }
   catch (error) {
     // stderr is safe here: stdout carries the hook protocol and must stay clean.
@@ -365,6 +399,7 @@ async function readTranscriptTail(transcriptPath: string,): Promise<TranscriptTa
 export type { TranscriptTail, };
 
 export {
+  buildTranscriptTail,
   CONTINUATION_MARKER,
   continuationDepth,
   continuationDepthAt,
@@ -376,5 +411,6 @@ export {
   maxContinuationDepth,
   parseRecord,
   readTranscriptTail,
+  TAIL_BYTES,
   UNPARSABLE,
 };
