@@ -84,7 +84,7 @@ The whitespace-token property in
 now sets aside line-leading quote markers,
 the way it already set aside Rust doc-comment markers,
 because a marker is container structure rather than a token a reader sees.
-The byte-exact tests and the paragraph-placement comparison carry the depth requirement instead.
+The byte-exact tests and the parsed-document comparisons carry the depth requirement instead.
 
 No lint rule's severity or scope changed;
 only the bytes the line-break fixer writes for a continuation line changed.
@@ -121,23 +121,26 @@ Write the probe fixtures listed under Root cause and run the fixer over them;
 a fixed linter leaves every `>` marker in place.
 
 The property check over a real tree takes every tracked Markdown,
-MDX and Rust file in that tree through `--fix` on standard input,
-compares the token sequence,
-and parses every Markdown host before and after to compare each paragraph's container chain and words.
-No package task passes the `--run-ignored only real_tree` filter,
-so this one measurement names `cargo nextest` directly;
-every release gate still runs through the package's tasks:
+MDX and Rust file in that tree through `--fix` on standard input.
+It compares the token sequence,
+and it parses every Markdown host before and after to compare each paragraph's container chain and words,
+every block node in preorder with its depth,
+and the exact source of every code and raw HTML block.
+It skips nothing:
+a processing failure,
+an unreadable file or a host that stops parsing fails the measurement.
+The package task `test:property` runs it:
 
 ```sh
 MONOCHROMATIC_LINT_PROPERTY_ROOT=<copy of a repository tree> \
-  cargo nextest run --lib --run-ignored only real_tree
+  mise run //package/linter/monochromatic-lint:test:property
 ```
 
 Run on 2026-11-08 over a copy of this repository it measured 6825 files,
 71 of them changed by the fix,
 11829295 tokens compared,
 3101 Markdown hosts parsed,
-and reported no difference in either comparison.
+and reported no difference in any comparison.
 A separate one-off comparison of the same two copies,
 using a token split that sets aside quote markers and a pandoc CommonMark render,
 found the token sequence equal for all 71 changed files
