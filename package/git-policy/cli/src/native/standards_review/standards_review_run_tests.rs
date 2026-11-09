@@ -436,3 +436,57 @@ fn a_runner_with_a_running_job_admits_no_other() {
     assert!(OWN.change(first, ABANDONED, IDLE));
     assert!(OWN.admit().is_some_and(|second| { return second > first; }), "a released runner admits the next generation");
 }
+
+/// A remote answer's probability value can spell any text,
+/// a commit name included,
+/// so what it says may not decide that another commit was reviewed.
+#[test]
+fn a_remote_answer_naming_another_commit_does_not_suppress_its_review() {
+    let directory: PathBuf = fixture("run-remote-name");
+    let names: Vec<ChangedPath> = code_names();
+    let first: String = "a".repeat(40);
+    let second: String = "b".repeat(40);
+    let answer: String = format!(r#"{{"answers":[{{"choice":"no","probabilities":[{{"value":"{second}","probability":0.9}}]}}]}}"#);
+    let mock_first: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", answer.as_str())));
+    let reviewed: ReviewOutcome = review_landed(&names, first.as_str(), "s", &|files: &[ChangedPath]| return reader(files), &options(directory.as_path(), mock_first.url.as_str(), Some("k")), &clock());
+    assert!(matches!(reviewed, ReviewOutcome::Reviewed(_)), "{reviewed:?}");
+    mock_first.finish();
+    // The first review's verdict text now spells the second commit's name.
+    let mock_second: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", r#"{"answers":[{"choice":"no"}]}"#)));
+    let again: ReviewOutcome = review_landed(&names, second.as_str(), "s", &|files: &[ChangedPath]| return reader(files), &options(directory.as_path(), mock_second.url.as_str(), Some("k")), &clock());
+    assert!(matches!(again, ReviewOutcome::Reviewed(_)), "the review of the named commit runs: {again:?}");
+    mock_second.finish();
+    let log: String = std::fs::read_to_string(directory.join("log.md")).expect("log");
+    let receipt: String = format!("  reviewed: {second}\n");
+    assert_eq!(log.matches(receipt.as_str()).count(), 1, "the named commit has its own entry: {log}");
+    remove(directory.as_path());
+}
+
+/// An append the operating system cut short leaves a fragment of one entry;
+/// the retry may not read the commit name in that fragment as a finished review,
+/// and the fragment itself is kept.
+#[test]
+fn a_review_whose_append_was_cut_short_is_reviewed_again() {
+    let directory: PathBuf = fixture("run-fragment");
+    let log_path: PathBuf = directory.join("log.md");
+    let names: Vec<ChangedPath> = code_names();
+    let sha: String = "c".repeat(40);
+    let answer: &str = r#"{"answers":[{"choice":"no"}]}"#;
+    let mock_first: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", answer)));
+    let first: ReviewOutcome = review_landed(&names, sha.as_str(), "s", &|files: &[ChangedPath]| return reader(files), &options(directory.as_path(), mock_first.url.as_str(), Some("k")), &clock());
+    assert!(matches!(first, ReviewOutcome::Reviewed(_)), "{first:?}");
+    mock_first.finish();
+    let whole: String = std::fs::read_to_string(log_path.as_path()).expect("the first review wrote one entry");
+    // A short append can stop anywhere; the reported state stops right after the commit name in the subject block.
+    let short: &str = &sha[..SHORT_SHA_LENGTH];
+    let cut: usize = whole.find(short).expect("the entry names the commit") + SHORT_SHA_LENGTH;
+    let fragment: &str = &whole[..cut];
+    std::fs::write(log_path.as_path(), fragment).expect("seed the fragment");
+    let mock_second: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", answer)));
+    let retried: ReviewOutcome = review_landed(&names, sha.as_str(), "s", &|files: &[ChangedPath]| return reader(files), &options(directory.as_path(), mock_second.url.as_str(), Some("k")), &clock());
+    assert!(matches!(retried, ReviewOutcome::Reviewed(_)), "the fragment's name is not a receipt: {retried:?}");
+    mock_second.finish();
+    let after: String = std::fs::read_to_string(log_path.as_path()).expect("log");
+    assert_eq!(after, format!("{fragment}{whole}"), "the fragment is kept and the whole entry follows it");
+    remove(directory.as_path());
+}
