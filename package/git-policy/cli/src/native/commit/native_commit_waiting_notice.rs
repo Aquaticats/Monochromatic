@@ -71,7 +71,7 @@ pub fn scratch_ceiling() -> Duration {
 use crate::wait_progress::{Cadence, Ticker};
 /// The processes started below this one,
 /// and their end.
-use crate::process_tree::{descendants_of, kill_members};
+use crate::process_tree::{Delivered, descendants_of_read, kill_members};
 /// The configuration the commit is built under.
 use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
@@ -224,23 +224,76 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const below = lookBelow(); // [{ pid, name, state, cpu }]
+/// const below = lookBelow(); // [{ pid, name, state, cpu }], undefined when the look failed
 /// ```
-fn look_below() -> Vec<(i32, ProcessUse)> {
+fn look_below() -> Option<Vec<(i32, ProcessUse)>> {
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
     let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(own) {
         Some(found) => found,
-        None => descendants_of(own).iter().map(member_number).collect(),
+        None => descendants_of_read(own)?.iter().map(member_number).collect(),
     };
     let mut found: Vec<(i32, ProcessUse)> = Vec::new();
-    for pid in numbers {
+    for pid in numbers.iter().copied() {
         if let Some(used) = use_of(pid)
             && used.state != 'Z'
         {
             found.push((pid, used));
         }
     }
-    return found;
+    // Every process the walk named that could not be read is a look that failed,
+    // as long as none of them could be read at all.
+    if !numbers.is_empty() && found.is_empty() {
+        return None;
+    }
+    return Some(found);
+}
+
+/// What:
+///  What the ceiling came to when it came.
+/// Why:
+///   Three answers the notice must keep apart:
+/// the step ended by itself, so the commit lands;
+/// a signal was really sent, so the step was stopped;
+/// and the look that came with the ceiling failed, so nothing is decided and the ceiling stays armed.
+///  Treating a failed look as an empty one takes the ceiling away from a step that is still running,
+/// which is how a commit lands after a long step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CeilingCame = 'the-step-ended' | 'stopped';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CeilingCame {
+    /// Nothing is below this process any more: the step ended by itself.
+    TheStepEnded,
+    /// The kernel took a signal for the step or a program below it.
+    Stopped,
+}
+
+/// What:
+///  End what the ceiling's look found below this process, and answer what that came to.
+/// Why:
+///   A stop is recorded only when a signal was really sent:
+/// a step that ended between the look and the signal landed,
+/// and refusing it as stopped would fail a commit that succeeded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const came = ceilingCame(look);
+/// ```
+fn ceiling_came(look: Option<&[TreeMember]>) -> CeilingCame {
+    let Some(members) = look else {
+        return CeilingCame::TheStepEnded;
+    };
+    if members.is_empty() {
+        return CeilingCame::TheStepEnded;
+    }
+    // Everything below this process is the step and its signer; nothing of the person's runs there.
+    let delivered: Vec<Delivered> = kill_members(members);
+    if delivered.contains(&Delivered::Sent) {
+        return CeilingCame::Stopped;
+    }
+    return CeilingCame::TheStepEnded;
 }
 
 /// The number of one member of a tree.
@@ -410,10 +463,12 @@ impl NativeCommitNotice {
             // The processes the previous look saw below the step, and when that look was.
             let mut before: Vec<SeenBelow> = Vec::new();
             let mut last_look: Duration = Duration::ZERO;
+            let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
             loop {
                 let waited: Duration = began.elapsed();
                 // One look: the step, the programs below it, and what they are using.
-                let below: Vec<(i32, ProcessUse)> = look_below();
+                let look: Option<Vec<(i32, ProcessUse)>> = look_below();
+                let below: &[(i32, ProcessUse)] = look.as_deref().unwrap_or_default();
                 facts.looks = facts.looks.saturating_add(1);
                 if !below.is_empty() {
                     facts.looks_found = facts.looks_found.saturating_add(1);
@@ -421,8 +476,8 @@ impl NativeCommitNotice {
                 if seen_at.is_none() && !below.is_empty() {
                     seen_at = Some(waited);
                 }
-                credit_between_looks(&mut facts, before.as_slice(), below.as_slice(), waited.saturating_sub(last_look));
-                before = seen_below(below.as_slice());
+                credit_between_looks(&mut facts, before.as_slice(), below, waited.saturating_sub(last_look));
+                before = seen_below(below);
                 last_look = waited;
                 facts.below_cpu = below.iter().map(process_cpu).sum();
                 if below.iter().any(process_is_blocked) {
@@ -434,18 +489,16 @@ impl NativeCommitNotice {
                     None => Duration::ZERO,
                 };
                 if seen_at.is_some() && since_seen >= ceiling {
-                    // Everything below this process is the step and its signer; nothing of the person's runs there.
-                    let members = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
-                    if members.is_empty() {
-                        // The step ended on its own after it was seen running.
-                        return facts;
+                    match ceiling_came(descendants_of_read(own).as_deref()) {
+                        CeilingCame::Stopped => {
+                            facts.stopped_after = Some(waited);
+                            return facts;
+                        }
+                        CeilingCame::TheStepEnded => return facts,
                     }
-                    kill_members(members.as_slice());
-                    facts.stopped_after = Some(waited);
-                    return facts;
                 }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, other_programs(below.as_slice()).as_slice(), ceiling);
+                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling);
                     first = false;
                     // A closed terminal is not a reason to stop the commit.
                     let writing: Instant = Instant::now();

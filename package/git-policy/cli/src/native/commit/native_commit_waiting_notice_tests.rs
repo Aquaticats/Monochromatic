@@ -316,3 +316,27 @@ fn a_program_seen_once_is_kept_with_a_zero_lower_bound() {
     let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
     assert_eq!(kept.seen, Duration::ZERO, "a program seen once is kept with a zero lower bound: {facts:?}");
 }
+
+/// What:
+///  A look that could not be made keeps the ceiling armed instead of reading as "the step ended".
+/// Why:
+///   A descriptor or memory limit refuses both reads a look makes of `/proc`
+/// (`read_dir`, then one `stat` per process),
+/// and an empty answer was read as the step having ended:
+/// the notice returned, the ceiling went with it,
+/// and the step ran on while the command still waited for it.
+///  The limit is this test's own process,
+/// which nextest runs alone for each test.
+#[test]
+fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
+    let baseline: usize = crate::test_support::open_descriptors();
+    let before: rustix::process::Rlimit = crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
+    let held: Vec<std::fs::File> = crate::test_support::leave_free(0);
+    let look: Option<Vec<(i32, ProcessUse)>> = look_below();
+    let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
+    let came: CeilingCame = ceiling_came(descendants_of_read(own).as_deref());
+    drop(held);
+    crate::test_support::restore_limit(before);
+    assert!(look.is_none(), "the look was made with no descriptor left free: {look:?}");
+    assert_ne!(came, CeilingCame::TheStepEnded, "a look that could not be made was read as the step having ended, which takes the ceiling away");
+}

@@ -456,6 +456,74 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
     return command.status().expect("the child test starts");
 }
 
+/// What:
+///  The number of descriptors this process holds now,
+///  the directory handle of the listing itself not counted.
+/// Why:
+///   A limit is set from the count a control read,
+///  so the control sweeps exactly the room it means to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const openDescriptors = () => readdirSync('/proc/self/fd').length - 1;
+/// ```
+pub(crate) fn open_descriptors() -> usize {
+    let listed: usize = std::fs::read_dir("/proc/self/fd").expect("the descriptor listing").count();
+    return listed - 1;
+}
+
+/// What:
+///  Sets the soft descriptor limit and answers the one it replaced,
+///  so the caller restores it.
+/// Why:
+///   A descriptor limit is the privilege-free way to make an open fail at `EMFILE`,
+///  which is how a control makes the reads of `/proc` a look needs fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = getrlimit('nofile'); setrlimit('nofile', { soft }); return before;
+/// ```
+pub(crate) fn set_soft_limit(soft: u64) -> rustix::process::Rlimit {
+    let before: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nofile);
+    let lowered: rustix::process::Rlimit = rustix::process::Rlimit { current: Some(soft), maximum: before.maximum };
+    rustix::process::setrlimit(rustix::process::Resource::Nofile, lowered).expect("a soft limit below the hard one can be set");
+    return before;
+}
+
+/// Puts a soft descriptor limit back to the value `set_soft_limit` answered.
+pub(crate) fn restore_limit(before: rustix::process::Rlimit) {
+    rustix::process::setrlimit(rustix::process::Resource::Nofile, before).expect("the limit can be raised back to the hard one");
+}
+
+/// What:
+///  Opens descriptors until `free` of them are left under the limit,
+///  and answers the ones held.
+/// Why:
+///   The caller drops them when the step under test is done,
+///  so exactly `free` opens work for as long as that step runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = openUntilFree(free); // dropped when the step ends
+/// ```
+pub(crate) fn leave_free(free: usize) -> Vec<std::fs::File> {
+    let mut held: Vec<std::fs::File> = Vec::new();
+    loop {
+        match std::fs::File::open("/dev/null") {
+            Ok(file) => held.push(file),
+            Err(error) => {
+                assert_eq!(error.raw_os_error(), Some(libc::EMFILE), "only the limit stops the opens: {error}");
+                break;
+            }
+        }
+    }
+    // Give back `free` of them, so that exactly that many opens still work.
+    for _ in 0..free {
+        held.pop();
+    }
+    return held;
+}
+
 /// Controls for the fixture helpers above.
 #[path = "test_support_tests.rs"]
 mod tests;

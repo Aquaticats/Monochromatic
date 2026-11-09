@@ -71,24 +71,29 @@ fn parse_stat(text: &str) -> Option<(i32, u64, bool)> {
 /// What:
 ///  Every living process below `root`,
 /// children before grandchildren,
-/// with their start times.
+/// with their start times,
+/// or nothing when `/proc` could not be read at all.
 /// Why:
 ///   Read once,
 /// before the root is signalled,
 /// from one pass over `/proc`.
+///  A caller that reads an empty tree as "the step ended" must be able to tell a tree with nothing in it
+/// from a look that failed (a descriptor or a memory limit, a `/proc` that is not there):
+/// the first is a fact about the step and the second a fact about the look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function descendantsOf(root: number): Promise<TreeMember[]>;
+/// function descendantsOfRead(root: number): TreeMember[] | undefined;
 /// ```
 #[cfg(target_os = "linux")]
-pub fn descendants_of(root: i32) -> Vec<TreeMember> {
+pub fn descendants_of_read(root: i32) -> Option<Vec<TreeMember>> {
     use std::collections::HashMap;
-    let Ok(listing) = std::fs::read_dir("/proc") else {
-        return Vec::new();
-    };
+    let listing = std::fs::read_dir("/proc").ok()?;
     // Parent number to the children found under it.
     let mut children: HashMap<i32, Vec<TreeMember>> = HashMap::new();
+    // How many entries name a process, and how many of those could be read.
+    let mut numbered: usize = 0;
+    let mut read: usize = 0;
     for entry in listing.flatten() {
         let file_name: std::ffi::OsString = entry.file_name();
         let Some(name) = file_name.to_str() else {
@@ -97,14 +102,20 @@ pub fn descendants_of(root: i32) -> Vec<TreeMember> {
         let Ok(pid) = name.parse::<i32>() else {
             continue;
         };
+        numbered = numbered.saturating_add(1);
         let Ok(text) = std::fs::read_to_string(entry.path().join("stat")) else {
             continue;
         };
+        read = read.saturating_add(1);
         if let Some((parent, started, zombie)) = parse_stat(text.as_str())
             && !zombie
         {
             children.entry(parent).or_default().push(TreeMember { pid, started });
         }
+    }
+    // A listing that numbers processes and lets none of them be read is a look that failed, never a tree with nothing in it.
+    if numbered > 0 && read == 0 {
+        return None;
     }
     let mut found: Vec<TreeMember> = Vec::new();
     let mut frontier: Vec<i32> = vec![root];
@@ -114,7 +125,32 @@ pub fn descendants_of(root: i32) -> Vec<TreeMember> {
             found.push(member);
         }
     }
-    return found;
+    return Some(found);
+}
+
+/// What:
+///  Every living process below `root`,
+/// children before grandchildren,
+/// with their start times.
+/// Why:
+///   Most callers stop what they find and have nothing to decide about a look that failed,
+/// so they read the tree alone (`descendants_of_read`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function descendantsOf(root: number): Promise<TreeMember[]>;
+/// ```
+#[cfg(target_os = "linux")]
+pub fn descendants_of(root: i32) -> Vec<TreeMember> {
+    return descendants_of_read(root).unwrap_or_default();
+}
+
+/// Only Linux lists processes;
+/// elsewhere no descendant is found and only the root is stopped.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn descendants_of_read(_root: i32) -> Option<Vec<TreeMember>> {
+    return Some(Vec::new());
 }
 
 /// Only Linux lists processes;
