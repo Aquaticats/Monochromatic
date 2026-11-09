@@ -803,8 +803,7 @@ fn a_file_created_after_the_judgement_is_not_replaced() {
 /// const stranded = `${dirname}/.cli-git-recovery-${basename}-${process.pid}-0-1`;
 /// ```
 fn stranded_name(location: &Path) -> PathBuf {
-    let base: String = location.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
-    return location.with_file_name(format!(".cli-git-recovery-{base}-{}-0-1", std::process::id()));
+    return crate::merge_isolation_take_asides::aside_name(location);
 }
 
 /// What:

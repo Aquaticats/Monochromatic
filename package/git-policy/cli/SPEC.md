@@ -7719,7 +7719,9 @@ the paths are named on standard error and the record is kept.
 The files are checked out without `--force`,
 so a file that appears in the instant after the take is skipped and Git's own words are reported.
 A command that stops between a take and the write leaves the file under a private name beside its path,
-`.cli-git-recovery-<file name>-<pid>-<count>-<nanos>`;
+`.cli-git-recovery-<key>-<pid>-<count>-<nanos>`,
+where the key is a 64-bit FNV-1a hash of the file's name in 16 hex digits,
+so a name at the file system's component limit still has a private name that can exist;
 the next command puts such a file back before it judges the path,
 says on standard error that it did,
 and where the path holds something else keeps both and names the private file.

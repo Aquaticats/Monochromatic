@@ -49,9 +49,47 @@ fn name_of(found: &std::ffi::OsStr) -> String {
 }
 
 /// The text of a file's name,
-/// which the private name of a take carries so a stranded one can be found again.
+/// which the private name of a take names by a short key.
 fn name_text(location: &Path) -> String {
     return location.file_name().map(name_of).unwrap_or_default();
+}
+
+/// The base of the FNV-1a hash,
+/// in 64 bits.
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// The prime of the FNV-1a hash,
+/// in 64 bits.
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// What:
+///  A short,
+///  stable key for a file's name,
+///  which the private name of a take carries in place of the name itself.
+/// Why:
+///   A file name may fill the file system's 255-byte component limit,
+/// and a private name that embedded it could not exist,
+///  so a valid tracked file made a saved merge unfinishable and its record then stopped every command
+///  (a cross-vendor review of the second round).
+/// The key is the FNV-1a hash of the name's bytes in 64 bits,
+/// which every release
+///  of this program computes the same way,
+/// so a private name one release left behind is found by the next.
+/// An upper-case
+///  spelling of the same name is a different key,
+/// as it is a different file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nameKey(text: string): string; // FNV-1a 64 of the UTF-8 bytes, 16 hex digits
+/// ```
+fn name_key(text: &str) -> String {
+    let mut hash: u64 = FNV_OFFSET_BASIS;
+    for byte in text.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    return format!("{hash:016x}");
 }
 
 /// What:
@@ -71,10 +109,10 @@ fn name_text(location: &Path) -> String {
 /// ```ts
 /// `${dirname}/.cli-git-recovery-${basename}-${pid}-${count}-${nanos}`;
 /// ```
-pub(crate) fn aside_name(location: &Path) -> PathBuf {
+pub fn aside_name(location: &Path) -> PathBuf {
     let count: u64 = ASIDE_COUNT.fetch_add(1, Ordering::Relaxed);
     let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    return location.with_file_name(format!("{ASIDE_PREFIX}-{}-{}-{count}-{nanos:x}", name_text(location), std::process::id()));
+    return location.with_file_name(format!("{ASIDE_PREFIX}-{}-{}-{count}-{nanos:x}", name_key(name_text(location).as_str()), std::process::id()));
 }
 
 /// Whether one byte is one of the hex digits a ran number is written in.
@@ -86,7 +124,7 @@ fn is_hex_digit(byte: u8) -> bool {
 /// the prefix of that path's file name,
 /// then `<pid>-<count>-<nanos>`.
 fn is_aside_of(name: &str, location: &Path) -> bool {
-    let Some(rest) = name.strip_prefix(format!("{ASIDE_PREFIX}-{}-", name_text(location)).as_str()) else {
+    let Some(rest) = name.strip_prefix(format!("{ASIDE_PREFIX}-{}-", name_key(name_text(location).as_str())).as_str()) else {
         return false;
     };
     let mut parts = rest.split('-');
