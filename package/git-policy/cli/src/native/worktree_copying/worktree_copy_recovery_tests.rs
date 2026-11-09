@@ -271,6 +271,61 @@ fn a_pointer_left_empty_by_an_interrupted_rewrite_keeps_the_pending_copy() {
     remove(root.as_path());
 }
 
+/// The administrative directory of the destination's registration,
+/// read before a test disturbs the `gitdir` file inside it.
+fn registration_of(common: &Path, destination: &Path) -> PathBuf {
+    return match registration_naming(common, destination) {
+        NamedRegistration::Named(admin) => admin,
+        other => panic!("the registration is there: {other:?}"),
+    };
+}
+
+/// A command that truncates a registration's `gitdir` file and pauses before rewriting it leaves the file empty,
+/// while the administrative directory, the destination and its pointer stay as they were:
+/// nothing was read that could prove no registration names the destination,
+/// so recovery keeps the journal and the stage and says so.
+#[test]
+fn a_gitdir_left_empty_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-registration-gitdir-empty");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
+    std::fs::write(admin.join("gitdir").as_path(), b"").expect("a gitdir cut off before its path");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be examined"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// A command that unlinks a registration's `gitdir` file before writing it again leaves it gone for a moment,
+/// while the administrative directory, the destination and its pointer stay as they were:
+/// a file that was not there to read proves nothing,
+/// so recovery keeps the journal and the stage and says so.
+#[test]
+fn a_gitdir_unlinked_while_it_is_written_again_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-registration-gitdir-gone");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
+    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the gitdir is gone while it is written again");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be examined"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
 /// A `.git` that another command replaced with a named pipe must be answered without waiting:
 /// the pending check runs before every forwarded command,
 /// so a pipe with no writer would stick a command in an unrelated worktree.

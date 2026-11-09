@@ -66,19 +66,36 @@ fn the_answer_does_not_read_the_destinations_pointer() {
     remove(root.as_path());
 }
 
-/// A registration whose `gitdir` was removed is one Git would prune,
-/// and it names no worktree,
-/// while a registration that cannot be read at all proves nothing.
+/// A registration whose `gitdir` file is gone for a moment names nothing that could be read:
+/// a command that unlinks the file before writing it again leaves it so,
+/// and the registration itself stays.
+/// No answer about the destination is proven by a file that was not there to read.
 #[test]
-fn a_registration_without_a_gitdir_names_nothing() {
-    let root: PathBuf = fixture("registration-naming-pruned");
+fn a_gitdir_that_is_gone_proves_nothing_about_a_registration() {
+    let root: PathBuf = fixture("registration-naming-gitdir-gone");
     let (_source, common, topic) = repository_with_a_linked_worktree(root.as_path(), "repo");
     let admin: PathBuf = match registration_naming(common.as_path(), topic.as_path()) {
         NamedRegistration::Named(admin) => admin,
         other => panic!("the registration is there: {other:?}"),
     };
-    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the registration's gitdir goes, as Git's prune leaves it");
-    assert_eq!(registration_naming(common.as_path(), topic.as_path()), NamedRegistration::None);
+    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the registration's gitdir is gone while it is written again");
+    assert_eq!(registration_naming(common.as_path(), topic.as_path()), NamedRegistration::Unknown);
+    remove(root.as_path());
+}
+
+/// A registration whose `gitdir` is empty names nothing that could be read:
+/// a command that truncates the file before rewriting it leaves it so,
+/// and the registration itself stays.
+#[test]
+fn an_empty_gitdir_proves_nothing_about_a_registration() {
+    let root: PathBuf = fixture("registration-naming-gitdir-empty");
+    let (_source, common, topic) = repository_with_a_linked_worktree(root.as_path(), "repo");
+    let admin: PathBuf = match registration_naming(common.as_path(), topic.as_path()) {
+        NamedRegistration::Named(admin) => admin,
+        other => panic!("the registration is there: {other:?}"),
+    };
+    std::fs::write(admin.join("gitdir").as_path(), b"").expect("a gitdir cut off before its path");
+    assert_eq!(registration_naming(common.as_path(), topic.as_path()), NamedRegistration::Unknown);
     remove(root.as_path());
 }
 
