@@ -11,7 +11,7 @@ use std::sync::mpsc::channel;
 
 /// A name one copy uses for one entry.
 fn temporary() -> OsString {
-    return temporary_name_of(".cli-git-worktree-copy-fixture", "secrets/key.pem");
+    return temporary_name_of(".cli-git-worktree-copy-fixture", b"secrets/key.pem");
 }
 
 /// A named pipe at `path`,
@@ -220,10 +220,10 @@ fn a_missing_staged_file_leaves_nothing_at_the_destination_name() {
 /// and differs for another stage or another entry.
 #[test]
 fn the_private_name_names_the_stage_and_the_entry() {
-    let first: OsString = temporary_name_of(".cli-git-worktree-copy-one", "cache/a");
-    let again: OsString = temporary_name_of(".cli-git-worktree-copy-one", "cache/a");
-    let other_entry: OsString = temporary_name_of(".cli-git-worktree-copy-one", "cache/b");
-    let other_stage: OsString = temporary_name_of(".cli-git-worktree-copy-two", "cache/a");
+    let first: OsString = temporary_name_of(".cli-git-worktree-copy-one", b"cache/a");
+    let again: OsString = temporary_name_of(".cli-git-worktree-copy-one", b"cache/a");
+    let other_entry: OsString = temporary_name_of(".cli-git-worktree-copy-one", b"cache/b");
+    let other_stage: OsString = temporary_name_of(".cli-git-worktree-copy-two", b"cache/a");
     assert_eq!(first, again, "a resumed copy computes the same name");
     assert_ne!(first, other_entry);
     assert_ne!(first, other_stage);
@@ -240,7 +240,7 @@ fn the_private_name_names_the_stage_and_the_entry() {
 #[test]
 fn the_private_name_is_the_one_this_release_computes() {
     assert_eq!(
-        temporary_name_of(".cli-git-worktree-copy-one", "cache/a").to_str().expect("text"),
+        temporary_name_of(".cli-git-worktree-copy-one", b"cache/a").to_str().expect("text"),
         ".monochromatic-git-policy-cli-partial-66f6f876576d64a7"
     );
 }

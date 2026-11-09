@@ -620,6 +620,27 @@ pub const REVIEW_CEILING: Duration = Duration::from_secs(2 * 60);
 /// 7 s.
 pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 
+/// How long a client keeps looking for the commit a request it already sent made,
+/// after the answer was lost,
+/// before it says the result is not known.
+///  The look reads the service's journal for the request's own batch and the branch it moved,
+/// so it turns a lost answer into the
+///  commit that was made instead of a re-run the person has to make,
+/// and the words that say nothing is known stay for the case where it finds nothing.
+///  Measured:
+/// the audit of service restarts and version skew (2026-11-09,
+///  `~/temp/agent/sonnet-audits/service-restart-and-version-skew/final.md`)
+/// saw the honest "not known whether the commit was made" after 5 to 9 s of client wait,
+/// with the commit landing seconds later,
+///  and a restarted service's recovery of a killed batch took 4 to 21 s (8.3 s in one run).
+/// Ten seconds is twice the owner's 5 s bound on what a commit may add to native Git,
+/// the derivation
+///  `WAITING_NOTICE_AFTER` uses,
+/// and it covers the 5 to 9 s the client used to give up inside.
+/// The look waits only while an open batch names the request,
+/// so a request nothing is landing costs one look and no wait.
+pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
+
 /// How long a commit waits before the wrapper says where it stands:
 /// the place the service reported,
 /// or that the service has not started on it.

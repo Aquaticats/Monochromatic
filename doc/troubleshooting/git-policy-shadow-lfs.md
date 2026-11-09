@@ -11,6 +11,17 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:46:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/native/build-reuse.ts` left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/build-reuse.platform.test.ts` left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+`package/git-policy/cli/src/native/shadow_create.rs` is now
+`package/git-policy/cli/src/native/shadow/shadow_create.rs`,
+moved 2026-11-03 in `373765289c`.
+
 ## Original consumer evidence
 
 On 2026-10-18,

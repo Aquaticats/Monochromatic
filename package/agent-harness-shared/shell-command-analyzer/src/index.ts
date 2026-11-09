@@ -23,6 +23,10 @@ export {
   waitsOnProcessName,
 } from './process-name-wait.ts';
 export {
+  hasNotUnderstoodShellSyntax,
+  NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
+} from './not-understood-shell-syntax.ts';
+export {
   extractParamRefs,
   looksLikePath,
 } from './refs.ts';

@@ -196,8 +196,10 @@ pub enum GitStep<'a> {
 /// interface GitRunner { run(step: GitStep): GitStatus } // throws WorktreeCopyError
 /// ```
 pub trait GitRunner {
-    /// Run `step` and report how Git ended.
-    fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>;
+    /// Run `step` and report how Git ended,
+    /// naming the process number of the Git it started to `child_started` as soon as it has one,
+    /// so the add's record can say which Git may still be at work if this command is killed.
+    fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn FnMut(u32)) -> Result<GitStatus, WorktreeCopyError>;
 }
 
 /// What:
@@ -264,7 +266,8 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// await forwardOnly({ args, gitPath, environment });
 /// ```
 fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyError> {
-    let git: GitStatus = run_git.run(&GitStep::Person)?;
+    // Nothing is copied here, so there is no record for the child's name.
+    let git: GitStatus = run_git.run(&GitStep::Person, &mut |_pid: u32| {})?;
     return Ok(Settlement {
         git,
         copy_failure: None,
@@ -341,7 +344,15 @@ fn settle_creation(
     end_step(reserve_destination_entered);
     end_step(choose_rung_entered);
     let git_add_entered: bool = begin_step("gitAdd");
-    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step());
+    // The record names the Git the person's command started, so a command that runs after this one was killed can tell
+    //  an add whose Git is still making the destination from one whose Git is gone.
+    let naming_destination: Option<&Path> = invocation.destination.as_deref();
+    let mut child_started = |pid: u32| {
+        if let (Some(claim), Some(destination)) = (held.as_ref(), naming_destination) {
+            claim.remember_running_child(destination, pid);
+        }
+    };
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step(), &mut child_started);
     end_step(git_add_entered);
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {

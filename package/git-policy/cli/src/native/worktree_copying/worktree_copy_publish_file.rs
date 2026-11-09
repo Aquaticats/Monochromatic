@@ -400,14 +400,14 @@ fn remove_present(directory: &std::fs::File, name: &OsStr) -> std::io::Result<()
 /// ```ts
 /// const temporaryName = (token, relativePath) => TEMPORARY_PREFIX + fnv1a(token + '\0' + relativePath).toString(16).padStart(16, '0');
 /// ```
-pub fn temporary_name_of(token: &str, relative_path: &str) -> OsString {
+pub fn temporary_name_of(token: &str, relative_path: &[u8]) -> OsString {
     let mut digest: u64 = FNV_OFFSET;
     for byte in token
         .as_bytes()
         .iter()
         .copied()
         .chain(std::iter::once(0_u8))
-        .chain(relative_path.as_bytes().iter().copied())
+        .chain(relative_path.iter().copied())
     {
         digest ^= u64::from(byte);
         digest = digest.wrapping_mul(FNV_PRIME);

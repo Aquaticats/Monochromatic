@@ -5,11 +5,11 @@ use crate::test_support::{fixture, remove};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 /// A manifest entry shorthand.
-fn entry(kind: EntryKind, mode: u32, relative_path: &str) -> WorktreeCopyEntry {
+fn entry(kind: EntryKind, mode: u32, relative_path: &[u8]) -> WorktreeCopyEntry {
     return WorktreeCopyEntry {
         kind,
         mode,
-        relative_path: String::from(relative_path),
+        relative_path: relative_path.to_vec(),
     };
 }
 
@@ -22,11 +22,11 @@ fn captured_identity_names_the_created_object() {
     let metadata: std::fs::Metadata =
         std::fs::symlink_metadata(root.join("file")).expect("metadata");
     let captured: InstalledPath =
-        capture_installed_path(root.join("file").as_path(), "file", true).expect("captured");
+        capture_installed_path(root.join("file").as_path(), b"file", true).expect("captured");
     assert_eq!(captured.device, metadata.dev());
     assert_eq!(captured.inode, metadata.ino());
     assert!(captured.selected);
-    assert_eq!(captured.relative_path, "file");
+    assert_eq!(captured.relative_path, b"file");
     remove(root.as_path());
 }
 
@@ -39,15 +39,15 @@ fn missing_parents_are_created_and_recorded() {
     let mut created: Vec<InstalledPath> = Vec::new();
     ensure_parents(
         root.as_path(),
-        &entry(EntryKind::File, 0o644, "a/b/c/file"),
+        &entry(EntryKind::File, 0o644, b"a/b/c/file"),
         &mut created,
     )
     .expect("parents");
-    let paths: Vec<(&str, bool)> = created
+    let paths: Vec<(&[u8], bool)> = created
         .iter()
-        .map(|installed| return (installed.relative_path.as_str(), installed.selected))
+        .map(|installed| return (installed.relative_path.as_slice(), installed.selected))
         .collect();
-    assert_eq!(paths, vec![("a/b", false), ("a/b/c", false)]);
+    assert_eq!(paths, vec![(b"a/b".as_slice(), false), (b"a/b/c".as_slice(), false)]);
     assert!(root.join("a/b/c").is_dir());
     remove(root.as_path());
 }
@@ -60,7 +60,7 @@ fn file_in_parent_position_is_refused() {
     let mut created: Vec<InstalledPath> = Vec::new();
     let failure: WorktreeCopyError = ensure_parents(
         root.as_path(),
-        &entry(EntryKind::File, 0o644, "a/file"),
+        &entry(EntryKind::File, 0o644, b"a/file"),
         &mut created,
     )
     .expect_err("file parent");
@@ -91,7 +91,7 @@ fn selected_entries_are_created_by_kind() {
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
-        &entry(EntryKind::Directory, 0o755, "dir"),
+        &entry(EntryKind::Directory, 0o755, b"dir"),
     )
     .expect("directory");
     assert_eq!(
@@ -105,7 +105,7 @@ fn selected_entries_are_created_by_kind() {
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
-        &entry(EntryKind::File, 0o640, "file"),
+        &entry(EntryKind::File, 0o640, b"file"),
     )
     .expect("file");
     let staged_inode: u64 = std::fs::metadata(stage.join("file")).expect("stage").ino();
@@ -119,7 +119,7 @@ fn selected_entries_are_created_by_kind() {
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
-        &entry(EntryKind::Symlink, 0o777, "link"),
+        &entry(EntryKind::Symlink, 0o777, b"link"),
     )
     .expect("link");
     assert_eq!(
@@ -166,7 +166,7 @@ fn existing_destination_file_is_not_replaced() {
     let failure: WorktreeCopyError = create_selected_entry(
         stage.as_path(),
         destination.as_path(),
-        &entry(EntryKind::File, 0o644, "file"),
+        &entry(EntryKind::File, 0o644, b"file"),
     )
     .expect_err("exists");
     assert!(failure.0.contains("File exists"));
@@ -195,7 +195,7 @@ fn a_linked_file_never_shows_a_wider_mode_than_its_source() {
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
-        &entry(EntryKind::File, 0o600, "key.pem"),
+        &entry(EntryKind::File, 0o600, b"key.pem"),
     )
     .expect("installed");
     let staged: std::fs::Metadata = std::fs::symlink_metadata(stage.join("key.pem")).expect("staged");
@@ -240,7 +240,7 @@ fn a_copied_file_on_another_device_keeps_its_mode() {
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
-        &entry(EntryKind::File, 0o600, "key.pem"),
+        &entry(EntryKind::File, 0o600, b"key.pem"),
     )
     .expect("copied");
     let installed: std::fs::Metadata = std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");

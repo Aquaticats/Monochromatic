@@ -1,5 +1,9 @@
 # Divergent auto-push with concurrent worktree edits
 
+Note 2026-11-09T16:50:29-05:00:
+`package/git-policy/cli/src/native/auto_push.rs` is now `package/git-policy/cli/src/native/push/auto_push.rs`,
+moved 2026-11-03 in `d88fd7ab2a`.
+
 ## Observed failure
 
 On 2026-10-18,

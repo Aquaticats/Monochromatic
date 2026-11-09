@@ -12,8 +12,10 @@
 
 import {
   BUN_TEST_BAN_REASON,
+  hasNotUnderstoodShellSyntax,
   invokesBunTest,
   invokesMutatingGitThroughRealGitPath,
+  NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   REAL_GIT_MUTATION_BAN_REASON,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
 import {
@@ -79,6 +81,13 @@ async function evaluateBashGuard({
   const { command, } = input;
   if ((typeof command) !== 'string')
     return GUARDRAIL_NOT_BLOCKED;
+
+  if (hasNotUnderstoodShellSyntax(command,)) {
+    return {
+      block: true,
+      reason: NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
+    };
+  }
 
   if (blockBunTest && invokesBunTest(command,)) {
     return {
