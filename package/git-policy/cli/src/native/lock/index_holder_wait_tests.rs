@@ -124,15 +124,21 @@ const LONG_HOLD: Duration = Duration::from_millis(2500);
 /// however long the host stalls.
 const NO_CEILING: Duration = Duration::ZERO;
 
-/// A PID file that names a process which no longer runs ends the wait at once,
-/// because nothing will release that lock;
-/// the
-///  diagnostic names the process.
+/// A PID file that names a number this process table does not have is no proof that the lock's owner is gone,
+/// so it is waited for within the ceiling exactly as a holder proven alive is,
+/// and the wait's own words say which number it read and that the writer may be another PID namespace's.
+/// Why:
+///  Git writes a number and no namespace,
+///  and a live Git of another PID namespace writes a number this table has never had while it holds the lock
+///  with no descriptor open through its editor;
+///  ending the wait there failed a queued commit that only had to keep waiting (cross-vendor review of
+///  2026-11-09,
+/// finding 2).
 /// The ceiling is already out when the wait begins,
-/// so a dead owner waited for like a live one ends in the ceiling's words instead,
+/// so the wait ends in the ceiling's words,
 /// at once and without a stopwatch to read.
 #[test]
-fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
+fn a_pid_file_number_this_table_does_not_have_is_waited_for_within_the_ceiling() {
     let root: std::path::PathBuf = fixture("holder-wait-dead");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
@@ -141,10 +147,11 @@ fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
     std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
     let sink: SharedSink = SharedSink::default();
     let outcome: IndexWait = wait_for_index_release_within(index.as_path(), "merge", NO_CEILING, quick(), &mut sink.clone());
-    assert!(matches!(outcome, IndexWait::OwnerGone(_)), "{outcome:?}");
+    assert!(matches!(outcome, IndexWait::GaveUp(_)), "an owner nothing proves gone ends in the ceiling's words: {outcome:?}");
     let text: String = sink.text();
-    assert!(text.contains(format!("PID {gone}, which no longer runs").as_str()), "{text}");
-    assert!(!text.contains("still held after"), "a dead owner is not waited for: {text}");
+    assert!(text.contains(format!("PID {gone}").as_str()), "the number the PID file holds is said: {text}");
+    assert!(text.contains("another PID namespace"), "the line says why the number proves nothing: {text}");
+    assert!(text.contains("still held after"), "the ceiling's words end the wait: {text}");
     assert!(lock.exists(), "the wait removes no lock");
     remove(root.as_path());
 }

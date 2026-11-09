@@ -7,7 +7,12 @@
 //!  A live owner is proven by a process holding the lock open (device and inode),
 //!  or by Git's
 //!      `core.lockfilePid` file naming a running process that is Git.
-//!  A PID file naming a gone process proves a dead owner.
+//!  A number no process of this table has proves nothing:
+//!  Git writes its own number into that file and no PID namespace,
+//!  and a number means a process only inside the namespace that wrote it,
+//!  so a live Git of another PID namespace writes a number this table has never had
+//!  (cross-vendor review of 2026-11-09,
+//!  finding 2).
 //!  Everything else is
 //!      evidence-free;
 //!  an absent open holder never proves abandonment,
@@ -108,7 +113,9 @@ pub struct PidProcess {
 }
 
 impl PidProcess {
-    /// Whether no process has the number any more (or it is a zombie).
+    /// Whether this process table has no process with the number (or has a zombie with it).
+    /// A number means a process only inside the PID namespace that wrote it,
+    /// so this is no proof that the owner is gone (see the module description).
     pub fn gone(&self) -> bool {
         return matches!(self.start, ProcessStart::Missing);
     }
@@ -215,11 +222,6 @@ pub enum Verdict {
         /// Owner command name when readable.
         command: Option<String>,
     },
-    /// The PID file names a process that no longer runs.
-    Dead(
-        /// The PID of the process that no longer runs.
-        i64,
-    ),
     /// Nothing proves a live owner or a dead one.
     EvidenceFree,
 }
@@ -378,8 +380,10 @@ pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -
 ///  an open holder first,
 ///  then a descriptor the scan could not identify,
 ///  then a PID file naming a running Git,
-///  then one naming a gone process,
 ///  and anything else is evidence-free.
+///  A PID file naming a number this table does not have is evidence-free too:
+///  a Git of another PID namespace writes a number this table has never had,
+///  and holds the lock through its editor with no descriptor open.
 ///  The command name decides and the clock never does:
 ///  a Git writes its own number into the PID file,
 ///  so a running process named like Git is the holder whatever the wall clock says about its start,
@@ -411,9 +415,9 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
                 command: process.command.clone(),
             };
         }
-        PidFile::Owner(pid, process) if process.gone() && !evidence.holders.as_ref().is_some_and(HolderEvidence::unresolved) => {
-            return Verdict::Dead(*pid);
-        }
+        // A number this table does not have is no proof of a dead owner: Git records no PID namespace, so the writer
+        // may be a live Git of another one holding the lock through its editor with no descriptor open
+        // (cross-vendor review of 2026-11-09, finding 2). Such an owner is waited for like a live holder.
         _ => return Verdict::EvidenceFree,
     }
 }
@@ -580,7 +584,10 @@ fn evidence_words(evidence: &Evidence) -> String {
         PidFile::Absent => String::from("no Git lock PID file beside it (`core.lockfilePid` is off for the program that made it, or it is not Git)"),
         PidFile::Malformed(text) => format!("a Git lock PID file whose text is not `pid <number>` ({text:?})"),
         PidFile::Unreadable(reason) => format!("a Git lock PID file that could not be read ({reason})"),
-        PidFile::Owner(pid, process) if process.gone() => format!("a Git lock PID file naming PID {pid}, which no longer runs"),
+        PidFile::Owner(pid, process) if process.gone() => format!(
+            "a Git lock PID file naming PID {pid}, which this process table does not have (a Git of another PID namespace writes a number this table has never had, \
+             and it holds the lock through its editor with no descriptor open)"
+        ),
         PidFile::Owner(pid, process) if process.starts_after(&evidence.lock) => format!(
             "a Git lock PID file naming PID {pid} ({}), which runs, and which this host's clock puts after the lock was made, which a reused number would explain and so would a clock that moved",
             process.command.as_deref().unwrap_or("command name unknown")
@@ -690,28 +697,8 @@ pub fn blocker_words(evidence: &Evidence) -> String {
             let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
             format!("{} (proven by {proof})", holder_name(pid, command.as_deref()))
         }
-        Verdict::Dead(pid) => format!("{}, which no longer runs", holder_name(pid, None)),
         Verdict::EvidenceFree => format!("an owner nothing proves alive ({})", evidence_words(evidence)),
     };
-}
-
-/// What:
-///  The diagnostic for a lock whose Git lock PID file names a process that no longer runs.
-/// Why:
-///   That owner can never let go,
-/// so there is nothing to wait for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function deadOwnerDiagnostic({ lockPath, pid, consequence }): string;
-/// ```
-pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: {lock} was left by PID {pid}, which no longer runs, so nothing will release it. {consequence}; nothing was \
-         changed and the lock was left in place. If no other program is using this repository, removing the file {lock} lets \
-         the command run.\n",
-        lock = lock_path.display()
-    );
 }
 
 /// Evidence controls stay out of the release executable.

@@ -280,11 +280,6 @@ fn the_holder_kind_follows_what_the_notice_says() {
         holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end).as_str()),
         "unproven"
     );
-    assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made").as_str()),
-        "unproven",
-        "the diagnostic that ends a wait is not a holder proven alive"
-    );
     let root: PathBuf = fixture("timing-holder-null");
     let (mut timing, covered) = filled(root.as_path());
     timing.submit.holder_kind = None;

@@ -555,15 +555,23 @@ fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     remove(world.root.as_path());
 }
 
-/// A dead owner's index lock (Git's lock PID file names a process that is gone):
-/// the landing fails before anything moves,
+/// An index lock whose Git lock PID file names a number this process table does not have:
+/// the landing is waited for within the ceiling as a live holder is,
+/// then it fails before anything moves,
 /// the
 ///  lock stands,
 /// and no intent is left.
-/// Nothing is waited for,
-/// because nothing will release that lock.
+/// Why:
+///  Git records a number and no PID namespace,
+///  so a live Git of another PID namespace writes a number this table has never had while it holds the
+///  lock through its editor:
+///  ending the wait at once failed a commit that only had to keep waiting
+///  (cross-vendor review of 2026-11-09,
+/// finding 2).
+/// The ceiling is short here,
+/// so the control reads the ending rather than waiting a whole one.
 #[test]
-fn a_dead_owners_index_lock_changes_nothing() {
+fn an_absent_pid_number_is_waited_for_and_changes_nothing() {
     let world: World = world("service-land-dead-owner-lock");
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
@@ -573,7 +581,19 @@ fn a_dead_owners_index_lock_changes_nothing() {
     let gone_pid: u32 = gone.id();
     gone.wait().expect("it ends");
     std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {gone_pid}\n")).expect("PID file");
-    assert_eq!(land_batch(&world.context, 1, &[request]), Err(FailureCode::IndexInUse));
+    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, std::slice::from_ref(&request), &|note: Announce| { said.lock().expect("a poisoned lock").push(note); });
+    let heard: Vec<Announce> = said.lock().expect("a poisoned lock").clone();
+    assert_eq!(answered, Err(FailureCode::IndexInUse));
+    assert!(
+        heard.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone_pid}").as_str()) && text.contains("another PID namespace")); }),
+        "the number the PID file holds is said, and why it proves nothing: {heard:?}"
+    );
+    assert!(
+        heard.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held after")); }),
+        "the wait ends at its ceiling, not before it: {heard:?}"
+    );
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
     assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);

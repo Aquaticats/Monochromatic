@@ -333,14 +333,20 @@ const LONG_HOLD: Duration = Duration::from_millis(2500);
 /// however long the host stalls.
 const NO_CEILING: Duration = Duration::ZERO;
 
-/// A PID file that names a process which no longer runs ends the wait at once,
-/// with the process named,
-/// and nothing is removed.
+/// A PID file that names a number this process table does not have is no proof that its owner is gone,
+/// so the commit waits within its ceiling as it does for a holder proven alive,
+/// nothing is removed,
+/// and the words say which number was read and that its writer may be another PID namespace's.
+/// Why:
+///  A live Git in another PID namespace shares the repository,
+///  writes a number this table has never had and holds the lock through its editor with no descriptor open,
+///  and a verdict of dead ended the queued commit at once (cross-vendor review of 2026-11-09,
+/// finding 2).
 /// The ceiling is already out when the wait begins,
-/// so a dead owner waited for like a live one ends in the ceiling's words instead,
+/// so the wait ends in the ceiling's words,
 /// at once and without a stopwatch to read.
 #[test]
-fn a_dead_owner_ends_the_wait_at_once() {
+fn a_number_this_table_does_not_have_is_waited_for_within_the_ceiling() {
     let (root, index) = index_in("index-lock-dead-owner");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let gone: i64 = dead_pid();
@@ -349,8 +355,8 @@ fn a_dead_owner_ends_the_wait_at_once() {
     let failure = acquire_within(&SYSTEM, &index, 5, NO_CEILING, &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
     assert_eq!(failure.code, FailureCode::IndexInUse);
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
-    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone}, which no longer runs").as_str())); }), "{said:?}");
-    assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held after")); }), "a dead owner is not waited for: {said:?}");
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone}").as_str()) && text.contains("another PID namespace")); }), "{said:?}");
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held after")); }), "the ceiling's words end the wait: {said:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");
     remove(root.as_path());
 }

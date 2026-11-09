@@ -44,7 +44,7 @@
 
 /// Evidence about the holder of a lock.
 use crate::index_lock_evidence::{
-    Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, host_pid_process, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, gather_with, host_pid_process, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
@@ -72,14 +72,6 @@ pub enum IndexWait {
         /// How long the wait lasted.
         Duration,
     ),
-    /// The lock's PID file names a process that no longer runs,
-    /// so nothing will release it;
-    /// the diagnostic was written,
-    ///  nothing was changed and the lock was left in place.
-    OwnerGone(
-        /// How long the wait lasted.
-        Duration,
-    ),
     /// The lock was still held at the ceiling;
     /// the line naming the blocker was written,
     /// nothing was changed and the lock was left
@@ -94,9 +86,7 @@ pub enum IndexWait {
 enum Proof {
     /// A holder is proven alive.
     Alive(Evidence, i64, bool, Option<String>),
-    /// The PID file names a process that is gone.
-    Dead(i64),
-    /// Nothing proves a holder alive or dead.
+    /// Nothing proves a holder alive.
     Nothing(Option<Evidence>),
 }
 
@@ -107,7 +97,6 @@ fn look_at(real_index: &Path, gather: &dyn Fn(&Path) -> std::io::Result<Option<E
     };
     return match classify_index_lock(&evidence) {
         Verdict::ProvenAlive { pid, by_descriptor, command } => Proof::Alive(evidence, pid, by_descriptor, command),
-        Verdict::Dead(pid) => Proof::Dead(pid),
         Verdict::EvidenceFree => Proof::Nothing(Some(evidence)),
     };
 }
@@ -136,7 +125,6 @@ fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration,
             line
         }
         Proof::Nothing(found) => unproven_wait_line(lock_path_of(real_index).as_path(), found.as_ref(), end),
-        Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None, end),
     };
     return format!(
         "monochromatic-git-policy-cli: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
@@ -154,9 +142,13 @@ fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration,
 /// so a queued command can be told from a hung one.
 /// A holder
 ///  proven alive and an owner nothing proves alive are waited for until `MERGE_LOCK_CEILING`,
-/// not forever,
-/// because the person's own `git commit` with its editor open holds the lock with no proof;
-/// a dead owner ends the wait at once.
+/// not forever:
+///  the person's own `git commit` with its editor open holds the lock with no proof,
+/// and a number in the lock's PID file that this process table does not have may be a live Git's of another
+///  PID namespace,
+///  which holds the lock through its editor with no descriptor open
+///  (cross-vendor review of 2026-11-09,
+/// finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -206,10 +198,6 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         if due || elapsed >= ceiling {
             proof = look_at(real_index, &gather_here);
         }
-        if let Proof::Dead(pid) = &proof {
-            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence.as_str()).as_bytes());
-            return IndexWait::OwnerGone(elapsed);
-        }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.
             let _noted = write_then_flush(out, notice(command, real_index, elapsed, ceiling, &proof, !announced).as_bytes());
@@ -221,7 +209,7 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
             let blocker: String = match &proof {
                 Proof::Alive(evidence, ..) => blocker_words(evidence),
                 Proof::Nothing(Some(evidence)) => blocker_words(evidence),
-                Proof::Nothing(None) | Proof::Dead(_) => String::from("an owner whose evidence could not be read"),
+                Proof::Nothing(None) => String::from("an owner whose evidence could not be read"),
             };
             let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence.as_str());
             let _noted = write_then_flush(out, line.as_bytes());
