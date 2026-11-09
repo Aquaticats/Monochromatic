@@ -88,6 +88,8 @@
 /// The patience a clock keeps,
 /// and what a stop reports.
 use crate::bounded_push::{StopCause, StopReport};
+/// Whether a control holds a limit for an ordering it needs first.
+use crate::push_limit_held_for_an_ordering::limit_has_passed;
 use crate::push_deadline_and_patience_settings::Patience;
 /// The processes below the push,
 /// and the identity of each.
@@ -103,82 +105,6 @@ use std::time::{Duration, Instant};
 
 /// How often the counters of the tree are read.
 pub const SAMPLE_INTERVAL: Duration = Duration::from_millis(500);
-
-/// What:
-///  Where a control says which ordering must have happened before a run's limit may be reached by elapsed time.
-/// Why:
-///   A run stopped at a fixed deadline decides *when* it is stopped by the clock alone,
-/// and a control that needs the run
-///  to have reached some state first would otherwise bet that the state arrives inside the limit:
-/// on a loaded host a
-///  `strace`-wrapped Git took 2.9 s to take its lock against a 2.5 s limit,
-/// so the run was stopped before the state the control
-///  was about to check ever existed (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
-/// A control installs an ordering and the limit is held until it holds,
-/// so the stop is decided by the ordering
-///  and then by the time the control asked for,
-/// never by time alone.
-///  The hold has a ceiling so that a control whose ordering never happens fails its own assertion with its own words
-///  instead of waiting for the run's watchdog.
-/// Nothing of this is in the release executable,
-/// and no control installed means every limit is reached by time as before.
-#[cfg(test)]
-pub(crate) struct LimitHeldForAnOrdering {
-    /// Whether the ordering the control needs has happened.
-    pub(crate) reached: fn() -> bool,
-    /// How long the limit is held back at most.
-    pub(crate) ceiling: Duration,
-}
-
-#[cfg(test)]
-thread_local! {
-    /// The ordering the limit of a run on this thread is held for,
-    /// and when the hold began;
-    /// nothing outside a control.
-    static LIMIT_HELD_FOR: std::cell::RefCell<Option<(LimitHeldForAnOrdering, Instant)>> = const { std::cell::RefCell::new(None) };
-}
-
-/// Puts `held` in force on this thread until the returned guard drops.
-#[cfg(test)]
-pub(crate) fn hold_limit_for_an_ordering(held: LimitHeldForAnOrdering) -> LimitHoldGuard {
-    LIMIT_HELD_FOR.with(|slot| { *slot.borrow_mut() = Some((held, Instant::now())); });
-    return LimitHoldGuard;
-}
-
-/// Ends the hold of this thread's limit when dropped.
-#[cfg(test)]
-pub(crate) struct LimitHoldGuard;
-
-#[cfg(test)]
-impl Drop for LimitHoldGuard {
-    fn drop(&mut self) {
-        LIMIT_HELD_FOR.with(|slot| { *slot.borrow_mut() = None; });
-    }
-}
-
-/// Whether a control on this thread is holding the limit for an ordering that has not happened yet.
-#[cfg(test)]
-pub(crate) fn limit_is_held() -> bool {
-    let held: Option<bool> = LIMIT_HELD_FOR.with(|slot| {
-        let installed = slot.borrow();
-        let Some((held, began)) = installed.as_ref() else { return None };
-        return Some(began.elapsed() < held.ceiling && !(held.reached)());
-    });
-    return held.unwrap_or(false);
-}
-
-/// Whether `limit` has passed since the run started,
-/// on a run whose control may be holding it for an ordering.
-#[cfg(test)]
-fn limit_has_passed(elapsed: Duration, limit: Duration) -> bool {
-    return elapsed >= limit && !limit_is_held();
-}
-
-/// Whether `limit` has passed since the run started.
-#[cfg(not(test))]
-fn limit_has_passed(elapsed: Duration, limit: Duration) -> bool {
-    return elapsed >= limit;
-}
 
 /// What:
 ///  The bytes a process has read and written,

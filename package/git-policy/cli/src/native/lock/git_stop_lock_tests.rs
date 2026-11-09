@@ -20,7 +20,7 @@
 use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
 use crate::process_tree::TreeMember;
-use crate::push_progress::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
+use crate::push_limit_held_for_an_ordering::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, RulesGuard, STOP_CEILING, rules_for_this_thread};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::cell::Cell;
