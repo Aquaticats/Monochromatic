@@ -1,7 +1,9 @@
 //! Binary-level controls for the notices of a commit that waits for Git's own `index.lock` (issue 1811):
 //!  the wait names what it waits for and who holds it,
 //!  repeats at a steady interval,
-//! and waits with no bound for a holder proven alive and for an owner nothing proves alive,
+//! and waits for a holder proven alive,
+//! and for an owner nothing proves alive,
+//! until the ceiling,
 //!  saying what is known about the second.
 //! The holder is this test process,
 //! holding the lock file open.
@@ -139,7 +141,7 @@ fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
 /// nothing gives up,
 /// and the commit lands when the holder lets go.
 #[test]
-fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
+fn a_commit_waits_on_a_live_index_lock_holder_until_it_lets_go() {
     let fixture: Fixture = fixture("wait-notice-index-live-no-bound");
     let repo: PathBuf = edited_repository(&fixture);
     let lock_path: PathBuf = repo.join(".git/index.lock");
@@ -160,7 +162,7 @@ fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
 /// at one notice a second,
 /// than the
 ///  second an owner nothing proves alive used to be given,
-/// so only a wait with no bound lasts this long.
+/// so a wait that lasts past that second is what the control reads.
 const LONG_WAIT_NOTICES: usize = 4;
 
 /// A commit that waits for an `index.lock` nobody can be proven to hold says so,
