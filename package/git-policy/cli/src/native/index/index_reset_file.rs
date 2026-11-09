@@ -238,15 +238,16 @@ fn indexed_attribute_directories(index: &FullIndex, tree: &[FlatEntry]) -> Vec<V
 }
 
 /// The update,
-/// with every decline as `None`.
-fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<()> {
+/// with every decline as `None`,
+/// and the names it reset.
+fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<Vec<Vec<u8>>> {
     let around: Surroundings = surroundings(git, repository)?;
     let (mut index, stamp) = read_index(built, around.layout.object_format)?;
     let new_tree: Vec<u8> = root_tree(&around.database, new, around.layout.object_format)?;
     let names: Vec<Vec<u8>> = names_of(&around.database, &around.layout, new_tree.as_slice(), paths)?;
     // An empty list resets nothing; `reset` with no path would reset the whole index, so the caller never asks it.
     if names.is_empty() {
-        return Some(());
+        return Some(names);
     }
     let tree: Vec<FlatEntry> = tree_entries_at(&around.database, new_tree.as_slice(), names.as_slice(), around.layout.object_format)?;
     // What:
@@ -294,7 +295,7 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let format: ObjectFormat = around.layout.object_format;
     let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
     let bytes: Vec<u8> = write_full_index(&index, &hash)?;
-    return publish(built, bytes.as_slice(), around.settings.shared_repository).ok();
+    return publish(built, bytes.as_slice(), around.settings.shared_repository).ok().map(|()| { return names; });
 }
 
 /// The update of `reset_file`,
@@ -302,13 +303,14 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// the repository,
 /// the commit,
 /// the paths and the copy.
-fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path, &str, IndexPaths<'_>, &Path)) -> Option<()> {
+fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path, &str, IndexPaths<'_>, &Path)) -> Option<Vec<Vec<u8>>> {
     return reset_file(git, repository, new, paths, built);
 }
 
 /// What:
 ///  Reset the index entries of `paths` in the landing's private copy to the commit `new` without starting Git;
-/// whether it did.
+/// the names it reset,
+/// or nothing when it declined and Git has to.
 /// Why:
 ///   The private index is the copy the landing made while it holds the live index lock:
 /// the function takes a borrow of that
@@ -323,18 +325,18 @@ fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// resetIndexFile({ git, repository, commit, paths, indexFile }): boolean
+/// resetIndexFile({ git, repository, commit, paths, indexFile }): names | undefined
 /// ```
-pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, copy: &PrivateCopy) -> bool {
+pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, copy: &PrivateCopy) -> Option<Vec<Vec<u8>>> {
     // The copy is installed by a rename onto the live index, so it must be beside it.
     if copy.directory().parent() != lock.index().parent() {
-        return false;
+        return None;
     }
     let built: PathBuf = copy.path().to_path_buf();
-    let done: bool = guarded((git, repository, new, paths, built.as_path()), reset_file_guarded).is_some();
+    let done: Option<Vec<Vec<u8>>> = guarded((git, repository, new, paths, built.as_path()), reset_file_guarded);
     // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.
-    copy.set_flushed(done);
-    debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done { "done" } else { "declined, Git answers" }).as_str());
+    copy.set_flushed(done.is_some());
+    debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done.is_some() { "done" } else { "declined, Git answers" }).as_str());
     return done;
 }
 

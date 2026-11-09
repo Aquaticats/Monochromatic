@@ -269,3 +269,28 @@ fn a_taken_name_is_checked_not_trusted() {
     assert!(ClaimWatch::restored(store.as_path(), None).directories().contains(&third), "the cut note was replaced");
     let _removed = std::fs::remove_dir_all(&root);
 }
+
+/// What:
+///  A repository the landing wrote down is looked at by the service that starts after it,
+/// and one of another instance is not.
+/// Why:
+///   This is the whole of the promise that a kill is followed by the work being run with no commit needed:
+/// the
+///  wrapper's wake is what would have written the note,
+/// and a wrapper killed between promoting a push and that wake
+///  leaves the note the landing wrote instead.
+#[test]
+fn a_note_written_by_the_landing_is_looked_at_by_the_next_service() {
+    let root: PathBuf = scratch("noted-by-the-landing");
+    let git_dir: PathBuf = git_dir_with_work(root.as_path(), "repo.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    let instance: String = instance_of(git_dir.as_path());
+    // The landing knows the repository and its instance; no wake has happened for it.
+    note_for_the_next_service(store.as_path(), Some(instance.as_str()), git_dir.as_path());
+    assert_eq!(ClaimWatch::restored(store.as_path(), Some(instance.as_str())).directories(), vec![git_dir.clone()], "the next service looks at it");
+    // A note of another instance's repository is neither written nor read, so the file stays one.
+    let other: PathBuf = git_dir_with_work(root.as_path(), "other.git");
+    note_for_the_next_service(store.as_path(), Some(instance.as_str()), other.as_path());
+    assert_eq!(files_of(store.as_path()).len(), 1, "another instance's repository is not written down");
+    let _removed = std::fs::remove_dir_all(&root);
+}

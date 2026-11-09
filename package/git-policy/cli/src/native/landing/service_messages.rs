@@ -32,6 +32,15 @@ pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 /// so the manager starts the one the installed units name (Linux with systemd).
 pub const RESTART_COMMAND: &str = "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
 
+/// The command that stops the commit service,
+/// so the manager starts the one the installed units name on the next connection (Linux with systemd).
+/// Why:
+///   A restart starts the program the manager's unit names,
+/// which after a rollback is still the newer release's,
+/// so stopping the
+///  service is the one command that lets the older wrapper's own service answer.
+pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-cli@*.service'";
+
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 
@@ -220,8 +229,9 @@ pub fn render(failure: &ClientFailure) -> String {
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
         ClientFailure::NoCommonVersion => format!(
-            "This git is older than the installed commit service and cannot work with it, so this commit was not made. \
-             Update the git wrapper with the tool that installed it, and run the commit again. {NOTHING_CHANGED}"
+            "This git is older than the commit service that is running, which was started from a newer release of this git \
+             wrapper, so this commit was not made. Update this git with the tool that installed it, or install the release it \
+             belongs to and stop the newer service with `{STOP_COMMAND}`; then run the commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::OtherRelease => format!(
             "The commit service that is running was started from another release of this git wrapper and did not stop when \

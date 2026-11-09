@@ -111,14 +111,14 @@ fn every_command_says_which_commit_is_held() {
     let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
     land_with_failed_index(&world, 1, &[landed]);
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let shown: Vec<String> = crate::service_handoff::held_push_notices(world.repo.join(".git").as_path());
+    let shown: Vec<String> = crate::service_handoff::held_push_notices(world.repo.join(".git").as_path(), &crate::held_push_commit_on_the_remote::NothingAsked);
     assert_eq!(shown.len(), 1, "one line: {shown:?}");
     assert!(shown[0].starts_with(format!("the commit {commit} is held").as_str()), "the line names the commit, not the record's file name: {}", shown[0]);
     assert!(shown[0].contains("held") && shown[0].contains("has not been released yet") && shown[0].contains("next push"), "{}", shown[0]);
     // What is known is said; whether the command is still running cannot be told, so the line does not claim it stopped.
     assert!(!shown[0].contains("stopped"), "{}", shown[0]);
     // The state stands, so the line stands while the record does: nothing has to be written or cleared for it.
-    assert_eq!(crate::service_handoff::held_push_notices(world.repo.join(".git").as_path()), shown, "the line is the record's");
+    assert_eq!(crate::service_handoff::held_push_notices(world.repo.join(".git").as_path(), &crate::held_push_commit_on_the_remote::NothingAsked), shown, "the line is the record's");
     // The record itself is still held: a notice is not a release.
     let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
     let held_name: String = crate::work_item::WorkItem {

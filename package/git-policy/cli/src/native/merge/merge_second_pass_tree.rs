@@ -89,7 +89,7 @@ pub struct AttributeProbe<'a> {
 /// ```ts
 /// function configuredAttributeTree(probe: AttributeProbe): string | null | undefined;
 /// ```
-fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String>> {
+async fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String>> {
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(probe.variables);
     let listed = match read_layout_after_success_with(probe.directory, probe.variables, &scope) {
         Some(layout) => list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, probe.variables),
@@ -112,7 +112,7 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
         return Some(value);
     }
     debug(TAG, "the in-process readers decline the repository, so Git is asked for attr.tree");
-    let reply = probe.runner.run(&["config", "--get", ATTRIBUTE_TREE_KEY], None, None).ok()?;
+    let reply = probe.runner.run(&["config", "--get", ATTRIBUTE_TREE_KEY], None, None).await.ok()?;
     return match reply.code {
         Some(0) => {
             let text: String = String::from_utf8_lossy(&reply.stdout).trim().to_owned();
@@ -229,7 +229,7 @@ enum AttributeChoice {
 /// ```ts
 /// function attributeChoice(probe: AttributeProbe): 'the-person' | 'free';
 /// ```
-fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
+async fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
     for (name, _value) in probe.variables {
         if name == ATTRIBUTE_SOURCE_VARIABLE {
             return AttributeChoice::ThePerson;
@@ -249,7 +249,7 @@ fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
             return AttributeChoice::ThePerson;
         }
         CommandLineTree::Set(from_the_command_line) => Some(from_the_command_line),
-        CommandLineTree::NotSet => configured_attribute_tree(probe),
+        CommandLineTree::NotSet => configured_attribute_tree(probe).await,
     };
     let Some(configured) = read else {
         debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
@@ -257,7 +257,7 @@ fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
     };
     if let Some(value) = configured {
         let spec: String = format!("{value}^{{tree}}");
-        let resolves: bool = match probe.runner.run(&["rev-parse", "--verify", "--quiet", spec.as_str()], None, None) {
+        let resolves: bool = match probe.runner.run(&["rev-parse", "--verify", "--quiet", spec.as_str()], None, None).await {
             Ok(reply) => reply.code == Some(0),
             Err(_) => false,
         };
@@ -280,12 +280,38 @@ fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function attributeTreeVariables(tip: string, probe: AttributeProbe): [string, string][];
+/// async function attributeTreeVariables(tip: string, probe: AttributeProbe): Promise<[string, string][]>;
 /// ```
-pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
-    return match attribute_choice(probe) {
+pub async fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+    return match attribute_choice(probe).await {
         AttributeChoice::ThePerson => Vec::new(),
         AttributeChoice::Free => vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))],
+    };
+}
+
+/// What:
+///  The same variables for a caller that is not inside the runtime,
+/// entered on the runtime once.
+/// Why:
+///   The isolated merge,
+/// the commit replay merge and the shadow replay read the attribute tree
+/// on a thread of their own,
+/// and the face above is refused there only inside the runtime;
+/// the choice,
+/// the questions and the words are the awaited face's,
+/// so the two cannot name different trees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnRuntime(() => attributeTreeVariables(tip, probe))
+/// ```
+pub fn attribute_tree_variables_on_the_runtime(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+    return match crate::lazy_runtime::run_on_runtime(attribute_tree_variables(tip, probe)) {
+        Ok(found) => found,
+        Err(refusal) => {
+            crate::diagnostic_log::warn(TAG, format!("the attribute tree could not be read, so none is named: {refusal}").as_str());
+            Vec::new()
+        }
     };
 }
 
@@ -327,8 +353,8 @@ fn any_attributes_conflict(conflicts: &[Conflict]) -> bool {
 /// ```ts
 /// function mergeAttributeSource(tree: string, conflicts: Conflict[], probe: AttributeProbe): AttributeSource;
 /// ```
-pub fn merge_attribute_source<'a>(tree: &'a str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> AttributeSource<'a> {
-    return match attribute_choice(probe) {
+pub async fn merge_attribute_source<'a>(tree: &'a str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> AttributeSource<'a> {
+    return match attribute_choice(probe).await {
         AttributeChoice::ThePerson => AttributeSource::Invocation,
         AttributeChoice::Free if any_attributes_conflict(conflicts) => AttributeSource::Unknown,
         AttributeChoice::Free => AttributeSource::Tree(tree),
@@ -356,12 +382,12 @@ pub struct Resolved {
 /// ```ts
 /// async function resolveTree(runner, commonDir, tree, conflicts): Promise<Resolved | undefined>;
 /// ```
-pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> Option<Resolved> {
+pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> Option<Resolved> {
     if conflicts.is_empty() {
         return None;
     }
-    let source: AttributeSource<'_> = merge_attribute_source(tree, conflicts, probe);
-    let verdicts: Vec<Verdict> = match second_pass(runner, conflicts, source) {
+    let source: AttributeSource<'_> = merge_attribute_source(tree, conflicts, probe).await;
+    let verdicts: Vec<Verdict> = match second_pass(runner, conflicts, source).await {
         Ok(found) => found,
         Err(reason) => {
             debug(TAG, format!("the second pass could not run, so the conflicts stay: {reason}").as_str());
@@ -382,7 +408,7 @@ pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, confl
     }
     let mut oids: Vec<String> = Vec::new();
     for file in &merged {
-        match write_blob(runner, file.bytes.as_slice()) {
+        match write_blob(runner, file.bytes.as_slice()).await {
             Ok(oid) => oids.push(oid),
             Err(reason) => {
                 debug(TAG, format!("the merged blob of {} could not be written: {reason}", path_message_text(file.path.as_slice())).as_str());
@@ -409,7 +435,7 @@ pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, confl
     for (file, oid) in merged.iter().zip(oids.iter()) {
         files.push((file.path.as_slice(), file.mode, oid.as_str()));
     }
-    let rewritten: Result<String, String> = tree_with_files(runner, tree, files.as_slice(), index.as_path());
+    let rewritten: Result<String, String> = tree_with_files(runner, tree, files.as_slice(), index.as_path()).await;
     if let Err(error) = std::fs::remove_file(index.as_path()) {
         debug(TAG, format!("the scratch index could not be removed ({error}); the repository scratch sweep collects it").as_str());
     }
@@ -417,6 +443,31 @@ pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, confl
         Ok(found) => Some(Resolved { tree: found, merged }),
         Err(reason) => {
             debug(TAG, format!("the merged tree could not be built: {reason}").as_str());
+            None
+        }
+    };
+}
+
+/// What:
+///  The same tree for a caller that is not inside the runtime,
+/// entered on the runtime once.
+/// Why:
+///   The isolated merge and the commit replay merge compute their merge on a thread of their own,
+/// which enters the runtime for every Git start it makes;
+/// this face is the same one entry,
+/// and the pass,
+/// the questions and the logs are the awaited face's,
+/// so a merge from objects resolves the same way however it was reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnRuntime(() => resolveTree(runner, commonDir, tree, conflicts, probe))
+/// ```
+pub fn resolve_tree_on_the_runtime(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> Option<Resolved> {
+    return match crate::lazy_runtime::run_on_runtime(resolve_tree(runner, common_dir, tree, conflicts, probe)) {
+        Ok(found) => found,
+        Err(refusal) => {
+            crate::diagnostic_log::warn(TAG, format!("the second pass could not be run, so the conflicts stay: {refusal}").as_str());
             None
         }
     };

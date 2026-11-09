@@ -92,6 +92,17 @@ fn the_indexes_are_rewritten_side_by_side() {
     remove(parent.as_path());
 }
 
+/// How long the whole refresh of the order control may take.
+/// Why:
+///  The checkout's job waits for the three worktrees' rewrites,
+/// which cost what this fixture and this host make them cost;
+/// a
+///  clock over that work fails a busy host while the pipeline is fine,
+/// so the wait takes no clock and this bound covers the
+///  whole run,
+/// and a job that never arrives is a named failure rather than a hang.
+const ORDERING_RUN_ALLOWED: Duration = Duration::from_secs(150);
+
 /// The checkout's index is reported first and then each worktree's by path,
 /// though the checkout's index finishes last.
 #[test]
@@ -102,12 +113,14 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
     //  place more than the indexes, and a run whose waiting item took the last place its peers need cannot happen.
     let _room: usize = room_for("the_report_keeps_the_order_of_the_checkout_then_its_worktrees", LINKED + 2);
     let (parent, root) = checkout_with_linked("index-parallel-order");
-    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(LINKED, crate::parallel_test_support::PATIENCE));
+    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED));
     let main_index: PathBuf = root.join(".git").join("index");
     let (mine, others) = (main_index.clone(), Arc::clone(&others_done));
     let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
         if index == mine.as_path() {
-            assert!(others.wait_for_target(), "the worktrees' indexes were rewritten while the checkout's waited");
+            // The peers arrive only after their own rewrites, so this waits for their work; a clock here would fail a host
+            // whose work is slower than the clock, and `ORDERING_RUN_ALLOWED` bounds the run instead.
+            others.wait_for_target_without_a_clock();
         }
         let line: String = refresh_index_file_with(index, tree, options);
         if index != mine.as_path() {
@@ -115,7 +128,17 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
         }
         return line;
     });
-    let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
+    let refreshed = {
+        let compared_root: PathBuf = root.clone();
+        let held_rewrite: Arc<RewriteOne> = Arc::clone(&rewrite);
+        // `false` is the stand-in's flush policy, as in every other control of this file but the one that states it.
+        crate::parallel_test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || {
+            return refresh_with(compared_root.as_path(), &LARGE_HOST, &held_rewrite, false);
+        })
+    };
+    let Some((_count, lines)) = refreshed else {
+        panic!("the checkout's index kept waiting for the worktrees' rewrites for longer than {ORDERING_RUN_ALLOWED:?}, so the report never finished; nothing here says the ordering is wrong, only that the run did not end")
+    };
     assert_eq!(lines.len(), LINKED + 1, "{lines:#?}");
     assert!(lines[0].starts_with(format!("index {}:", main_index.display()).as_str()), "{lines:#?}");
     for index in 0..LINKED {

@@ -1283,6 +1283,89 @@ fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes(
     remove(bytes_root.as_path());
 }
 
+use crate::worktree_copy_interrupted_add_settlement::UNNAMED_CHILD_GRACE;
+
+/// What:
+///  A record whose destination is not there yet,
+/// naming a Git the add started that still runs,
+/// is kept until that Git is gone.
+/// Why:
+///   The record is written before Git runs,
+/// and the command that starts Git names it in the record at once;
+///  a command killed while its Git is still making the destination leaves a record whose destination is absent,
+/// and settling it there would drop the only sign that the worktree Git then finishes was owed a copy.
+///  This is the reading the fault-trace sweeps of `git worktree add` need:
+/// the kill stops the wrapper and leaves its Git
+///  running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claim.rememberRunningChild(destination, gitPid); expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(true);
+/// kill(git); git.waitForExit(); expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(false);
+/// ```
+#[test]
+fn a_record_whose_named_git_still_runs_is_kept_while_its_destination_is_absent() {
+    use std::process::{Command, Stdio};
+    let (root, common, destination) = scene("claim-child-running");
+    assert!(!destination.exists(), "the destination Git has not made yet");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    // The Git of a real `git worktree add` that has made nothing yet: `cat-file --batch` reads its requests and stays up.
+    let mut git: std::process::Child = Command::new(crate::test_support::REAL_GIT)
+        .arg("cat-file")
+        .arg("--batch")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("a real Git starts");
+    claim.remember_running_child(destination.as_path(), git.id());
+    let kept: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(kept.is_empty(), "nothing is reported while the add's Git may still make the destination: {kept:?}");
+    assert!(!destination.exists(), "the reaping made nothing");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the record stays while its Git still runs");
+    // The Git that made nothing ends, and the record settles with nothing to report.
+    git.kill().expect("the Git is killed");
+    let _reaped = git.wait().expect("the Git is collected");
+    let after: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap after the Git ended");
+    assert!(after.is_empty(), "a Git that made nothing leaves nothing to finish: {after:?}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "and its record goes");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record that names no Git is kept only while it is young,
+/// and settles once it is older than that.
+/// Why:
+///   The name is written a few calls after the spawn,
+/// so a command killed in between leaves a record that names no process
+///  while its Git may still be at work;
+/// nothing proves that Git gone,
+/// so the record is kept for a while and then
+///  settles,
+/// because a record nothing will ever settle must not stay for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(true);
+/// ageTheRecord(grace * 2); expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(false);
+/// ```
+#[test]
+fn a_record_that_names_no_git_is_kept_while_young_and_settles_after_the_grace() {
+    let (root, common, destination) = scene("claim-child-unnamed");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let record: PathBuf = claim.path.with_extension("add");
+    let young: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(young.is_empty(), "nothing is reported for a record whose Git may still be starting: {young:?}");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "a young record that names no Git stays");
+    // The record is older than the grace: nothing of it can still be starting.
+    let held: std::fs::File = std::fs::OpenOptions::new().write(true).open(record.as_path()).expect("the record");
+    held.set_modified(std::time::SystemTime::now() - UNNAMED_CHILD_GRACE * 2).expect("aged");
+    let old: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap an old record");
+    assert!(old.is_empty(), "an old record that names no Git settles without a word: {old:?}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "and it goes");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A destination whose pointer cannot be examined keeps the record and says the state is unknown,
 /// instead of

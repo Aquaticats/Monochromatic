@@ -39,7 +39,7 @@ use crate::policy_events::PolicyEvent;
 use crate::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
 use crate::child_environment::environment_with_overlay;
 use crate::journald_native::CLIENT_IDENTIFIER;
-use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
+use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables_on_the_runtime, resolve_tree_on_the_runtime};
 use crate::replay_capture_order::CaptureOrderDecision;
 /// The capture order of every shared path of a replay,
 /// from one walk over the history.
@@ -382,9 +382,9 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         cwd: top.as_path(),
         without_prefix: true,
         object_directory: Some(site.object_directory),
-        environment: attribute_tree_variables(tip, &probe),
+        environment: attribute_tree_variables_on_the_runtime(tip, &probe),
     };
-    return match resolve_tree(&runner, site.common_dir, tree, conflicts, &probe) {
+    return match resolve_tree_on_the_runtime(&runner, site.common_dir, tree, conflicts, &probe) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
         None => Merged::Conflict(paths),
     };

@@ -46,11 +46,15 @@ use crate::private_storage::{create_private_directory_all, write_private_file_un
 /// One record as a command holds it before it shows it,
 /// with the claim it was taken under and the step that removes that claim.
 pub use crate::push_failure_notice_shown_then_removed::Notice;
+/// The record of what a push that succeeded did,
+/// and the first line that tells it from a failure.
+pub use crate::push_failure_notice_reports::record_push_report;
+use crate::push_failure_notice_reports::REPORT_MAGIC;
 /// The words a notice carries,
 /// the text of the failed backup push,
 /// and what the push came to.
 pub use crate::push_failure_notice_words::{PushOutcome, push_failure_text};
-pub(crate) use crate::push_failure_notice_words::{worded, worded_lost, worded_skipped};
+pub(crate) use crate::push_failure_notice_words::{worded, worded_lost, worded_report, worded_skipped};
 /// The name a command holds a record under while it shows it,
 /// and who may take one over.
 use crate::push_failure_notice_claimed_by_one_command::{CLAIM_SUFFIX, ClaimToken, claim, claimed_by_a_live_command, give_back, record_of_claim, take_over};
@@ -72,7 +76,7 @@ const LOST_MAGIC: &str = "monochromatic-git-policy-cli push lost 1";
 
 /// Separates the parts of a record's name;
 /// it is not a character a branch key can contain.
-const NAME_SEPARATOR: char = '+';
+pub(crate) const NAME_SEPARATOR: char = '+';
 
 /// The longest branch key a record name carries whole;
 /// a longer key is cut and tagged with a hash of the whole key,
@@ -89,7 +93,7 @@ const NAME_SEPARATOR: char = '+';
 /// "Exempt limits";
 /// the coordinator's pick under the owner's delegation,
 /// open to the owner's veto.
-const LONGEST_KEY: usize = 100;
+pub(crate) const LONGEST_KEY: usize = 100;
 
 /// The most bytes of Git's own words a record keeps.
 ///  Exempt from a citation under `LQM` (class:
@@ -123,9 +127,10 @@ const UNFINISHED_NO_RETRY_MAGIC: &str = "monochromatic-git-policy-cli push unfin
 /// and its reason is the service's own words.
 const SKIPPED_MAGIC: &str = "monochromatic-git-policy-cli push skipped 1";
 
+
 /// The field names of a record's header lines.
-const BRANCH_FIELD: &str = "branch: ";
-const COMMIT_FIELD: &str = "commit: ";
+pub(crate) const BRANCH_FIELD: &str = "branch: ";
+pub(crate) const COMMIT_FIELD: &str = "commit: ";
 
 /// Said when Git gave no words at all.
 pub(crate) const NO_REASON: &str = "Git gave no reason.";
@@ -157,6 +162,7 @@ fn branch_prefix(branch_ref: &str) -> String {
 pub fn record_name(branch_ref: &str, commit: &str) -> String {
     return format!("{}{commit}.txt", branch_prefix(branch_ref));
 }
+
 
 /// What:
 ///  Git's words for the person:
@@ -312,6 +318,9 @@ enum RecordKind<'a> {
     /// A push the service did not make,
     /// with its cleaned words.
     Skipped(&'a str),
+    /// What a push that succeeded did,
+    /// in the service's own words.
+    Reported(&'a str),
     /// A push lost with its worktree.
     Lost,
 }
@@ -338,7 +347,7 @@ fn earlier_spelling(rest: &str) -> String {
 /// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
 /// ```
 fn current_magic_of(line: &str) -> Option<&'static str> {
-    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
+    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, REPORT_MAGIC, LOST_MAGIC] {
         let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);
@@ -361,6 +370,7 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     return Some((branch, commit, match magic {
         LOST_MAGIC => RecordKind::Lost,
         SKIPPED_MAGIC => RecordKind::Skipped(reason),
+        REPORT_MAGIC => RecordKind::Reported(reason),
         UNFINISHED_MAGIC => RecordKind::Unfinished(reason),
         UNFINISHED_NO_RETRY_MAGIC => RecordKind::UnfinishedWithNoRetry(reason),
         _ => RecordKind::Failed(reason),
@@ -633,6 +643,7 @@ fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn 
             worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::UnfinishedWithNoRetry, reason)
         }
         Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
+        Some((branch, commit, RecordKind::Reported(reason))) => worded_report(branch, abbreviate.name_of(commit).as_str(), reason),
         Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
         // The finished text an earlier release wrote.
         None => text.clone(),

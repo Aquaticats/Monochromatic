@@ -127,8 +127,9 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
 }
 
 /// A build from the tree alone is noted as not keeping the stat data,
-/// and the built index does hold every entry without it:
-/// the word the record carries is the fact an unchanged entry shows.
+/// and the refresh that follows it is what records every entry's:
+/// the word the record carries says where the time of the refresh went,
+/// which is the whole worktree rather than the entries that moved.
 #[test]
 fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
     let root: PathBuf = fixture("index-builds-tree-alone");
@@ -139,7 +140,7 @@ fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
     initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::Retry, stat_data_kept: false }]);
     let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(listing.contains(UNSET_MODIFICATION_TIME), "a build from the tree alone holds no stat data: {listing}");
+    assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the refresh after the build records the stat data: {listing}");
     remove(root.as_path());
 }
 

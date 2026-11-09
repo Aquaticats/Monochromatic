@@ -1092,6 +1092,71 @@ fn a_rollback_does_not_delete_a_directory_that_replaced_the_staged_subvolume() {
 }
 
 /// What:
+///  A rollback preview refuses the stage that is not a subvolume,
+/// in the words the real rollback uses.
+/// Why:
+///   The preview answered the refusals of the mode it previews,
+/// but the stage-type guard lives in the rollback
+///  itself,
+/// so the preview promised a restore the real command refuses,
+/// on state it could have read.
+#[test]
+fn a_rollback_preview_names_the_stage_that_is_not_a_subvolume() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-preview-stage-type");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    std::fs::create_dir_all(layout.new_path.as_path()).expect("a replacement directory");
+    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..rollback_arguments() };
+    let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(preview_code, REFUSED, "{preview_lines:#?}");
+    let said: String = preview_lines.join("\n");
+    assert!(said.contains("not a subvolume") && said.contains("the subvolume the migration created"), "{said}");
+    assert!(!said.contains("would restore"), "a preview promises nothing the run refuses: {said}");
+    let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(real_code, REFUSED, "{real_lines:#?}");
+    // The real run also states the risk it would carry before it reaches the refusal; the refusal itself is the same.
+    let refusals = |said_now: &[String]| -> Vec<String> {
+        return said_now.iter().filter(|line: &&String| { return line.contains("refused:") || line.starts_with("  What to do:") || line.as_str() == "Nothing was changed."; }).cloned().collect();
+    };
+    assert_eq!(refusals(preview_lines.as_slice()), refusals(real_lines.as_slice()), "the preview says what the real run says");
+    assert!(layout.new_path.exists(), "the replacement directory is untouched");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback does not delete a different subvolume placed at the stage's name.
+/// Why:
+///  The guard required only a subvolume root,
+/// and the removal destroys whatever subvolume the name holds,
+/// so a
+///  subvolume another process made there,
+/// holding bytes that exist nowhere else,
+/// was destroyed.
+/// The journal
+///  records the identity of the stage it made,
+/// which tells the two apart.
+#[test]
+fn a_rollback_does_not_delete_another_subvolume_placed_at_the_stage() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-foreign-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (rollback_code, rollback_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(rollback_code, REFUSED, "{rollback_lines:#?}");
+    let said: String = rollback_lines.join("\n");
+    assert!(said.contains("not the subvolume the migration created"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A rollback preview of a migration stopped before the exchange is not refused,
 ///  because the real rollback can perform it.
 /// Why:
@@ -1115,6 +1180,84 @@ fn a_rollback_preview_before_the_exchange_is_not_refused() {
     // The preview promised what the real mode does.
     let (code3, lines3) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code3, DONE, "{lines3:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// Remove the identity a journal records for the stage it made,
+/// as a journal a kill left before that write,
+/// or one an earlier release wrote,
+/// has none.
+fn forget_the_recorded_stage(journal: &Path) {
+    let text: String = std::fs::read_to_string(journal).expect("the journal");
+    let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
+    let document = value.as_object_mut().expect("a journal is an object");
+    let values = document.get_mut("values").and_then(serde_json::Value::as_object_mut).expect("the journal records values");
+    assert!(values.remove(crate::subvolume_journal::STAGE_ROOT).is_some(), "the control starts from a journal that records the stage");
+    if values.is_empty() {
+        document.remove("values");
+    }
+    std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
+}
+
+/// What:
+///  A rollback deletes no subvolume when the journal records no identity for the one the migration made.
+/// Why:
+///   The identity of the stage reaches the journal in a write of its own,
+/// so a kill before it leaves a journal that records the
+///  creation and no identity,
+/// and a journal written before this release records none of the values at all;
+/// the rollback read a missing
+///  identity as permission and destroyed whatever subvolume stood at the stage's name,
+/// with the data it held.
+#[test]
+fn a_rollback_refuses_a_stage_the_journal_records_no_identity_for() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-unrecorded-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    forget_the_recorded_stage(layout.journal_path.as_path());
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (rollback_code, rollback_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(rollback_code, REFUSED, "{rollback_lines:#?}");
+    let said: String = rollback_lines.join("\n");
+    assert!(said.contains("records no identity") && said.contains("nothing was deleted"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
+    assert!(parent.join("staged-aside").exists(), "the stage this migration made is left where it was moved");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback preview of a migration stopped right after the exchange is not refused.
+/// Why:
+///   In that state the stage's name holds the original plain directory and the checkout holds the new subvolume;
+/// the real
+///  rollback renames the original directory aside,
+/// swaps the trees back and only then deletes the subvolume,
+/// which is the
+///  one the journal recorded.
+/// The preview examined the stage's name as it stood and refused a rollback the real
+///  command performs.
+#[test]
+fn a_rollback_preview_after_the_exchange_is_not_refused() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-preview-after-exchange");
+    let (stopped_code, stopped_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-exchange", 0));
+    assert_eq!(stopped_code, FAILED, "{stopped_lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "the checkout holds the new subvolume");
+    assert!(!platform.is_subvolume_root(layout.new_path.as_path()).unwrap_or(true), "the stage's name holds the original directory");
+    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..rollback_arguments() };
+    let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(preview_code, DONE, "{preview_lines:#?}");
+    let said: String = preview_lines.join("\n");
+    assert!(said.contains("would restore") && !said.contains("refused"), "{said}");
+    // The preview promised what the real mode does.
+    let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(real_code, DONE, "{real_lines:#?}");
     assert_original_again(&platform, root.as_path());
     remove(parent.as_path());
 }

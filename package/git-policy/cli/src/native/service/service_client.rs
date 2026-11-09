@@ -29,6 +29,7 @@ pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_reti
 use crate::service_client_listen_and_ask_to_retire::{Heard, listen, read_message};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
+use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
 use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
@@ -40,6 +41,9 @@ use std::io::{BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::{Duration, Instant};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "serviceClient";
 
 /// What a request came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -264,7 +268,31 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         // and
         //  what the person was already told (`told_place`) is what outlives it.
         let mut last_place: Option<(usize, usize)> = None;
-        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
+        // What:
+        //  The connection that can answer this request,
+        // or the end of the command when no service can.
+        // Why:
+        //  A request that was already sent may have landed,
+        // and failing to reach a service again cannot say it did not:
+        // the service that took it may have landed it and died,
+        // or a service of another release may hold it now.
+        //  Such a failure therefore ends with the words for a result that is not known,
+        // as a silence does,
+        // and the landing path looks for the commit before it says anything
+        // (`service_commit_looking_for_what_landed.rs`).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const reader = await reachCurrent(config); // after a send: a failure means 'not known', never 'not made'
+        // ```
+        let mut reader: BufReader<UnixStream> = match reach_current(config, notices, &mut announced, &mut trace.reach, service_seen) {
+            Ok(reached) => reached,
+            Err(failure) if trace.sends > 0 => {
+                debug(TAG, format!("the service could not be reached again after the request was sent ({failure:?}), so the result is not known").as_str());
+                return Err(ClientFailure::ServiceSilent);
+            }
+            Err(failure) => return Err(failure),
+        };
         service_seen = true;
         let mut payload: String = line.clone();
         payload.push('\n');
