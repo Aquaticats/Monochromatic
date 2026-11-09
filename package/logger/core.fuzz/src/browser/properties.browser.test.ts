@@ -14,7 +14,7 @@
 import {
   expect,
   test,
-} from '@playwright/test';
+} from '../../../../../playwright/test-with-a-persistent-context.ts';
 
 import type { BrowserPropertyRunner, } from './report.ts';
 
