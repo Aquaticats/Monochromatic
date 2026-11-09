@@ -2617,3 +2617,73 @@ fn a_merge_that_installed_nothing_does_not_stop_a_command_on_another_branch() {
     assert_eq!(snapshot(&world), before, "nothing of the checkout changed");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  An executable bit a person set before recovery judged the file keeps the saved merge from replacing it.
+/// Why:
+///  The judgement compared content alone,
+/// so a file whose bytes were the branch's and whose mode was the person's was
+///  read as untouched,
+/// the take's identity check passed because it read the mode the person had already set,
+/// and
+///  the merge's file replaced it with its own mode:
+/// the bit was erased without a word
+///  (a cross-vendor review of the ninth round,
+/// its seventh finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = world(); const record = deferredRecord(); chmod('f.txt', 0o755); const outcomes = await recover(...); expect(outcomes[0].action).toBe('deferred-refused'); expect(mode('f.txt')).toEqual(0o755); expect(read('f.txt')).toEqual(base);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_file_whose_mode_changed_before_the_judgement_is_not_replaced() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = world("merge-recovery-mode-before-judging");
+    let record: PathBuf = deferred_record_of(&world, "58585858-0000-4000-8000-000000000058", "refs/cli-git/kept/58");
+    // The person makes the file executable while the merge waits for the index lock.
+    let location: PathBuf = world.repo.join("f.txt");
+    std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the person's executable bit");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("a saved merge that wrote nothing lets the command go on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused, "the merge is refused, not installed: {text}");
+    assert!(text.contains("f.txt"), "the path is named: {text}");
+    assert_eq!(std::fs::read(location.as_path()).expect("the file"), b"f.txt base\n", "the person's file is where it was");
+    let mode: u32 = std::fs::metadata(location.as_path()).expect("the file").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o755, "the person's executable bit is kept");
+    assert!(record.exists(), "the record is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), " M f.txt", "the checkout is exactly as the person left it");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A mode difference in a repository that ignores file modes does not stop the merge.
+/// Why:
+///  `core.fileMode` is false where the filesystem cannot keep the executable bit,
+/// and Git then reads no mode
+///  difference at all;
+/// a judgement that refused one there would stop every recovery of a merge that touches an
+///  executable path on such a filesystem,
+/// which is the class of failure this route exists to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = world(); const record = deferredRecord(); gitConfig('core.filemode', 'false'); chmod('f.txt', 0o755); const outcomes = await recover(...); expect(outcomes[0].action).toBe('completed'); expect(read('f.txt')).toEqual(mergeContent);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_mode_a_repository_ignores_does_not_stop_the_merge() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = world("merge-recovery-mode-ignored");
+    let record: PathBuf = deferred_record_of(&world, "59595959-0000-4000-8000-000000000059", "refs/cli-git/kept/59");
+    git(world.repo.as_path(), &["config", "core.filemode", "false"]);
+    std::fs::set_permissions(world.repo.join("f.txt").as_path(), std::fs::Permissions::from_mode(0o755)).expect("a mode the repository ignores");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands, as Git would land it: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the merge's file"), b"f.txt feature\n", "the merge's content is in place");
+    remove(world.parent.as_path());
+}
