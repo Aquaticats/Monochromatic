@@ -2402,6 +2402,25 @@ which are exactly the paths the move wrote,
 so a staged edit of the person's on any other path stays as it was.
 Nothing is written back when the checkout already shows the merge's tree
 (`move_the_named_branch` in `src/native/push/auto_push_reconcile_branch_advance.rs`).
+The put-back can still take a file the switched-to branch itself commits,
+and only a second process inside that window can make it:
+a branch that already holds the merge's content on a path the merge adds or changes,
+and an unrelated commit of its own on top,
+switched to in the few instructions after the look at the checkout and before the write.
+The forward `read-tree -u -m <local> <merge>` then leaves that path alone,
+because the index already holds the merge's entry for it,
+and the put-back,
+whose paths are the ones where `<local>` and `<merge>` differ,
+writes the tree the reconcile started from onto it:
+the switched-to checkout gets a staged deletion,
+or the older content,
+of a file its own branch commits.
+The branch then moves and the intent record goes,
+so nothing in the record says this happened.
+No lock and no third look is added for the window,
+because a kill alone cannot reach it and a process cannot be kept from switching branches between two of this
+command's steps;
+a worktree that shows such a staged deletion puts the file back with `git restore -- <path>`.
 A push the service stopped or that failed is tried again by the service on its own,
 with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
