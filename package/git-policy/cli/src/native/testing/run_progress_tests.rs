@@ -75,6 +75,7 @@ fn a_run_whose_counters_stop_being_readable_is_ended() {
         ended = judge.observe(elapsed, None);
     }
     let reported: Ending = ended.expect("the run ends rather than wait for a reading that never comes");
+    assert_eq!(reported, Ending::Unreadable(window), "the window of looks that read nothing ends the run");
     let said: String = reported.to_string();
     assert!(said.contains("counters"), "the ending names what could not be read: {said}");
 }
@@ -153,6 +154,8 @@ fn the_ending_names_the_quiet_stretch_and_the_signs_it_read() {
     assert!(quiet.contains("no task able to run or waiting for the disk") && quiet.contains("no bytes moved"), "{quiet}");
     let unmeasured: String = Ending::Unmeasurable(Duration::from_secs(120)).to_string();
     assert!(unmeasured.contains("120.0 s") && unmeasured.contains("counts no work"), "{unmeasured}");
+    let unread: String = Ending::Unreadable(Duration::from_millis(3_500)).to_string();
+    assert!(unread.contains("3.5 s") && unread.contains("counters") && unread.contains("out of file descriptors"), "{unread}");
 }
 
 /// The look counts this process and the processes it started,
