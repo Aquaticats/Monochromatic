@@ -21,11 +21,10 @@
 //! ```
 
 use crate::index_lock_evidence::{
-    Verdict, WaitEnd, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    Verdict, WaitEnd, classify_index_lock, dead_owner_diagnostic, gather_with, host_pid_process, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
     ceiling_line, blocker_words, unproven_removal_advice, holder_way_out,
 };
 use crate::index_lock_holders::scan_platform_holders_bounded;
-use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
 use crate::service_index_refused_lock::{forget, recall, remember};
@@ -109,7 +108,7 @@ struct Looked {
 /// its words,
 /// and the diagnostic for a look that ends the wait.
 fn look_at_holder(index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
-    let gathered = gather_with(index, resolve_process_start, scan_platform_holders_bounded);
+    let gathered = gather_with(index, host_pid_process, scan_platform_holders_bounded);
     let evidence = match gathered {
         Ok(Some(found)) => found,
         // The lock was released between the placement and this look.

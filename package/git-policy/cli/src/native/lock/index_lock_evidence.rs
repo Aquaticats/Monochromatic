@@ -6,8 +6,7 @@
 //! Why:
 //!  A live owner is proven by a process holding the lock open (device and inode),
 //!  or by Git's
-//!      `core.lockfilePid` file naming a running process that started no later than the lock
-//!      changed.
+//!      `core.lockfilePid` file naming a running process that is Git.
 //!  A PID file naming a gone process proves a dead owner.
 //!  Everything else is
 //!      evidence-free;
@@ -15,6 +14,12 @@
 //!  because native
 //!      `git commit` keeps `index.lock` without a descriptor through its hooks and editor
 //!      (`src/index-lock/index-lock-evidence.ts`).
+//!  No verdict rests on the wall clock (audit of 2026-11-09,
+//! finding 3):
+//!  a process's start is derived from the wall clock while the lock's change time is stored,
+//!  so a step of the clock moves the two against each other and the same evidence would then answer
+//!  "the number was reused" or "the holder runs" by the clock alone.
+//!  A start still read from the process table is worded beside the evidence and never decides.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -72,37 +77,67 @@ pub struct LockMetadata {
     pub ctime_ms: i64,
 }
 
+/// The prefix of Git's command name and of its helpers (`git-remote-https`),
+/// as the kernel reports it in `/proc/<pid>/comm`.
+const GIT_COMMAND_PREFIX: &str = "git";
+
 /// What:
 ///  The process a PID file names,
-///  now.
+///  now:
+///  whether it runs,
+///  when this host's clock puts its start,
+///  and what it is called.
 /// Why:
-///   `PidOwnerEvidence`.
+///   `PidProcess`.
+/// The start is read from `/proc/<pid>/stat` and `/proc/uptime`,
+///  so it moves with the wall clock,
+///  and the command name is what tells a Git that writes its own number from a later program that took the number.
+///  Only the name is read,
+///  never the arguments or the environment,
+///  which can hold a token.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PidOwnerEvidence = { state: 'missing' } | { state: 'started-before-lock'; startedAtMs } | ...;
+/// type PidProcess = { start: ProcessStart; command?: string };
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub enum PidOwner {
-    /// No such process runs,
-    ///  or it is a zombie.
-    Missing,
-    /// A process runs that started no later than the lock changed.
-    StartedBeforeLock(
-        /// Start time in milliseconds since the epoch.
-        f64,
-    ),
-    /// A process runs that started after the lock changed:
-    ///  the PID was reused.
-    StartedAfterLock(
-        /// Start time in milliseconds since the epoch.
-        f64,
-    ),
-    /// A process runs whose start time is unreadable.
-    StartUnknown(
-        /// Why the start time could not be read.
-        String,
-    ),
+pub struct PidProcess {
+    /// Whether the process runs,
+    ///  and when this host's clock puts its start.
+    pub start: ProcessStart,
+    /// The command name the kernel reports,
+    ///  when it could be read.
+    pub command: Option<String>,
+}
+
+impl PidProcess {
+    /// Whether no process has the number any more (or it is a zombie).
+    pub fn gone(&self) -> bool {
+        return matches!(self.start, ProcessStart::Missing);
+    }
+
+    /// Whether a process runs that is named like Git:
+    /// Git writes its own number into the PID file,
+    /// so such a process is the holder.
+    pub fn names_git(&self) -> bool {
+        if !matches!(self.start, ProcessStart::Running { .. }) {
+            return false;
+        }
+        return self.command.as_deref().is_some_and(|name| { return name.starts_with(GIT_COMMAND_PREFIX); });
+    }
+
+    /// Whether this host's clock puts the process's start after the lock's change time,
+    /// which a reuse of the number would explain,
+    /// and which a clock that moved explains as well.
+    /// Only worded:
+    /// no verdict rests on it (audit of 2026-11-09,
+    /// finding 3).
+    pub fn starts_after(&self, lock: &LockMetadata) -> bool {
+        return match self.start {
+            ProcessStart::Running { started_at_ms, resolution_ms } => started_at_ms > (lock.ctime_ms + resolution_ms) as f64,
+            ProcessStart::Missing | ProcessStart::Unknown(_) => false,
+        };
+    }
 }
 
 /// What:
@@ -134,7 +169,7 @@ pub enum PidFile {
         /// The PID the file names.
         i64,
         /// What the process named by the PID is now.
-        PidOwner,
+        PidProcess,
     ),
 }
 
@@ -268,26 +303,21 @@ pub fn parse_pid_file_text(text: &str) -> Option<i64> {
 }
 
 /// What:
-///  The owner evidence of a PID's start against the lock's change time.
+///  The process a PID names,
+///  as this host's process table reports it:
+///  its start and its command name.
 /// Why:
-///   `ownerEvidence`:
-///  started no later than the change plus the start's resolution.
+///   The production read behind every PID file's evidence,
+///  and the only place the wall clock enters it,
+///  where it is worded and never decides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ownerEvidence({ start, lock }): PidOwnerEvidence;
+/// ({ start: resolveProcessStart(pid), command: readFileSync(`/proc/${pid}/comm`, 'utf8').trim() })
 /// ```
-pub fn owner_evidence(start: ProcessStart, lock: &LockMetadata) -> PidOwner {
-    match start {
-        ProcessStart::Missing => return PidOwner::Missing,
-        ProcessStart::Unknown(reason) => return PidOwner::StartUnknown(reason),
-        ProcessStart::Running { started_at_ms, resolution_ms } => {
-            if started_at_ms <= (lock.ctime_ms + resolution_ms) as f64 {
-                return PidOwner::StartedBeforeLock(started_at_ms);
-            }
-            return PidOwner::StartedAfterLock(started_at_ms);
-        }
-    }
+pub fn host_pid_process(pid: i64) -> PidProcess {
+    let command: Option<String> = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok().map(|text| { return text.trim().to_owned(); }).filter(|name| { return !name.is_empty(); });
+    return PidProcess { start: resolve_process_start(pid), command };
 }
 
 /// What:
@@ -324,7 +354,7 @@ fn quoted_prefix(text: &str) -> String {
 /// ```ts
 /// async function readPidFileEvidence({ pidPath, lock, resolveStart }): Promise<PidFileEvidence>;
 /// ```
-pub fn read_pid_file_evidence(pid_path: &Path, lock: &LockMetadata, resolve: fn(i64) -> ProcessStart) -> PidFile {
+pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -> PidFile {
     let text: String = match std::fs::read(pid_path) {
         Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
         Err(error) if is_missing(&error) => return PidFile::Absent,
@@ -333,7 +363,7 @@ pub fn read_pid_file_evidence(pid_path: &Path, lock: &LockMetadata, resolve: fn(
     let Some(pid) = parse_pid_file_text(text.as_str()) else {
         return PidFile::Malformed(quoted_prefix(text.as_str()));
     };
-    return PidFile::Owner(pid, owner_evidence(resolve(pid), lock));
+    return PidFile::Owner(pid, resolve(pid));
 }
 
 /// What:
@@ -341,9 +371,15 @@ pub fn read_pid_file_evidence(pid_path: &Path, lock: &LockMetadata, resolve: fn(
 /// Why:
 ///   `classifyIndexLock`:
 ///  an open holder first,
-///  then a PID file of a process that started
-///       before the lock,
-///  then one naming a gone process.
+///  then a PID file naming a running Git,
+///  then one naming a gone process,
+///  and anything else is evidence-free.
+///  The command name decides and the clock never does:
+///  a Git writes its own number into the PID file,
+///  so a running process named like Git is the holder whatever the wall clock says about its start,
+///  and a running program that is not named like Git may be the writer under another name or a later program that took the number,
+///  which no time can tell apart (audit of 2026-11-09,
+/// finding 3).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,14 +396,14 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
         };
     }
     match &evidence.pid_file {
-        PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) => {
+        PidFile::Owner(pid, process) if !process.gone() && !process.starts_after(&evidence.lock) => {
             return Verdict::ProvenAlive {
                 pid: *pid,
                 by_descriptor: false,
-                command: None,
+                command: process.command.clone(),
             };
         }
-        PidFile::Owner(pid, PidOwner::Missing) => return Verdict::Dead(*pid),
+        PidFile::Owner(pid, process) if process.gone() => return Verdict::Dead(*pid),
         _ => return Verdict::EvidenceFree,
     }
 }
@@ -384,7 +420,7 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
 /// ```
 pub fn gather_with(
     real_index: &Path,
-    resolve: fn(i64) -> ProcessStart,
+    resolve: fn(i64) -> PidProcess,
     scan: fn(&Path, u64, u64) -> HolderEvidence,
 ) -> std::io::Result<Option<Evidence>> {
     let mut name: std::ffi::OsString = real_index.as_os_str().to_owned();
@@ -393,8 +429,10 @@ pub fn gather_with(
     let Some(lock) = read_lock_metadata(lock_path.as_path())? else {
         return Ok(None);
     };
-    let pid_file: PidFile = read_pid_file_evidence(lock_pid_path(real_index).as_path(), &lock, resolve);
-    if let PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) = &pid_file {
+    let pid_file: PidFile = read_pid_file_evidence(lock_pid_path(real_index).as_path(), resolve);
+    if let PidFile::Owner(pid, process) = &pid_file
+        && process.names_git()
+    {
         crate::diagnostic_log::debug(
             "gatherIndexLockEvidence",
             format!("PID file proves live owner {pid}").as_str(),
@@ -420,7 +458,7 @@ pub fn gather_with(
 /// await gatherIndexLockEvidence({ realIndexPath })
 /// ```
 pub fn gather_index_lock_evidence(real_index: &Path) -> std::io::Result<Option<Evidence>> {
-    return gather_with(real_index, resolve_process_start, scan_platform_holders);
+    return gather_with(real_index, host_pid_process, scan_platform_holders);
 }
 
 /// What:
@@ -528,10 +566,12 @@ fn evidence_words(evidence: &Evidence) -> String {
         PidFile::Absent => String::from("no Git lock PID file beside it (`core.lockfilePid` is off for the program that made it, or it is not Git)"),
         PidFile::Malformed(text) => format!("a Git lock PID file whose text is not `pid <number>` ({text:?})"),
         PidFile::Unreadable(reason) => format!("a Git lock PID file that could not be read ({reason})"),
-        PidFile::Owner(pid, PidOwner::StartedAfterLock(_)) => format!("a Git lock PID file naming PID {pid}, which started after the lock was made (the number was reused)"),
-        PidFile::Owner(pid, PidOwner::StartUnknown(reason)) => format!("a Git lock PID file naming PID {pid}, whose start time could not be read ({reason})"),
-        PidFile::Owner(pid, PidOwner::Missing) => format!("a Git lock PID file naming PID {pid}, which no longer runs"),
-        PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) => format!("a Git lock PID file naming PID {pid}, which runs"),
+        PidFile::Owner(pid, process) if process.gone() => format!("a Git lock PID file naming PID {pid}, which no longer runs"),
+        PidFile::Owner(pid, process) if process.starts_after(&evidence.lock) => format!(
+            "a Git lock PID file naming PID {pid} ({}), which runs, and which this host's clock puts after the lock was made, which a reused number would explain and so would a clock that moved",
+            process.command.as_deref().unwrap_or("command name unknown")
+        ),
+        PidFile::Owner(pid, process) => format!("a Git lock PID file naming PID {pid} ({}), which runs", process.command.as_deref().unwrap_or("command name unknown")),
     };
     return format!("{descriptors}, and {pid_file}");
 }

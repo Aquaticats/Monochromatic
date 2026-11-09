@@ -51,9 +51,8 @@
 //! removeIfUnheld(platform, index, scan) // open; empty and unmarked? no pid file? scan complete and empty; own descriptors == 1; same file; unlink
 //! ```
 
-use crate::index_lock_evidence::{LockMetadata, PidFile, read_pid_file_evidence};
+use crate::index_lock_evidence::{LockMetadata, PidFile, host_pid_process, read_pid_file_evidence};
 use crate::index_lock_holders::HolderEvidence;
-use crate::process_start::resolve_process_start;
 use crate::recovery_files::lock_pid_path;
 use crate::service_index_marker::marker_of_file;
 use crate::service_index_placement::Platform;
@@ -162,7 +161,7 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
     }
     let identity: LockMetadata = LockMetadata { device: opened.dev(), inode: opened.ino(), ctime_ms: opened.ctime() * 1000 + opened.ctime_nsec() / 1_000_000 };
     // "There is no Git PID file" is no file at all: a damaged one, or one naming a gone process, is evidence this removal does not judge.
-    if read_pid_file_evidence(lock_pid_path(index).as_path(), &identity, resolve_process_start) != PidFile::Absent {
+    if read_pid_file_evidence(lock_pid_path(index).as_path(), host_pid_process) != PidFile::Absent {
         return Unheld::Kept;
     }
     let scanned: HolderEvidence = scan(lock.as_path(), identity.device, identity.inode);
