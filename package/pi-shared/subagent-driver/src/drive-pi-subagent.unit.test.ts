@@ -101,6 +101,15 @@ const RETRY_BASE_MILLISECONDS = RETRY_BASE_SECONDS * MILLISECONDS_PER_SECOND;
  How many looks at the inbox one retry wait spans, so a message dropped during the wait is there before the attempt goes.
  */
 const LOOKS_A_RETRY_WAIT_SPANS = 4;
+/**
+ Seconds before the first retry in a test whose run must never reach it, far past the wall clock the run itself is given.
+ */
+const WAIT_PAST_THE_RUN_SECONDS = 600;
+/**
+ Seconds a run may last when its subject is what the driver does while a run it did not start is going: long enough for start-up,
+ a retry and an inbox delivery on a loaded host, and short enough that the test waits for the wall clock itself.
+ */
+const RUN_THAT_STAYS_BUSY_WALL_SECONDS = 3;
 /** Status of a run that ended on its own terms. */
 const CLEAN_STATUS = 0;
 /** Status of a run that did not. */
@@ -929,6 +938,69 @@ await describe({
         expect(run.summary.retries,).toBe(1,);
         expect(run.summary.rateLimitErrors,).toBe(1,);
         expect(run.feed.find((entry,) => entry.kind === 'retry')?.errorKind,).toBe('throttled',);
+      },
+    },),
+    it({
+      name: 'a retry Pi only handles ends the run on the failure rather than as a run that came back',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'handled-retry',
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
+        },);
+        // No run started for the prompt and no reply came, so nothing recovered the failure: the run failed, whatever its Pi
+        // did with the prompt.
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(TRANSIENT_ERROR_TEXT,);
+        expect(run.summary.retries,).toBe(3,);
+        expect(run.summary.modelErrorAttempts,).toBe(4,);
+        expect(run.feed.filter((entry,) => entry.kind === 'retry_prompt').map((entry,) => entry.disposition),)
+          .toEqual(['handled', 'handled', 'handled',],);
+      },
+    },),
+    it({
+      name: 'a retry stays held while a run a message from the inbox started is still going',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'busy-after-inbox',
+          wallSeconds: RUN_THAT_STAYS_BUSY_WALL_SECONDS,
+          idleSeconds: LONG_IDLE_SECONDS,
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
+          whileRunning: async (running,) => {
+            // The message waits out the retry, which goes first, and the driver then hands it to a resting Pi.
+            await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
+            await dropInInbox({ runFolder: running.runFolder, text: 'a message that starts a run of its own', },);
+            await waitForFeed({ ...running, text: '"kind":"inbox"', },);
+          },
+        },);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        /**
+         What Pi was sent: the first prompt, the retry that answers the failure, and the message the inbox held. A fourth one
+         would have been the retry landing in the run that message started.
+         */
+        const messages = run.sentCommands
+          .filter((command,) => (command.type === 'prompt') || (command.type === 'steer'))
+          .map((command,) => command.message);
+        expect(messages,).toHaveLength(3,);
+        expect(messages[1],).toBe(continuationPromptOf({ problem: TRANSIENT_ERROR_TEXT, },),);
+        // The message went to Pi and its run was never interrupted, so nothing of it was kept aside.
+        expect(run.inbox,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'a wait Pi leaves before leaves the failure standing and counts no retry',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'exits-after-error',
+          extraOptions: [`--retry-base-seconds=${String(WAIT_PAST_THE_RUN_SECONDS,)}`,],
+        },);
+        expect(run.summary.endReason,).toBe('pi-exited',);
+        // A retry the run never reached is not an attempt it made, and the failure it would have answered stays reported.
+        expect(run.summary.retries,).toBe(0,);
+        expect(String(run.summary.modelError,),).toContain(TRANSIENT_ERROR_TEXT,);
+        expect(run.summary.modelErrorAttempts,).toBe(1,);
+        expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt'),).toHaveLength(1,);
       },
     },),
     it({

@@ -4,7 +4,10 @@
  @module
  */
 
-import { stdout, } from 'node:process';
+import {
+  exit,
+  stdout,
+} from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
 import {
@@ -32,6 +35,22 @@ import {
  Status the crashing scenarios exit with.
  */
 export const CRASH_STATUS = 3;
+
+/**
+ Status a scenario exits with when it leaves on its own terms.
+ */
+const CLEAN_EXIT_STATUS = 0;
+
+/**
+ How many looks at the run Pi's leaving leaves room for, so a retry the driver scheduled is on its feed before Pi's exit is seen.
+ */
+const LOOKS_BEFORE_LEAVING = 3;
+
+/**
+ Milliseconds after the failed attempt at which Pi leaves, long enough for the driver to have scheduled the retry it owes and
+ short enough that the wait is nowhere near the retry's own delay.
+ */
+const LEAVE_AFTER_FAILURE_MILLISECONDS = POLL_MILLISECONDS * LOOKS_BEFORE_LEAVING;
 
 /**
  Milliseconds between the halves of a record written in two pieces.
@@ -311,6 +330,54 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
       error: RATE_LIMIT_ERROR_TEXT,
       recovers: true,
     }),
+  ],
+  [
+    'handled-retry',
+    function handleTheRetry(id,) {
+      // The first attempt fails, and every retry after it is a prompt Pi consumes without starting a run or replying.
+      if (seen.prompts === 1) {
+        answer({ id, },);
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      emit({
+        type: 'response',
+        id,
+        success: true,
+        data: { disposition: 'handled', },
+      },);
+    },
+  ],
+  [
+    'busy-after-inbox',
+    function startARunAndRefuseTheNextPrompt(id,) {
+      if (seen.prompts <= 2) {
+        answer({ id, },);
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      if (seen.prompts === 3) {
+        // What a message from the inbox starts: a run that produces no assistant message and does not settle.
+        answer({ id, },);
+        emit({ type: 'agent_start', },);
+        return;
+      }
+      emit({
+        type: 'response',
+        id,
+        success: false,
+        error: 'a run is already going',
+      },);
+    },
+  ],
+  [
+    'exits-after-error',
+    async function endInErrorThenLeave(id,) {
+      answer({ id, },);
+      finishRunInError(TRANSIENT_ERROR_TEXT,);
+      await wait(LEAVE_AFTER_FAILURE_MILLISECONDS,);
+      exit(CLEAN_EXIT_STATUS,);
+    },
   ],
   [
     'recovered-error',
