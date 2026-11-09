@@ -277,7 +277,22 @@ pub fn clean_would_delete_from_answer(answer: &MetadataOutput) -> Result<bool, S
             .to_string();
         return Err(format!("Git could not read what the clean would delete: {detail}"));
     }
-    return Ok(!answer.stdout.iter().all(|byte| return byte.is_ascii_whitespace()));
+    return Ok(!answer.stdout.iter().all(is_ascii_whitespace));
+}
+
+/// What:
+///  Whether one byte of the dry run's answer is whitespace.
+/// Why:
+///   A dry run that would delete nothing prints nothing,
+/// and a named function keeps that pass free of a
+///  closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => /\s/.test(String.fromCharCode(byte))
+/// ```
+fn is_ascii_whitespace(byte: &u8) -> bool {
+    return byte.is_ascii_whitespace();
 }
 
 /// What:

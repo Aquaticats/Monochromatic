@@ -549,8 +549,8 @@ fn repository_that_tracks_an_ignored_file(fixture: &Fixture) -> (PathBuf, PathBu
     return (repo, linked);
 }
 
-/// A forced `checkout`, a forced `switch` and a hard `reset` replace an ignored file the target
-/// tree tracks,
+/// A forced `checkout`,
+/// a forced `switch` and a hard `reset` replace an ignored file the target tree tracks,
 /// and the ignored file is where a person keeps their environment and their local secrets,
 /// so the guard reads the target tree and the ignored paths and refuses while they share a path.
 #[test]

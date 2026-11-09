@@ -35,9 +35,11 @@ use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees}
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
 use crate::policy_audited::record_audited;
-/// The guarded decision about the command Git will run, resolved once with the guard and the transforms.
+/// The guarded decision about the command Git will run,
+///  resolved once with the guard and the transforms.
 use crate::policy_checks::guarded_forwarded;
-/// The expansion an alias names, which the guard decided on.
+/// The expansion an alias names,
+///  which the guard decided on.
 use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::repository_facts::RepositoryFacts;
 use crate::worktree_identity::worktree_root;

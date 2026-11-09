@@ -9093,8 +9093,9 @@ and leave one audit line each
   so it is written where a guarded form's hatch line would be.
   Both files are read only when they are regular files,
   and each is opened without waiting (`O_NONBLOCK`) and read up to 4,096 bytes:
-  a FIFO named `.git` with no writer, or one whose writer never writes, would otherwise
-  hold the removal for ever,
+  a FIFO named `.git` with no writer,
+  or one whose writer never writes,
+  would otherwise hold the removal for ever,
   and a record that cannot be completed is left out rather than waited for.
   A relative `gitdir:` pointer is resolved against the worktree that holds it,
   as Git resolves it,

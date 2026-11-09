@@ -107,11 +107,11 @@ pub const TOP_LITERAL_PATHSPEC: &[u8] = b":(top,literal)";
 /// What:
 ///  The most bytes of pathspec one ignored-paths query carries.
 /// Why:
-///   One start carries what the system accepts (measured: 1860 pathspecs of 85 KB answered in 21 ms
-///  in one start,
-///  and this host's `getconf ARG_MAX` is 2,097,152 bytes),
-/// and a worktree with millions of
-///  tracked paths is asked in as many bounded starts as it needs instead of failing to start at all.
+///   One start carries what the system accepts,
+///  measured at 1860 pathspecs of 85 KB answered in 21 ms in one start
+///  (this host's `getconf ARG_MAX` is 2,097,152 bytes),
+/// and a worktree with millions of tracked paths is asked in as many bounded starts as it needs
+///  instead of failing to start at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

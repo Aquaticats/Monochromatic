@@ -284,9 +284,9 @@ fn a_silent_dry_run_deletes_nothing() {
     );
 }
 
-/// Real Git: the dry run prints the file an `-e` pattern makes this clean delete,
-/// while the status calls
-///  the same file untracked and not ignored.
+/// Real Git:
+///  the dry run prints the file an `-e` pattern makes this clean delete,
+/// while the status calls the same file untracked and not ignored.
 #[test]
 fn the_dry_run_sees_the_exclusion_the_status_cannot() {
     let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("clean-exclude-dry-run");

@@ -680,7 +680,8 @@ fn an_unreadable_status_is_reported() {
 }
 
 /// linked-worktree-only:
-///  a forced `checkout`, a forced `switch` and a hard `reset` are rejected in a clean linked worktree
+///  a forced `checkout`,
+///  a forced `switch` and a hard `reset` are rejected in a clean linked worktree
 ///  while the worktree ignores a path the tree they write also tracks,
 ///  and the line names the path it saw.
 #[test]

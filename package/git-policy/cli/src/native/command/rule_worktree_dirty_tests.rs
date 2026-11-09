@@ -230,9 +230,9 @@ fn the_ignored_answer_lists_the_paths_git_printed() {
     );
 }
 
-/// Real Git: the ignored-paths query names the ignored files the tree tracks,
-/// a path that is only
-///  untracked is not one of them,
+/// Real Git:
+///  the ignored-paths query names the ignored files the tree tracks,
+/// a path that is only untracked is not one of them,
 /// and a path that is ignored but absent is left to the worktree's disk.
 #[test]
 fn real_git_lists_the_ignored_file_the_tree_tracks() {

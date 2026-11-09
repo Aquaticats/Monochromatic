@@ -47,6 +47,10 @@ pub mod event_hints;
 /// The shipped policies as checks over rule cores and repository facts.
 pub mod policy_checks;
 
+/// The linked-worktree check,
+/// in its own file so the registry of shipped policies stays readable.
+pub mod policy_linked_worktree;
+
 /// What a lifecycle offers content policies,
 ///  and its candidates once prepared.
 pub mod policy_content;

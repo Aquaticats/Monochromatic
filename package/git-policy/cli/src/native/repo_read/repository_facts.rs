@@ -175,6 +175,21 @@ pub trait RepositoryFacts {
 }
 
 /// What:
+///  Whether one byte of a `-z` answer ends a path.
+/// Why:
+///   The NUL-terminated form separates paths with zero bytes,
+/// and a named function keeps that pass free of
+///  a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
 ///  The provider that asks real Git.
 ///  A `struct` is a record with named fields;
 ///       `Option<T>` is "a value or nothing";
@@ -350,7 +365,7 @@ impl GitFacts {
             return Ok(None);
         }
         let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-        for path in output.stdout.split(|byte: &u8| return *byte == 0) {
+        for path in output.stdout.split(is_nul_byte) {
             if !path.is_empty() {
                 paths.push(path.to_vec());
             }

@@ -116,7 +116,8 @@ pub fn branch_deletion(region: &[OsString]) -> Option<BranchDeletion> {
 /// function branchDeletions(region: string[]): string[] | undefined;
 /// ```
 pub fn branch_deletions(region: &[OsString]) -> Option<Vec<OsString>> {
-    return branch_deletion(region).map(|deletion| return deletion.names);
+    let deletion: BranchDeletion = branch_deletion(region)?;
+    return Some(deletion.names);
 }
 
 /// The one short option of `git branch` that takes a value,
@@ -145,10 +146,23 @@ fn spells_remotes(token: &[u8]) -> bool {
         return token == b"--remotes";
     }
     let letters: &[u8] = &token[1..];
-    let Some(position) = letters.iter().position(|letter| return *letter == b'r') else {
+    let Some(position) = letters.iter().position(is_remotes_letter) else {
         return false;
     };
     return !letters[..position].contains(&UPSTREAM_LETTER);
+}
+
+/// What:
+///  Whether one letter of a short cluster is the `--remotes` flag.
+/// Why:
+///   A named function keeps the scan free of a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (letter: number) => letter === 0x72
+/// ```
+fn is_remotes_letter(letter: &u8) -> bool {
+    return *letter == b'r';
 }
 
 /// What:
