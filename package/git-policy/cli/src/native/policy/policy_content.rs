@@ -37,6 +37,9 @@ use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the change a converged fix installs,
 ///  which also records a corrected file.
 use crate::direct_fix_install::InstallChange;
+/// Import the event form of a pathname,
+///  which a skipped check names.
+use crate::event_path::EventPath;
 /// Import the outcome a check returns.
 use crate::policy_engine::PolicyOutcome;
 /// Import the facts interface that prepares candidates.
@@ -257,6 +260,32 @@ pub fn candidate_failure(error: &CandidateError) -> PolicyOutcome {
 }
 
 /// What:
+///  The outcome of a failed read of one candidate:
+///  a skipped check for an object larger than a check reads
+///       whole,
+///  and the failure every other cause is.
+/// Why:
+///   The owner's "commits should never fail" and the memory bound meet here:
+///  the file is named,
+///  the
+///       check is named,
+///  and the pass goes on instead of reading 256 MiB or refusing the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readFailure = (candidate, error) => error.failure === 'object-too-large' ? { kind: 'skipped', path: candidate.path, message: error.message } : candidateFailure(error);
+/// ```
+pub fn candidate_read_failure(candidate: &Candidate, error: &CandidateError) -> PolicyOutcome {
+    if error.failure != CandidateFailure::ObjectTooLarge {
+        return candidate_failure(error);
+    }
+    return PolicyOutcome::Skipped {
+        message: error.message.clone(),
+        path: Some(EventPath::from_git_bytes(candidate.path.as_slice())),
+    };
+}
+
+/// What:
 ///  `impl ContentState { ... }` attaches the constructor and the two reads.
 /// Why:
 ///   Preparation and reading stay behind one owner,
@@ -369,7 +398,7 @@ impl ContentState {
             Some(Ok(prepared)) => {
                 match overlaid_bytes(&mut prepared.store, &self.corrected, candidate) {
                     Ok(read) => return Ok(read),
-                    Err(error) => return Err(candidate_failure(&error)),
+                    Err(error) => return Err(candidate_read_failure(candidate, &error)),
                 }
             }
             Some(Err(_)) | None => return Err(candidate_failure(&not_prepared_error())),

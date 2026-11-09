@@ -70,7 +70,10 @@ pub fn candidate_failure_code(failure: CandidateFailure) -> EngineFailureCode {
         | CandidateFailure::PrivateIndexUnavailable => {
             return EngineFailureCode::ContentUnavailable;
         }
-        CandidateFailure::StaleCandidate => return EngineFailureCode::PolicyIncomplete,
+        // An object a check did not read whole is a check that did not run, not a missing input.
+        CandidateFailure::StaleCandidate | CandidateFailure::ObjectTooLarge => {
+            return EngineFailureCode::PolicyIncomplete;
+        }
     }
 }
 

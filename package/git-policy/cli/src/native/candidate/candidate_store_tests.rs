@@ -242,6 +242,61 @@ fn staged_bytes_are_exact_for_every_kind_of_entry() {
     remove(root.as_path());
 }
 
+/// What:
+///  A staged object larger than a content check reads whole is refused with its size,
+///  the
+///       reader stays in step,
+///  and the next smaller object still answers.
+/// Why:
+///   Reading a staged 256 MiB asset whole cost 534 MiB of memory (the audit's
+///       `fixture-big-blob`);
+///  the bound is spent on one candidate,
+///  and the commit reports the check it skipped
+///       instead of filling the host's memory or failing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await write(big); await git add big; expect(await store.bytes(big)).rejects.toMatchObject({ failure: 'object-too-large' })
+/// ```
+#[test]
+fn an_object_larger_than_a_check_reads_is_refused_and_the_reader_stays_in_step() {
+    let root: PathBuf = fixture("store-too-large");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    // One byte more than a check reads, and nothing else, so the fixture stays cheap to write.
+    let size: usize = crate::candidate_batch::CONTENT_CEILING + 1;
+    let mut big: Vec<u8> = vec![b'x'; size];
+    // A byte at the end proves the refusal looked at the declared size, not at a prefix.
+    big[size - 1] = b'y';
+    write(repo.as_path(), b"big.bin", big.as_slice());
+    write(repo.as_path(), b"small.txt", b"small\n");
+    git(repo.as_path(), &["add", "--", "big.bin", "small.txt"]);
+    let mut subject: CandidateStore = store(repo.as_path());
+    let version: Rc<CandidateVersion> = subject
+        .version(&CandidateSource::StagedAgainstHead)
+        .expect("staged version");
+    let refused: crate::candidate_error::CandidateError = subject
+        .bytes(at(&version, b"big.bin"))
+        .expect_err("larger than a check reads");
+    assert_eq!(
+        refused.failure,
+        crate::candidate_error::CandidateFailure::ObjectTooLarge
+    );
+    assert!(refused.message.contains(&size.to_string()), "{refused}");
+    assert!(
+        refused
+            .message
+            .contains(&crate::candidate_batch::CONTENT_CEILING.to_string()),
+        "{refused}"
+    );
+    assert!(!refused.message.contains("big.bin"), "{refused}");
+    // The reply was consumed, so the reader answers the next object of the same version.
+    let small: Rc<[u8]> = subject
+        .bytes(at(&version, b"small.txt"))
+        .expect("the object after it");
+    assert_eq!(&small[..], b"small\n");
+    remove(root.as_path());
+}
+
 /// A deletion and a submodule entry are answered without the object reader;
 ///  a blob starts it.
 #[test]

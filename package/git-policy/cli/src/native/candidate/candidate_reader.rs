@@ -384,6 +384,21 @@ impl ObjectReader {
                     .as_str(),
                 ));
             }
+            BatchReply::TooLarge { size, .. } => {
+                // A check that reads no whole object reports the skip and goes on; the reply was consumed, so the
+                // next request is answered normally.
+                return Err(CandidateError::new(
+                    CandidateFailure::ObjectTooLarge,
+                    format!(
+                        "monochromatic-git-policy-cli did not read the whole of object {} because the check reads at most {} bytes at a time and it declares {} bytes. \
+                         No candidate content was read from it. If it is text a check should read, split it; the commit goes on and reports the check it skipped.",
+                        object.as_str(),
+                        crate::candidate_batch::CONTENT_CEILING,
+                        size
+                    )
+                    .as_str(),
+                ));
+            }
             BatchReply::Found { kind, bytes, .. } => {
                 if kind != ObjectKind::Blob {
                     return Err(CandidateError::new(
@@ -419,7 +434,8 @@ impl ObjectReader {
     /// ```
     pub fn head_commit(&mut self) -> Result<Option<ObjectId>, CandidateError> {
         match self.request(b"HEAD")? {
-            BatchReply::Missing => return Ok(None),
+            // A commit that is larger than a content check reads is still a commit; only its bytes are refused.
+            BatchReply::Missing | BatchReply::TooLarge { .. } => return Ok(None),
             BatchReply::Found { object, kind, .. } => {
                 if kind != ObjectKind::Commit {
                     return Err(CandidateError::new(

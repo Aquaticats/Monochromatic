@@ -117,6 +117,18 @@ pub enum PolicyOutcome {
     /// The policy needs something this executable does not implement yet;
     ///  the text names it.
     Unavailable(&'static str),
+    /// The check did not run for one candidate because it does not read objects that large;
+    ///  the pass goes
+    ///       on and the report names the check it skipped.
+    Skipped {
+        /// What was not checked,
+        ///  for the person who ran the command;
+        ///  never a candidate's pathname.
+        message: String,
+        /// The candidate the skip is about,
+        ///  when one file is responsible.
+        path: Option<EventPath>,
+    },
     /// The policy could not finish.
     Failed {
         /// The cause,
@@ -349,6 +361,21 @@ pub fn run_policy_stage(
                         needs,
                     }),
                 };
+            }
+            // A skipped check is reported as an engine failure and the pass goes on: reading one object whole
+            // could cost the host its memory (a 256 MiB candidate cost 534 MiB), and a commit must not fail for a
+            // file the wrapper chose not to read. `pass_exit_code` counts an engine failure as non-blocking, and the
+            // stage still ends `Completed`.
+            PolicyOutcome::Skipped { message, path } => {
+                events.push(PolicyEvent::EngineFailure {
+                    code: EngineFailureCode::PolicyIncomplete,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
+                    message,
+                    trigger: Some(request.trigger),
+                    policy: Some(*policy),
+                    path,
+                });
+                continue;
             }
             PolicyOutcome::Failed {
                 code,

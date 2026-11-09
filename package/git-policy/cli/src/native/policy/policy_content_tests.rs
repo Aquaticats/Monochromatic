@@ -19,7 +19,8 @@
 #![cfg(unix)]
 
 /// Import the module under test.
-use super::{ContentState, Correction, LifecycleContent, candidate_failure};
+use super::{
+    candidate_read_failure,ContentState, Correction, LifecycleContent, candidate_failure};
 use crate::candidate_error::{CandidateError, CandidateFailure};
 use crate::candidate_object::CandidateMode;
 use crate::candidate_prediction::CandidateRequest;
@@ -139,6 +140,54 @@ fn candidates_are_prepared_once_and_shared() {
         other => panic!("expected unreadable content, got {other:?}"),
     }
     remove(root.as_path());
+}
+
+/// What:
+///  A candidate larger than a check reads whole is a skipped check that names the file,
+///  and every
+///       other read failure stays a failed check.
+/// Why:
+///   The two answers differ for the person:
+///  one names the file whose check did not run and lets
+///       the command go on,
+///  the other stops it because a file that could not be read was not checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(candidateReadFailure(c, tooLarge)).toEqual({ kind: 'skipped', path: 'big.bin' })
+/// ```
+#[test]
+fn a_candidate_too_large_to_read_is_a_skipped_check_that_names_the_file() {
+    let candidate: Candidate = Candidate {
+        identity: crate::candidate_version::CandidateIdentity {
+            generation: 0,
+            index: 0,
+        },
+        path: b"big.bin".to_vec(),
+        mode: crate::candidate_object::CandidateMode::Regular,
+        change: crate::candidate_record::CandidateChange::Added,
+        object: None,
+    };
+    let too_large: CandidateError =
+        CandidateError::new(CandidateFailure::ObjectTooLarge, "it declares more bytes");
+    assert_eq!(
+        candidate_read_failure(&candidate, &too_large),
+        PolicyOutcome::Skipped {
+            message: String::from("it declares more bytes"),
+            path: Some(crate::event_path::EventPath::from_git_bytes(b"big.bin")),
+        }
+    );
+    assert_eq!(
+        candidate_read_failure(
+            &candidate,
+            &CandidateError::new(CandidateFailure::ObjectMissing, "no such object")
+        ),
+        PolicyOutcome::Failed {
+            code: EngineFailureCode::ContentUnavailable,
+            message: String::from("no such object"),
+            path: None,
+        }
+    );
 }
 
 /// A failure to prepare is remembered:
