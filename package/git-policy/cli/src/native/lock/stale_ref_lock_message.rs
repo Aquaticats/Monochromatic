@@ -63,7 +63,7 @@ pub fn shell_quote(path: &Path) -> String {
             b'\'' => quoted.push_str("\\'"),
             b'\\' => quoted.push_str("\\\\"),
             0x20..=0x7e => quoted.push(char::from(*byte)),
-            other => quoted.push_str(&format!("\\x{other:02x}")),
+            other => quoted.push_str(format!("\\x{}", crate::hexadecimal_of_bytes::hexadecimal_of_byte(other)).as_str()),
         }
     }
     quoted.push('\'');

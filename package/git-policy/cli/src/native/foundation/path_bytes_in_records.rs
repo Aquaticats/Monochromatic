@@ -76,11 +76,8 @@ pub fn hex_of_path(path: &Path) -> String {
 /// const pathBytesHex = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 /// ```
 pub fn hex_of_bytes(bytes: &[u8]) -> String {
-    let mut hex: String = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        hex.push_str(format!("{byte:02x}").as_str());
-    }
-    return hex;
+    // What: the one encoder of bytes as hexadecimal digits answers here too (issue 1672).
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes);
 }
 
 /// What:
