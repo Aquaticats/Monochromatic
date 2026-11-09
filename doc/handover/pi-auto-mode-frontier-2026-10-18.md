@@ -26,6 +26,8 @@
 > path of that name exists today.
 > `package/git-policy/cli/src/trust/mjs-validator.ts` is deleted (2026-10-13 `642b6d72cb`)
 > and the Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

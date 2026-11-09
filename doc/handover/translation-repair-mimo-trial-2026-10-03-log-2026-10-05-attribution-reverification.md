@@ -5,6 +5,8 @@
 > `package/module/translation-repair/src/json-guard.ts` is now
 > `package/translation-repair/document-structure/src/json-guard.ts`
 > (2026-10-18 `4bd1aea8d5`).
+> `package/module/test/src/describe.ts` is now `package/test-harness/core/src/describe.ts`
+> (2026-10-29 `592d78b143`).
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

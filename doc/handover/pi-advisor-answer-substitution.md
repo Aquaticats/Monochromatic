@@ -5,6 +5,10 @@
 > `package/pi-plugin/advisor/src/advisor-request.unit.test.ts` is now
 > `package/agent-harness-shared/advisor/src/advisor-request.unit.test.ts`
 > (2026-10-20 `093f32832a`).
+> `package/pi-plugin/advisor/src/rendering-summary.ts` is now
+> `package/agent-harness-shared/advisor/src/rendering-summary.ts` (2026-10-20 `093f32832a`).
+> `package/pi-plugin/advisor/src/constants.ts` is now
+> `package/agent-harness-shared/advisor/src/constants.ts` (2026-10-20 `093f32832a`).
 
 ## Status
 

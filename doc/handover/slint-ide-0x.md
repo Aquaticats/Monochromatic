@@ -45,6 +45,12 @@
 > `package/ide/app/src/native/frame_trace.rs` (2026-10-29 `592d78b143`).
 > `package/dev-script/task-cli/src/run.ts` is now `package/monorepo-task/cli/src/run.ts`
 > (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/README.md` is now `package/ide/app/README.md`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/mise.toml` is now `package/ide/app/mise.toml`
+> (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/src/input.rs` is now
+> `package/nested-wayland-session/cli/src/input.rs` (2026-10-29 `592d78b143`).
 
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,

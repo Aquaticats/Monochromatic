@@ -20,6 +20,8 @@
 > `package/linter/monochromatic-lint` serves its job today.
 > `package/rust-module/rust-linter-pattern` is deleted (2026-10-06 `5bc05682ec`) and
 > `package/linter/monochromatic-lint` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
 
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,

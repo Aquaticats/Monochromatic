@@ -14,6 +14,10 @@
 > `package/git-policy/cli/bin/test-native-container.ts` (2026-10-29 `418c4dcc54`).
 > `package/git-policy/cli/bin/native-scanner-snapshot.mjs` is now
 > `package/git-policy/cli/bin/native-scanner-snapshot.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/cli/native-interop` is deleted (2026-11-01 `cd67a90f6c`) and the
+> old-format interop harness has no replacement.
+> `package/cli/forbidden-strings.fuzz/Cargo.toml` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.toml` (2026-10-29 `113633b259`).
 
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document

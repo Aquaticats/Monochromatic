@@ -15,6 +15,9 @@
 > `//package/module/translation-repair:lint:types` is now
 > `//package/translation-repair/*:lint:types` carried by each of the packages the split made
 > (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:buildAndTest` is now
+> `//package/translation-repair/*:buildAndTest` carried by each of the packages the split
+> made (2026-10-18 `4bd1aea8d5`).
 
 Written 2026-08-26 for whoever picks this up next,
 including an agent that has read no transcript.

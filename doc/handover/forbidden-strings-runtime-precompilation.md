@@ -18,6 +18,20 @@
 > `package/forbidden-strings/cli/tests/integration.rs` (2026-10-29 `113633b259`).
 > `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
 > (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/frx_load.rs` is now
+> `package/forbidden-strings/cli/src/frx_load.rs` (2026-10-29 `113633b259`).
+> `package/git-policy/forbidden-strings/src/scan-candidates.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+> `package/git-policy/forbidden-strings/src/scanner-output.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+> `package/cli/forbidden-strings/Cargo.toml` is now
+> `package/forbidden-strings/cli/Cargo.toml` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/PERF.md` is now `package/forbidden-strings/cli/PERF.md`
+> (2026-10-29 `113633b259`).
+> `package/git-policy/cli/src/optional/forbidden-strings/scanner-output.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/forbidden-strings/core` carries the scanner today.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

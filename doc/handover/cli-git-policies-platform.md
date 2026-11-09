@@ -19,6 +19,25 @@
 > (2026-10-13 `642b6d72cb`) and `package/forbidden-strings/core` carries the scanner today.
 > `package/module/fs-id/README.md` is now `package/fs-id/core/README.md`
 > (2026-10-29 `592d78b143`).
+> `//package/git-policy/cli:test:built:trust` is retired (2026-10-13 `642b6d72cb`) and the
+> package builds only Rust today.
+> `package/git-policy/api` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper under
+> `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/forbidden-strings` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper
+> under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository/src/index.ts` is deleted (2026-10-13 `a2b56c548c`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional/repository-policy.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/git-policy/cli/src/native/policy` carries that
+> policy today.
+> `package/cli/forbidden-strings/PERF.md` is now `package/forbidden-strings/cli/PERF.md`
+> (2026-10-29 `113633b259`).
+> `package/git-policy/cli/perf/manual-push-latency-benchmark.ts` is deleted
+> (2026-10-13 `724d70bfa7`) and no path of that name exists today.
 
 Note 2026-11-08:
 these tasks this document names no longer exist:

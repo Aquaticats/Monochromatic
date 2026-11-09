@@ -26,6 +26,10 @@
 > (2026-10-29 `592d78b143`).
 > `//package/webapp-productivity/doodle-widget:lint` is now
 > `//package/doodle-widget/app:lint` (2026-10-29 `592d78b143`).
+> `package/dev-script/catalog-tighten.matrix/README.md` is now
+> `package/dependency-catalog/cli-tighten.matrix/README.md` (2026-10-29 `592d78b143`).
+> `package/dev-script/catalog-tighten.matrix/src/combos.ts` is now
+> `package/dependency-catalog/cli-tighten.matrix/src/combos.ts` (2026-10-29 `592d78b143`).
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

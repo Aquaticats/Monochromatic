@@ -6,6 +6,21 @@
 > `package/dependency-catalog/cli-cube/src/script/filter.ts` (2026-10-29 `592d78b143`).
 > `package/dev-script/watch-restart/src/cli-helpers.ts` is now
 > `package/watch-restart/cli/src/cli-helpers.ts` (2026-10-29 `592d78b143`).
+> `package/module/test-expect/src/expect.unit.test.ts` is now
+> `package/test-harness/core-expect/src/expect.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/fuzz/Cargo.toml` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.toml` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/fuzz/dictionaries/forbidden-strings.dict` is now
+> `package/forbidden-strings/cli.fuzz/dictionary/forbidden-strings.dict`
+> (2026-10-29 `113633b259`).
+> `package/pi-plugin/auto-mode/src/constants.ts` is deleted (2026-10-19 `7ac15b19b4`) and no
+> path of that name exists today.
+> `package/pi-plugin/auto-mode/src/budget-model-version.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and the package was rebuilt from scratch then.
+> `package/module/test-expect/src/expect-matchers.ts` is now
+> `package/test-harness/core-expect/src/expect-matchers.ts` (2026-10-29 `592d78b143`).
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

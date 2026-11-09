@@ -18,6 +18,8 @@
 > `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts` is deleted
 > (2026-10-13 `642b6d72cb`) and the Rust wrapper under `package/git-policy/cli/src/native/`
 > serves its job today.
+> `//package/git-policy/cli:test:e2e:concurrent` is retired (2026-10-13 `642b6d72cb`) and
+> `//package/git-policy/cli:test:e2e:concurrent:native` is the end-to-end task today.
 
 Note 2026-11-08:
 these tasks this document names no longer exist:

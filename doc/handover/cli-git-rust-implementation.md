@@ -4,6 +4,10 @@
 > Each entry gives the value that identifier has now:
 > `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
 > is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+> `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+> is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+> `package/file-enforcer/core/src/watch/notify.ts` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/core-rust` serves its job today.
 
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document

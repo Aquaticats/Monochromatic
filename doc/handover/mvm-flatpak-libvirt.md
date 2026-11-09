@@ -24,6 +24,10 @@
 > (2026-10-29 `113633b259`).
 > `//package/cli/mvm:lint:oxlint` is now `//package/mvm/cli:lint:oxlint`
 > (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/cli-file-transfer.unit.test.ts` is now
+> `package/mvm/cli/src/cli-file-transfer.unit.test.ts` (2026-10-29 `113633b259`).
+> `package/cli/mvm/src/spawn-errors.ts` is now `package/mvm/cli/src/spawn-errors.ts`
+> (2026-10-29 `113633b259`).
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

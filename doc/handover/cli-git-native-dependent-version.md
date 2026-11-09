@@ -27,6 +27,16 @@
 > `package/git-policy/cli.fuzz/bin/container.ts` (2026-10-29 `418c4dcc54`).
 > `package/git-policy/cli.fuzz/bin/planted-controls.mjs` is now
 > `package/git-policy/cli.fuzz/bin/planted-controls.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/repository` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper
+> under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/api` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper under
+> `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/forbidden-strings` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/native-interop` is deleted (2026-11-01 `cd67a90f6c`) and the
+> old-format interop harness has no replacement.
 
 Note 2026-10-29:
 `package/rust-module` no longer exists.

@@ -4,6 +4,8 @@
 > Each entry gives the value that identifier has now:
 > `package/desktop-app/ide/README.md` is now `package/ide/app/README.md`
 > (2026-10-29 `592d78b143`).
+> `package/git-policy/cli.fuzz/bin/container.mjs` is now
+> `package/git-policy/cli.fuzz/bin/container.ts` (2026-10-29 `418c4dcc54`).
 
 > Depot is not adopted (status of 2026-11-01).
 > The owner said on 2026-11-01:

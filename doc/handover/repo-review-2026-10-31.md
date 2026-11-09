@@ -13,6 +13,8 @@
 > its packages sit at `package/<name>/<variant>` such as `package/kv-store/core` and
 > `package/llm/llm-type` today.
 > `package/build/css` is now `package/css/cli` (2026-10-29 `592d78b143`).
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
 
 ## Task (user instructions)
 

@@ -8,6 +8,8 @@
 > `package/linter/rust` today is a different package with no `build` task.
 > `package/cli/markdown-lint/src/cli.ts` is deleted (2026-10-13 `5db89c1b61`) and
 > `package/linter/monochromatic-lint` serves its job today.
+> `package/linter/monochromatic-lint.fuzz/bin/container.mjs` is deleted
+> (2026-10-30 `ba6a0c3d7c`) and its TypeScript replacement serves its job today.
 
 Note 2026-10-30:
 `package/linter/monochromatic-lint.fuzz/bin/container.mjs`,

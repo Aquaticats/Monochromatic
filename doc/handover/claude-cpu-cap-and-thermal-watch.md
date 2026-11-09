@@ -6,6 +6,8 @@
 > `package/claude-cpu-cap/daemon/src/summarize-samples.ts` (2026-10-29 `592d78b143`).
 > `package/dev-script/claude-cpu-cap/src/analyze-episode.ts` is now
 > `package/claude-cpu-cap/daemon/src/analyze-episode.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/claude-cpu-cap/src/cpu-watch.ts` is now
+> `package/claude-cpu-cap/daemon/src/cpu-watch.ts` (2026-10-29 `592d78b143`).
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

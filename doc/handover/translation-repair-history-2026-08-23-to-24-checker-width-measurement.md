@@ -5,6 +5,8 @@
 > `//package/module/translation-repair:test:unit` is now
 > `//package/translation-repair/*:test:unit` carried by each of the packages the split made
 > (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
 
 The switch that relaxed checker independence and the floor of three checkers,
 the instrument that reads both arms off one run,
