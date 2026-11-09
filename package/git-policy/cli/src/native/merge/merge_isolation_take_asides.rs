@@ -24,6 +24,7 @@
 //! const taken = takeAside(location, judged); ... finishAsides(taken, stderr);
 //! ```
 
+use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
 use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, worktree_path};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
@@ -306,14 +307,14 @@ pub struct TakenOnDisk {
 /// ```
 pub fn finish_asides(taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
     for entry in taken {
-        // The check the take made was of the file it took;
-        // a program that already held the file open writes into that very file afterwards,
-        //  so the identity is read once more and a file that changed is kept where it is.
-        if file_identity(entry.aside.as_path()) != Some(entry.taken) {
+        // `may_remove` proves that nothing can write into the file any more;
+        // a file it cannot prove that of is kept where it is,
+        //  because its private name is then one of that write's only names.
+        if !may_remove(entry) {
             let _noted = out.write_all(
                 format!(
-                    "monochromatic-git-policy-cli: {} was written after this command checked it, so it is kept and {} holds the merge's \
-                     content; nothing of the person's was removed.\n",
+                    "monochromatic-git-policy-cli: {} was written or is still held open after this command checked it, so it is kept \
+                     and {} holds the merge's content; nothing of the person's was removed.\n",
                     entry.aside.display(),
                     entry.location.display()
                 )
@@ -328,6 +329,57 @@ pub fn finish_asides(taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), R
         }
     }
     return Ok(());
+}
+
+/// The beginning of a scan's reason for a process whose descriptors were refused,
+/// as opposed to a scan cut at its bound or unable to list the processes.
+const UNREADABLE_PROCESS_REASON: &str = "PID ";
+
+/// What:
+///  Whether nothing can write into a file that was taken aside any more,
+///  so removing its private name loses nothing.
+/// Why:
+///   A program that already has the file open keeps that descriptor across the rename,
+/// and a write through it lands
+///  in the file that waits aside;
+/// comparing the identity a moment before the unlink cannot close that,
+/// because the
+///  write can arrive in the instant after the comparison
+/// (a cross-vendor review of the second round).
+/// Two things are
+///  asked instead,
+/// and both must hold:
+/// the file's identity is the one the take checked,
+/// and a scan of every process
+///  this command can read finds none with that file open.
+/// That is the proof the commit service's lock removal acts on,
+/// with
+///  the same limit:
+/// a process in another user namespace,
+/// or one that cannot be read,
+/// is not seen.
+///  A scan that was cut at its bound,
+/// or could not list the processes,
+/// proves nothing and the file is kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mayRemove(entry): boolean; // identity unchanged && no readable process has it open && the scan finished
+/// ```
+fn may_remove(entry: &TakenOnDisk) -> bool {
+    if file_identity(entry.aside.as_path()) != Some(entry.taken) {
+        return false;
+    }
+    let scanned: HolderEvidence = scan_platform_holders_bounded(entry.aside.as_path(), entry.taken.device, entry.taken.inode);
+    if !scanned.holders.is_empty() {
+        return false;
+    }
+    for reason in &scanned.partial {
+        if !reason.starts_with(UNREADABLE_PROCESS_REASON) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:

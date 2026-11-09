@@ -1299,15 +1299,21 @@ fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     let entries: Vec<TakenOnDisk> = vec![TakenOnDisk { location: location.clone(), aside: aside.clone(), taken }];
-    // A writer that had the file open before the take holds the very inode the take renamed.
-    let held: std::fs::File = std::fs::File::options().write(true).open(aside.as_path()).expect("the writer's descriptor");
+    // A writer that had the file open before the take holds the very inode the take renamed; the scan leaves this process out,
+    //  so the holder is a child of it, as an editor would be.
+    let kept_open: std::fs::File = std::fs::File::open(aside.as_path()).expect("the writer's descriptor to hand on");
+    let mut holder: std::process::Command = std::process::Command::new("sleep");
+    holder.arg("120").stdin(std::process::Stdio::from(kept_open));
+    let mut writer: std::process::Child = holder.spawn().expect("a writer holding the file open");
+    drop(holder);
     let mut said: Vec<u8> = Vec::new();
     finish_asides(&entries, &mut said).expect("the asides are finished");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(aside.exists(), "a file a process holds open is never removed");
     assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
     // With the writer gone, nothing proves a write can still arrive, and the private name goes.
-    drop(held);
+    writer.kill().expect("the writer ends");
+    writer.wait().expect("reaped");
     let mut afterwards: Vec<u8> = Vec::new();
     finish_asides(&entries, &mut afterwards).expect("the asides are finished");
     assert!(!aside.exists(), "a file nothing holds open is removed once its content was checked");

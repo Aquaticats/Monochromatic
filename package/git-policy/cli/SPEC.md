@@ -7725,6 +7725,18 @@ says on standard error that it did,
 and where the path holds something else keeps both and names the private file.
 A file written into a taken one after the take checked it is kept rather than removed,
 and its private name is said.
+The private name is removed only on a proof that nothing can write into the file any more:
+its identity is the one the take checked,
+and a scan of every process this command can read finds none with the file open,
+which is the proof the commit service's lock removal acts on.
+The limit is that removal's:
+a process in another user namespace,
+or one that cannot be read,
+is not seen,
+so a file such a process holds open is removed with its private name.
+A scan that was cut at its bound,
+or could not list the processes,
+proves nothing and the file is kept.
 A take or a write that fails puts every file it already took back,
 and a path the merge deletes is never removed again after its take,
 so a file that appeared in that instant stays.
