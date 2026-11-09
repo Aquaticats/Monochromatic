@@ -393,7 +393,8 @@ fn note_listing(
 ///  `:(top,literal)`),
 ///  which literal pathspec mode turns into names that match nothing and so lists no candidate at all,
 ///  and case-insensitive matching widens to a name the commit never selected;
-///  the store also removes the mode variables, so both halves of a caller's mode are gone here.
+///  the store also removes the mode variables,
+/// so both halves of a caller's mode are gone here.
 ///  Only the replay of the caller's own command keeps the caller's mode.
 ///
 /// In TS you'd write (pseudocode):
