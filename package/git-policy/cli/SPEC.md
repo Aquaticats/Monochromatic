@@ -6521,7 +6521,8 @@ A path's file proves it when all of these hold:
   it is rare,
   and a link read across a swap of its parent directory cannot be proven to be the one examined.
 - Its raw bytes hash to the entry's object name read as a blob.
-- No attribute Git applies converts these bytes, and the bytes hold no carriage return.
+- No attribute Git applies converts these bytes,
+  and the bytes hold no carriage return.
   A clean filter,
   `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another blob,
   and a line-ending rule may strip a carriage return on the way into the index.
@@ -6539,7 +6540,8 @@ a path of another kind,
 a file above `CONTENT_LIMIT`,
 a file that changed while it was read,
 and a path no file holds keep the zero value too.
-The proof never waits: the open does not block (`O_NONBLOCK`),
+The proof never waits:
+ the open does not block (`O_NONBLOCK`),
 so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
 One landing reads at most `CONTENT_LIMIT` bytes in all,
 and every byte read is charged,
