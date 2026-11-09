@@ -72,8 +72,10 @@ which waits have no ceiling,
 which locks exist,
 and what two concurrent commands do to one repository,
 and it lists seven findings there.
-Every one of those findings is still open at this revision;
-none of them is about what a policy decides.
+The branch that fixes its first two,
+`fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`,
+is unmerged at this revision,
+and none of the seven is about what a policy decides.
 This page therefore says nothing new about the direct fix's install,
 the candidate reader's size,
 the private index's permissions,
