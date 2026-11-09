@@ -3515,8 +3515,12 @@ on the commit path:
   so a switch that lands in the instant between that look and the write is met by one more read straight after it:
   a `HEAD` that differs then puts the branch back where it was by compare-and-swap against the merge commit,
   keeps the record,
-  and says which branch the worktree has,
-  so nothing of the merge stays staged in another branch's checkout.
+  and says which branch the worktree now has,
+  that the merge's index entries and files are still in it,
+  and how to finish the merge there or undo what is staged.
+  The entries and files are not removed:
+  the record is what finishes the merge later,
+  so the person is told what is in the checkout rather than that it is clean.
   A switch that lands after that third read is not covered,
   and closing it would need the write itself to check `HEAD`,
   which `git update-ref` cannot do:
