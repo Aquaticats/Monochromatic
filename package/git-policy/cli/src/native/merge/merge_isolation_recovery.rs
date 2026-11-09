@@ -217,7 +217,25 @@ pub fn recover_interrupted_merges(
             debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
             MergeRecoveryAction::OwnerActive
         } else {
-            settle_failed_merge(place, record.as_path(), &intent, out)?
+            match settle_failed_merge(place, record.as_path(), &intent, out) {
+                Ok(settled) => settled,
+                // A merge that was saved on a side ref has nothing of itself in the checkout, so a command that cannot finish it
+                //  has nothing to be stopped for: it says where the merge is and what blocked it, and goes on. A begun merge's
+                //  refusal still stops the command, because the checkout may hold its files.
+                Err(error) if intent.side_ref.is_some() => {
+                    let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
+                    let _noted = out.write_all(
+                        format!(
+                            "monochromatic-git-policy-cli: the merge saved on {side_ref} was not finished, and nothing of it is in the \
+                             checkout; this command goes on. {}\n",
+                            error.0
+                        )
+                        .as_bytes(),
+                    );
+                    MergeRecoveryAction::DeferredRefused
+                }
+                Err(error) => return Err(error),
+            }
         };
         let outcome: MergeRecoveryOutcome = MergeRecoveryOutcome {
             record,

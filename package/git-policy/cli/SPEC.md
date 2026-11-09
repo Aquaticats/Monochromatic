@@ -7751,6 +7751,12 @@ naming the path.
 A record that is discarded,
 a record whose owner still runs and a branch that already names the merge
 change nothing of the branch and say nothing.
+A merge saved on a side ref that cannot be finished now never stops a command:
+nothing of it is in the checkout,
+so the line says where the merge is and what blocked it,
+and the command goes on.
+A begun merge's refusal still stops it,
+because the checkout may hold that merge's files.
 Standard output is never touched by these lines,
 because scripts read it.
 Commit records of an earlier release in `.git/cli-git-transactions`
