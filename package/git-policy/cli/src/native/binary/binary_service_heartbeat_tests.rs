@@ -6,12 +6,13 @@
 //! heartbeats that stop,
 //! a service that never starts and one that starts late.
 //! Why:
-//!  The wait has no clock of its own (the owner's rule "You should (almost) never be waiting."
+//!  A wait that ended on nothing but the service's work would break the owner's rules
+//!  "You should (almost) never be waiting."
 //! and "Commits should never
-//!  fail."):
-//! only the service's silence,
-//! or the manager saying the start failed,
-//! ends it.
+//!  fail.";
+//! so the service's silence,
+//! the manager saying the start failed,
+//! and the start and answer ceilings each end the wait.
 //! A control that runs a real service
 //!  cannot make it stall on cue,
 //! so the service here is a listener that follows a script.
@@ -218,9 +219,8 @@ fn watched(name: &str) -> ClientConfig {
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }
 
-/// A service that never starts is waited for as long as the manager does not say the start failed,
-/// however long that is
-/// against the old start wait,
+/// A service that never starts is waited for until the manager says the start failed,
+/// past the old start wait,
 /// and the wait ends with the plain failure once the manager says it twice.
 #[test]
 fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_failed() {

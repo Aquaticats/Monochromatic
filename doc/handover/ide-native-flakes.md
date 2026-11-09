@@ -675,7 +675,7 @@ under a shared host,
 History sources:
 `doc/planning/ide-gpu-snapshot-harness.md` ("Flakes after the merge"),
 `doc/handover/slint-ide-0x.md`,
-and the entries above.
+and the session records in this document.
 
 - `query_input_tests::find_box_context_menu_runs_each_entry`.
   Cause:

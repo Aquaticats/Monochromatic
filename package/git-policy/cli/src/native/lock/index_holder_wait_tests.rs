@@ -6,7 +6,7 @@
 //! and waits for a holder proven alive,
 //! and for an owner nothing proves
 //! alive,
-//! with no bound.
+//! until the ceiling (`MERGE_LOCK_CEILING`).
 //! Why:
 //!  Merges must wait for a transient holder and never remove a lock,
 //! so each ending is pinned with a stand-in holder,

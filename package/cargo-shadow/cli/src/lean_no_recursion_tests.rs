@@ -6,7 +6,9 @@
 //! Owner rule (2026-11-07):
 //! "We should never invoke ourselves recursively.
 //! That's bad design.
-//! Audit, remove, and ban that design aggressively."
+//! Audit,
+//! remove,
+//! and ban that design aggressively."
 
 use std::{fs, path::PathBuf};
 
