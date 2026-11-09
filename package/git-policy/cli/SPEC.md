@@ -5213,6 +5213,36 @@ but any final error still blocks real Git.
 Engine failures always stop immediately.
 The wrapper recognizes its flag only before Git's `--` separator and removes it before forwarding.
 
+### Bulk staging
+
+`add-explicit` decides from the arguments alone and starts no process.
+It rejects `-A`,
+`--all`,
+`-u`
+and `--update`
+with the option spellings Git accepts,
+and it rejects a positional pathspec equal to one of nine fixed spellings that Git resolves to
+the whole worktree
+(or,
+for `.` and `./`,
+to every changed path below the working directory):
+`.`,
+`./`,
+`*`,
+`:/`,
+`:/*`,
+`:/**`,
+`:(top)`,
+`**`
+and `:(glob)**`.
+The list is a fixed enumeration in `command/command_add.rs` and is therefore incomplete by nature:
+pathspec magic and globs can select the same set in further spellings.
+`:(top)/*` is not in it because Git 2.56.0 fails in its own pathspec preparation
+(`fatal: oops in prep_exclude`),
+so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
+The rejection names every matched token as the caller wrote it and offers
+`--no-enforce-bulk-add` for one invocation.
+
 ## Whole-sequence fixing
 
 A pass begins with one exact candidate state.
@@ -7200,6 +7230,16 @@ What a hook checked belongs in a monochromatic-git-policy-cli policy.
 
 ### Policy evaluation during preparation
 
+The candidate listing reads its pathspecs with magic whatever global pathspec mode the caller set:
+a commit's paths are listed as `:(top,literal)<path>`,
+and `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs` would make each of those names match nothing.
+Every listing therefore runs real Git with `--no-literal-pathspecs` after the caller's global options,
+so no content policy can be given an empty candidate list by a global mode.
+Three further private Git starts carry the same switch:
+the whole-index staging `commit -a` does in the private index (`:/`),
+the staging of each unmerged worktree copy that finishes a merge,
+and the settled-entry lookup that installs a landed correction into the worktree copy.
+Only the replay of a caller's `git add` keeps the caller's own mode.
 Preparation constructs candidate facts from the private index,
 writes each policy's corrections into the private index,
 and restarts the whole ordered policy sequence after exact candidate changes.
