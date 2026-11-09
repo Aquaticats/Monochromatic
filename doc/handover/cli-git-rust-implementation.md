@@ -209,6 +209,34 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 Each item names what remains,
 where it lives and its evidence.
 
+### The shared locks, claims and transactions, after the audit's four fixes (2026-11-09T02:38:55-05:00)
+
+The audit is `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
+Four of its five findings are fixed on
+`fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`,
+each with a red control quoted in the branch's report:
+the reftable backend's `reftable/tables.list.lock` is a reference-lock candidate (`009d7c28b6`,
+`f69299994d`);
+a record of another PID namespace whose file time cannot be measured is refused with its name and the `rm`
+instead of counting as a live owner for ever (`e7f50de8d0`,
+`17beb650a6`);
+the foreign `index.lock` PID-file proof reads what the process is and never the wall clock (`78452d0d9f`,
+`68be5d90df`);
+and a descriptor is matched to a file by the device number and the inode,
+not by the mount number and the inode (`65a1bf0d02`,
+`02a067d8fd`).
+Finding 5 (the decision record that says no lock is ever deleted) still waits for the owner,
+and `doc/decision/` was not touched.
+Open beside it:
+the reference-lock judgement still proves a reused number from the same start-against-change-time comparison
+(`Proof::PidReused`,
+`stale_ref_lock_judge::judge_listed_pid`),
+which the index-lock fix removed for its own proof and which the owner must decide on,
+since that proof can remove a lock whose holder still runs;
+and the direction of finding 2 in which a measured age past the patience refuses a live holder is the owner's
+answer of 2026-11-04,
+now worded as this host's reading of the record.
+
 ### Work waiting for a free Pi slot (2026-11-08T16:24:14-05:00)
 
 The owner:
@@ -1096,8 +1124,14 @@ test (`began.elapsed() >= holding`,
 `the_scan_for_open_holders_stops_at_its_deadline_and_says_so` passed `metadata.dev()`
 where commit `7a1aa21f5d` made the scan compare the mount number the kernel writes in
 `fdinfo`,
-so it now asks `process_use::mount_of`,
-as the service's own scan does.
+so it now asked `process_use::mount_of`,
+as the service's own scan did.
+Note,
+2026-11-09:
+`mount_of` is gone and the scan compares the device number and the inode again (rule WR6;
+`fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`,
+`02a067d8fd`),
+so that control now passes the lock's own device number.
 
 Measured 2026-11-08 on this host with `btrfs` on the scratch directory,
 alternating the arms:

@@ -29,7 +29,7 @@ pub const PROC_ROOT: &str = "/proc";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type UseTarget = { inside: string } | { file: { mount: bigint; inode: bigint } };
+/// type UseTarget = { inside: string } | { file: { device: bigint; inode: bigint } };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UseTarget<'a> {
@@ -145,8 +145,9 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 ///  Whether the descriptor whose record is `fdinfo` and whose link is `link` is the file with this device number and inode.
 /// Why:
 ///   A device number and an inode name one file on a machine,
-/// and that pair is what POSIX promises (`reftable/stack.c` cites it too).
-/// The pair the kernel writes for a descriptor, its mount number and its inode,
+/// which is what `stat(2)` says of `st_dev` and `st_ino`.
+/// The pair the kernel writes for a descriptor,
+/// its mount number and its inode,
 /// is neither unique nor complete (audit of 2026-11-09,
 /// finding 4):
 /// two files of two btrfs subvolumes reached through one mount have the same inode number and the same mount number,
@@ -304,8 +305,8 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, 
 /// ```
 pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32) -> UseScan {
     let mut scan: UseScan = UseScan::default();
-    // A file whose file system the mount table does not name cannot be recognised in any process: the caller is told
-    //  so rather than being given a scan that found nothing.
+    // A file is named by the device number and the inode it has, so no mount table is read and no descriptor is
+    //  resolved except the ones whose record already names the file's inode number.
     let prepared: Prepared<'_> = match target {
         UseTarget::Inside(directory) => Prepared::Inside(directory),
         UseTarget::File { device, inode } => Prepared::File { device: *device, inode: *inode },

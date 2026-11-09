@@ -123,8 +123,8 @@ fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
 ///  a bind mount of the same file has another mount number,
 ///  so that holder was not found at all,
 ///  and two files of two btrfs subvolumes reached through one mount share both numbers.
-///  The record's inode number is the cheap test that comes first; the descriptor's own open
-///  link is the answer.
+///  The record's inode number is the cheap test that comes first;
+///  the descriptor's own open link is the answer.
 #[test]
 fn a_descriptor_is_matched_by_device_and_inode() {
     let root: PathBuf = fixture("process-use-fdinfo");

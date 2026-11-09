@@ -81,6 +81,11 @@ pub struct LockMetadata {
 /// as the kernel reports it in `/proc/<pid>/comm`.
 const GIT_COMMAND_PREFIX: &str = "git";
 
+/// Whether a command name is Git's or one of its helpers'.
+fn names_git_command(name: &str) -> bool {
+    return name.starts_with(GIT_COMMAND_PREFIX);
+}
+
 /// What:
 ///  The process a PID file names,
 ///  now:
@@ -123,7 +128,7 @@ impl PidProcess {
         if !matches!(self.start, ProcessStart::Running { .. }) {
             return false;
         }
-        return self.command.as_deref().is_some_and(|name| { return name.starts_with(GIT_COMMAND_PREFIX); });
+        return self.command.as_deref().is_some_and(names_git_command);
     }
 
     /// Whether this host's clock puts the process's start after the lock's change time,
@@ -316,7 +321,13 @@ pub fn parse_pid_file_text(text: &str) -> Option<i64> {
 /// ({ start: resolveProcessStart(pid), command: readFileSync(`/proc/${pid}/comm`, 'utf8').trim() })
 /// ```
 pub fn host_pid_process(pid: i64) -> PidProcess {
-    let command: Option<String> = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok().map(|text| { return text.trim().to_owned(); }).filter(|name| { return !name.is_empty(); });
+    let command: Option<String> = match std::fs::read_to_string(format!("/proc/{pid}/comm")) {
+        Ok(text) => {
+            let name: String = text.trim().to_owned();
+            if name.is_empty() { None } else { Some(name) }
+        }
+        Err(_) => None,
+    };
     return PidProcess { start: resolve_process_start(pid), command };
 }
 
@@ -348,11 +359,13 @@ fn quoted_prefix(text: &str) -> String {
 ///  The PID file beside a lock and the process it names.
 /// Why:
 ///   `readPidFileEvidence`;
-///  the text is read with replacement characters as `'utf8'` does.
+///  the text is read with replacement characters as `'utf8'` does,
+///  and what the number is now comes from the caller's read of the process table,
+///  so a control decides it without one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function readPidFileEvidence({ pidPath, lock, resolveStart }): Promise<PidFileEvidence>;
+/// async function readPidFileEvidence({ pidPath, readProcess }): Promise<PidFileEvidence>;
 /// ```
 pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -> PidFile {
     let text: String = match std::fs::read(pid_path) {

@@ -154,7 +154,8 @@ pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RecordAge {
-    /// The file's time is at or before this reader's clock: the record has stood this long.
+    /// The file's time is at or before this reader's clock:
+    /// the record has stood this long.
     Measured(Duration),
     /// The file's time is later than this reader's clock,
     /// so no age exists.
@@ -180,7 +181,11 @@ pub enum RecordAge {
 /// Date.now() - statSync(recordPath).mtimeMs // throws when the time is ahead of the clock
 /// ```
 pub fn foreign_record_age(record_path: &Path) -> RecordAge {
-    let modified: SystemTime = match std::fs::metadata(record_path).and_then(|metadata| { return metadata.modified(); }) {
+    let metadata: std::fs::Metadata = match std::fs::metadata(record_path) {
+        Ok(found) => found,
+        Err(error) => return RecordAge::Unreadable(error.to_string()),
+    };
+    let modified: SystemTime = match metadata.modified() {
         Ok(found) => found,
         Err(error) => return RecordAge::Unreadable(error.to_string()),
     };

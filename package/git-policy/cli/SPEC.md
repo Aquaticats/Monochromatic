@@ -4385,7 +4385,9 @@ because a repository that switched backends may hold either.
 The reftable lock needs no new proof:
 Git says which process holds it in `tables.list~pid.lock`,
 which it creates after the lock under `core.lockfilePid` exactly as it does for the other locks,
-so the pid file, the margin, the local-file-system rule,
+so the pid file,
+the margin,
+the local-file-system rule,
 the boot comparison and the set-aside step are the ones above.
 The tables list is written into the lock itself and renamed,
 so the lock is empty while it is held and a stale one is removed whole.
@@ -5687,17 +5689,21 @@ Each commit passes through three phases:
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
     What a foreign lock's evidence proves rests on two facts and never on the wall clock (audit of 2026-11-09,
     finding 3):
-    a process of the account that has the lock open, matched to it by the device number and the inode the lock has,
+    a process of the account that has the lock open,
+    matched to it by the device number and the inode the lock has,
     and a Git lock PID file (`core.lockfilePid`) that names a running process whose command name
     starts with `git`,
     which is the holder because Git writes its own number there.
-    A running program that is not named like Git may be that Git under another name or a later program that took the number,
+    A running program that is not named like Git may be that Git under another name,
+    or a later program that took the number,
     and no start time tells them apart:
     a process's start is derived from the wall clock while the lock's change time is stored,
-    so a step of the clock moves a live holder's derived start past the lock (a forward step) or a later program's before it (a step back).
+    so a step of the clock moves a live holder's derived start past the lock,
+    and a step back moves a later program's before it.
     The start is read and worded beside the evidence,
     and it decides nothing;
-    a number that is reused therefore reads as an owner nothing proves alive, which the ceiling ends,
+    a number that is reused therefore reads as an owner nothing proves alive,
+    which the ceiling ends,
     and a running Git is the holder whatever the clock says.
     A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
     and a dead one (a Git lock PID file naming a process that no longer runs) not at all;

@@ -348,8 +348,11 @@ fn trimmed(text: String) -> String {
 /// Measured on 2026-11-07 on this host at load average 37 to 52:
 /// one walk of every process's open descriptors (list each
 ///  `/proc/<pid>/fd` and `stat` each link,
-/// as the scan does) over 1,000 processes and 54,500 descriptors took 313,
+/// which the walk measured here does) over 1,000 processes and 54,500 descriptors took 313,
 /// 360 and 398 ms.
+/// The scan does less of that work now:
+/// it resolves a descriptor's link only where the record already names the lock's inode number,
+/// so this walk remains the upper bound.
 ///  The earlier budget,
 /// 250 ms,
 /// was measured on 2026-11-03 over 858 processes with `ls` (0.10 s) and was shorter than a whole walk
