@@ -311,6 +311,30 @@ fn print_shadow_notice(request: TopLevelRequest, real_mpm: &Path) {
 }
 
 /// What:
+/// `pub fn invoked_as_name(arguments: &[OsString]) -> String` returns the name the program was started under:
+/// the last path segment of argv[0],
+/// as text,
+/// or the empty text when there is no argv[0].
+/// Why:
+/// `main.rs` picks the mode from this name.
+/// A process started with an empty argument list (a raw `execve` with `argc == 0`) has no argv[0],
+/// and that exotic start must fall through to the command-line mode instead of panicking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function invokedAsName(args: Buffer[]): string { return path.basename(args[0]?.toString() ?? ''); }
+/// ```
+pub fn invoked_as_name(arguments: &[OsString]) -> String {
+    let Some(argument_zero) = arguments.first() else {
+        return String::new();
+    };
+    if let Some(file_name) = Path::new(argument_zero).file_name() {
+        return file_name.to_string_lossy().to_string();
+    }
+    return String::new();
+}
+
+/// What:
 /// `pub fn run_shim(arguments: Vec<OsString>) -> i32` declares a public function taking the arguments mpm was
 ///           started with (an owned list) and returning the exit code.
 /// Why:

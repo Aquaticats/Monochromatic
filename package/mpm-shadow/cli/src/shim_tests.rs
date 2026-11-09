@@ -17,7 +17,7 @@
 
 /// Imports the exit-code offset and the function under test from this crate.
 use crate::constants::SIGNAL_EXIT_CODE_OFFSET;
-use crate::shim::run_program;
+use crate::shim::{invoked_as_name, run_program};
 
 /// Imports the owned operating-system text type the arguments use.
 use std::ffi::OsString;
@@ -63,4 +63,19 @@ fn reports_death_by_signal_as_128_plus_the_signal() {
 fn reports_a_failed_start_as_an_error() {
     // `.is_err()` is true for the `Err` case of a `Result`.
     assert!(run_program(Path::new("/nonexistent/mpm"), &[]).is_err());
+}
+
+/// A process started with an empty argument list has no argv[0];
+/// the name is then empty, the way the absent-name case already reads it,
+/// instead of an index panic at startup.
+#[test]
+fn an_empty_argument_list_yields_an_empty_invoked_name_instead_of_panicking() {
+    assert_eq!(invoked_as_name(&[]), String::new());
+}
+
+/// The invoked name is argv[0]'s last path segment.
+#[test]
+fn the_invoked_name_is_the_last_segment_of_argument_zero() {
+    assert_eq!(invoked_as_name(&[OsString::from("/x/y/mpm")]), "mpm".to_string());
+    assert_eq!(invoked_as_name(&[OsString::from("mpm-shadow"), OsString::from("prune")]), "mpm-shadow".to_string());
 }

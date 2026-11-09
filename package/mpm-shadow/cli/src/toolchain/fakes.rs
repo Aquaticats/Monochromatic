@@ -71,6 +71,15 @@ impl FakeRunner {
         self.after_rules.borrow_mut().push((trigger.to_string(), prefix.to_string(), outcome));
     }
 
+    /// Answers requests whose line starts with `prefix` with both streams and this exit code.
+    ///
+    /// Why:
+    /// A listing that fails still prints something, and a test must prove which stream is read.
+    pub(crate) fn answer_streams(&self, prefix: &str, stdout: &str, stderr: &str, code: i32) {
+        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: stderr.to_string(), code };
+        self.rules.borrow_mut().push((prefix.to_string(), outcome));
+    }
+
     /// Answers requests whose line starts with `prefix` with a failure printing `stderr`.
     pub(crate) fn fail(&self, prefix: &str, stderr: &str) {
         self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: String::new(), stderr: stderr.to_string(), code: 1 }));
