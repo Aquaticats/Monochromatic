@@ -32,6 +32,11 @@ const COMMAND_OUTPUT_BYTES: number = COMMAND_OUTPUT_MEBIBYTES * BYTES_PER_MEBIBY
 const COMMAND_TIMEOUT_SECONDS = 30;
 
 /**
+ Milliseconds a question of the machine may take when the caller names no bound of its own.
+ */
+const COMMAND_TIMEOUT_MILLISECONDS: number = COMMAND_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND;
+
+/**
  `execFile` with a promise result, which never goes through a shell. Typed through Node's own adapter contract, because the
  generic `promisify(execFile)` form trips `strict-void-return`
  (`doc/troubleshooting/oxlint-promisify-void-return.md`).
@@ -191,6 +196,8 @@ function failureOf(caught: unknown,): CommandOutput {
 
  @param words - its arguments, each kept whole
 
+ @param timeoutMilliseconds - how long it may take before it is killed
+
  @returns what it printed and how it ended
 
  @example
@@ -201,9 +208,11 @@ function failureOf(caught: unknown,): CommandOutput {
 export async function runCommandWithChildProcess({
   command,
   words,
+  timeoutMilliseconds = COMMAND_TIMEOUT_MILLISECONDS,
 }: {
   readonly command: string;
   readonly words: readonly string[];
+  readonly timeoutMilliseconds?: number;
 },): Promise<CommandOutput> {
   try {
     /**
@@ -215,7 +224,7 @@ export async function runCommandWithChildProcess({
       {
         encoding: 'utf8',
         maxBuffer: COMMAND_OUTPUT_BYTES,
-        timeout: COMMAND_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND,
+        timeout: timeoutMilliseconds,
         killSignal: 'SIGKILL',
       },
     );
