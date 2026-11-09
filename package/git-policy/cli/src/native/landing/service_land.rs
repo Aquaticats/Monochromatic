@@ -27,7 +27,7 @@
 use std::path::PathBuf;
 pub use crate::service_land_context::LandContext;
 use crate::service_land_take_index_lock::take_index_lock;
-use crate::service_land_git_steps_and_import_stream::{checked, ids_of, keep_unlanded, requests_that_land, run, take_ceiling_step};
+use crate::service_land_git_steps_and_import_stream::{checked, ids_of, requests_that_land, run};
 use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, history_is_plain, read_commit};
@@ -157,17 +157,8 @@ pub fn land_batch_timed(
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
-    if result == Err(FailureCode::StepTooSlow)
-        && let Some(step) = take_ceiling_step()
-        && let Some(first) = requests.first()
-    {
-        announce.announce(Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
-        let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-        let scratch: String = scratch_ref(seq);
-        if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
-            announce.announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
-            let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
-        }
+    if result == Err(FailureCode::StepTooSlow) {
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(context, announce, requests, seq);
     }
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
     //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
@@ -346,6 +337,14 @@ fn land_batch_body(
             index: first.index.clone(),
             git_dir: first.git_dir.clone(),
         };
+        // The index update is owed from this instant, and its own record is written before the branch moves: a kill between the
+        //  move and the index install leaves it where the person's next command reads it (`owed_index_update.rs`).
+        // Everything the batch owes is taken here, before the branch moves, so a kill after the move leaves the record of the index
+        //  update and the held push of every commit it would land (`work_item_holding.rs`).
+        crate::service_server_land_group::what_a_batch_owes(&intent);
+        // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
+        //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
+        crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq);
         let journal_began: Instant = Instant::now();
         let written = write_intent(context.journal.as_path(), &intent);
         timing.journal += journal_began.elapsed();
@@ -366,6 +365,7 @@ fn land_batch_body(
         let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            crate::service_server_land_group::forget_what_a_batch_owes(&intent);
             let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             return match still {
                 Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
@@ -407,8 +407,9 @@ fn land_batch_body(
         };
         timing.ref_update += ref_began.elapsed();
         if !moved.succeeded() {
-            // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
+            // The branch moved under the batch: forget the intent, what the batch owes and the scratch branch, and build it again.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            crate::service_server_land_group::forget_what_a_batch_owes(&intent);
             remove_start(context.journal.as_path(), seq);
             let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
@@ -481,6 +482,16 @@ mod fsync_tests;
 #[cfg(test)]
 #[path = "service_land_built_tests.rs"]
 mod built_tests;
+
+/// Controls for the push a landed commit leaves before its client is answered stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_owed_push_tests.rs"]
+mod owed_push_tests;
+
+/// Controls for the index update a landed batch owes stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_owed_index_tests.rs"]
+mod owed_index_tests;
 
 /// Controls for the restart decisions when a Git question about the branch fails stay out of the release executable.
 #[cfg(test)]

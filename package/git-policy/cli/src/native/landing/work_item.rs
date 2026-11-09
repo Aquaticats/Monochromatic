@@ -28,7 +28,7 @@ use crate::path_bytes_in_records as path_bytes;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_timing::log;
 pub use crate::work_item_kinds_and_their_names::WorkKind;
-pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
+pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
 pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
@@ -232,6 +232,8 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
     };
     return Ok(*answer);
 }
+
+pub use crate::work_item_holding::{block, forget_held, hold, promote};
 
 /// What:
 ///  Write every item of one producer's round as a pending record,

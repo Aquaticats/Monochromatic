@@ -5992,6 +5992,36 @@ Each commit passes through three phases:
     hand the push and the upkeep to the service as work items.
     A blocked gate keeps the commit local and exits `2`.
 
+The landing holds the push work item of every commit a batch would land,
+in the work queue's `held` state,
+before the branch moves,
+and recovery holds them for a batch it finds landed;
+every path on which a batch does not land forgets them.
+Nothing drains a held item,
+so no round can publish a commit whose post-commit gate has not decided.
+Nothing releases a held record by judging a process:
+a push whose command died before its checks ran stays
+held,
+and the question of whether it should ever be pushed is open with the owner
+(`doc/handover/questions-for-the-owner.md`).
+A held commit is not stranded by that:
+the queue pushes a branch,
+`git push <remote> <branch>:<target>`,
+so the next push from that branch carries it.
+The next command in the worktree says so once,
+in one line,
+through the notice a worktree's push failures
+use:
+which commit is held,
+that its command stopped before its checks ran,
+and that it goes out with the
+next push from that branch.
+The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
+blocks,
+so a blocked gate keeps the commit local,
+and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
+behind").
+
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
 and the only wait is the service's bounded wait for a foreign holder
@@ -6066,6 +6096,128 @@ Init-once cells (`OnceLock`) hold values read at first use (a boot ID,
 the machine ID,
 the Git release,
 the process identity) and wait for nothing after.
+
+### What a landed batch leaves behind
+
+A batch's branch moves before its index is installed,
+so the two can be apart after a kill,
+a failing step,
+or a restart that declines to replay the update.
+Three things outlive the batch's landing for that reason.
+
+The index update the landing still owes is recorded in the worktree's own Git directory,
+at `<git dir>/monochromatic-git-policy-cli/work/owed/<batch>.owed`,
+before anything tries to install the index.
+The record names the index file,
+the branch values,
+the landed commit and the paths,
+and it is a small record of its own so that it does not depend on the journal's intent,
+which holds every field a batch needs and which no reader finishes a batch from when it cannot be parsed.
+The record goes when the index update is installed,
+and with a batch that recovery drops,
+because a batch that never landed owes nothing.
+
+An intent is written as a temporary file that is flushed,
+renamed into place,
+and followed by a flush of the journal's directory,
+so a process killed between any two of those steps leaves either no intent or a whole one.
+What makes an intent unreadable is therefore not a kill:
+it is a release whose format this build does not read,
+a write whose tail a file system lost after the flush that promised it,
+or a person's edit.
+
+Recovery never removes an open intent it cannot read.
+It names it once per pass,
+with its batch number and its path,
+and keeps it:
+the intent is the only record of a landed commit's branch values,
+paths and request identities,
+so removing it forgets the index update and lands a resent request twice.
+A record that cannot be read is therefore a person's to remove,
+or to open,
+once what its batch owed has been settled from the record above.
+
+Which entries are the unfinished landing's own cannot be decided from what they hold:
+a person can stage the batch's old content back,
+another branch can hold the same bytes,
+a staged child of an added path leaves no entry at that path,
+an unmerged path is represented by its stages,
+and a program can stage between any comparison and any write.
+A repair that wrote the live index could therefore discard staging that is the person's,
+which is the worse outcome,
+so no commit writes the live index for this reason.
+
+What a commit does instead is record nothing about those paths.
+For every path of a record whose entry in the commit's own index is still exactly the entry the landing
+replaced,
+and whose worktree does not hold that same content (a worktree that does is the person's own statement,
+so it is committed),
+and which the commit did not select by name,
+that index is set to the worktree's head,
+and the commit prints one line naming the paths and both ways on:
+`git reset -- <paths>` to catch the index up with the branch,
+or `git commit -- <paths>` to take the worktree's content for them.
+A path with unmerged stages is left alone,
+because a merge in progress is the person's own act,
+and an explicit-path commit names its own selection and is never changed.
+A path is left out only on evidence,
+and absence is not evidence:
+a worktree file that is not there with no entry in the copied index is what a landing whose index update
+failed leaves,
+so the landed entry is kept and the path is said.
+A deletion the person staged in that window therefore waits for the next commit,
+which records it once the index and the branch are read together.
+A link is compared by what Git stores for a link,
+the hash of its target text with mode `120000`,
+never by hashing through it.
+Two interleavings need a second process inside a few instructions and are not covered:
+settling the last owed record between a commit's copy and its exclusion,
+where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
+path,
+and a concurrent staging of the same content a `git commit --all` selected while an unrelated record
+exists,
+where that content is left out of that commit.
+In both the person sees one line naming the path among those left out,
+and the next commit records what the index holds.
+The comparison is made against the commit's own index,
+because that snapshot is what the commit records:
+a program that catches the live index up between the copy and the comparison leaves the snapshot's stale
+entry,
+and the commit still records nothing about it.
+A commit never removes a record:
+only the service settles one,
+when the installation is recorded,
+by a
+rename to a settled name,
+and recovery settles one it finds already installed,
+so a kill between the
+installation and the landing's own settling leaves either an owed record or none.
+A record that matches
+nothing costs a comparison.
+
+The notice names two commands that work:
+`git reset -- <paths>` to take the branch's content,
+and
+`git add -- <paths>` followed by a plain commit to take the worktree's.
+
+A restart that finds the index file is not the one the landing saw finishes the batch,
+leaves the index as its writers left it,
+and keeps the record,
+so the commit above is what protects the next command.
+
+A landing that concludes a merge,
+a cherry-pick or a revert keeps a copy of the conclusion state the commit removes
+in its journal at `<batch>.cleanup`,
+made beside that name and renamed onto it before the branch moves,
+so a copy that failed half way never takes the name the cleanup reads.
+The state files are removed only while they still hold the bytes copied at preparation,
+and the copies the comparison reads are the client's own,
+which the service removes when that client is gone.
+With the scratch directory gone the comparison is made against the journal's copy,
+so a cleanup that failed once is finished by the next landing and the worktree's next commit does not conclude
+the same merge again.
+A cleanup whose copy and whose scratch directory are both gone removes nothing and said so:
+no copy of what it compares exists.
 
 ### Repositories of a round run side by side
 

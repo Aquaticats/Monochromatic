@@ -154,9 +154,115 @@ impl Announcer for AnnounceToStreams<'_> {
     }
 }
 
+/// What:
+///  Holds the push record of a commit this service landed,
+/// where nothing runs it until the wrapper's post-commit gate approves it.
+/// Why:
+///   The wrapper writes its own record after the answer,
+/// so a wrapper killed between the two would lose the push
+///  (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+/// finding 3 of the first review).
+/// The service knows the commit landed,
+/// and a held record runs nothing:
+/// only the wrapper's promotion lets the queue see
+///  it,
+/// so a blocking gate still keeps the commit local.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await holdThePush(request, commit);
+/// ```
+/// What:
+///  Takes everything a batch owes before its branch moves:
+/// the record of the index update it will owe,
+/// and the held push of every commit it would land.
+/// Why:
+///   One call for the landing,
+/// so a kill after the branch move leaves both obligations and neither is forgotten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// whatABatchOwes(intent) // owed-index record, held pushes
+/// ```
+pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent) {
+    crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
+    hold_the_pushes_of(intent);
+}
+
+/// What:
+///  Gives back everything a batch that does not land owes.
+/// Why:
+///   One call for every path that removes the intent,
+/// so a record or a held push of a batch that never landed survives nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetWhatABatchOwes(intent)
+/// ```
+pub(crate) fn forget_what_a_batch_owes(intent: &crate::service_journal::Intent) {
+    crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
+    forget_the_pushes_of(intent);
+}
+
+pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
+    for commit in &intent.commits {
+        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());
+    }
+}
+
+/// Forgets the pushes of a batch that does not land.
+pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
+    for commit in &intent.commits {
+        crate::work_item::forget_held(work_dir.as_path(), format!("push-{commit}").as_str());
+    }
+}
+
+/// Holds one push record for a commit a batch lands.
+fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: repository.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: reference.to_string(),
+        oid: commit.to_string(),
+        parent: parent.to_string(),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
+        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
+    }
+}
+
+pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: request.repository.display().to_string(),
+        git_dir: request.git_dir.display().to_string(),
+        branch_ref: request.reference.clone(),
+        oid: commit.to_string(),
+        parent: request.base.clone(),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
+        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
+    }
+}
+
 /// Lands one group of jobs that share a branch,
 /// and answers each client.
-pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
+pub(crate) fn land_group(
+    context: &LandContext,
+    instance: Option<&str>,
+    seq: &mut u64,
+    group: Vec<Queued>,
+    landed: &mut HashMap<String, String>,
+    captures: &mut CaptureMemory,
+) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
     let mut again: Vec<Queued> = Vec::new();
@@ -248,6 +354,9 @@ pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mu
                         // The compiled rules of the repository are warmed on the blocking pool, off this thread and off the answer's path.
                         let paths: Vec<String> = request.changes.iter().map(path_of_change).collect();
                         crate::service_rules_precompile::after_landing(context.journal.as_path(), request.repository.as_path(), paths.as_slice());
+                        // The push is held before the answer, so a client killed between the two cannot lose it, and the post-commit
+                        //  gate is what promotes it.
+                        hold_the_push(request, commit.as_str());
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"
