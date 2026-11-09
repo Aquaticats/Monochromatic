@@ -3190,6 +3190,30 @@ on the blocking pool and never on the landing thread:
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
 
+A commit does not write that cache itself.
+When the cache holds no compiled form of the rules text a command needs,
+the command asks the service of that worktree to compile and publish it,
+with the same one-way `warm` message a worktree-moving command sends,
+and loads the rules without writing:
+the rules it compiled are the ones it scans with,
+and the artifact becomes the service's write rather than the command's.
+The question is asked only when the cache holds nothing,
+so a warm cache costs one artifact read and nothing else.
+
+Two cases keep the write on the command's path,
+because nothing else can make it:
+
+- a machine where no service runs for that worktree,
+  which is the first command after a boot or a fresh home;
+- a rules list the command took from `FORBIDDEN_STRINGS_RULES`,
+  since the service's own environment carries no such variable and it would compile the configuration's files instead.
+
+The artifact itself is published without a file or directory sync:
+a reader validates its magic, scanner version, platform, source digest, payload digest and engine digest,
+so a copy a crash tore is rejected and recompiled,
+and forcing the bytes to the device made the writer wait for a file that is derived data
+(6.7 s and 3.0 s of `fsync` in one measured commit, and 1.5 s in its `rename`).
+
 ## Reading the repository in process
 
 The wrapper starts real Git as rarely as it can.

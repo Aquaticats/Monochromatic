@@ -3846,6 +3846,39 @@ it would load changed,
 only to a service of that worktree that already runs (found by its start arguments),
 and never starts a process.
 The client keeps compiling on a cache miss.
+`src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
+(`CachePublisher`,
+`cache_access`):
+when the cache holds no compiled form of the rules text
+(`forbidden_strings::has_compiled_rules`)
+the command asks a service of that worktree that already runs to compile and publish it,
+with the same one-way `warm` message,
+and loads the rules read-only
+(`forbidden_strings::CacheAccess::ReadOnly`,
+`CandidateScanner::load_writing_cache`),
+so the rules it compiled are only ever a scan's input.
+The command publishes the artifact itself in two cases:
+a worktree with no running service,
+and a rules list that came from `FORBIDDEN_STRINGS_RULES`,
+which the service's environment does not carry and would not compile.
+A service that declines the warm (its address space leaves too little room,
+`warm_fits`)
+also leaves the artifact for the next command that publishes,
+so such a machine compiles the rules once per command:
+correct,
+and slower than a cache it cannot fill.
+The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
+writes a private temporary and renames it over the artifact,
+syncing neither the file nor its directory:
+every read validates magic,
+schema,
+scanner version,
+platform,
+source digest,
+payload digest,
+engine digest and trailing bytes,
+so a torn artifact is rejected and recompiled,
+and the file is derived data that may be deleted at any time.
 The waiting notice of the commit Git builds in the scratch repository names that `git commit`,
 signing,
 the signing program,
