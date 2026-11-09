@@ -400,6 +400,42 @@ impl MarkdownSource {
     }
 }
 
+/// What:
+///  Every paragraph's container kinds and its words,
+///  which together say where each piece of text sits.
+/// Why:
+///  A whitespace-only fix may move line breaks but not text:
+///  the property check over a real tree compares two parses and needs one definition
+///  of what a document's block structure and content are,
+///  not a copy per test module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function paragraphPlacements(context: MarkdownSource): [MdastNodeType[], string[]][];
+/// ```
+#[cfg(test)]
+pub(crate) fn paragraph_placements(
+    context: &MarkdownSource,
+) -> Result<Vec<(Vec<MdastNodeType>, Vec<String>)>, MarkdownError> {
+    let mut found: Vec<(Vec<MdastNodeType>, Vec<String>)> = Vec::new();
+    for id in context.all_nodes() {
+        if context.kind(*id) != MdastNodeType::Paragraph {
+            continue;
+        }
+        let mut containers: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
+        for ancestor in context.ancestors(*id)? {
+            containers.push(context.kind(ancestor));
+        }
+        let words: Vec<String> = context
+            .text_content(*id)?
+            .split_whitespace()
+            .map(String::from)
+            .collect::<Vec<String>>();
+        found.push((containers, words));
+    }
+    return Ok(found);
+}
+
 /// Direct native-arena guard controls,
 ///  independent of what malformed text the parser happens to emit.
 #[cfg(test)]

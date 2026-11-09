@@ -13,7 +13,7 @@
 //! ```
 
 /// Import the shared invocation fixtures.
-use crate::markdown_source::MarkdownSource;
+use crate::markdown_source::{MarkdownSource, paragraph_placements};
 use crate::run_output::RunOutput;
 use crate::run_test_support::{codes, read, run, write};
 use crate::test_fs::Fixture;
@@ -242,14 +242,35 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
     }
 }
 
+/// The two comparisons the real-tree property makes can both fail:
+///  moving a paragraph into another quotation and changing one word are each detected,
+///  so a green run is not a comparison that never looks.
+#[test]
+fn the_property_comparisons_detect_a_moved_paragraph_and_a_changed_word() {
+    let plain: MarkdownSource = parse("> quoted words\n\nplain text\n");
+    let quoted: MarkdownSource = parse("> quoted words\n\n> plain text\n");
+    assert_ne!(
+        paragraph_placements(&plain).expect("an acyclic parse"),
+        paragraph_placements(&quoted).expect("an acyclic parse")
+    );
+    assert_ne!(
+        comparable_tokens("a.md", "one two\n"),
+        comparable_tokens("a.md", "one three\n")
+    );
+}
+
 /// The measurement on a real tree,
 ///  run once by hand:
-///  `MONOCHROMATIC_LINT_PROPERTY_ROOT=<directory> MONOCHROMATIC_LINT_PROPERTY_STEP=<n> cargo nextest run --run-ignored only real_tree`.
-///  Every `n`th Markdown and Rust file under the directory is fixed on standard input,
-///  and the files whose tokens changed are listed in the failure.
+///  `MONOCHROMATIC_LINT_PROPERTY_ROOT=<directory> MONOCHROMATIC_LINT_PROPERTY_STEP=<n> cargo nextest run --lib --run-ignored only real_tree`.
+///  Every `n`th Markdown, MDX and Rust file under the directory is fixed on standard input.
+///  Tokens are compared for every file,
+///  and every Markdown host is parsed before and after so each paragraph is compared
+///  by its container chain and its words.
+///  A host the linter cannot process is counted and skipped;
+///  the failure lists the files that changed, and the printed counts say what was compared.
 #[test]
 #[ignore = "measurement over a real tree named by MONOCHROMATIC_LINT_PROPERTY_ROOT, not a unit control"]
-fn real_tree_keeps_every_token_under_the_whitespace_rule() {
+fn real_tree_keeps_every_token_and_block_structure_under_the_whitespace_rule() {
     let root: String = std::env::var("MONOCHROMATIC_LINT_PROPERTY_ROOT")
         .expect("MONOCHROMATIC_LINT_PROPERTY_ROOT names the tree to measure");
     let step: usize = match std::env::var("MONOCHROMATIC_LINT_PROPERTY_STEP") {
@@ -265,33 +286,68 @@ fn real_tree_keeps_every_token_under_the_whitespace_rule() {
         .lines()
         .map(String::from)
         .collect::<Vec<String>>();
+    assert!(!names.is_empty(), "{root} lists no Markdown or Rust file");
     let fixture: Fixture = Fixture::new();
-    let (mut measured, mut changed, mut broken): (usize, usize, Vec<String>) = (0, 0, Vec::new());
+    write(&fixture.path, CONFIG_FILE, EVERY_FIXABLE_RULE);
+    let mut measured: usize = 0;
+    let mut changed: usize = 0;
+    let mut tokens: usize = 0;
+    let mut structured: usize = 0;
+    let mut skipped: usize = 0;
+    let mut broken_tokens: Vec<String> = Vec::<String>::new();
+    let mut moved: Vec<String> = Vec::<String>::new();
     for name in names.iter().step_by(step) {
         let Ok(source): Result<String, std::io::Error> =
             std::fs::read_to_string(Path::new(root.as_str()).join(name))
         else {
             continue;
         };
-        measured += 1;
-        let fixed: String = fix_with(
+        let output: RunOutput = run(
             &fixture.path,
-            name.as_str(),
+            &["--stdin", "--stdin-filename", name.as_str(), "--fix"],
             source.as_str(),
-            EVERY_FIXABLE_RULE,
         );
+        // A processing failure leaves the host unmeasured; its own test covers the report.
+        if output.exit_code == 2 {
+            skipped += 1;
+            continue;
+        }
+        measured += 1;
+        let fixed: String = output.stdout;
         if fixed != source {
             changed += 1;
         }
-        if comparable_tokens(name.as_str(), fixed.as_str())
-            != comparable_tokens(name.as_str(), source.as_str())
+        let written: Vec<&str> = comparable_tokens(name.as_str(), source.as_str());
+        tokens += written.len();
+        if written != comparable_tokens(name.as_str(), fixed.as_str()) {
+            broken_tokens.push(name.clone());
+        }
+        if !(name.ends_with(".md") || name.ends_with(".mdx")) {
+            continue;
+        }
+        let mdx: bool = name.ends_with(".mdx");
+        let before = MarkdownSource::new(name.clone(), source, mdx);
+        let after = MarkdownSource::new(name.clone(), fixed, mdx);
+        let (Ok(before), Ok(after)) = (before, after) else {
+            skipped += 1;
+            continue;
+        };
+        structured += 1;
+        if paragraph_placements(&before).expect("an acyclic parse")
+            != paragraph_placements(&after).expect("an acyclic parse")
         {
-            broken.push(name.clone());
+            moved.push(name.clone());
         }
     }
     eprintln!(
-        "measured {measured} files, {changed} changed by the fix, {} changed a token",
-        broken.len()
+        "measured {measured} files ({changed} changed by the fix, {tokens} tokens, {structured} Markdown hosts parsed, {skipped} skipped)"
     );
-    assert!(broken.is_empty(), "token sequence changed in: {broken:#?}");
+    assert!(
+        broken_tokens.is_empty(),
+        "token sequence changed in: {broken_tokens:#?}"
+    );
+    assert!(
+        moved.is_empty(),
+        "paragraph containers or words changed in: {moved:#?}"
+    );
 }

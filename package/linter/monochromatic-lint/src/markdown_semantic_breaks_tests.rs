@@ -14,7 +14,7 @@
 use super::semantic_line_breaks;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::edits::{Fix, apply_fixes};
-use crate::markdown_source::MarkdownSource;
+use crate::markdown_source::{MarkdownSource, paragraph_placements};
 use satteri_ast::mdast::MdastNodeType;
 
 /// Run the rule through its actual native source model.
@@ -153,28 +153,12 @@ fn inserted_breaks_cannot_change_block_structure() {
 
 /// Each paragraph with the kinds of the containers around it and its words,
 ///  which is everything about where text sits that a line break must not change.
+///  The extraction itself is shared with the whole-invocation property check.
 fn placements(source: &str) -> Vec<(Vec<MdastNodeType>, Vec<String>)> {
     let context: MarkdownSource =
         MarkdownSource::new(String::from("prose.md"), String::from(source), false)
             .expect("fixture");
-    let mut found: Vec<(Vec<MdastNodeType>, Vec<String>)> = Vec::new();
-    for id in context.all_nodes() {
-        if context.kind(*id) != MdastNodeType::Paragraph {
-            continue;
-        }
-        let mut containers: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
-        for ancestor in context.ancestors(*id).expect("an acyclic parse") {
-            containers.push(context.kind(ancestor));
-        }
-        let words: Vec<String> = context
-            .text_content(*id)
-            .expect("an acyclic parse")
-            .split_whitespace()
-            .map(String::from)
-            .collect::<Vec<String>>();
-        found.push((containers, words));
-    }
-    return found;
+    return paragraph_placements(&context).expect("an acyclic parse");
 }
 
 /// A break inside a quotation re-emits every `>` marker of the line the paragraph opens on,
