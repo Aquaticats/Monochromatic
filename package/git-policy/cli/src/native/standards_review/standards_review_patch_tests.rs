@@ -55,7 +55,7 @@ fn both_sides(root: &Path, name: &str) -> (Vec<NewSpan>, Vec<NewSpan>) {
     let patch: String = git_text(root, &["show", "--format=", "--patch", "HEAD"]);
     let patch_lines: Vec<&str> = patch.split('\n').collect();
     let zero: String = git_text(root, &["diff", "-U0", "HEAD^", "HEAD", "--", name]);
-    return (new_spans(patch_lines.as_slice(), name), headers_spans(zero.as_str()));
+    return (new_spans(patch_lines.as_slice(), name.as_bytes()), headers_spans(zero.as_str()));
 }
 
 /// Replacement,
@@ -142,7 +142,7 @@ fn a_rename_is_read_under_its_new_name() {
     assert!(patch.contains("rename to renamed.ts"), "{patch}");
     let patch_lines: Vec<&str> = patch.split('\n').collect();
     let zero: String = git_text(root.as_path(), &["diff", "-U0", "-M", "HEAD^", "HEAD"]);
-    let derived: Vec<NewSpan> = new_spans(patch_lines.as_slice(), "renamed.ts");
+    let derived: Vec<NewSpan> = new_spans(patch_lines.as_slice(), b"renamed.ts");
     assert!(!derived.is_empty());
     assert_eq!(derived, headers_spans(zero.as_str()));
     remove(parent.as_path());
@@ -177,10 +177,10 @@ fn absent_paths_and_hunkless_sections_have_no_spans() {
     let (parent, root) = changed_repository("patch-absent", "a.ts", before.as_str(), format!("{before}x\n").as_str());
     let patch: String = git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]);
     let patch_lines: Vec<&str> = patch.split('\n').collect();
-    assert!(new_spans(patch_lines.as_slice(), "other.ts").is_empty());
-    assert!(new_spans(&[], "a.ts").is_empty());
+    assert!(new_spans(patch_lines.as_slice(), b"other.ts").is_empty());
+    assert!(new_spans(&[], b"a.ts").is_empty());
     let hunkless: Vec<&str> = vec!["diff --git a/m.ts b/m.ts", "old mode 100644", "new mode 100755"];
-    assert!(new_spans(hunkless.as_slice(), "m.ts").is_empty());
+    assert!(new_spans(hunkless.as_slice(), b"m.ts").is_empty());
     remove(parent.as_path());
 }
 

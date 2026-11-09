@@ -48,7 +48,131 @@ pub struct NewSpan {
 }
 
 /// What:
-///  Whether one of the extended header lines is exactly `rename`.
+///  The path a patch line prints,
+/// as bytes,
+/// with Git's own quoting decoded when the line quotes it.
+/// Why:
+///   Git quotes a path that holds a quote,
+/// a backslash,
+/// a control character or,
+/// with `core.quotePath` on,
+///  a byte above 0x7f,
+/// and the header then carries escapes where the name carries bytes.
+/// A path it does not quote is
+///  printed as it is,
+/// spaces included,
+/// so nothing needs splitting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const printedPath = (text) => text.startsWith('"') ? unquoteCStyle(text) : Buffer.from(text);
+/// ```
+fn printed_path(text: &str) -> Option<Vec<u8>> {
+    return match take_quoted(text) {
+        Some((decoded, after)) if after.is_empty() => Some(decoded),
+        Some(_unfinished) => None,
+        None => Some(text.as_bytes().to_vec()),
+    };
+}
+
+/// What:
+///  The C-quoted text at the start of `text`,
+/// decoded,
+/// and the text after its closing quote.
+/// Why:
+///   This is Git's `unquote_c_style`:
+/// the escapes are the short forms and up to three octal digits,
+///  and a quoted path's bytes are all ASCII in the patch text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function takeQuoted(text) { /* parse "..." and decode C escapes */ }
+/// ```
+fn take_quoted(text: &str) -> Option<(Vec<u8>, &str)> {
+    let bytes: &[u8] = text.as_bytes();
+    if bytes.first() != Some(&b'"') {
+        return None;
+    }
+    let mut decoded: Vec<u8> = Vec::new();
+    let mut index: usize = 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => return Some((decoded, text.get(index + 1..).unwrap_or_default())),
+            b'\\' => {
+                let escape: u8 = *bytes.get(index + 1)?;
+                let (byte, used): (u8, usize) = match escape {
+                    b'a' => (7, 2),
+                    b'b' => (8, 2),
+                    b'f' => (12, 2),
+                    b'n' => (10, 2),
+                    b'r' => (13, 2),
+                    b't' => (9, 2),
+                    b'v' => (11, 2),
+                    b'\\' => (b'\\', 2),
+                    b'"' => (b'"', 2),
+                    b'0'..=b'7' => {
+                        let mut value: u32 = 0;
+                        let mut digits: usize = 0;
+                        while digits < 3 {
+                            let Some(&next) = bytes.get(index + 1 + digits) else { break; };
+                            let Some(digit) = (next as char).to_digit(8) else { break; };
+                            value = value * 8 + digit;
+                            digits += 1;
+                        }
+                        if digits == 0 {
+                            return None;
+                        }
+                        (u8::try_from(value).ok()?, 1 + digits)
+                    }
+                    _other => return None,
+                };
+                decoded.push(byte);
+                index += used;
+            }
+            other => {
+                decoded.push(other);
+                index += 1;
+            }
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Whether the section header names `name` on both sides.
+/// Why:
+///   Git quotes both sides or neither,
+/// so a header that quotes is read as its two printed paths,
+/// and one that does not
+///  is compared with the name's exact bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [from, to] = printedPaths(header); return eq(from, `a/${name}`) && eq(to, `b/${name}`);
+/// ```
+fn header_is_for(header: &str, name: &[u8]) -> bool {
+    let Some(rest) = header.strip_prefix(SECTION_PREFIX) else {
+        return false;
+    };
+    let Some((from, after_from)) = take_quoted(rest) else {
+        let mut expected: Vec<u8> = Vec::from(&b"a/"[..]);
+        expected.extend_from_slice(name);
+        expected.extend_from_slice(b" b/");
+        expected.extend_from_slice(name);
+        return rest.as_bytes() == expected;
+    };
+    let Some((to, after_to)) = after_from.strip_prefix(' ').and_then(take_quoted) else {
+        return false;
+    };
+    let mut expected_from: Vec<u8> = Vec::from(&b"a/"[..]);
+    expected_from.extend_from_slice(name);
+    let mut expected_to: Vec<u8> = Vec::from(&b"b/"[..]);
+    expected_to.extend_from_slice(name);
+    return after_to.is_empty() && from == expected_from && to == expected_to;
+}
+
+/// What:
+///  Whether one of the extended header lines is `rename to` and then `name`.
 ///  `&[&str]` borrows a list of borrowed lines.
 /// Why:
 ///   `section_is_for` asks it of the lines after a section header,
@@ -57,11 +181,14 @@ pub struct NewSpan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const listsRenameTo = (extended: string[], rename: string) => extended.includes(rename);
+/// const listsRenameTo = (extended: string[], name) => extended.some((line) => printedPath(line.slice('rename to '.length)) == name);
 /// ```
-fn lists_rename_to(extended: &[&str], rename: &str) -> bool {
+fn lists_rename_to(extended: &[&str], name: &[u8]) -> bool {
     for line in extended {
-        if *line == rename {
+        let Some(printed) = line.strip_prefix("rename to ").and_then(printed_path) else {
+            continue;
+        };
+        if printed.as_slice() == name {
             return true;
         }
     }
@@ -96,11 +223,10 @@ fn is_hunk_or_section_line(line: &&str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// header === `diff --git a/${name} b/${name}` || extended.includes(`rename to ${name}`)
+/// headerIsFor(header, name.bytes) || extended.some((line) => renameNames(line, name.bytes))
 /// ```
-fn section_is_for(header: &str, extended: &[&str], name: &str) -> bool {
-    let rename: String = format!("rename to {name}");
-    return header == format!("{SECTION_PREFIX}a/{name} b/{name}") || lists_rename_to(extended, &rename);
+fn section_is_for(header: &str, extended: &[&str], name: &[u8]) -> bool {
+    return header_is_for(header, name) || lists_rename_to(extended, name);
 }
 
 /// What:
@@ -138,7 +264,7 @@ fn parse_new_start(line: &str) -> Option<u64> {
 /// ```ts
 /// function newSpans({ patchLines, name }): { first: number; last: number }[];
 /// ```
-pub fn new_spans(patch_lines: &[&str], name: &str) -> Vec<NewSpan> {
+pub fn new_spans(patch_lines: &[&str], name: &[u8]) -> Vec<NewSpan> {
     let mut spans: Vec<NewSpan> = Vec::new();
     let mut index: usize = 0;
     while index < patch_lines.len() {

@@ -369,8 +369,7 @@ pub fn build_input(commit: &LandedCommit, code_files: &[ChangedPath]) -> ReviewI
         let Some(content) = commit.contents.get(name) else {
             continue;
         };
-        let label: String = name.to_string();
-        let spans: Vec<NewSpan> = new_spans(lines.as_slice(), label.as_str());
+        let spans: Vec<NewSpan> = new_spans(lines.as_slice(), name.as_bytes());
         let (pieces, covered) = excerpt(name, content, spans.as_slice());
         parts.extend(pieces);
         excerpt_lines += covered;
