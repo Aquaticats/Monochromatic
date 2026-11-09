@@ -1651,8 +1651,11 @@ five times the longest measured whole checkout),
 because those steps run the checkout's
 conversion filters and a smudge filter,
 a Git LFS process or a filesystem that never answers must not hold the add.
-The person's own forwarded command has no ceiling:
-native Git waits as long as its own work takes.
+The person's own forwarded command has no ceiling,
+whatever word it names:
+native Git waits as long as its own work takes,
+so a `git read-tree --reset -u` the person typed is never ended,
+and the ceiling is chosen only for a step the ladder starts itself.
 A step ended at
 its ceiling loses nothing of the person's:
 it writes the wrapper's own stage or the new worktree,

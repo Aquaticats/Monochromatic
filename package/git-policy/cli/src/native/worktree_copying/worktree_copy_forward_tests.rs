@@ -316,3 +316,53 @@ fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
     assert!(!topic.join("stored.txt").exists(), "the add was not completed");
     remove(root.as_path());
 }
+
+/// What:
+///  The person's own `git read-tree --reset -u` is forwarded without a ceiling,
+/// even though a ladder's `read-tree` has
+///  one.
+/// Why:
+///   The ceiling is for the steps the wrapper starts itself, and native Git gives the person's own command no bound:
+/// a
+///  conversion filter that takes minutes is the person's own work,
+/// and ending their Git would leave a partial checkout and an
+///  `index.lock` behind.
+/// The ceiling for this thread is zero, so a step that consulted it would end at once,
+/// and the
+///  person's command must still complete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shortenCeiling(0); const run = runForwardedGit({ args: ['-C', linked, 'read-tree', '--reset', '-u', 'HEAD'], facts }); expect(run).toEqual({ exitCode: 0 })
+/// ```
+#[test]
+fn a_persons_own_read_tree_is_not_ended_at_the_ladder_ceiling() {
+    use crate::ladder_step_ceilings::CEILING_FOR_THIS_THREAD;
+    use std::time::Duration;
+    let root: PathBuf = fixture("forward-person-read-tree");
+    let (main, common) = source(root.as_path());
+    std::fs::write(main.join("kept.txt"), b"kept\n").expect("a tracked file");
+    git(main.as_path(), &["add", "--all"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=first"]);
+    let linked: PathBuf = root.join("linked");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "linked", linked.to_str().expect("utf8")]);
+    let linked: PathBuf = std::fs::canonicalize(linked.as_path()).expect("canonical linked");
+    let facts: CopyFacts = CopyFacts {
+        identity: WorktreeIdentity::LinkedWorktree { common_dir: common.clone(), git_dir: common.join("worktrees/linked"), worktree_root: linked.clone() },
+        creates: false,
+        destination: None,
+        add_plan: None,
+        remove_plan: None,
+    };
+    CEILING_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<Duration>>| slot.set(Some(Duration::ZERO)));
+    let run: ForwardedRun = run_forwarded_git(
+        Path::new(REAL_GIT),
+        arguments(&["-C", linked.to_str().expect("utf8"), "read-tree", "--reset", "-u", "HEAD"]).as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+    );
+    CEILING_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<Duration>>| slot.set(None));
+    assert_eq!(run, ForwardedRun::Ran(0), "the person's own read-tree runs to its end");
+    assert!(linked.join("kept.txt").is_file(), "its checkout wrote the file");
+    remove(root.as_path());
+}

@@ -484,9 +484,12 @@ fn run_settled(
                     }
                 }
             }
-            // The person's own command waits as long as native Git does, while a step the ladder started has the ceiling of its
-            //  class: a filter or a filesystem that never answers must not hold the add (owner: nothing waits forever).
-            let ran: std::io::Result<ChildOutcome> = match crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) {
+            // Only a step the ladder started has a ceiling; the person's own command waits as long as native Git does, whichever
+            //  word it names, and a filter or a filesystem that never answers must not hold a ladder step (owner: nothing waits
+            //  forever).
+            let ladder_started: bool = matches!(step, GitStep::Other { .. });
+            let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
+            let ran: std::io::Result<ChildOutcome> = match ceiling {
                 Some(ceiling) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), ceiling),
                 None => run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()),
             };
