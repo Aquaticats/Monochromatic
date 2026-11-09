@@ -248,7 +248,10 @@ looking at `.cache/toolchain-bin/mpm-shadow` and at every finished version folde
 (a folder with the `.mpm-shadow-installed` marker and the program;
 this repository's tools are one set across both roots,
 and the newest copy wins wherever it is),
-and saying `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` on standard error when that copy is newer.
+and saying `locked at X in <lock file>, Y runs; upgrade that lock with: mise run toolchain:update mpm-shadow` on standard
+error when that copy is newer,
+`<lock file>` being the lock it compared,
+so a reader in a repository of worktrees can tell which worktree is behind.
 A copy older than the lock never runs.
 Only when no copy is at or above the lock's version does it download the lock's archive for the platform,
 check the SHA-256 recorded beside it,
