@@ -15,6 +15,21 @@
 /// import { spawnSync } from 'node:child_process';
 /// ```
 use std::{fs, io, io::Write, path::{Path, PathBuf}, process::{Command, Output, Stdio}};
+/// Import the trait that adds `from_mode` to `Permissions`.
+use std::os::unix::fs::PermissionsExt;
+
+/// What:
+/// `pub pub const OWNER_ONLY_MODE: u32 = 0o700;` is the mode rule ATH requires for the shared scratch root:
+/// read, write and search for the owner and nothing for anyone else.
+/// Why:
+/// The fixture sets it and `tests/fixture.rs` asserts it, both from this one value,
+/// so a change to the requirement is one edit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const OWNER_ONLY_MODE = 0o700;
+/// ```
+pub const OWNER_ONLY_MODE: u32 = 0o700;
 
 /// What:
 /// `pub fn` exports a function;
@@ -63,6 +78,17 @@ pub fn fixture_in(home: &Path) -> io::Result<PathBuf> {
     // mkdirSync(scratch, { recursive: true });
     // ```
     fs::create_dir_all(&scratch)?;
+    // What: `set_permissions` replaces the mode `create_dir_all` left behind, and `from_mode` reads the octal
+    // literal. `?` returns the error when the directory cannot be changed.
+    // Why: `create_dir_all` applies the process umask (typically `0755`), and rule ATH requires the shared scratch
+    // root to be `0700` because trust checks reject group and other bits. Setting it after creation also corrects a
+    // directory an earlier run left looser, which a creation-time mode cannot do.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // chmodSync(scratch, 0o700);
+    // ```
+    fs::set_permissions(&scratch, fs::Permissions::from_mode(OWNER_ONLY_MODE))?;
     // Request a private unique directory; its quote and space exercise shell escaping.
     let output = Command::new("mktemp")
         .arg("--directory")
