@@ -166,9 +166,17 @@ pub fn audit_line(record: &AuditRecord) -> String {
     // A refusal is what a reader scanning the file looks for; the rest are decisions that let the command run.
     let level: &str = if record.outcome == AuditOutcome::Rejected { "warn" } else { "info" };
     let time: String = format_iso_milliseconds(i64::try_from(record.time_millis).unwrap_or(i64::MAX));
+    // A recorded form is written before Git runs it, so this line cannot know what Git did with the command: the field
+    //  says so in words a reader cannot take for the result. Every other outcome is a decision of the wrapper itself,
+    //  which is complete before Git is asked to run.
+    let before_git: &str = if record.outcome == AuditOutcome::Logged {
+        ",\"writtenBeforeGitRuns\":true"
+    } else {
+        ""
+    };
     return format!(
         "{{\"schemaVersion\":1,\"time\":{},\"level\":\"{level}\",\"timeMillis\":{},\"release\":{},\"pid\":{},\"parentPid\":{},\"worktree\":{},\"gitDir\":{},\"form\":{},\
-         \"outcome\":{},\"dirty\":{dirty},\"cwd\":{},\"arguments\":{}{copies}{}}}\n",
+         \"outcome\":{}{before_git},\"dirty\":{dirty},\"cwd\":{},\"arguments\":{}{copies}{}}}\n",
         quote(&time),
         quote(&record.time_millis.to_string()),
         quote(RELEASE),

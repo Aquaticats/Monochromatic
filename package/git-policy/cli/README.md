@@ -1614,7 +1614,9 @@ which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
 
-Two commands are never rejected and always leave one audit line (outcome `logged`),
+Two commands are never rejected and always leave one audit line (outcome `logged`,
+with `writtenBeforeGitRuns` `true`,
+because the line is written before Git runs and cannot say whether Git ran the deletion or refused it),
 by the owner's decision,
 also when `--no-enforce-worktree` is given:
 

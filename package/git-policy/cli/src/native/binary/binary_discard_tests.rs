@@ -979,3 +979,66 @@ fn an_escaped_recorded_form_still_leaves_its_audit_line() {
     }
     remove(&fixture);
 }
+
+/// A record of a recorded form is written before Git runs,
+/// so it says that,
+///  and a reader cannot take it for the result:
+/// a deletion Git refused leaves the same line as one it ran.
+#[test]
+fn a_recorded_form_says_its_line_was_written_before_git_ran() {
+    let fixture: Fixture = fixture("audit-before-git");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch whose commit nothing else reaches and that no upstream has: `-d` refuses to delete it.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "gone"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=gone", "--", "tracked.txt"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-d", "gone"]);
+    assert_ne!(refused.code, Some(0), "Git refuses an unmerged branch");
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "gone"]).stdout.as_slice()),
+        "  gone\n",
+        "the branch is still there"
+    );
+    let refused_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a refused deletion");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"outcome\":\"logged\"",
+        "\"branch\":\"gone\"",
+        "\"writtenBeforeGitRuns\":true",
+    ] {
+        assert!(refused_line.contains(field), "{field} missing from {refused_line}");
+    }
+    // A deletion Git runs leaves the same statement, because the line still cannot know what Git did.
+    let deleted: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "gone"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    let deleted_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a run deletion");
+    assert!(deleted_line.contains("\"writtenBeforeGitRuns\":true"), "{deleted_line}");
+    // A removal Git refuses keeps the worktree and says the same about its line.
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    let kept: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", linked.to_str().expect("utf-8 fixture path")],
+    );
+    assert_ne!(kept.code, Some(0), "Git refuses a dirty worktree without --force");
+    assert!(linked.exists(), "the worktree is still there");
+    let kept_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a refused removal");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"writtenBeforeGitRuns\":true",
+        "\"head\":\"refs/heads/side\"",
+    ] {
+        assert!(kept_line.contains(field), "{field} missing from {kept_line}");
+    }
+    // A decision the policy makes carries no such field: it says what the wrapper did, before Git was asked to run.
+    git(&fixture, linked.as_path(), &["checkout", "--quiet", "--", "tracked.txt"]);
+    let allowed: Observed = run_wrapped(&fixture, linked.as_path(), &["restore", "--staged", "tracked.txt"]);
+    assert_eq!(allowed.code, Some(0), "{}", stderr_of(&allowed));
+    let allowed_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("the line of a decision");
+    assert!(allowed_line.contains("\"outcome\":\"allowed\""), "{allowed_line}");
+    assert!(!allowed_line.contains("writtenBeforeGitRuns"), "{allowed_line}");
+    remove(&fixture);
+}

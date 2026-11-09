@@ -9409,6 +9409,15 @@ with `schemaVersion`,
 `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
+A `logged` line also has `writtenBeforeGitRuns` set to `true`,
+and no other outcome has the field.
+The wrapper appends that line before it replaces itself with Git,
+so the line cannot know whether Git ran the deletion or refused it:
+`git branch -d` of a branch nothing else contains is refused,
+`git worktree remove` of a dirty worktree without `--force` is refused,
+and each leaves the same line as the deletion that ran.
+The field says that in words a reader cannot take for the result,
+where `outcome` alone said `logged` for both.
 A `rejected` line of a forced `checkout`,
 a forced `switch` or a hard `reset` whose tree tracks a path the worktree ignores also has
 `ignoredAndTracked`,
