@@ -36,6 +36,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  continuationPromptOf,
   FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
@@ -96,6 +97,10 @@ const MILLISECONDS_PER_SECOND = 1_000;
  Milliseconds of the first retry delay, which `--retry-base-seconds` names in seconds.
  */
 const RETRY_BASE_MILLISECONDS = RETRY_BASE_SECONDS * MILLISECONDS_PER_SECOND;
+/**
+ How many looks at the inbox one retry wait spans, so a message dropped during the wait is there before the attempt goes.
+ */
+const LOOKS_A_RETRY_WAIT_SPANS = 4;
 /** Status of a run that ended on its own terms. */
 const CLEAN_STATUS = 0;
 /** Status of a run that did not. */
@@ -874,6 +879,28 @@ await describe({
         expect(run.summary.modelErrorAttempts,).toBe(1,);
         expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
         expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'an inbox message arriving during a retry wait goes after the retry prompt, not into a run it would start',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'transient-error-then-success',
+          idleSeconds: LONG_IDLE_SECONDS,
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS * LOOKS_A_RETRY_WAIT_SPANS,)}`,],
+          whileRunning: async (running,) => {
+            await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
+            await dropInInbox({ runFolder: running.runFolder, text: 'a steering message', },);
+            await waitForFeed({ ...running, text: '"kind":"retry_prompt"', },);
+            await writeFile(join(running.runFolder, 'stop',), '',);
+          },
+        },);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).map((command,) => command.message),)
+          .toEqual([
+            'hello',
+            continuationPromptOf({ problem: TRANSIENT_ERROR_TEXT, },),
+            'a steering message',
+          ],);
       },
     },),
     it({
