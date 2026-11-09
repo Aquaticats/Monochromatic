@@ -240,8 +240,21 @@ The old tree kept for the rollback stays until the owner deletes it.
   for the findings of `conflict-resolution-round-2-sol.txt` other than the window between revalidation and install,
   a new agent `standards-review-findings-fixed` with `standards-review-findings-fixed-prompt.md`,
   for the defects in `doc/planning/cli-git-standards-review-route-findings-on-main.md`,
-  and a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`.
+  a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`,
+  and a new agent `commit-ceiling-and-private-index-follow-ups` with `commit-ceiling-and-private-index-follow-ups-prompt.md`.
+- The commit-ceiling branch landed as `e8f75c09e8`,
+  with 495 of 495 selected tests on top of main.
+  Its last review (`scratch-commit-ceiling-round-5-sol.txt`) was started over a range that crossed a merge of main,
+  so it also read main's landing and `fix` code.
+  The findings on the owed index record went to the inbox of `landing-route-findings-fixed` run 11.
+  The rest are in the follow-up brief named in the queue:
+  a commit has no ceiling when its notice thread cannot start (main has the same gap),
+  a step started without a descriptor is signalled by number,
+  an `owner` FIFO blocks private index creation without a bound,
+  and a rollback notice says a file holds a save that is only in the journal.
+  The visible queue position can now start,
+  since it was held for this landing.
 - mpm-shadow landed as `9406b6e5b0` with 725 of 725 tests on top of main,
   and 0.2.7-alpha.10 was released from it,
   locked and installed (`mise exec -- mpm-shadow --version` reads that version;
