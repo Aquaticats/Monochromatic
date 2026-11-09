@@ -150,7 +150,7 @@ pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RecordAge = { kind: 'measured'; age: number } | { kind: 'ahead' } | { kind: 'unreadable'; reason: string };
+/// type RecordAge = { kind: 'measured'; age: number } | { kind: 'ahead' } | { kind: 'unreadable'; reason: string } | { kind: 'gone' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RecordAge {
@@ -163,6 +163,10 @@ pub enum RecordAge {
     /// The file's time cannot be read,
     /// with the reason the platform gave.
     Unreadable(String),
+    /// The record is not there any more:
+    /// its owner finished and removed it,
+    /// so nothing stands in the way and nothing is unreadable.
+    Gone,
 }
 
 /// What:
@@ -181,8 +185,12 @@ pub enum RecordAge {
 /// Date.now() - statSync(recordPath).mtimeMs // throws when the time is ahead of the clock
 /// ```
 pub fn foreign_record_age(record_path: &Path) -> RecordAge {
+    // A record that is gone was finished by the owner that wrote it, and it is not an unreadable one: the owner that
+    // completes its merge removes its intent between a reader's two reads, and a refusal there stopped the command with
+    // an instruction to remove a file that no longer exists (cross-vendor review of 2026-11-09, finding 3).
     let metadata: std::fs::Metadata = match std::fs::metadata(record_path) {
         Ok(found) => found,
+        Err(error) if is_missing(&error) => return RecordAge::Gone,
         Err(error) => return RecordAge::Unreadable(error.to_string()),
     };
     let modified: SystemTime = match metadata.modified() {
@@ -193,6 +201,20 @@ pub fn foreign_record_age(record_path: &Path) -> RecordAge {
         Ok(age) => RecordAge::Measured(age),
         Err(_) => RecordAge::Ahead,
     };
+}
+
+/// What:
+///  Whether an error says the path is not there.
+/// Why:
+///   A record that is gone and a path that names no file are both absent records,
+///  and neither is an unreadable one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// error.code === 'ENOENT' || error.code === 'ENOTDIR'
+/// ```
+fn is_missing(error: &std::io::Error) -> bool {
+    return matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory);
 }
 
 /// What:
@@ -208,6 +230,35 @@ pub fn foreign_record_age(record_path: &Path) -> RecordAge {
 /// ```
 pub fn age_outlives_patience(age: Duration) -> bool {
     return age > FOREIGN_OWNER_PATIENCE;
+}
+
+/// What:
+///  What a record of another PID namespace says about its owner now.
+/// Why:
+///   An owner of another namespace is judged by its record and not by its PID,
+///  so a record that stands,
+///  one that is gone and one that is refused are told apart:
+///  a gone record is a finished owner's,
+///  which holds nothing and in whose way nothing stands
+///  (cross-vendor review of 2026-11-09,
+///  finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ForeignStanding = { kind: 'standing' } | { kind: 'finished' } | { kind: 'refused'; refusal: RefusedForeignRecord };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ForeignStanding {
+    /// The record stands and is inside the patience:
+    /// its owner may still run.
+    Standing,
+    /// The record is gone:
+    /// its owner finished and removed it,
+    /// so nothing holds and nothing is in the way.
+    Finished,
+    /// The record is neither alive nor dead,
+    /// and the command stops with it named.
+    Refused(RefusedForeignRecord),
 }
 
 /// What:
@@ -330,11 +381,15 @@ impl RefusedForeignRecord {
 /// What:
 ///  How a record is judged when it names another PID namespace:
 /// alive while its age is measured and younger than the patience,
+/// finished once it is gone,
 /// refused once that age is past it,
 /// and refused as soon as its own time cannot be trusted,
 /// and
 ///  nothing for a record of this namespace or of none,
 /// which the PID decides.
+/// A record that is gone is finished:
+/// its owner removed it,
+/// so nothing holds and no command stops over it.
 /// Why:
 ///   Callers share one rule:
 /// an owner of another namespace is alive only while its record's age is measured and inside the patience;
@@ -350,7 +405,7 @@ impl RefusedForeignRecord {
 /// ```ts
 /// isOtherNamespace(recorded, current) ? standingOf(ageOf(recordPath)) : undefined
 /// ```
-pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<Result<(), RefusedForeignRecord>> {
+pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<ForeignStanding> {
     #[cfg(test)]
     STANDING_LOOKUPS.with(|count| { count.set(count.get() + 1); });
     if !is_other_namespace(recorded, current_pid_namespace().as_deref()) {
@@ -359,11 +414,15 @@ pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Opt
     let namespace: String = recorded.map_or_else(String::new, String::from);
     let because: ForeignRefusal = match foreign_record_age(record_path) {
         RecordAge::Measured(age) if age_outlives_patience(age) => ForeignRefusal::PastThePatience(age),
-        RecordAge::Measured(_) => return Some(Ok(())),
+        RecordAge::Measured(_) => return Some(ForeignStanding::Standing),
+        // An owner that finished removes its record, and nothing is left to hold anything: the reader that finds it gone
+        // says so instead of stopping the command over a file that is not there
+        // (cross-vendor review of 2026-11-09, finding 3).
+        RecordAge::Gone => return Some(ForeignStanding::Finished),
         RecordAge::Ahead => ForeignRefusal::TimeAhead,
         RecordAge::Unreadable(reason) => ForeignRefusal::TimeUnreadable(reason),
     };
-    return Some(Err(RefusedForeignRecord { record: record_path.to_path_buf(), namespace, because }));
+    return Some(ForeignStanding::Refused(RefusedForeignRecord { record: record_path.to_path_buf(), namespace, because }));
 }
 
 #[cfg(test)]

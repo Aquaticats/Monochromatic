@@ -25,7 +25,7 @@ use crate::process_identity::{
     ProcessIdentityError, current_birth_identity, process_birth_identity,
 };
 /// The namespace an owner record names and the rule for an owner of another one.
-use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
+use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
 
 /// Owner record schema;
 ///  version 2 marks the per-transaction directory layout.
@@ -265,8 +265,12 @@ pub fn classify_transaction_owner_record(
     owner_path: &std::path::Path,
 ) -> Result<OwnerLiveness, OwnerLivenessError> {
     match foreign_owner_standing(owner.owner_pid_namespace.as_deref(), owner_path) {
-        Some(Ok(())) => return Ok(OwnerLiveness::Alive),
-        Some(Err(refused)) => return Err(OwnerLivenessError::ForeignRecordRefused(refused.describe(owner.owner_pid))),
+        Some(ForeignStanding::Standing) => return Ok(OwnerLiveness::Alive),
+        // The record of another namespace that its owner removed is a finished owner's: nothing of it holds anything, and a
+        //  command that read the parsed copy before it went on is not stopped over a file that is not there
+        //  (cross-vendor review of 2026-11-09, finding 3).
+        Some(ForeignStanding::Finished) => return Ok(OwnerLiveness::Dead),
+        Some(ForeignStanding::Refused(refused)) => return Err(OwnerLivenessError::ForeignRecordRefused(refused.describe(owner.owner_pid))),
         None => {}
     }
     return classify_transaction_owner(owner.owner_pid, owner.owner_identity.as_str());
