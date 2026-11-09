@@ -6936,6 +6936,75 @@ The wording of a refusal:
   and `commit/`,
   both reserved by the brief for branches that have not landed.
 
+### Step T12, the first review round, 2026-11-09T12:46:31-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-repair-threads-on-the-runtime`,
+  with main at `ab2839b414` merged as `4004f6b562` (45 commits, no conflict).
+  The review read source only
+  (`~/temp/agent/reviews/tokio-repair-round-1-sol.txt`),
+  and every finding was reproduced before it was fixed:
+  each fix has the control that failed without it,
+  and the failing output is quoted in its commit message.
+- `repair/package_repair_toolchain.rs`,
+  the record read at `lock_named_by_record` and the awaiting face.
+  Held: the read ran on the task of `tokio::join!` in `package_repair.rs`,
+  so a `.cache/toolchain-launchers/*.launch` entry that is a named pipe with no writer
+  stopped the pnpm repair's quiet window and ceiling together with the read.
+  This is new to the branch:
+  the toolchain repair had a thread of its own before it.
+  Fixed by `91bb19ccab`:
+  only a regular file is opened,
+  so an entry of any other kind is left alone,
+  and both the decision before the install and the count after it are jobs of the blocking pool
+  (`prepare_install_within_the_budget`, `count_stale_within_the_budget`).
+  A count that could not be read turns a success into a failure that names the reason,
+  so nothing reports a success it did not check.
+  The synchronous face keeps its caller-thread reads:
+  it runs on the caller's own thread before and after its one entry into the runtime and polls no wait there.
+  Controls, written first in `19181978d8`:
+  `a_record_that_is_a_named_pipe_is_left_alone` and
+  `the_launcher_records_are_read_as_a_job_of_the_pool`.
+  The first failed with "nothing ended the wait" after ten seconds,
+  and the second with "the launcher records were read without asking for a place of the process's bound on blocking jobs".
+- `foundation/blocking_jobs_within_the_budget.rs`,
+  the fallback of `run_a_job_or_in_turn`.
+  Held: `a_refused_thread_start` gives the refused job's place back before answering,
+  so the work the fallback then runs in turn held no place,
+  and a second job took that free place and ran beside it.
+  Fixed by `bdb21a6329`:
+  the fallback takes a place again and holds it across the work,
+  which is the one lock-free place the process already has and no new lock.
+  Control, written first in `7d98660e8e`:
+  `a_fallback_that_runs_in_turn_holds_a_place_of_the_bound`
+  reads the bound while the fallback's work is open,
+  and reads it free before that work starts, so the measurement is shown to see both states.
+  It failed with `left: 1, right: 0`.
+- `repair/package_repair_cargo_concurrent.rs`,
+  the build of an item's future.
+  Held: `queue.job.run(item)` is evaluated before `call_catching_panics_awaiting` exists,
+  so a job that panicked there ended the worker task,
+  which dropped the answers it had finished,
+  discarded its panic text at `join_next`,
+  and never took the items after it.
+  Fixed by `8da095c454`:
+  the build travels through `while_panics_are_expected` and becomes that item's error,
+  every answer is handed to the run as its item ends instead of travelling in the task's return value,
+  and a task's own panic is recorded rather than dropped.
+  Control, written first in `1c04a543b1`:
+  `a_panic_while_an_items_future_is_built_stays_that_items`,
+  which failed with `[Err("item 0 gave no result"), Err("item 1 gave no result"), Err("item 2 gave no result")]`.
+- Controls of the round:
+  `repair::`, `worktree_copying::`, `foundation::blocking_jobs_within_the_budget`,
+  `foundation::call_catching` and the two place and claim modules beside them,
+  392 tests passed;
+  `native:clippy` clean (it caught one shadowed binding the fix introduced, which is renamed);
+  `lint:monochromatic-lint` reports nothing in the six files this round touched.
+- Not done here:
+  the container gate (`native:test:container`) was not run,
+  the mutation campaigns stay paused by the owner,
+  and Win and mac were left alone.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
