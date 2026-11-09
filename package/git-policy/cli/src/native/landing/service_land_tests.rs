@@ -13,6 +13,7 @@ use crate::service_protocol::{ALLOWED_MODES, Change};
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::RecvTimeoutError;
 
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
@@ -1538,26 +1539,76 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
     git(world.repo.as_path(), &["branch", "other"]);
     let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let lock: PathBuf = world.repo.join(".git/index.lock");
-    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let foreign: ForeignIndexLock = ForeignIndexLock::take(lock.as_path());
     let intent: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    let outcomes = std::thread::scope(|scope| {
-        let landing = scope.spawn(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); });
-        // The intent is written after the checks before the wait, so once it exists the landing is waiting for the lock.
-        let deadline: Instant = Instant::now() + std::time::Duration::from_secs(10);
-        while !intent.exists() && Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(5));
+    // The landing says so from its own thread, before it blocks, once it has found the lock held and has not read the branch;
+    //  the word goes with the landing, so one that ends without waiting is heard at once rather than at the end of a window.
+    let (waiting, said) = std::sync::mpsc::channel();
+    let announce = move |_: Announce| { let _told = waiting.send(()); };
+    let (heard, outcomes) = std::thread::scope(|scope| {
+        let landing = scope.spawn(|| { return land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &announce); });
+        let heard: Result<(), &'static str> = match said.recv_timeout(WAIT_WORD_CEILING) {
+            Ok(()) => Ok(()),
+            Err(RecvTimeoutError::Disconnected) => Err("the landing ended without waiting for the index lock"),
+            Err(RecvTimeoutError::Timeout) => Err("the landing did not reach the wait for the index lock"),
+        };
+        // The switch is made while the landing is inside its wait, and the lock goes in every path: a control that fails here
+        //  must not leave the landing waiting out its ceiling for a lock the control still holds.
+        if heard.is_ok() {
+            git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
         }
-        assert!(intent.exists(), "the landing reached the wait");
-        git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
-        std::fs::remove_file(&lock).expect("the foreign program lets go");
-        return landing.join().expect("landing");
+        drop(foreign);
+        return (heard, landing.join().expect("landing"));
     });
+    assert_eq!(heard, Ok(()), "the landing reached the wait");
     assert_eq!(outcomes, Ok(vec![Outcome::BranchMoved]));
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), base, "the branch did not move");
     assert!(!intent.exists(), "no intent is left");
     assert!(!lock.exists(), "no lock is left");
     assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
     remove(world.root.as_path());
+}
+
+/// The longest a control waits for the landing's own word that it is waiting for the index lock.
+/// The bound only ends a run that is already broken: a landing that never says the word stopped before its wait,
+/// and a
+///  control that waited without one would be held until the test watchdog ends the process
+/// (`testing/test_support.rs`,
+///  `RUN_LIMIT`, two minutes).
+/// It is the ceiling the landing itself gives a foreign holder
+/// (`wait_ceilings.rs`, `LANDING_LOCK_CEILING`),
+/// which is above the longest measured landing phase before the wait.
+const WAIT_WORD_CEILING: std::time::Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
+
+/// What:
+///  A program that is not the service,
+/// holding a worktree's index lock.
+/// Why:
+///   The lock goes when the control lets go and also when the control ends however it ends,
+/// so a control that fails cannot
+///  leave a landing waiting out its ceiling for a lock the control still holds.
+struct ForeignIndexLock {
+    /// The lock file this program holds.
+    path: PathBuf,
+}
+
+impl ForeignIndexLock {
+    /// Hold the lock at `path`,
+    /// as a program that is not the service would:
+    /// with content in it,
+    /// which is what keeps the landing from judging it a lock nothing holds and removing it.
+    fn take(path: &Path) -> Self {
+        std::fs::write(path, "foreign").expect("foreign lock");
+        return Self { path: path.to_path_buf() };
+    }
+}
+
+impl Drop for ForeignIndexLock {
+    /// Let the lock go;
+    /// a lock already gone is the control having let go before it ended.
+    fn drop(&mut self) {
+        let _let_go = std::fs::remove_file(self.path.as_path());
+    }
 }
 
 /// A restart that finds the worktree on another branch than the batch's does not touch the index:
