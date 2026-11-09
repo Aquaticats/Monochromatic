@@ -225,13 +225,14 @@ fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: us
     let (parent, root) = checkout_with_worktrees(name, WORKTREES + WORKTREES);
     let running: AtomicUsize = AtomicUsize::new(0);
     let busiest: AtomicUsize = AtomicUsize::new(0);
-    let point: Rendezvous = Rendezvous::impatient(meeting, LAST_TO_FINISH_PATIENCE);
+    // The patience bounds only how long a run that never reaches the bound waits before it fails.
+    let point: Rendezvous = Rendezvous::impatient(meeting, crate::parallel_test_support::PATIENCE);
     let platform: Watched<'_> = Watched {
         on_create: Box::new(|_path: &Path| {
             let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
             busiest.fetch_max(now, Ordering::SeqCst);
             if meeting > 1 {
-                point.arrive();
+                point.arrive_at_the_bound(meeting);
             }
             return Ok(());
         }),
