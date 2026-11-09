@@ -1,0 +1,1 @@
+Correction: the sentence about the test importing the shared OWNER_ONLY_MODE constant describes 61510da2c7, not this commit; and 0755 is the mode, with 0022 the umask that produced it.
