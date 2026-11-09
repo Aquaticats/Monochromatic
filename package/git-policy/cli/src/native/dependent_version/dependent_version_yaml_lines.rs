@@ -126,25 +126,48 @@ pub const GENERATED_ITEM_GAP: usize = 1;
 pub const GENERATED_MAX_INDENT: usize = 14;
 
 /// What:
-/// The spaces a sequence dash is followed by,
-/// when it is followed by any.
+/// Why a line that begins a sequence entry is not in the generated form,
+/// when it is not.
 /// Why:
 ///  A dash with no space after it,
 /// as in `-1`,
-/// begins a plain scalar and not an item.
+/// begins a plain scalar and not an item;
+/// a tab in either place the generated configuration writes a space,
+/// or any gap other than that one space,
+/// makes the line something this reader does not read,
+/// and it is refused by name rather than
+///       parsed as an item at a column it does not hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const dashGap = (content: string) => /^-( +)/.exec(content)?.[1].length;
+/// function itemGapProblem(content: string): string | undefined;
 /// ```
-fn dash_gap(content: &str) -> Option<usize> {
+fn item_gap_problem(content: &str) -> Option<String> {
     let after: &str = content.strip_prefix('-')?;
+    if after.is_empty() {
+        return None;
+    }
     let rest: &str = after.trim_start_matches(' ');
     let gap: usize = after.len() - rest.len();
     if gap == 0 {
+        if after.starts_with('\t') {
+            return Some(String::from(
+                "separates its dash from its content with a tab, where the generated configuration writes a space",
+            ));
+        }
         return None;
     }
-    return Some(gap);
+    if gap != GENERATED_ITEM_GAP {
+        return Some(format!(
+            "puts {gap} spaces after its dash, where the generated configuration writes one"
+        ));
+    }
+    if after[gap..].starts_with('\t') {
+        return Some(String::from(
+            "puts a tab after the space that follows its dash, which this reader does not read",
+        ));
+    }
+    return None;
 }
 
 /// What:
@@ -222,22 +245,8 @@ pub fn read_lines(text: &str) -> Result<Vec<YamlLine<'_>>, YamlProblem> {
                 "marks a document boundary, and this reader reads one document",
             ));
         }
-        if let Some(gap) = dash_gap(content) {
-            if gap != GENERATED_ITEM_GAP {
-                return Err(YamlProblem::new(
-                    number,
-                    &format!(
-                        "puts {gap} spaces after its dash, where the generated configuration \
-                         writes one"
-                    ),
-                ));
-            }
-            if content[1 + gap..].starts_with('\t') {
-                return Err(YamlProblem::new(
-                    number,
-                    "puts a tab after the space that follows its dash, which this reader does not read",
-                ));
-            }
+        if let Some(reason) = item_gap_problem(content) {
+            return Err(YamlProblem::new(number, &reason));
         }
         lines.push(YamlLine {
             number,
@@ -254,11 +263,10 @@ pub fn read_lines(text: &str) -> Result<Vec<YamlLine<'_>>, YamlProblem> {
 /// Why:
 ///  An item is a dash alone,
 /// or a dash and the one space `GENERATED_ITEM_GAP` names;
-/// `-1` is a scalar because no space follows the dash,
-/// and a wider gap or a
-///       tab is not an item this reader reads.
-/// `read_lines` refuses both before the block reader
-///       sees them.
+/// `-1` is a scalar because no space follows the dash.
+/// A wider gap and a tab are not item separators this reader reads,
+/// and
+///       `read_lines` refuses the line before the block reader sees it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
