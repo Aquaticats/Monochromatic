@@ -5138,6 +5138,170 @@ the runner's jobs on the runtime"):
   and the live lines an item says,
   which a `'static` blocking job cannot carry.
 
+### Step T12, the line path and the state of the pure-file sites, 2026-11-08T21:47:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` in
+  `.claude/worktrees/pi-tokio-pure-file-sites-on-the-awaited-runner`,
+  from main at `3db3002750`.
+  Not merged into main.
+- This section decides the two things the previous section left open for item 3
+  before any of its code moves:
+  the line path of an item whose work runs in a `'static` job,
+  and the owning of the state each site lends the runner.
+  Both decisions are
+  this agent's under the owner's delegation,
+  and both are open to the owner's veto.
+
+#### What each site really lends, and which of them says lines while it works
+
+The record above says the three pure-file sites "all say lines while they work".
+Read again,
+only one of them does:
+
+- `worktree/worktree_trash_entries.rs`:
+  `RemoveEachEntry::run` takes `_say` and says nothing;
+  the reasons are said at `Event::End` by `KeepReasonsOfEntriesThatStay`,
+  on the consumer.
+- `subvolume/subvolume_index_refresh_of_every_worktree.rs`:
+  `RewriteEachIndex::run` takes `_say` and says nothing;
+  one line per index is said at `Event::End` by `SayEachIndex`,
+  on the consumer.
+- `worktree/worktree_convert_command.rs`:
+  `ConvertEachWorktree::run` hands `say` to `convert_worktree`,
+  which says its progress as it goes,
+  and `ConversionReport` relays each `Event::Line`.
+  This is the only site of the three that needs a line path at all.
+
+So the line path is one decision,
+but only its third site exercises it;
+the first two say their lines where every runner already says them.
+
+#### Owning the borrowed state
+
+- A.
+  Share it:
+  `Arc` the state the job reads.
+  Pros:
+  it is what both runtime runners already take (`Arc<[T]>` items,
+  `Arc<dyn ... + Send + Sync>` work),
+  one copy for the whole run,
+  no lock,
+  and no file descriptor per item.
+  Cons:
+  the sites' own signatures change
+  (`EntryRemoval` owns its fields,
+  `IndexLock` owns its token,
+  `ConvertRun` takes `Arc<dyn Platform + Send + Sync>` and `Arc<Interrupt>`),
+  and the controls that lend a closure over a
+  `Rendezvous` or an `AtomicUsize` must own it in an `Arc` first.
+- B.
+  Clone it per item.
+  Pros:
+  the sites keep their borrowed signatures.
+  Cons:
+  a clone of the manifest or the target list per item,
+  a duplicated descriptor per entry (`File::try_clone`),
+  and memory that grows with the item count for state that never changes.
+- C.
+  Leave these three on the blocking runner of scoped threads.
+  Pros:
+  nothing changes and the controls stay as they are.
+  Cons:
+  the scoped threads stay,
+  so T13's guard against `std::thread` cannot be tightened,
+  and the folder carries two runners for longer.
+- D.
+  Leak the state (`Box::leak`) so it is `'static`.
+  Pros:
+  no signature change and no clone.
+  Cons:
+  memory that no caller can size or free lives for the life of the process,
+  and the ownership the type system would have shown is hidden in a comment.
+
+Ranking:
+A > B > C > D.
+A beats B because it keeps one copy of state that never changes and adds no descriptor.
+B beats C because it reaches the runtime runner the plan already requires for item 3.
+C beats D because leaking state to avoid a signature change is the one option that hides a cost
+from the person who will later read the code.
+
+#### The line path
+
+- A.
+  Hand each item an owned line handle.
+  The runner gives an item a sink it owns
+  (a clone of the consumer's sending end and the item's index)
+  instead of a sink borrowed for the length of the run,
+  so the item may move it into a `'static` blocking job.
+  The lines travel the one channel the consumer already reads.
+  Pros:
+  lines appear as they happen and in input order,
+  no lock is added,
+  no second channel and no per-item loop,
+  and the shape is the one the blocking runner of
+  `parallel_runner_on_the_runtime.rs` already gives its own jobs
+  (`LinesToTheConsumer` is built inside the job from an owned sender).
+  Cons:
+  `OrderedAwaitingWork::run` changes its third parameter,
+  so every implementation of it changes,
+  including the ones the landing's handlers will add.
+- B.
+  A forwarding channel inside the item.
+  The item's future owns an unbounded channel,
+  the job is given its sending end,
+  and the future selects between the job's end and each arriving line,
+  saying each through the borrowed sink.
+  Pros:
+  the same liveness and order as A,
+  no lock,
+  and no change to the trait.
+  Cons:
+  a second channel and a select loop in every site that says lines,
+  and each line makes one hop through the worker that awaits the job.
+- C.
+  Buffer the lines and return them with the result.
+  Pros:
+  the least code;
+  the job owns a `Vec<String>` and nothing else changes.
+  Cons:
+  an item's lines appear only when it ends,
+  so the first unfinished worktree,
+  whose lines are the only live ones today,
+  loses its progress;
+  this is the behaviour `parallel_runner.rs` exists to keep.
+- D.
+  Run the item's work on the worker instead of the blocking pool.
+  Pros:
+  the borrowed sink keeps working with no change at all.
+  Cons:
+  a worker that polls tasks is blocked for the length of a conversion,
+  which is the case the plan's own rule forbids
+  ("Blocking files,
+  fsync and the runtime's own shutdown").
+
+Ranking:
+A > B > C > D.
+A beats B because it adds neither a hop nor a loop and reuses the one channel of the run.
+B beats C because it keeps the progress of the first worktree live.
+C beats D because a buffered report still keeps every item on the blocking pool.
+
+#### The choices, as this agent's, open to the owner's veto
+
+- The state each site lends is shared with `Arc` (option A),
+  and its synchronous face keeps its signature by owning what it needs
+  (`EntryRemoval` with owned fields,
+  `IndexLock` with an owned token,
+  `ConvertRun` and `execute` taking an `Arc`).
+- The line path is the owned line handle of option A:
+  `parallel_runner_on_the_runtime_awaiting.rs` hands each item an
+  owned `AnItemLines<R>`,
+  which the item moves into its `'static` job,
+  and the consumer keeps the input order it already keeps.
+  No lock,
+  no buffering and no runtime on the forwarded-command path
+  (nothing of the three sites is reached by a forwarded command).
+
 ## Open choices for the owner
 
 Rankings are the recommendation;
