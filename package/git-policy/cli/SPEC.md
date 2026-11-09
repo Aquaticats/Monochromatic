@@ -8510,7 +8510,10 @@ before anything can refuse,
 the index first and the worktree second:
 every refusal after that point reports from that one reading,
 an index that cannot be read counts as holding the merge,
-and a worktree that cannot be read is reported by what the index holds.
+a worktree that cannot be read is reported by what the index holds,
+and a merge whose own commits,
+refs or branch cannot be read counts as holding it too,
+because a refusal then cannot prove the checkout is untouched.
 A begun merge's refusal still stops it,
 because the checkout may hold that merge's files.
 Standard output is never touched by these lines,

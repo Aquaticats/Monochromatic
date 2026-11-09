@@ -1899,3 +1899,60 @@ fn a_retry_after_an_earlier_install_that_fails_reports_the_install() {
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A recovery whose ref lookup cannot start still says the merge is partly installed.
+/// Why:
+///  The branch and `HEAD` reads were wrapped as refusals that wrote nothing,
+/// so a saved merge whose index an earlier
+///  attempt had installed was reported as having nothing in the checkout when the lookup's child could not
+///  start,
+/// and the requested command went on against the half-applied merge
+///  (a cross-vendor review of the sixth round,
+/// its second finding).
+/// The seam is a Git that removes itself while the last file is read,
+/// so the lookup that follows cannot start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged); deferredRecord(); const place = withGit(vanishingShim); await expect(recover(place)).rejects; expect(exists(record)).toBe(true);
+/// ```
+#[test]
+fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
+    let world: World = world("merge-recovery-ref-lookup-fails");
+    // An earlier attempt installed the merge's index entries and died before moving the branch.
+    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = deferred_record_of(&world, "32323232-0000-4000-8000-000000000032", "refs/cli-git/kept/32");
+    // A Git that removes itself while the last judged file is read: the ref lookup that follows cannot start.
+    let shim: PathBuf = world.parent.join("vanishing-git");
+    crate::test_support::executable(
+        shim.as_path(),
+        format!(
+            "#!/bin/sh\nfor argument in \"$@\"; do\n  case \"$argument\" in\n    --path=gone.txt) rm --force -- '{shim}' ;;\n  esac\ndone\nexec {real} \"$@\"\n",
+            shim = shim.display(),
+            real = crate::test_support::REAL_GIT
+        )
+        .as_bytes(),
+    );
+    // Named options make the in-process readers decline, so every step here is a child and the last one can be missing.
+    let mut context: crate::transaction_git::GitContext = git_context();
+    context.real_git = shim.clone();
+    context.global_prefix = vec![
+        std::ffi::OsString::from("--git-dir"),
+        world.git_dir.as_os_str().to_owned(),
+        std::ffi::OsString::from("--work-tree"),
+        world.repo.as_os_str().to_owned(),
+    ];
+    let place: RecoveryPlace = RecoveryPlace {
+        git: context,
+        cwd: world.repo.clone(),
+        common_dir: world.git_dir.clone(),
+        git_dir: world.git_dir.clone(),
+    };
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said).expect_err("the refusal must report the install");
+    assert!(!shim.exists(), "the seam ran");
+    assert!(!refused.0.is_empty(), "the failure is named");
+    assert!(record.exists(), "the record is kept");
+    remove(world.parent.as_path());
+}

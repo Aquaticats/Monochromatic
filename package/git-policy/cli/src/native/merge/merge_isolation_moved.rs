@@ -72,16 +72,30 @@ pub(crate) fn settle_moved_branch(
     out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = intent.repository_root.as_path();
-    let changes: Vec<Change> = merge_changes(place, root, intent).map_err(untouched)?;
+    // A merge whose own commits cannot be read may still be half installed, so the refusal says so.
+    let changes: Vec<Change> = match merge_changes(place, root, intent) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error, began: true }),
+    };
     put_back_stranded_takes(root, changes.as_slice(), out);
+    // The installed state is read once here too,
+    // the index first and the worktree second,
+    // so a worktree that cannot be read is reported by what
+    //  the index holds.
+    let index_began: bool = match index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice()) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error, began: true }),
+    };
     // The same judgement the straight completion makes,
     // so a directory the branch's own files explain is read the same way here.
-    let worktree: Vec<Judged> = judge_changes(place, root, changes.as_slice()).map_err(untouched)?;
+    let worktree: Vec<Judged> = match judge_changes(place, root, changes.as_slice()) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error, began: index_began }),
+    };
     let worktree_began: bool = worktree.iter().any(holds_the_merge);
-    // The index is read first and the worktree standings only decide when it holds nothing of the merge, as `||` ran.
-    let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice()).map_err(untouched)? || worktree_began;
+    let began: bool = index_began || worktree_began;
     if !began {
-        remove_record(record).map_err(untouched)?;
+        remove_record(record).map_err(|error| { return MergeRefusal { error, began }; })?;
         return Ok(MergeRecoveryAction::BranchMoved);
     }
     // What each path ends as: the moved head's entry, which is the merge's own entry where the moved head left the path alone.
@@ -91,9 +105,12 @@ pub(crate) fn settle_moved_branch(
     );
     let output = match run_git_checked(&place.git, &request) {
         Ok(done) => done,
-        Err(error) => return Err(untouched(RecoveryError(error.to_string()))),
+        Err(error) => return Err(MergeRefusal { error: RecoveryError(error.to_string()), began }),
     };
-    let beyond: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError).map_err(untouched)?;
+    let beyond: Vec<Change> = match parse_raw_changes(output.stdout.as_slice()) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error: RecoveryError(error), began }),
+    };
     let mut ends: Vec<Change> = Vec::with_capacity(changes.len());
     for change in &changes {
         let mut moved_entry: Option<&Change> = None;
@@ -117,7 +134,10 @@ pub(crate) fn settle_moved_branch(
     }
     // A staged version of a path the merge changes has no other name, so it is never written over here either: the settling
     //  stops and names the paths, and the staged content stays in the index.
-    let staged_index: Vec<Change> = index_entries(place, root, intent.old_oid.as_str()).map_err(untouched)?;
+    let staged_index: Vec<Change> = match index_entries(place, root, intent.old_oid.as_str()) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error, began }),
+    };
     let mut staged: Vec<String> = Vec::new();
     for end in &ends {
         let entry: Option<&Change> = entry_of_path(staged_index.as_slice(), end.path.as_slice());
@@ -193,21 +213,6 @@ pub(crate) fn settle_moved_branch(
 /// ```
 fn partly_installed(error: RecoveryError) -> MergeRefusal {
     return MergeRefusal { error, began: true };
-}
-
-/// What:
-///  A refusal about a merge that wrote nothing,
-/// so a command that meets it may go on when the merge was saved.
-/// Why:
-///  Every refusal before the index write leaves the checkout as it was,
-/// and the flag says so once for all of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const untouched = (error: RecoveryError): MergeRefusal => ({ error, began: false });
-/// ```
-fn untouched(error: RecoveryError) -> MergeRefusal {
-    return MergeRefusal { error, began: false };
 }
 
 /// Whether one judgement holds the merge's content,
