@@ -694,7 +694,8 @@
   and passed in the full run at the tip.
   Both suites ran with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`
   and with the run's own control group at `TasksMax=4000`,
-  the conditions the section above records,
+  the conditions the "Step T12,
+  the first production folder on the awaited Git runner" section records,
   with one addition the next agent needs:
   the fixture root has **two** length limits,
   not one.
@@ -750,7 +751,8 @@
   both keep the lines in input order and as they happen,
   and nothing of the three sites is reached by a forwarded command.
 - Corrected record:
-  the previous section says the three sites "all say lines while they work".
+  the "Step T12,
+  the first production folder on the awaited Git runner" section says the three sites "all say lines while they work".
   Read again,
   only `worktree/worktree_convert_command.rs` does;
   the other two say theirs at `Event::End`,

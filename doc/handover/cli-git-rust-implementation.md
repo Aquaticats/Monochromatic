@@ -715,6 +715,31 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
   In this session the long audits run as native subagents under `${HOME}/temp/agent/pi-runs/shared-rules-for-sonnet-audits.md`,
   writing to `${HOME}/temp/agent/sonnet-audits`,
   and `codex` keeps the small checks.
+- The owner on the rule for non-trivial commands:
+  "Change the "non-trival command" rule to also require running as a process (in harness terminology)."
+  and
+  "And also check dsh."
+  That is rule `RXI` in `AGENTS.md`,
+  worded as a harness-managed background process because each harness names it differently:
+  Claude Code's `Bash` with `run_in_background`,
+  Pi's `process` tool from `@aliou/pi-processes`,
+  and DSH's managed background jobs,
+  `run_in_background` in `@deepseek-ai/dsh-tool-terminal` and `dsh-tool-pwsh` 0.2.2-rc.1.
+- The owner on a documentation commit that moved main while a merge was open,
+  so that the merge's own commit was refused and the session held its next commit back:
+  "I would consider this to be a defect in our wrapper.
+  Agents should never wait on each other on commits or merges."
+  The refusal read:
+  "The branch main moved while this commit was being prepared,
+  and a commit that replaces the last one,
+  or one that was written or signed by hand,
+  cannot be moved onto a different last commit,
+  so it was not made."
+  The wrapper was following a rule in `doc/decision/cli-git-concurrent-commits.md` that those conclusions fail when `HEAD` moved.
+  The owner approved amending the record,
+  and for an `--amend` on a moved branch chose "A:
+  land as a new commit (Recommended)".
+  `merge-commit-lands-on-a-moved-branch` builds it.
   The audit OpenAI flagged stays stopped until the owner answers the question about it.
   Pi audits ran under a name beginning `sol-`,
   and the count against the limit of 20 leaves those units out:

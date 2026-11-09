@@ -11,6 +11,16 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+Every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+The load-bearing ones name their current owners:
+the Rust toolchain request is `toolchain.lock.json:465`,
+the `cargo:monochromatic-lint` pin is `toolchain.lock.json:584`,
+and the `lint` template is `mise.toml:479`.
+The generation premise under the "PATH mechanics on this host" heading is superseded in place.
+
 Note 2026-10-29:
 the runner scripts this document names under `package/git-policy` (`cli/bin`,
 `cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
@@ -343,6 +353,12 @@ The `git` that a session in this repository resolves is a pnpm shim,
 
 - The root `mise.toml` is generated from `mise.no-env.toml` by file-enforcer (`mise.toml:1-5`);
   the `[env]` block with `_.path` is written by `generateMiseToml` in `file-enforcer.config.ts:656-720`.
+  That generation ended on 2026-10-31,
+   in `7bbe5719d5`:
+   `mise.toml` is hand-written,
+   the `[env]` block with `_.path` is `.config/mise/conf.d/20-env.toml:42`,
+   and `file-enforcer.config.ts` was deleted the same day,
+   in `e7b5130459`.
   `_.path` lists `node_modules/.bin` first (`file-enforcer.config.ts:680`) and then every
   `package/*/*/node_modules/.bin` found on disk,
    all relative to the config root.

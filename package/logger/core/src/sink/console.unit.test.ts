@@ -53,6 +53,11 @@ function record(
 }
 
 /**
+ Argument another writer appends while the verbose scope is open.
+ */
+const APPENDED_ARGUMENT = '--appended-during-verbose-scope';
+
+/**
  Appends `--verbose` to `process.argv` and removes it again when the returned
  value goes out of `using` scope, so a verbose-detection test cannot leak the
  flag into the sibling test that asserts the silenced default.
@@ -60,17 +65,15 @@ function record(
  @returns Disposable that restores `process.argv` on scope exit.
  */
 function withVerboseArgv(): Disposable {
+  // Snapshot the whole vector: restoring it keeps a `--verbose` that was there
+  // before the scope and any argument another writer appends during it, where
+  // filtering would drop the former and popping would drop the latter.
+  const before = [...process.argv,];
   process.argv
     .push('--verbose',);
   return {
     [Symbol.dispose](): void {
-      // Reassign to a flag-free copy rather than splice by index: the test
-      // environment carries no `--verbose` of its own, so filtering restores
-      // the original vector and dodges the conflicting index-check lint rules.
-      process.argv = process.argv
-        .filter(function keepNonVerbose(arg,) {
-          return arg !== '--verbose';
-        },);
+      process.argv = [...before,];
     },
   };
 }
@@ -558,6 +561,48 @@ await describe({
 
         expect(spy.callCount,)
           .toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'leaves the arguments as they were when another writer appends during the verbose scope',
+      fn: async () => {
+        /**
+         Arguments from before the scope.
+         */
+        const before = [...process.argv,];
+        {
+          using _restoreArgv = withVerboseArgv();
+          process.argv.push(APPENDED_ARGUMENT,);
+        }
+        expect(process.argv,)
+          .toEqual(before,);
+        expect(process.argv,)
+          .not.toContain('--verbose',);
+      },
+    },),
+
+    it({
+      name: 'keeps a verbose flag that was already on the arguments before the verbose scope',
+      fn: async () => {
+        using _callerFlag = {
+          [Symbol.dispose](): void {
+            process.argv = process.argv
+              .filter(function keepNonVerbose(argument,) {
+                return argument !== '--verbose';
+              },);
+          },
+        };
+        process.argv.push('--verbose',);
+        /**
+         Arguments carrying the caller's own flag.
+         */
+        const before = [...process.argv,];
+        {
+          using _restoreArgv = withVerboseArgv();
+        }
+        expect(process.argv,)
+          .toEqual(before,);
       },
     },),
 

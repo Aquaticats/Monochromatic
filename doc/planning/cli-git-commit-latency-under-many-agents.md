@@ -869,7 +869,8 @@ which this record proposes and does not build:
   and not to be touched from this branch:
   what the landing does with the index,
   which another branch is changing.
-  The measurement above is of the preparation only.
+  The measurement under "What the preparation spends,
+  named" is of the preparation only.
 
 What this could not determine:
 
@@ -881,6 +882,195 @@ What this could not determine:
   the installed release writes no `prepareParts`,
   so the 866 commits of this record cannot be split retroactively,
   and the next reading of the live log can.
+## The shadow's creation, measured and made cheaper
+
+The creation that the flush's change left unsized is the stretch between the end
+of the preparation and the shadow's first reference step:
+the skeleton's directories and `HEAD`,
+its config and alternates,
+the links to the real common directory's shared entries,
+the conclusion copy,
+and then the ref store.
+The records name that stretch exactly,
+because every phase and every Git step carries its offset from the command's start,
+and it is where 93 to 99 percent of each measured hour's `buildMs` sits,
+except the last hour of the window, 19:00, where it is 56 percent and the
+  machine stopped stalling,
+so measuring `buildMs` and measuring the creation were the same measurement in
+every hour that stalled.
+
+### What it costs in the records
+
+Over the day ending 2026-11-09T19:01Z,
+733 records of the log and its one generation,
+696 of them landed on their first attempt:
+
+- the creation's median is 3742 ms,
+  p90 20 047 ms,
+  p99 71 966 ms,
+  max 167 656 ms.
+- the whole commit's median over the same records is 13 356 ms.
+- it moved with the machine and not with the tree:
+  by hour, medians of 5846 ms at 11:00,
+  1970 ms at 12:00,
+  5435 ms at 13:00,
+  3925 ms at 14:00,
+  3668 ms at 15:00,
+  3814 ms at 16:00,
+  6989 ms at 17:00,
+  2669 ms at 18:00 and 183 ms at 19:00.
+- the same records count the shadow ref store's Git starts:
+  one `git for-each-ref`,
+  two `git symbolic-ref` and one `git update-ref` per commit,
+  with medians of 5 ms, 3 ms and 4 ms and maxima of 250 ms, 8815 ms and 1924 ms.
+
+A read-only probe of the calls themselves says the Git directory was not charging
+more per lookup than a fixture:
+2000 `stat` calls on the repository's own `.git` (79 entries) took 5.8 us each,
+2.7 us for a name that does not exist and 26.0 us for a directory listing,
+against 3.5 to 4.5 us, 2.8 us and 22 to 24 us in the shaped fixtures.
+What the creation waits for is the machine's device, hour by hour;
+what the wrapper controls is how many calls it stands in that queue.
+
+### The calls it makes, and what two of them were for
+
+One wrapped commit in a shaped fixture of this tree,
+traced with `strace -f -T -e trace=%file,%desc`,
+whose common directory carries the 39 private index copies the person's own holds,
+made 392 filesystem calls in that stretch:
+`symlink` 47,
+`statx` 89,
+`read` 96,
+`openat` 45,
+`close` 31,
+`readlink` 24,
+`getdents64` 14,
+`pread64` 12,
+`mkdir` 8,
+and the rest under 10 each.
+
+Two of those groups were the wrapper's own doing and nothing else's:
+
+- Every entry of the real common directory that the transaction does not keep
+  privately was linked into the shadow,
+  and the wrapper's private copy of an index sat on neither list.
+  The copy is made beside the real index once per command that predicts what
+  `git add` would stage,
+  and the person's common directory held 39 of them,
+  left by commands that died before they removed their own.
+  Every commit created two filesystem entries for each.
+- Each link was preceded by a lookup of the name it would be made at,
+  to remove a template entry that only the reftable path's `git init` creates.
+  On the files path a fresh shadow holds nothing at those names,
+  so the lookup was one call per entry per commit for an answer that is always
+  "nothing there".
+
+### The change, in four commits
+
+- `is_private_shadow_entry` now names the private index copies by their prefix,
+  read from `PRIVATE_INDEX_PREFIX` (`shadow_links.rs`),
+  so the writer and the reader of the name are one constant.
+- A link is made first and a refused one removes what sits at the name and links
+  again,
+  so the common case is one call per entry (`shadow_links.rs`).
+  Windows, where a shared file is a copy and not a link, keeps the removal first.
+- On the files backend the wrapper writes the shadow's private target ref,
+  its symbolic refs and its `HEAD` itself (`shadow_refs.rs`),
+  as it already wrote `packed-refs`:
+  a loose ref is the object name and a line feed,
+  a symbolic one is `ref: <target>` and a line feed.
+  The reftable backend keeps Git,
+  because its refs live in tables only Git writes.
+- A branch that is itself a symbolic ref to another branch keeps its chain,
+  and the private target is written where that chain ends,
+  at most `SYMBOLIC_REF_CHAIN_LIMIT` steps, which is Git's own limit
+  (`shadow_refs.rs`).
+  `git update-ref`, which the third step replaces, follows such a chain;
+  a direct write at the first name would turn the chain into a direct ref that a
+  hook can tell apart.
+
+Red controls first, for the two steps that changed what the wrapper does:
+
+- `shadow::shadow_links::tests::the_wrappers_private_index_copies_stay_out_of_the_shadow`
+  failed with
+  `assertion failed: std::fs::symlink_metadata(shadow.join(dead.file_name().expect("name"))).is_err()`.
+- `shadow::shadow_refs::tests::a_files_snapshot_writes_every_ref_without_a_git_start`
+  failed with the three starts that wrote a few bytes each
+  (`symbolic-ref refs/heads/alias refs/heads/main`,
+  `update-ref refs/heads/main 9ff701ae...`,
+  `symbolic-ref HEAD refs/heads/main`).
+- `shadow::shadow_refs::tests::a_files_detached_head_is_written_where_git_reads_it`
+  failed the same way on `update-ref --no-deref HEAD`.
+- `shadow::shadow_refs::tests::a_files_target_that_is_a_symbolic_ref_is_written_at_the_end_of_its_chain`
+  failed with `left: "refs/heads/main", right: "refs/heads/alias"` on
+  `git symbolic-ref HEAD` of a shadow whose `HEAD` names `refs/heads/alias`,
+  and that was the cross-vendor review's finding against the third step.
+
+Both ref controls then read the store back through real Git:
+`git symbolic-ref HEAD`,
+`git rev-parse` of the private target and of the snapshot's tag and second branch,
+and `git symbolic-ref` of a symbolic ref.
+The reftable and byte-named-ref controls are unchanged and pass.
+The link step is a shape with no behaviour of its own;
+the existing controls for a replaced template entry, a linked worktree's private
+`info` and the shared `rr-cache` cover it.
+
+### After
+
+The same method, the same fixture shape, the same 39 private index copies, one
+commit traced with that call filter (each trace is its own fixture, so the
+figures are per call and not per run of the same tree):
+
+- 306 calls against 392;
+  `symlink` 8 against 47,
+  `statx` 42 against 89.
+  The first commit of a fixture, which does more,
+  fell from 1695 calls to 1612,
+  with `symlink` 44 to 5 and `statx` 470 to 426.
+- the commit started one Git for the shadow's refs where it started three:
+  `git for-each-ref` stays,
+  and the `git symbolic-ref` and `git update-ref` are gone from the trace
+  entirely,
+  and from the records: 3 starts in each of 8 commits before, 1 in each of 8
+  after.
+  The person's own records count four before the change,
+  one `git for-each-ref`, one `git update-ref` and two `git symbolic-ref` per
+  commit,
+  and the shaped fixtures have one symbolic ref fewer than that repository.
+
+Three arms of 8 commits each, alternating which arm went first,
+in fixtures of this tree's shape that carry the common directory's 39 private
+index copies,
+where the first two arms are the same binary on unchanged code:
+
+- whole commit, by the record's own total:
+  median 719 ms (241 ms to 30 370 ms) and, on the identical arm,
+  842 ms (254 ms to 22 862 ms), against 285 ms (246 ms to 8070 ms).
+  The identical arms differ by 1.17 times at the median,
+  and each of them caught one stall of 23 to 30 s that the changed arm did not,
+  so this record claims no whole-commit improvement from the medians alone.
+- the creation's own stretch:
+  median 5 ms and 4 ms before (3 ms to 38 ms and 3 ms to 50 ms),
+  median 2 ms after (2 ms to 8 ms).
+- the shadow's Git starts: 3 in every before record, 1 in every after record.
+
+What stays, and why:
+
+- `git for-each-ref`,
+  one start per commit:
+  the snapshot must be the real repository's refs as they stood at invocation,
+  and above `REF_LISTING_LIMIT` refs the wrapper's own reader declines,
+  after reading `packed-refs` and checking each ref against the object database.
+  That attempt is most of the creation's 96 `read` calls,
+  55 of the 96 in the traced commit read the real `packed-refs`,
+  and its 12 `pread64` calls are the object-database checks,
+  so this is the largest group the creation still holds.
+- the skeleton's 8 `mkdir` calls and its `HEAD`,
+  the shadow's config and alternates,
+  and the conclusion copy's directory:
+  they are the repository Git is handed, and each is one call.
+- the `readlink` calls in path resolution and the `getdents64` of the one
+  directory listing, which the links need to know what to link.
 
 ## What remains
 
@@ -971,23 +1161,23 @@ owner-held machinery it would move.
 
 ### The rest of the shadow's creation
 
-- What:
-  the metadata of `create_shadow_repository_carrying`,
-  which created directories and symlinks and wrote the shadow's config and alternates
-  without syncing any of them.
-- Cost:
-  unknown on its own.
-  It shared the measured uncovered `buildMs` stretch with the flush,
-  and the fixture runs that named the flush could not separate them,
-  so this entry is the part of 53.7 percent that the change did not take.
-- Pros:
-  it is the largest bucket still open.
-- Cons:
-  nothing measured sizes it,
-  so any change there would be a guess about a bucket that is small when the device is not stalling.
-- Ranking:
-  4 of 4,
-  because it cannot be sized until it is measured.
+- Taken:
+  measured and made cheaper by the section
+  "The shadow's creation, measured and made cheaper".
+  It was 93 to 99 percent of each hour's `buildMs`,
+  and its calls fell from 392 to 306 in a fixture of this tree's shape,
+  with the shadow's Git starts down from three to one per commit.
+- Still open, and now named:
+  the wrapper's other scratch directories in a common directory
+  (`cli-git-scratch`,
+  `cli-git-captures`,
+  `monochromatic-git-policy-cli-scratch`,
+  `monochromatic-git-policy-cli-merges`,
+  and its own `*.jsonl` logs) are still linked into every shadow.
+  They are six or seven entries, not thirty-nine,
+  and no measurement says a hook needs them,
+  so this record does not take them; the private index copies were taken because
+  a common directory had collected one per command that died.
 
 ## The preparation's split, measured on a shaped fixture
 
@@ -1395,13 +1585,20 @@ and the second is the gate's.
   and the copy of the index that set made for itself was the larger part until `195f167602` removed it.
 - Whether the 351 s and 493 s stalls of 2026-11-08T23:26 were the conclusion copy's flush.
   Both sit in the same uncovered `buildMs` stretch,
+  The records name Git steps and phases,
+  not policy rules,
+  and this host has no profiler.
+- How much of the 351 s and 493 s stalls of 2026-11-08T23:26 was the conclusion copy's flush.
+  Both sit in the stretch the section "The shadow's creation, measured and made
+  cheaper" now sizes,
   between the shadow's `git config` read and its first reference write,
-  which is where that flush is,
+  so they are the creation's stall and not a phase boundary one;
+  the flush was one call inside it,
   and the same stretch reproduced at 1279 ms,
   2530 ms and 5569 ms
   with a 24.9 s flush measured inside it.
-  The record holds no figure for that stretch,
-  so the live commits cannot be proven to be it.
+  No record separates that flush from the 95 other calls of the file work around it,
+  so which call a given stall held cannot be told from the log.
 - How much of the 7.1 percent of `otherMs` is the scratch removal
   and how much is the wrapper writing what the person reads on standard error,
   which blocks when the reader is slow.
@@ -1409,6 +1606,17 @@ and the second is the gate's.
   Native Git flushes the index only when `core.fsync` asks,
   which is unset here,
   so this record compares step by step and not device stall by device stall.
+- Whether a torn ref file of a shadow changes any recovery outcome.
+  The ref store is written unsynced and not through a lock file, on the argument
+  that nothing reads a shadow's refs after a crash and recovery removes the tree
+  whole.
+  The `packed-refs` half of that argument already rested on it,
+  and both comments that state it cite
+  `binary_recovery_tearing_shadow_tests.rs`,
+  which this branch does not hold:
+  `git log --all` finds no such path and no `binary/` control mentions tearing.
+  The argument stands on the code's own shape,
+  and no control on this branch exercises it.
 
 ## Decisions this record takes, open to the owner's veto
 
