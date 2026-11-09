@@ -45,7 +45,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -85,7 +85,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -213,7 +213,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -252,7 +252,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -291,7 +291,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -330,7 +330,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -369,7 +369,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -477,7 +477,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -517,7 +517,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -556,7 +556,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -595,7 +595,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -637,7 +637,7 @@ const { globSync } = await import('node:fs')
 // from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
