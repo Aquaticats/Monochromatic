@@ -1,5 +1,19 @@
 # Handover: 2026-10-31 full-repository review sweep
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/rust-module` is gone (2026-10-29 `592d78b143`) and its packages sit at
+> `package/<name>/<variant>` such as `package/or-throw/core` today.
+> `package/desktop-app` is gone (2026-10-29 `592d78b143`) and its packages sit at
+> `package/ide/app` `package/file-manager/app` and `package/terminal/app` today.
+> `doc/design-commitments-votes-repairs-and-run-offs.md` is now
+> `package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`
+> (2026-10-21 `fc17e226b2`).
+> `package/module` is gone (2026-10-29 `592d78b143`);
+> its packages sit at `package/<name>/<variant>` such as `package/kv-store/core` and
+> `package/llm/llm-type` today.
+> `package/build/css` is now `package/css/cli` (2026-10-29 `592d78b143`).
+
 ## Task (user instructions)
 
 "Review our entire repo.

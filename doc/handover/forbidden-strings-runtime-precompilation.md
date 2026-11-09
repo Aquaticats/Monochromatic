@@ -1,5 +1,24 @@
 # Handover: forbidden-strings runtime rule precompilation
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/forbidden-strings/data/builtin-rules.txt` is now
+> `package/forbidden-strings/cli/data/builtin-rules.txt` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/build.rs` is now `package/forbidden-strings/cli/build.rs`
+> (2026-10-29 `113633b259`).
+> `package/rust-module/forbidden-regex/src/regex.rs` is now
+> `package/forbidden-strings/core/src/regex.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/runtime_cache` is now
+> `package/forbidden-strings/cli/src/runtime_cache` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/cli.rs` is now
+> `package/forbidden-strings/cli/src/cli.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/lib.rs` is now
+> `package/forbidden-strings/cli/src/lib.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/tests/integration.rs` is now
+> `package/forbidden-strings/cli/tests/integration.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

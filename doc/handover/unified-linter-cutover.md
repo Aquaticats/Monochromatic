@@ -1,5 +1,26 @@
 # Unified-linter cutover handoff
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/rust-module/jsonc-edit:lint:types` is now
+> `//package/jsonc-edit/core-rust:lint:types` (2026-10-29 `592d78b143`).
+> `//package/rust-module/jsonc-edit:test` is now `//package/jsonc-edit/core-rust:test`
+> (2026-10-29 `592d78b143`).
+> `//package/rust-module/jsonc-edit:package` is now `//package/jsonc-edit/core-rust:package`
+> (2026-10-29 `592d78b143`).
+> `//package/rust-module/jsonc-edit.fuzz:test` is now
+> `//package/jsonc-edit/core-rust.fuzz:test` (2026-10-29 `592d78b143`).
+> `//package/git-policy/cli:build:js:node` is retired (2026-10-13 `642b6d72cb`) and the
+> package builds only Rust through `//package/git-policy/cli:build` today.
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/cli/markdown-lint/src/cli.ts` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/rust-module/rust-linter-core` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/rust-module/rust-linter-pattern` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/linter/monochromatic-lint` serves its job today.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

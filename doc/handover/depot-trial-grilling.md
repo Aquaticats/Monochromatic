@@ -1,5 +1,10 @@
 # Depot trial interview
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/ide/README.md` is now `package/ide/app/README.md`
+> (2026-10-29 `592d78b143`).
+
 > Depot is not adopted (status of 2026-11-01).
 > The owner said on 2026-11-01:
 > "Delete .depot as a whole and update relevant docs.

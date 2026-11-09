@@ -1,5 +1,11 @@
 # Pi Advisor answer-substitution prevention handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/pi-plugin/advisor/src/advisor-request.unit.test.ts` is now
+> `package/agent-harness-shared/advisor/src/advisor-request.unit.test.ts`
+> (2026-10-20 `093f32832a`).
+
 ## Status
 
 The corrected expressive design comparison and independent review are complete.

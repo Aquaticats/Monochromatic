@@ -1,5 +1,12 @@
 # Testing Slint apps headless (agent-driven UI testing)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/music-player/desktop-app/src/ui_binding_tests.rs` is deleted
+> (2026-10-11 `f36cef6b43`) and the accepted design replaced that window then.
+> `//package/desktop-app/terminal:mcp` is now `//package/terminal/app:mcp`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

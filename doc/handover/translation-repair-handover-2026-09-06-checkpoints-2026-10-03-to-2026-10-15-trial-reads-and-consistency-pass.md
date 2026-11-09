@@ -1,5 +1,10 @@
 # Translation repair handover 2026-09-06: checkpoints of 2026-10-03 to 2026-10-15, the trial model, the TianqiChen666 reads and the consistency pass
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:cache-account-audit` is now
+> `//package/translation-repair/slice-cache:cache-account-audit` (2026-10-18 `4bd1aea8d5`).
+
 The four checkpoints from the handover to a trial model on 2026-10-03 to the consistency pass of 2026-10-15:
 the trial handover with one case failing,
 the reading of TianqiChen66622 with the owner's answers and the fixes before the next launch,

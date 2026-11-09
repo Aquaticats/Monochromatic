@@ -1,5 +1,32 @@
 # Lint fix handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/dev-script/mutation-test:lint` is now `//package/mutation-test/cli:lint`
+> (2026-10-29 `113633b259`).
+> `//package/dev-script/vm-builder:lint` is now `//package/vm-builder/cli:lint`
+> (2026-10-29 `592d78b143`).
+> `//package/dev-script/deps-cube:lint` is now `//package/dependency-catalog/cli-cube:lint`
+> (2026-10-29 `592d78b143`).
+> `//package/dev-script/page-weight:lint` is now `//package/page-weight/cli:lint`
+> (2026-10-29 `592d78b143`).
+> `//package/module/toml-edit:lint` is now `//package/toml-edit/core:lint`
+> (2026-10-29 `592d78b143`).
+> `//package/pi-shared/model-selection:lint` is now
+> `//package/agent-harness-shared/model-selection:lint` (2026-10-20 `b710410e81`).
+> `//package/pi-plugin/morph-compact:lint` is now `//package-paused/pi-plugin/morph-compact`
+> (paused 2026-10-29 `64046360d2`) a paused package outside the discovered task graph.
+> `//package/rust-module/forbidden-regex.bench:lint` is now
+> `//package/forbidden-strings/core.bench:lint` (2026-10-29 `113633b259`).
+> `//package/webapp-productivity/done-postcss:lint` is now
+> `//package/done/variant-postcss:lint` (2026-10-29 `592d78b143`).
+> `//package/webapp-productivity/done:lint` is now `//package/done/app:lint`
+> (2026-10-29 `592d78b143`).
+> `//package/webapp-productivity/rss:lint` is now `//package/rss/app:lint`
+> (2026-10-29 `592d78b143`).
+> `//package/webapp-productivity/doodle-widget:lint` is now
+> `//package/doodle-widget/app:lint` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

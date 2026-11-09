@@ -1,5 +1,32 @@
 # Auto-mode frontier archive, 2026-10-18
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/logger/doc/write-completion.md` is now
+> `package/logger/core/doc/write-completion.md` (2026-10-29 `592d78b143`).
+> `package/pi-plugin/auto-mode/native` is deleted (2026-10-19 `ff55ced353`) and no path of
+> that name exists today.
+> `package/pi-plugin/auto-mode/native/review-input-verification.md` is deleted
+> (2026-10-19 `ff55ced353`) and no path of that name exists today.
+> `package/pi-plugin/auto-mode/src/authorization-evidence.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and no path of that name exists today.
+> `package/pi-plugin/auto-mode/bin/pi` is deleted (2026-10-19 `ff55ced353`) and no path of
+> that name exists today.
+> `package/pi-plugin/auto-mode/src/input-receipt-budget.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and no path of that name exists today.
+> `package/pi-plugin/auto-mode/src/heading-context.ts` is deleted (2026-10-19 `7ac15b19b4`)
+> and no path of that name exists today.
+> `package/pi-plugin/auto-mode/src/semantic-admission-policy.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and no path of that name exists today.
+> `package/pi-plugin/auto-mode/src/request-material.ts` is deleted (2026-10-19 `7ac15b19b4`)
+> and no path of that name exists today.
+> `package/pi-plugin/auto-mode/src/native-runtime-hooks.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and no path of that name exists today.
+> `package/pi-plugin/auto-mode/src/ask-user.ts` is deleted (2026-10-19 `7ac15b19b4`) and no
+> path of that name exists today.
+> `package/git-policy/cli/src/trust/mjs-validator.ts` is deleted (2026-10-13 `642b6d72cb`)
+> and the Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

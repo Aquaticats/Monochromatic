@@ -1,5 +1,14 @@
 # Repository review issue filing
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/mutation-test/src/is-record.ts` is now
+> `package/mutation-test/cli/src/is-record.ts` (2026-10-29 `113633b259`).
+> `package/pi-plugin/morph-compact/src/visible-context.ts` is now
+> `package-paused/pi-plugin/morph-compact/src/visible-context.ts` (2026-10-29 `64046360d2`).
+> `package/pi-plugin/auto-mode/src/visible-context.ts` is deleted (2026-10-19 `7ac15b19b4`)
+> and no path of that name exists today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

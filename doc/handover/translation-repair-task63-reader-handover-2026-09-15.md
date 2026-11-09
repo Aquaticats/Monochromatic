@@ -1,5 +1,13 @@
 # Translation repair task63 persisted-input reader handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint:types` is now
+> `//package/translation-repair/*:lint:types` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+
 Abandoned on 2026-09-16.
 The persisted-input reader it hands over was removed in `cbedea357`:
 no pass or probe entry reached it.

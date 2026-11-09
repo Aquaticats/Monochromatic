@@ -1,5 +1,16 @@
 # pnpm workspace review handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/watch-restart/package.json` is now
+> `package/watch-restart/cli/package.json` (2026-10-29 `592d78b143`).
+> `package/module/test/package.json` is now `package/test-harness/core/package.json`
+> (2026-10-29 `592d78b143`).
+> `package/module/toml-edit/package.json` is now `package/toml-edit/core/package.json`
+> (2026-10-29 `592d78b143`).
+> `package/config/tsdown` is deleted (2026-07-15 `844e9dedda`) and the build config is
+> `package/config/rolldown` today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

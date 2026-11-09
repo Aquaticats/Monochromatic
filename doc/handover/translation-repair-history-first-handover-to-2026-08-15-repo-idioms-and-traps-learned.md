@@ -1,5 +1,13 @@
 # Translation repair history, first handover document: repository idioms and traps learned
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/fs-id/src/errors.ts` is now `package/fs-id/core/src/errors.ts`
+> (2026-10-29 `592d78b143`).
+> `//package/module/translation-repair:buildAndTest` is now
+> `//package/translation-repair/*:buildAndTest` carried by each of the packages the split
+> made (2026-10-18 `4bd1aea8d5`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

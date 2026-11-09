@@ -1,5 +1,19 @@
 # Native scanner embedding verification
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/forbidden-strings/cli.fuzz/bin/smoke-container.mjs` is deleted
+> (2026-10-30 `d669365d05`) and its TypeScript replacement serves its job today.
+> `package/git-policy/forbidden-strings/src/cache-warning.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+> `package/git-policy/cli/src/optional/forbidden-strings/cache-warning.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/forbidden-strings/core` carries the scanner today.
+> `//package/cli/forbidden-strings:lint:clippy:windows` is now
+> `//package/forbidden-strings/cli:lint:clippy:windows` (2026-10-29 `113633b259`).
+> `package/rust-module/forbidden-regex/src` is now `package/forbidden-strings/core/src`
+> (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

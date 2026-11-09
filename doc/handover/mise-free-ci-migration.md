@@ -1,5 +1,18 @@
 # Mise-free CI migration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/logger:build` is now `//package/logger/core:build`
+> (2026-10-29 `592d78b143`).
+> `package/dev-script/task-cli/src/run.ts` is now `package/monorepo-task/cli/src/run.ts`
+> (2026-10-29 `592d78b143`).
+> `//package/module/logger:test:unit` is now `//package/logger/core:test:unit`
+> (2026-10-29 `592d78b143`).
+> `package/dev-script/task-cli/task.ts` is now `package/monorepo-task/cli/task.ts`
+> (2026-10-29 `592d78b143`).
+> `//package/module/logger.fuzz:fuzz` is now `//package/logger/core.fuzz:fuzz`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

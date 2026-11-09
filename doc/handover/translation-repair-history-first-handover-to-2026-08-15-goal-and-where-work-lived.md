@@ -1,5 +1,17 @@
 # Translation repair history, first handover document: the goal of the package and where the work lived, with the commit list
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/corpus-run` is now split across the
+> `src/corpus-run` folders of the packages under `package/translation-repair/`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/dev-script/watch-restart/src/cli.ts` is now
+> `package/watch-restart/cli/src/cli.ts` (2026-10-29 `592d78b143`).
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:sentinel-probe` is now
+> `//package/translation-repair/bench:sentinel-probe` (2026-10-18 `4bd1aea8d5`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

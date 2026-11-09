@@ -1,5 +1,21 @@
 # Handover: the overlap dial for the corpus pass (`#261`)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/slice-overlap.ts` is now
+> `package/translation-repair/slice-cache/src/corpus-run/slice-overlap.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:build` is now `//package/translation-repair/*:build`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint:oxlint` is now
+> `//package/translation-repair/*:lint:oxlint` carried by each of the packages the split
+> made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint:types` is now
+> `//package/translation-repair/*:lint:types` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+
 Written 2026-08-26 for whoever picks this up next,
 including an agent that has read no transcript.
 Everything needed to understand the legacy overlap work is here or in the files it names.

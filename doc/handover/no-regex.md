@@ -1,5 +1,12 @@
 # HANDOVER.no-regex
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/deps-cube/src/scripts/filter.ts` is now
+> `package/dependency-catalog/cli-cube/src/script/filter.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/watch-restart/src/cli-helpers.ts` is now
+> `package/watch-restart/cli/src/cli-helpers.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

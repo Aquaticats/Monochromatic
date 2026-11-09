@@ -1,5 +1,14 @@
 # OCR GitHub Issue adapter handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/cli/open-code-review-issue:buildAndTest` is now
+> `//package/open-code-review-issue/cli:buildAndTest` (2026-10-29 `113633b259`).
+> `//package/cli/open-code-review-issue:lint:types` is now
+> `//package/open-code-review-issue/cli:lint:types` (2026-10-29 `113633b259`).
+> `//package/cli/open-code-review-issue:lint:oxlint` is now
+> `//package/open-code-review-issue/cli:lint:oxlint` (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
