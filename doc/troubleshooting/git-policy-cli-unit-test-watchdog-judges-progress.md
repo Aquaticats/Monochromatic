@@ -53,7 +53,8 @@ the fixture root on the build volume
 - Of the 9,050 thread-samples of the test processes themselves,
   2,820 (31.2 percent) were state `D`,
   223 (2.5 percent) runnable and 6,005 (66.4 percent) sleeping.
-- The disk waits, as shares of those 2,820 samples:
+- The disk waits,
+  as shares of those 2,820 samples:
   `wait_log_commit` 52.5 percent,
   `wait_for_commit` 12.6,
   `wait_current_trans` 11.6,
@@ -72,38 +73,50 @@ the fixture root on the build volume
   the duration and the share of its life in `D`:
 
   - `subvolume::subvolume_btrfs_tests::a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange`
-    69.01 s, 98 percent;
+    69.01 s,
+    98 percent;
   - `subvolume::subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`
-    64.00 s, 94 percent;
+    64.00 s,
+    94 percent;
   - `subvolume::subvolume_btrfs_tests::a_real_rollback_removes_the_subvolumes_whatever_the_mount_option_is`
-    31.80 s, 98 percent;
+    31.80 s,
+    98 percent;
   - `subvolume::subvolume_command::ownership_tests::a_second_command_on_one_checkout_is_refused_whatever_its_mode`
-    31.14 s, 99 percent;
+    31.14 s,
+    99 percent;
   - `subvolume::subvolume_migrate::tests::the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten`
-    28.86 s, 96 percent;
-  - three more `subvolume_btrfs_tests` at 26.33 s, 26.19 s and 26.08 s, 97 to 99 percent;
+    28.86 s,
+    96 percent;
+  - three more `subvolume_btrfs_tests` at 26.33 s,
+    26.19 s and 26.08 s,
+    97 to 99 percent;
   - `worktree::worktree_convert::ownership_tests::a_conversion_an_older_release_left_unfinished_is_finished`
-    19.95 s, 88 percent.
+    19.95 s,
+    88 percent.
 
 - Alone in the same tree,
   the heaviest test took 47 s,
   43.25 of them in `D`,
   and the longest stretch in which it showed no sign of work at all was 0.0 s.
 - The longest stretch any process of the family showed nothing
-  (no bytes, no processor time, no task runnable and none in `D`)
+  (no bytes,
+  no processor time,
+  no task runnable and none in `D`)
   was 8.0 s,
   of one test and the `git` it waited for;
   every test that the disk made slow showed 0.0 s.
 - The longest uninterrupted disk wait of one process was 24.5 s,
   in that 69 s test;
-  next came 20.0 s, 20.0 s and 17.0 s.
+  next came 20.0 s,
+  20.0 s and 17.0 s.
 
 What the waits are:
 the migration writes its journal and flushes the file and its directory at each phase
 (`package/git-policy/cli/src/native/worktree/worktree_convert_journal.rs`),
 the index rewrite flushes the file it installs
 (`package/git-policy/cli/src/native/subvolume/subvolume_index_files.rs`),
-and the real-platform controls create, exchange and destroy subvolumes
+and the real-platform controls create,
+exchange and destroy subvolumes
 (`package/git-policy/cli/src/native/subvolume/fs_btrfs_ioctl.rs`).
 Each flush waits for a btrfs log commit and each of those ioctls for a transaction commit,
 which is what `wait_log_commit` and `wait_current_trans` name.
@@ -146,10 +159,12 @@ and the longest single uninterrupted disk wait measured here was 24.5 s.
 processes it waits for (`package/git-policy/cli/src/native/push/push_progress.rs`):
 
 - the state of every task of the test process and of every process it started
-  (`R` can run, `D` waits for the disk),
+  (`R` can run,
+  `D` waits for the disk),
 - their processor ticks,
 - the bytes each moved,
-- and how many tasks and processes there are, so a run that starts or ends an entity counts as work.
+- and how many tasks and processes there are,
+  so a run that starts or ends an entity counts as work.
 
 A run that shows none of them for `QUIET_WINDOW` ends the process;
 a run that is moving is left alone however long it takes.
@@ -210,8 +225,10 @@ Measured,
 the same control twice on each fixture root,
 alternating:
 
-- on the btrfs fixture root: 35.433 s and 32.199 s;
-- with `CLI_GIT_TEST_ROOT` on a tmpfs (`/run/user/1000`): 2.149 s and 2.381 s.
+- on the btrfs fixture root:
+  35.433 s and 32.199 s;
+- with `CLI_GIT_TEST_ROOT` on a tmpfs (`/run/user/1000`):
+  2.149 s and 2.381 s.
 
 So 94 percent of the test was the flushes.
 `Platform::flushes_to_disk` now answers whether a platform's writes are flushed:
@@ -228,7 +245,9 @@ and they are left as they are.
 
 ## Verification
 
-- Controls for the judgment, the look and the ending (`testing/run_progress.rs`, sidecar `run_progress_tests.rs`):
+- Controls for the judgment,
+  the look and the ending (`testing/run_progress.rs`,
+  sidecar `run_progress_tests.rs`):
   a run that keeps moving is left alone;
   a run that stops moving is ended at the first look the window covers and the ending counts from the last look that
   moved;
@@ -242,7 +261,8 @@ and they are left as they are.
   one stuck (the process really ends with `SIGABRT` and the message) and one moving three windows past a one-second
   window (it ends on its own).
   `10 tests run: 10 passed`.
-- Controls for the flush switch (`subvolume/subvolume_file_write_steps_tests.rs`, 4 tests) and for the platform answer
+- Controls for the flush switch (`subvolume/subvolume_file_write_steps_tests.rs`,
+  4 tests) and for the platform answer
   (`subvolume/subvolume_platform_tests.rs`,
   `the_real_platform_flushes_its_writes_and_a_stand_in_does_not`).
 - The guard was shown to fail before it was kept,
@@ -252,7 +272,8 @@ and they are left as they are.
   with `a_run_that_keeps_moving_is_left_alone` failing
   (`left: Some(Quiet(2s))`),
   `a_run_that_keeps_moving_past_its_window_is_not_ended` failing on the child it starts
-  (`the unit-test run showed no sign of work for 1.0 s ...: a test is stuck`, in a child that wrote 4 KiB every
+  (`the unit-test run showed no sign of work for 1.0 s ...: a test is stuck`,
+  in a child that wrote 4 KiB every
   100 ms),
   `a_run_waiting_for_the_disk_is_left_alone` and `a_run_whose_tasks_come_and_go_is_left_alone` failing with
   `left: Some(Quiet(1s))`,
@@ -261,16 +282,29 @@ and they are left as they are.
 - A moving run that the old wall clock ended,
   planted as a test that writes 4 KiB every 200 ms:
 
-  - with the wall clock: `SIGABRT [ 120.192s]`, `the unit-test run exceeded 120s: a test is stuck`;
-  - with the judge: `PASS [ 236.473s]`.
+  - with the wall clock:
+    `SIGABRT [ 120.192s]`,
+    `the unit-test run exceeded 120s: a test is stuck`;
+  - with the judge:
+    `PASS [ 236.473s]`.
 
 - A stuck run,
   planted as a test that waits for a message nobody sends:
   `SIGABRT [ 180.905s]`,
   `no sign of work for 120.1 s`,
   and the planted test was removed again.
-- The two families after both changes:
-  (see "Runs after the changes").
+- The two families and the new controls after both changes:
+  `362 tests run: 362 passed (5 slow)`,
+  4479 skipped,
+  235.327 s,
+  no timeout and no abort.
+  The heaviest tests of that run were the conversion ones
+  (`worktree::worktree_convert::tests::a_kill_at_every_phase_is_finished_by_a_rerun` 168.89 s and three
+  `worktree_convert_command::parallel_tests` at 114 to 128 s),
+  which still flush through `worktree_copying/worktree_copy_install_log.rs` and through the `Watched` platform of
+  those controls,
+  and the real-platform control at 43.74 s.
+  None of them is near the runner's limit.
 
 ## Runs after the changes
 
@@ -281,30 +315,50 @@ and they are left as they are.
   every test passed except
   `subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`,
   which the runner ended at 305.127 s while the host ran three other sessions' suites;
-  that test took 223.20 s, 234.37 s and 161.81 s in the same family for its siblings,
+  that test took 223.20 s,
+  234.37 s and 161.81 s in the same family for its siblings,
   against 64 s and less in the run before.
-- The same control after the flush change: 15.423 s.
-- The whole library suite once,
+- The same control after the flush change:
+  15.423 s.
+- The whole library suite,
   `mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`,
   while another session ran the same suite:
-  `4831 tests run: 4831 passed (1 slow), 10 skipped` in 197.5 s.
+  `4831 tests run: 4831 passed (1 slow), 10 skipped` in 197.5 s,
+  and again on the last tree of the branch:
+  `4831 tests run: 4831 passed (1 slow), 10 skipped` in 215.443 s,
+  the same deliberately slow push test.
   The one slow test is `push::push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`,
   which is slow on purpose.
-- `mise run //package/git-policy/cli:native:clippy` and the package's lint: (see the branch's last commit).
+- `mise run //package/git-policy/cli:native:clippy`:
+  clean.
+  The package's lint first failed on two of its own rules,
+  which were fixed rather than suppressed:
+  `rust/avoidable-closure` on the closures the two entry points passed to the switch,
+  now a `WritesKeptInMemory` guard whose `Drop` puts it back,
+  and 13 `markdown/semantic-line-breaks` findings in the new comments,
+  fixed by `mise run //:format:monochromatic-lint -- package/git-policy/cli`.
+  `mise run //package/git-policy/cli:lint` then passed:
+  Clippy clean,
+  `monochromatic-lint` 0 warnings and 0 errors,
+  Oxlint 0 warnings and 0 errors.
 
 ## What does not work
 
-- Raising the wall clock: it only moves the load at which a working test dies.
+- Raising the wall clock:
+  it only moves the load at which a working test dies.
   At load 70 the heaviest test took 69 s,
   and at load 100 or more its siblings took 223 s,
   so no fixed number separates slow from stuck.
-- Judging only the test process's own tasks: the `git` it runs is where much of the work is
+- Judging only the test process's own tasks:
+  the `git` it runs is where much of the work is
   (one `git` of the family spent 8.25 s of its 8 s life in `D`),
   so a rule that watched only the test's threads would end a test whose Git is working.
   The judge counts the processes the test started.
-- Counting the reading thread's own reads: they grow the process's `rchar` by about 855 bytes per look,
+- Counting the reading thread's own reads:
+  they grow the process's `rchar` by about 855 bytes per look,
   so the reading thread is left out (`Look` never includes it).
-- A per-run processor budget: a suite legitimately uses minutes of processor time,
+- A per-run processor budget:
+  a suite legitimately uses minutes of processor time,
   and a budget no loop could exceed would end working tests.
 
 ## What is not claimed
@@ -314,7 +368,8 @@ and they are left as they are.
   and what was measured here is the same shape at a lower load.
 - Why the three tests of the reported run reached 310 s is not measured.
   The mechanism named above (one uninterrupted disk wait holding the exit) is consistent with the 24.5 s longest wait
-  measured here, but no log of that run shows it.
+  measured here,
+  but no log of that run shows it.
 - The 8.0 s quiet stretch of one test and its `git` child is not explained,
   and it is not what this change is about.
 - The claim publishes' flushes are still real for these controls,
