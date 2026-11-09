@@ -7,7 +7,7 @@
 //!  `rm`,
 //!  `mv`,
 //!      `restore --staged`,
-//!  `reset` except `--soft`,
+//!  `reset` in every mode but the final soft one,
 //!  `stash`,
 //!  `checkout`,
 //!  `switch`,
@@ -31,6 +31,9 @@
 
 /// The resolved command.
 use crate::forwarded_command::ResolvedCommand;
+/// Git's own `reset` table,
+///  for the mode a region ends in.
+use crate::command_reset::{ResetMode, parse_reset_region};
 
 /// Commands that write the index in every form.
 pub const ALWAYS_WRITING_COMMANDS: [&[u8]; 15] = [
@@ -72,9 +75,6 @@ pub struct LongOption {
 /// `git restore --staged`;
 ///  `--s` is ambiguous with `--source`.
 pub const RESTORE_STAGED: LongOption = LongOption { name: b"--staged", minimum_length: 4 };
-/// `git reset --soft`;
-///  `--s` is accepted.
-pub const RESET_SOFT: LongOption = LongOption { name: b"--soft", minimum_length: 3 };
 /// `git apply --cached`;
 ///  `--c` is ambiguous with `--check`.
 pub const APPLY_CACHED: LongOption = LongOption { name: b"--cached", minimum_length: 4 };
@@ -192,12 +192,14 @@ pub fn is_index_writer(command: &ResolvedCommand) -> bool {
         return false;
     }
     if word == b"reset" {
-        for token in &options {
-            if matches_long(token, RESET_SOFT) {
-                return false;
-            }
-        }
-        return true;
+        // The five mode options write one variable and the last one counts, and a word after a value-taking option is
+        //  that option's value (`--pathspec-from-file --soft` names a file), so the mode is the one Git 2.56.0's own
+        //  table selects (builtin/reset.c:350-382) rather than the first mode-looking token.
+        return match parse_reset_region(command.region(), &[]) {
+            Ok(region) => region.mode != Some(ResetMode::Soft),
+            // Git refuses the region and resets nothing, so nothing competes with a landing.
+            Err(_) => false,
+        };
     }
     if word == b"apply" {
         for token in &options {

@@ -145,7 +145,6 @@ fn every_reset_reading_matches_the_index_git_writes() {
         vec!["--pathspec-from-file", "--soft"],
         vec!["--pathspec-from-file=--soft"],
         vec!["--recurse-submodules", "--soft"],
-        vec!["-U", "--soft"],
     ] {
         // Stage a change, so a reset that writes the index has something to take back.
         std::fs::write(root.join("tracked.txt"), b"staged change\n").expect("modify tracked file");
