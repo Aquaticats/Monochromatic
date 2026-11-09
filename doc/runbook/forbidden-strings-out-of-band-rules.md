@@ -146,7 +146,7 @@ Issue #390 removed it (and its `caseexpand` support module) after the cutover
  format,
  and `dialectport` is now the standing stage two of
  `mise run //package/forbidden-strings/cli:generate:rules`
- (stage one is the TS porter `src/mise.port-betterleaks.ts`,
+ (stage one is the TS porter `bin/port-betterleaks.ts`,
  which emits the tail-format intermediate the dialect port rewrites).
 The per-rule semantics the port applies (quantifier bounding,
  three-casing
