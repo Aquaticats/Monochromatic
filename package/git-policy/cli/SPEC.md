@@ -884,6 +884,9 @@ or a submodule,
 found anywhere in the index (not only at the first refusal);
 a `.gitattributes`
 file among the changes or untracked anywhere;
+that untracked listing (`:(glob)**/.gitattributes`)
+runs real Git with `--no-literal-pathspecs`,
+so a global pathspec mode cannot hide a deep attributes file from the refusal;
 a sparse checkout;
 a source that is a linked worktree,
 whose index lies outside
