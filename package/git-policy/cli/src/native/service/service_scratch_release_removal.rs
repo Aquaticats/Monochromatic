@@ -36,22 +36,24 @@ use std::time::Duration;
 
 /// What:
 ///  The commit's scratch tree that a request names,
-///  which is the directory the private index inside it lives in,
-///  when that directory is one of the wrapper's own trees of the worktree.
+///  when the name it gives is one of the wrapper's own trees of the worktree.
 /// Why:
-///   A request names its private index and nothing else about the directory,
-///  and the service must never remove a directory the wrapper did not make.
+///   A request carries the tree it prepared in its own field,
+///  and deriving the tree from another path it carries names a directory that is not one,
+///  so the removal of a landed commit's tree never started.
+///  The service must still never remove a directory the wrapper did not make,
+///  so the name is checked here even though the decoder checks it too:
+///  a request built in this process reaches this function without that decoder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const tree = theTreeOf(request.index, request.gitDir); // undefined when it is not the wrapper's
+/// const tree = theTreeOf(request.scratch, request.gitDir); // undefined when it is not the wrapper's
 /// ```
-pub fn the_tree_of(index: &std::path::Path, git_dir: &std::path::Path) -> Option<PathBuf> {
-    let tree: &std::path::Path = index.parent()?;
-    if !crate::service_protocol_messages_and_name_checks::is_scratch_path(tree, git_dir) {
+pub fn the_tree_of(named: &std::path::Path, git_dir: &std::path::Path) -> Option<PathBuf> {
+    if !crate::service_protocol_messages_and_name_checks::is_scratch_path(named, git_dir) {
         return None;
     }
-    return Some(tree.to_path_buf());
+    return Some(named.to_path_buf());
 }
 
 /// What:

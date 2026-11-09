@@ -418,7 +418,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             //  landing that reads it, and which the service removes once that landing is over.
             let mut trees: Vec<std::path::PathBuf> = Vec::new();
             for queued in &queued_group {
-                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.index.as_path(), queued.0.git_dir.as_path()) {
+                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
                     trees.push(tree);
                 }
             }

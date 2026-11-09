@@ -241,8 +241,8 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
     std::fs::write(tree.join("conclusion"), b"copies the cleanup reads").expect("a conclusion copy");
     let index: std::path::PathBuf = tree.join("commit.index");
     std::fs::write(&index, b"the private index").expect("a private index");
-    let trees: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(index.as_path(), git_dir.as_path()).into_iter().collect();
-    assert_eq!(trees, vec![tree.clone()], "a request names its tree through the private index it carries");
+    let trees: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
+    assert_eq!(trees, vec![tree.clone()], "a request names its tree in the field it carries for it");
     // The landing reads the tree; only after it is over does the service start the removal.
     assert!(index.exists() && tree.exists(), "the landing has the tree it reads");
     crate::service_server::remove_the_trees(trees.as_slice());

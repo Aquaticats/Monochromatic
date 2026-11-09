@@ -24,14 +24,18 @@ use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
-/// It is 8 because a commit request's changed paths carry their bytes beside the readable spelling,
+/// It is 9 because a commit request names its scratch tree in its own field,
+/// and a service of version 8 removes only the tree a request's cleanup names,
+/// which the tree of every commit that concludes nothing is not:
+/// the service would land the request and leave the tree to the age sweep.
+/// It was 8 because a commit request's changed paths carry their bytes beside the readable spelling,
 /// and a service of version 7 ignores that field and would commit the spelling instead:
 /// the release text cannot keep such a service from being served,
 /// because a rebuild of the same crate version names the same release,
 /// so the version a service announces in its welcome is what is compared,
 /// and a service of another version is asked to retire before any request is sent
 /// (`service_client_reach_service.rs`).
-pub const PROTOCOL_VERSION: u32 = 8;
+pub const PROTOCOL_VERSION: u32 = 9;
 
 /// The release of this build:
 /// the crate version,
@@ -232,6 +236,13 @@ pub struct CommitRequest {
     /// The real index of the worktree,
     /// whose lock the landing holds from before the branch moves until the new index is in place.
     pub index: PathBuf,
+    /// The commit's scratch tree,
+    /// which holds the private index and,
+    /// for a commit built elsewhere,
+    /// the conclusion copies the landing reads.
+    /// The service removes it once the landing of this request is over,
+    /// so the request says where it is instead of the service working it out from a path.
+    pub scratch: PathBuf,
     /// When the client finished capturing the worktree's bytes:
     /// nanoseconds of `CLOCK_MONOTONIC`,
     /// which one clock gives every

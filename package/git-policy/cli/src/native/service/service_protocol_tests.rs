@@ -29,6 +29,7 @@ fn request() -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/work/repo/.git/index"),
+        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0"),
         captured: 7_000_000_000,
     };
 }
@@ -155,6 +156,58 @@ fn unacceptable_requests_are_refused() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
+/// What:
+///  A request names the scratch tree the service removes,
+///  and no other directory can be named in its place.
+/// Why:
+///   The service removes that tree once the landing is over,
+///  so a request that could name any path would have the service delete what it did not make.
+///  The tree is the one the wrapper created,
+///  named directly inside the worktree's repository scratch directory or its Git directory.
+#[test]
+fn a_request_names_only_the_wrapper_scratch_tree_it_wants_removed() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
+    let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["scratch"].as_str(), sent.scratch.to_str(), "the request says where its tree is");
+    let without: serde_json::Value = {
+        let mut fields: serde_json::Map<String, serde_json::Value> = value.as_object().expect("an object").clone();
+        fields.remove("scratch");
+        fields.remove("scratchHex");
+        serde_json::Value::Object(fields)
+    };
+    assert!(decode_client(without.to_string().as_str()).is_err(), "a request that names no tree");
+    for refused in [
+        PathBuf::from("/etc/passwd"),
+        PathBuf::from("/work/repo/.git/notes"),
+        PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-"),
+        PathBuf::from("/work/repo/.git/deeper/monochromatic-git-policy-cli-service-0a1b"),
+    ] {
+        let mut bad: CommitRequest = request();
+        bad.scratch = refused.clone();
+        assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{}", refused.display());
+    }
+}
+
+/// What:
+///  A commit request names its tree on the wire,
+///  and a line of the version before that field is no request this release serves.
+/// Why:
+///   A service built before the field works the tree out from the request's index,
+///  which is the worktree's real index and not a tree,
+///  so it would land the commit and leave the tree to the age sweep.
+///  The version is what keeps such a service from being handed the request.
+#[test]
+fn a_commit_request_carries_the_version_that_names_its_tree() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
+    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
+    // The version before the field, which served a request without it.
+    value["version"] = serde_json::Value::from(8);
+    assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
+}
+
 /// The retire message round trips,
 /// and is accepted from a client of another protocol version,
 /// which is how a service of
@@ -244,6 +297,7 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
     sent.common_dir = git_dir.clone();
     sent.git_dir = git_dir.clone();
     sent.index = git_dir.join("index");
+    sent.scratch = git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d");
     // A cleanup belongs to a commit built elsewhere, which is the only request that names one.
     sent.commit = Some(String::from(BLOB));
     sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
@@ -355,7 +409,7 @@ fn a_request_without_a_capture_stamp_has_an_unknown_one() {
     assert_eq!(decoded.captured, 0);
 }
 
-/// A cleanup and a request's index name the wrapper's own directory names directly inside the
+/// A cleanup and a request's scratch tree name the wrapper's own directory names directly inside the
 ///  repository scratch directory of the worktree,
 /// or directly inside the worktree's own Git directory as a release before this one made it,
 /// and nothing else,
@@ -413,6 +467,7 @@ fn a_cleanup_names_only_a_scratch_directory_of_the_worktree() {
         request.common_dir = common.clone();
         request.repository = root.join("repo");
         request.index = common.join("index");
+        request.scratch = common.join(name);
         request.commit = Some(String::from(BLOB));
         request.base = String::from(BLOB);
         request.cleanup = Some(Cleanup { git_dir: common.clone(), scratch, reftable: false });

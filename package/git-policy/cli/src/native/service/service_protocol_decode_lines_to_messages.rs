@@ -108,6 +108,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
         index: path_bytes::read_field(&value, "index")?,
+        scratch: path_bytes::read_field(&value, "scratch")?,
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         // A `cleanup` that is absent or null asks for none.
         cleanup: match value.get("cleanup") {
@@ -150,6 +151,10 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && !request.git_dir.to_string_lossy().contains('\0')
         && request.index.is_absolute()
         && !request.index.to_string_lossy().contains('\0')
+        // The tree the service is asked to remove has to be one the wrapper makes, in one of the two places it makes them,
+        //  or a request could name any directory of the account for removal.
+        && request.scratch.is_absolute()
+        && is_scratch_path(request.scratch.as_path(), request.git_dir.as_path())
         && !request.committer.contains(['\0', '\n'])
         && author_clean
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request

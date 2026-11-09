@@ -8623,11 +8623,10 @@ which a preparation of a commit now is.
 Who removes it,
 and how long anyone waits:
 
-- A request names its tree:
-  through the private index it carries,
-  and,
-  for a commit built elsewhere,
-  through the cleanup it asks for.
+- A request names its tree in the request's own `scratch` field,
+  which the decoder refuses unless it is one of the wrapper's trees of that worktree,
+  so the service never works the tree out from another path the request carries
+  (`index` is the worktree's real index, which is not a tree).
   The resident service removes that tree once the landing of that request is over,
   in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
   with a line at warning priority in the service journal when the removal cannot finish.
@@ -10202,17 +10201,21 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 8,
-the first that carries a changed path's bytes.
-The version is what keeps a service built before them from being served,
+The commit request speaks protocol version 9,
+the first that names the commit's scratch tree in a field of its own.
+A service of version 8 works the tree out from the request's index,
+which is the worktree's real index rather than a tree,
+so it lands the commit and leaves the tree to the age sweep.
+The version is what keeps a service built before a field from being served,
 not the release text:
 `reach_current` (`src/native/service/service_client_reach_service.rs`)
 serves only a service whose welcome names its own version and its own release,
 and asks any other to retire before a request is sent.
 Two builds of one crate version name the same release,
-so a service built before this change would pass the release check,
-take the readable spelling of a name that is not text,
-and report a successful commit of another file.
+so a service built before a change to the request would pass the release check.
+Version 8 was the first that carries a changed path's bytes;
+a version 7 service takes the readable spelling of a name that is not text
+and reports a successful commit of another file.
 
 ### Compatibility and degradation
 
