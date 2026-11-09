@@ -2106,7 +2106,10 @@ because the worktree may switch branches at any instant.
 It is the only pusher of the repositories it serves and runs one push per branch at a time,
 so the push takes no lock.
 A failed push never fails the commit:
-the service leaves a notice that the next command in the repository shows.
+the service leaves a notice that the next command in the repository shows,
+and that command removes the record only once its words are written out,
+and only while the file still holds the text they were worded from
+(`Notice::show`).
 
 #### Merges and commits never fail
 
@@ -2340,6 +2343,12 @@ although the loop alone decides when the try is due
 (`Replanning::keep_the_plan`):
 the loop applies the workers' changes only once every repository of the round is drained,
 and a kill before that would leave a notice that says the service keeps trying and nothing that keeps it.
+A plan that could not be written makes no promise:
+the notice then carries only Git's own words
+(`planned_retry`).
+A forget the same round asked for before that file was written keeps it,
+by the name the round's plan will publish,
+so the replay of the older change does not take the newer plan (`PushRetries::apply`).
 
 #### Git steps, tools and checks end only on no progress
 
