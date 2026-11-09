@@ -1247,6 +1247,143 @@ in the order the numbers rank it:
   and `git add` reads the live index again in the same command,
   which is the 4,227 ms to 5,793 ms of `index copy` that the rounds over the bar hold.
 
+## What the record now says about a landing, and what eight overlapping commits measured
+
+### The record
+
+Three fields were added to the commit timing record because a slow landing could not explain itself:
+
+- `landing.reads` names each of the residual reads of a landing one by one:
+  the configuration snapshot,
+  the branch and checked-out reads,
+  the parents of an amend,
+  the comparisons with the branch,
+  the content check,
+  the index witness,
+  the conclusion copy,
+  the records a batch owes,
+  and the head question under the lock.
+  `reads_ms` stays the whole, and the named parts never add up to more than it.
+- `landing.lockHoldMs` is how long the landing held the index lock, which is what the commits behind it queued on,
+  and `landing.queuedBehind` is how many requests were still waiting for their answer when the landing finished.
+- `landing.syncs` is every file or directory sync the landing asked for,
+  in the order it asked,
+  each with whether the landing waited for it and how long it took.
+  A background batch of a landing's records says in the journal how many it made and what they cost.
+
+The service measures all three,
+so the answer to a commit carries them and the record states them;
+a service of a release that sends none leaves the field `null`,
+never zeros.
+The `answered` line of the journal states the same figures, so the two files agree.
+
+### The measurement
+
+One binary, two runs of four rounds of eight overlapping commits in a disposable clone of this repository
+(452 990 objects and 22 462 tracked files),
+started together on one branch so they land as one batch:
+
+- run A: 32 commits,
+  median 4 280 ms,
+  p95 8 623 ms,
+  14 of 32 over 5 000 ms.
+- run B, the same binary:
+  32 commits,
+  median 22 002 ms,
+  p95 40 868 ms,
+  32 of 32 over 5 000 ms.
+
+Two runs of one binary differ by 5.1 times at the median,
+which is the host's own spread and not a change:
+every figure below is stated with both runs beside it.
+
+The three documents the runs wrote are `perf/commit-landing-2026-11-09-overlapping-a.json`,
+`perf/commit-landing-2026-11-09-overlapping-b.json` and
+`perf/commit-landing-2026-11-09-solo.json`;
+each holds the phases of every commit,
+every landing line as the service wrote it,
+and the landing figures the records carry.
+The harness that wrote them was scaffolding in `${HOME}/temp/agent` and is not in the tree:
+`mise run //package/git-policy/cli:native:perf` measures one commit at a time,
+and measuring overlapping commits again means the same three steps by hand:
+clone the repository somewhere disposable,
+point its `origin` at a bare repository of that scratch tree so no push reaches the checkout it came from,
+and start the wrapper's service for the clone with `bench`-style arguments under an `XDG_RUNTIME_DIR` of its own.
+
+The commit's phases, as the record counts them:
+
+- prepare: median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
+- submit: median 755 ms and 10 843 ms (p95 3 025 and 24 813).
+- gate: median 151 ms and 1 519 ms (p95 2 701 and 10 569).
+- build: median 3 ms in both; after-landing, handoff and uncovered time under 80 ms.
+
+The landing, as the service splits it:
+
+- landing: median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
+- the wait for another program's hold on the index: median 10 539 ms in run B (p95 14 249),
+  which is 98 percent of that run's median landing.
+- everything the landing itself does:
+  reads median 29 ms in A and 15 ms in B,
+  objects 17 ms,
+  the intent journal 0 ms,
+  the branch move 14 ms,
+  the index update 89 ms.
+- the hold on the index: median 165 ms in A and 190 ms in B (p95 207 and 2 771).
+- queued behind a landing: seven commits for the first request of each batch and none for the rest,
+  because the eight commits of a round land as one batch.
+- six syncs per landing,
+  always handed to the background and never waited for:
+  193 over 32 landings in each run,
+  named `intent-file`, `intent-dir`, `index-dir`, `indexed-file`, `indexed-dir` and `journal-dir`,
+  with `lock-marker` only for the first landing of a run (the marker is made ahead after that).
+
+### The same clone, one commit at a time
+
+A third run, of six commits one after another in the same clone,
+so nothing ever queued:
+
+- the wait for another program's hold on the index: median 1 ms, largest 3 040 ms.
+- the hold on the index: median 305 ms, largest 724 ms.
+- the index update: median 192 ms.
+- reads: median 4 ms.
+- queued behind a landing: none, in every one of the six.
+
+Seven siblings in one batch turn that 1 ms into 10 539 ms,
+and no sibling at all leaves it at 1 ms.
+The wait is therefore the batch's own members holding the index,
+not the landing.
+
+### What it means
+
+The landing's own work is small and no named read is waste:
+every suggestion of reading once per batch,
+locking only around the write,
+one sync per batch and one index update per batch is already how the landing works.
+The landing's one large cost is a wait it does not cause:
+each commit of a batch refreshes the real index in its own preparation
+(`git update-index --refresh`, which takes `index.lock`),
+so the batch's landing waits for its own members to stop refreshing,
+and those members wait for the landing in turn.
+
+So no change to the landing would take the tail under 5 s:
+the landing is 382 ms of a 4 280 ms median commit in the quieter run,
+and its largest piece is a wait on another step.
+The tail is elsewhere:
+
+- the preparation itself,
+  median 3 487 ms in run A,
+  6 675 ms in the run one commit at a time,
+  p95 34 511 ms,
+  and the slowest commit of that run spent 34 511 ms of its 37 227 ms there;
+- the post-commit gate,
+  p95 2 701 ms in run A and 4 380 ms in the run one commit at a time;
+- the per-commit refresh of the real index by the preparation,
+  which the landing of a batch waits for and which a batch needs once.
+
+The first and the third are the preparation's,
+which another branch is changing,
+and the second is the gate's.
+
 ## What this could not determine
 
 - Which in-process step inside a preparation spends the median 332 ms.
@@ -1274,6 +1411,14 @@ in the order the numbers rank it:
   so this record compares step by step and not device stall by device stall.
 
 ## Decisions this record takes, open to the owner's veto
+
+- The ranking of the four entries above changes:
+  the landing's own share is smaller than the records suggested
+  (382 ms of a 4 280 ms median commit, with no named read over 51 ms),
+  and what its number was made of is a wait on the preparation of the batch's own members.
+  Removing waste inside the landing would therefore not move the tail,
+  and the entry that would is the preparation's per-commit refresh of the real index,
+  which is not one of the four.
 
 - The conclusion record's fail-closed row narrows to the backend that carries values.
   `doc/planning/cli-git-spawn-and-sync-reduction.md` keeps `store-held.json` in the

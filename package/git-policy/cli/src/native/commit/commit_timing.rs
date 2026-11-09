@@ -47,7 +47,7 @@ use crate::json_record::{quote, string_array};
 use crate::quiet_ledger::{drain, longest_healthy, object_json};
 use crate::transaction_step_durations::{StepFigure, drain_steps, steps_json};
 use crate::service_instance::instance_of;
-use crate::service_protocol::RELEASE;
+use crate::service_protocol::{LandingFigures, RELEASE};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -189,6 +189,11 @@ pub struct SubmitTrace {
     pub reconnects: usize,
     /// Requests written.
     pub sends: usize,
+    /// What the landing of this commit spent and held,
+    /// as the service's answer stated it;
+    /// `None` for a service of a release that sends no figures,
+    /// so a reader never takes zeros for a figure nobody measured.
+    pub landing: Option<LandingFigures>,
 }
 
 /// Where the record goes and which service instance it belongs to.
@@ -211,6 +216,41 @@ fn whole_milliseconds(elapsed: Duration) -> u128 {
 /// The JSON word for a field that has no value.
 fn null_word() -> String {
     return String::from("null");
+}
+
+/// What:
+///  The landing's own figures as one JSON object,
+/// or the JSON word for no value when the service sent none.
+/// Why:
+///   The record of a slow commit then explains its landing on its own:
+/// which read spent the time,
+/// how long the landing held what others queued on,
+/// how many commits queued behind it
+/// and how many syncs it made with the time of each,
+/// without a second file read by request identity.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landingJson = (l) => l === null ? 'null' : JSON.stringify({ lockHoldMs: l.lockHoldMs, queuedBehind: l.queuedBehind, readsMs: l.readsMs, reads: Object.fromEntries(l.reads), syncs: l.syncs });
+/// ```
+fn landing_json(landing: Option<&LandingFigures>) -> String {
+    let Some(figures) = landing else { return null_word() };
+    let mut reads: Vec<String> = Vec::new();
+    for (name, ms) in &figures.reads {
+        reads.push(format!("{}:{ms}", quote(name.as_str())));
+    }
+    let mut syncs: Vec<String> = Vec::new();
+    for sync in &figures.syncs {
+        syncs.push(format!("{{\"what\":{},\"waited\":{},\"ms\":{}}}", quote(sync.what.as_str()), sync.waited, sync.ms));
+    }
+    return format!(
+        "{{\"lockHoldMs\":{},\"queuedBehind\":{},\"readsMs\":{},\"reads\":{{{}}},\"syncs\":[{}]}}",
+        figures.lock_hold_ms,
+        figures.queued_behind,
+        figures.reads_ms,
+        reads.join(","),
+        syncs.join(","),
+    );
 }
 
 impl Place {
@@ -428,7 +468,7 @@ impl CommitTiming {
              \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{},\
              \"scratchRemovalMs\":{},\"removalsThatDidNotFinish\":{},\"stderrMs\":{},\
              \"prepareParts\":{},\"preparePartsDropped\":{},\
-             \"longestQuietMs\":{},\"quietMs\":{},\"steps\":{},\"stepsDropped\":{}}}\n",
+             \"longestQuietMs\":{},\"quietMs\":{},\"steps\":{},\"stepsDropped\":{},\"landing\":{}}}\n",
             quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
@@ -471,6 +511,7 @@ impl CommitTiming {
             object_json(self.quiet.as_slice()),
             steps_json(self.steps.as_slice()),
             self.steps_dropped,
+            landing_json(self.submit.landing.as_ref()),
         );
     }
 

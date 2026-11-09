@@ -100,3 +100,31 @@ fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_step_record() {
     let source: &str = include_str!("../commit/commit_preparation.rs");
     assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
 }
+
+/// What:
+///  The wait the standing notice uses is the shipped one unless a positive number of seconds is set,
+/// and a setting that means nothing leaves it.
+/// Why:
+///   A control reads the variable to move the notice past its own bound,
+/// and a misspelling must not silence the telling:
+/// a setting that is missing,
+/// is not a
+///  number,
+/// is zero or is a sign leaves the shipped wait.
+#[test]
+fn the_standing_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise() {
+    assert_eq!(notice_after_of(Some("30")), Duration::from_secs(30));
+    assert_eq!(notice_after_of(Some(" 1 ")), Duration::from_secs(1));
+    for meaningless in [None, Some(""), Some("abc"), Some("0"), Some("-5"), Some("1.5")] {
+        assert_eq!(notice_after_of(meaningless), WAITING_NOTICE_AFTER, "{meaningless:?}");
+    }
+    assert_eq!(notice_after_of(None), WAITING_NOTICE_AFTER);
+}
+
+/// The variable the control of the standing notice sets is the one the client reads.
+#[test]
+fn the_standing_notice_variable_is_the_one_the_client_reads() {
+    assert_eq!(WAITING_NOTICE_VARIABLE, "CLI_GIT_STANDING_NOTICE_SECONDS");
+    let source: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
+    assert!(source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
+}

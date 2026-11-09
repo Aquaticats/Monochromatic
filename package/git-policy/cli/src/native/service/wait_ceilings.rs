@@ -620,6 +620,73 @@ pub const REVIEW_CEILING: Duration = Duration::from_secs(2 * 60);
 /// 7 s.
 pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 
+/// How long a commit waits before the wrapper says where it stands:
+/// the place the service reported,
+/// or that the service has not started on it.
+/// A notice threshold,
+/// not a bound:
+/// nothing ends at it,
+/// and nothing waits for it,
+/// because the client reads its own clock each time the service sends anything.
+///  Measured:
+/// the answer wait of this repository's commit timing log (both generations,
+/// 919 records,
+/// 2026-11-09T06:56:21Z to 2026-11-09T14:59:05Z,
+/// release 0.6.1-alpha.5,
+/// 53 worktrees,
+/// 909 of them stating one) has a median of 125 ms,
+/// a 95th percentile of 5,459 ms and a 99th percentile of 19,840 ms;
+/// 26 reach 10,000 ms (2.9%),
+/// 19 reach 15,000 (2.1%) and 10 reach 20,000 (1.1%).
+/// The two commits of the incident this notice answers waited 31,066 and 31,124 ms with nothing said about either.
+/// Ten seconds is twice the owner's 5 s bound on what a commit may add to native Git,
+/// so a commit that finishes quickly says nothing,
+/// and 97 of 100 commits say nothing.
+pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
+
+/// The environment variable that sets how long a commit waits before the wrapper says where it stands,
+/// in whole
+///  seconds.
+/// Why:
+///   A control that checks what a healthy commit prints must not depend on how slowly the host runs one,
+/// so it sets
+///  this past its own bound,
+/// as `CLI_GIT_WAIT_NOTICE_SECONDS` does for the holder's lines.
+pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
+
+/// How long a commit waits before the wrapper says where it stands:
+/// the setting when it holds a positive number of seconds,
+/// `WAITING_NOTICE_AFTER` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitingNoticeAfter() // Duration
+/// ```
+pub fn waiting_notice_after() -> Duration {
+    return notice_after_of(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref());
+}
+
+/// What:
+///  The wait a setting of `CLI_GIT_STANDING_NOTICE_SECONDS` stands for.
+/// Why:
+///   A setting that is missing,
+/// is not a number or is zero leaves the shipped wait,
+/// so a misspelling never silences the telling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noticeAfterOf('30') // 30 s
+/// ```
+pub fn notice_after_of(setting: Option<&str>) -> Duration {
+    let seconds: Option<u64> = match setting {
+        Some(text) => text.trim().parse::<u64>().ok(),
+        None => None,
+    };
+    return match seconds {
+        Some(found) if found > 0 => Duration::from_secs(found),
+        _ => WAITING_NOTICE_AFTER,
+    };
+}
 /// The longest the optional configuration warning of a commit may take to reach the stream it is written to.
 ///  The warning is written on the commit's preparation path before the request is submitted,
 /// and a stream whose reader

@@ -45,7 +45,9 @@ use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_stat
 use std::fs::File;
 use std::thread::Scope;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 use crate::blocking_job::run_blocking_job;
+use crate::service_durable_syncs::SyncFigure;
 use crate::lazy_runtime::spawn_on_runtime;
 use std::sync::mpsc::{Sender, channel};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -87,7 +89,13 @@ pub static BACKGROUND_SYNCED: std::sync::atomic::AtomicU64 = std::sync::atomic::
 ///  fail a commit that was already answered,
 /// and the next landing or restart handles the record as it would after a power cut.
 fn sync_batch(batch: Vec<Pending>) {
-    sync_all_at_once(batch.as_slice(), true);
+    let figures: Vec<(&'static str, Duration)> = sync_all_at_once(batch.as_slice(), true);
+    let mut total: Duration = Duration::ZERO;
+    for (_what, took) in &figures {
+        total += *took;
+    }
+    // One line per batch, so a landing whose records were flushed after its answer still says what that cost the device.
+    crate::service_log!("the background sync of {} records of a landing took {} ms", figures.len(), total.as_millis());
 }
 
 /// What:
@@ -103,8 +111,8 @@ fn sync_batch(batch: Vec<Pending>) {
 /// ```ts
 /// await Promise.all(batch.map(async (pending) => { try { await pending.handle.sync(); } catch (e) { warn(e); } if (background) synced++; }));
 /// ```
-fn sync_all_at_once(batch: &[Pending], background: bool) {
-    in_thread_scope(SyncAll { batch, background });
+fn sync_all_at_once(batch: &[Pending], background: bool) -> Vec<(&'static str, Duration)> {
+    return in_thread_scope(SyncAll { batch, background });
 }
 
 /// The syncs of one batch,
@@ -119,23 +127,33 @@ struct SyncAll<'batch> {
 }
 
 impl<'batch> ScopeBody<'batch> for SyncAll<'batch> {
-    type Output = ();
+    type Output = Vec<(&'static str, Duration)>;
 
     /// Start one sync per pending handle,
-    /// then say once when any of them had to run here.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'batch>) {
-        let mut started: Vec<Started<'scope, ()>> = Vec::new();
+    /// then say once when any of them had to run here,
+    /// and answer how long each took.
+    fn run<'scope>(self, scope: &'scope Scope<'scope, 'batch>) -> Vec<(&'static str, Duration)> {
+        let mut started: Vec<Started<'scope, (&'static str, Duration)>> = Vec::new();
         for pending in self.batch {
             started.push(start_or_run_with(scope, (pending, self.background), sync_one_pending));
         }
         say_once_if_inline(started.as_slice());
+        let mut figures: Vec<(&'static str, Duration)> = Vec::new();
+        for each in started {
+            if let Ok(figure) = each.join() {
+                figures.push(figure);
+            }
+        }
+        return figures;
     }
 }
 
 /// Sync one handle,
 /// log a failure,
-/// and count a background sync.
-fn sync_one_pending((pending, background): (&Pending, bool)) {
+/// count a background sync,
+/// and answer what it was for and how long it took.
+fn sync_one_pending((pending, background): (&Pending, bool)) -> (&'static str, Duration) {
+    let began: Instant = Instant::now();
     if let Err(error) = pending.handle.sync_all() {
         if background {
             crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
@@ -143,9 +161,11 @@ fn sync_one_pending((pending, background): (&Pending, bool)) {
             crate::service_warn!("the sync of the {} failed: {error}", pending.what);
         }
     }
+    let took: Duration = began.elapsed();
     if background {
         BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     }
+    return (pending.what, took);
 }
 
 /// Logs once,
@@ -239,6 +259,48 @@ fn start_deferring(state: &LandingState, hardens_index: bool) {
     state.deferring_syncs.set(true);
     state.index_hardened.set(hardens_index);
     state.queued_syncs.borrow_mut().clear();
+    state.syncs.borrow_mut().clear();
+}
+
+/// What:
+///  Records one sync of the landing this code runs in,
+/// as its answer states it.
+/// Why:
+///   A landing that made more syncs and one that made the same syncs on a stalling device look alike
+///  in the phases;
+/// the record says how many there were and how long each took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// landing.syncs.push({ what, waited, took })
+/// ```
+fn note_a_sync(figure: SyncFigure) {
+    on_the_landing_state(figure, record_a_sync);
+}
+
+/// Pushes one sync into the landing's state.
+fn record_a_sync(state: &LandingState, figure: SyncFigure) {
+    state.syncs.borrow_mut().push(figure);
+}
+
+/// What:
+///  Takes the syncs the landing this code runs in has recorded so far,
+/// in the order it asked for them.
+/// Why:
+///   The landing's answer states them,
+/// and nothing else reads them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const syncs = landing.syncs.splice(0)
+/// ```
+pub fn take_syncs() -> Vec<SyncFigure> {
+    return on_the_landing_state((), drain_syncs);
+}
+
+/// Takes the recorded syncs out of the landing's state.
+fn drain_syncs(state: &LandingState, (): ()) -> Vec<SyncFigure> {
+    return state.syncs.take();
 }
 
 /// Ends the deferral on this thread and returns what it queued.
@@ -260,7 +322,10 @@ fn force(batch: Vec<Pending>) {
     for pending in &batch {
         crate::service_fault::note(format!("sync-waited:{}", pending.what).as_str());
     }
-    sync_all_at_once(batch.as_slice(), false);
+    let figures: Vec<(&'static str, Duration)> = sync_all_at_once(batch.as_slice(), false);
+    for (what, took) in figures {
+        note_a_sync(SyncFigure { what, waited: true, took });
+    }
 }
 
 impl Deferral {
@@ -322,11 +387,14 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
 pub fn flush_file(file: &File, what: &'static str) -> std::io::Result<()> {
     if on_the_landing_state((), is_deferring) {
         crate::service_fault::note(format!("sync-queued:{what}").as_str());
+        note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
         let handle: File = file.try_clone()?;
         on_the_landing_state(Pending { handle, what }, queue_a_sync);
         return Ok(());
     }
+    let began: Instant = Instant::now();
     let synced: std::io::Result<()> = file.sync_all();
+    note_a_sync(SyncFigure { what, waited: true, took: began.elapsed() });
     crate::service_fault::note(format!("sync-waited:{what}").as_str());
     return synced;
 }
@@ -358,7 +426,9 @@ pub fn flush_directory(directory: &std::path::Path, what: &'static str) -> std::
 /// The error of the flush.
 pub fn flush_index(file: &File, what: &'static str) -> std::io::Result<()> {
     if index_is_hardened() {
+        let began: Instant = Instant::now();
         let synced: std::io::Result<()> = file.sync_all();
+        note_a_sync(SyncFigure { what, waited: true, took: began.elapsed() });
         crate::service_fault::note(format!("sync-waited:{what}").as_str());
         return synced;
     }

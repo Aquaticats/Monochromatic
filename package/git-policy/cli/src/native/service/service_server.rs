@@ -170,6 +170,12 @@ pub struct ServeSettings {
     /// `NEVER_ENDED_STEP_SLOW_AFTER`);
     /// a control shortens it.
     pub stuck_after: Duration,
+    /// How long a batch's first request must have waited before it is told it is next,
+    /// which is how a person sees the service
+    ///  take the commit after a wait (`wait_ceilings.rs`,
+    /// `WAITING_NOTICE_AFTER`);
+    /// a control shortens it.
+    pub place_after: Duration,
     /// The Git directory of the worktree whose units are this service's,
     /// as its note or its journal named it when the service started,
     /// and nothing when it was not there or could not be told.
@@ -194,6 +200,7 @@ impl ServeSettings {
             release: String::from(RELEASE),
             instance: None,
             stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
+            place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             own_units_stop: crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
@@ -381,7 +388,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         for job in &jobs {
             if let Job::Withdraw(id, reply) = job {
                 match landed.get(id) {
-                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true }),
+                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true, landing: None }),
                     None => {
                         withdrawn.insert(id.clone());
                         reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
@@ -459,7 +466,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 remove_the_trees(trees.as_slice());
                 continue;
             }
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
