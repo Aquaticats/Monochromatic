@@ -8939,6 +8939,24 @@ For injected commit-only semantics:
     so it holds exactly the requested tree,
     with the same answers,
     and neither preparation keeps a rule of its own.
+    One window stays open in that rebuild and is written here rather than closed
+    (`initialize_retry_index`,
+    `commit_index.rs`):
+    the real index is classified at the start of the build and copied after the stat refresh,
+    and a command that replaces it between the two
+    leaves the copy holding intent-to-add entries the classification never named,
+    so the clearing above does not reach them.
+    A second program inside those few instructions can therefore make a retry record a deletion the person did not make:
+    the reset keeps a mark whose mode and object name match the requested tree's entry,
+    and a scratch-commit hook that restages a file the commit names invalidates the cached tree,
+    after which the tree written from that index leaves the tracked file out
+    (measured with Git 2.56.0:
+    the mark survives the reset,
+    the tree still holds the path while the cached tree stands,
+    and the restage drops it).
+    No lock covers it:
+    the real index belongs to the person and their other commands,
+    and a lock held across the stat refresh would stop them to protect a path nothing named.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
