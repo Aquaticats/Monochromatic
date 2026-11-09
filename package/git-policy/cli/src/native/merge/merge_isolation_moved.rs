@@ -131,9 +131,13 @@ pub(crate) fn settle_moved_branch(
     //  independent commit of the same content leaves the very file the merge would,
     // and writing it then would replace a
     //  person's own file for nothing.
-    let wrote_a_file: bool = worktree.iter().zip(changes.iter()).any(|(judged, change)| {
-        return holds_the_merge(judged) && moved_head_holds_its_own_entry(beyond.as_slice(), change.path.as_slice());
-    });
+    let mut wrote_a_file: bool = false;
+    for (judged, change) in worktree.iter().zip(changes.iter()) {
+        if holds_the_merge(judged) && moved_head_holds_its_own_entry(beyond.as_slice(), change.path.as_slice()) {
+            wrote_a_file = true;
+            break;
+        }
+    }
     let began: bool = index_began || wrote_a_file;
     if !began {
         return only_the_record_goes(record, began);

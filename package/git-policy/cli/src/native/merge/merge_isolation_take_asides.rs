@@ -25,7 +25,7 @@
 //! ```
 
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
-use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, worktree_path};
+use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_objects_a_link_hashes_to, worktree_path};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
@@ -265,16 +265,8 @@ pub struct TakeFailure {
 /// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : hash-object --no-filters -- <location>
 /// ```
 fn raw_bytes_of(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<String> {
-    let found: std::fs::Metadata = std::fs::symlink_metadata(location).ok()?;
-    if found.file_type().is_symlink() {
-        let target: PathBuf = std::fs::read_link(location).ok()?;
-        let mut link: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
-        link.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
-        let output: GitOutput = run_git(&place.git, &link).ok()?;
-        if !output.succeeded() {
-            return None;
-        }
-        return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
+    if std::fs::symlink_metadata(location).ok()?.file_type().is_symlink() {
+        return the_objects_a_link_hashes_to(&place.git, root, location).ok();
     }
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--"]);
     request.arguments.push(location.as_os_str().to_os_string());

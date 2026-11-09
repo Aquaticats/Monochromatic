@@ -16,7 +16,7 @@
 //! ```
 
 /// Running real Git for a blob hash.
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git_checked};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -267,20 +267,8 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
         Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
     };
     if metadata.file_type().is_symlink() {
-        let target: PathBuf = match std::fs::read_link(location) {
-            Ok(read) => read,
-            Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
-        };
-        let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--stdin"]);
-        request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
-        let output = match run_git_checked(context, &request) {
-            Ok(done) => done,
-            Err(error) => return Err(error.to_string()),
-        };
-        return Ok(WorktreeState::Content {
-            object: String::from_utf8_lossy(&output.stdout).trim().to_owned(),
-            mode: String::from(SYMBOLIC_LINK_MODE),
-        });
+        let object: String = the_objects_a_link_hashes_to(context, root, location)?;
+        return Ok(WorktreeState::Content { object, mode: String::from(SYMBOLIC_LINK_MODE) });
     }
     if !metadata.is_file() {
         return Ok(WorktreeState::Other);
@@ -304,6 +292,39 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
 
 /// The mode Git records for a symbolic link.
 const SYMBOLIC_LINK_MODE: &str = "120000";
+
+/// What:
+///  The object Git records for the symbolic link at `location`,
+///  which is the hash of the text of its target.
+/// Why:
+///   A link is a file of its own here,
+/// and `git hash-object <path>` opens the file it points at instead,
+/// so both the
+///  judgement of a link and the check of a link that was set aside read the same text.
+/// The take of a link a merge
+///  replaces compared its target's bytes with the link's object because of that follow,
+/// and every retry refused the
+///  saved merge
+///  (a cross-vendor review of the ninth round,
+/// its sixth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function theObjectsALinkHashesTo(context, root, location): Promise<string>; // hash-object --no-filters --stdin < readlink(location)
+/// ```
+pub fn the_objects_a_link_hashes_to(context: &GitContext, root: &Path, location: &Path) -> Result<String, String> {
+    let target: PathBuf = match std::fs::read_link(location) {
+        Ok(read) => read,
+        Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
+    };
+    let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
+    request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
+    let output: GitOutput = match run_git_checked(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(error.to_string()),
+    };
+    return Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned());
+}
 
 /// What:
 ///  The mode Git records for a regular file,
@@ -437,12 +458,14 @@ fn every_entry_below_is_one_the_merge_deletes(prefix: &[u8], changes: &[Change],
         let mut child: Vec<u8> = prefix.to_vec();
         child.push(b'/');
         child.extend_from_slice(entry.file_name().as_encoded_bytes());
-        let deleted: bool = changes.iter().any(|other| return other.path == child && other.existed() && !other.exists_after());
-        if deleted {
+        if one_change_deletes(changes, child.as_slice()) {
             continue;
         }
         let below: PathBuf = directory.join(entry.file_name());
-        let is_a_directory: bool = std::fs::symlink_metadata(below.as_path()).map(|found| return found.is_dir()).unwrap_or(false);
+        let is_a_directory: bool = match std::fs::symlink_metadata(below.as_path()) {
+            Ok(found) => found.is_dir(),
+            Err(_) => false,
+        };
         if !is_a_directory {
             return false;
         }
@@ -461,6 +484,26 @@ fn every_entry_below_is_one_the_merge_deletes(prefix: &[u8], changes: &[Change],
         }
     }
     return true;
+}
+
+/// What:
+///  Whether one of the changes deletes the path named here,
+///  which is a path the merge had before it and does not have after it.
+/// Why:
+///  A tree diff names each deleted file,
+/// so this is the only way a path below a directory can be the merge's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function oneChangeDeletes(changes, path): boolean; // changes.some((other) => other.path === path && other.existed() && !other.existsAfter())
+/// ```
+fn one_change_deletes(changes: &[Change], path: &[u8]) -> bool {
+    for other in changes {
+        if other.path == path && other.existed() && !other.exists_after() {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

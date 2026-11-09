@@ -2544,7 +2544,8 @@ fn an_emptied_directory_the_merge_does_not_reach_refuses_before_anything_is_writ
 }
 
 /// What:
-///  A checkout a killed merge wrote one file of, whose branch another command then advanced,
+///  A checkout a killed merge wrote one file of,
+/// whose branch another command then advanced,
 ///  is set back to the moved
 ///  head,
 ///  and the notice that says the files were put back is true.
@@ -2593,7 +2594,8 @@ fn a_partly_written_checkout_whose_branch_moved_puts_the_written_paths_back() {
 }
 
 /// What:
-///  A merge that was saved on a side ref, and whose first record names no side ref,
+///  A merge that was saved on a side ref,
+/// and whose first record names no side ref,
 ///  does not stop a command on another
 ///  branch when nothing of the merge is in the checkout.
 /// Why:
