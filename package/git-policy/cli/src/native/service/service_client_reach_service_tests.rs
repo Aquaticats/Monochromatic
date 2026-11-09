@@ -22,6 +22,7 @@
 //! // const manager = { state: () => 'failed', start: () => service.listen() };
 //! // expect(await reach(config)).toBeDefined();
 //! ```
+#![cfg(target_os = "linux")]
 
 /// The client, its settings and the manager watch it asks.
 use super::*;
@@ -31,7 +32,8 @@ use crate::service_client_settings_and_watches::ManagerWatch;
 use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service};
 use crate::service_server::Bind;
 use std::io::Write;
-use std::os::unix::net::UnixListener;
+use std::os::linux::net::SocketAddrExt;
+use std::os::unix::net::{SocketAddr, UnixListener};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -50,8 +52,9 @@ use std::time::Duration;
 /// const manager = { socket: undefined as string | undefined, state: 'failed', asked: [] as string[] };
 /// ```
 struct StandIn {
-    /// The socket the manager's start makes the service listen on.
-    socket: Option<PathBuf>,
+    /// The address the manager's start makes the service listen on,
+    /// an abstract name so no path length can refuse it.
+    socket: Option<String>,
     /// What `ActiveState` answers,
     /// until a start replaces it.
     state: Option<String>,
@@ -79,20 +82,33 @@ fn stand_in_state(_bus: &Path, unit: &str) -> Option<String> {
     return answer;
 }
 
+/// The reset the client asks for,
+/// recorded and taken from the stand-in.
+fn stand_in_reset(_bus: &Path, unit: &str) -> bool {
+    MANAGER.lock().expect("lock").asked.push(format!("reset-failed {unit}"));
+    return true;
+}
+
 /// The start the client asks for,
 /// recorded and performed from the stand-in:
 /// one service greets the next connection,
 /// as the manager's socket activation would have it.
 fn stand_in_start(_bus: &Path, unit: &str) -> bool {
-    let socket: PathBuf = {
+    let name: String = {
         let mut manager = MANAGER.lock().expect("lock");
         manager.asked.push(format!("start {unit}"));
         match manager.socket.clone() {
-            Some(socket) => socket,
+            Some(name) => name,
             None => return false,
         }
     };
-    let Ok(listener) = UnixListener::bind(socket) else { return false };
+    let listener: UnixListener = match listen_at(name.as_str()) {
+        Ok(listener) => listener,
+        Err(error) => {
+            MANAGER.lock().expect("lock").asked.push(format!("bind failed: {error}"));
+            return false;
+        }
+    };
     // The service greets the connection the client makes next, then the stand-in has done its part.
     let _served = std::thread::spawn(move || {
         let Ok((mut stream, _address)) = listener.accept() else { return };
@@ -103,6 +119,12 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
     let mut manager = MANAGER.lock().expect("lock");
     manager.state = Some(String::from("active"));
     return true;
+}
+
+/// The stand-in service's listening socket at an abstract name,
+/// which no path length can refuse.
+fn listen_at(name: &str) -> std::io::Result<UnixListener> {
+    return UnixListener::bind_addr(&SocketAddr::from_abstract_name(name.as_bytes())?);
 }
 
 /// What the client asked of the stand-in,
@@ -122,19 +144,25 @@ fn asked() -> Vec<String> {
 /// ```ts
 /// reachConfig({ socket, every: 40, startWait: 200, startCeiling: 5000 })
 /// ```
-fn config(socket: &Path, unit: &str) -> ClientConfig {
+fn config(socket: &str, unit: &str) -> ClientConfig {
     return ClientConfig {
-        address: Bind::Path(socket.to_path_buf()),
+        address: Bind::Abstract(String::from(socket)),
         activation: Activation::Managed,
         start_wait: Duration::from_millis(200),
         heartbeat_silence: Duration::from_millis(200),
-        start_watch: Some(ManagerWatch { bus: PathBuf::from("/nonexistent/bus"), unit: String::from(unit), every: Duration::from_millis(40), state: stand_in_state, start: stand_in_start }),
+        start_watch: Some(ManagerWatch { bus: PathBuf::from("/nonexistent/bus"), unit: String::from(unit), every: Duration::from_millis(40), state: stand_in_state, start: stand_in_start, reset: stand_in_reset }),
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
         withdraw_ceiling: Duration::from_secs(5),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
     };
+}
+
+/// An abstract address of its own for one control,
+/// so two controls of this process never share a socket.
+fn address(name: &str) -> String {
+    return format!("cli-git-test-reach-{}-{name}", std::process::id());
 }
 
 /// The instance name every control's unit carries,
@@ -164,8 +192,7 @@ const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 /// ```
 #[test]
 fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_reached() {
-    let root: PathBuf = crate::test_support::fixture("client-reach-failed");
-    let socket: PathBuf = root.join("service.sock");
+    let socket: String = address("client-reach-failed");
     {
         let mut manager = MANAGER.lock().expect("lock");
         manager.socket = Some(socket.clone());
@@ -174,7 +201,7 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
     }
     let unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
     let mut announced: bool = false;
-    let reached = reach(&config(socket.as_path(), unit.as_str()), &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let reached = reach(&config(socket.as_str(), unit.as_str()), &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
     let asked_of_the_manager: Vec<String> = asked();
     let (reader, version, release) = reached.unwrap_or_else(|failure| {
         panic!("the service the manager was asked to start must be reached: {failure:?} after {asked_of_the_manager:?}")
@@ -182,6 +209,12 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
     assert_eq!(version, PROTOCOL_VERSION);
     assert_eq!(release.as_deref(), Some(RELEASE));
     drop(reader);
-    assert!(asked_of_the_manager.iter().any(|call| { return call == format!("start {unit}").as_str(); }), "{asked_of_the_manager:?}");
-    crate::test_support::remove(root.as_path());
+    // The reset comes first: a unit that failed too often refuses a start as "repeated too quickly".
+    let reset: String = format!("reset-failed {unit}");
+    let start: String = format!("start {unit}");
+    let reset_at: Option<usize> = asked_of_the_manager.iter().position(|call| { return *call == reset; });
+    let start_at: Option<usize> = asked_of_the_manager.iter().position(|call| { return *call == start; });
+    assert!(reset_at.is_some(), "the failed state is forgotten: {asked_of_the_manager:?}");
+    assert!(start_at.is_some(), "the unit is asked to start: {asked_of_the_manager:?}");
+    assert!(reset_at < start_at, "the reset comes before the start: {asked_of_the_manager:?}");
 }

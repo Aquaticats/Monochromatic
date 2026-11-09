@@ -213,9 +213,14 @@ fn fake_start(_bus: &Path, _unit: &str) -> bool {
     return true;
 }
 
+/// The fake manager takes a request to forget a unit's failed state and counts it as a start's own.
+fn fake_reset(_bus: &Path, _unit: &str) -> bool {
+    return true;
+}
+
 /// A watch on the fake manager that asks quickly.
 fn watched(name: &str) -> ClientConfig {
-    let watch: ManagerWatch = ManagerWatch { bus: PathBuf::from("/nowhere/bus"), unit: String::from("cli-git@fake.service"), every: Duration::from_millis(50), state: fake_manager, start: fake_start };
+    let watch: ManagerWatch = ManagerWatch { bus: PathBuf::from("/nowhere/bus"), unit: String::from("cli-git@fake.service"), every: Duration::from_millis(50), state: fake_manager, start: fake_start, reset: fake_reset };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }
 

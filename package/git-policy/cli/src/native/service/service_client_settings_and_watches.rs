@@ -107,7 +107,7 @@ pub struct FreshScratch {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -129,6 +129,10 @@ pub struct ManagerWatch {
     /// Asks the manager to start the unit;
     /// whether the manager took the request.
     pub start: fn(&std::path::Path, &str) -> bool,
+    /// Asks the manager to forget that the unit failed,
+    /// so a start is not refused as repeated too quickly;
+    /// whether the manager took the request.
+    pub reset: fn(&std::path::Path, &str) -> bool,
 }
 
 /// How often the service manager is asked whether the service unit failed,
@@ -149,6 +153,15 @@ pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
     return connection.start_unit(unit).is_ok();
 }
 
+/// Asks the manager to forget that `unit` failed;
+/// whether the request was taken.
+/// A unit that failed too often is refused as "repeated too quickly" until this
+/// is asked.
+pub(crate) fn reset_failed_unit(bus: &std::path::Path, unit: &str) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.reset_failed(unit).is_ok();
+}
+
 /// What:
 ///  The watch that asks the account's service manager about the worktree's service unit.
 /// Why:
@@ -160,5 +173,12 @@ pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
 /// const watch = managerWatchFor(host)
 /// ```
 pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
-    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, state: unit_state, start: start_unit };
+    return ManagerWatch {
+        bus: host.bus.clone(),
+        unit: service_unit_instance(host.instance.as_str()),
+        every: MANAGER_ASK_EVERY,
+        state: unit_state,
+        start: start_unit,
+        reset: reset_failed_unit,
+    };
 }

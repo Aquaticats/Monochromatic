@@ -34,6 +34,9 @@ use std::time::{Duration, Instant};
 /// when the manager has said twice in a
 ///  row that the unit failed,
 /// or at `START_CEILING` (one minute).
+/// A unit the manager calls `failed` is asked to be
+///  reset and started once,
+/// because nothing else repairs that state.
 /// Where the manager cannot be asked it ends at the start wait,
 /// as it always did.
 /// Once a service
@@ -59,6 +62,7 @@ pub(crate) fn reach(
     let mut failed_answers: u32 = 0;
     let mut cannot_ask: bool = false;
     let mut last_start_request: Option<Instant> = None;
+    let mut repairs: u32 = 0;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
@@ -115,6 +119,24 @@ pub(crate) fn reach(
                         last_start_request = Some(Instant::now());
                     }
                     cannot_ask = answer.is_none();
+                    // What: A unit the manager calls `failed` is asked to be reset and started, once, and the wait goes on.
+                    // Why:  Provisioning finds the unit text current and the socket file there (systemd keeps it) and so
+                    //       leaves the failed state alone, and a unit in that state never comes back by itself; the
+                    //       command would fail with "run the commit again", which reproduces the same state. The reset
+                    //       comes first because a unit that failed too often refuses a start as "repeated too quickly".
+                    //       One repair, then the answer of two failed readings still ends the wait.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (answer === 'failed' && repairs++ === 0) { await reset(unit); await start(unit); failedAnswers = 0; }
+                    // ```
+                    if answer.as_deref() == Some("failed") && repairs == 0 {
+                        repairs += 1;
+                        let _forgotten = (watch.reset)(watch.bus.as_path(), watch.unit.as_str());
+                        let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
+                        last_start_request = Some(Instant::now());
+                        failed_answers = 0;
+                    }
                     failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
                 }
                 // One answer of "failed" can be the unit's last run, before the connection made the manager start it again. A start the
