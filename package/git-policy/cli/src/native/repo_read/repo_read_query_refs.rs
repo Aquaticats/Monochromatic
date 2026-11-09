@@ -43,7 +43,8 @@ const LISTING_FORMAT: &str = "--format=%(refname)%00%(objectname)%00%(symref)";
 ///  and that check is one pack-index lookup per ref.
 ///   Measured on 2026-11-09 (release profile,
 ///  arms alternating in one binary,
-///  this repository: 1442 refs,
+///  this repository:
+/// 1442 refs,
 ///  four packs of 514k objects,
 ///  load average 61 to 84):
 ///  the answer took 7.1 ms at the median against 3.8 ms for `git for-each-ref`,

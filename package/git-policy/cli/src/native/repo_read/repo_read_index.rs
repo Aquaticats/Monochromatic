@@ -104,14 +104,19 @@ pub struct ParsedIndex {
 ///  Whether an `IEOT` body names exactly the entries this reader parsed.
 /// Why:
 ///   Git reads the entries through this table when `index.threads` turns threaded loading on,
-///  and `read_ieot_extension` (`read-cache.c`, Git 2.56.0) words a version other than 1
+///  and `read_ieot_extension` (`read-cache.c`,
+/// Git 2.56.0) words a version other than 1
 ///  (`error: invalid IEOT version <n>`) and a table naming no block
 ///  (`error: invalid number of IEOT entries <n>`);
 ///  it then seeks each block by the table's own byte offsets,
-///  so a table naming other bytes is a different listing, or no listing at all:
-///  measured on Git 2.56.0, a first block one byte off ends the process without a word,
+///  so a table naming other bytes is a different listing,
+/// or no listing at all:
+///  measured on Git 2.56.0,
+/// a first block one byte off ends the process without a word,
 ///  and a first block pointing into the header prints `fatal: unknown index entry format 0xc0110000`.
-///   So the version must be 1, the table must name at least one block, and every block must begin where
+///   So the version must be 1,
+/// the table must name at least one block,
+/// and every block must begin where
 ///  this reader parsed its first entry and cover every entry between them.
 ///   A file with no `IEOT` extension is unaffected,
 ///  and a table read this way answers the entries this reader already has.

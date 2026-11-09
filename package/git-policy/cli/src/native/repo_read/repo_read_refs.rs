@@ -238,9 +238,7 @@ impl Refs {
             if line.starts_with('^') {
                 continue;
             }
-            if line.split_once(' ').is_none() {
-                return None;
-            }
+            line.split_once(' ')?;
             count += 1;
         }
         return Some(count);

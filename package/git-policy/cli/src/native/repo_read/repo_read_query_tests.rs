@@ -475,7 +475,8 @@ fn extension_body(bytes: &[u8], signature: &[u8; 4]) -> usize {
 ///   Git reads the table only when `index.threads` turns threaded loading on,
 ///   and prints `error: invalid IEOT version 2` for a version it cannot read,
 ///   so an in-process answer with empty standard error is not Git's
-///   (measured on Git 2.56.0: the same command line without `index.threads` stays silent,
+///   (measured on Git 2.56.0:
+/// the same command line without `index.threads` stays silent,
 ///   which is why the reader could answer it unnoticed).
 #[test]
 fn an_offset_table_version_git_words_is_left_to_git() {

@@ -188,7 +188,8 @@ fn scoped_and_plus_names_are_listed_as_git_lists_them() {
 }
 
 /// The packed count is the number of refs `packed-refs` names:
-/// none for a repository Git has not packed, and Git's own listing after a pack that includes a peeled line.
+/// none for a repository Git has not packed,
+/// and Git's own listing after a pack that includes a peeled line.
 #[test]
 fn the_packed_ref_count_is_the_packed_refs_git_writes() {
     let root = fixture("repo-read-refs-count");

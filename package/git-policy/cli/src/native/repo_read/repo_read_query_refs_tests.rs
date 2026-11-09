@@ -327,9 +327,11 @@ fn refs_git_refuses_stay_declined() {
     remove(root.as_path());
 }
 
-/// A listing above the measured ref limit is left to Git, loose and packed,
+/// A listing above the measured ref limit is left to Git,
+/// loose and packed,
 /// and one at the limit is answered:
-/// every ref it prints costs a pack-index lookup, and past the limit the answer takes longer than the Git
+/// every ref it prints costs a pack-index lookup,
+/// and past the limit the answer takes longer than the Git
 /// start it saves (`REF_LISTING_LIMIT`).
 #[test]
 fn a_listing_past_the_ref_limit_is_left_to_git() {

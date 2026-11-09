@@ -126,7 +126,8 @@ fn extension_body(bytes: &[u8], signature: &[u8; 4]) -> Option<(usize, usize)> {
     return Some((at + 8, usize::try_from(be32(bytes, at + 4)?).ok()?));
 }
 
-/// The index Git writes with `index.threads` set, with `change` applied to the `IEOT` body and the
+/// The index Git writes with `index.threads` set,
+/// with `change` applied to the `IEOT` body and the
 /// trailing SHA-1 resealed.
 fn with_ieot_body(written: &[u8], change: impl Fn(&mut [u8], usize)) -> Vec<u8> {
     let (body, _size) = extension_body(written, b"IEOT").expect("the offset table is in the index");
@@ -160,16 +161,16 @@ fn an_offset_table_git_reads_another_way_is_declined() {
     assert_eq!(be32(written.as_slice(), body), Some(1), "Git writes version 1");
     assert!(size >= 12, "Git writes at least one block");
     assert!(parse_index(written.as_slice(), ObjectFormat::Sha1).is_some(), "Git's own offset table is answered");
-    let version_two = with_ieot_body(written.as_slice(), |changed, body| { changed[body + 3] = 2; });
+    let version_two = with_ieot_body(written.as_slice(), |changed, area| { changed[area + 3] = 2; });
     assert!(parse_index(version_two.as_slice(), ObjectFormat::Sha1).is_none(), "a version Git words is declined");
-    let shifted = with_ieot_body(written.as_slice(), |changed, body| {
-        let first = be32(changed, body + 4).expect("the first block's offset");
-        changed[body + 4..body + 8].copy_from_slice(&(first + 1).to_be_bytes());
+    let shifted = with_ieot_body(written.as_slice(), |changed, area| {
+        let first = be32(changed, area + 4).expect("the first block's offset");
+        changed[area + 4..area + 8].copy_from_slice(&(first + 1).to_be_bytes());
     });
     assert!(parse_index(shifted.as_slice(), ObjectFormat::Sha1).is_none(), "a table naming another byte is declined");
-    let short = with_ieot_body(written.as_slice(), |changed, body| {
-        let count = be32(changed, body + 12).expect("the first block's count");
-        changed[body + 12..body + 16].copy_from_slice(&(count + 1).to_be_bytes());
+    let short = with_ieot_body(written.as_slice(), |changed, area| {
+        let count = be32(changed, area + 12).expect("the first block's count");
+        changed[area + 12..area + 16].copy_from_slice(&(count + 1).to_be_bytes());
     });
     assert!(parse_index(short.as_slice(), ObjectFormat::Sha1).is_none(), "blocks that overrun the entries are declined");
     remove(root.as_path());
