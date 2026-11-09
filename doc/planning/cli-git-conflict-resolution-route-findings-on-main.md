@@ -124,7 +124,7 @@ quoted with their lines:
 - `SPEC.md:7506`:
   "The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them."
 
-Findings 1 is the measured consequence of an item the planning document already
+Finding 1 is the measured consequence of an item the planning document already
 lists as needing the owner's decision
 (`doc/planning/cli-git-merge-auto-resolution.md`,
 2026-11-03T03:39:36-05:00 entry,
@@ -143,8 +143,9 @@ and therefore not reported here:
 the pass's install window (`doc/handover/cli-git-rust-implementation.md`,
 "Open review findings",
 which quotes the merge and repair audit's item 7 about a kill between the staging and the file write),
-and the two limits this audit's inputs do not reach (a stage over 8 MiB,
-and the cost bound).
+and the candidate bounds the specification already states
+(8 MiB,
+and Git's 8000-byte binary probe).
 Neither that section nor the planning document names findings 1 to 3;
 the attribute-source item quoted above is the closest,
 and it states the choice,
