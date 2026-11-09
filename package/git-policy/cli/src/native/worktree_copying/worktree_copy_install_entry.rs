@@ -17,7 +17,7 @@
 use crate::worktree_copy_compare::lstat_or_absent;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
-use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_selection::{filesystem_path, is_separator_byte, parent_of_repository_path, shown_repository_path};
 use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::json_record::quote;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
@@ -71,8 +71,9 @@ pub struct InstalledPath {
     pub device: u64,
     /// Inode number reported by the filesystem after creation.
     pub inode: u64,
-    /// Slash-separated repository path.
-    pub relative_path: String,
+    /// Slash-separated repository path,
+    /// as the bytes the filesystem listed.
+    pub relative_path: Vec<u8>,
     /// Whether the path came from the selected source manifest rather than being parent scaffolding.
     pub selected: bool,
 }
@@ -90,7 +91,7 @@ pub struct InstalledPath {
 /// ```
 pub fn capture_installed_path(
     destination_path: &Path,
-    relative_path: &str,
+    relative_path: &[u8],
     selected: bool,
 ) -> Result<InstalledPath, WorktreeCopyError> {
     let metadata: std::fs::Metadata =
@@ -98,7 +99,7 @@ pub fn capture_installed_path(
     return Ok(InstalledPath {
         device: metadata.dev(),
         inode: metadata.ino(),
-        relative_path: String::from(relative_path),
+        relative_path: relative_path.to_vec(),
         selected,
     });
 }
@@ -140,26 +141,29 @@ pub fn ensure_parents_remembering(
     destination_root: &Path,
     entry: &WorktreeCopyEntry,
     created: &mut Vec<InstalledPath>,
-    known: &mut std::collections::HashSet<String>,
+    known: &mut std::collections::HashSet<Vec<u8>>,
 ) -> Result<(), WorktreeCopyError> {
-    let Some((parent, _name)) = entry.relative_path.rsplit_once('/') else {
+    let Some(parent) = parent_of_repository_path(entry.relative_path.as_slice()) else {
         return Ok(());
     };
     if known.contains(parent) {
         return Ok(());
     }
-    let components: Vec<&str> = entry.relative_path.split('/').collect();
+    let components: Vec<&[u8]> = entry
+        .relative_path
+        .split(|byte| return is_separator_byte(byte))
+        .collect();
     let parent_count: usize = components.len().saturating_sub(1);
     for depth in 1..=parent_count {
-        let current: String = components[..depth].join("/");
-        let destination_path: PathBuf = filesystem_path(destination_root, current.as_str())?;
+        let current: Vec<u8> = joined_components(components[..depth].as_ref());
+        let destination_path: PathBuf = filesystem_path(destination_root, current.as_slice())?;
         // `match` on the existing entry: a directory is kept, anything else is a refusal.
         match lstat_or_absent(destination_path.as_path())? {
             Some(metadata) => {
                 if !metadata.is_dir() {
                     let message: String = format!(
                         "monochromatic-git-policy-cli: ignored-state parent is not a directory: {} in {}.",
-                        quote(current.as_str()),
+                        quote(shown_repository_path(current.as_slice()).as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );
                     return Err(failure_with_cause(message.as_str(), None));
@@ -170,16 +174,37 @@ pub fn ensure_parents_remembering(
                     .map_err(raw_failure_of)?;
                 created.push(capture_installed_path(
                     destination_path.as_path(),
-                    current.as_str(),
+                    current.as_slice(),
                     false,
                 )?);
             }
         }
     }
     for depth in 1..=parent_count {
-        known.insert(components[..depth].join("/"));
+        known.insert(joined_components(components[..depth].as_ref()));
     }
     return Ok(());
+}
+
+/// What:
+///  One repository path made of already validated components.
+/// Why:
+///   The scaffolding loop names each ancestor of an entry,
+/// so it needs the same join the walk uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// components.join('/')
+/// ```
+fn joined_components(components: &[&[u8]]) -> Vec<u8> {
+    let mut joined: Vec<u8> = Vec::new();
+    for component in components {
+        if !joined.is_empty() {
+            joined.push(b'/');
+        }
+        joined.extend_from_slice(component);
+    }
+    return joined;
 }
 
 /// What:
@@ -251,9 +276,9 @@ pub fn create_selected_entry(
     destination_root: &Path,
     entry: &WorktreeCopyEntry,
 ) -> Result<(), WorktreeCopyError> {
-    let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+    let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_slice())?;
     let destination_path: PathBuf =
-        filesystem_path(destination_root, entry.relative_path.as_str())?;
+        filesystem_path(destination_root, entry.relative_path.as_slice())?;
     // `match` on the kind selects the one creation that applies to it.
     match entry.kind {
         EntryKind::Directory => {

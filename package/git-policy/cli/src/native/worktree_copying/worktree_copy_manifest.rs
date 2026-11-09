@@ -18,7 +18,8 @@
 use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{by_js_order, filesystem_path};
+use crate::worktree_copy_selection::{filesystem_path, join_repository_path, repository_path_order};
+use crate::path_bytes::path_bytes_of;
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 
@@ -76,8 +77,9 @@ pub struct WorktreeCopyEntry {
     /// Retained permission bits;
     ///  zero where the platform has no such bits.
     pub mode: u32,
-    /// Slash-separated repository path.
-    pub relative_path: String,
+    /// Slash-separated repository path,
+    /// as the bytes the filesystem listed.
+    pub relative_path: Vec<u8>,
 }
 
 /// What:
@@ -95,7 +97,7 @@ struct WalkItem {
     /// Native path under the walked root.
     filesystem_path: PathBuf,
     /// Repository path retained in the manifest.
-    relative_path: String,
+    relative_path: Vec<u8>,
 }
 
 /// What:
@@ -218,10 +220,10 @@ fn readable_by_user(_path: &Path, _kind: EntryKind) -> bool {
 /// ```
 pub fn collect_entry_manifest(
     root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_roots: &[PathBuf],
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut skipped: Vec<String> = Vec::new();
+    let mut skipped: Vec<Vec<u8>> = Vec::new();
     return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut skipped);
 }
 
@@ -240,22 +242,22 @@ pub fn collect_entry_manifest(
 /// ```
 pub fn collect_pruned_manifest(
     root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_roots: &[PathBuf],
     prune: Prune,
-    unreadable: &mut Vec<String>,
+    unreadable: &mut Vec<Vec<u8>>,
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     // The stack is filled in reverse so the lexically first root is popped first.
     let mut pending: Vec<WalkItem> = Vec::new();
     for relative_path in selected_roots.iter().rev() {
         pending.push(WalkItem {
-            filesystem_path: filesystem_path(root, relative_path)?,
+            filesystem_path: filesystem_path(root, relative_path.as_slice())?,
             relative_path: relative_path.clone(),
         });
     }
     let mut entries: Vec<WorktreeCopyEntry> = Vec::new();
     while let Some(item) = pending.pop() {
-        if lies_within_any(item.filesystem_path.as_path(), excluded_roots) || prune.skips_path(item.relative_path.as_str()) {
+        if lies_within_any(item.filesystem_path.as_path(), excluded_roots) || prune.skips_path(item.relative_path.as_slice()) {
             continue;
         }
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(item.filesystem_path.as_path())
@@ -273,12 +275,13 @@ pub fn collect_pruned_manifest(
             });
             continue;
         }
-        let mut names: Vec<String> = Vec::new();
+        let mut names: Vec<Vec<u8>> = Vec::new();
         for listed in std::fs::read_dir(item.filesystem_path.as_path())
             .map_err(raw_failure_of)?
         {
             let child: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
-            names.push(child.file_name().to_string_lossy().into_owned());
+            // The name is the bytes the filesystem listed; a name that is not text is still this worktree's entry.
+            names.push(path_bytes_of(Path::new(child.file_name().as_os_str())).to_vec());
         }
         // A directory that is a checkout of its own is left out whole, with no entry of its own.
         if prune.skips_checkout(names.as_slice()) {
@@ -289,11 +292,11 @@ pub fn collect_pruned_manifest(
             mode: retained_mode(&metadata),
             relative_path: item.relative_path.clone(),
         });
-        names.sort_by(by_js_order);
+        names.sort_by(|left, right| return repository_path_order(left.as_slice(), right.as_slice()));
         for name in names.iter().rev() {
-            let child_relative: String = format!("{}/{name}", item.relative_path);
+            let child_relative: Vec<u8> = join_repository_path(item.relative_path.as_slice(), name.as_slice());
             pending.push(WalkItem {
-                filesystem_path: filesystem_path(root, child_relative.as_str())?,
+                filesystem_path: filesystem_path(root, child_relative.as_slice())?,
                 relative_path: child_relative,
             });
         }
@@ -402,7 +405,7 @@ fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
 #[cfg(unix)]
 fn set_entry_mode(root: &Path, entry: &WorktreeCopyEntry) -> Result<(), WorktreeCopyError> {
     use std::os::unix::fs::PermissionsExt;
-    let path: PathBuf = filesystem_path(root, entry.relative_path.as_str())?;
+    let path: PathBuf = filesystem_path(root, entry.relative_path.as_slice())?;
     return std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(entry.mode)).map_err(raw_failure_of);
 }
 

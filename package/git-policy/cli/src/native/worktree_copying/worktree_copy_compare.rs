@@ -19,7 +19,7 @@ use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use crate::json_record::quote;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -178,8 +178,8 @@ pub fn entry_matches_stamped(
     entry: &WorktreeCopyEntry,
     stamp: Option<&FileStamp>,
 ) -> Result<bool, WorktreeCopyError> {
-    let expected_path: PathBuf = filesystem_path(expected_root, entry.relative_path.as_str())?;
-    let actual_path: PathBuf = filesystem_path(actual_root, entry.relative_path.as_str())?;
+    let expected_path: PathBuf = filesystem_path(expected_root, entry.relative_path.as_slice())?;
+    let actual_path: PathBuf = filesystem_path(actual_root, entry.relative_path.as_slice())?;
     let Some(actual) = lstat_or_absent(actual_path.as_path())? else {
         return Ok(false);
     };
@@ -219,9 +219,9 @@ pub fn entry_matches_stamped(
 /// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
 /// ```
 fn walk_source_pruned(
-    (source_root, selected_roots, excluded_source_roots, prune): (&Path, &[String], &[PathBuf], Prune),
+    (source_root, selected_roots, excluded_source_roots, prune): (&Path, &[Vec<u8>], &[PathBuf], Prune),
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut unreadable: Vec<String> = Vec::new();
+    let mut unreadable: Vec<Vec<u8>> = Vec::new();
     return collect_pruned_manifest(source_root, selected_roots, excluded_source_roots, prune, &mut unreadable);
 }
 
@@ -237,7 +237,7 @@ fn walk_source_pruned(
 /// ```ts
 /// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
 /// ```
-fn walk_stage((stage_root, selected_roots): (&Path, &[String])) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+fn walk_stage((stage_root, selected_roots): (&Path, &[Vec<u8>])) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     return collect_entry_manifest(stage_root, selected_roots, &[]);
 }
 
@@ -255,7 +255,7 @@ fn walk_stage((stage_root, selected_roots): (&Path, &[String])) -> Result<Vec<Wo
 pub fn assert_final_source_equivalence(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
 ) -> Result<(), WorktreeCopyError> {
@@ -302,7 +302,7 @@ pub struct FinalCheck<'a> {
 pub fn assert_final_source_equivalence_pruned(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
@@ -339,7 +339,7 @@ pub fn assert_final_source_equivalence_pruned(
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
             let message: String = format!(
                 "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
-                quote(staged.relative_path.as_str())
+                quote(shown_repository_path(staged.relative_path.as_slice()).as_str())
             );
             return Err(failure_with_cause(message.as_str(), None));
         }

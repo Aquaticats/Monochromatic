@@ -8,11 +8,11 @@ use crate::private_storage::write_private_file;
 use crate::test_support::{fixture, remove};
 
 /// One created-entry record.
-fn created(relative_path: &str, device: u64, inode: u64) -> InstalledPath {
+fn created(relative_path: &[u8], device: u64, inode: u64) -> InstalledPath {
     return InstalledPath {
         device,
         inode,
-        relative_path: String::from(relative_path),
+        relative_path: relative_path.to_vec(),
         selected: true,
     };
 }
@@ -31,11 +31,11 @@ fn appended_records_are_read_back_on_reopen() {
         assert!(opened.recorded.created.is_empty());
         opened
             .log
-            .append_intents(&[String::from("a"), String::from("b")])
+            .append_intents(&[b"a".to_vec(), b"b".to_vec()])
             .expect("intents");
         opened
             .log
-            .append_creations(&[created("a", 1, 2)])
+            .append_creations(&[created(b"a", 1, 2)])
             .expect("creations");
         opened
             .log
@@ -50,9 +50,9 @@ fn appended_records_are_read_back_on_reopen() {
     let reopened: OpenedLog = open_install_log(stage.as_path()).expect("reopen");
     assert_eq!(
         reopened.recorded.intended,
-        vec![String::from("a"), String::from("b")]
+        vec![b"a".to_vec(), b"b".to_vec()]
     );
-    assert_eq!(reopened.recorded.created, vec![created("a", 1, 2)]);
+    assert_eq!(reopened.recorded.created, vec![created(b"a", 1, 2)]);
     remove(root.as_path());
 }
 
@@ -90,10 +90,10 @@ fn unfinished_trailing_append_is_truncated() {
     )
     .expect("log");
     let mut opened: OpenedLog = open_install_log(stage.as_path()).expect("reopen");
-    assert_eq!(opened.recorded.intended, vec![String::from("kept")]);
+    assert_eq!(opened.recorded.intended, vec![b"kept".to_vec()]);
     opened
         .log
-        .append_intents(&[String::from("next")])
+        .append_intents(&[b"next".to_vec()])
         .expect("append");
     drop(opened);
     assert_eq!(

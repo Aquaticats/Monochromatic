@@ -25,7 +25,7 @@
 //! ```
 
 /// The prefix of every stage container any rung makes beside its destination.
-use crate::worktree_copy_selection::STAGE_PREFIX;
+use crate::worktree_copy_selection::{STAGE_PREFIX, is_separator_byte};
 
 /// What:
 ///  Whether the records of earlier runs (logs,
@@ -124,9 +124,9 @@ pub enum Prune {
 /// ```ts
 /// childNames.includes(CHECKOUT_MARKER)
 /// ```
-fn names_checkout_marker(child_names: &[String]) -> bool {
+fn names_checkout_marker(child_names: &[Vec<u8>]) -> bool {
     for name in child_names {
-        if name == CHECKOUT_MARKER {
+        if name.as_slice() == CHECKOUT_MARKER.as_bytes() {
             return true;
         }
     }
@@ -165,12 +165,12 @@ impl Prune {
     /// skipsPath(prune, 'package/x/target/debug/incremental') // true
     /// skipsPath(prune, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543') // true
     /// ```
-    pub fn skips_path(self, relative_path: &str) -> bool {
-        let components: Vec<&str> = relative_path.split('/').collect();
+    pub fn skips_path(self, relative_path: &[u8]) -> bool {
+        let components: Vec<&[u8]> = relative_path.split(|byte| return is_separator_byte(byte)).collect();
         // Another command's stage container is no state of the source, whatever the rule: its payload is a full copy of
         //  another worktree's ignored state, made while its own copy runs, and nothing names it in the new worktree.
         for component in &components {
-            if component.starts_with(STAGE_PREFIX) {
+            if component.starts_with(STAGE_PREFIX.as_bytes()) {
                 return true;
             }
         }
@@ -178,20 +178,20 @@ impl Prune {
             return false;
         };
         for (index, component) in components.iter().enumerate() {
-            let parent: Option<&str> = match index.checked_sub(1) {
+            let parent: Option<&[u8]> = match index.checked_sub(1) {
                 Some(before) => Some(components[before]),
                 None => None,
             };
-            let below_target: bool = components[..index].contains(&"target");
+            let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
-            let nested_cache: bool = *component == ".cache" && index > 0;
-            let cache: bool = CACHE_NAMES.contains(component)
+            let nested_cache: bool = *component == b".cache" && index > 0;
+            let cache: bool = CACHE_NAMES.iter().any(|name| return *component == name.as_bytes())
                 || nested_cache
-                || (below_target && TARGET_CACHE_NAMES.contains(component));
-            let record: bool = RUN_RECORD_NAMES.contains(component)
-                || (*component == ".monochromatic" && components[..index].contains(&"node_modules"))
-                || (*component == "verification" && parent == Some("target"))
-                || (*component == "cache" && parent == Some(".serena"));
+                || (below_target && TARGET_CACHE_NAMES.iter().any(|name| return *component == name.as_bytes()));
+            let record: bool = RUN_RECORD_NAMES.iter().any(|name| return *component == name.as_bytes())
+                || (*component == b".monochromatic" && components[..index].contains(&"node_modules".as_bytes()))
+                || (*component == b"verification" && parent == Some(b"target".as_slice()))
+                || (*component == b"cache" && parent == Some(b".serena".as_slice()));
             if cache || (record && !run_records) {
                 return true;
             }
@@ -210,7 +210,7 @@ impl Prune {
     /// ```ts
     /// skipsCheckout(prune, ['.git', 'src']) // true
     /// ```
-    pub fn skips_checkout(self, child_names: &[String]) -> bool {
+    pub fn skips_checkout(self, child_names: &[Vec<u8>]) -> bool {
         return match self {
             Prune::Never => false,
             Prune::MainCheckout { .. } => names_checkout_marker(child_names),

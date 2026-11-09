@@ -84,6 +84,28 @@ pub fn hex_of_bytes(bytes: &[u8]) -> String {
 }
 
 /// What:
+///  The bytes the hexadecimal digits spell,
+/// nothing when they are not an even number of hexadecimal digits.
+/// Why:
+///   A repository-relative path is bytes and not a native path,
+/// so a record that holds one decodes those bytes without ever building a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytesOfHex = (hex: string) => hex.length % 2 === 0 && /^[0-9a-f]*$/i.test(hex) ? Buffer.from(hex, 'hex') : undefined;
+/// ```
+pub fn bytes_of_hex(hex: &str) -> Option<Vec<u8>> {
+    if hex.len() % 2 != 0 || !hex.as_bytes().iter().all(u8::is_ascii_hexdigit) {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(hex.len() / 2);
+    for pair in hex.as_bytes().chunks(2) {
+        bytes.push(u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?);
+    }
+    return Some(bytes);
+}
+
+/// What:
 ///  The path whose bytes the digits spell,
 /// nothing when they are not an even number of hexadecimal digits.
 /// Why:
@@ -96,14 +118,7 @@ pub fn hex_of_bytes(bytes: &[u8]) -> String {
 /// ```
 pub fn path_of_hex(hex: &str) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStringExt;
-    if hex.len() % 2 != 0 || !hex.as_bytes().iter().all(u8::is_ascii_hexdigit) {
-        return None;
-    }
-    let mut bytes: Vec<u8> = Vec::with_capacity(hex.len() / 2);
-    for pair in hex.as_bytes().chunks(2) {
-        bytes.push(u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?);
-    }
-    return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes)));
+    return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes_of_hex(hex)?)));
 }
 
 /// What:
@@ -202,6 +217,109 @@ pub fn read_field(value: &Value, key: &str) -> Result<PathBuf, String> {
         Some(text) => Ok(PathBuf::from(text)),
         None => Err(format!("the record has no {key} field")),
     };
+}
+
+/// What:
+///  One field of a path,
+/// as the pair of `key` and `keyHex` fragments that fit into a hand-built record:
+/// the text when text spells every byte of the path,
+/// its bytes otherwise.
+/// Why:
+///   A repository path appears in a record for every entry a copy installs,
+/// so each one takes one field:
+/// a name that is text is written as it reads,
+/// and a name that is not text only as its bytes,
+/// which a reader that knows the bytes form takes and which one that does not refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const field = (key, path) => isText(path) ? `"${key}":${JSON.stringify(text)}` : `"${key}${HEX_SUFFIX}":"${hex}"`;
+/// ```
+pub fn field_fragment(key: &str, path: &[u8]) -> String {
+    return match std::str::from_utf8(path) {
+        Ok(text) => format!("\"{key}\":{}", crate::json_record::quote(text)),
+        Err(_not_text) => format!("\"{key}{HEX_SUFFIX}\":{}", crate::json_record::quote(hex_of_bytes(path).as_str())),
+    };
+}
+
+/// What:
+///  One list of repository paths,
+/// as the pair of `key` and `keyHex` fragments that fit into a hand-built record,
+/// under the same rule as [`field_fragment`]:
+/// the text array when text spells every byte of every path,
+/// the array of bytes otherwise.
+/// Why:
+///   A journal and an install log name every claimed and every created path,
+/// so the text form is kept for the lists whose bytes it spells exactly,
+/// and only a list that holds a name that is not text takes the bytes form.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const list = (key, paths) => paths.every(isText) ? `"${key}":${JSON.stringify(texts)}` : `"${key}${HEX_SUFFIX}":${JSON.stringify(hexes)}`;
+/// ```
+pub fn list_fragment(key: &str, paths: &[Vec<u8>]) -> String {
+    let texts: Option<Vec<&str>> = paths
+        .iter()
+        .map(|path| return std::str::from_utf8(path).ok())
+        .collect();
+    // The text array is kept for a list whose every name it spells; one name that is not text moves the list to bytes.
+    let Some(all_text) = texts else {
+        let hexes: Vec<String> = paths
+            .iter()
+            .map(|path| return crate::json_record::quote(hex_of_bytes(path).as_str()))
+            .collect();
+        return format!("\"{key}{HEX_SUFFIX}\":[{}]", hexes.join(","));
+    };
+    let quoted: Vec<String> = all_text.into_iter().map(crate::json_record::quote).collect();
+    return format!("\"{key}\":[{}]", quoted.join(","));
+}
+
+/// What:
+///  One list of repository paths read from a record,
+/// its bytes from the field that holds them,
+/// its text from the field that holds that,
+/// and nothing when the record has neither.
+/// Why:
+///   A list written before the bytes form existed holds text and is read as it is,
+/// a list of bytes is read as those bytes,
+/// and a list of bytes that does not decode is damage,
+/// which no reader takes for text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readPathList = (record, key) => record[key + HEX_SUFFIX] !== undefined ? decodeEach(record[key + HEX_SUFFIX]) : texts(record[key]);
+/// ```
+pub fn read_path_list(value: &Value, key: &str) -> Option<Vec<Vec<u8>>> {
+    if let Some(hexadecimal) = value.get(format!("{key}{HEX_SUFFIX}")) {
+        let mut paths: Vec<Vec<u8>> = Vec::with_capacity(hexadecimal.as_array()?.len());
+        for item in hexadecimal.as_array()? {
+            paths.push(bytes_of_hex(item.as_str()?)?);
+        }
+        return Some(paths);
+    }
+    let mut paths: Vec<Vec<u8>> = Vec::with_capacity(value.get(key)?.as_array()?.len());
+    for item in value.get(key)?.as_array()? {
+        paths.push(item.as_str()?.as_bytes().to_vec());
+    }
+    return Some(paths);
+}
+
+/// What:
+///  One repository path read from a record's `key` and `keyHex` fields,
+/// under the same rule as [`read_path_list`].
+/// Why:
+///   An install log names one created path per entry,
+/// so each entry carries one field of one of the two forms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readPathField = (record, key) => record[key + HEX_SUFFIX] !== undefined ? bytesOfHex(record[key + HEX_SUFFIX]) : Buffer.from(record[key]);
+/// ```
+pub fn read_path_field(value: &Value, key: &str) -> Option<Vec<u8>> {
+    if let Some(hexadecimal) = value.get(format!("{key}{HEX_SUFFIX}")) {
+        return bytes_of_hex(hexadecimal.as_str()?);
+    }
+    return Some(value.get(key)?.as_str()?.as_bytes().to_vec());
 }
 
 /// Controls stay out of the release executable.

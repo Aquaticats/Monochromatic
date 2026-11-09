@@ -17,6 +17,7 @@
 //! ```
 
 use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::path_bytes::{os_from_path_bytes, path_bytes_of, path_message_text};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::json_record::quote;
@@ -33,7 +34,7 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const DIRECTORY_SUFFIX = '/';
 /// ```
-const DIRECTORY_SUFFIX: char = '/';
+const DIRECTORY_SUFFIX: u8 = b'/';
 
 /// What:
 ///  The private stage prefix the copy reserves;
@@ -48,6 +49,22 @@ const DIRECTORY_SUFFIX: char = '/';
 pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
 
 /// What:
+///  Whether a byte separates the components of a repository path.
+/// Why:
+///   A repository path is the bytes Git reported,
+/// so every rule about its components reads those bytes;
+/// a name with any other byte, and that includes a byte that is not
+///  text, stays one component.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byte === 0x2f;
+/// ```
+pub fn is_separator_byte(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// What:
 ///  Whether a repository path equals or descends from another repository path.
 /// Why:
 ///   Comparison is by whole components,
@@ -57,9 +74,63 @@ pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
 /// ```ts
 /// (candidate === parent) || candidate.startsWith(`${parent}/`)
 /// ```
-pub fn repository_path_within(candidate: &str, parent: &str) -> bool {
-    // `||` keeps the exact-equality case and the component-prefix case in one expression.
-    return candidate == parent || candidate.starts_with(format!("{parent}/").as_str());
+pub fn repository_path_within(candidate: &[u8], parent: &[u8]) -> bool {
+    // The exact path, or the parent followed by one separator, is the whole of the rule.
+    if candidate == parent {
+        return true;
+    }
+    return candidate.len() > parent.len()
+        && candidate.starts_with(parent)
+        && candidate[parent.len()] == b'/';
+}
+
+/// What:
+///  The repository path of one entry below a directory's repository path.
+/// Why:
+///   The walk and the checks build every child path from its parent and the name the
+/// filesystem listed, and that name keeps every byte it has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.concat([parent, Buffer.from('/'), name])
+/// ```
+pub fn join_repository_path(parent: &[u8], name: &[u8]) -> Vec<u8> {
+    let mut joined: Vec<u8> = Vec::with_capacity(parent.len() + 1 + name.len());
+    joined.extend_from_slice(parent);
+    joined.push(b'/');
+    joined.extend_from_slice(name);
+    return joined;
+}
+
+/// What:
+///  The repository path of one entry's parent directory,
+/// or nothing for a path with no separator.
+/// Why:
+///   Installation creates the parents scaffolding beside the entries it writes,
+/// and that scaffolding is named by the parent of an entry's own bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const at = path.lastIndexOf('/'); at < 0 ? undefined : path.subarray(0, at)
+/// ```
+pub fn parent_of_repository_path(path: &[u8]) -> Option<&[u8]> {
+    let at: usize = path.iter().rposition(is_separator_byte)?;
+    return Some(&path[..at]);
+}
+
+/// What:
+///  The repository path as the text a person reads,
+/// with each invalid sequence replaced by U+FFFD.
+/// Why:
+///   A diagnostic names the entry;
+/// the exact bytes travel in the record and in the path used to act on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path.toString('utf8')
+/// ```
+pub fn shown_repository_path(path: &[u8]) -> String {
+    return path_message_text(path);
 }
 
 /// What:
@@ -73,8 +144,8 @@ pub fn repository_path_within(candidate: &str, parent: &str) -> bool {
 /// ```ts
 /// component === '' || component === '.' || component === '..'
 /// ```
-fn is_unsafe_component(component: &str) -> bool {
-    return component.is_empty() || component == "." || component == "..";
+fn is_unsafe_component(component: &[u8]) -> bool {
+    return component.is_empty() || component == b"." || component == b"..";
 }
 
 /// What:
@@ -86,9 +157,9 @@ fn is_unsafe_component(component: &str) -> bool {
 /// ```ts
 /// roots.some((root) => repositoryPathWithin(candidate, root))
 /// ```
-fn within_any_root(candidate: &str, roots: &[String]) -> bool {
+fn within_any_root(candidate: &[u8], roots: &[Vec<u8>]) -> bool {
     for root in roots {
-        if repository_path_within(candidate, root.as_str()) {
+        if repository_path_within(candidate, root.as_slice()) {
             return true;
         }
     }
@@ -106,15 +177,16 @@ fn within_any_root(candidate: &str, roots: &[String]) -> bool {
 /// ```ts
 /// function assertSafeRepositoryPath(repositoryPath: string): void;
 /// ```
-pub fn assert_safe_repository_path(repository_path: &str) -> Result<(), WorktreeCopyError> {
+pub fn assert_safe_repository_path(repository_path: &[u8]) -> Result<(), WorktreeCopyError> {
     let unsafe_path: bool = repository_path.is_empty()
-        || repository_path.starts_with('/')
-        || Path::new(repository_path).is_absolute()
-        || repository_path.split('/').any(is_unsafe_component);
+        || repository_path[0] == b'/'
+        || repository_path
+            .split(|byte| return is_separator_byte(byte))
+            .any(is_unsafe_component);
     if unsafe_path {
         return Err(WorktreeCopyError(format!(
             "monochromatic-git-policy-cli: Git returned unsafe ignored path {}.",
-            quote(repository_path)
+            quote(shown_repository_path(repository_path).as_str())
         )));
     }
     return Ok(());
@@ -130,11 +202,11 @@ pub fn assert_safe_repository_path(repository_path: &str) -> Result<(), Worktree
 /// ```ts
 /// join(root, ...repositoryPath.split('/'));
 /// ```
-pub fn filesystem_path(root: &Path, repository_path: &str) -> Result<PathBuf, WorktreeCopyError> {
+pub fn filesystem_path(root: &Path, repository_path: &[u8]) -> Result<PathBuf, WorktreeCopyError> {
     assert_safe_repository_path(repository_path)?;
     let mut path: PathBuf = root.to_path_buf();
-    for component in repository_path.split('/') {
-        path.push(component);
+    for component in repository_path.split(|byte| return is_separator_byte(byte)) {
+        path.push(os_from_path_bytes(component));
     }
     return Ok(path);
 }
@@ -171,6 +243,34 @@ pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ord
 }
 
 /// What:
+///  Orders two repository paths:
+/// first by the UTF-16 code units of their text,
+/// as JavaScript sorts names,
+/// then by their bytes.
+/// Why:
+///   The stage and the source are walked twice and compared entry by entry,
+/// so both walks must order the same names the same way.
+/// A name that is text keeps the order the incumbent gave it;
+/// a name that is not text sorts where its text does and
+///  the bytes only decide between names whose text is equal,
+/// which keeps the walk reproducible for names the incumbent never had.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// compareText(a) || compareBytes(a, b)
+/// ```
+pub fn repository_path_order(left: &[u8], right: &[u8]) -> Ordering {
+    let shown: Ordering = js_order(
+        String::from_utf8_lossy(left).as_ref(),
+        String::from_utf8_lossy(right).as_ref(),
+    );
+    if shown != Ordering::Equal {
+        return shown;
+    }
+    return left.cmp(right);
+}
+
+/// What:
 ///  Keeps the outermost of several ignored roots,
 /// dropping every root under another one.
 /// Why:
@@ -181,13 +281,13 @@ pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ord
 /// ```ts
 /// function collapseIgnoredRoots(paths: readonly string[]): readonly string[];
 /// ```
-fn collapse_ignored_roots(paths: &[String]) -> Vec<String> {
-    let mut candidates: Vec<String> = paths.to_vec();
-    candidates.sort_by(by_js_order);
+fn collapse_ignored_roots(paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut candidates: Vec<Vec<u8>> = paths.to_vec();
+    candidates.sort_by(|left, right| return repository_path_order(left.as_slice(), right.as_slice()));
     candidates.dedup();
-    let mut roots: Vec<String> = Vec::new();
+    let mut roots: Vec<Vec<u8>> = Vec::new();
     for candidate in candidates {
-        let owned: bool = within_any_root(candidate.as_str(), roots.as_slice());
+        let owned: bool = within_any_root(candidate.as_slice(), roots.as_slice());
         if !owned {
             roots.push(candidate);
         }
@@ -208,7 +308,7 @@ fn collapse_ignored_roots(paths: &[String]) -> Vec<String> {
 fn is_ignored_special_path(
     context: &GitContext,
     source_root: &Path,
-    repository_path: &str,
+    repository_path: &[u8],
 ) -> Result<bool, WorktreeCopyError> {
     let request: GitRequest = GitRequest {
         cwd: source_root.to_path_buf(),
@@ -216,7 +316,7 @@ fn is_ignored_special_path(
             "check-ignore".into(),
             "--no-index".into(),
             "--".into(),
-            repository_path.into(),
+            os_from_path_bytes(repository_path),
         ],
         without_prefix: true,
         ..GitRequest::default()
@@ -300,35 +400,35 @@ fn is_excluded(candidate: &Path, excluded_roots: &[PathBuf]) -> bool {
 fn special_entries(
     context: &GitContext,
     source_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_roots: &[PathBuf],
-) -> Result<Vec<String>, WorktreeCopyError> {
-    let mut pending: Vec<String> = vec![String::from(".")];
-    let mut special_paths: Vec<String> = Vec::new();
+) -> Result<Vec<Vec<u8>>, WorktreeCopyError> {
+    let mut pending: Vec<Vec<u8>> = vec![Vec::new()];
+    let mut special_paths: Vec<Vec<u8>> = Vec::new();
     while let Some(current) = pending.pop() {
-        let directory_path: PathBuf = if current == "." {
+        let directory_path: PathBuf = if current.is_empty() {
             source_root.to_path_buf()
         } else {
-            filesystem_path(source_root, current.as_str())?
+            filesystem_path(source_root, current.as_slice())?
         };
         let listing = std::fs::read_dir(directory_path.as_path())
             .map_err(raw_failure_of)?;
         for listed in listing {
             let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            let repository_path: String = if current == "." {
+            let name: Vec<u8> = path_bytes_of(Path::new(entry.file_name().as_os_str())).to_vec();
+            let repository_path: Vec<u8> = if current.is_empty() {
                 name
             } else {
-                format!("{current}/{name}")
+                join_repository_path(current.as_slice(), name.as_slice())
             };
-            if repository_path == ".git" {
+            if repository_path == b".git" {
                 continue;
             }
-            let source_path: PathBuf = filesystem_path(source_root, repository_path.as_str())?;
+            let source_path: PathBuf = filesystem_path(source_root, repository_path.as_slice())?;
             if is_excluded(source_path.as_path(), excluded_roots) {
                 continue;
             }
-            let selected_ancestor: bool = within_any_root(repository_path.as_str(), selected_roots);
+            let selected_ancestor: bool = within_any_root(repository_path.as_slice(), selected_roots);
             if selected_ancestor {
                 continue;
             }
@@ -344,9 +444,9 @@ fn special_entries(
             }
         }
     }
-    let mut ignored: Vec<String> = Vec::new();
+    let mut ignored: Vec<Vec<u8>> = Vec::new();
     for repository_path in special_paths {
-        if is_ignored_special_path(context, source_root, repository_path.as_str())? {
+        if is_ignored_special_path(context, source_root, repository_path.as_slice())? {
             ignored.push(repository_path);
         }
     }
@@ -368,7 +468,7 @@ pub fn read_ignored_roots(
     context: &GitContext,
     source_root: &Path,
     excluded_roots: &[PathBuf],
-) -> Result<Vec<String>, WorktreeCopyError> {
+) -> Result<Vec<Vec<u8>>, WorktreeCopyError> {
     let request: GitRequest = GitRequest {
         cwd: source_root.to_path_buf(),
         arguments: vec![
@@ -388,24 +488,24 @@ pub fn read_ignored_roots(
             output.stderr.as_slice(),
         )));
     }
-    let mut paths: Vec<String> = Vec::new();
+    let mut paths: Vec<Vec<u8>> = Vec::new();
     for field in output.stdout.split(is_nul_byte) {
         if field.is_empty() {
             continue;
         }
-        let text: String = String::from_utf8_lossy(field).into_owned();
-        // `strip_suffix` removes the directory marker only when present, as the incumbent does.
-        let path: String = match text.strip_suffix(DIRECTORY_SUFFIX) {
-            Some(stripped) => String::from(stripped),
-            None => text,
+        // The bytes Git listed are the name; the directory marker is the one byte a selected root drops, and a name
+        // that is not text keeps every other byte it has.
+        let path: Vec<u8> = match field.last() {
+            Some(marker) if *marker == DIRECTORY_SUFFIX => field[..field.len() - 1].to_vec(),
+            _ => field.to_vec(),
         };
-        assert_safe_repository_path(path.as_str())?;
+        assert_safe_repository_path(path.as_slice())?;
         paths.push(path);
     }
-    let selected: Vec<String> = paths.clone();
-    let special: Vec<String> =
+    let selected: Vec<Vec<u8>> = paths.clone();
+    let special: Vec<Vec<u8>> =
         special_entries(context, source_root, selected.as_slice(), excluded_roots)?;
-    let mut all: Vec<String> = paths;
+    let mut all: Vec<Vec<u8>> = paths;
     all.extend(special);
     return Ok(collapse_ignored_roots(all.as_slice()));
 }
@@ -435,7 +535,7 @@ pub enum CopySelection {
     MainCheckout,
     /// Only these repository paths,
     /// and only the ones Git ignores and the source has.
-    Paths(Vec<String>),
+    Paths(Vec<Vec<u8>>),
 }
 
 /// What:
@@ -456,11 +556,11 @@ pub enum CopySelection {
 pub fn read_named_ignored_roots(
     context: &GitContext,
     source_root: &Path,
-    paths: &[String],
-) -> Result<Vec<String>, WorktreeCopyError> {
-    let mut selected: Vec<String> = Vec::new();
+    paths: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, WorktreeCopyError> {
+    let mut selected: Vec<Vec<u8>> = Vec::new();
     for path in paths {
-        assert_safe_repository_path(path.as_str())?;
+        assert_safe_repository_path(path.as_slice())?;
         let request: GitRequest = GitRequest {
             cwd: source_root.to_path_buf(),
             arguments: vec![
@@ -473,8 +573,9 @@ pub fn read_named_ignored_roots(
                 "--exclude-standard".into(),
                 "-z".into(),
                 "--".into(),
-                // `top` anchors the name at the worktree root and `literal` turns off globbing and magic.
-                format!(":(top,literal){path}").into(),
+                // `top` anchors the name at the worktree root and `literal` turns off globbing and magic; the name's own
+                // bytes follow the magic, so a name that is not text reaches Git unchanged.
+                named_pathspec(path.as_slice()),
             ],
             without_prefix: true,
             ..GitRequest::default()
@@ -487,12 +588,29 @@ pub fn read_named_ignored_roots(
             )));
         }
         // Git lists a directory's files rather than the directory, so only an exact name is a file Git ignores.
-        let listed: bool = lists_exactly(output.stdout.as_slice(), path.as_bytes());
+        let listed: bool = lists_exactly(output.stdout.as_slice(), path.as_slice());
         if listed {
             selected.push(path.clone());
         }
     }
     return Ok(collapse_ignored_roots(selected.as_slice()));
+}
+
+/// What:
+///  The pathspec that names one repository path exactly,
+/// anchored at the worktree root with globbing and magic off.
+/// Why:
+///   The name is bytes,
+/// so it is appended to the magic's bytes and the argument carries the name as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.concat([Buffer.from(':(top,literal)'), path])
+/// ```
+fn named_pathspec(path: &[u8]) -> std::ffi::OsString {
+    let mut spec: Vec<u8> = b":(top,literal)".to_vec();
+    spec.extend_from_slice(path);
+    return os_from_path_bytes(spec.as_slice());
 }
 
 /// What:
@@ -510,7 +628,7 @@ pub fn select_roots(
     source_root: &Path,
     excluded_roots: &[PathBuf],
     selection: &CopySelection,
-) -> Result<Vec<String>, WorktreeCopyError> {
+) -> Result<Vec<Vec<u8>>, WorktreeCopyError> {
     // `match` on the selection: the full listing for linked and bare sources, the named lookup otherwise.
     match selection {
         CopySelection::Ignored | CopySelection::MainCheckout => {

@@ -24,7 +24,7 @@ use crate::worktree_copy_install_entry::{
 };
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, apply_entry_modes};
 use crate::worktree_copy_rollback::rollback_created;
-use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use crate::json_record::quote;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -79,7 +79,7 @@ pub const INSTALL_BATCH_ENTRIES: usize = 4096;
 pub trait InstallRecorder {
     /// Records the absent paths one batch is about to create,
     /// before any of them exists.
-    fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError>;
+    fn record_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError>;
 
     /// Records the identities of the paths one batch created.
     fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError>;
@@ -101,7 +101,7 @@ pub struct NoRecord;
 
 impl InstallRecorder for NoRecord {
     /// Accepts the intent without storing it.
-    fn record_intents(&mut self, _relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
+    fn record_intents(&mut self, _relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
         return Ok(());
     }
 
@@ -126,12 +126,12 @@ pub fn preflight_destination(
     stage_root: &Path,
     destination_root: &Path,
     entries: &[WorktreeCopyEntry],
-    claimed: &BTreeSet<String>,
-) -> Result<BTreeSet<String>, WorktreeCopyError> {
-    let mut absent: BTreeSet<String> = BTreeSet::new();
+    claimed: &BTreeSet<Vec<u8>>,
+) -> Result<BTreeSet<Vec<u8>>, WorktreeCopyError> {
+    let mut absent: BTreeSet<Vec<u8>> = BTreeSet::new();
     for entry in entries {
         let destination_path: PathBuf =
-            filesystem_path(destination_root, entry.relative_path.as_str())?;
+            filesystem_path(destination_root, entry.relative_path.as_slice())?;
         // `match` on the existing entry: an absent path is recorded, a claimed directory is accepted, anything else must be identical.
         match lstat_or_absent(destination_path.as_path())? {
             None => {
@@ -147,7 +147,7 @@ pub fn preflight_destination(
                 if !entry_matches(stage_root, destination_root, entry)? {
                     let message: String = format!(
                         "monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry {} in {}.",
-                        quote(entry.relative_path.as_str()),
+                        quote(shown_repository_path(entry.relative_path.as_slice()).as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );
                     return Err(failure_with_cause(message.as_str(), None));
@@ -173,12 +173,12 @@ fn install_batch(
     stage_root: &Path,
     destination_root: &Path,
     batch: &[WorktreeCopyEntry],
-    absent: &BTreeSet<String>,
+    absent: &BTreeSet<Vec<u8>>,
     created: &mut Vec<InstalledPath>,
     recorder: &mut dyn InstallRecorder,
-    known: &mut std::collections::HashSet<String>,
+    known: &mut std::collections::HashSet<Vec<u8>>,
 ) -> Result<(), WorktreeCopyError> {
-    let mut claims: Vec<String> = Vec::new();
+    let mut claims: Vec<Vec<u8>> = Vec::new();
     for entry in batch {
         if absent.contains(&entry.relative_path) {
             claims.push(entry.relative_path.clone());
@@ -195,13 +195,13 @@ fn install_batch(
             continue;
         }
         let destination_path: PathBuf =
-            filesystem_path(destination_root, entry.relative_path.as_str())?;
+            filesystem_path(destination_root, entry.relative_path.as_slice())?;
         // A path that appeared since preflight is never created over; the next settle step decides what it is.
         if lstat_or_absent(destination_path.as_path())?.is_none() {
             create_selected_entry(stage_root, destination_root, entry)?;
             created.push(capture_installed_path(
                 destination_path.as_path(),
-                entry.relative_path.as_str(),
+                entry.relative_path.as_slice(),
                 true,
             )?);
         }
@@ -256,12 +256,12 @@ const PARALLEL_INSTALL_MIN_LEAVES: usize = crate::parallel_budget::PARALLEL_BREA
 /// if (exists(destination)) return undefined; createSelectedEntry(...); return captureInstalledPath(destination);
 /// ```
 fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyEntry) -> Result<Option<InstalledPath>, WorktreeCopyError> {
-    let destination_path: PathBuf = filesystem_path(destination_root, entry.relative_path.as_str())?;
+    let destination_path: PathBuf = filesystem_path(destination_root, entry.relative_path.as_slice())?;
     if lstat_or_absent(destination_path.as_path())?.is_some() {
         return Ok(None);
     }
     create_selected_entry(stage_root, destination_root, entry)?;
-    return capture_installed_path(destination_path.as_path(), entry.relative_path.as_str(), true).map(Some);
+    return capture_installed_path(destination_path.as_path(), entry.relative_path.as_slice(), true).map(Some);
 }
 
 /// What:
@@ -355,7 +355,7 @@ pub fn install_snapshot(
     stage_root: &Path,
     destination_root: &Path,
     entries: &[WorktreeCopyEntry],
-    claimed: &BTreeSet<String>,
+    claimed: &BTreeSet<Vec<u8>>,
     prior: &[InstalledPath],
     recorder: &mut dyn InstallRecorder,
 ) -> Result<usize, WorktreeCopyError> {
@@ -403,15 +403,15 @@ fn install_all(
     stage_root: &Path,
     destination_root: &Path,
     entries: &[WorktreeCopyEntry],
-    claimed: &BTreeSet<String>,
+    claimed: &BTreeSet<Vec<u8>>,
     created: &mut Vec<InstalledPath>,
     recorder: &mut dyn InstallRecorder,
 ) -> Result<usize, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
-    let absent: BTreeSet<String> =
+    let absent: BTreeSet<Vec<u8>> =
         preflight_destination(stage_root, destination_root, entries, claimed)?;
     let preflighted: std::time::Duration = started.elapsed();
-    let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut known: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     for batch in entries.chunks(INSTALL_BATCH_ENTRIES) {
         install_batch(
             stage_root,

@@ -101,13 +101,13 @@ fn stage_mirrors_selected_entries_with_modes_and_links() {
         staged
             .selected_roots
             .iter()
-            .all(|path| return !path.starts_with(".cli-git-worktree-copy-"))
+            .all(|path| return !path.starts_with(b".cli-git-worktree-copy-"))
     );
     assert!(
         staged
             .entries
             .iter()
-            .any(|entry| return entry.relative_path == "linked")
+            .any(|entry| return entry.relative_path == b"linked")
     );
     remove(root.as_path());
 }
@@ -148,13 +148,13 @@ fn nested_registered_worktree_is_not_copied() {
         staged
             .entries
             .iter()
-            .all(|entry| return !entry.relative_path.starts_with("nested/wt"))
+            .all(|entry| return !entry.relative_path.starts_with(b"nested/wt"))
     );
     assert!(
         staged
             .entries
             .iter()
-            .any(|entry| return entry.relative_path == "nested/plain")
+            .any(|entry| return entry.relative_path == b"nested/plain")
     );
     remove(root.as_path());
 }
@@ -467,8 +467,8 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    assert_eq!(staged.unreadable, vec![String::from("cache/hidden")]);
-    assert_eq!(staged.selected_roots, vec![String::from("cache")], "the clone is no root of the stage");
+    assert_eq!(staged.unreadable, vec![b"cache/hidden".to_vec()]);
+    assert_eq!(staged.selected_roots, vec![b"cache".to_vec()], "the clone is no root of the stage");
     assert!(staged.stage_root.join("cache/kept").is_file());
     assert!(!staged.stage_root.join("cache/hidden").exists());
     assert!(!staged.stage_root.join("clone").exists());
@@ -510,7 +510,7 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
     for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
         std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
     }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[String::from("many")], &[]).expect("manifest");
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
     let stamps = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
     assert_eq!(stamps.len(), entries.len());
     assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");

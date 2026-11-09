@@ -371,8 +371,8 @@ fn copy_leaves(
         if entry.kind == EntryKind::Directory {
             continue;
         }
-        let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_str())?;
-        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+        let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_slice())?;
+        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_slice())?;
         let parent: PathBuf = parent_of(stage_path.as_path());
         if last_parent.as_ref() != Some(&parent) {
             create_private_tree(parent.as_path())?;
@@ -418,7 +418,7 @@ pub fn copy_manifest_entries(
         if entry.kind != EntryKind::Directory {
             continue;
         }
-        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_slice())?;
         create_private_tree(stage_path.as_path())?;
     }
     let mut stamps: Vec<Option<FileStamp>> = vec![None; entries.len()];

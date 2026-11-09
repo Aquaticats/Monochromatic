@@ -19,13 +19,13 @@ fn sample(root: &Path) -> Journal {
         created_entries: vec![InstalledPath {
             device: 7,
             inode: 42,
-            relative_path: String::from("cache"),
+            relative_path: b"cache".to_vec(),
             selected: true,
         }],
-        intended_entries: vec![String::from("cache")],
+        intended_entries: vec![b"cache".to_vec()],
         destination_root: destination,
         phase: Phase::Installing,
-        selected_roots: vec![String::from("cache")],
+        selected_roots: vec![b"cache".to_vec()],
         source_root: root.join("source"),
         stage_container: stage.clone(),
         stage_root: stage.join("payload"),
@@ -280,7 +280,7 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
     misplaced_payload.stage_root = root.join(".cli-git-worktree-copy-abc/other");
     refuse(&misplaced_payload, relation);
     let mut repeated_intent: Journal = sample(root.as_path());
-    repeated_intent.intended_entries.push(String::from("cache"));
+    repeated_intent.intended_entries.push(b"cache".to_vec());
     refuse(&repeated_intent, duplicates.clone());
     let mut repeated_creation: Journal = sample(root.as_path());
     let first: InstalledPath = repeated_creation.created_entries[0].clone();
@@ -870,5 +870,54 @@ fn a_journal_file_that_is_not_text_is_refused_and_kept() {
     let failure: WorktreeCopyError = read_pending_journals(common.as_path()).expect_err("not text");
     assert!(failure.0.contains("it is not text"), "{}", failure.0);
     assert!(path.exists(), "a journal that cannot be read is kept");
+    remove(root.as_path());
+}
+
+/// A journal keeps the bytes of the ignored roots and the claimed paths,
+/// so a recovered installation writes each entry under its own name,
+/// and nothing appears at the spelling a conversion would have made.
+#[cfg(unix)]
+#[test]
+fn recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name() {
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
+    use crate::test_support::dead_copy_owner;
+    use crate::worktree_copy_selection::CopySelection;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("journal-ignored-name-bytes");
+    let source: PathBuf = crate::test_support::repository(root.as_path(), "source");
+    std::fs::write(source.join(".gitignore"), b"cache/\n").expect("gitignore");
+    std::fs::create_dir_all(source.join("cache")).expect("cache");
+    let mut awkward: PathBuf = source.join("cache");
+    awkward.push(std::ffi::OsStr::from_bytes(b"bad\xff.bin"));
+    std::fs::write(awkward.as_path(), b"payload").expect("file that is not text");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let parent: PathBuf = root.join("destinations");
+    std::fs::create_dir_all(parent.as_path()).expect("parent");
+    let named: PathBuf = parent.join("topic");
+    crate::test_support::git(source.as_path(), &["worktree", "add", "--quiet", "-b", "one", named.to_str().expect("utf8")]);
+    let destination: PathBuf = std::fs::canonicalize(named).expect("canonical destination");
+    let canonical_source: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
+    let snapshot: StagedSnapshot = crate::worktree_copy_stage::stage_ignored_snapshot(
+        &crate::test_support::git_context(),
+        canonical_source.as_path(),
+        crate::worktree_copy_stage::new_stage_container(destination.as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let pending: PendingJournal = create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    let text: String = std::fs::read_to_string(pending.path.as_path()).expect("journal file");
+    assert!(
+        text.contains("\"selectedRoots\":[\"cache\"]"),
+        "a root whose name is text keeps the text form the earlier release reads: {text}"
+    );
+    assert!(!text.contains("\"selectedRootsHex\""), "the bytes form is written only where the text is not exact: {text}");
+    let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1, "{report:?}");
+    let mut installed: PathBuf = destination.join("cache");
+    installed.push(std::ffi::OsStr::from_bytes(b"bad\xff.bin"));
+    assert_eq!(std::fs::read(installed.as_path()).expect("copied under its own name"), b"payload");
+    let replacement: PathBuf = destination.join("cache/bad\u{FFFD}.bin");
+    assert!(!replacement.exists(), "nothing is installed at the replacement spelling");
     remove(root.as_path());
 }
