@@ -790,6 +790,130 @@ fn unrelated_histories_are_merged() {
     remove(&s.root);
 }
 
+/// What:
+///  A merge driver that never returns but keeps writing is stopped at the merge step's total ceiling.
+/// Why:
+///   The stall window cannot bound it:
+/// the driver rewrites a scratch file for ever,
+/// so every sample of the process tree shows bytes moved,
+/// and the wait would never end
+/// (cross-vendor review round 2,
+/// finding 3).
+/// A ceiling on the whole command ends it,
+/// and the words say what was not changed.
+#[test]
+fn a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling() {
+    let s = scenario("ar-driver-busy");
+    let scratch: PathBuf = s.root.join("driver-scratch");
+    std::fs::write(s.local.join(".gitattributes"), "driver.txt merge=stall\n").expect("the rule");
+    std::fs::write(s.local.join("driver.txt"), "base\n").expect("the file");
+    git(&s.local, &["add", "--", ".gitattributes", "driver.txt"]);
+    git(&s.local, &["commit", "--quiet", "-m", "a rule that names a driver and the file it owns"]);
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    // The driver writes for ever, which is progress the stall window can never call a stall.
+    let driver: String = format!("sh -c 'while :; do printf x > {}; sleep 0.05; done'", scratch.display());
+    git(&s.local, &["config", "merge.stall.driver", driver.as_str()]);
+    advance_remote(&s, "driver.txt", "remote\n");
+    let island: String = commit_local(&s, "driver.txt", "local\n");
+    git(&s.local, &["fetch", "--quiet", "origin"]);
+    let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
+    let mut git_under_test: PushGit = push_git(&s.local);
+    git_under_test.environment.push((OsString::from(crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE), OsString::from("2")));
+    let started: std::time::Instant = std::time::Instant::now();
+    let answer = commit_merge(&git_under_test, &island, &main, "message");
+    let waited: std::time::Duration = started.elapsed();
+    let said: String = match &answer {
+        Err(error) => format!("{error}"),
+        Ok(_) => String::from("the merge was made"),
+    };
+    assert!(said.contains("was still running at its 2-second ceiling"), "the ceiling that stopped it is named: {said}");
+    assert!(said.contains("Nothing was changed"), "the words say what was not touched: {said}");
+    assert!(waited < std::time::Duration::from_secs(60), "the wait ends at the ceiling and its grace, not never: {waited:?}");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), island, "the commit is kept and nothing was committed");
+    assert_eq!(std::fs::read(s.local.join("driver.txt")).expect("the file"), b"local\n".to_vec(), "the worktree was not touched");
+    remove(&s.root);
+}
+
+/// What:
+///  A merge driver that never returns ends the reconcile merge,
+/// and the failure names the wait that stopped it.
+/// Why:
+///   The commands of the word-level second pass were started with no bound at all,
+/// so a driver blocked on a read that never comes held the push
+///  worker,
+/// its claim and the drain of that repository for good
+/// (cross-vendor review of this branch,
+/// finding 4).
+/// The window is the push's own,
+/// so it is set to one second here and the grace is the one a stopped query gets.
+#[test]
+fn a_merge_driver_that_never_returns_stops_the_reconcile_merge() {
+    let s = scenario("ar-driver-stall");
+    std::fs::write(s.local.join(".gitattributes"), "driver.txt merge=stall\n").expect("the rule");
+    std::fs::write(s.local.join("driver.txt"), "base\n").expect("the file");
+    git(&s.local, &["add", "--", ".gitattributes", "driver.txt"]);
+    git(&s.local, &["commit", "--quiet", "-m", "a rule that names a driver and the file it owns"]);
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    // The driver waits for input that never arrives.
+    git(&s.local, &["config", "merge.stall.driver", "sh -c 'sleep 300'"]);
+    advance_remote(&s, "driver.txt", "remote\n");
+    let island: String = commit_local(&s, "driver.txt", "local\n");
+    git(&s.local, &["fetch", "--quiet", "origin"]);
+    let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
+    let mut git_under_test: PushGit = push_git(&s.local);
+    git_under_test.environment.push((OsString::from(crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE), OsString::from("1")));
+    let started: std::time::Instant = std::time::Instant::now();
+    let answer = commit_merge(&git_under_test, &island, &main, "message");
+    let waited: std::time::Duration = started.elapsed();
+    let said: String = match &answer {
+        Err(error) => format!("{error}"),
+        Ok(_) => String::from("the merge was committed"),
+    };
+    assert!(said.contains("could not be run"), "the stopped command is named with its reason: {said}");
+    assert!(said.contains("showed no sign of work"), "the wait that stopped it is the meter's: {said}");
+    assert!(waited < std::time::Duration::from_secs(60), "the wait ends within the window and its grace, not never: {waited:?}");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    remove(&s.root);
+}
+
+/// What:
+///  A `merge` rule the remote introduces governs the reconcile merge's second pass,
+/// so the file it excludes keeps its conflict and nothing is committed.
+/// Why:
+///   The rule arrives with the side being merged,
+/// so only the tree the merge produced holds it
+/// (cross-vendor review of this branch,
+/// finding 2;
+/// the audit recorded this control as missing).
+/// Reading the first side's tip
+///  let the file be word-merged and published.
+#[test]
+fn a_rule_the_remote_introduces_keeps_the_reconcile_merge_from_merging_the_file() {
+    use crate::merge_second_pass::tests::corpus;
+    let s = scenario("ar-introduced-rule");
+    std::fs::write(s.local.join("data.txt"), corpus("md1b", "base")).expect("the base file");
+    git(&s.local, &["add", "--", "data.txt"]);
+    git(&s.local, &["commit", "--quiet", "-m", "the base file"]);
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    // The rule and the second side's bytes arrive from the remote in one commit.
+    git(&s.other, &["fetch", "--quiet", "origin"]);
+    git(&s.other, &["merge", "--quiet", "--ff-only", "origin/main"]);
+    std::fs::write(s.other.join(".gitattributes"), "data.txt merge=binary\n").expect("the rule");
+    std::fs::write(s.other.join("data.txt"), corpus("md1b", "theirs")).expect("their edit");
+    git(&s.other, &["add", "--", ".gitattributes", "data.txt"]);
+    git(&s.other, &["commit", "--quiet", "-m", "a rule and the edit it owns"]);
+    git(&s.other, &["push", "--quiet", "origin", "main"]);
+    let island: String = commit_local(&s, "data.txt", String::from_utf8_lossy(corpus("md1b", "ours").as_slice()).into_owned().as_str());
+    git(&s.local, &["fetch", "--quiet", "origin"]);
+    let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
+    let answer = commit_merge(&push_git(&s.local), &island, &main, "message").expect("git");
+    let Err(paths) = answer else { panic!("the rule the merge introduces excludes the file") };
+    assert_eq!(paths, vec![String::from("data.txt")], "the excluded path is the one reported");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    remove(&s.root);
+}
+
 /// Make the repository under test sign commits with a stand-in `gpg` that exits `status`:
 /// it reads the payload,
 /// answers the status line Git waits for and prints a placeholder signature,
@@ -1507,8 +1631,45 @@ fn a_branch_whose_upstream_has_another_name_is_the_one_the_message_names() {
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
     let mut lines = message.lines();
     assert_eq!(lines.next(), Some("Merge origin/main into feature"), "{message}");
-    assert!(message.contains("Published to origin/main, which feature tracks."), "{message}");
+    assert!(message.contains("Published to origin/main."), "{message}");
     assert!(message.contains("because origin/main advanced after the commit landed."), "{message}");
+    remove(&s.root);
+}
+
+/// What:
+///  An explicit `feature:main` push whose branch tracks `origin/feature` publishes a merge whose message names only what
+///  is true of that push.
+/// Why:
+///  `Reconcile.destination` is the ref the rejected push updated,
+///  which is not always the branch's upstream.
+///  A commit message is permanent,
+///  and the line said the branch tracked the destination,
+///  which it did not.
+#[test]
+fn the_published_line_names_the_push_destination_and_no_tracking_relation() {
+    let s = scenario("ar-gh2646-tracking-elsewhere");
+    advance_remote(&s, "a.txt", "remote\n");
+    // The review's sequence: the branch tracks its own remote branch, and the push goes to another ref.
+    git(&s.local, &["switch", "--quiet", "-c", "feature"]);
+    git(&s.local, &["config", "branch.feature.remote", "origin"]);
+    git(&s.local, &["config", "branch.feature.merge", "refs/heads/feature"]);
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut published: String = String::new();
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        published = merge_oid.to_owned();
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    assert_eq!(attempt.exit_code, 0, "{attempt:?}");
+    let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
+    assert_eq!(message.lines().next(), Some("Merge origin/main into feature"), "{message}");
+    assert!(message.contains("Published to origin/main."), "{message}");
+    assert!(!message.contains("tracks"), "the message states no tracking relation: {message}");
+    assert_eq!(text_of(&s.remote, &["log", "-1", "--format=%s", "main"]), "Merge origin/main into feature");
     remove(&s.root);
 }
 
@@ -1533,6 +1694,29 @@ fn a_branch_named_like_its_upstream_keeps_the_message_it_had() {
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
     assert_eq!(message.lines().next(), Some("Merge origin/main into main"), "{message}");
     assert!(!message.contains("Published to"), "{message}");
+    remove(&s.root);
+}
+
+/// What:
+///  A conflict is reported against the branch the merge was into,
+///  the name the merge's subject uses.
+/// Why:
+///  The refusal named the destination ref,
+///  so an explicit `feature:main` push reported a merge into `main` that was into `feature`.
+#[test]
+fn a_conflict_is_reported_against_the_branch_the_merge_was_into() {
+    let s = scenario("ar-gh-conflict-target-name");
+    advance_remote(&s, "a.txt", "remote\n");
+    git(&s.local, &["switch", "--quiet", "-c", "feature"]);
+    let landed = commit_local(&s, "a.txt", "local\n");
+    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        panic!("a conflicting merge publishes nothing");
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    assert_ne!(attempt.exit_code, 0, "{attempt:?}");
+    assert!(attempt.output.contains("merging origin/main into feature"), "{}", attempt.output);
+    assert!(!attempt.output.contains("into main"), "{}", attempt.output);
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), text_of(&s.local, &["rev-parse", "origin/main"]), "nothing was published");
     remove(&s.root);
 }
 

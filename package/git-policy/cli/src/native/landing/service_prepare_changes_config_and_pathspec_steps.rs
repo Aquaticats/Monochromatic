@@ -115,15 +115,20 @@ pub fn config_signs(snapshot: Option<&ConfigSnapshot>) -> bool {
 /// use another message encoding or another comment character,
 /// or change trailers.
 pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
-    const KEYS: [&str; 7] = ["commit.template", "commit.cleanup", "i18n.commitencoding", "core.commentchar", "core.commentstring", "commit.signoff", "commit.verbose"];
     let Some(found) = snapshot else { return true };
     for entry in found.entries().iter() {
-        let value: String = match entry.value.as_deref() {
-            Some(bytes) => String::from_utf8_lossy(bytes).to_lowercase(),
-            None => String::new(),
-        };
-        let signs: bool = entry.key == "commit.gpgsign" && !["false", "no", "off", "0"].contains(&value.as_str());
-        if signs || KEYS.contains(&entry.key.as_str()) || entry.key.starts_with("trailer.") {
+        // A signing request is the one native key whose false words mean it does not ask for anything.
+        if entry.key == "commit.gpgsign" {
+            let value: String = match entry.value.as_deref() {
+                Some(bytes) => String::from_utf8_lossy(bytes).to_lowercase(),
+                None => String::new(),
+            };
+            if !["false", "no", "off", "0"].contains(&value.as_str()) {
+                return true;
+            }
+            continue;
+        }
+        if crate::native_commit_configuration::is_native_commit_key(entry.key.as_str()) {
             return true;
         }
     }

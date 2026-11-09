@@ -108,6 +108,78 @@ fn edits_of_the_same_line_conflict_and_the_first_commit_is_named() {
     remove(world.root.as_path());
 }
 
+//region names that alias under one encoding
+// What: a name whose bytes are read as Latin-1 and written as UTF-8 spells a different real name.
+// Why: the synthetic merge base is an index:
+//  its records are bytes, so each name must reach Git as the bytes it came from.
+
+/// A name with a two-byte UTF-8 character.
+const NON_ASCII_FILE: &str = "é.txt";
+
+/// The real,
+/// distinct name that `NON_ASCII_FILE`'s bytes spell when they are read as Latin-1 and written as UTF-8.
+const ALIASING_FILE: &str = "Ã©.txt";
+
+/// The exact bytes of one file of a tree.
+fn file_bytes_of(world: &World, tree: &str, name: &str) -> Vec<u8> {
+    return git(world.repo.as_path(), &["show", format!("{tree}:{name}").as_str()]).stdout;
+}
+
+/// The mode and type a tree records for one name,
+/// nothing when the tree holds no such name.
+fn recorded_mode(world: &World, tree: &str, name: &str) -> Option<Vec<u8>> {
+    let listing: Vec<u8> = git(world.repo.as_path(), &["ls-tree", "-z", tree]).stdout;
+    for record in listing.split(|byte| { return *byte == 0; }) {
+        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else { continue };
+        if record[tab + 1..] == *name.as_bytes() {
+            return Some(record[..tab].to_vec());
+        }
+    }
+    return None;
+}
+
+/// A conflict on one name keeps the landed edit of a different name whose bytes that name spells:
+/// the synthetic base holds each name as its own bytes,
+/// so an edit meant for one file never lands on another.
+#[test]
+fn a_conflict_on_one_name_keeps_the_other_names_landed_edit() {
+    let root: PathBuf = fixture("replay-non-ascii-names");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let base_text: &str = "a\nb\nc\nd\n";
+    let landed_text: &str = "a\nB\nc\nd\n";
+    let prepared_text: &str = "a\nB\nC\nd\n";
+    std::fs::write(repo.join(NON_ASCII_FILE), base_text).expect("base file");
+    std::fs::write(repo.join(ALIASING_FILE), "unrelated base\n").expect("base file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join(NON_ASCII_FILE), landed_text).expect("landed file");
+    std::fs::write(repo.join(ALIASING_FILE), landed_text).expect("landed file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=landed"]);
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "mine", base.as_str()]);
+    std::fs::write(repo.join(NON_ASCII_FILE), prepared_text).expect("prepared file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=mine"]);
+    let tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::create_dir(root.join("scratch")).expect("scratch");
+    let world: World = World { root, repo, context: git_context(), base };
+    let mine: Captured = Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
+    let merged_tree: String = match merge(&world, &mine) {
+        Merged::Tree(merged) | Merged::Combined { tree: merged, .. } => merged,
+        Merged::Conflict(paths) => panic!("the captured bytes contain the landed edit of the conflicting name: {paths:?}"),
+    };
+    assert_eq!(file_bytes_of(&world, merged_tree.as_str(), NON_ASCII_FILE), prepared_text.as_bytes(), "the captured bytes land");
+    assert_eq!(file_bytes_of(&world, merged_tree.as_str(), ALIASING_FILE), landed_text.as_bytes(), "the other name keeps its landed edit");
+    for name in [NON_ASCII_FILE, ALIASING_FILE] {
+        let recorded: Vec<u8> = recorded_mode(&world, merged_tree.as_str(), name).unwrap_or_else(|| { panic!("{name} is missing from the merged tree") });
+        let mode: String = String::from_utf8_lossy(recorded.as_slice()).into_owned();
+        assert!(mode.starts_with("100644 blob "), "{name}: {mode}");
+    }
+    remove(world.root.as_path());
+}
+
+//endregion
+
 /// A captured file that already holds the landed edit and one more on the next line lands as captured:
 /// Git alone calls the
 ///  adjacent hunks a conflict,
@@ -308,23 +380,28 @@ fn the_union_attribute_of_the_landed_tip_applies_without_a_worktree_file() {
     remove(attributed_world.root.as_path());
 }
 
-/// The notice for a replayed commit lists every merged part and is absent when nothing was merged by word.
+/// The notice for a replayed commit lists every merged part,
+/// says how to read the blobs it names,
+/// and is absent when nothing was merged by word.
 #[test]
 fn the_notice_lists_each_merged_part_and_is_absent_without_one() {
-    use crate::merge_second_pass::{Conflict, Merged as MergedFile};
+    use crate::merge_second_pass::{Conflict, Merged as MergedFile, Stage};
     use crate::word_merge::{LineSpan, MergedPart};
     assert_eq!(word_merge_notice(&[]), None);
     let span = LineSpan { first: 2, count: 1 };
+    let stage = |oid: &str| { return Some(Stage { mode: 0o100_644, oid: String::from(oid) }); };
     let file = MergedFile {
         path: b"notes.md".to_vec(),
         mode: 0o100_644,
         bytes: Vec::new(),
         parts: vec![MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() }],
-        stages: Conflict { path: b"notes.md".to_vec(), base: None, ours: None, theirs: None },
+        stages: Conflict { path: b"notes.md".to_vec(), base: stage("aa12"), ours: stage("bb34"), theirs: stage("cc56") },
     };
     let Some(PolicyEvent::WordMerged { lines }) = word_merge_notice(&[file]) else { panic!("expected the event") };
-    assert_eq!(lines.len(), 1);
+    assert_eq!(lines.len(), 2, "the part and the sentence that says how to read its blobs: {lines:?}");
     assert!(lines[0].contains("word-level merge") && lines[0].contains("notes.md") && lines[0].contains("joined"), "{lines:?}");
+    assert!(lines[0].ends_with("from base blob aa12, ours blob bb34, theirs blob cc56"), "{lines:?}");
+    assert!(lines[1].contains("git cat-file blob"), "{lines:?}");
 }
 
 /// A merge-driver attribute of a path below a directory is honoured when the commit was run from a subdirectory of the
@@ -374,3 +451,61 @@ fn a_configured_attribute_tree_is_not_overridden() {
     remove(attributed_world.root.as_path());
 }
 //endregion
+
+/// What:
+///  The top of the worktree keeps every byte of a directory's name,
+/// including a space at its end.
+/// Why:
+///   A repository may sit in a directory whose name ends in a space,
+/// and trimming the line Git printed takes that space with it,
+/// so every command of the
+///  second pass then runs in a directory that does not exist and the commit is refused as an uncombinable change
+/// (cross-vendor review of this branch,
+/// finding 7).
+#[test]
+fn the_toplevel_keeps_a_trailing_space_in_a_directory_name() {
+    assert_eq!(toplevel_of(b"/tmp/a repository \n"), PathBuf::from("/tmp/a repository "), "the space a directory's name ends in is part of the path");
+    assert_eq!(toplevel_of(b"/tmp/repo\n"), PathBuf::from("/tmp/repo"), "the line break alone is removed");
+    assert_eq!(toplevel_of(b"/tmp/repo"), PathBuf::from("/tmp/repo"), "a line without a break is the path");
+}
+
+/// What:
+///  A `merge` rule the captured side introduces governs the replay's word pass,
+/// so the file it excludes keeps its conflict.
+/// Why:
+///   The rule arrives with the captured tree,
+/// so only the tree the replay's merge produced holds it,
+/// and reading the landed tip alone
+///  let the file be word-merged into a commit
+/// (cross-vendor review of this branch,
+/// finding 2;
+/// the audit recorded this control as missing for the replay).
+#[test]
+fn a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file() {
+    let world: World = corpus_world("replay-introduced-rule", "md1b", "data.txt");
+    let mine: Captured = corpus_sides(&world, "md1b", "data.txt");
+    git(world.repo.as_path(), &["checkout", "--quiet", "mine"]);
+    std::fs::write(world.repo.join(".gitattributes"), "data.txt merge=binary\n").expect("the rule");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=the rule"]);
+    let with_rule: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
+    let captured: Captured = Captured { tree: with_rule, ..mine };
+    let Merged::Conflict(paths) = merge(&world, &captured) else { panic!("the rule the merge introduces excludes the file from the word pass") };
+    assert_eq!(paths, vec![b"data.txt".to_vec()], "the excluded path is the one reported");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A directory whose name ends in a line break keeps it.
+/// Why:
+///   Git's toplevel output ends with the directory's own line break and then the line's terminator,
+/// so removing every line break removes one byte of the path
+/// (cross-vendor review round 2,
+/// finding 8).
+#[test]
+fn the_toplevel_keeps_a_line_break_that_belongs_to_a_directory_name() {
+    assert_eq!(toplevel_of(b"/tmp/a repository \n\n"), PathBuf::from("/tmp/a repository \n"), "only the line's terminator is removed");
+    assert_eq!(toplevel_of(b"/tmp/repo\r\n"), PathBuf::from("/tmp/repo"), "a carriage return and its line feed go together");
+    assert_eq!(toplevel_of(b"/tmp/repo\n"), PathBuf::from("/tmp/repo"), "one line break is the terminator");
+}
