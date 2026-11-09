@@ -148,7 +148,7 @@ The guard that would stop the loop is
 `src/native/invocation/started_as_git.rs:275-292`:
 
 ```rust
-// Quoted from src/native/invocation/started_as_git.rs:275-279.
+//! Quoted from src/native/invocation/started_as_git.rs:275-279.
 pub fn started_as_git(marker: &StartMarker, facts: &ProcessFacts<'_>) -> bool {
     let candidate: u32 = if marker.mode == StartMode::Replace { facts.own_pid } else { facts.parent_pid };
     if candidate != marker.starter_pid {
@@ -246,7 +246,7 @@ its promised message never appears.
 `src/native/service/service_provision.rs:344-350`:
 
 ```rust
-// Quoted from src/native/service/service_provision.rs:344-350.
+//! Quoted from src/native/service/service_provision.rs:344-350.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     if in_place(host) {
         // Units set up before this release have no note of their worktree yet.
@@ -267,7 +267,7 @@ The repair that would fix it is only reached when `in_place` is false,
 in `ask_manager` (`service_provision.rs:236-247`):
 
 ```rust
-// Quoted from src/native/service/service_provision.rs:240-246.
+//! Quoted from src/native/service/service_provision.rs:240-246.
     if known {
         // A start that failed under an old unit leaves the service failed and its start counter full, and the socket
         //  failed with it; the new unit would be refused as "repeated too quickly" until the interval passed.
@@ -344,7 +344,7 @@ That action runs Git as a child (`worktree_copy_forward.rs:202-242`,
 and maps its end to a number:
 
 ```rust
-// Quoted from src/native/worktree_copying/worktree_copy_forward.rs:466-472.
+//! Quoted from src/native/worktree_copying/worktree_copy_forward.rs:466-472.
             match run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()) {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
                 Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
@@ -353,7 +353,7 @@ and maps its end to a number:
 and then (`worktree_copying/worktree_copy.rs:237-249`):
 
 ```rust
-// Quoted from src/native/worktree_copying/worktree_copy.rs:237-245.
+//! Quoted from src/native/worktree_copying/worktree_copy.rs:237-245.
 pub fn exit_code(settlement: &Settlement) -> i32 {
     let git_code: i32 = settlement.git.code.unwrap_or(1);
     match (
@@ -429,7 +429,7 @@ starts the socket unit,
 then writes the note:
 
 ```rust
-// Quoted from src/native/service/service_provision.rs:217-226.
+//! Quoted from src/native/service/service_provision.rs:217-226.
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     ...
     note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
@@ -441,7 +441,7 @@ The service reads that note at its start
 and only a `Served` answer sets `own_git_dir`:
 
 ```rust
-// Quoted from src/native/service/service_main.rs:291-298.
+//! Quoted from src/native/service/service_main.rs:291-298.
         match own_worktree_state(name, journal.as_path()) {
             OwnWorktree::Gone(_) => {
                 let _served_nothing = stop_own_socket_when_the_worktree_is_gone(name, journal.as_path());
@@ -503,7 +503,7 @@ The client only asks the manager to start a unit after `START_WAIT`
 (`service_client_reach_service.rs:104-118`):
 
 ```rust
-// Quoted from src/native/service/service_client_reach_service.rs:105-117.
+//! Quoted from src/native/service/service_client_reach_service.rs:105-117.
                     if answer.as_deref() == Some("inactive")
                         && started.elapsed() >= config.start_wait
                         && match last_start_request {
