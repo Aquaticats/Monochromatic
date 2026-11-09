@@ -119,6 +119,11 @@ pub mod worktree_copy_owner;
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
 
+/// Whether a source worktree is itself the destination of a copy that still runs:
+/// a copy stages nothing from it and tells the person why.
+#[cfg(unix)]
+pub mod worktree_copy_source_still_being_filled;
+
 /// The linked-worktree ignored-state copy around one forwarded Git invocation:
 /// the integrator's entry point.
 #[cfg(unix)]

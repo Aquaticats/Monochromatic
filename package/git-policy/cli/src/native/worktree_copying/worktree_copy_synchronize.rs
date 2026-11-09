@@ -28,6 +28,7 @@ use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_journal::create_journal;
 use crate::worktree_copy_journal_encoding_and_validation::PendingJournal;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_source_still_being_filled::{source_is_still_being_filled, source_still_being_filled_notice};
 use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
 use crate::worktree_copy_stage_binding::{record_stage_binding, verify_stage_binding};
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage};
@@ -327,6 +328,18 @@ pub(crate) fn synchronize_after(
     found.created = kept;
     if found.created.is_empty() {
         return Ok(created_roots);
+    }
+    if let Some(source) = observation.source_root.as_ref() {
+        // A source that is itself receiving a copy holds only part of its ignored files, so nothing is staged from it;
+        // the new worktree is made whole by the same add once that copy has finished, and the person is told so.
+        // This comes before the record below is taken, so the caller still holds the record and settles it.
+        if source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())? {
+            let line: String = source_still_being_filled_notice(destination, source.as_path());
+            stderr
+                .write_all(line.as_bytes())
+                .map_err(raw_failure_of)?;
+            return Ok(Vec::new());
+        }
     }
     let mut copied: usize = 0;
     // The record made before real Git names the stage this copy fills, so the copy keeps the one record it has.
