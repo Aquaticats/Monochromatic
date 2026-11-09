@@ -241,9 +241,21 @@ fn absolute_path(path: &Path) -> Option<PathBuf> {
 ///  so a `..` that climbs past the filesystem root is dropped,
 ///  which is what Git and the kernel do with such a path.
 pub(crate) fn lexically_normalized(path: &Path) -> PathBuf {
-    let mut normalized: PathBuf = PathBuf::new();
-    for part in path.components() {
+    let mut parts = path.components().peekable();
+    // A volume prefix is the base a root component keeps: `PathBuf::push` of a
+    // rooted path replaces everything but the prefix, so the prefix starts the
+    // result and the root is pushed onto it.
+    let mut normalized: PathBuf = match parts.peek() {
+        Some(Component::Prefix(prefix)) => {
+            let base: PathBuf = PathBuf::from(prefix.as_os_str());
+            parts.next();
+            base
+        }
+        _ => PathBuf::new(),
+    };
+    for part in parts {
         match part {
+            Component::Prefix(_) => {}
             Component::CurDir => {}
             Component::ParentDir => {
                 normalized.pop();
