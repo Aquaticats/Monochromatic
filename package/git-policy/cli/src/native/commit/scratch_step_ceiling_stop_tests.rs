@@ -71,3 +71,30 @@ fn a_step_that_can_be_read_is_stopped_at_the_ceiling() {
     assert_eq!(came, CeilingCame::Stopped, "a step that was signalled is reported as stopped");
     assert!(ended.is_some(), "the signalled step ended");
 }
+
+/// What:
+///  The ceiling takes the step's identity from its start, never from a read of its number.
+/// Why:
+///   Finding 1 of the second review:
+/// the number is published when the step starts, but the identity is read at the ceiling,
+/// so the read proves the process found then,
+/// and a step that ended and had its number reused is signalled through the successor.
+///  A descriptor opened the moment the step starts names the step for good,
+/// while this process is its parent and the number cannot have been reused.
+/// The control makes every read of the step's number fail:
+/// a ceiling that still works proves it needs none of them.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number() {
+    let mut step: Child = a_step();
+    let pid: i32 = i32::try_from(step.id()).expect("a process number");
+    crate::process_tree::unreadable_after_the_next_reads(pid, 0);
+    let came: CeilingCame = ceiling_came(pid);
+    let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert_eq!(came, CeilingCame::Stopped, "the step was not signalled, so the ceiling read its number instead of taking it from the start");
+    assert!(ended.is_some(), "the step the ceiling took from its start ended");
+}
