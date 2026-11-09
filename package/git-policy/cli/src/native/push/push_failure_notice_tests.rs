@@ -474,6 +474,64 @@ fn a_claim_left_by_a_command_that_is_gone_is_taken_over() {
 }
 
 /// What:
+///  Taking over a claim whose command is gone never replaces the record this command claimed first,
+/// when both are statements about the same branch and commit.
+/// Why:
+///   One name for every claim of a command made the take-over compute the name the first claim already holds,
+/// and the
+///  rename replaced the newer statement with the older one on disk;
+/// a command killed before it printed would leave only
+///  the obsolete words for the next command to find.
+#[test]
+fn taking_over_an_abandoned_claim_keeps_the_record_it_claimed_first() {
+    let root: PathBuf = fixture("push-failure-claim-takeover");
+    let directory: PathBuf = notice_directory(root.as_path());
+    std::fs::create_dir_all(directory.as_path()).expect("directory");
+    // The newer statement, under the record's own name.
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "the remote wants a login").expect("record");
+    // The older statement of the same branch and commit, under a claim whose command is gone.
+    let older: PathBuf = directory.join(format!("{}.4294967294~1~gone~0.claim", record_name(BRANCH, COMMIT)));
+    std::fs::write(older.as_path(), format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{BRANCH}\n{COMMIT_FIELD}{COMMIT}\n\nrejected for now\n")).expect("the older claim");
+    let notices: Vec<Notice> = push_failures(root.as_path());
+    // Nothing has been shown yet: what is on the disk is what a later command finds if this one is killed before it prints.
+    let on_disk: String = std::fs::read_dir(directory.as_path())
+        .expect("directory")
+        .flatten()
+        .map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); })
+        .collect();
+    assert!(on_disk.contains("the remote wants a login"), "the newer statement is still on disk under this command's claim: {on_disk}");
+    assert!(on_disk.contains("rejected for now"), "and the older one is held too: {on_disk}");
+    let shown: Vec<String> = crate::test_support::shown_notices(notices);
+    assert_eq!(shown.len(), 2, "both statements are shown: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, "the remote wants a login")), "the newer statement is shown: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, "rejected for now")), "and the older one: {shown:?}");
+    assert_eq!(std::fs::read_dir(directory).expect("directory").count(), 0, "the claims went with their words");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice given back after its words could not be written never replaces a newer record of the same name.
+/// Why:
+///   `rename` replaces its destination,
+/// so giving the older claim back over a terminal failure's record deleted that
+///  record,
+/// and the next command read the obsolete statement that promised a retry.
+#[test]
+fn a_notice_given_back_keeps_a_newer_record_of_the_same_name() {
+    let root: PathBuf = fixture("push-failure-give-back");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected for now").expect("record");
+    let notices: Vec<Notice> = push_failures(root.as_path());
+    assert_eq!(notices.len(), 1);
+    // The service writes the terminal failure while the claim is held, and then the words cannot be written.
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "the remote wants a login").expect("the newer record");
+    assert!(notices[0].show(&mut ClosedTerminal).is_err(), "the terminal refused the words");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    let held: String = std::fs::read_to_string(record.as_path()).expect("the record's own name");
+    assert!(held.contains("the remote wants a login"), "the newer statement is still under its name: {held}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A notice whose words cannot be written out stays for the next command.
 /// Why:
 ///   A record removed before its words reach the person is gone with nothing shown,
