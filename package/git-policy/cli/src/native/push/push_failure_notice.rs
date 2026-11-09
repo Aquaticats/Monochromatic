@@ -45,8 +45,11 @@ use crate::lfs_output_mask::mask_userinfo_text;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 /// One record as a command holds it before it shows it,
-/// with the step that removes it once its words are out.
+/// with the claim it was taken under and the step that removes that claim.
 pub use crate::push_failure_notice_shown_then_removed::Notice;
+/// The name a command holds a record under while it shows it,
+/// and who may take one over.
+use crate::push_failure_notice_claimed_by_one_command::{CLAIM_SUFFIX, ClaimToken, claim, claimed_by_a_live_command, give_back, record_of_claim, take_over};
 use crate::service_messages::RESTART_COMMAND;
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::path::{Path, PathBuf};
@@ -485,7 +488,9 @@ pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std:
             },
             Err(_) => false,
         };
-        if older && entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        // A claim belongs to the command that holds it, which shows it and takes it with it.
+        if older && name.starts_with(prefix.as_str()) && !name.ends_with(CLAIM_SUFFIX) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }
@@ -625,6 +630,7 @@ pub fn orphaned_push_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -
 /// without removing any.
 fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
+    let token: ClaimToken = ClaimToken::of_this_command();
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         paths.push(entry.path());
@@ -632,6 +638,17 @@ fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
     paths.sort();
     let mut notices: Vec<Notice> = Vec::new();
     for path in paths {
+        let name: String = path.file_name().map(|shown| { return shown.to_string_lossy().into_owned(); }).unwrap_or_default();
+        // A claim belongs to the command that made it: one whose command still runs is left alone, and one whose command is
+        //  gone is taken over, which is how a notice a killed command held reaches the person.
+        if record_of_claim(name.as_str()).is_some() {
+            if claimed_by_a_live_command(name.as_str()) {
+                continue;
+            }
+            let Some(claimed) = take_over(path.as_path(), &token) else { continue };
+            notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
+            continue;
+        }
         let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
         let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
         if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
@@ -639,19 +656,51 @@ fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         {
             continue;
         }
-        // The words are made while the record is still on disk: naming the commit asks Git, and a command killed there must
-        //  leave the only durable statement that the commit is not backed up where the next command finds it. Two commands
-        //  that start together can therefore both show it, which costs a repeat and loses nothing.
-        let shown: String = match parsed {
-            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
-            // The finished text an earlier release wrote.
-            None => text.clone(),
-        };
-        notices.push(Notice { path, seen: text, text: shown });
+        // The record is claimed before its words are made: two commands that start together both read it, and only the one
+        //  whose rename wins shows it. A command killed while it words the notice leaves the claim, which a later command takes
+        //  over once this one is gone.
+        let Some(claimed) = claim(path.as_path(), &token) else { continue };
+        notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
     }
     return notices;
+}
+
+/// What:
+///  The notice the claim at `path` carries,
+/// worded,
+/// or nothing when the claim holds no record this command reads.
+/// Why:
+///   The claim is read after the rename,
+/// so the words are made from exactly the text this command holds;
+/// a claim that
+///  cannot be read is left where it is for a later command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = await readFile(claim); const parsed = parseRecord(text); return parsed ? worded(parsed) : text
+/// ```
+fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+    let Ok(text) = std::fs::read_to_string(path) else { return Vec::new() };
+    let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
+    if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
+        && !is_for(asking, branch)
+    {
+        // A claim of another worktree's branch goes back to its own name, where that worktree's command reads it.
+        let record: String = path.file_name().map(|shown| { return shown.to_string_lossy().into_owned(); }).unwrap_or_default();
+        let record_name: &str = record_of_claim(record.as_str()).unwrap_or(record.as_str());
+        give_back(path, path.with_file_name(record_name).as_path());
+        return Vec::new();
+    }
+    let shown: String = match parsed {
+        Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
+        Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
+        Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
+        // The finished text an earlier release wrote.
+        None => text.clone(),
+    };
+    let record: String = path.file_name().map(|shown| { return shown.to_string_lossy().into_owned(); }).unwrap_or_default();
+    let record_name: &str = record_of_claim(record.as_str()).unwrap_or(record.as_str());
+    return vec![Notice { record: path.with_file_name(record_name), claim: path.to_path_buf(), text: shown }];
 }
 
 /// What:

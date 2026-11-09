@@ -388,13 +388,86 @@ fn a_notice_survives_being_worded() {
     record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
     let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
     let naming = |commit: &str| {
-        assert!(record.exists(), "the record is on disk while its commit is named");
+        // The record is claimed under a name only this command holds while its words are made; whichever of the two exists,
+        //  the notice is still on disk and a command killed here loses nothing.
+        let held: usize = std::fs::read_dir(notice_directory(root.as_path())).map_or(0, |entries| { return entries.flatten().count(); });
+        assert_eq!(held, 1, "the notice is on disk while its commit is named");
+        let _ = &record;
         return commit.to_string();
     };
     let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &naming);
     assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
     assert!(!record.exists(), "and it is gone once its words exist");
     assert!(take_push_failures(root.as_path()).is_empty(), "a record is shown once");
+    remove(root.as_path());
+}
+
+/// What:
+///  Two commands that read a record before either showed it show it once,
+/// because only one of them wins the claim on it.
+/// Why:
+///   A record is shown once,
+/// and a command that finds the record already claimed by another shows nothing,
+/// rather
+///  than printing words the other command is printing.
+#[test]
+fn two_commands_that_read_a_record_show_it_once() {
+    let root: PathBuf = fixture("push-failure-one-claim");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    let first: Vec<Notice> = push_failures(root.as_path());
+    let second: Vec<Notice> = push_failures(root.as_path());
+    assert_eq!(first.len(), 1, "the first command holds the record");
+    assert!(second.is_empty(), "the second finds it claimed and shows nothing");
+    assert_eq!(crate::test_support::shown_notices(first), vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
+    assert!(notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT)).exists() == false, "the claim went with the words");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record the service writes in the instant before a claim is removed stays,
+/// and the next command shows it.
+/// Why:
+///   The claim is this command's own name,
+/// so removing it cannot delete a record the service wrote meanwhile;
+/// the
+///  service's statement is a different file.
+#[test]
+fn a_record_written_in_the_instant_before_removal_stays() {
+    let root: PathBuf = fixture("push-failure-written-then-removed");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected for now").expect("record");
+    let recording: PathBuf = root.to_path_buf();
+    let _played = crate::push_failure_notice_shown_then_removed::before_removal_in_a_control(move || {
+        record_push_failure(recording.as_path(), BRANCH, COMMIT, "the remote wants a login").expect("the newer record");
+    });
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    drop(_played);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected for now")], "the words are the ones this command took");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    assert!(record.exists(), "the record the service wrote as the claim went stays");
+    let next: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(next, vec![push_failure_text(BRANCH, COMMIT, "the remote wants a login")], "and the next command shows it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A claim left by a command that is gone is taken over,
+/// so the notice reaches the person.
+/// Why:
+///   A command killed between taking a record and showing it must not take the person's only word about the commit with
+///  it,
+/// and a claim whose holder is gone is the next command's to show.
+#[test]
+fn a_claim_left_by_a_command_that_is_gone_is_taken_over() {
+    let root: PathBuf = fixture("push-failure-claim-orphan");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    // The claim of a command that no longer runs: no process has this number, and its start time is none this kernel made.
+    let directory: PathBuf = notice_directory(root.as_path());
+    let record: PathBuf = directory.join(record_name(BRANCH, COMMIT));
+    let claim: PathBuf = directory.join(format!("{}.4294967294~1~gone.claim", record_name(BRANCH, COMMIT)));
+    std::fs::rename(record.as_path(), claim.as_path()).expect("the claim a killed command left");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")], "the claim of a dead command is shown");
+    assert_eq!(std::fs::read_dir(directory).expect("directory").count(), 0, "its claim went with the words");
     remove(root.as_path());
 }
 

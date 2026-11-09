@@ -198,6 +198,10 @@ pub mod push_failure_notice;
 /// One record of a failed push as a command holds it,
 /// with the step that shows it and removes it.
 pub mod push_failure_notice_shown_then_removed;
+
+/// The name a command holds a notice's record under while it shows it,
+/// and who may take one over.
+pub mod push_failure_notice_claimed_by_one_command;
 /// The words that say how to change the push deadline,
 /// for the terminal and for the resident commit service.
 pub mod push_deadline_advice;
