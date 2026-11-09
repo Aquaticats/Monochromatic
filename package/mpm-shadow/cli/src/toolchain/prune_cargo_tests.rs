@@ -187,6 +187,34 @@ fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
     assert!(leftover.exists(), "the crate directory was removed with something inside it: {removed:?}");
 }
 
+/// A recursive removal that fails can have unlinked part of the tree before it gave up,
+/// so the report names the directory it was removing and says so,
+/// never that nothing was deleted.
+#[test]
+fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let victim = version_directory(&root, "fd-find", "1.1.0");
+    finish_install(&victim, "fd-find", "1.1.0", &["fd"]);
+    // A directory the removal cannot empty: without its write bit, `remove_dir_all` stops partway through.
+    let locked = victim.join("locked");
+    fs::create_dir(&locked).expect("make");
+    fs::write(locked.join("held"), "").expect("write");
+    set_mode(&locked, 0o500);
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&locked, 0o755);
+    let error = pruned.expect_err("the removal stops partway");
+    assert!(error.message.contains(&victim.display().to_string()), "the report names the directory: {error}");
+    assert!(error.message.contains("part of it may be gone"), "the report hedges what a partial removal left: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a partial removal is not nothing: {error}");
+}
+
 /// A crate no lock names loses every version, so its `current` link goes before them:
 /// a run killed in between leaves no link rather than one naming a version that is deleted.
 #[test]

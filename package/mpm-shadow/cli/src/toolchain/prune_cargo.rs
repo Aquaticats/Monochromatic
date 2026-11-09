@@ -269,10 +269,7 @@ fn prune_archives(
         let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)
             .map_err(|error| return after_removing(error, removed))?;
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(after_removing(
-                ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())),
-                removed,
-            ));
+            return Err(partly_removed(&directory, &error, removed));
         }
         removed.push(directory);
     }
@@ -339,8 +336,29 @@ pub(super) fn after_removing(error: ToolchainError, removed: &[PathBuf]) -> Tool
     if removed.is_empty() {
         return ToolchainError { kind: error.kind, message: format!("{}; nothing was deleted", error.message) };
     }
-    let names: String = removed.iter().map(|path| return path.display().to_string()).collect::<Vec<String>>().join(", ");
-    return ToolchainError { kind: error.kind, message: format!("{}; already removed: {names}", error.message) };
+    let message: String = format!("{}; already removed: {}", error.message, paths_named(removed));
+    return ToolchainError { kind: error.kind, message };
+}
+
+/// What:
+/// The failure of a recursive removal, which may already have unlinked part of the tree,
+/// with what else this run removed.
+/// Why:
+/// `remove_dir_all` unlinks what it can before it stops,
+/// and the directory never reaches the list of removed directories,
+/// so the report must name it and say that part of it may be gone,
+/// whatever that list holds.
+fn partly_removed(directory: &Path, error: &std::io::Error, removed: &[PathBuf]) -> ToolchainError {
+    let mut message: String = format!("cannot remove {}: {error}; part of it may be gone", directory.display());
+    if !removed.is_empty() {
+        message.push_str(&format!(", and already removed: {}", paths_named(removed)));
+    }
+    return ToolchainError::failure(message);
+}
+
+/// The removed directories as one list of paths, for a report.
+fn paths_named(removed: &[PathBuf]) -> String {
+    return removed.iter().map(|path| return path.display().to_string()).collect::<Vec<String>>().join(", ");
 }
 
 /// What:
@@ -412,10 +430,7 @@ pub fn prune_toolchain(
     let mut removed: Vec<PathBuf> = Vec::new();
     for (_crate_name, _version, directory) in planned {
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(after_removing(
-                ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())),
-                &removed,
-            ));
+            return Err(partly_removed(&directory, &error, &removed));
         }
         removed.push(directory);
     }
