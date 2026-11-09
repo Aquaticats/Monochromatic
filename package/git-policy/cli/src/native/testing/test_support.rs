@@ -179,6 +179,29 @@ pub(crate) fn own_group(child: &std::process::Child) {
     THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
 }
 
+/// What:
+///  Run `work` on its own thread and answer its result,
+///  or nothing when it did not finish within five seconds.
+/// Why:
+///   A read of a named pipe waits for a writer that never comes,
+/// and a control that called such a read
+///  directly would hold the suite for ever instead of failing;
+/// the deadline turns the wait into a failure the control
+///  can name,
+/// and the thread the read holds is abandoned with the process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await finishedWithin(() => readPlainText(path)); // undefined when five seconds passed
+/// ```
+pub(crate) fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
+    return receiver.recv_timeout(std::time::Duration::from_secs(5)).ok();
+}
+
 /// This test process's own executable,
 /// for the helper processes a control starts from the test binary.
 ///  A test starts the test binary,
