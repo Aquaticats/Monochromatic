@@ -3444,6 +3444,19 @@ but their own timing assertions
 (`the_runner_stops_waiting_for_a_job_at_its_ceiling` asserts `waited < ceiling * 20`)
 are the same class of wall-clock bound and are left for their own change.
 
+Checked on the final tree of this branch (2026-11-08T22:40:00-05:00):
+`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast` ran 4,768 tests,
+4,766 passed,
+8 skipped,
+and two failed outside this module:
+`landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+got an empty list where it expected a wait (`service_index_lock_tests.rs:232`),
+and `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+hit the unit-test watchdog at 120 s (`the unit-test run exceeded 120s: a test is stuck`).
+Both pass alone (2.5 s and 21.6 s),
+which is the same contention shape this section corrected in the standards-review controls,
+and neither module is changed here.
+
 Owner question:
 `package/git-policy/cli/SPEC.md:5471` says a commit prepares
 "in parallel with other commits and without the real index lock",
