@@ -555,8 +555,13 @@ fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<Tak
 /// so the write waits for
 ///  a holder first,
 /// bounded and naming it (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 2);
-///  a lock that outlasts the bound leaves everything as it was and the record for the next command,
+/// finding 2)
+///  when part of the merge is already in the checkout;
+/// a merge with nothing of itself in the checkout does not wait at
+///  all,
+/// because the next command finishes it once the lock is free
+/// (finding 3 of the merge-and-pull audit of 2026-11-09).
+///  A lock that outlasts the bound leaves everything as it was and the record for the next command,
 /// and a lock whose PID file
 ///  names a process that no longer runs is cleared on the commit service's proof of disuse,
 /// so the merge happens
