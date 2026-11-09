@@ -5137,6 +5137,27 @@ the runner's jobs on the runtime"):
   the borrowed state each pure-file site lends the blocking runner,
   and the live lines an item says,
   which a `'static` blocking job cannot carry.
+- After the three pure-file sites
+  (2026-11-08T21:47:00-05:00,
+  "Step T12,
+  the line path and the state of the pure-file sites"):
+  an item of an awaited run owns its line sink (`LinesToTheConsumer<R>`,
+  which it may move into a `'static` job),
+  and the three sites that lend the blocking runner borrowed state are on
+  `run_ordered_awaiting_on_the_runtime`
+  (`worktree/worktree_trash_entries.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `worktree/worktree_convert_command.rs`),
+  each with the synchronous face its callers still use.
+  What is left of item 3 is `worktree/worktree_copying/` and the copy and repair sites of
+  `foundation/side_by_side_threads.rs`,
+  then item 2 (the landing's handlers and `landing/service_round.rs`),
+  then T13's guards.
+  One thing a later conversion must copy:
+  a job of the blocking pool is inside the runtime,
+  so a bridge that starts a child (`output_of_blocking`) refuses there;
+  `LinuxPlatform::with_its_conversion_environment_settled` is the shape that answers such a
+  question before the run instead.
 
 ### Step T12, the line path and the state of the pure-file sites, 2026-11-08T21:47:00-05:00
 
