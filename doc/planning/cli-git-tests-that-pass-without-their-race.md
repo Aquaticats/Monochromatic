@@ -19,7 +19,8 @@ and restoring.
 Nothing was changed by the audit itself.
 No production code and no existing test was different after it:
 every plant was removed again and `git status --short` was empty after each one.
-The findings were acted on afterwards, in
+The findings were acted on afterwards,
+in
 "What became of each finding (2026-11-09T03:13:07-05:00)" below,
 which quotes the failing output of every control that changed.
 
@@ -132,7 +133,8 @@ $ mise run //package/git-policy/cli:native:test:host -- the_budget_of_the_host_b
      Summary [  17.944s] 4 tests run: 0 passed, 4 failed, 4891 skipped
 ```
 
-All four failed, each on its own message.
+All four failed,
+each on its own message.
 
 ### Finding 4: a second drain is an event the first one reports
 
@@ -187,7 +189,8 @@ $ mise run //package/git-policy/cli:native:test:host -- a_wait_that_has_ended_is
      Summary [   0.197s] 1 test run: 0 passed, 1 failed, 4894 skipped
 ```
 
-Four planted runs of four failed, at turn 1 or turn 2.
+Four planted runs of four failed,
+at turn 1 or turn 2.
 
 `the_reporter_prints_nothing_inside_the_grace`
 had an hour of grace,
@@ -214,34 +217,54 @@ the reason and the measured figure are written beside the value.
 Every figure is a single run on this host at a load average of 47,
 so none of them is called a spread.
 
-- `push_progress_tests.rs`, `a_tree_that_moves_nothing_stalls_at_its_window`:
-  the report now has to carry the bytes the meter counted, which is progress and not a clock.
+- `push_progress_tests.rs`,
+  `a_tree_that_moves_nothing_stalls_at_its_window`:
+  the report now has to carry the bytes the meter counted,
+  which is progress and not a clock.
   The ceiling stays because the detector itself reads the wall clock,
   and nothing about the tree's progress bounds how late a loaded host wakes the poll loop.
-  Measured: reported at 1.7 s for a 1.2 s window, against a ceiling of 4.2 s.
-- `bounded_push_tests.rs`, `a_push_that_ignores_the_stop_request_is_killed_after_the_grace`:
+  Measured:
+  reported at 1.7 s for a 1.2 s window,
+  against a ceiling of 4.2 s.
+- `bounded_push_tests.rs`,
+  `a_push_that_ignores_the_stop_request_is_killed_after_the_grace`:
   kept as a liveness guard.
   What the child does after it stops answering the request is not a sign of progress the control can read.
-  Measured: 0.66 s for a deadline and grace of 0.6 s, against a ceiling of 20 s.
-- `lfs_output_mask_tests.rs`, `a_long_line_is_masked_in_linear_time`:
-  kept. The claim is a work rate,
+  Measured:
+  0.66 s for a deadline and grace of 0.6 s,
+  against a ceiling of 20 s.
+- `lfs_output_mask_tests.rs`,
+  `a_long_line_is_masked_in_linear_time`:
+  kept.
+  The claim is a work rate,
   and a count of what the scan looked at would need a seam in the mask.
-  Measured: 0.08 s, against a ceiling of 30 s that a quadratic scan is still minutes away from.
-- `service/journald_native_tests.rs`, `a_full_journal_stream_drops_the_line_instead_of_waiting`:
+  Measured:
+  0.08 s,
+  against a ceiling of 30 s that a quadratic scan is still minutes away from.
+- `service/journald_native_tests.rs`,
+  `a_full_journal_stream_drops_the_line_instead_of_waiting`:
   removed.
-  The witness is the refusal and the count of lines the stream took before it, which is progress;
+  The witness is the refusal and the count of lines the stream took before it,
+  which is progress;
   the 5 s ceiling could not fire for the writer it named,
   a writer that waited for room,
   because such a writer never returns to the loop that reads the clock.
   A writer that blocked instead of refusing hangs the control,
   which the unit-test watchdog reports and which is owned elsewhere.
-- `repository_link_check_walk_tests.rs`, `a_stalled_drive_is_answered_within_the_deadline`:
-  kept. The deadline passing is what ends the wait,
+- `repository_link_check_walk_tests.rs`,
+  `a_stalled_drive_is_answered_within_the_deadline`:
+  kept.
+  The deadline passing is what ends the wait,
   so a slow host only makes the ceiling easier to hold.
-  Measured: 0.31 s for a 0.3 s deadline, against a ceiling of 3 s.
-- `binary/binary_commit_timing_tests.rs`, `exit_of`,
-  and `landing/service_index_wait_tests.rs`, the release that wakes a wait:
-  unchanged, for the reasons above them:
+  Measured:
+  0.31 s for a 0.3 s deadline,
+  against a ceiling of 3 s.
+- `binary/binary_commit_timing_tests.rs`,
+  `exit_of`,
+  and `landing/service_index_wait_tests.rs`,
+  the release that wakes a wait:
+  unchanged,
+  for the reasons above them:
   a poll that fails loudly at its patience,
   and an interval wide enough to separate an event from a poll.
 
@@ -274,11 +297,42 @@ The two names differ only in the pass counter,
 which is the correct pass the control compared against.
 The names are now read after the drop,
 and what is asserted of them is what a returned task leaves:
-one claim, under a renewal's name.
+one claim,
+under a renewal's name.
 That the task returned is the assertion that was already there,
 and the task's own ending is what says nothing can rename after the line.
 Six runs of six passed with the reproduction's pause counted as allowed work,
 and the pause is gone with it.
+
+## How the branch's runs stand (2026-11-09T05:00:38-05:00)
+
+The package's two gates and one whole-suite run,
+each in a scope of its own
+and each written to a file rather than to a pipe,
+because a command piped into `tail` exits with `tail`'s status and reports success for anything.
+
+```console
+$ mise run //package/git-policy/cli:native:clippy
+exit=0  Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.34s
+
+$ mise run //package/git-policy/cli:lint:monochromatic-lint
+exit=0  Finished in 50.41s
+
+$ mise run //package/git-policy/cli:native:test:host
+exit=100  Summary [ 587.487s] 4883 tests run: 4881 passed (1 slow), 2 timed out, 12 skipped
+```
+
+The two timeouts are `testing::run_progress::tests::a_stuck_run_ends_its_process`
+and `testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive`,
+neither of which this branch's commits touch:
+both `run_progress_tests.rs` and the watchdog it drives are byte-identical to the base of this branch,
+and neither imports the test support this branch changed.
+They are the watchdog's cost,
+which another branch owns:
+alone on this branch they pass in 1.5 s each,
+and `origin/main` already gives the child they start a 45 s deadline
+and records this failure mode in `doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`,
+so the run to judge them by is the one after main is merged in.
 
 ## What was searched for
 
