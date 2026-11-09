@@ -7,6 +7,9 @@
 //! The patch is the whole file,
 //! so one wrong byte is a wrong commit.
 //!
+//! `manifest-text.unit.test.ts` was deleted on 2026-10-13 in `a2b56c548c` with the TypeScript wrapper,
+//!  and `git show a2b56c548c^:package/git-policy/repository/src/manifest-text.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(replaceManifestVersion({ path, text, from: '1.0.0', to: '1.0.1' })).toBe('...');

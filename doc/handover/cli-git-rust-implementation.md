@@ -125,15 +125,18 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T00:56:19-05:00)
+#### Reviews and landings in progress (2026-11-09T02:04:23-05:00)
 
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`,
-  at `66c35466ea`:
-  the cross-vendor review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-2-sol.txt`)
-  says a rewrite reported as never started can stay queued in Tokio and run later,
-  so the report's promise that the index stayed as it was can be false.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
+  the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
+  names a final wake that can be missed so a run waits for ever,
+  index preparation that can block the runtime before its first await,
+  and refused jobs that later run outside the blocking-job budget.
   Not ready to merge.
-  Run 3 of its agent is on that finding.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `tokio-pure-file-sites-on-the-awaited-runner` as run 4,
+  with the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-push-route-records-and-ceilings`,
   at `5b0393dbf6`:
   its agent reports all eleven audit findings fixed,
@@ -144,30 +147,27 @@ The old tree kept for the rollback stays until the owner deletes it.
   362 of 362 tests pass on top of main,
   and the cross-vendor review (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-1-sol.txt`) names five defects in the watchdog and its controls,
   all in test code or test builds.
-  It waits for a free agent slot:
-  resume the run `unit-test-watchdog-under-contention` as run 2,
-  with `unit-test-watchdog-round-2-prompt.md` and the session file named in run 1's `summary.json`.
-- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
-  at `3509de3e01`:
-  the cross-vendor review of its latest round
-  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
-  names seven more defects,
-  among them a failed reset that commits a deletion and an approved push left stranded.
+  Run 2 of its agent is on them.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
+  the cross-vendor review of its fourth round
+  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`)
+  names more defects,
+  among them a tab in a file name that makes the next commit revert another file,
+  and a promotion that publishes a commit whose gate then blocks it.
   Not ready to merge.
-  This one waits for a free agent slot,
+  Waits for a free agent slot,
   since all twenty are taken:
-  resume the run `landing-route-findings-fixed` as run 4,
-  with `landing-route-findings-fixed-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+  resume the run `landing-route-findings-fixed` as run 5,
+  with `landing-route-findings-fixed-round-5-prompt.md` and the session file named in run 4's `summary.json`.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
-  at `493e72d1e9`:
-  the library suite passed 4835 of 4835.
-  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
-  names three more ways a new worktree can end up unfilled or filled by the wrong command,
-  so it is not ready to merge.
-  This one waits for a free agent slot,
+  at `6f11d10f45`:
+  the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
+  names two realistic record defects and three races that need another program to move a worktree inside a small window.
+  Waits for a free agent slot,
   since all twenty are taken:
-  resume the run `copy-route-records-before-git` as run 6,
-  with `copy-route-records-round-6-prompt.md` and the session file named in run 5's `summary.json`.
+  resume the run `copy-route-records-before-git` as run 7,
+  with `copy-route-records-round-7-prompt.md` and the session file named in run 6's `summary.json`.
+  After that round it lands.
   The fix for a ladder rung that already made its destination has no test of its own,
   and the two-process race has no failing test,
   because nothing can hold a wrapper at a named step.
@@ -176,10 +176,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   names defects in the stop,
   among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
   Not ready to merge.
-  This one waits for a free agent slot too:
-  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 2,
-  with `scratch-commit-ceiling-round-2-prompt.md` and the session file named in run 1's `summary.json`.
-  It raises the ceiling to 16,332 ms,
+  Run 2 of its agent is on them.
+  The branch raises the ceiling to 16,332 ms,
   makes the stop keep looking for a step that starts late,
   and logs what ran below each step.
   Of the three slow commits,
@@ -188,10 +186,47 @@ The old tree kept for the rollback stays until the owner deletes it.
   The cause of 36,651 ms is not established.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
-- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
-  `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
+- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/merge-route-round-2-sol.txt`)
+  says a branch that advances discards a merge already reported as saved,
+  and that finishing a saved merge can overwrite a staged-only edit.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `merge-route-findings-fixed` as run 3,
+  with `merge-route-findings-fixed-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+- `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
   and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   their agents are working through their reviews.
+- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
+  `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`
+  and `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
+  their agents fix what these audits on main found:
+  `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`,
+  `doc/planning/cli-git-worktree-add-route-findings-on-main.md`
+  and `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
+  The locks audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
+  ("cli-git never deletes a lock") waits for the owner.
+
+- `fix/git-policy-cli-service-work-items-keep-path-bytes`:
+  it breaks `provisioning_notes_which_worktree_the_units_are_for`,
+  and its cross-vendor review (`${HOME}/temp/agent/reviews/service-work-items-path-bytes-sol.txt`) names five more defects.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `service-work-items-keep-non-utf8-paths` as run 2,
+  with `service-work-items-path-bytes-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Issue 6005 is commented on or closed after it lands.
+- `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
+  three runs ended within minutes on a Cloudflare 520 or a request timeout,
+  and Pi's automatic retry is off in the owner's settings.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start a run with `driver-resumes-after-provider-errors-prompt.md`.
+- Filtered test runs of the branches on top of main abort tests near 125 seconds,
+  and the same tests pass alone.
+  `fix/git-policy-cli-unit-test-watchdog-judges-progress` changes that watchdog,
+  so it lands before the branches its aborts cloud are judged.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
@@ -214,6 +249,17 @@ where it lives and its evidence.
 The owner:
 "Pi doesn't have a limit to number of concurrent subagents.
 In practice it's 16."
+The owner later:
+"I said 16 is practical,
+based on a rough estimation.
+Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20."
+and,
+on going higher:
+"no,
+that's definitely going to blow up."
+The trial's result goes in [`questions-for-the-owner.md`](questions-for-the-owner.md).
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
@@ -5265,6 +5311,25 @@ so `git clean -fdx` deletes them and a plain `git checkout <branch>` can replace
 An alias reaches no guard,
 `git stash drop` in a clean linked worktree discards the repository's stash,
 and `git branch -D` is unguarded.
+
+No review covers the settings and dependent-version route either:
+the settings file the wrapper reads before anything else,
+the Git configuration snapshot,
+the rules files the configuration names,
+and the dependent bumps a commit is supposed to make.
+Its audit,
+with two findings ranked by what they risk losing,
+both reproduced,
+is `doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`
+(2026-11-09;
+main at `70b67c6ef2`).
+The ripple reads whichever `packages:` line comes first in the generated
+registry configuration,
+so a second list above the publish set leaves both `check` and `fix` silent
+about a stale dependent;
+and a wrapped commit never plans a bump at all,
+against the owner's decision of 2026-09-15,
+which `SPEC.md` now contradicts.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

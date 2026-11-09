@@ -162,6 +162,9 @@ when idle.
 `FILE_ENFORCER_IDLE_SECONDS` sets the idle time of servers a command starts (default 120);
 containers and CI set it low for
 deterministic shutdown.
+A value that is not a whole number of seconds is a usage error (exit 2)
+whose diagnostic names the variable and the rejected value,
+never a silent fall back to the default.
 The socket lives under `$XDG_RUNTIME_DIR/file-enforcer`,
 or `<cache dir>/file-enforcer/run` when that variable is unset
 or unusable.
