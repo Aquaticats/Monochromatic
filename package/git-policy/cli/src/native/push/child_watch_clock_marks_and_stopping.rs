@@ -296,7 +296,8 @@ pub(crate) fn the_wait_after_the_kill(elapsed: Duration, tree: &[TreeMember]) ->
 /// and the waiting thread reports the
 ///  bound.
 /// The processes the child started end with it.
-///  Its root is pinned once, from the record read before any wait,
+///  Its root is pinned once,
+/// from the record read before any wait,
 /// so a signal reaches that process and never one that took its
 ///  number afterwards,
 /// and every wait of the stop is bounded.

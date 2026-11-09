@@ -888,8 +888,10 @@ fn the_output_of_a_step_is_released_once_it_is_read() {
 ///  The wait after the kill had no bound of its own,
 /// so a member whose record could not be read kept the stop waiting for as
 ///  long as the process lived against a kill that was never sent.
-/// The three answers this has to give are the wait inside the grace, the wait
-///  past the grace with nothing in uninterruptible sleep, and the wait past the stop's ceiling.
+/// The three answers this has to give are the wait inside the grace,
+/// the wait
+///  past the grace with nothing in uninterruptible sleep,
+/// and the wait past the stop's ceiling.
 #[cfg(target_os = "linux")]
 #[test]
 fn the_wait_after_the_kill_is_bounded() {
