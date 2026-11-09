@@ -82,8 +82,7 @@ const INDEX_MAGIC: [u8; 4] = *b"DIRC";
 /// Where the entry count sits in the index header.
 const INDEX_COUNT_AT: usize = 8;
 
-/// The prefix of the only line a worktree's `.git` file holds.
-const POINTER_PREFIX: &str = "gitdir: ";
+
 
 /// What:
 ///  How many entries an index file holds,
@@ -184,11 +183,11 @@ fn add_is_finished(destination: &Path, admin: &Path) -> bool {
 /// ```ts
 /// const line = readFileSync(join(destination, '.git'), 'utf8'); return line.startsWith('gitdir: ') ? resolve(destination, line.slice(8).trim()) : undefined;
 /// ```
-fn registration_directory(destination: &Path) -> Option<PathBuf> {
-    let pointer: String = std::fs::read_to_string(destination.join(POINTER)).ok()?;
-    let named: &str = pointer.lines().next()?.strip_prefix(POINTER_PREFIX)?;
-    let target: &Path = Path::new(named.trim_end());
-    let resolved: PathBuf = if target.is_absolute() { target.to_path_buf() } else { destination.join(target) };
+pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
+    // Git's own reader, on bytes (`worktree_add_binding::pointer_target`): the rest of the file after the prefix, with only
+    //  its trailing newlines removed, so a path holding a newline is whole and the remedy never names another repository.
+    let pointer: Vec<u8> = std::fs::read(destination.join(POINTER)).ok()?;
+    let resolved: PathBuf = crate::worktree_add_binding::pointer_target(destination, pointer.as_slice()).ok()?;
     return resolved.is_dir().then_some(resolved);
 }
 

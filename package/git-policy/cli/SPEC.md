@@ -1762,8 +1762,20 @@ while an index with no entries belongs to a tree with nothing to write,
 so a destination holding only its `.git` file is whole,
 which is what a worktree at a commit with an empty tree looks like after every step finished.
 A record written before the add was bound carries only the destination,
-so the `gitdir:` line of the destination's own `.git` file names the registration the proof reads,
+so the `gitdir:` pointer of the destination's own `.git` file names the registration the proof reads,
 and an add killed between Git's registration and that record is reported and kept like a bound one.
+The pointer is read as Git reads it
+(`read_gitfile_gently`,
+`setup.c`):
+on bytes,
+everything after `gitdir: ` with only the newlines at its end removed,
+so a path that holds a newline is whole and the printed remedy names the
+registration it means;
+a reader that took the first line would truncate such a path at the newline,
+and the
+ truncated name can be a directory that exists,
+another repository's,
+whose lock the printed step would then clear.
 The proof cannot see a process filling the destination beside an index that was written before it started
 (another program's `git read-tree` without `-u`,
 then a copy),

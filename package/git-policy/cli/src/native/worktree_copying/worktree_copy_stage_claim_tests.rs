@@ -988,3 +988,38 @@ fn the_lock_removal_instruction_clears_only_the_lock_it_names() {
     assert!(decoy.join(".git/worktrees/topic/index.lock").exists(), "another repository's lock at the path the shell expands the name to is untouched: {text}");
     remove(root.as_path());
 }
+
+/// What:
+///  The registration a destination's pointer names is read the way Git reads it,
+/// on bytes,
+/// so a
+///  path holding a newline is whole and a remedy never names another repository.
+/// Why:
+///   Git reads the rest of the file after `gitdir: `,
+/// removing only the newlines at its end
+///  (`read_gitfile_gently`,
+/// `setup.c`).
+/// A reader that takes the first line truncates such a path,
+/// and the truncated name
+///  can be a directory that exists,
+/// another repository's,
+/// so the lock-removal step printed for the person would clear
+///  the wrong lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(registrationDirectory(destination)).toEqual(root.join('other/.git\nowner/repo/.git/worktrees/topic'));
+/// ```
+#[test]
+fn a_registration_named_across_a_newline_is_read_as_git_reads_it() {
+    let root: PathBuf = fixture("claim-pointer-newline");
+    let admin: PathBuf = root.join("other/.git\nowner/repo/.git/worktrees/topic");
+    std::fs::create_dir_all(admin.as_path()).expect("the registration the pointer names");
+    // The truncated name is a directory too, which is what makes a wrong reader look right.
+    std::fs::create_dir_all(root.join("other/.git").as_path()).expect("the directory the truncated name reaches");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    assert_eq!(registration_directory(destination.as_path()), Some(admin), "the whole path the pointer names, as Git reads it");
+    remove(root.as_path());
+}

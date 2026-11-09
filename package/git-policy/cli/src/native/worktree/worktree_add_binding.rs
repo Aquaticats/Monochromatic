@@ -309,9 +309,11 @@ fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
 /// ```ts
 /// const target = pointerTarget(destination, pointerBytes); // throws a reason
 /// ```
-fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String> {
+pub(crate) fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String> {
     let shown: String = destination.display().to_string();
-    let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer);
+    // Git reads the rest of the file after the prefix and drops only the newlines at its end (`read_gitfile_gently`,
+    //  `setup.c`), so a path holding a newline is whole and a pointer written with CRLF names the same place.
+    let line: &[u8] = without_trailing_newlines(pointer);
     let Some(named) = line.strip_prefix(b"gitdir: ") else {
         return Err(format!("{shown}/.git is not a gitdir pointer"));
     };
@@ -319,6 +321,26 @@ fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String>
         Ok(resolved) => Ok(resolved),
         Err(()) => Err(format!("the pointer in {shown}/.git climbs out of the file system root")),
     };
+}
+
+/// What:
+///  The bytes of a pointer without the newlines that end it.
+/// Why:
+///   Git drops every trailing `\n` and `\r` (`read_gitfile_gently`,
+/// `setup.c`) and keeps the rest,
+/// so a path that
+///  holds a newline stays whole and a pointer written with CRLF names the same place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (bytes.at(-1) === 10 || bytes.at(-1) === 13) bytes = bytes.subarray(0, -1);
+/// ```
+fn without_trailing_newlines(bytes: &[u8]) -> &[u8] {
+    let mut end: usize = bytes.len();
+    while end > 0 && (bytes[end - 1] == b'\n' || bytes[end - 1] == b'\r') {
+        end -= 1;
+    }
+    return &bytes[..end];
 }
 
 /// The bytes of the file `name` of the held directory,
