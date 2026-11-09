@@ -7,9 +7,10 @@
 # fontconfig/freetype2; runCargo runs on the host with the bindgen/zig env set
 # when all are present, else containerCargo runs the same cargo command in podman
 # (package dir bind-mounted at /work, cargo registry and Ghostty git cache in a
-# named volume, `label=disable` to skip SELinux relabeling). The *:container tasks
-# call containerCargo directly to force the podman path regardless of host
-# libraries; verify:container is the umbrella assertion.
+# named volume, the repository-root clippy.toml mounted read-only at /clippy-conf
+# and named by CLIPPY_CONF_DIR, `label=disable` to skip SELinux relabeling). The
+# *:container tasks call containerCargo directly to force the podman path
+# regardless of host libraries; verify:container is the umbrella assertion.
 # Why podman and not mise-managed deps (conda route rejected):
 # see ../../../doc/decision/desktop-app-podman-build.md
 
@@ -67,10 +68,16 @@ const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [
 const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 // containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+// The repository-root clippy.toml is the only home of the fleet-wide disallowed-methods ban that the crate's
+// [lints.clippy] only activates, and clippy reads the nearest clippy.toml from CLIPPY_CONF_DIR or CARGO_MANIFEST_DIR up
+// the directories (doc/troubleshooting/clippy-toml-unstable-note.md). The container mounts only the package directory at
+// /work, so the file is mounted read-only outside it and named by CLIPPY_CONF_DIR; a mount over /work/clippy.toml would
+// leave an empty path in the host package directory instead.
+const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
 const containerCargo = (cargoArgs) => {
   fetchGhosttyOfflineInputs()
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', `${process.cwd()}:/work`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', '--env', 'GHOSTTY_SOURCE_DIR=/work/target/ghostty-offline/source', '--env', 'GHOSTTY_ZIG_SYSTEM_DIR=/work/target/ghostty-offline/packages', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', `${process.cwd()}:/work`, '--volume', `${rootClippyConfig}:/clippy-conf/clippy.toml:ro`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', '--env', 'GHOSTTY_SOURCE_DIR=/work/target/ghostty-offline/source', '--env', 'GHOSTTY_ZIG_SYSTEM_DIR=/work/target/ghostty-offline/packages', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { fetchGhosttyOfflineInputs(); execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 """
