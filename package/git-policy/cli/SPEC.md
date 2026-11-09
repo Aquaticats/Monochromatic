@@ -8816,14 +8816,27 @@ and the executable does not read the name it was started under.
   so no hook runs in the shadow whatever the
   real config defines,
   and the native commit repeats the hooks-off hooks path after the caller's global options.
-- The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
-  commit ...` with no `--work-tree`:
+- The native commit runs `git <caller global options> --git-dir=<shadow> -c include.path=<scratch>/native-commit.config
+  -c core.hooksPath=/dev/null/cli-git-no-hooks commit ...` with no `--work-tree`:
   the shadow's `config` names the work tree.
   A caller's `-c core.worktree` cannot redirect it:
   with an explicit `--git-dir`,
   Git reads the work tree from the git
   directory's own config file only (measured on Git 2.56.0),
   and the wrapper removes `GIT_WORK_TREE` from the environment.
+- `native-commit.config` in the commit's scratch directory states every entry of the keys native `git commit`
+  reads that the invocation resolved,
+  in the order Git resolved them,
+  because an `includeIf` condition that names the real Git directory no longer matches in the shadow.
+  The entries travel in one included file and not as `-c` settings:
+  a `-c key=value` argument stops a key at its first equals sign,
+  so a subsection such as
+  `[trailer "review=bot"]` would lose its configuration,
+  and an argument stops at the platform's single-argument limit,
+  which a configured value can exceed (measured on Git 2.56.0:
+  262144 bytes is
+  `Argument list too long` as one argument,
+  and reads back from the file unchanged).
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit,
   decided from the configuration snapshot the commit already holds:
