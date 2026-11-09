@@ -116,12 +116,17 @@ function textStream(content: string,): AsyncIterable<AssistantMessageEvent> {
  
  @example
  ```ts
- toolStream({ approved: true });
+ toolStream({ argumentsValue: { approved: true } });
  ```
  */
 function toolStream(
-  argumentsValue: unknown,
-  toolName = TOOL.name,
+  {
+    argumentsValue,
+    toolName = TOOL.name,
+  }: {
+    readonly argumentsValue: unknown;
+    readonly toolName?: string;
+  },
 ): AsyncIterable<AssistantMessageEvent> {
   return eventStream([{
     type: 'toolcall_end',
@@ -188,7 +193,7 @@ await describe({
       fn: async () => {
         /** Deterministic provider transport. */
         const transport = scriptedTransport([
-          toolStream({ approved: true, feedback: 'complete', },),
+          toolStream({ argumentsValue: { approved: true, feedback: 'complete', }, },),
         ],);
         /** Initial structured result. */
         const result = await runStructuredToolRequest({
@@ -256,7 +261,7 @@ await describe({
             signal: structuredReviewSignal({ timeoutMs: TEST_TIMEOUT_MS, },),
             toolName: TOOL.name,
             tool: TOOL,
-            testTransport: scriptedTransport([toolStream({}, 'different_tool',),],),
+            testTransport: scriptedTransport([toolStream({ argumentsValue: {}, toolName: 'different_tool', },),],),
           },);
         },);
         expect(error,).toBeInstanceOf(Error,);
