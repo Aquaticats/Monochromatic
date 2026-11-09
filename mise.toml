@@ -346,17 +346,18 @@ run_playwright = """
 const { execFileSync } = await import('node:child_process')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/container-limit/core/src/index.ts')).href)
+// The shared pnpm store, mounted read-only at the path this checkout's node_modules links name, so `npx playwright`
+// resolves the workspace's own Playwright instead of nothing (package/test-harness/core-matrix/src/pnpm-store-mount.ts).
+const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/test-harness/core-matrix/src/pnpm-store-mount.ts')).href)
 // 2 GiB and 2 CPUs are package/test-harness/core's bound for its browser tests; 2048 processes is what podman run --help prints as the
 // default, so today's effective cap becomes explicit (browsers start many threads, and threads count).
-// Measured 2026-11-08T19:40:29-05:00: not at all; the run failed before any browser started, because this checkout's
-// node_modules links into ${HOME}/.local/share/pnpm/store, which the container does not mount, and the local
-// monochromatic-playwright image carries Playwright 1.63.0 while the workspace pins 1.65.0. See
-// doc/handover/container-limits-everywhere.md, section Measured runs on this host.
+// Measured 2026-11-09T01:52:37Z: the browsers start and every test runs once the store is mounted. Before that mount the
+// run failed before any browser started (doc/handover/container-limits-everywhere.md, section Measured runs on this host).
 const playwrightBound = { memory: '2g', cpus: 2, pidsLimit: 2048 }
 const runPlaywright = (config, extraFlags = []) => {
   execFileSync('mise', ['run', 'prepare:playwright'], { stdio: 'inherit' })
   const args = parseUsageArgs(process.env.usage_args ?? '')
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...args], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, ...pnpmStoreMountArguments(), '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...args], { stdio: 'inherit' })
 }
 """
 
@@ -1028,7 +1029,9 @@ shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout_packages}}"
 
 # Applies the whitespace fixes of monochromatic-lint (plain `--fix`: semantic-line-breaks inserting
-# breaks in Markdown and in rustdoc, which changes no token) over the whole tree or the given paths.
+# breaks in Markdown and in rustdoc; the only added bytes are a line break and the `>` or `///` markers
+# of the container the line continues, which are syntax and not words) over the whole tree or the
+# given paths.
 # Fixes that rewrite content (fence languages, `$ ` prompts, link styles, trailing heading punctuation,
 # bare URLs, reference definitions) wait for `monochromatic-lint --fix-content <paths>`, which this task never
 # runs; their findings stay reported. Rationale: doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md.
@@ -1040,7 +1043,7 @@ run = "{{vars.fanout_packages}}"
 # format.
 [tasks."format:monochromatic-lint"]
 hide = true
-description = "Apply monochromatic-lint whitespace fixes (plain --fix, no token changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
+description = "Apply monochromatic-lint whitespace fixes (plain --fix, no word changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
 # No usage spec: mise appends post-`--` args after `--fix` as a real argv vector.
 # The linter walks `.` when no paths are given.
 run = "monochromatic-lint --fix"
@@ -1389,6 +1392,10 @@ execFileSync('pnpm', ['install'], { stdio: 'inherit' })
 
 # Forge shortcut tasks (forge:dev, forge:seed, forge:stress, prepare:garage) were removed when
 # webapp-forge moved to package-paused/. Re-add them on un-pause.
+# Also re-add the `isomorphic-git` entry to the `catalog:` block in
+# pnpm-workspace.yaml: it was removed on 2026-11-08 because
+# package-paused/webapp-forge/{server,stress}/package.json were its only
+# declarers, and both still say 'catalog:'.
 
 # The canary task was removed when inference-canary moved to package-paused/
 # (superseded by marginlab.ai). Re-add it on un-pause.
