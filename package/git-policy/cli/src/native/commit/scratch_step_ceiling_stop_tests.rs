@@ -35,7 +35,8 @@ fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
 ///  A program the notice's ceiling could not end is recorded in its stop too.
 /// Why:
 ///   Round six of the review:
-///  the stop is written once, by whichever enforcer ended the step first,
+///  the stop is written once,
+///  by whichever enforcer ended the step first,
 ///  so a record that says what could not be ended in one path and not the other
 ///  leaves the person without that fact whenever the notice's thread got there first,
 ///  which is the common case.

@@ -45,7 +45,7 @@ use crate::process_tree::TreeMember;
 /// The signal that ends the step,
 /// what it came to,
 /// and whether the step is still there.
-use crate::member_signalled_through_its_pidfd::{Delivered, has_ended, kill_members, signal_through};
+use crate::member_signalled_through_its_pidfd::{Delivered, has_ended, kill_members, signal_through, unended_in};
 
 /// What:
 ///  What the ceiling came to when it came.
@@ -183,16 +183,20 @@ pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
     // The step is signalled whatever the walk came to: the descriptor names it, and a walk that could not be made says
     // nothing about it (finding 2 of the fourth review).
     let answer: Delivered = signal_through(descriptor, libc::SIGKILL);
-    let _ended_below: Vec<Delivered> = match walked {
+    let ended_below: Vec<Delivered> = match walked {
         Some(below) => kill_members(below.as_slice()),
         None => Vec::new(),
     };
+    // What: The programs below the step that this ceiling could not end.
+    // Why:  A signal the kernel refused leaves the program running, and the stop must say so rather than report a walk
+    //       that ended everything it listed (round six of the review).
+    let below_unended: u32 = unended_in(ended_below.as_slice());
     let came: CeilingCame = match answer {
         Delivered::Sent => CeilingCame::Stopped,
         Delivered::Gone => CeilingCame::TheStepEnded,
         Delivered::Unproven => CeilingCame::Unknown,
     };
-    return TheCeiling { came, below_listed, below_unended: 0 };
+    return TheCeiling { came, below_listed, below_unended };
 }
 
 /// Controls stay out of the release executable.

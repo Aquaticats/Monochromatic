@@ -42,8 +42,9 @@ use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 /// read while its number still names it.
 use crate::process_tree::{TreeMember, descendants_of_read};
 /// Ending what the step started,
-/// each through a descriptor opened while its number still named it.
-use crate::member_signalled_through_its_pidfd::kill_members;
+/// each through a descriptor opened while its number still named it,
+/// and what that came to.
+use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, unended_in};
 /// The grace a stopped child gets before a task of the runtime collects it.
 use crate::bounded_push::STOP_GRACE;
 /// The stop of a push,
@@ -204,7 +205,11 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // The step itself is killed through the child this path still owns and has not reaped,
     // so no process that took its number can be reached.
     let _killed: std::io::Result<()> = owned.kill();
-    let _below_ended = kill_members(walked.as_deref().unwrap_or_default());
+    let ended_below: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
+    // What: The programs below the step that this wait could not end.
+    // Why:  A signal the kernel refused leaves the program running, and the stop must say so rather than report a walk
+    //       that ended everything it listed.
+    let below_unended: u32 = unended_in(ended_below.as_slice());
     // A killed step is reaped here at once unless the kernel holds it in an uninterruptible call;
     // past the grace a task of the runtime collects it, so the kernel's release of it never holds the command.
     let reaped: Option<std::process::ExitStatus> = match tokio::time::timeout(STOP_GRACE, owned.wait()).await {
@@ -221,7 +226,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     {
         return Ok((outcome_of(status), None));
     }
-    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended: 0 })));
+    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended })));
 }
 
 /// What:

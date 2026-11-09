@@ -143,7 +143,8 @@ fn a_step_that_ended_before_the_signal_is_reported_by_its_own_status() {
 ///  leaves that program holding the person's terminal and the agent's socket,
 ///  and a stop that says every program was ended leaves them to find it with `ps`.
 ///  The refusal stands where a descriptor limit makes it real,
-///  and the helper really is left running, which is what the record now says.
+///  and the helper really is left running,
+///  which is what the record now says.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
