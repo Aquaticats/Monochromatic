@@ -203,6 +203,29 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
+/// What:
+///  This test binary started on one test,
+/// with `variable` set so the child knows it is the child.
+/// Why:
+///  A descriptor,
+///  a signal mask and a record of one process belong to that process,
+/// so each control of them runs its own body in a child and
+///  asserts what the parent sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
+/// ```
+pub(crate) fn child_this_test(variable: &str, name: &str) -> std::process::Output {
+    let binary: PathBuf = this_test_binary().expect("the test binary");
+    return std::process::Command::new(binary)
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env(variable, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child test runs");
+}
+
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {

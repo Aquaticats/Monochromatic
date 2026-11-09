@@ -1046,6 +1046,7 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
             withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
             extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
             start_ceiling: crate::wait_ceilings::START_CEILING,
+            units_record_dir: None,
         },
         repository: repository.clone(),
         git_dir: common.clone(),
