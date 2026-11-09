@@ -181,3 +181,31 @@ fn refuses_text_it_cannot_read_by_line() {
         "begins with '[', which opens a value this reader does not read on line 1"
     );
 }
+
+/// A tag on a workload key is refused by line,
+/// never stored as part of the key name:
+/// `!!str packages:` is the key `packages` to a YAML parser,
+/// so keeping the tag would hide a publish set this reader accepted.
+#[test]
+fn refuses_a_tagged_key_instead_of_storing_it() {
+    let text: &str = "\
+auth:
+  oidc:
+    - name: github
+      workloads:
+        - identity:
+            subject: 'repo:example/main'
+          registry: monochromatic-dev
+          packages:
+            - '@s/narrow'
+        - identity:
+            subject: 'repo:example/release'
+          registry: monochromatic-dev
+          !!str packages:
+            - '@s/a'
+";
+    assert_eq!(
+        reason(text),
+        "begins with '!', which opens a key this reader does not read on line 13"
+    );
+}
