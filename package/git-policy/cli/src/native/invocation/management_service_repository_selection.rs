@@ -120,7 +120,7 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
     asking.env("LC_ALL", "C").stdin(std::process::Stdio::null());
     // This start of the real Git says so too, like every other (`started_as_git.rs`).
     crate::started_as_git::mark_real_git_start(&mut asking, crate::started_as_git::StartMode::Child);
-    let asked = crate::captured_child_run_to_its_end::output_of_blocking(&mut asking);
+    let asked = crate::captured_child_run_to_its_end::output_of_within_bound(&mut asking, crate::wait_ceilings::PLUMBING_STEP_CEILING);
     let output = match asked {
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),

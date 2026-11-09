@@ -14,8 +14,6 @@
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 use crate::repo_read_hook::try_metadata;
-/// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -31,6 +29,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 /// `Stdio` selects where a child's stream is connected.
 use std::process::Stdio;
+/// How long a query may run.
+use std::time::Duration;
 
 /// What:
 ///  What one metadata query produced.
@@ -79,21 +79,42 @@ pub fn run_metadata_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
+    return run_metadata_git_within(real_git, arguments, overlay, crate::wait_ceilings::PLUMBING_STEP_CEILING);
+}
+
+/// What:
+///  `run_metadata_git` where the query's own ceiling may be named.
+/// Why:
+///   A query that never answers has nothing else to end it
+/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 5),
+///  and a control needs a ceiling short enough to reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runMetadataGitWithin(realGit, args, overlay, ceiling): Promise<MetadataOutput>;
+/// ```
+pub fn run_metadata_git_within(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    ceiling: Duration,
+) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice()) {
         return Ok(answered);
     }
-    // What: `.stdin(Stdio::null())` connects the child's input to nothing; `.output()`
-    //       captures stdout and stderr and waits. A trailing `?` returns a start failure.
-    // Why:  Only "Git could not be started" is an error here.
+    // What: `.stdin(Stdio::null())` connects the child's input to nothing, and the captured run takes its output into files
+    //       and waits for it under the ceiling. A trailing `?` returns a start failure, or a query that did not answer.
+    // Why:  A query that never answers has no watch and no meter, so its ceiling is the only end it has.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const result = await spawn(realGit, args, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+    // const result = await execWithDeadline(realGit, args, { stdin: 'ignore' }, ceiling);
     // ```
-    let output: std::process::Output = git_command(real_git, arguments, overlay)
-        .stdin(Stdio::null())
-        .output_retrying()?;
+    let mut command: std::process::Command = git_command(real_git, arguments, overlay);
+    command.stdin(Stdio::null());
+    let output: std::process::Output = crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, ceiling)?;
     // `Ok(...)` is the success variant carrying the captured result.
     return Ok(MetadataOutput {
         success: output.status.success(),
