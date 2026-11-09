@@ -104,6 +104,37 @@ fn a_step_that_outlasts_its_ceiling_is_ended_and_reaped_here() {
 }
 
 /// What:
+///  A step that ended by itself between the ceiling and the signal is reported by its own status,
+///  with no ceiling stop beside it.
+/// Why:
+///   That interval is a few instructions wide on a real host,
+///  and a step that finishes there landed:
+///  reading its reaped status as a ceiling kill turns a preparation that succeeded into a failure with nothing committed.
+///  A control holds the step at that instruction,
+///  so the order is the control's and not a clock's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const pid = sh('sleep 0.2; exit 0'); endTheStepBeforeTheSignal(); const [outcome, stop] = await wait(adopt(pid), undefined, 20); expect(outcome).toEqual({ exited: 0 }); expect(stop).toBeUndefined()
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_that_ended_before_the_signal_is_reported_by_its_own_status() {
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(async {
+        // The step ends by itself well after the ceiling, and was adopted inside the runtime so the wait holds its
+        //  descriptor, which is what the control looks at.
+        let mut command: Command = Command::new("sh");
+        command.arg("-c").arg("sleep 0.2; exit 0").stdin(Stdio::null());
+        let step: Child = crate::test_support::spawn_owned(&mut command).expect("a step that ends by itself");
+        a_control_ends_the_step_here();
+        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Duration::from_millis(20), "a step").await.expect("the wait answers");
+    })
+    .expect("the runtime");
+    assert_eq!(outcome, ChildOutcome::Exited(0), "a step that finished between the ceiling and the signal landed, and its own status decides");
+    assert_eq!(a_stop, None, "a step that ended by itself is no ceiling stop");
+}
+
+/// What:
 ///  A program the step started is ended with it,
 ///  and a walk that could not list the programs below the step says so.
 /// Why:

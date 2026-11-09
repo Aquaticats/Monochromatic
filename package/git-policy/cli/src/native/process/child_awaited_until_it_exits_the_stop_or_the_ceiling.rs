@@ -81,6 +81,60 @@ pub struct CeilingStop {
     pub below_listed: bool,
 }
 
+// What:
+//  A control that ends the step in the interval between the ceiling and the signal.
+// Why:
+//   That interval is a few instructions wide on a real host,
+//  so a control that races a real exit proves nothing;
+//  here the wait itself holds the step until the kernel says it ended,
+//  and the status waits for the reap below.
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    /// Whether the next ceiling holds its step until that step has ended by itself.
+    static A_STEP_ENDS_BEFORE_THE_SIGNAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The longest a control's step is waited for once the ceiling has come.
+///  Longer than any step a control starts takes to end,
+/// so a starved runtime delays the control rather than failing it,
+/// and a control whose step never ended fails rather than passing on a window it never made.
+#[cfg(all(test, target_os = "linux"))]
+const A_CONTROLS_BOUND: Duration = Duration::from_secs(30);
+
+/// Arm the next ceiling to hold its step until that step has ended by itself.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn a_control_ends_the_step_here() {
+    A_STEP_ENDS_BEFORE_THE_SIGNAL.with(|armed| { armed.set(true); });
+}
+
+/// What:
+///  Hold the step at the moment between the ceiling and the signal,
+///  when a control asked for it,
+///  until the kernel says the step ended.
+/// Why:
+///   A step that finishes there was ended by its own exit,
+///  and the reap below still collects that status,
+///  which is what the caller must answer with.
+///  The wait is bounded so a control's mistake ends the run with the wait's own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await aControlHoldsTheStepUntilItEnded(owned);
+/// ```
+#[cfg(all(test, target_os = "linux"))]
+async fn a_control_holds_the_step_until_it_ended(owned: &OwnedChild) {
+    if !A_STEP_ENDS_BEFORE_THE_SIGNAL.with(|armed| { return armed.replace(false); }) {
+        return;
+    }
+    let deadline: Instant = Instant::now() + A_CONTROLS_BOUND;
+    while !owned.has_ended_without_reaping() {
+        if Instant::now() >= deadline {
+            return;
+        }
+        sleep(Duration::from_millis(1)).await;
+    }
+}
+
 /// What:
 ///  Wait for `owned` until it ends,
 ///  a stop of the service ends it,
@@ -135,6 +189,11 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // a number cannot be reused while its process holds it, and everything below the step is found by that number only
     // then.
     let walked: Option<Vec<TreeMember>> = i32::try_from(owned.id()).ok().and_then(descendants_of_read);
+    // What: The interval between the ceiling and the signal.
+    // Why:  A step that finishes there was ended by its own exit, and the status the reap collects says so;
+    //       the control holds the step here so that order is its own and not a clock's.
+    #[cfg(all(test, target_os = "linux"))]
+    a_control_holds_the_step_until_it_ended(&owned).await;
     // The step itself is killed through the child this path still owns and has not reaped,
     // so no process that took its number can be reached.
     let _killed: std::io::Result<()> = owned.kill();
