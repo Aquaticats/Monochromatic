@@ -147,18 +147,32 @@ fn observe_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return parse_uv_tool_list(&outcome.stdout).get(&uv_key(tool)).cloned();
 }
 
-/// `rustup toolchain list`,
+/// What:
+/// The listed name of the toolchain this row names,
 /// for the rustup-toolchain route:
-/// the listed toolchain whose name starts with the version.
+/// `rustup toolchain list` prints a channel followed by the host triple,
+/// and the row names the channel.
+/// Why:
+/// The locked version is the release that channel resolved to,
+/// which `rustup` does not name a toolchain by;
+/// reading the listing for the version would take another installed toolchain for this one.
+/// An exact name wins over one with a triple appended,
+/// so a row naming `nightly` is not read as the dated `nightly-2026-10-30` install.
 fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let outcome: RunOutcome = ctx.run(&ctx.request("rustup", &["toolchain", "list"]));
+    let channel: &str = tool.rustup_channel();
+    let with_triple: String = format!("{channel}-");
+    let mut with_a_triple: Option<String> = None;
     for line in outcome.stdout.lines() {
         let name: &str = first_word(line);
-        if !name.is_empty() && name.starts_with(&tool.version) {
+        if name == channel {
             return Some(name.to_string());
         }
+        if with_a_triple.is_none() && name.starts_with(&with_triple) {
+            with_a_triple = Some(name.to_string());
+        }
     }
-    return None;
+    return with_a_triple;
 }
 
 /// The Android command-line tools directory for the locked version,
@@ -307,6 +321,25 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
 }
 
 /// What:
+/// The text an observation of `tool` is compared against:
+/// the rustup channel a `rustup-toolchain` row names,
+/// else the locked version.
+/// Why:
+/// `rustup` reports its toolchains by channel plus host triple,
+/// while every other route reports the version the lock pins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function comparedWithLock(tool: LockedTool): string
+/// ```
+pub fn compared_with_lock(tool: &LockedTool) -> &str {
+    return match tool.declaration.route {
+        Route::RustupToolchain => tool.rustup_channel(),
+        _ => &tool.version,
+    };
+}
+
+/// What:
 /// Whether an installed version satisfies the lock:
 /// equal for most tools,
 /// equal or newer for a repository-published tool.
@@ -322,7 +355,7 @@ pub fn satisfies_lock(tool: &LockedTool, observed: &str) -> bool {
     if is_repository_published(tool) {
         return compare_versions(observed, &tool.version) != Ordering::Less;
     }
-    return version_matches(observed, &tool.version);
+    return version_matches(observed, compared_with_lock(tool));
 }
 
 /// One line of the status report:

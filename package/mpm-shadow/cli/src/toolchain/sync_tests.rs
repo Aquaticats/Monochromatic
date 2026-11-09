@@ -158,6 +158,38 @@ fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
     assert!(!format_sync_report(&report).contains("added the declared"), "{}", format_sync_report(&report));
 }
 
+/// What a lock row whose `packageId` names a channel, and whose version records the release that channel resolved to,
+/// must get from a sync: the toolchain is recognised and its parts are listed under the channel,
+/// so nothing is installed again.
+#[test]
+fn a_toolchain_row_naming_a_channel_is_recognised_and_reconciled_under_that_channel() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust"]);
+    for tool in &mut rig.lock.tools {
+        tool.declaration.package_id = Some("stable".to_string());
+        tool.version = "1.90.0".to_string();
+    }
+    rig.runner.answer("rustup toolchain list", "stable-x86_64-unknown-linux-gnu (active, default)\n", 0);
+    rig.runner.answer(
+        "rustup component list --installed --toolchain stable",
+        "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
+        0,
+    );
+    rig.runner.answer("rustup target list --installed --toolchain stable", "x86_64-unknown-linux-gnu\naarch64-linux-android\n", 0);
+    let report = sync_tools(&rig.context(), None);
+    let lines = rig.runner.lines();
+    assert!(
+        !lines.iter().any(|line| return line.starts_with("rustup toolchain install")),
+        "the channel the lock names is installed, so it is not installed again: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| return line.starts_with("rustup component list --installed --toolchain stable")),
+        "the parts are listed for the channel, not for the release: {lines:?}"
+    );
+    assert!(lines.iter().all(|line| return !line.contains(" add ")), "every declared part is installed: {lines:?}");
+    assert_eq!(report.unchanged, vec!["rust".to_string()], "{report:?}");
+}
+
 #[test]
 fn a_failed_target_add_fails_the_tool_and_keeps_the_component_it_added_to_the_report() {
     let mut rig = Rig::new();

@@ -12,7 +12,7 @@ use super::fakes::{Rig, write_executable};
 use super::fakes_cargo::finish_install;
 use super::layout::tool_install_dir;
 use super::model::OsFamily;
-use super::observe::{format_status, observe_all, observe_tool};
+use super::observe::{format_status, observe_all, observe_tool, satisfies_lock};
 
 
 #[test]
@@ -128,6 +128,41 @@ fn a_rust_toolchain_is_the_listed_name_that_starts_with_the_locked_channel() {
     let tool = rig.lock.tool("rust").expect("tool").clone();
     assert_eq!(observe_tool(&rig.context(), &tool), Some("nightly-2026-10-30-x86_64-unknown-linux-gnu".to_string()));
     rig.runner.answer("rustup toolchain list", "stable-x86_64-unknown-linux-gnu\n", 0);
+}
+
+/// A toolchain row names a channel, and `rustup toolchain list` prints that channel with the host triple:
+/// the listing is read for the channel, never for the release the row records,
+/// or another installed toolchain counts as this one.
+#[test]
+fn a_rust_toolchain_is_the_listed_name_of_the_channel_the_row_names() {
+    let rig = Rig::new();
+    // The row names the channel `stable`, and `1.90.0` is the release that channel resolved to.
+    let mut tool = rig.lock.tool("rust").expect("tool").clone();
+    tool.declaration.package_id = Some("stable".to_string());
+    tool.version = "1.90.0".to_string();
+    rig.runner.answer(
+        "rustup toolchain list",
+        "stable-x86_64-unknown-linux-gnu (active, default)\n1.90.0-x86_64-unknown-linux-gnu\n",
+        0,
+    );
+    let observed = observe_tool(&rig.context(), &tool);
+    assert_eq!(observed, Some("stable-x86_64-unknown-linux-gnu".to_string()), "the channel, not the release, is the toolchain");
+    assert!(
+        satisfies_lock(&tool, observed.as_deref().expect("observed")),
+        "the toolchain the lock names satisfies it"
+    );
+}
+
+/// The channel the row names is absent though a toolchain of the recorded release is installed:
+/// that toolchain is a different one, so the row is not installed.
+#[test]
+fn a_toolchain_of_the_recorded_release_is_not_the_channel_the_row_names() {
+    let rig = Rig::new();
+    let mut tool = rig.lock.tool("rust").expect("tool").clone();
+    tool.declaration.package_id = Some("stable".to_string());
+    tool.version = "1.90.0".to_string();
+    rig.runner.answer("rustup toolchain list", "1.90.0-x86_64-unknown-linux-gnu\n", 0);
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "`stable` is not installed, and 1.90.0 is another toolchain");
 }
 
 #[test]
