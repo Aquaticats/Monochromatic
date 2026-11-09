@@ -7243,7 +7243,8 @@ none is larger than 8 MiB,
 and the `merge` attribute is unspecified,
 set or `text`
 (a driver,
-`-merge` and `merge=binary` keep the merge to their setting).
+`-merge` and `merge=binary` keep the merge to their setting,
+read from the worktree for a merge a person runs and from the tree the merge produced for a merge from objects).
 Git's own limit is `MAX_XDIFF_SIZE`,
 1023 MiB (`xdiff-interface.h` line 14),
 above which its merge calls a file binary
@@ -7504,7 +7505,23 @@ do not,
 each checked against Git 2.56.0 in `repo_read_layout.rs`),
 which costs one Git start in that case.
 The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them.
-A `.gitattributes` that only the second side has is not read (Git takes one tree).
+A `.gitattributes` that only the second side has is not read by `git merge-tree` itself (Git takes one tree),
+but the second pass reads the `merge` attribute from the tree that merge produced,
+so a rule the merge introduces governs the pass:
+the candidates are asked of one `git check-attr --source=<tree>` start,
+and a `--source` outranks `--attr-source` and `GIT_ATTR_SOURCE` in Git 2.56.0.
+The tree is named as that source only where the person named no source above;
+where a person's choice cannot be read, the pass names none.
+A `.gitattributes` that the merge itself left conflicted names no source at all:
+its file in the merge tree holds Git's markers,
+no side's rule can be read from between them,
+and every candidate therefore keeps its conflict,
+so the merge is refused as one that does not resolve.
+A merge whose own `.gitattributes` is settled reads its rules there,
+including one only the second side carries:
+a path its settings exclude (a driver,
+`-merge`,
+`merge=binary`) is left exactly as Git left it.
 The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
 the reconcile merge appends the part lines to the merge commit's message,
 prints them with the push report and sends the entries after the push succeeded,

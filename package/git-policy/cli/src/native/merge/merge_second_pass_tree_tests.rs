@@ -11,6 +11,22 @@ use crate::test_support::{git, git_context, git_text, remove};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 
+/// The variables of a hermetic environment for the attribute-tree choice:
+/// a home of the fixture's own, and no global or system configuration.
+fn hermetic_variables(root: &Path) -> Vec<(OsString, OsString)> {
+    return vec![
+        (OsString::from("HOME"), root.to_path_buf().into_os_string()),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+    ];
+}
+
+/// The attribute-tree choice of a merge from objects over `repo`,
+/// with nothing named by the person and `prefix` as the global options.
+fn probe_of<'a>(repo: &'a Path, prefix: &'a [OsString], variables: &'a [(OsString, OsString)], runner: &'a ContextRunner<'a>) -> AttributeProbe<'a> {
+    return AttributeProbe { directory: repo, global_prefix: prefix, variables, runner };
+}
+
 /// Every conflicted file resolves:
 /// the tree holds the merged bytes,
 /// every other path is as merge-tree wrote it,
@@ -27,7 +43,10 @@ fn a_tree_comes_back_with_the_merged_files_and_nothing_else_changed() {
     let (tree, conflicts) = merge_tree_of(&world);
     let context: GitContext = git_context();
     let common: PathBuf = world.repo.join(".git");
-    let resolved: Resolved = resolve_tree(&runner(&context, world.repo.as_path()), common.as_path(), tree.as_str(), conflicts.as_slice()).expect("every file resolves");
+    let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
+    let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
+    let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
+    let resolved: Resolved = resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).expect("every file resolves");
     assert_eq!(resolved.merged.len(), 2);
     for path in ["a.md", "sub/deep.md"] {
         let blob: String = git_text(world.repo.as_path(), &["show", format!("{}:{path}", resolved.tree).as_str()]) + "\n";
@@ -53,7 +72,10 @@ fn one_file_left_over_returns_nothing() {
     assert_eq!(conflicts.len(), 2);
     let context: GitContext = git_context();
     let common: PathBuf = world.repo.join(".git");
-    assert_eq!(resolve_tree(&runner(&context, world.repo.as_path()), common.as_path(), tree.as_str(), conflicts.as_slice()), None);
+    let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
+    let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
+    let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
+    assert_eq!(resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe), None);
     remove(world.root.as_path());
 }
 
@@ -72,7 +94,9 @@ fn a_git_that_cannot_start_returns_nothing() {
     context.real_git = PathBuf::from("/nonexistent/git");
     let common: PathBuf = world.repo.join(".git");
     let broken: ContextRunner<'_> = runner(&context, world.repo.as_path());
-    assert_eq!(resolve_tree(&broken, common.as_path(), tree.as_str(), conflicts.as_slice()), None);
+    let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
+    let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &broken);
+    assert_eq!(resolve_tree(&broken, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe), None);
     remove(world.root.as_path());
 }
 
@@ -116,6 +140,85 @@ fn the_tip_is_named_only_where_git_would_read_no_attribute_tree() {
     assert!(tip_variables(repo.as_path(), &[], none.as_slice()).is_empty(), "a configured tree that resolves is the person's");
     git(repo.as_path(), &["config", "attr.tree", "no-such-tree"]);
     assert_eq!(tip_variables(repo.as_path(), &[], none.as_slice()), tip, "Git ignores an attr.tree that is no tree, so the tip is named");
+    remove(root.as_path());
+}
+
+/// A `merge` rule only the merged side carries arrives with the merge itself,
+/// so only the tree the merge produced holds it:
+/// the second pass reads it there,
+/// and a file it excludes keeps its conflict,
+/// while the same rule set to `text` lets the file resolve.
+#[test]
+fn a_rule_the_merge_itself_introduces_governs_the_second_pass() {
+    for (value, expected) in [("binary", false), ("text", true)] {
+        let name: String = format!("second-pass-tree-introduced-{value}");
+        let world: World = world(
+            name.as_str(),
+            &[("data.lock", b"port=1 host=a zone=z\n")],
+            &[("data.lock", Change::Write(b"port=9 host=a zone=z\n"))],
+            &[(".gitattributes", Change::Write(format!("data.lock merge={value}\n").as_bytes())), ("data.lock", Change::Write(b"port=1 host=b zone=z\n"))],
+        );
+        let (tree, conflicts) = merge_tree_of(&world);
+        assert_eq!(conflicts.len(), 1, "only data.lock conflicts: {conflicts:?}");
+        let context: GitContext = git_context();
+        let common: PathBuf = world.repo.join(".git");
+        let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
+        let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
+        let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
+        assert_eq!(merge_attribute_source(tree.as_str(), conflicts.as_slice(), &probe), AttributeSource::Tree(tree.as_str()), "merge={value}");
+        assert_eq!(resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).is_some(), expected, "merge={value}");
+        remove(world.root.as_path());
+    }
+}
+
+/// A `.gitattributes` the merge left conflicted names no rule at all:
+/// its marker file's last line would say `text`
+/// while the first side excluded the file,
+/// so every candidate keeps its conflict instead.
+#[test]
+fn a_gitattributes_the_merge_left_conflicted_names_no_rule() {
+    let world: World = world(
+        "second-pass-tree-conflicted-attributes",
+        &[(".gitattributes", b"a.md merge=text\n"), ("a.md", corpus("md1b", "base").as_slice())],
+        &[(".gitattributes", Change::Write(b"a.md merge=binary\n")), ("a.md", Change::Write(corpus("md1b", "ours").as_slice()))],
+        &[(".gitattributes", Change::Write(b"a.md merge=text text\n")), ("a.md", Change::Write(corpus("md1b", "theirs").as_slice()))],
+    );
+    let (tree, conflicts) = merge_tree_of(&world);
+    let paths: Vec<&[u8]> = conflicts.iter().map(|conflict| { return conflict.path.as_slice(); }).collect();
+    assert_eq!(paths, vec![b".gitattributes".as_slice(), b"a.md".as_slice()], "both sides changed the rule line");
+    let rule: String = git_text(world.repo.as_path(), &["show", format!("{tree}:.gitattributes").as_str()]);
+    assert!(rule.contains("<<<<<<<"), "the rule file of the merge holds Git's markers: {rule}");
+    let context: GitContext = git_context();
+    let common: PathBuf = world.repo.join(".git");
+    let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
+    let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
+    let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
+    assert_eq!(merge_attribute_source(tree.as_str(), conflicts.as_slice(), &probe), AttributeSource::Unknown);
+    assert_eq!(resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe), None, "no candidate is merged from an unreadable rule");
+    remove(world.root.as_path());
+}
+
+/// The tree the merge produced is the pass's source only where the person named none,
+/// and a `.gitattributes` of any folder counts as unsettled.
+#[test]
+fn the_merge_result_tree_is_named_only_where_the_person_named_no_source() {
+    let (root, repo) = probed_repository("second-pass-merge-source");
+    let context: GitContext = git_context();
+    let pass: ContextRunner<'_> = runner(&context, repo.as_path());
+    let none: Vec<(OsString, OsString)> = hermetic_variables(root.as_path());
+    let settled: Vec<Conflict> = vec![Conflict { path: b"a.md".to_vec(), base: None, ours: None, theirs: None }];
+    let asked = |prefix: &[OsString], variables: &[(OsString, OsString)], conflicts: &[Conflict]| -> AttributeSource<'static> {
+        let probe: AttributeProbe<'_> = probe_of(repo.as_path(), prefix, variables, &pass);
+        return merge_attribute_source("tree123", conflicts, &probe);
+    };
+    assert_eq!(asked(&[], none.as_slice(), settled.as_slice()), AttributeSource::Tree("tree123"), "nothing names a source, so the merge's tree is the one");
+    let nearest: Vec<Conflict> = vec![Conflict { path: b"deep/sub/.gitattributes".to_vec(), base: None, ours: None, theirs: None }];
+    assert_eq!(asked(&[], none.as_slice(), nearest.as_slice()), AttributeSource::Unknown, "a rule file of any folder is unsettled while it conflicts");
+    let named: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("main"))];
+    assert_eq!(asked(&[], named.as_slice(), settled.as_slice()), AttributeSource::Invocation, "the variable is the person's");
+    for option in ["--attr-source=main", "--attr-source"] {
+        assert_eq!(asked(&[OsString::from(option), OsString::from("main")], none.as_slice(), settled.as_slice()), AttributeSource::Invocation, "{option}");
+    }
     remove(root.as_path());
 }
 

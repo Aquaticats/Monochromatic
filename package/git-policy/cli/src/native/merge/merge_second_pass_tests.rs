@@ -101,7 +101,7 @@ pub(crate) fn merge_tree_of(world: &World) -> (String, Vec<Conflict>) {
 fn verdicts_of(world: &World) -> Vec<Verdict> {
     let (_, conflicts) = merge_tree_of(world);
     let context: GitContext = git_context();
-    return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice()).expect("the pass runs");
+    return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice(), AttributeSource::Invocation).expect("the pass runs");
 }
 
 /// The merge-tree stages parse into one conflict per path with all three sides,

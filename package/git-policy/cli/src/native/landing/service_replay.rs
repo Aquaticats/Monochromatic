@@ -346,7 +346,7 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         object_directory: Some(site.object_directory),
         environment: attribute_tree_variables(tip, &probe),
     };
-    return match resolve_tree(&runner, site.common_dir, tree, conflicts) {
+    return match resolve_tree(&runner, site.common_dir, tree, conflicts, &probe) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
         None => Merged::Conflict(paths),
     };

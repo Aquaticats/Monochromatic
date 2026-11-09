@@ -147,7 +147,7 @@ pub(crate) fn commit_merge(
             environment: attributed.environment.clone(),
             lfs: attributed.lfs,
         };
-        match resolve_tree(&PushRunner { git: &from_top }, common.as_path(), &tree, &conflicts) {
+        match resolve_tree(&PushRunner { git: &from_top }, common.as_path(), &tree, &conflicts, &probe) {
             Some(resolved) => {
                 tree = resolved.tree;
                 second_pass_files = resolved.merged;

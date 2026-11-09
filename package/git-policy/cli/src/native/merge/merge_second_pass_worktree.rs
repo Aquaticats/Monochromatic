@@ -35,7 +35,7 @@ use crate::child_environment::environment_value;
 use crate::conflict_side_state::conflicted_paths;
 use crate::diagnostic_log::{debug, warn};
 use crate::index_writer_forward::CoordinatedForward;
-use crate::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
@@ -262,7 +262,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     };
     // From the top of the worktree, so the paths of the stages mean what they say.
     let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, object_directory: None, environment: Vec::new() };
-    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice()) {
+    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice(), AttributeSource::Invocation) {
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("the second merge pass could not run, so the conflicts stay as Git left them: {reason}").as_str());

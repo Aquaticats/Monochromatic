@@ -297,6 +297,42 @@ fn an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed() {
     remove(&fixture);
 }
 
+/// The `merge=binary` line arrives in the side being merged,
+/// so only the merge's own tree holds it:
+/// the word pass must leave `data.lock` conflicted,
+/// and the isolated merge is refused naming it,
+/// never committing a text merge of a file its rule excludes.
+#[test]
+fn a_merge_rule_the_merge_itself_introduces_keeps_the_isolated_merge_from_merging_the_file() {
+    let fixture: Fixture = fixture("word-merge-introduced-rule");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let guarded = |value: &str| -> Vec<u8> { return format!("data.lock merge={value}\n").into_bytes(); };
+    std::fs::write(repo.join("data.lock"), b"port=1 host=a zone=z\n").expect("the base file");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join(".gitattributes"), guarded("binary")).expect("the rule");
+    std::fs::write(repo.join("data.lock"), b"port=1 host=b zone=z\n").expect("their edit");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("data.lock"), b"port=9 host=a zone=z\n").expect("our edit");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    // Another session's staged work, which is what makes the wrapper merge from objects.
+    std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
+    git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "{said}");
+    assert!(said.contains("data.lock"), "{said}");
+    assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
+    assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "{said}");
+    remove(&fixture);
+}
+
 /// A conflict the word pass cannot resolve still ends the isolated merge with the conflict finding,
 /// and changes nothing.
 #[test]

@@ -5,7 +5,8 @@
 //! the tree the merge would have if every conflicted file resolves by word,
 //! or nothing.
 //!  It also names the attribute tree those merges read,
-//! so the `union` line of `.gitattributes` applies without a worktree.
+//! so the `union` line of `.gitattributes` applies without a worktree,
+//! and the tree the second pass reads the `merge` attribute from.
 //! Why:
 //!  The isolated merge,
 //! the auto-push reconcile merge and the commit replay merge never touch a worktree.
@@ -21,7 +22,16 @@
 //! `doc/planning/cli-git-merge-auto-resolution.md`,
 //! "Does git merge-tree honour a merge
 //!  driver").
-//! The tree of the first side's tip is the one the person's own checkout of that branch reads.
+//! The tree of the first side's tip is the one the person's own checkout of that branch reads,
+//! and it is what `git merge-tree`
+//!  itself reads.
+//! The tree the merge produced is what the second pass reads
+//! (`git check-attr --source=<tree>`),
+//! so a `merge`
+//!  rule the merge itself introduces governs the pass;
+//! a `.gitattributes` that merge left conflicted names no source,
+//! so no
+//!  candidate of it is merged.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,7 +39,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::merge_second_pass::{Conflict, GitRunner, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
 use crate::path_bytes::path_message_text;
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_scan::ScopeEnvironment;
@@ -112,10 +122,18 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
     };
 }
 
+/// What the attribute-tree precedence came to for a merge that must name a tree.
+enum AttributeChoice {
+    /// The person named one (`--attr-source`, `GIT_ATTR_SOURCE`, a resolving `attr.tree`),
+    /// or nothing can say whether one is named.
+    ThePerson,
+    /// Nothing names one.
+    Free,
+}
+
 /// What:
-///  The variable pair that makes a merge from objects read the attributes of `tip`,
-/// only where Git itself would read no
-///  attribute tree.
+///  The attribute-tree precedence Git itself applies,
+/// without naming a tree.
 /// Why:
 ///   Git takes the attribute tree from `--attr-source`,
 /// else from `GIT_ATTR_SOURCE`,
@@ -127,33 +145,29 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
 ///  is ignored,
 /// as Git ignores it,
 /// while one of the other two that does not resolve is an error of Git's own.
-/// So the first
-///  side's tip is named only when none of the three applies:
-/// the person's choice is never overridden.
 /// A layout or a
-///  configuration the in-process readers decline counts as a person's choice that cannot be seen,
-/// and nothing is named.
+///  configuration the in-process readers decline counts as a person's choice that cannot be seen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function attributeTreeVariables(tip: string, probe: AttributeProbe): [string, string][];
+/// function attributeChoice(probe: AttributeProbe): 'the-person' | 'free';
 /// ```
-pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
     for (name, _value) in probe.variables {
         if name == ATTRIBUTE_SOURCE_VARIABLE {
-            return Vec::new();
+            return AttributeChoice::ThePerson;
         }
     }
     for token in probe.global_prefix {
         if let Some(text) = token.to_str()
             && (text == "--attr-source" || text.starts_with("--attr-source="))
         {
-            return Vec::new();
+            return AttributeChoice::ThePerson;
         }
     }
     let Some(configured) = configured_attribute_tree(probe) else {
         debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
-        return Vec::new();
+        return AttributeChoice::ThePerson;
     };
     if let Some(value) = configured {
         let spec: String = format!("{value}^{{tree}}");
@@ -162,11 +176,73 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
             Err(_) => false,
         };
         if resolves {
-            return Vec::new();
+            return AttributeChoice::ThePerson;
         }
-        debug(TAG, format!("attr.tree names {value}, which is no tree; Git ignores it, so the first side's tip is named").as_str());
+        debug(TAG, format!("attr.tree names {value}, which is no tree; Git ignores it, so the tree is named").as_str());
     }
-    return vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))];
+    return AttributeChoice::Free;
+}
+
+/// What:
+///  The variable pair that makes a merge from objects read the attributes of `tip`,
+/// only where Git itself would read no
+///  attribute tree.
+/// Why:
+///   So the first side's tip is named only when none of the three sources applies:
+/// the person's choice is never
+///  overridden.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function attributeTreeVariables(tip: string, probe: AttributeProbe): [string, string][];
+/// ```
+pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+    return match attribute_choice(probe) {
+        AttributeChoice::ThePerson => Vec::new(),
+        AttributeChoice::Free => vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))],
+    };
+}
+
+/// What:
+///  Whether a path is a `.gitattributes` file.
+/// Why:
+///   A `.gitattributes` names the rules of its own folder and of everything below it,
+/// so one the merge left conflicted
+///  can change any rule that bears on a candidate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isGitattributes = (path: Uint8Array) => path === '.gitattributes' || path.endsWith('/.gitattributes');
+/// ```
+fn is_gitattributes(path: &[u8]) -> bool {
+    return path == b".gitattributes" || path.ends_with(b"/.gitattributes");
+}
+
+/// What:
+///  Where the second pass of a merge from objects reads the `merge` attribute of its candidates.
+/// Why:
+///   The tree the merge produced carries the `.gitattributes` of both sides as the merge left them,
+/// so a rule the
+///  merge itself introduces applies to the files of that same merge;
+/// reading the first side's tip alone let such a
+///  file be merged by word and committed.
+/// The tree is named only where the person named none,
+/// and only when the merge
+///  left no `.gitattributes` conflicted:
+/// a conflicted one holds Git's markers,
+/// and a rule read from
+///  between them is no side's rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mergeAttributeSource(tree: string, conflicts: Conflict[], probe: AttributeProbe): AttributeSource;
+/// ```
+pub fn merge_attribute_source<'a>(tree: &'a str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> AttributeSource<'a> {
+    return match attribute_choice(probe) {
+        AttributeChoice::ThePerson => AttributeSource::Invocation,
+        AttributeChoice::Free if conflicts.iter().any(|conflict| { return is_gitattributes(conflict.path.as_slice()); }) => AttributeSource::Unknown,
+        AttributeChoice::Free => AttributeSource::Tree(tree),
+    };
 }
 
 /// A merge tree whose every conflicted file resolved.
@@ -190,11 +266,12 @@ pub struct Resolved {
 /// ```ts
 /// async function resolveTree(runner, commonDir, tree, conflicts): Promise<Resolved | undefined>;
 /// ```
-pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict]) -> Option<Resolved> {
+pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> Option<Resolved> {
     if conflicts.is_empty() {
         return None;
     }
-    let verdicts: Vec<Verdict> = match second_pass(runner, conflicts) {
+    let source: AttributeSource<'_> = merge_attribute_source(tree, conflicts, probe);
+    let verdicts: Vec<Verdict> = match second_pass(runner, conflicts, source) {
         Ok(found) => found,
         Err(reason) => {
             debug(TAG, format!("the second pass could not run, so the conflicts stay: {reason}").as_str());
@@ -265,6 +342,7 @@ fn left_words(why: &Left) -> String {
         Left::TooLarge => String::from("too large"),
         Left::Driver(value) => format!("merge attribute {value}"),
         Left::Overlap(count) => format!("{count} regions hold two changes of the same words"),
+        Left::UnknownAttributes => String::from("a .gitattributes of the merge is itself conflicted"),
     };
 }
 

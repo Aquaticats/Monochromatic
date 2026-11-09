@@ -134,6 +134,25 @@ pub enum Left {
     Driver(String),
     /// At least one line region holds two different changes of the same words.
     Overlap(usize),
+    /// A `.gitattributes` of the merge is itself conflicted,
+    /// so no `merge` setting can be read for the path.
+    UnknownAttributes,
+}
+
+/// Where the pass reads the `merge` attribute of the paths it may merge.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AttributeSource<'a> {
+    /// Whatever the invocation itself names:
+    /// the worktree of a merge a person runs,
+    /// or the tree that `--attr-source`,
+    /// `GIT_ATTR_SOURCE` or `attr.tree` names.
+    Invocation,
+    /// The tree the merge produced,
+    /// which carries a `merge` rule the merge itself introduces.
+    Tree(&'a str),
+    /// A `.gitattributes` of the merge is itself conflicted,
+    /// so no rule of it can be trusted and nothing may be merged.
+    Unknown,
 }
 
 /// A conflicted file that the word pass merged completely.
@@ -212,16 +231,16 @@ fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
 /// with `-merge` or with `merge=binary` must be merged the way its setting says,
 /// not by a second
 ///  pass that ignores the setting.
-/// The caller's runner decides where attributes come from:
-/// the worktree for a merge a person
-///  runs,
-/// the attribute tree for a merge from objects.
+/// `source` decides where the setting is read: the invocation's own source,
+/// or the tree the merge
+///  produced,
+/// whose `--source` outranks `--attr-source` and `GIT_ATTR_SOURCE` in Git 2.56.0.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function mergeAttributes(runner, paths: Uint8Array[]): Promise<Map<string, string>>;
+/// async function mergeAttributes(runner, paths: Uint8Array[], source: AttributeSource): Promise<Map<string, string>>;
 /// ```
-fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]]) -> Result<BTreeMap<Vec<u8>, String>, String> {
+fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]], source: AttributeSource<'_>) -> Result<BTreeMap<Vec<u8>, String>, String> {
     if paths.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -230,7 +249,17 @@ fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]]) -> Result<BTreeMap<
         input.extend_from_slice(path);
         input.push(0);
     }
-    let reply: GitReply = runner.run(&["check-attr", "-z", "--stdin", "merge"], Some(input.as_slice()), None)?;
+    // The `--source` value is built here and lives until the start below reads it.
+    let tree: String = match source {
+        AttributeSource::Tree(found) => format!("--source={found}"),
+        AttributeSource::Invocation | AttributeSource::Unknown => String::new(),
+    };
+    let mut arguments: Vec<&str> = vec!["check-attr", "-z"];
+    if !tree.is_empty() {
+        arguments.push(tree.as_str());
+    }
+    arguments.extend(["--stdin", "merge"]);
+    let reply: GitReply = runner.run(arguments.as_slice(), Some(input.as_slice()), None)?;
     if reply.code != Some(0) {
         return Err(format!("git check-attr failed: {}", String::from_utf8_lossy(&reply.stderr).trim()));
     }
@@ -286,19 +315,22 @@ fn read_blobs(runner: &dyn GitRunner, oids: &[&str]) -> Result<BTreeMap<String, 
 /// Why:
 ///   A path is merged only when all three stages exist with one plain mode,
 /// are small text,
-/// and the `merge` attribute leaves
-///  the text merge to Git;
+/// and the `merge` attribute
+///  that `source` names leaves the text merge to Git;
 /// and only when every line region resolves.
 /// Anything else is `Left`,
-/// so the caller keeps the conflict.
-///   `Err` means a Git start failed;
+///  so the caller keeps the conflict.
+/// `Err` means a Git start failed;
 /// the caller then leaves every conflict as Git left it.
+///   A merge whose own `.gitattributes` is conflicted reads as `Unknown`:
+/// no rule of it can be trusted,
+///  so every candidate keeps its conflict.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function secondPass(runner: GitRunner, conflicts: Conflict[]): Promise<Verdict[]>;
+/// async function secondPass(runner: GitRunner, conflicts: Conflict[], source: AttributeSource): Promise<Verdict[]>;
 /// ```
-pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict]) -> Result<Vec<Verdict>, String> {
+pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source: AttributeSource<'_>) -> Result<Vec<Verdict>, String> {
     let mut verdicts: BTreeMap<usize, Verdict> = BTreeMap::new();
     let mut candidates: Vec<(usize, u32)> = Vec::new();
     for (index, conflict) in conflicts.iter().enumerate() {
@@ -313,11 +345,17 @@ pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict]) -> Result<Vec
             }
         }
     }
+    if source == AttributeSource::Unknown {
+        for (index, _) in &candidates {
+            verdicts.insert(*index, Verdict::Left { path: conflicts[*index].path.clone(), why: Left::UnknownAttributes });
+        }
+        return Ok(verdicts.into_values().collect());
+    }
     let mut candidate_paths: Vec<&[u8]> = Vec::new();
     for (index, _) in &candidates {
         candidate_paths.push(conflicts[*index].path.as_slice());
     }
-    let attributes: BTreeMap<Vec<u8>, String> = merge_attributes(runner, candidate_paths.as_slice())?;
+    let attributes: BTreeMap<Vec<u8>, String> = merge_attributes(runner, candidate_paths.as_slice(), source)?;
     let mut wanted: Vec<&str> = Vec::new();
     for (index, _) in &candidates {
         let conflict: &Conflict = &conflicts[*index];
