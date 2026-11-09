@@ -1875,3 +1875,26 @@ fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
     remove(&s.root);
 }
+
+/// The private fetch ref a killed instance left is taken by the next reconcile,
+/// and one whose process still runs is left where it is:
+/// another worktree of this repository may be reconciling at the same time.
+#[test]
+fn a_leaked_private_fetch_ref_is_swept_and_a_live_ones_kept() {
+    let s = scenario("ar-private-ref-sweep");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    // No process can have this number, so the ref is one a killed instance left.
+    let leaked: String = format!("{}4294967294", crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX);
+    git(&s.local, &["update-ref", leaked.as_str(), target.as_str()]);
+    let mut living: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a live process to name");
+    let live_ref: String = format!("{}{}", crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX, living.id());
+    git(&s.local, &["update-ref", live_ref.as_str(), target.as_str()]);
+    crate::auto_push_reconcile_basics_and_limits::sweep_private_fetch_refs(&push_git(&s.local)).expect("the sweep");
+    let left: String = text_of(&s.local, &["for-each-ref", "refs/cli-git"]);
+    assert!(!left.contains(leaked.as_str()), "the ref of a dead instance is gone: {left}");
+    assert!(left.contains(live_ref.as_str()), "the ref of a live process is kept: {left}");
+    let _killed = living.kill();
+    let _reaped = living.wait();
+    remove(&s.root);
+}

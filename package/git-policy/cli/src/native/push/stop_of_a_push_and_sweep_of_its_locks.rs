@@ -30,7 +30,7 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 /// for the task that sweeps after the child ends.
 use crate::lazy_runtime::spawn_on_runtime;
 /// When a stop that asked its tree to end may force the end.
-use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{STOP_CEILING, escalation_waits};
 /// The processes a push started,
 /// and the calls that look at and end them.
 use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
@@ -132,9 +132,12 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
             // The exit status is not reported: the push was reported at its deadline.
             let _status = owned.wait().await;
         }
-        // Nothing waits for this task, so it waits for the rest of the tree as long as that runs.
-        while tree.iter().any(still_running) {
-            tokio::time::sleep(POLL_PAUSE).await;
+        // Nothing waits for this task, so it waits for the rest of the tree no longer than every other wait of a stop:
+        //  a descendant wedged in a dead file system, or one that left the process group the signal reached, is left to the
+        //  stale-lock judgement every later push and fetch makes.
+        let gone: bool = wait_until_gone(&|| return tree.iter().any(still_running), STOP_CEILING).await;
+        if !gone {
+            debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
         }
         // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
         if let Err(error) = run_blocking_job(move || { locks.sweep(tree.as_slice()); }).await {
@@ -145,6 +148,29 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
     }
     return started;
+}
+
+/// What:
+///  Wait until `running` answers nothing,
+/// or until `ceiling` has passed,
+/// answering whether the tree was gone.
+/// Why:
+///   A wait nobody waits for still needs a bound:
+/// a task that wakes every `POLL_PAUSE` for the life of the service does nothing but hold the tree in memory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = Date.now(); while (running() && Date.now() - began < ceilingMs) await sleep(POLL_PAUSE);
+/// ```
+async fn wait_until_gone(running: &(dyn Fn() -> bool + Sync), ceiling: Duration) -> bool {
+    let began: Instant = Instant::now();
+    while running() {
+        if began.elapsed() >= ceiling {
+            return false;
+        }
+        tokio::time::sleep(POLL_PAUSE).await;
+    }
+    return true;
 }
 
 /// What:
@@ -253,3 +279,8 @@ pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: Lo
     };
     return sweep_task(Some(uncollected), tree, locks);
 }
+
+/// The sweep's wait and its bound are controlled in the test module.
+#[cfg(test)]
+#[path = "stop_of_a_push_and_sweep_of_its_locks_tests.rs"]
+mod tests;
