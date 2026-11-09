@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::fs_beneath::{identity_at, open_root};
-use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place};
+use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place, room_for};
 use crate::test_support::{fixture, remove};
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::path::PathBuf;
@@ -50,6 +50,7 @@ fn remove_with(held: &Arc<File>, root: &Path, manifest: &Arc<TrashManifest>, hos
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
+    let _room: usize = room_for("the_entries_are_removed_side_by_side", ENTRIES);
     let (root, held, manifest) = trash_with_entries("trash-entries-overlap");
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ENTRIES));
     let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -74,6 +75,7 @@ fn the_entries_are_removed_side_by_side() {
 /// and the others are removed.
 #[test]
 fn the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go() {
+    let _room: usize = room_for("the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go", ENTRIES);
     let (root, held, manifest) = trash_with_entries("trash-entries-reasons");
     let later_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(ENTRIES - 1, PATIENCE));
     let others = Arc::clone(&later_done);
@@ -103,6 +105,8 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
     let allowed: usize = worker_budget(&BudgetRequest { items: ENTRIES, per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < ENTRIES, "the control needs a bound between one and the entries: {allowed}");
+    // The removals reach that bound only when the process itself allows as many at once.
+    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed);
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10));

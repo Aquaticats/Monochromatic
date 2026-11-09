@@ -80,30 +80,25 @@ impl Rendezvous {
 }
 
 /// What:
-///  Whether this process may run `needed` blocking jobs at once,
-///  and one line naming the control and the bound it saw when it may not.
+///  Gives this process room for `jobs` blocking jobs at once,
+///  whatever the CPUs it may use would allow.
 /// Why:
 ///  A control that proves its work overlaps puts every item in flight at once,
-/// and the process's bound on blocking jobs (`budgeted_blocking_jobs`) comes from the CPUs this process
-/// may use,
+/// and the process's room comes from the CPUs the process may use,
 ///  not from the host a control states for its own budget request.
-/// On a machine with few CPUs the control cannot check what it exists to check,
-/// so it says so and passes,
-///  instead of failing for the machines it happens to run on
-/// (`doc/planning/git-policy-cli-full-tokio.md`,
-/// "the process's one bound on blocking jobs").
+/// Without this the control could only fail or pass without running on a machine with few CPUs,
+/// and one that does not run proves nothing.
+/// Call it first: a runtime and a bound already made keep their sizes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!mayRunAllAtOnce('the indexes are rewritten side by side', 4)) return; // it said why
+/// roomFor('the indexes are rewritten side by side', 4); // it runs at any CPU quota now
 /// ```
-pub(crate) fn may_run_all_at_once(control: &str, needed: usize) -> bool {
+pub(crate) fn room_for(_control: &str, jobs: usize) -> usize {
+    let given: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(jobs);
     let allowed: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs();
-    if allowed >= needed {
-        return true;
-    }
-    eprintln!("skipped: {control} needs {needed} blocking jobs at once, and this process allows {allowed} (`budgeted_blocking_jobs`, from the CPUs it may use); run it where more CPUs are allowed");
-    return false;
+    assert_eq!(allowed, given, "the control asked for room for {given} blocking jobs at once, and the process took {allowed}");
+    return given;
 }
 
 /// How many places of the process's bound on blocking jobs the place control holds:

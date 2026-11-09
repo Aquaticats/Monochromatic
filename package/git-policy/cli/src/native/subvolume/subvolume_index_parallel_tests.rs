@@ -9,7 +9,7 @@
 use super::*;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_awaiting, refresh_all_indexes_with};
-use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place, may_run_all_at_once};
+use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place, room_for};
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
@@ -73,9 +73,7 @@ fn refresh_with(root: &Path, host: &HostResources, rewrite: &Arc<RewriteOne>) ->
 ///  parallel work.
 #[test]
 fn the_indexes_are_rewritten_side_by_side() {
-    if !may_run_all_at_once("the_indexes_are_rewritten_side_by_side", LINKED + 1) {
-        return;
-    }
+    let _room: usize = room_for("the_indexes_are_rewritten_side_by_side", LINKED + 1);
     let (parent, root) = checkout_with_linked("index-parallel-overlap");
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED + 1));
     let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -96,10 +94,9 @@ fn the_indexes_are_rewritten_side_by_side() {
 /// though the checkout's index finishes last.
 #[test]
 fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
-    // The checkout's own rewrite holds one place and waits for the others, so one more must be able to run.
-    if !may_run_all_at_once("the_report_keeps_the_order_of_the_checkout_then_its_worktrees", 2) {
-        return;
-    }
+    // The checkout's own rewrite holds one place and waits for the others, so one more must be able to run; with room for
+    //  all of them the wait below cannot depend on the CPUs this machine has.
+    let _room: usize = room_for("the_report_keeps_the_order_of_the_checkout_then_its_worktrees", LINKED + 1);
     let (parent, root) = checkout_with_linked("index-parallel-order");
     let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(LINKED, crate::parallel_test_support::PATIENCE));
     let main_index: PathBuf = root.join(".git").join("index");
@@ -145,9 +142,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let allowed: usize = worker_budget(&BudgetRequest { items: LINKED + 1, per_item_memory: 1, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < LINKED + 1, "the control needs a bound between one and the indexes: {allowed}");
     // The rewrites reach that bound only when the process itself allows as many at once.
-    if !may_run_all_at_once("the_budget_of_the_host_bounds_the_overlap", allowed) {
-        return;
-    }
+    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed);
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10));

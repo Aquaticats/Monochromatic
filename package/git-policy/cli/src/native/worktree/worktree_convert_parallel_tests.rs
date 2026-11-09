@@ -8,7 +8,7 @@
 
 use super::*;
 use crate::fs_primitive_error::PrimitiveError;
-use crate::parallel_test_support::{PATIENCE, Rendezvous, hold_the_only_place, may_run_all_at_once};
+use crate::parallel_test_support::{PATIENCE, Rendezvous, hold_the_only_place, room_for};
 use crate::subvolume_test_support::{PlainPlatform, backdate, make_checkout};
 use crate::test_support::{fixture, git, remove};
 use crate::worktree_convert::CONVERTING_SUFFIX;
@@ -146,9 +146,7 @@ fn is_converting_of(path: &Path, name: &str) -> bool {
 /// and a serial run waits there until its patience ends.
 #[test]
 fn worktrees_are_converted_side_by_side() {
-    if !may_run_all_at_once("worktrees_are_converted_side_by_side", WORKTREES) {
-        return;
-    }
+    let _room: usize = room_for("worktrees_are_converted_side_by_side", WORKTREES);
     let (parent, root) = checkout_with_worktrees("convert-parallel-overlap", WORKTREES);
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES));
     let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -175,10 +173,9 @@ fn worktrees_are_converted_side_by_side() {
 /// and its lines still come first.
 #[test]
 fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
-    // The first worktree waits for the other three within `LAST_TO_FINISH_PATIENCE`, so all four must run at once.
-    if !may_run_all_at_once("the_report_keeps_input_order_whichever_worktree_finishes_first", WORKTREES) {
-        return;
-    }
+    // The first worktree waits for the other three within `LAST_TO_FINISH_PATIENCE`, so all four must run at once, and
+    //  the room this control takes makes that independent of the CPUs this machine has.
+    let _room: usize = room_for("the_report_keeps_input_order_whichever_worktree_finishes_first", WORKTREES);
     let (parent, root) = checkout_with_worktrees("convert-parallel-order", WORKTREES);
     let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(WORKTREES - 1, LAST_TO_FINISH_PATIENCE));
     let first_of_all: String = name_of(0);
@@ -253,11 +250,9 @@ fn a_failed_worktree_does_not_stop_or_corrupt_the_others() {
 /// from the first step to the swap,
 /// for a run on `host` with `jobs` as the person's cap,
 ///  with a point that the first `meeting` of them must reach together.
-fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: usize) -> Option<usize> {
-    if !may_run_all_at_once(name, meeting.max(1)) {
-        // Nothing was measured and nothing was made.
-        return None;
-    }
+fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: usize) -> usize {
+    // The overlap this control measures is bounded by the process's room, so it takes the room it needs.
+    let _room: usize = room_for(name, meeting.max(1));
     let (parent, root) = checkout_with_worktrees(name, WORKTREES + WORKTREES);
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -278,7 +273,7 @@ fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: us
     let (code, lines) = run_on(&shared(&platform), host, &ConvertArguments { jobs, ..all_arguments() }, root.as_path());
     assert_eq!(code, 0, "{lines:#?}");
     remove(parent.as_path());
-    return Some(busiest.load(Ordering::SeqCst));
+    return busiest.load(Ordering::SeqCst);
 }
 
 /// The budget the host allows is the bound:
@@ -288,8 +283,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
     let allowed: usize = conversion_workers(usize::MAX, None, &host);
     assert!(allowed > 1 && allowed < WORKTREES, "the control needs a bound between one and the worktrees: {allowed}");
-    let Some(busiest): Option<usize> = busiest_of("convert-parallel-budget", &host, None, allowed) else { return };
-    assert_eq!(busiest, allowed);
+    assert_eq!(busiest_of("convert-parallel-budget", &host, None, allowed), allowed);
 }
 
 /// Memory that is free bounds the overlap too:
@@ -297,16 +291,14 @@ fn the_budget_of_the_host_bounds_the_overlap() {
 #[test]
 fn the_free_memory_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: WORKTREES * 8, memory_available: Some(CONVERSION_MEMORY) };
-    let Some(busiest): Option<usize> = busiest_of("convert-parallel-memory", &host, None, 1) else { return };
-    assert_eq!(busiest, 1);
+    assert_eq!(busiest_of("convert-parallel-memory", &host, None, 1), 1);
 }
 
 /// The person's cap bounds the overlap on a host that allows more.
 #[test]
 fn jobs_caps_the_overlap() {
     let cap: usize = 2;
-    let Some(busiest): Option<usize> = busiest_of("convert-parallel-jobs", &LARGE_HOST, Some(cap), cap) else { return };
-    assert_eq!(busiest, cap);
+    assert_eq!(busiest_of("convert-parallel-jobs", &LARGE_HOST, Some(cap), cap), cap);
 }
 
 /// The same worktree named twice is converted once and then found converted,
