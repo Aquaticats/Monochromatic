@@ -25,13 +25,14 @@
 //! the lanes and
 //!  the process's bound on blocking jobs allow,
 //! whichever
-//!  is the fewest,
-//! so a caller that needs more concurrency raises that bound and not the worker count.
-//! That bound comes from the CPUs this
-//!  process may use
+//!  is the fewest:
+//! the bound is a ceiling every job of the process shares,
+//!  never a reservation one run keeps for itself.
+//! That bound comes from the CPUs this process may use
 //! (`available_parallelism`,
-//! so a container's quota counts),
-//! and a two-CPU allowance runs two blocking jobs at once.
+//!  so a container's quota counts),
+//! the limits on threads and address space,
+//! and any cap the process asked for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -73,7 +74,7 @@ pub struct OrderedRunOfOwned<'run, T, R> {
     /// How many jobs the run is asked to keep in flight at once,
     /// at least one,
     /// and never more than there are lanes.
-    /// The jobs really inside their work at once are the fewest of this,
+    /// The jobs really inside their work at once are never more than the fewest of this,
     /// the lanes and the process's bound on blocking jobs
     /// (`blocking_jobs_within_the_budget.rs`),
     /// because every job takes a place of that bound before it starts.

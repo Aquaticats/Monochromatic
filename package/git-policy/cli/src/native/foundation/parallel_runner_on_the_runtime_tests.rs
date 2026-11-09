@@ -43,13 +43,15 @@ fn lane_of_one_item(index: usize) -> Vec<usize> {
 }
 
 /// What:
-///  How many jobs of one run are inside their work at once,
-/// from what the runner promises its callers.
+///  The most jobs of one run that can be inside their work at once,
+/// from what the runner promises its callers,
+/// for positive worker and lane counts.
 /// Why:
 ///  The runner runs its items under the process's bound on blocking jobs
 /// (`parallel_runner_on_the_runtime.rs`),
-/// so the jobs really in flight are the fewest of the workers it is asked for,
-/// its lanes and `budgeted_blocking_jobs()`;
+/// and every job takes a place of that bound before it starts,
+/// so a run never has more than the fewest of the workers it is asked for,
+/// its lanes and `budgeted_blocking_jobs()` in flight;
 /// a control that expects a typed four fails wherever the bound is two.
 fn jobs_that_may_overlap(workers: usize, lanes: usize) -> usize {
     return workers.min(lanes).min(budgeted_blocking_jobs());
@@ -152,14 +154,18 @@ impl OrderedEvents<bool> for CountArrived {
 ///  a CPU quota lowers `available_parallelism`,
 ///  which lowers the runtime's workers and the process's bound with them,
 ///  and the gate container is allowed two CPUs.
+///  Where that bound is one,
+/// no two jobs of any run can be inside their work together,
+///  so the control says so and returns
+/// instead of passing a serial run off as overlap.
 #[test]
 fn items_run_at_the_same_time() {
     let at_once: usize = jobs_that_may_overlap(WORKERS_ASKED, WORKERS_ASKED);
-    // One job at a time can never meet another, so a two-CPU floor is what this control needs.
+    // One job at a time can never meet another, so a bound of two is the least this control can measure.
     if at_once < 2 {
         eprintln!(
-            "nothing to measure here: the process may run {at_once} blocking job at once, so no two items of this run can be at \
-             one point; the bound comes from the CPU allowance this process was given"
+            "concurrency not exercised here: this process's bound on blocking jobs is {at_once}, so no two items of one run can \
+             be at one point; this control shows overlap only where that bound is two or more"
         );
         return;
     }
