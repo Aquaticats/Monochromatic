@@ -427,6 +427,7 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                     &mut self.facts,
                     &mut self.markdown,
                     trigger,
+                    self.can_apply_patches,
                 );
             }
             PolicyId::DependentVersionBump => {

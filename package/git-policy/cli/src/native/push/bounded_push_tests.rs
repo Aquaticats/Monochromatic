@@ -265,12 +265,16 @@ fn the_grace_is_over_at_its_length_exactly() {
     assert!(!grace_remains(Duration::from_millis(401), grace));
 }
 
-/// An output is a flood only when it is larger than the cap.
+/// An output is a flood only when it is larger than the cap it was given,
+/// so a caller that reads a larger answer gets it.
 #[test]
 fn an_output_is_a_flood_only_past_the_cap() {
-    assert!(!is_flood(MAX_PUSH_OUTPUT - 1));
-    assert!(!is_flood(MAX_PUSH_OUTPUT));
-    assert!(is_flood(MAX_PUSH_OUTPUT + 1));
+    assert!(!is_flood(MAX_PUSH_OUTPUT - 1, MAX_PUSH_OUTPUT));
+    assert!(!is_flood(MAX_PUSH_OUTPUT, MAX_PUSH_OUTPUT));
+    assert!(is_flood(MAX_PUSH_OUTPUT + 1, MAX_PUSH_OUTPUT));
+    let larger: u64 = MAX_PUSH_OUTPUT * 4;
+    assert!(!is_flood(MAX_PUSH_OUTPUT + 1, larger), "a ceiling the caller raised is the one that stops the output");
+    assert!(is_flood(larger + 1, larger));
 }
 
 /// A push that floods its output is stopped,
