@@ -83,11 +83,7 @@ const BRANCH_DIGEST_LENGTH: usize = 16;
 /// ```
 pub(crate) fn branch_digest(branch_ref: &str) -> String {
     let full: [u8; 32] = sha256(branch_ref.as_bytes());
-    let mut digest: String = String::with_capacity(BRANCH_DIGEST_LENGTH);
-    for byte in &full[..BRANCH_DIGEST_LENGTH / 2] {
-        digest.push_str(format!("{byte:02x}").as_str());
-    }
-    return digest;
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&full[..BRANCH_DIGEST_LENGTH / 2]);
 }
 
 /// Whether `digest` is a branch digest as `branch_digest` writes one:

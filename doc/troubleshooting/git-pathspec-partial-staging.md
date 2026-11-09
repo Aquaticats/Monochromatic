@@ -1,5 +1,8 @@
 # Git 2.55.0 pathspec commit after partial staging records unstaged bytes from the same file
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/rule/commit-only.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 A file contains both intended staged changes and unrelated unstaged changes.

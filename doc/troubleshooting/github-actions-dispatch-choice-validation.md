@@ -1,5 +1,8 @@
 # GitHub Actions dispatch choice validation during pnpm research
 
+Note 2026-11-09T16:51:23-05:00:
+`.github/workflows/music-player-windows.yml` left the tree on 2026-10-22 in `4a0994eb2b`.
+
 ## Observed boundary
 
 The workflow file named in this document is the isolated research branch's copy of

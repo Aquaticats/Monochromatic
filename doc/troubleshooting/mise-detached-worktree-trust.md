@@ -1,5 +1,9 @@
 # mise 2026.7.0 rejects `mise run` in a detached worktree whose copied config path is untrusted
 
+Note 2026-11-09T16:54:06-05:00:
+`package/module/translation-repair/` was split into packages under
+`package/translation-repair/` on 2026-10-18 in `4bd1aea8d5`.
+
 ## Symptom
 
 A guard-failure proof creates a detached Git worktree from a repository whose root `mise.toml` is already trusted.

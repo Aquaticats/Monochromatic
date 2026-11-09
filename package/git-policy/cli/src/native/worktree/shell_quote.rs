@@ -38,7 +38,7 @@ fn is_control(character: char) -> bool {
 
 /// The ANSI-C spelling of one byte.
 fn escaped_byte(byte: u8) -> String {
-    return format!("\\x{byte:02x}");
+    return format!("\\x{}", crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte));
 }
 
 /// The ANSI-C spelling of one character.

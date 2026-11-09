@@ -10,6 +10,8 @@
 
 /// Import native path components without converting the pathname to a lossy string.
 use std::path::{Component, Path};
+/// Lowercase hexadecimal spelling shared with the digest directory names.
+use crate::bytes_as_lowercase_hex::push_lowercase_hex_byte;
 
 /// Normalize native separator bytes while retaining every non-separator byte for matching.
 pub(crate) fn normalized_path(path: &Path) -> Vec<u8> {
@@ -97,7 +99,8 @@ pub(crate) fn safe_component(component: &[u8]) -> String {
             }
         }
         for byte in chunk.invalid() {
-            safe.push_str(format!("\\x{byte:02x}").as_str());
+            safe.push_str("\\x");
+            push_lowercase_hex_byte(&mut safe, *byte);
         }
     }
     return safe;

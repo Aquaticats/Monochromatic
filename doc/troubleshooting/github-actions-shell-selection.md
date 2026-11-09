@@ -1,5 +1,8 @@
 # GitHub Actions: implicit Bash execution does not require Bash decision logic
 
+Note 2026-11-09T16:56:27-05:00:
+`.github/workflows/cli-git-performance.yml` left the tree on 2026-10-13 in `724d70bfa7`.
+
 ## Symptom
 
 The scope step in [issue 308][] runs before mise and project dependency installation.
