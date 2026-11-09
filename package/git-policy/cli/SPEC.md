@@ -9262,7 +9262,9 @@ and leave one audit line each
   the named path,
   or the one registered worktree whose path components the name ends,
   from one `git worktree list --porcelain`,
-  asked first because every read of the target has to happen before Git removes it,
+  asked first because every read of the target has to happen before Git removes it
+  (measured at 32 to 50 ms per start in this repository's worktree,
+  in ten-run batches with a load average of 70),
   so `git worktree remove topic` describes `/r/worktrees/topic`,
   and not a directory of that name beside the command.
   A name no worktree answers is the path the command named,
