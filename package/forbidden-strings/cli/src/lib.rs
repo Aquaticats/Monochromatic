@@ -881,11 +881,21 @@ pub fn run_cli_from_env() -> Result<i32> {
             Ok(listing) => {
                 // What:     The tracked-file union's gap is printed before the
                 //           scan starts, on the same stderr channel as every
-                //           other CLI diagnostic.
+                //           other CLI diagnostic, and its path goes through the
+                //           pathname scan so a matching component is masked and
+                //           protocol-sensitive bytes are escaped like every
+                //           other path in a finding.
                 // Why:      A scan that cannot cover force-added tracked files
                 //           must say so; silence there reads as a clean scan.
+                //           Printing the raw path would make this the one
+                //           diagnostic that can quote a pathname the rules
+                //           forbid.
                 if let Some(gap) = listing.union_gap {
-                    eprintln!("forbidden-strings: {}", gap);
+                    let shown = path_scan::scan_path(&gap.at.to_string_lossy(), &loaded).display;
+                    eprintln!(
+                        "forbidden-strings: the tracked-file union is unavailable: {}: {}; tracked files that .gitignore hides are not covered by this scan",
+                        shown, gap.cause
+                    );
                 }
                 files = listing.files;
             }

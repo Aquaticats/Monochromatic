@@ -126,6 +126,20 @@ fn list_files_includes_force_added_gitignored_file() {
     );
 
     let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
+    // What:     The index lists every tracked file the walker also listed, so a
+    //           scan of an absolute root must report each one once; a second
+    //           spelling of the same file here would scan it twice.
+    // Why:      This pins the deduplication key against the walker's absolute
+    //           spelling, which no earlier test compared.
+    assert_eq!(
+        files
+            .iter()
+            .filter(|path| return std::path::Path::new(path).file_name().is_some_and(|name| return name == "normal.txt"))
+            .count(),
+        1,
+        "a tracked file must be listed once; got {:?}",
+        files
+    );
     // What:     Collect basenames of returned paths into a Vec for
     //           the diagnostic message; the assertion is on
     //           membership, not order.
@@ -428,6 +442,14 @@ fn list_files_reports_a_tracked_ignored_file_in_a_linked_worktree() {
         "issue 1232: a linked worktree's tracked, ignored file must be listed; got {:?}",
         paths
     );
+    // The index reports the plain file too, so the deduplication must collapse
+    // the two spellings into one path.
+    assert_eq!(
+        paths.iter().filter(|path| return *path == "plain.txt").count(),
+        1,
+        "a tracked file the walker already listed must appear once; got {:?}",
+        paths
+    );
 
     let _ = fs::remove_dir_all(&base);
 }
@@ -483,17 +505,84 @@ fn list_files_reports_a_tracked_ignored_file_from_a_linked_worktree_subfolder() 
 
 #[test]
 fn list_files_reports_a_tracked_ignored_file_in_a_worktree_path_with_spaces() {
+    // The space is in the repository's own path, so the `gitdir:` line Git
+    // writes names a path with a space in it; a worktree directory whose name
+    // holds a space would only prove that the worktree directory works, since
+    // Git sanitizes the administrative name it derives.
     let base = unique_tmp("worktree-space");
-    let main = base.join("main");
+    let main = base.join("main repo");
     seed_repository(&main, &["tracked.ignored"]);
-    let worktree = base.join("wt with space");
+    let worktree = base.join("wt");
     add_linked_worktree(&main, &worktree);
+    let named: String = fs::read_to_string(worktree.join(".git")).expect("read the worktree's .git file");
+    assert!(
+        named.contains("main repo"),
+        "fixture precondition: the gitdir line names a path with a space; got {:?}",
+        named
+    );
 
     let paths = relative_listing(&worktree);
     assert!(
         paths.iter().any(|path| return path == "tracked.ignored"),
         "a gitdir line naming a path with a space must resolve; got {:?}",
         paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_in_a_worktree_whose_gitdir_line_holds_a_newline() {
+    // A repository directory whose name holds a newline makes Git write one
+    // inside the `gitdir:` line, which is the case a line-oriented reader gets
+    // wrong: only trailing line breaks terminate the path.
+    let base = unique_tmp("worktree-newline");
+    let main = base.join("main\nrepo");
+    seed_repository(&main, &["tracked.ignored"]);
+    let worktree = base.join("wt");
+    add_linked_worktree(&main, &worktree);
+    let named: String = fs::read_to_string(worktree.join(".git")).expect("read the worktree's .git file");
+    assert!(
+        named.trim_end().contains('\n'),
+        "fixture precondition: the gitdir line holds a newline inside the path; got {:?}",
+        named
+    );
+
+    let paths = relative_listing(&worktree);
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "a gitdir line with a newline inside the path must resolve; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_reads_the_worktree_index_rather_than_the_main_one() {
+    // Both indexes start from the same commit, so only a file added to one of
+    // them proves which index a scan read.
+    let base = unique_tmp("worktree-own-index");
+    let main = base.join("main");
+    seed_repository(&main, &[]);
+    let worktree = base.join("wt");
+    add_linked_worktree(&main, &worktree);
+    fs::write(worktree.join("worktree-only.ignored"), "secret content")
+        .expect("write the worktree-only ignored file");
+    run_git(&worktree, &["add", "-f", "worktree-only.ignored"]);
+    fs::write(main.join("main-only.ignored"), "secret content").expect("write the main-only ignored file");
+    run_git(&main, &["add", "-f", "main-only.ignored"]);
+
+    let worktree_paths = relative_listing(&worktree);
+    assert!(
+        worktree_paths.iter().any(|path| return path == "worktree-only.ignored"),
+        "the scan must read the worktree's own index; got {:?}",
+        worktree_paths
+    );
+    assert!(
+        !worktree_paths.iter().any(|path| return path == "main-only.ignored"),
+        "the main repository's index entries must not appear in a worktree scan; got {:?}",
+        worktree_paths
     );
 
     let _ = fs::remove_dir_all(&base);
@@ -577,11 +666,21 @@ fn list_files_scans_a_directory_without_a_repository_of_its_own() {
         "fixture precondition: the directory holds no .git entry"
     );
 
-    let paths = relative_listing(&directory);
+    let listing = list_files(directory.to_str().expect("directory utf8")).expect("list_files");
+    let paths: Vec<String> = listing
+        .files
+        .iter()
+        .map(|path| return relative_to(&directory, path))
+        .collect();
     assert_eq!(
         paths,
         vec!["only.txt".to_string()],
         "a directory without a repository of its own must scan exactly what the walker sees"
+    );
+    assert!(
+        listing.union_gap.is_none(),
+        "with no repository above it there is no tracked-file union to miss, so nothing is reported; got {:?}",
+        listing.union_gap.map(|gap| return gap.cause)
     );
 
     let _ = fs::remove_dir_all(&directory);
@@ -608,11 +707,12 @@ fn list_files_reports_a_missing_index_and_keeps_scanning() {
         "a missing index must not stop the working-tree scan; got {:?}",
         paths
     );
-    let gap: String = listing.union_gap.expect("a missing index inside a repository must be reported");
+    let gap = listing.union_gap.expect("a missing index inside a repository must be reported");
     assert!(
-        gap.contains("index") && gap.contains("git reset"),
-        "the diagnostic must name the missing index and its remedy; got {:?}",
-        gap
+        gap.at.ends_with("index") && gap.cause.contains("cannot be read"),
+        "the gap must name the index that is missing and why; got {:?} / {:?}",
+        gap.at,
+        gap.cause
     );
 
     let _ = fs::remove_dir_all(&repository);
@@ -638,13 +738,14 @@ fn list_files_reports_an_unparseable_index_and_keeps_scanning() {
         "an unparseable index must not stop the working-tree scan; got {:?}",
         paths
     );
-    let gap: String = listing
+    let gap = listing
         .union_gap
         .expect("an unparseable index inside a repository must be reported");
     assert!(
-        gap.contains("index") && gap.contains("git reset"),
-        "the diagnostic must name the index it could not parse and its remedy; got {:?}",
-        gap
+        gap.at.ends_with("index") && gap.cause.contains("does not hold a Git index"),
+        "the gap must name the index it could not parse and why; got {:?} / {:?}",
+        gap.at,
+        gap.cause
     );
 
     let _ = fs::remove_dir_all(&repository);
@@ -677,13 +778,14 @@ fn list_files_reports_an_unreadable_index_and_keeps_scanning() {
         "an unreadable index must not stop the working-tree scan; got {:?}",
         paths
     );
-    let gap: String = listing
+    let gap = listing
         .union_gap
         .expect("an unreadable index inside a repository must be reported");
     assert!(
-        gap.contains("index") && gap.contains("Permission denied"),
-        "the diagnostic must carry the operating system's reason; got {:?}",
-        gap
+        gap.at.ends_with("index") && gap.cause.contains("Permission denied"),
+        "the gap must carry the operating system's reason; got {:?} / {:?}",
+        gap.at,
+        gap.cause
     );
 
     // Restore permissions so the fixture can be removed.

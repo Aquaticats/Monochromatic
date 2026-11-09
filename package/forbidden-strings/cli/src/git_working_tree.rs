@@ -8,14 +8,31 @@
 //!  `<main>/.git/worktrees/<name>`,
 //!  a submodule holds one naming `<host>/.git/modules/<name>`,
 //!  and a scan started in a subfolder has no `.git` of its own at all,
-//!  so every case finds its index by asking Git's own discovery rules from
-//!  the walked directory,
-//! never by joining `.git/index` onto it.
+//!  so every case finds its index the way Git's discovery does:
+//!  from the walked directory upward,
+//!  reading a `.git` file's `gitdir:` line,
+//!  and validating the directory that line names.
+//!  Joining `.git/index` onto the walked directory found none of those
+//!  (issue 1232).
+//!
+//! What it does not do,
+//!  and why the README says so:
+//!  `GIT_DIR` and `GIT_WORK_TREE` name a different worktree root,
+//!  `core.worktree` stores one in configuration,
+//!  and Git's discovery also stops at mount points and honours
+//!  `GIT_CEILING_DIRECTORIES`.
+//!  Those need Git's own configuration and ownership machinery,
+//!  which this package deliberately does not link,
+//!  so the walked directory stays the worktree root here.
+//!  `GIT_INDEX_FILE` is honoured,
+//!  because it names the very file this module opens.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const tree = discoverWorkingTree(walkRoot); // null when there is no repository
-//! // const index = openIndex(`${tree.gitDir}/index`, tree.hashKind());
+//! // const discovery = discoverWorkingTree(walkRoot);
+//! // const index = discovery.kind === "working-tree"
+//! //   ? openIndex(discovery.tree.indexPath, discovery.tree.hashKind())
+//! //   : null;
 //! ```
 
 /// Imports the path component type that lexical normalization classifies,
@@ -27,17 +44,49 @@ use std::path::{Component, Path, PathBuf};
 use crate::path_name_bytes::normalized_path;
 
 /// The most a `.git` file may hold,
-/// from Git's own `read_gitfile_gently`
-///  (`max_file_size = 1 << 20` in `setup.c`):
-///  Git refuses a bigger one,
-///  so a bigger one is not a Git file and no repository is named by it.
+/// from `read_gitfile_raw` in Git's `setup.c`
+///  (`const int max_file_size = 1 << 20;`):
+///  Git refuses a file strictly larger,
+///  so a larger one names no repository.
 const GIT_FILE_MAX_BYTES: u64 = 1 << 20;
 
 /// The exact first bytes of a `.git` file,
-/// from Git's `read_gitfile_gently`
-///  (`memcmp(url, "gitdir: ", 8)`),
+/// from Git's `read_gitfile_raw`
+///  (`if (!starts_with(buf, "gitdir: "))`),
 /// space included.
 const GITDIR_PREFIX: &[u8] = b"gitdir: ";
+
+/// The characters Git strips from the end of a `.git` file and of `commondir`
+///  (`while (buf[len - 1] == '\n' || buf[len - 1] == '\r') len--;`).
+const TRAILING_LINE_BYTES: &[u8] = b"\n\r";
+
+/// The environment variable naming the active index file.
+const INDEX_FILE_ENVIRONMENT: &str = "GIT_INDEX_FILE";
+
+/// What Git's discovery found above the walked directory.
+pub(crate) enum Discovery {
+    /// The walked directory is inside a working tree.
+    WorkingTree(
+        /// The resolved directories of that working tree.
+        GitWorkingTree,
+    ),
+    /// No `.git` entry above the walked directory,
+    ///  so nothing claims a workspace with tracked files.
+    NoRepository,
+    /// A `.git` entry exists above the walked directory but names nothing this
+    ///  scanner can read a working tree from.
+    ///
+    /// Git itself stops discovery with a fatal error here;
+    ///  this value exists so a scan can say the same thing while still
+    ///  walking the files it can see.
+    Unusable {
+        /// The `.git` entry that could not be used.
+        entry: PathBuf,
+        /// What is wrong with it,
+        /// in words.
+        cause: String,
+    },
+}
 
 /// The administrative directories of one working tree,
 ///  and the walked directory's place below its root.
@@ -58,29 +107,46 @@ pub(crate) struct GitWorkingTree {
 ///
 /// The nearest `.git` wins,
 ///  which is the innermost working tree Git itself would work in.
-///  A directory with no such ancestor is not inside a repository and
-///  returns `None`.
-pub(crate) fn discover(walk_root: &Path) -> Option<GitWorkingTree> {
-    let absolute: PathBuf = absolute_path(walk_root)?;
+pub(crate) fn discover(walk_root: &Path) -> Discovery {
+    let Some(absolute) = absolute_path(walk_root) else {
+        return Discovery::Unusable {
+            entry: walk_root.to_path_buf(),
+            cause: "the scan directory cannot be resolved".to_string(),
+        }
+    };
     for candidate in absolute.ancestors() {
-        let Some((git_dir, common_dir)) = git_directories(candidate) else {
-            continue;
-        };
-        let below: &Path = absolute.strip_prefix(candidate).unwrap_or(Path::new(""));
-        return Some(GitWorkingTree {
-            git_dir,
-            common_dir,
-            scope_below_root: scope_bytes(below),
-        })
+        match git_directories(candidate) {
+            RootEntry::None => {}
+            RootEntry::Unusable { entry, cause } => return Discovery::Unusable { entry, cause },
+            RootEntry::Tree { git_dir, common_dir } => {
+                let below: &Path = absolute.strip_prefix(candidate).unwrap_or(Path::new(""));
+                return Discovery::WorkingTree(GitWorkingTree {
+                    git_dir,
+                    common_dir,
+                    scope_below_root: scope_bytes(below),
+                })
+            }
+        }
     }
-    return None
+    return Discovery::NoRepository
 }
 
 /// What this working tree's index is asked for,
 ///  and how its entries are read.
 impl GitWorkingTree {
     /// The path `gix-index` opens.
+    ///
+    /// `GIT_INDEX_FILE` names the active index when it is set,
+    ///  relative to the current directory as Git reads it,
+    ///  which is how a Git command that scans with a temporary index
+    ///  (a commit in progress,
+    /// for example) makes that index the one in use.
     pub(crate) fn index_path(&self) -> PathBuf {
+        if let Some(named) = std::env::var_os(INDEX_FILE_ENVIRONMENT)
+            && !named.is_empty()
+        {
+            return PathBuf::from(named)
+        }
         return self.git_dir.join("index")
     }
 
@@ -144,70 +210,210 @@ pub(crate) fn index_hash_kind(config_path: &Path) -> gix_hash::Kind {
     return gix_hash::Kind::Sha1
 }
 
+/// What one directory in the walk upward holds as a `.git` entry.
+enum RootEntry {
+    /// No `.git` entry,
+    /// or a `.git` directory that is not a Git directory;
+    ///  Git steps over both and keeps walking upward.
+    None,
+    /// A `.git` entry Git would stop on but this scanner cannot use.
+    Unusable {
+        /// The `.git` entry itself.
+        entry: PathBuf,
+        /// What is wrong with it,
+        /// in words.
+        cause: String,
+    },
+    /// The two Git directories of this working tree.
+    Tree {
+        /// The directory holding this working tree's `index`.
+        git_dir: PathBuf,
+        /// The directory holding the shared state,
+        /// including `config`.
+        common_dir: PathBuf,
+    },
+}
+
 /// The Git directory of the working tree rooted at `root`,
 ///  with the directory holding the shared configuration,
-///  or `None` when `root` itself is not a working tree root.
-fn git_directories(root: &Path) -> Option<(PathBuf, PathBuf)> {
+///  read by Git's own order:
+///  a `.git` file first,
+/// then a `.git` directory,
+///  and the directory each names validated as a Git directory.
+fn git_directories(root: &Path) -> RootEntry {
     let dot_git: PathBuf = root.join(".git");
-    let metadata: std::fs::Metadata = std::fs::metadata(&dot_git).ok()?;
+    let metadata: std::fs::Metadata = match std::fs::metadata(&dot_git) {
+        Ok(metadata) => metadata,
+        // Nothing there, or a path this process may not stat:
+        // `read_gitfile_raw` treats a missing entry as "keep looking" and a
+        // failed stat as fatal, and an unresolvable entry can be neither
+        // confirmed nor denied, so it is reported rather than stepped over.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return RootEntry::None,
+        Err(error) => {
+            return RootEntry::Unusable {
+                entry: dot_git,
+                cause: format!("it cannot be read ({})", error),
+            }
+        }
+    };
     if metadata.is_dir() {
-        let git_dir: PathBuf = lexically_normalized(&dot_git);
-        return Some((git_dir.clone(), git_dir))
+        // A directory named `.git` is a repository only when it holds Git's
+        // state; Git steps over anything else and keeps walking upward.
+        if !is_git_directory(&dot_git) {
+            return RootEntry::None
+        }
+        let git_dir: PathBuf = resolved_or_spelled(&dot_git);
+        let common_dir: PathBuf = common_dir_of(&git_dir);
+        return RootEntry::Tree { git_dir, common_dir }
     }
     if !metadata.is_file() {
-        return None
+        return RootEntry::Unusable {
+            entry: dot_git,
+            cause: "it is not a regular file".to_string(),
+        }
     }
-    let contents: Vec<u8> = read_git_file(&dot_git)?;
-    let named: PathBuf = gitdir_from_git_file(&contents)?;
-    let git_dir: PathBuf = if named.is_absolute() {
-        lexically_normalized(&named)
-    } else {
-        // Git resolves a relative `gitdir:` against the directory holding the `.git` file, which is `root`.
-        lexically_normalized(&root.join(named))
+    let contents: Vec<u8> = match read_git_file(&dot_git) {
+        Ok(contents) => contents,
+        Err(cause) => return RootEntry::Unusable { entry: dot_git, cause },
     };
-    let common_dir: PathBuf = common_dir_of(&git_dir);
-    return Some((git_dir, common_dir))
+    let named: PathBuf = match gitdir_from_git_file(&contents) {
+        Ok(named) => named,
+        Err(cause) => return RootEntry::Unusable { entry: dot_git, cause },
+    };
+    // Git builds the path by concatenation and leaves `..` to the operating
+    // system, so the spelling is kept and no component is collapsed here.
+    let git_dir: PathBuf = if named.is_absolute() {
+        named
+    } else {
+        // A relative `gitdir:` is resolved against the directory holding the `.git` file, which is `root`.
+        root.join(named)
+    };
+    if !is_git_directory(&git_dir) {
+        return RootEntry::Unusable {
+            entry: dot_git,
+            cause: format!("it names {}, which is not a Git directory", git_dir.display()),
+        }
+    }
+    let resolved_git_dir: PathBuf = resolved_or_spelled(&git_dir);
+    let common_dir: PathBuf = common_dir_of(&resolved_git_dir);
+    return RootEntry::Tree { git_dir: resolved_git_dir, common_dir }
+}
+
+/// Whether `suspect` holds what Git's `is_git_directory` requires:
+///  a `HEAD` naming a ref or an object id,
+///  and `objects` and `refs` beside the shared state.
+fn is_git_directory(suspect: &Path) -> bool {
+    if !head_names_a_ref_or_object_id(&suspect.join("HEAD")) {
+        return false
+    }
+    let common: PathBuf = common_dir_of(suspect);
+    return common.join("objects").is_dir() && common.join("refs").is_dir()
+}
+
+/// Whether `head` is the file Git accepts as a repository's `HEAD`:
+///  a symbolic ref into `refs/`,
+/// or an object id.
+fn head_names_a_ref_or_object_id(head: &Path) -> bool {
+    let Ok(contents) = std::fs::read_to_string(head) else {
+        return false
+    };
+    let line: &str = contents.lines().next().unwrap_or("").trim();
+    if let Some(target) = line.strip_prefix("ref:") {
+        return target.trim_start().starts_with("refs/")
+    }
+    // A detached HEAD holds one object id, forty bytes for Sha1 and sixty-four for Sha256.
+    if !matches!(line.len(), 40 | 64) {
+        return false
+    }
+    for byte in line.bytes() {
+        if !byte.is_ascii_hexdigit() {
+            return false
+        }
+    }
+    return true
+}
+
+/// What an operating system refusal of a `.git` file means for a scan,
+///  in one phrase.
+fn git_file_unreadable(error: std::io::Error) -> String {
+    return format!("it cannot be read ({})", error)
 }
 
 /// The bytes of a `.git` file,
 /// bounded by Git's own ceiling.
-fn read_git_file(path: &Path) -> Option<Vec<u8>> {
-    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
-    if metadata.len() >= GIT_FILE_MAX_BYTES {
-        return None
+fn read_git_file(path: &Path) -> Result<Vec<u8>, String> {
+    let metadata: std::fs::Metadata = std::fs::metadata(path).map_err(git_file_unreadable)?;
+    if metadata.len() > GIT_FILE_MAX_BYTES {
+        return Err("it is too large to be a .git file".to_string())
     }
-    return std::fs::read(path).ok()
+    return std::fs::read(path).map_err(git_file_unreadable)
 }
 
 /// The Git directory a `.git` file's own contents name,
 ///  before a relative one is resolved against its working tree.
 ///
-/// Git strips exactly one trailing newline and requires the `gitdir: `
+/// Git strips every trailing line break and requires the `gitdir: `
 ///  prefix,
 ///  so a newline inside the named path stays part of that path,
 ///  and a file without the prefix is not a Git file at all.
-pub(crate) fn gitdir_from_git_file(contents: &[u8]) -> Option<PathBuf> {
-    let line: &[u8] = contents.strip_suffix(b"\n").unwrap_or(contents);
-    let named: &[u8] = line.strip_prefix(GITDIR_PREFIX)?;
-    if named.is_empty() {
-        return None
+pub(crate) fn gitdir_from_git_file(contents: &[u8]) -> Result<PathBuf, String> {
+    let mut line: &[u8] = contents;
+    while let [rest @ .., last] = line {
+        if !TRAILING_LINE_BYTES.contains(last) {
+            break;
+        }
+        line = rest;
     }
-    let text: &str = std::str::from_utf8(named).ok()?;
-    return Some(PathBuf::from(text))
+    let Some(named) = line.strip_prefix(GITDIR_PREFIX) else {
+        return Err("it does not start with `gitdir: `".to_string())
+    };
+    if named.is_empty() {
+        return Err("it names no path".to_string())
+    }
+    let Ok(text) = std::str::from_utf8(named) else {
+        return Err("the path it names is not UTF-8".to_string())
+    };
+    return Ok(PathBuf::from(text))
 }
 
 /// The directory holding the repository's shared state,
 ///  from `<git_dir>/commondir` when a linked worktree has one,
 ///  and `git_dir` itself otherwise.
+///
+/// Git strips every trailing line break there too,
+///  and resolves a relative entry against the Git directory.
 fn common_dir_of(git_dir: &Path) -> PathBuf {
     let Ok(contents) = std::fs::read(git_dir.join("commondir")) else {
         return git_dir.to_path_buf()
     };
-    let line: &[u8] = contents.strip_suffix(b"\n").unwrap_or(&contents);
+    let mut line: &[u8] = &contents;
+    while let [rest @ .., last] = line {
+        if !TRAILING_LINE_BYTES.contains(last) {
+            break;
+        }
+        line = rest;
+    }
     let Ok(text) = std::str::from_utf8(line) else {
         return git_dir.to_path_buf()
     };
-    return lexically_normalized(&git_dir.join(text))
+    return resolved_or_spelled(&git_dir.join(text))
+}
+
+/// `path` with symlinks followed and navigation components settled by the
+///  filesystem,
+///  or the path as spelled when it cannot be resolved.
+///
+/// Git realpaths the Git directory it discovered
+///  (`strbuf_realpath` in `read_gitfile_gently`)
+///  and the common directory (`strbuf_add_real_path`),
+///  so a `gitdir:` line holding `..` addresses the same directory here as it
+///  does there,
+///  including when a `..` follows a symlink.
+fn resolved_or_spelled(path: &Path) -> PathBuf {
+    return match std::fs::canonicalize(path) {
+        Ok(resolved) => resolved,
+        Err(_) => path.to_path_buf(),
+    }
 }
 
 /// The walked directory's path below the working tree root,
@@ -237,9 +443,14 @@ fn absolute_path(path: &Path) -> Option<PathBuf> {
 ///  component before it,
 ///  touching no filesystem entry.
 ///
-/// Every input here is absolute,
+/// Every input is absolute,
 ///  so a `..` that climbs past the filesystem root is dropped,
 ///  which is what Git and the kernel do with such a path.
+///  This resolves spelling only:
+///  a `..` after a symlink names a different directory on disk,
+///  so nothing that must match the kernel's own resolution is normalized
+///  here,
+/// and `gitdir:` and `commondir` paths keep their spelling.
 pub(crate) fn lexically_normalized(path: &Path) -> PathBuf {
     let mut parts = path.components().peekable();
     // A volume prefix is the base a root component keeps: `PathBuf::push` of a

@@ -131,46 +131,66 @@ pub(crate) struct WorkingTreeListing {
     /// Every path to scan,
     ///  as the walker spells them and as this module joins the index's own.
     pub(crate) files: Vec<String>,
-    /// Why the tracked-file union is missing when a repository was found but
-    ///  its index could not be read,
+    /// Why the tracked-file union is missing or incomplete,
     ///  so a scan that cannot cover force-added files says so instead of
     ///  quietly reporting less.
-    pub(crate) union_gap: Option<String>,
+    pub(crate) union_gap: Option<UnionGap>,
 }
 
-/// One listed path reduced to the form both conventions agree on:
-///  `.` components dropped and separators normalized,
-///  so the walker's `./x`,
-/// this module's `./x`,
-/// and an absolute
-///  `<root>/x` compare equal.
-fn listing_key(path: &str) -> Vec<u8> {
-    return crate::path_name_bytes::normalized_path(&crate::git_working_tree::lexically_normalized(
-        std::path::Path::new(path),
-    ))
-}
-
-/// Why the index at `index_path` cannot back the tracked-file union,
-///  naming the state the file is in.
+/// Why the tracked-file union is unavailable.
 ///
-/// The text reaches the person running the scan behind
-///  `forbidden-strings: `,
-///  so it names the exact file and says which files the gap covers.
-fn unreadable_index_reason(index_path: &std::path::Path) -> String {
-    let absent_or_unopenable = match std::fs::File::open(index_path) {
-        Err(error) => Some(format!("{} cannot be read ({})", index_path.display(), error)),
-        Ok(_) => None,
-    };
-    if let Some(reason) = absent_or_unopenable {
-        return format!(
-            "{}; tracked files that .gitignore hides are not scanned until the index is rebuilt with `git reset`",
-            reason
-        )
+/// The path is kept apart from the words so the caller renders it through the
+///  pathname scan,
+///  which masks a component matching a rule and escapes protocol-sensitive
+///  characters,
+///  exactly as every other path in a diagnostic is rendered.
+///  Printing a raw path here would let the one message about a path we could
+///  not read be the one place a pathname leaks.
+pub(crate) struct UnionGap {
+    /// The file the scan could not use,
+    ///  either a `.git` entry or an index.
+    pub(crate) at: std::path::PathBuf,
+    /// What state it was in.
+    pub(crate) cause: String,
+}
+
+/// One listed path reduced to the form two spellings of the same path agree on:
+///  `.` components dropped and separators normalized,
+///  with nothing resolved against the filesystem.
+///
+/// The walker reports `<root>/<entry>` and this module joins index entries the
+///  same way,
+///  so the two differ only in `.` components
+///  (`./x` from the walker of root `.` against `./x` built by the join).
+///  Neither side carries `..`,
+///  which is why nothing here collapses one.
+fn listing_key(path: &str) -> Vec<u8> {
+    let mut without_dots: std::path::PathBuf = std::path::PathBuf::new();
+    for part in std::path::Path::new(path).components() {
+        if part != std::path::Component::CurDir {
+            without_dots.push(part.as_os_str());
+        }
     }
-    return format!(
-        "{} does not hold a Git index this scanner can parse; tracked files that .gitignore hides are not scanned until the index is rebuilt with `git reset`",
-        index_path.display()
-    )
+    return crate::path_name_bytes::normalized_path(&without_dots)
+}
+
+/// What state the index at `index_path` is in,
+///  given that `gix-index` could not open it.
+///
+/// The error text is kept as the scanner received it and the file is asked
+///  what state it is in,
+///  because the two say different things:
+///  a missing or permission-denied file is an operating-system refusal,
+///  while a file that opens but does not parse is a format or extension the
+///  decoder does not handle.
+///  Reopening is safe here:
+///  Git never writes into the same index file,
+///  it replaces it.
+fn unreadable_index_cause(index_path: &std::path::Path, error: &impl std::fmt::Display) -> String {
+    return match std::fs::File::open(index_path) {
+        Err(open_error) => format!("it cannot be read ({})", open_error),
+        Ok(_) => format!("it does not hold a Git index this scanner can parse ({})", error),
+    }
 }
 
 /// Implements `list_files`.
@@ -328,19 +348,28 @@ pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const tree = discoverWorkingTree(root);
+    // const discovery = discoverWorkingTree(root);
     // let unionGap = null;
-    // if (tree !== null) {
-    //   const idx = await openIndex(`${tree.gitDir}/index`, tree.hashKind());
+    // if (discovery.kind === "unusable") unionGap = { at: discovery.entry, cause: discovery.cause };
+    // if (discovery.kind === "working-tree") {
+    //   const idx = await openIndex(discovery.tree.indexPath, discovery.tree.hashKind());
     //   for (const entry of idx.entries) {
-    //     const below = tree.belowWalkRoot(entry.path);   // null outside the walked directory
+    //     const below = discovery.tree.belowWalkRoot(entry.path);   // null outside the walked directory
     //     if (below !== null) files.push(join(root, below));
     //   }
     // }
     // ```
     let root_path = std::path::Path::new(root);
-    let mut union_gap: Option<String> = None;
-    if let Some(tree) = crate::git_working_tree::discover(root_path) {
+    let mut union_gap: Option<UnionGap> = None;
+    let mut working_tree: Option<crate::git_working_tree::GitWorkingTree> = None;
+    match crate::git_working_tree::discover(root_path) {
+        crate::git_working_tree::Discovery::WorkingTree(tree) => working_tree = Some(tree),
+        crate::git_working_tree::Discovery::NoRepository => {}
+        crate::git_working_tree::Discovery::Unusable { entry, cause } => {
+            union_gap = Some(UnionGap { at: entry, cause });
+        }
+    }
+    if let Some(tree) = working_tree {
         let index_path = tree.index_path();
         let opened = gix_index::File::at(
             &index_path,
@@ -439,8 +468,9 @@ pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
                     }
                 }
             }
-            Err(_) => {
-                union_gap = Some(unreadable_index_reason(&index_path));
+            Err(error) => {
+                let cause: String = unreadable_index_cause(&index_path, &error);
+                union_gap = Some(UnionGap { at: index_path, cause });
             }
         }
     }
