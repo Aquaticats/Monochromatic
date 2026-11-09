@@ -67,7 +67,7 @@ pub const TRASH_PARENT: &str = ".claude/cli-git-trash";
 /// a snapshot carries the whole ignored state itself,
 /// so no copy summary appears;
 /// this says what happened instead.
-pub const MAIN_SNAPSHOT_NOTE: &str = "monochromatic-git-policy-cli: made the worktree as a snapshot of the main checkout; nested worktrees, caches and run records were left out.\n";
+pub const MAIN_SNAPSHOT_NOTE: &str = "monochromatic-git-policy-cli: made the worktree as a snapshot of the main checkout; nested worktrees, caches, run records and the stage containers of other commands were left out.\n";
 
 /// The mode bits that say an index entry is a directory (a tree) or a gitlink.
 const DIRECTORY_MODES: [u32; 2] = [0o040_000, 0o160_000];

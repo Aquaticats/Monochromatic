@@ -995,7 +995,8 @@ Then it unlinks the `.git` file of every other nested linked worktree that is an
 directory that holds a `.git` file,
 because a copied pointer names another worktree's administrative directory.
 Then it moves each such directory,
-and each directory the rule names as a cache or a run record,
+and each directory the rule names as a cache,
+a run record or a stage container of another command,
 into a trash directory
 `.claude/cli-git-trash/<forty hexadecimal digits>` inside the stage,
 by rename.
@@ -1087,8 +1088,8 @@ A snapshot of the main checkout does not print the copy summary,
 because no copy ran;
 unless `--quiet` is given it writes one
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees,
-caches and
-run records were left out.
+caches,
+run records and the stage containers of other commands were left out.
 
 Parallel checkout of the new worktree:
 when Git's own checkout makes the new worktree (the person's `git worktree add` run as Git's checkout,
@@ -1745,6 +1746,12 @@ which it is
 `playwright-report`,
 `test-results`,
 and `cache` directly under `.serena`).
+A stage container of another command (a directory whose name begins `.cli-git-worktree-copy-`) is left out of every
+source's copy,
+by that name at any depth,
+because it holds the whole ignored state another worktree's copy is filling,
+credentials included,
+and nothing in the new worktree would name it.
 The repository root's own `.cache` is kept,
 because tasks read the tools and generated inputs it holds.
 Dependencies,
