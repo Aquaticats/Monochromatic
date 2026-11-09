@@ -18,13 +18,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// How many worktrees the controls convert.
-const WORKTREES: usize = 4;
+/// A conversion copies, verifies and exchanges a real directory and syncs it,
+/// and on a host whose disk is busy one takes seconds
+/// (measured at a 2-CPU allowance with the host loaded: 28 s a conversion),
+/// so a control converts no more than the report it pins needs:
+/// two show a side-by-side run beside a serial one, and the report's order.
+const WORKTREES: usize = 2;
 
 /// The name of the linked worktree a control registers while a run waits.
 const LATER: &str = "later";
 
 /// How many worktrees a control converts when the conversions run one after another:
-/// one proves that a conversion takes a place of the bound, and two show a serial report beside a side-by-side one.
+/// one proves that a conversion takes a place of the bound,
+/// and two show a serial report beside a side-by-side one.
 const ONE_CONVERSION: usize = 1;
 
 /// How many worktrees the comparison of a serial run against a side-by-side run converts.
@@ -265,7 +271,11 @@ fn a_failed_worktree_does_not_stop_or_corrupt_the_others() {
 fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: usize) -> usize {
     // The overlap this control measures is bounded by the process's room, so it takes the room it needs.
     let _room: usize = room_for(name, meeting.max(1));
-    let (parent, root) = checkout_with_worktrees(name, WORKTREES + WORKTREES);
+    // One worktree more than the overlap the control expects: that is what shows the bound holds, and a control that
+    //  serializes eight conversions runs into the test watchdog under the load of a whole suite (measured at a 2-CPU
+    //  allowance: 55 s for the memory bound's eight).
+    let count: usize = meeting.max(ONE_CONVERSION) + ONE_CONVERSION;
+    let (parent, root) = checkout_with_worktrees(name, count);
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(meeting, LAST_TO_FINISH_PATIENCE));
@@ -294,7 +304,7 @@ fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: us
 fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
     let allowed: usize = conversion_workers(usize::MAX, None, &host);
-    assert!(allowed > 1 && allowed < WORKTREES, "the control needs a bound between one and the worktrees: {allowed}");
+    assert!(allowed > 1, "the control needs a bound above one: {allowed}");
     assert_eq!(busiest_of("convert-parallel-budget", &host, None, allowed), allowed);
 }
 
@@ -483,9 +493,11 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
 }
 
 /// What:
-///  What a run covers is found after the run's first wait, not before it.
+///  What a run covers is found after the run's first wait,
+/// not before it.
 /// Why:
-///  Finding the targets runs Git for `--all` and scans the linked worktrees, and grouping them into lanes resolves each
+///  Finding the targets runs Git for `--all` and scans the linked worktrees,
+/// and grouping them into lanes resolves each
 /// path with a synchronous `std::fs::canonicalize`
 /// (`lanes_of`).
 /// On the thread that polls the runtime that work happens before the future's first await,

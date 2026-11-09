@@ -88,7 +88,8 @@ impl Rendezvous {
 ///  not from the host a control states for its own budget request.
 /// Without this the control could only fail or pass without running on a machine with few CPUs,
 /// and one that does not run proves nothing.
-/// Call it first: a runtime and a bound already made keep their sizes.
+/// Call it first:
+/// a runtime and a bound already made keep their sizes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

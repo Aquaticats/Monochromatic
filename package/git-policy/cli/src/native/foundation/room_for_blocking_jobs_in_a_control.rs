@@ -32,7 +32,7 @@ static ROOM: AtomicUsize = AtomicUsize::new(0);
 /// a runtime and a bound that are already made keep their sizes,
 ///  so a later call changes nothing.
 pub(crate) fn for_a_control(jobs: usize) -> usize {
-    let _set = ROOM.store(jobs.max(1), Ordering::SeqCst);
+    ROOM.store(jobs.max(1), Ordering::SeqCst);
     return jobs.max(1);
 }
 

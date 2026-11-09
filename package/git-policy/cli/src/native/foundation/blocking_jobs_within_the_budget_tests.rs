@@ -72,6 +72,8 @@ fn a_job_gives_its_value() {
 /// The budget is the process's own and says how many places it holds.
 #[test]
 fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
+    // The cap only lowers what the CPUs allow, so the control gives the process room for the bound it measures.
+    let _room: usize = crate::parallel_test_support::room_for("the_budget_is_at_least_one_place_and_a_cap_holds_it_lower", BOUND_HELD_TO);
     hold_blocking_jobs_to(BOUND_HELD_TO);
     assert_eq!(budgeted_blocking_jobs(), BOUND_HELD_TO, "the cap the process asked for is the bound in force");
 }
@@ -80,6 +82,8 @@ fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
 /// however many are started.
 #[test]
 fn no_more_jobs_run_at_once_than_the_budget_allows() {
+    // Two of the burst's jobs must really run at once, so the balance of places must be as wide as the number of places.
+    let _room: usize = crate::parallel_test_support::room_for("no_more_jobs_run_at_once_than_the_budget_allows", BOUND_HELD_TO);
     hold_blocking_jobs_to(BOUND_HELD_TO);
     let shared: Arc<Concurrency> = Concurrency::new();
     let outcome = run_on_runtime(async {
@@ -257,9 +261,11 @@ fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
 
 /// What:
 ///  A refused thread start says which of the two happened:
-///  that the step will not run, or that it started on another thread and may have done its work.
+///  that the step will not run,
+/// or that it started on another thread and may have done its work.
 /// Why:
-///  The helper is the only place where that is known, because it takes the claim:
+///  The helper is the only place where that is known,
+/// because it takes the claim:
 /// the reporter's claim proves the queued closure will do nothing,
 ///  and a claim the job took first proves the job started
 /// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
@@ -271,12 +277,12 @@ fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
 fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
     // The reporter takes the claim first: the step will do nothing.
     let never: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
-    let (bound, place) = {
-        let bound = Arc::new(tokio::sync::Semaphore::new(ONE_PLACE));
-        let place = Arc::clone(&bound).try_acquire_owned().expect("the place is free");
-        (bound, place)
+    let (bound, taken) = {
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(ONE_PLACE));
+        let taken = Arc::clone(&semaphore).try_acquire_owned().expect("the place is free");
+        (semaphore, taken)
     };
-    let held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(place);
+    let held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(taken);
     let will_not_run: BlockingJobError = a_refused_thread_start(BlockingJobError::NoThreadToStart, &never, &held);
     assert_eq!(will_not_run, BlockingJobError::NoThreadToStart);
     let said: String = will_not_run.to_string();
@@ -287,16 +293,16 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
     // The job took the claim first: it started on another thread, and what it did is not known from here.
     let would_run: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
     assert!(would_run.the_job_takes_it(), "the job is first");
-    let (other_bound, other_place) = {
-        let bound = Arc::new(tokio::sync::Semaphore::new(ONE_PLACE));
-        let place = Arc::clone(&bound).try_acquire_owned().expect("the place is free");
-        (bound, place)
+    let (other_bound, other_taken) = {
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(ONE_PLACE));
+        let other_taken = Arc::clone(&semaphore).try_acquire_owned().expect("the place is free");
+        (semaphore, other_taken)
     };
-    let other: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(other_place);
+    let other: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(other_taken);
     let started: BlockingJobError = a_refused_thread_start(BlockingJobError::NoThreadToStart, &would_run, &other);
     assert_eq!(started, BlockingJobError::StartedAfterItsThreadWasRefused);
-    let said: String = started.to_string();
-    assert!(said.contains("has started"), "the job started on another thread, and the message says so: {said}");
-    assert!(!said.contains("will not run"), "the job runs, so nothing may promise it will not: {said}");
+    let started_text: String = started.to_string();
+    assert!(started_text.contains("has started"), "the job started on another thread, and the message says so: {started_text}");
+    assert!(!started_text.contains("will not run"), "the job runs, so nothing may promise it will not: {started_text}");
     assert_eq!(other_bound.available_permits(), 0, "the place stays with the job that holds it");
 }

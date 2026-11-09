@@ -218,7 +218,8 @@ pub fn execute(platform: Arc<dyn Platform + Send + Sync>, arguments: &ConvertArg
 /// What:
 ///  What a run found to convert and how its targets are grouped into lanes.
 /// Why:
-///  The two are found together, in one job of the blocking pool
+///  The two are found together,
+/// in one job of the blocking pool
 /// (`execute_run_awaiting`),
 ///  because both read the filesystem and one of them starts Git.
 ///
@@ -227,7 +228,8 @@ pub fn execute(platform: Arc<dyn Platform + Send + Sync>, arguments: &ConvertArg
 /// type FoundTargets = { found: Targets | string; lanes: number[][] };
 /// ```
 struct FoundTargets {
-    /// The targets, or the reason a run was refused before anything changed.
+    /// The targets,
+    /// or the reason a run was refused before anything changed.
     found: Result<Targets, String>,
     /// The lanes of the targets,
     /// empty when the run was refused.
@@ -235,7 +237,8 @@ struct FoundTargets {
 }
 
 /// What:
-///  Finds what a run covers, and groups its targets into lanes.
+///  Finds what a run covers,
+/// and groups its targets into lanes.
 /// Why:
 ///  See `FoundTargets`.
 ///
@@ -455,7 +458,7 @@ pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str
     //  worktrees), so it is one job of the blocking pool: a path whose lookup stalls would otherwise hold the thread that
     //  polls this runtime before the future's first await, where no timeout could expire.
     let (arguments_owned, cwd_owned): (ConvertArguments, PathBuf) = ((*arguments).clone(), cwd.to_path_buf());
-    let found: FoundTargets = match run_blocking_job_within_the_budget(move || { return find_the_targets_and_lanes(&arguments_owned, cwd_owned.as_path()); }).await {
+    let located: FoundTargets = match run_blocking_job_within_the_budget(move || { return find_the_targets_and_lanes(&arguments_owned, cwd_owned.as_path()); }).await {
         Ok(found) => found,
         Err(refused) => {
             say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {refused}").as_str());
@@ -463,8 +466,8 @@ pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str
             return REFUSED_EXIT_CODE;
         }
     };
-    let FoundTargets { found, lanes } = found;
-    let found: Targets = match found {
+    let FoundTargets { found: targets_or_refusal, lanes } = located;
+    let found: Targets = match targets_or_refusal {
         Ok(covered) => covered,
         Err(reason) => {
             say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
