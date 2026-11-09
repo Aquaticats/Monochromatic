@@ -55,8 +55,13 @@ export type CaptureBuffer = readonly CaptureSet[];
 const state: { buffer: CaptureBuffer; } = { buffer: [], };
 
 /**
- Appends a capture set to the rolling buffer, evicting the oldest entry
- if the buffer is at capacity, then runs {@link prune} to drop expired sets.
+ Appends a capture set to the rolling buffer, evicting the oldest entry when
+ the buffer is at capacity.
+ 
+ Retention is {@link getRecent}'s job: it is the one place a reader asks what
+ is still fresh, so this function needs no clock reading and an expired set
+ waits in the buffer at most until the next read (bounded by
+ {@link MAX_ENTRIES} sets).
  
  @param set - capture set to store
  
@@ -66,18 +71,17 @@ const state: { buffer: CaptureBuffer; } = { buffer: [], };
  ```
  */
 export function store(set: CaptureSet,): void {
-  state.buffer = retainedCaptureBuffer({
-    buffer: appendedCaptureBuffer({
-      buffer: state.buffer,
-      set,
-    },),
-    now: Date.now(),
+  state.buffer = appendedCaptureBuffer({
+    buffer: state.buffer,
+    set,
   },);
 }
 
 /**
- Runs {@link prune} then returns a shallow copy of all non-expired capture
- sets in the buffer.
+ Drops the expired sets, then returns a shallow copy of what remains.
+ 
+ A set captured exactly {@link RETENTION_MS} ago is still returned; one
+ captured a millisecond earlier is not.
  
  @returns array of recent capture sets, oldest first
  

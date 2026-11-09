@@ -115,27 +115,30 @@ export async function cycle(): Promise<void> {
 
     /**
      Verdict extracted from the LLM response, recorded into the sliding decision window; the rest of the line
-     reports the streak it completed and whether the user is told.
+     reports its unproductive count and whether the user is told.
      */
     const verdict = parseVerdict(result,);
     /**
-     Window for the next cycle, the streak this cycle completed, and whether the user is told.
+     The window with this verdict in it, its unproductive count, and whether it completes the streak.
      */
     const {
-      window: nextWindow,
+      window: filledWindow,
       streakCount,
       notified,
     } = recordVerdict({
       window: state.decisions,
       verdict,
     },);
-    state.decisions = nextWindow;
+    state.decisions = filledWindow;
 
     log.info(`[report] ${result}`,);
     log.info(`[verdict] ${verdict} (streak: ${streakCount}/${DECISION_WINDOW_SIZE})`,);
 
     if (notified) {
+      // The window is reset only after the user has actually been told, so a failed notification keeps the
+      // completed streak and the next unproductive cycle reports it again instead of losing it.
       await sendNotification(result,);
+      state.decisions = initialDecisionWindow();
     }
   }
   catch (err: unknown) {

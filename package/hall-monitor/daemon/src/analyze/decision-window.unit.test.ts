@@ -53,7 +53,11 @@ type StreakRun = {
 };
 
 /**
- Runs every verdict through the daemon's own per-cycle policy, {@link recordVerdict}.
+ Runs every verdict through {@link recordVerdict} and the reset `cycle()` performs
+ after it has notified.
+ 
+ The reset is the caller's step in production, so this helper states the order
+ the daemon relies on: shift, notify a human, then start a fresh window.
  
  @param verdicts - verdicts in the order the daemon records them
  
@@ -67,7 +71,7 @@ function runStreak(verdicts: readonly Decision[],): StreakRun {
     ) {
       /** What this verdict did to the window and the streak. */
       const {
-        window,
+        window: filledWindow,
         streakCount,
         notified,
       } = recordVerdict({
@@ -76,7 +80,7 @@ function runStreak(verdicts: readonly Decision[],): StreakRun {
       },);
 
       return {
-        window,
+        window: notified ? initialDecisionWindow() : filledWindow,
         streakCounts: [
           ...run.streakCounts,
           streakCount,
@@ -287,6 +291,46 @@ await describe({
             const streak = windowWithUnproductive(DECISION_WINDOW_SIZE,);
 
             expect(everyDecisionUnproductive(streak,),).toBe(true,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: recordVerdict.name,
+      children: [
+        it({
+          name: 'leaves the completed window in place, so the caller can reset it after notifying',
+          fn: async () => {
+            /** A window one unproductive verdict short of a streak. */
+            const before = windowWithUnproductive(DECISION_WINDOW_SIZE - 1,);
+            /** What recording the last unproductive verdict reports. */
+            const step = recordVerdict({
+              window: before,
+              verdict: UNPRODUCTIVE,
+            },);
+
+            expect(step.notified,).toBe(true,);
+            expect(step.streakCount,).toBe(DECISION_WINDOW_SIZE,);
+            // Not reset here: `cycle()` resets only after the notification has been sent.
+            expect(everyDecisionUnproductive(step.window,),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'reports the unproductive count without resetting a window that is not a streak',
+          fn: async () => {
+            /** A window with two unproductive verdicts at its newest end. */
+            const before = windowWithUnproductive(2,);
+            /** What recording one more unproductive verdict reports. */
+            const step = recordVerdict({
+              window: before,
+              verdict: UNPRODUCTIVE,
+            },);
+
+            expect(step.notified,).toBe(false,);
+            expect(step.streakCount,).toBe(3,);
+            expect(step.window,).toEqual(windowWithUnproductive(3,),);
           },
         },),
       ],

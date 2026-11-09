@@ -1,10 +1,10 @@
 /**
  The productivity streak policy: which recent verdicts the daemon remembers,
- how long the current unproductive streak is, and when the user is notified.
+ how many of them are unproductive, and when the user is notified.
 
  A sliding window of the newest verdicts decides the notification: once every
- verdict in it is unproductive the user is told, and the window starts over so
- the same streak cannot notify twice. An off-by-one in the window length, in
+ verdict in it is unproductive the user is told, and the caller starts the
+ window over so the same streak cannot notify twice. An off-by-one in the window length, in
  the shift, or in the reset changes when a user is interrupted, so the policy
  lives here as pure functions that a test can drive a whole streak through,
  apart from the capture, model and notification around it.
@@ -123,11 +123,11 @@ export function shiftDecisionWindow(
  */
 export type StreakStep = {
   /**
-   The window after the verdict, already reset when it notified.
+   The window with the verdict shifted in, before any post-notification reset.
    */
   readonly window: DecisionWindow;
   /**
-   Unproductive verdicts in the window this step produced, before any reset.
+   How many verdicts in that window are unproductive.
    */
   readonly streakCount: number;
   /**
@@ -138,19 +138,24 @@ export type StreakStep = {
 };
 
 /**
- Records one verdict: shifts it into the window, counts the streak, and once
- the whole window is unproductive reports the notification and resets the
- window so the same streak cannot notify twice.
+ Records one verdict: shifts it into the window, counts the unproductive
+ verdicts in it, and reports whether that completes the notification streak.
+ 
+ The reset after a notification is the caller's step, on purpose: a caller
+ that notifies a human keeps the window it just acted on until the
+ notification has actually happened, so a failed notification can still retire
+ the streak instead of losing it.
  
  @param window - window before this cycle
  
  @param verdict - verdict this cycle recorded
  
- @returns the window for the next cycle, the streak this cycle logged, and whether to notify
+ @returns the shifted window, its unproductive count, and whether to notify
  
  @example
  ```ts
- const { streakCount, notified } = recordVerdict({ window, verdict });
+ const { window: nextWindow, streakCount, notified } = recordVerdict({ window, verdict });
+ if (notified) { await sendNotification(text); }
  ```
  */
 export function recordVerdict(
@@ -175,7 +180,7 @@ export function recordVerdict(
   const notified = everyDecisionUnproductive(shifted,);
 
   return {
-    window: notified ? initialDecisionWindow() : shifted,
+    window: shifted,
     streakCount: countUnproductive(shifted,),
     notified,
   };

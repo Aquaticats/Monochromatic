@@ -331,17 +331,43 @@ await describe({
         },),
 
         it({
-          name: 'drops a set that is already outside the retention window',
+          name: 'drops a set that expires while it sits in the buffer',
+          fn: async ({ sinon, },) => {
+            // Only `Date` is faked, so the harness deadline clock keeps running.
+            /** A clock this case controls, started at the shared fixed reading. */
+            const clock = sinon.useFakeTimers({
+              toFake: ['Date',],
+              now: NOW,
+            },);
+            /** A set captured at the controlled clock's first reading. */
+            const set = captureSet(Date.now(),);
+            store(set,);
+            /** What a read returns while the set is still fresh. */
+            const fresh = timestampsOf(getRecent(),);
+
+            // `store` does not prune, so this read is the only thing that can drop the set.
+            expect(fresh.at(-1,),).toBe(set.timestamp,);
+
+            clock.tick(RETENTION_MS + 1,);
+            /** What a read returns once the set has aged past the window. */
+            const expired = timestampsOf(getRecent(),);
+
+            expect(expired,).not.toContain(set.timestamp,);
+          },
+        },),
+
+        it({
+          name: 'never returns a set whose timestamp is older than the window',
           fn: async () => {
             /** The oldest timestamp the window still keeps. */
             const cutoff = Date.now() - RETENTION_MS;
             /** A set captured one millisecond before the cutoff. */
-            const expired = captureSet(cutoff - 1,);
-            store(expired,);
+            const before = captureSet(cutoff - 1,);
+            store(before,);
             /** Timestamps left in the buffer. */
             const buffered = timestampsOf(getRecent(),);
 
-            expect(buffered,).not.toContain(expired.timestamp,);
+            expect(buffered,).not.toContain(before.timestamp,);
           },
         },),
 
