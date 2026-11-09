@@ -154,6 +154,9 @@ fn crate_of_entry(id: &str, entry: &Value) -> String {
 /// Other worktrees may sit on a commit whose lock is in an older format;
 /// only `tools.<id>.version` and `route` are needed,
 /// and both are part of the lock's frozen surface.
+/// A `cargo-binstall` row without a `version` text is not such a surface:
+/// it is refused rather than read as naming nothing,
+/// because naming nothing is what lets the prune delete the crate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,9 +175,14 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
         if entry.get("route").and_then(Value::as_str) != Some("cargo-binstall") {
             continue;
         }
-        if let Some(version) = entry.get("version").and_then(Value::as_str) {
-            named.entry(crate_of_entry(id, entry)).or_default().insert(version.to_string());
-        }
+        let Some(version) = entry.get("version").and_then(Value::as_str) else {
+            // A row this command cannot read would protect nothing, and this is a deletion command: refusing keeps
+            // the crate it installs instead of reading the lock as if the row were not there.
+            return Err(ToolchainError::failure(format!(
+                "{origin} names a cargo-binstall tool without a version, so nothing was deleted; tools.{id} has no `version` text"
+            )));
+        };
+        named.entry(crate_of_entry(id, entry)).or_default().insert(version.to_string());
     }
     return Ok(named);
 }

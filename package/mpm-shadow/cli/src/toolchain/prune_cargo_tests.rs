@@ -162,6 +162,24 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
 }
 
+/// A `cargo-binstall` row with no version is not a lock row this command can judge:
+/// reading it as naming nothing would delete the crate it installs,
+/// so the read refuses and the version stays.
+#[test]
+fn a_cargo_binstall_row_without_a_version_refuses_the_prune_and_deletes_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    let broken = rig._directory.path().join("clone").join("toolchain.lock.json");
+    fs::create_dir_all(rig._directory.path().join("clone")).expect("make");
+    fs::write(&broken, "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"route\":\"cargo-binstall\"}}}").expect("write");
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&broken), false).expect_err("the row names no version");
+    assert!(error.message.contains("cargo:fd-find"), "the message names the row: {error}");
+    assert!(error.message.contains("nothing was deleted"), "the message says nothing happened: {error}");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
+}
+
 /// An explicit `--lock` whose file is gone by the time the command reads it refuses the prune:
 /// a check that runs before the read can be outrun by a concurrent rename,
 /// and then the lock would protect nothing while the prune deletes the version it names.
