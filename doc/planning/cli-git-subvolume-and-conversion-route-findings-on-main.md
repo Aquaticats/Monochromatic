@@ -1216,11 +1216,11 @@ Still open after this work:
   and whether a named pipe ever appears at one of the five read paths,
   remain uncensused,
   as the page's "What I could not determine" says.
-- The mebibyte bound on a list of unreadable files has no measurement;
-  the other record files are measured on this repository
-  (`.git/config` 74,878 bytes,
-  a registration's `gitdir` 122 bytes,
-  a worktree's `.git` file 106 bytes).
+- The mebibyte bound on the migration's journal and on its list of unreadable files has no
+  measurement:
+  no such file existed on this host to measure.
+  The two record files that do exist are measured on this repository:
+  `.git/config` at 74,878 bytes and a registration's `gitdir` at 122.
 - The installed release,
   Windows and macOS,
   unchanged: every run above used the test binary built from these revisions.
