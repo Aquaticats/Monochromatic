@@ -112,7 +112,9 @@ and it has no rotation:
 it grows by one entry per landed commit,
 and the once-per-commit check reads all of it.
 Entries written before 2026-11-01 are in the tracked file;
-the entry format is the same in both files.
+the entry format is the same in both files,
+except the receipt line the service writes last,
+which the entries of that file lack.
 
 ## How to run it
 
@@ -174,7 +176,23 @@ input size (files and lines),
 reviewer route,
 wall-clock cost,
 whether the review named superlinear cost,
-and the findings it kept.
+the findings it kept,
+and the receipt line,
+`reviewed: <the whole commit name>`.
+
+The receipt is the once-per-commit check's only evidence,
+and it is written as the entry's last line.
+The check compares it as one whole line,
+never as a name found somewhere in the log,
+so text a remote answer or a subject happens to spell cannot suppress another
+commit's review,
+and an entry the system cut short before its last line is not taken as
+finished:
+the retry appends the whole entry and leaves the fragment where it is.
+A commit whose entry was written before the receipt line existed,
+and whose item is queued again,
+is therefore reviewed once more.
+
 Those fields are the graduation evidence:
 per-diff cost and run-to-run determinism on real diffs.
 

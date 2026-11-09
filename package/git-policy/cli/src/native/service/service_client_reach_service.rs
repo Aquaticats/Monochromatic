@@ -58,13 +58,14 @@ pub(crate) fn reach(
     trace: &mut ReachTrace,
     service_seen: bool,
 ) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
-    let started: Instant = Instant::now();
+    let mut started: Instant = Instant::now();
     let mut refused_here: bool = false;
     let mut last_asked: Instant = started;
     let mut failed_answers: u32 = 0;
     let mut cannot_ask: bool = false;
     let mut last_start_request: Option<Instant> = None;
     let mut repairs: u32 = 0;
+    let mut reloads: u32 = 0;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
@@ -157,6 +158,31 @@ pub(crate) fn reach(
                 //  manager reports as under way is waited for until the start ceiling and no longer (owner, 2026-11-03: "nothing
                 //  should ever wait forever or indefinitely").
                 if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling {
+                    // What: A service that never greets, in a command that provisioned, is repaired by one reload of the
+                    //       manager's units before the command gives up.
+                    // Why:  The manager may hold a unit whose executable an upgrade or a downgrade removed: the files and
+                    //       the record of what the manager was told can agree while the manager runs the other release, and
+                    //       then no start brings a greeting, because the program the unit names is not there. Resetting the
+                    //       failed state and starting again cannot repair that; only reading the units again replaces the
+                    //       program the unit names. One reload, then one more ceiling, so a service that still does not greet
+                    //       fails the command in a bounded time (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+                    //       finding 2 of the round-4 review).
+                    if reloads == 0
+                        && let (Some(asking), Some(directory)) = (&config.start_watch, config.units_record_dir.as_ref())
+                        && (asking.reload)(asking.bus.as_path())
+                    {
+                        reloads += 1;
+                        // The record certified the files against a manager that holds another unit, so it is dropped: the
+                        // next command provisions and reloads instead of trusting the fast path.
+                        crate::service_provision_loaded_unit_texts::forget(directory.as_path());
+                        let _forgotten = (asking.reset)(asking.bus.as_path(), asking.unit.as_str());
+                        let _socket_forgotten = (asking.reset)(asking.bus.as_path(), asking.socket_unit.as_str());
+                        let _taken = (asking.start)(asking.bus.as_path(), asking.unit.as_str());
+                        started = Instant::now();
+                        last_start_request = Some(Instant::now());
+                        failed_answers = 0;
+                        continue;
+                    }
                     return Err(ClientFailure::DidNotStart);
                 }
             }

@@ -248,3 +248,296 @@ fn the_repository_estimate_covers_the_measured_peak() {
 fn the_repository_estimate_is_the_measurement_rounded_up_to_a_power_of_two() {
     assert_eq!(REPOSITORY_MEMORY, MEASURED_REPOSITORY_PEAK.next_power_of_two());
 }
+
+/// How long before the first new try the assignments of these controls plan,
+/// so a push that could pass leaves a plan behind as well as a wait.
+const FIRST_PAUSE: Duration = Duration::from_secs(3);
+
+/// How far two readings of the same lease may differ:
+/// each world reads the clock for itself,
+/// and a round takes time.
+const LEASE_READING_SLACK: Duration = Duration::from_secs(5);
+
+/// Handlers whose pushes could pass,
+/// so the round plans a try for them,
+/// and which record the Git directory of every push in the order they began.
+struct CouldPass {
+    /// The Git directories pushed,
+    /// in the order the pushes began.
+    began: Mutex<Vec<PathBuf>>,
+}
+
+impl WorkHandlers for CouldPass {
+    fn push(&self, items: &[WorkItem]) -> Verdict {
+        let directory: PathBuf = items.last().map(|item: &WorkItem| { return item.git_dir.clone(); }).unwrap_or_default();
+        self.began.lock().expect("the order of the pushes").push(directory);
+        return Verdict::Retry(String::from("Could not resolve host"));
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+}
+
+/// What:
+///  A repository whose round has one push that could pass and one claim another instance holds,
+/// so the answer carries a plan and a wait.
+/// Why:
+///   Both halves of the answer are what the step must keep,
+/// and a round of pushes alone would pin neither.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = plannedWorld('round-planned', 4); // [{ directory, retrying }, ...]
+/// ```
+fn planned_world(name: &str, count: usize) -> (PathBuf, Vec<Assignment>) {
+    let (root, made): (PathBuf, Vec<Repository>) = repositories(name, count);
+    let mut assignments: Vec<Assignment> = Vec::new();
+    for repository in &made {
+        // A claim another instance holds for a while: the round is told when to look again.
+        let foreign: WorkItem = WorkItem {
+            kind: WorkKind::Review,
+            repository: repository.root.join("worktree").to_path_buf(),
+            git_dir: repository.common.to_path_buf(),
+            branch_ref: BRANCH.to_string(),
+            oid: format!("{:040x}", 0xfeed),
+            parent: String::new(),
+            created: String::from("2026-01-01T00:00:00.000Z"),
+            tries: 0,
+        };
+        enqueue(work_directory(repository.common.as_path()).as_path(), &foreign).expect("enqueue");
+        crate::work_item::claim_next_of(work_directory(repository.common.as_path()).as_path(), &ClaimTime::read(), &[WorkKind::Review]).expect("claimed").expect("a claim");
+        assignments.push(Assignment { directory: repository.common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } });
+    }
+    return (root, assignments);
+}
+
+/// What:
+///  What an answer says,
+///  as the index of each directory and the plan it asks for,
+/// so two rounds over two fixtures can be compared.
+/// Why:
+///   The two worlds are separate fixtures,
+/// so their paths differ and their blocks cannot;
+/// the order and the content of the answer are what is compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const compared = rendered(answer, directories); // ['wait 0', 'plan 0 refs/heads/main 1', ...]
+/// ```
+fn rendered(answer: &RoundAnswer, directories: &[Assignment]) -> Vec<String> {
+    let index_of = |directory: &Path| { return directories.iter().position(|assignment: &Assignment| { return assignment.directory == directory; }).expect("a directory of the round"); };
+    let mut said: Vec<String> = Vec::new();
+    for (directory, _wait) in &answer.waits {
+        said.push(format!("wait {}", index_of(directory.as_path())));
+    }
+    for change in &answer.changes {
+        said.push(match change {
+            RetryChange::Plan { git_dir, item, attempt, .. } => format!("plan {} {} {attempt}", index_of(git_dir.as_path()), item.branch_ref),
+            RetryChange::Forget { git_dir, branch_ref } => format!("forget {} {branch_ref}", index_of(git_dir.as_path())),
+        });
+    }
+    return said;
+}
+
+/// What:
+///  Drains the directories one after another on the calling thread,
+///  and gives the answer a drain of one directory at a time gives.
+/// Why:
+///   This is the oracle the round is compared against:
+/// the same item work,
+/// with no runner between them,
+/// so a difference is the runner's
+///  ordering or assembly and never the drain's own behaviour.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const serial = drainOneAfterAnother(directories, handlers, now);
+/// ```
+fn drain_one_after_another(directories: &[Assignment], handlers: &CouldPass, now: &ClaimTime) -> RoundAnswer {
+    let work: DrainEachDirectory<'_, CouldPass> = DrainEachDirectory { handlers, now };
+    let mut answer: RoundAnswer = RoundAnswer::default();
+    let mut lines: Vec<String> = Vec::new();
+    for (index, assignment) in directories.iter().enumerate() {
+        let (wait, changes): (Option<Duration>, Vec<RetryChange>) = work.run(index, assignment, &mut lines);
+        if let Some(lease_wait) = wait {
+            answer.waits.push((assignment.directory.clone(), lease_wait));
+        }
+        answer.changes.extend(changes);
+    }
+    return answer;
+}
+
+/// What:
+///  The round's answer is the one a drain of one directory after another gives:
+/// the same directories with a wait,
+/// in the
+///  order they were named,
+/// and the same plan for the same branch.
+/// Why:
+///   The service loop applies those changes and wakes on those waits,
+/// so a round that reordered or
+///  dropped one would plan a different set of tries than the reader of the answer expects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(rendered(round(dirs))).toEqual(rendered(drainOneAfterAnother(dirs)))
+/// ```
+#[test]
+fn the_answer_of_a_round_is_the_one_a_drain_of_one_directory_after_another_gives() {
+    let (round_root, assignments) = planned_world("round-answer-parallel", REPOSITORIES);
+    let (serial_root, serial_assignments) = planned_world("round-answer-serial", REPOSITORIES);
+    let round_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let serial_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let now: ClaimTime = ClaimTime::read();
+    let parallel: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: &round_handlers, now: &now, host: &LARGE_HOST });
+    let serial: RoundAnswer = drain_one_after_another(serial_assignments.as_slice(), &serial_handlers, &now);
+    assert_eq!(rendered(&parallel, assignments.as_slice()), rendered(&serial, serial_assignments.as_slice()));
+    assert!(!parallel.waits.is_empty(), "the control needs a claim another instance holds, so the answer carries a wait");
+    assert!(!parallel.changes.is_empty(), "the control needs a push that could pass, so the answer carries a plan");
+    for ((directory, waited), (_same, serial_waited)) in parallel.waits.iter().zip(serial.waits.iter()) {
+        assert!(
+            waited.abs_diff(*serial_waited) <= LEASE_READING_SLACK,
+            "the wait of {} is the one a drain of one directory after another gives: {waited:?} against {serial_waited:?}",
+            directory.display()
+        );
+    }
+    remove(round_root.as_path());
+    remove(serial_root.as_path());
+}
+
+/// What:
+///  A lane drains its directories in the order they were named.
+/// Why:
+///   The directories of one repository share a work directory and its upkeep,
+/// so they run one after another,
+///  and a reader of the
+///  answer expects them in the order the wakes named them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(began).toEqual(['common', 'linked'])
+/// ```
+#[test]
+fn a_lane_drains_its_directories_in_the_order_they_were_named() {
+    let (root, made) = repositories("round-lane-order", 1);
+    let linked: PathBuf = made[0].root.join("linked");
+    std::fs::create_dir_all(&linked).expect("linked directory");
+    std::fs::write(linked.join("commondir"), "../common\n").expect("commondir");
+    let pending: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: made[0].root.join("worktree").to_path_buf(),
+        git_dir: linked.clone(),
+        branch_ref: BRANCH.to_string(),
+        oid: format!("{:040x}", 0xbeef),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
+    let handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let directories: Vec<Assignment> = vec![
+        Assignment { directory: made[0].common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } },
+        Assignment { directory: linked.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } },
+    ];
+    drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &handlers, now: &ClaimTime::read(), host: &LARGE_HOST });
+    let began: Vec<PathBuf> = handlers.began.lock().expect("the order of the pushes").clone();
+    assert_eq!(began, vec![made[0].common.clone(), linked.clone()], "the lane drained its directories in the order they were named");
+    remove(root.as_path());
+}
+
+/// What:
+///  A thread the system refuses partway through a round loses no directory:
+/// every one is drained,
+/// on the
+///  calling thread,
+/// and the answer is the one a round with every thread gives.
+/// Why:
+///   The owner's rule is that a thread is only a way to do the work sooner
+/// (`foundation/scoped_start.rs`),
+/// and a refusal that lost a directory would lose the person's push with it.
+/// This is
+///  the seam a refusal can be measured through:
+/// `RefusedStarts` makes every scoped start from this thread fail,
+/// as a process at its
+///  limit does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = withRefusedStarts(() => round(dirs)); // every lane ran here
+/// ```
+#[test]
+fn a_refused_thread_partway_through_a_round_leaves_no_directory_undrained() {
+    let (refused_root, refused_assignments) = planned_world("round-refused-thread", REPOSITORIES);
+    let (threaded_root, threaded_assignments) = planned_world("round-threaded", REPOSITORIES);
+    let refused_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let threaded_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let now: ClaimTime = ClaimTime::read();
+    let threaded: RoundAnswer = drain_directories(&RoundDrain {
+        directories: threaded_assignments.as_slice(),
+        handlers: &threaded_handlers,
+        now: &now,
+        host: &LARGE_HOST,
+    });
+    let refused: RoundAnswer = {
+        let _refused: crate::scoped_start::RefusedStarts = crate::scoped_start::RefusedStarts::here();
+        drain_directories(&RoundDrain { directories: refused_assignments.as_slice(), handlers: &refused_handlers, now: &now, host: &LARGE_HOST })
+    };
+    assert_eq!(rendered(&refused, refused_assignments.as_slice()), rendered(&threaded, threaded_assignments.as_slice()), "the answer a refused thread gives is the one a round with every thread gives");
+    let began: Vec<PathBuf> = refused_handlers.began.lock().expect("the order of the pushes").clone();
+    assert_eq!(
+        began,
+        refused_assignments.iter().map(|assignment: &Assignment| { return assignment.directory.clone(); }).collect::<Vec<PathBuf>>(),
+        "every directory was drained in the order it was named, on the thread that could not start the others"
+    );
+    remove(refused_root.as_path());
+    remove(threaded_root.as_path());
+}
+
+/// What:
+///  A Git read asked from inside a blocking job of the pool is refused,
+/// which is why a round cannot put its items there.
+/// Why:
+///   Every item of this round runs Git,
+/// and the steps it runs are ended at a ceiling,
+/// so they read their
+///  child through pipes on the runtime
+/// (`process/step_output_read_whole_through_pipes.rs`,
+/// `read_until_the_child_ends`).
+///  A job of the blocking pool is inside the runtime,
+/// so that read is refused there
+/// (`lazy_runtime::RuntimeError::Nested`),
+///  and a round that ran its items as jobs would fail every push.
+/// The measured fact decides the shape the
+///  conversion must take:
+/// the lanes become tasks of the runtime and their Git is awaited
+/// (`transaction/transaction_git_awaiting.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = await inABlockingJob(() => git(['rev-parse', '--show-toplevel'])); // Err(Nested)
+/// ```
+#[test]
+fn a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused() {
+    let root: PathBuf = fixture("round-git-inside-a-job");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let context = crate::test_support::git_context();
+    let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(repo.as_path(), &["rev-parse", "--show-toplevel"]);
+    let asked: Result<std::io::Result<crate::transaction_git::GitOutput>, crate::blocking_job::BlockingJobError> = crate::lazy_runtime::run_on_runtime(async move {
+        return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            return crate::transaction_git::run_git(&context, &request);
+        })
+        .await;
+    })
+    .expect("the runtime");
+    let refused: std::io::Error = asked.expect("the job ran and gave Git's answer as a result").expect_err("a step read through pipes cannot be waited for inside the runtime");
+    assert!(
+        refused.to_string().contains("inside itself"),
+        "the refusal names the runtime that was asked for from inside itself: {refused}"
+    );
+    crate::test_support::remove(root.as_path());
+}

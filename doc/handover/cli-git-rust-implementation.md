@@ -130,7 +130,13 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `421ab69c3e` landed the landing branch,
   `2522a13f4f` the literal-pathspec branch,
   `2b309f8f25` the test-coverage branch,
-  and `87f5771748` the index offset guard.
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  `8026d49827` the alias branch,
+  `8d210d933a` the standards-review branch,
+  `b28c5cca6f` the entry-and-service branch,
+  and `b3210c70ae` the worktree-copy branch.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -138,8 +144,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   landing run 12,
   worktree-removal run 6,
   worktree-add run 4,
-  child-process run 5
-  and merge run 8.
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
   Worktree-add and child-process open with a merge of main in conflict,
   which their briefs tell them to resolve first,
   so neither branch has landed.
@@ -160,6 +172,62 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a long value that stopped the scratch commit from starting.
   The branch now carries every native-commit entry of the invocation in one included
   `native-commit.config` in the commit's scratch directory.
+  `resume-after-provider-error-prompt.md` for `worktree-add-findings-fixed`,
+  whose run 4 the provider ended mid-work,
+  `worktree-copy-round-4-prompt.md` for `worktree-copy-records-keep-path-bytes`
+  (an empty `.git` discards a pending copy,
+  and a FIFO at `.git` blocks recovery with no bound),
+  and `standards-review-round-2-prompt.md`,
+  whose run 2 was stopped at once because a miscount had started a twenty-first agent.
+- The provider ended several runs with `terminated`:
+  `commit-ceiling-and-private-index-follow-ups` run 1,
+  `intent-to-add-keeps-stat-data` runs 3 and 4,
+  `invocation-route-findings-fixed` run 2,
+  `tokio-repair-threads-on-the-runtime` run 1
+  and `worktree-add-findings-fixed` run 4.
+  All but the last have been resumed.
+- `merge-route-round-8-sol.txt` names defects in code new on that branch,
+  among them a clean filter that hides bytes recovery then deletes,
+  so the branch is not to land until its run 9 reports.
+- `discarding-commands-round-3-sol.txt` names a regression:
+  an ignored file inside a directory the target replaces with a file is deleted unguarded,
+  so that branch is not to land until its run 4 reports.
+- Started:
+  discarding-commands run 4,
+  alias run 2,
+  hook run 4,
+  intent-to-add run 3 on two regressions its review named,
+  suite-failures run 3,
+  `kill-sweeps-reach-the-calls-they-name`,
+  `commit-queue-position-reaches-the-person`
+  and `tokio-repair-threads-on-the-runtime`.
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on the intent-to-add branch
+  and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note.
+- The conversion branch passed 397 of 402 on top of main.
+  The three migration timeouts not yet named on main passed alone on it in 12 to 34 s,
+  and its review is running.
+  Those tests failed in seconds when two checkouts ran them at the same moment,
+  which went to `wrapper-tests-that-fail-only-in-a-suite` by inbox note.
+- The conflict-resolution branch's merge of main stopped on three files under `push/`,
+  and its run 4 is resolving them.
+  The push branch is being tested on top of main.
+- `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
+  of which index 57.8 s and journal 20.6 s,
+  and said a real commit makes the same writes and flushes.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
+  `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that loses its value,
+  and a long value that stops the scratch commit from starting.
 - The merge branch passed 320 of 320 on top of main.
   Under the coordinator's decision to converge,
   its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,
