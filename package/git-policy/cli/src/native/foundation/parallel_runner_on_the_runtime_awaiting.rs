@@ -56,6 +56,11 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 /// so the item may move them into a job of the blocking pool,
 /// which must be `'static`,
 ///  and so say them while that job works.
+/// Every line an item says is said before the future it returns ends:
+/// the run reports an item's end as soon as that future is over,
+/// and a line that arrives for an item already ended is held and never shown.
+/// A sink moved into a detached task would therefore lose its lines;
+/// the job of the pool is the place it belongs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

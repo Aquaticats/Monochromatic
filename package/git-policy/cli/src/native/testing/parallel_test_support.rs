@@ -85,7 +85,11 @@ pub(crate) const ONE_PLACE: usize = 1;
 
 /// How long the job of the place control holds the only place,
 /// so the work it measures has time to reach its own job.
-pub(crate) const HELD_BY_ANOTHER_JOB: Duration = Duration::from_millis(300);
+/// A second is far more than an item needs to start when it takes no place at all
+/// (the plant of `worktree/worktree_convert_parallel_tests.rs` starts at once),
+///  and it bounds the one way these controls can pass without proving anything:
+/// work that reached its own job later than this would find the place given back.
+pub(crate) const HELD_BY_ANOTHER_JOB: Duration = Duration::from_millis(1000);
 
 /// What:
 ///  Holds the process's one place on blocking jobs on a task of the runtime,

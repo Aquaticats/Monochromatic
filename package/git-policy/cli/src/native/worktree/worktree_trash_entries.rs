@@ -142,8 +142,8 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
             .await;
             return match removal {
                 Ok(outcome) => outcome,
-                // The entry stays, and why it stayed is a reason like any other.
-                Err(refused) => Err(refused.to_string()),
+                // Which entry this was is what makes the reason usable, since the list keeps no index.
+                Err(refused) => Err(format!("{}: {refused}", entry_name(entry))),
             };
         });
     }

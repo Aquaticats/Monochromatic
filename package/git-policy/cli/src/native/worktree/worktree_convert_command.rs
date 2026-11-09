@@ -184,6 +184,10 @@ pub struct ConvertRun<'run> {
     /// shared by every worktree converted at once,
     /// and owned because a conversion is a job of the blocking pool,
     /// which must be `'static`.
+    ///  A `LinuxPlatform` given here must have been settled
+    /// (`with_its_conversion_environment_settled`),
+    /// because a conversion runs inside the runtime,
+    /// where the bridge that starts the Git child the facts are learned from refuses.
     pub platform: Arc<dyn Platform + Send + Sync>,
     /// The parsed options.
     pub arguments: &'run ConvertArguments,
@@ -286,7 +290,8 @@ impl OrderedAwaitingWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEach
             .await;
             return match converted {
                 Ok(verdict) => verdict,
-                // The worktree was not touched, and the runtime's own reason is why.
+                // Whether the worktree was touched is not known here: the step may have ended before it began,
+                //  or after it changed something, and the reason says which kind of end this was.
                 Err(refused) => Err(MigrateError::Runtime(refused.to_string())),
             };
         });
@@ -363,7 +368,10 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
             Event::End(_index, Err(error)) => {
                 self.failed += 1;
                 (self.say)(format!("  failed: {error}").as_str());
-                (self.say)("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
+                // A conversion whose step never started has no journal to finish, so only a step that ran may say it has one.
+                if !matches!(error, MigrateError::Runtime(_)) {
+                    (self.say)("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
+                }
             }
         }
     }
@@ -393,6 +401,12 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
 /// so it awaits this face;
 /// the lines,
 /// the order and the exit status are the synchronous face's.
+/// One limit,
+/// said rather than hidden:
+/// finding the targets and their lanes (a scan of the linked worktrees)
+/// runs on the task that awaits this face,
+/// not on the blocking pool,
+/// because a job of the pool must own what it reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -32,6 +32,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 
 /// The number of copies of an index file one rewrite holds at once:
 /// the bytes read,
@@ -154,6 +155,9 @@ struct RewriteEachIndex {
     /// The length of the repository's object hashes,
     /// when it could be read.
     hash_length: Option<usize>,
+    /// How many rewrites never ran,
+    /// so a phase that covered fewer indexes than it counted says so instead of marking itself done.
+    not_rewritten: Arc<AtomicUsize>,
 }
 
 impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
@@ -171,8 +175,12 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
             .await;
             return match rewritten {
                 Ok(line) => line,
-                // The index stays as it is, and this line says why instead of the count.
-                Err(refused) => format!("not rewritten ({refused})"),
+                // Whether the index was published is not known here: the step may have ended before it began,
+                //  or after it installed the file, and this line says which kind of end this was.
+                Err(refused) => {
+                    self.not_rewritten.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    format!("not rewritten ({refused})")
+                }
             };
         });
     }
@@ -233,6 +241,13 @@ pub fn refresh_all_indexes_with(request: &AllIndexes, say: &mut dyn LineSink) ->
 ///   A caller that is itself asynchronous cannot enter the runtime,
 /// so it awaits this face;
 /// the lines and the count are the synchronous face's.
+/// One limit,
+/// said rather than hidden:
+/// the storage reads this face makes before the run (the hash length,
+/// the linked worktrees and the size of each index) run on the task that awaits it,
+/// not on the blocking pool,
+/// because a job of the pool must own what it reads.
+/// They are a handful of short reads once per migration.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -266,19 +281,25 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     // The items are shared, so the consumer still knows the path of each index it reports.
     let items: Arc<[IndexTarget]> = Arc::from(targets);
     let count: usize = items.len();
+    let not_rewritten: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let reported = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: Arc::clone(&items),
         lanes: Arc::from(lanes),
         workers,
-        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length }),
+        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length, not_rewritten: Arc::clone(&not_rewritten) }),
         on_event: &mut SayEachIndex { say, targets: items.as_ref() },
     })
     .await;
     // The lines were said by the consumer as each index ended; what ended the run is the answer of the call.
-    return match reported {
-        Ok(()) => Ok(count),
-        Err(stopped) => Err(MigrateError::Runtime(stopped.to_string())),
-    };
+    if let Err(stopped) = reported {
+        return Err(MigrateError::Runtime(stopped.to_string()));
+    }
+    // A rewrite that never ran is not an index that needed nothing: the caller marks its phase done, so it must be told.
+    let missed: usize = not_rewritten.load(std::sync::atomic::Ordering::SeqCst);
+    if missed > 0 {
+        return Err(MigrateError::Runtime(format!("{missed} of {count} index file(s) were not rewritten, because the work of each one could not be started; the indexes stay as they were")));
+    }
+    return Ok(count);
 }
 
 /// Each reference tree path joined with `relative`,
