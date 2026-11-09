@@ -18,6 +18,17 @@ Read every `.mjs` file name here as the same
 name ending in `.ts`;
 the driver `old-format-fixtures` is `old-format-driver`.
 
+Note 2026-11-09T16:36:36-05:00:
+these citations in this record name paths that no longer exist.
+`package/linter/monochromatic-lint/bin/mutate-container.mjs` is now
+`package/linter/monochromatic-lint/bin/mutate-container.ts`,
+with its scope table in
+`package/linter/monochromatic-lint/bin/mutation-scopes.ts` (moved 2026-10-29 in `6682fc5d82`).
+`package/git-policy/cli/bin/mutate-native-container.mjs` is now
+`package/git-policy/cli/bin/mutate-native-container.ts` (moved 2026-10-29 in `418c4dcc54`).
+`package/forbidden-strings/cli/bin/mutate-container.mjs` is now
+`package/forbidden-strings/cli/bin/mutate-container.ts` (moved 2026-10-29 in `6682fc5d82`).
+
 ## Status
 
 Diagnosed on 2026-10-05.
