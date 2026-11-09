@@ -11,7 +11,10 @@
 #![cfg(unix)]
 
 /// Import the query helpers under test and shared fixtures.
-use super::{MetadataOutput, path_from_git_bytes, run_metadata_git, run_metadata_git_within, strip_git_line};
+use super::{
+    MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, run_metadata_git_within,
+    strip_git_line,
+};
 use crate::test_support::{REAL_GIT, executable, fixture, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -131,71 +134,111 @@ fn queries_pass_arguments_and_overlay_and_close_stdin() {
 }
 
 /// What:
-///  A query that does not answer is ended at its ceiling,
-/// and says so.
+///  A read that never returns is ended at the ceiling and said so,
+///  while the same ceiling lets a
+///       read that answers through.
 /// Why:
-///   A read-only query has no watch and no meter,
-/// so a program that accepts its arguments and never answers held a command for
-///  good
-/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-/// finding 5).
-/// The stand-in Git would outlive the control's own bound if nothing ended it,
-/// so a query that outlasts the bound shows.
+///   A `core.fsmonitor` program,
+///  a stalled mount or a Git waiting on an index can hold a Git read
+///  for good;
+///  the owner's "nothing should ever wait forever or indefinitely" bounds it,
+///  and a read that
+///       answers must not be touched.
+///  The ceiling is the seam here,
+///  so the control never waits for a real one to
+///       pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // ids: readWithin(hang, ['ls-files'], 300); expect(result.code).toBe('ETIMEDOUT')
+/// ```
 #[test]
-fn a_query_that_does_not_answer_is_ended_and_says_so() {
-    let root: PathBuf = fixture("git-metadata-ceiling");
-    let answering: PathBuf = root.join("answering");
-    let silent: PathBuf = root.join("silent");
-    std::fs::write(&answering, "#!/bin/sh\nprintf '/repo/.git\\n'\n").expect("the answering stand-in");
-    std::fs::write(&silent, "#!/bin/sh\nsleep 6\n").expect("the silent stand-in");
-    for program in [&answering, &silent] {
-        let mut mode = std::fs::metadata(program).expect("the stand-in's metadata").permissions();
-        std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
-        std::fs::set_permissions(program, mode).expect("the stand-in runs");
-    }
-    let ceiling: std::time::Duration = std::time::Duration::from_millis(700);
-    let arguments: [OsString; 1] = [OsString::from("rev-parse")];
-    let answers_git: [(OsString, OsString); 1] = [(OsString::from(crate::repo_read_hook::SWITCH_VARIABLE), OsString::from("off"))];
-    let answered: MetadataOutput = run_metadata_git_within(answering.as_path(), &arguments, &answers_git, ceiling).expect("the stand-in answers");
-    let began: std::time::Instant = std::time::Instant::now();
-    let held: std::io::Result<MetadataOutput> = run_metadata_git_within(silent.as_path(), &arguments, &answers_git, ceiling);
-    let waited: std::time::Duration = began.elapsed();
-    crate::test_support::remove(root.as_path());
-    assert_eq!(strip_git_line(answered.stdout.as_slice()), b"/repo/.git", "the query that answers is not ended");
-    assert!(waited < std::time::Duration::from_secs(3), "the query outlasted its end by {waited:?}");
-    let failure: std::io::Error = held.expect_err("a query that does not answer is ended");
-    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
-    assert!(failure.to_string().contains("did not answer within"), "{failure}");
+fn a_read_that_never_returns_is_ended_at_its_ceiling() {
+    let root: PathBuf = fixture("metadata-hang");
+    let quick: PathBuf = root.join("quick");
+    executable(quick.as_path(), b"#!/bin/sh\nprintf 'answer\\n'\n");
+    let hang: PathBuf = root.join("hang");
+    executable(hang.as_path(), b"#!/bin/sh\nsleep 60\n");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(300);
+    // The positive control: the same ceiling leaves a read that answers alone.
+    let answered: MetadataOutput = run_metadata_git_within(
+        quick.as_path(),
+        &[OsString::from("ls-files")],
+        &[],
+        ceiling,
+    )
+    .expect("a read that answers");
+    assert_eq!(answered.stdout, b"answer\n".to_vec());
+    assert!(answered.success);
+    let started: std::time::Instant = std::time::Instant::now();
+    let ended: std::io::Error = run_metadata_git_within(
+        hang.as_path(),
+        &[OsString::from("ls-files")],
+        &[],
+        ceiling,
+    )
+    .expect_err("a read that never returns");
+    let took: std::time::Duration = started.elapsed();
+    assert_eq!(ended.kind(), std::io::ErrorKind::TimedOut, "{ended}");
+    let text: String = ended.to_string();
+    assert!(text.contains("ls-files"), "{text}");
+    assert!(text.contains("was ended"), "{text}");
+    // The read is announced and reported under the Git program and its subcommand.
+    assert!(text.contains("showed no sign of work"), "{text}");
+    // The read is ended at the ceiling, not left until the script's own minute is over.
+    assert!(took < std::time::Duration::from_secs(30), "{took:?}");
+    // How the person is told about it: the sentence each caller reports.
+    let sentence: String =
+        read_stopped_text("the staging area", &ended).expect("a read the wrapper ended");
+    assert!(
+        sentence.starts_with(
+            "monochromatic-git-policy-cli stopped waiting for the Git read of the staging area: "
+        ),
+        "{sentence}"
+    );
+    // The words of a watched step belong to a commit's steps, and a check's read says what stayed as it was instead.
+    assert!(
+        sentence.contains("The read changed nothing, so the index and the worktree are as they were; run the command again"),
+        "{sentence}"
+    );
+    assert!(
+        !sentence.contains("finishes or undoes that commit"),
+        "{sentence}"
+    );
+    // Any other failure keeps the wording its caller already had.
+    let unstartable: std::io::Error = run_metadata_git_within(
+        root.join("missing").as_path(),
+        &[],
+        &[],
+        ceiling,
+    )
+    .expect_err("a program that is not there");
+    assert_eq!(read_stopped_text("the staging area", &unstartable), None);
+    remove(root.as_path());
 }
 
 /// What:
-///  A query whose answer does not fit the capture fails and says what was left out,
-/// and never answers with the last part of it;
-///  an answer that fits comes back whole.
+///  An answer larger than the capture's `STEP_OUTPUT_LIMIT` comes back whole from a read its ceiling
+/// bounds, byte for byte.
 /// Why:
-///   A metadata query's bytes are parsed or compared,
-/// and the reader this replaced returned the query's exact
-///  output,
-/// so a silently cut answer is a wrong answer
-/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-///  the captured run's tail).
-/// The same stand-in at a size that fits answers the other way,
-/// so the control can see both.
+///   A read bounded at its ceiling is drained through pipes, every byte of it
+/// (`src/native/process/step_output_read_whole_through_pipes.rs`),
+///  and not from the anonymous files the captured
+///  run keeps the last `STEP_OUTPUT_LIMIT` of.
+/// So a large answer cannot be cut here,
+/// and no refusal of a cut one is needed;
+///  this control states that,
+/// and fails the day a bound read is routed through the capture.
 #[test]
-fn a_query_whose_answer_does_not_fit_the_capture_fails_and_says_so() {
-    let root: PathBuf = fixture("git-metadata-capture-limit");
-    let small: PathBuf = root.join("small");
-    let over: PathBuf = root.join("over");
-    executable(small.as_path(), b"#!/bin/sh\nprintf 'the whole answer\\n'\n");
+fn an_answer_larger_than_the_capture_keeps_comes_back_whole() {
+    let root: PathBuf = fixture("git-metadata-whole-answer");
+    let big: PathBuf = root.join("big");
     let too_many: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1;
-    executable(over.as_path(), format!("#!/bin/sh\nhead -c {too_many} /dev/zero\n").as_bytes());
-    let arguments: [OsString; 1] = [OsString::from("capture-limit-probe")];
-    let answers_git: [(OsString, OsString); 1] = [(OsString::from(crate::repo_read_hook::SWITCH_VARIABLE), OsString::from("off"))];
+    executable(big.as_path(), format!("#!/bin/sh\nhead -c {too_many} /dev/zero\n").as_bytes());
+    let arguments: [OsString; 1] = [OsString::from("ls-files")];
     let ceiling: std::time::Duration = std::time::Duration::from_secs(60);
-    let whole: MetadataOutput = run_metadata_git_within(small.as_path(), &arguments, &answers_git, ceiling).expect("an answer that fits");
-    let cut: std::io::Error = run_metadata_git_within(over.as_path(), &arguments, &answers_git, ceiling).expect_err("a cut answer is not an answer");
+    let answer: MetadataOutput = run_metadata_git_within(big.as_path(), &arguments, &[], ceiling).expect("a large answer");
     remove(root.as_path());
-    assert_eq!(whole.stdout, b"the whole answer\n".to_vec(), "an answer that fits is returned whole");
-    assert!(cut.to_string().contains("does not fit"), "{cut}");
-    assert!(cut.to_string().contains("left out"), "the failure says what was left out: {cut}");
+    assert!(answer.success, "the read answered");
+    assert_eq!(answer.stdout.len(), too_many, "the answer comes back whole, byte for byte");
 }

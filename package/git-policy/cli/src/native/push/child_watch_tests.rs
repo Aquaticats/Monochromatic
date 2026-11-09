@@ -21,6 +21,12 @@ const QUICK: Cadence = Cadence {
     interval: Duration::from_millis(60),
 };
 
+/// How many intervals of the quick cadence a control offers a watch that has no wait running,
+/// each an end mark read in order:
+/// more than two,
+/// so a watcher that went on counting a finished wait is due a notice on one of them.
+const INTERVALS_OFFERED: usize = 3;
+
 /// Terms of a limit,
 /// the quick cadence and a shared sink the test reads.
 fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
@@ -164,13 +170,14 @@ fn a_wait_that_ends_inside_the_grace_prints_nothing() {
 /// A wait that has ended is not announced any more:
 /// the watcher goes back to sleeping until the next wait begins.
 ///  The wait ends on its first notice.
-/// Then a settling pause lets a line that was being written finish,
+/// Then the ended wait is offered turns of the watcher,
+/// each an end mark that is read in order and that resets nothing,
 /// and the
-///  notices must stay at that count over many more intervals.
-/// The check cannot fail on a slow host,
-/// which only
-///  prints nothing,
-/// while a watcher that goes on counting a finished wait prints at every interval.
+///  notices must stay at that count.
+/// A watcher that went on counting the finished wait is due a notice on one of those turns,
+/// however slowly
+///  the host runs it,
+/// because the next wait's notice cannot come before every mark above it has been read.
 #[test]
 fn a_wait_that_has_ended_is_announced_no_more() {
     let shared: SharedSink = SharedSink::default();
@@ -188,16 +195,31 @@ fn a_wait_that_has_ended_is_announced_no_more() {
     watch.begin();
     receiver.recv().expect("a notice announces the wait");
     watch.end();
-    std::thread::sleep(QUICK.interval * 3);
     let settled: usize = shared.text().lines().count();
-    std::thread::sleep(QUICK.interval * 6);
+    assert!(settled > 0, "the waiting notice was announced: {:?}", shared.text());
+    // The ended wait is offered more than two intervals of the watcher's cadence: a watcher that went on counting it
+    //  prints on one of these turns, and one that went back to sleeping prints nothing.
+    for turn in 0..INTERVALS_OFFERED {
+        watch.end();
+        std::thread::sleep(QUICK.interval);
+        assert_eq!(
+            shared.text().lines().count(),
+            settled,
+            "turn {turn} after the wait ended: a finished wait went on being announced: {}",
+            shared.text()
+        );
+    }
+    // The next wait is announced from its own start, which the watcher can only do after it has read every mark above.
+    watch.begin();
+    receiver.recv().expect("the next wait is announced");
+    watch.end();
     let later: String = shared.text();
     let expired: bool = watch.expired();
     drop(watch);
     // Collected before the checks, so a failing check does not leave the sleeper running.
     child.kill().expect("kill");
     child.wait().expect("collect");
-    assert_eq!(later.lines().count(), settled, "a finished wait went on being announced: {later}");
+    assert_eq!(later.lines().count(), settled.saturating_add(1), "a finished wait went on being announced: {later}");
     assert!(!expired);
 }
 

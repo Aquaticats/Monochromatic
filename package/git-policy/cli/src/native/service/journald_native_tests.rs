@@ -240,6 +240,11 @@ fn the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not() {
 /// the line that finds no room is refused at once,
 /// and once
 /// the reader reads again the same writer sends.
+///  The witness is the refusal itself and the count of lines the stream took,
+/// never a clock:
+/// the loop's own bound is what a writer
+///  that buffered line after line would reach,
+/// and a writer that waited instead would reach neither that bound nor a stopwatch.
 #[test]
 fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
     use std::io::{Read, Write};
@@ -247,7 +252,6 @@ fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
     let (writer_end, mut reader_end) = std::os::unix::net::UnixStream::pair().expect("a pair");
     let mut writer: StreamWriter = StreamWriter::on(writer_end.as_raw_fd());
     let line: Vec<u8> = vec![b'x'; 1024];
-    let started = std::time::Instant::now();
     let mut sent: usize = 0;
     let refusal = loop {
         match writer.write_all(line.as_slice()) {
@@ -257,8 +261,8 @@ fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
         assert!(sent < 1_000_000, "the stream never filled");
     };
     assert_eq!(refusal.kind(), std::io::ErrorKind::WouldBlock, "{refusal:?}");
-    // A whole-line refusal is quick; only a line the socket took in part may wait, and then for at most a few hundred milliseconds.
-    assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
+    // No clock is read here: the refusal above is the whole claim, and a writer that waited for room instead would reach
+    //  neither the loop's count above nor the end of this control.
     reader_end.set_nonblocking(true).expect("non-blocking reader");
     let mut sink: Vec<u8> = vec![0; 1 << 20];
     while reader_end.read(sink.as_mut_slice()).is_ok_and(|count| { return count > 0; }) {}

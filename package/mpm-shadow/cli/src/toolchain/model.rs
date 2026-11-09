@@ -329,6 +329,24 @@ pub struct LockedTool {
     pub artifacts: Vec<(String, Artifact)>,
 }
 
+impl LockedTool {
+    /// What:
+    /// The rustup channel this row names:
+    /// the declaration's `packageId` when it has one,
+    /// else the locked version.
+    /// Why:
+    /// `rustup` names a toolchain by the channel it was installed as (`stable`, `nightly-2026-10-30`),
+    /// and `rustup toolchain list` prints that channel followed by the host triple,
+    /// so every stage that names this row's toolchain (its install,
+    /// its components and targets,
+    /// its listing,
+    /// its observation) asks for the same text,
+    /// never for the release the channel resolved to.
+    pub fn rustup_channel(&self) -> &str {
+        return self.declaration.package_id.as_deref().unwrap_or(&self.version);
+    }
+}
+
 //endregion Declaration and lock entry
 
 

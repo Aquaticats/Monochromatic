@@ -30,7 +30,9 @@
 use crate::diagnostics::EngineFailureCode;
 /// Import the change list a converged fix installs,
 ///  and the installer.
-use crate::direct_fix_install::{InstallChange, install_corrections};
+use crate::direct_fix_install::{InstallChange, InstallOutcome, install_corrections};
+/// The sweep of the journals a killed fix left.
+use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the shipped checks,
@@ -55,8 +57,8 @@ use crate::policy_trigger::Trigger;
 use crate::repository_facts::RepositoryFacts;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{Path, PathBuf};
 
 /// The message of a fix whose corrections returned to an earlier state,
 ///  as the installed
@@ -67,6 +69,20 @@ pub const DIRECT_FIX_CYCLE_MESSAGE: &str =
 /// The message of a fix that has no worktree to install into.
 pub const NO_WORKTREE_MESSAGE: &str =
     "monochromatic-git-policy-cli fix could not install its corrections: the repository has no worktree.";
+
+/// The message of a fix that cannot learn this worktree's own Git directory.
+/// Why:
+///   A journal belongs in that directory and nowhere else:
+///  the parent of an alternate index can be inside
+///       the worktree,
+///  where a later `git add` could stage it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NO_GIT_DIR_MESSAGE = '... could not find this worktree's Git directory ...';
+/// ```
+pub const NO_GIT_DIR_MESSAGE: &str =
+    "monochromatic-git-policy-cli fix could not install its corrections: this worktree's own Git directory cannot be found, so no journal can be kept there and no file was changed.";
 
 /// What:
 ///  The passes of one direct fix,
@@ -277,35 +293,81 @@ pub fn fix_failure(
 pub fn settled_fix<F: RepositoryFacts>(
     pass: PassResult,
     changed_passes: usize,
-    checks: &ShippedChecks<F>,
+    checks: &mut ShippedChecks<F>,
     root: Option<&Path>,
 ) -> PassResult {
     if pass_exit_code(pass.events.as_slice(), pass.end) != 0 {
         return pass;
     }
     let changes: Vec<InstallChange> = checks.content.install_changes();
-    if changes.is_empty() {
-        return pass;
+    // What: The sweep runs on every settled fix, before the question of whether anything needs correcting.
+    // Why:  An interrupted fix can leave the file looking canonical, so this fix proposes nothing and would return
+    //       here; the journal holding the person's only copy of an edit would then never be named.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const notices = gitDir ? reapInterruptedInstalls(gitDir) : [];
+    // if (changes.length === 0) return withNotices(pass, notices);
+    // ```
+    let git_dir: Option<PathBuf> = checks.facts.known_git_dir();
+    let mut notices: Vec<String> = Vec::new();
+    if let Some(directory) = git_dir.as_ref() {
+        reap_interrupted_installs(directory.as_path(), &mut notices);
     }
-    let (Some(top_level), Some(real_index)) = (root, checks.content.real_index()) else {
-        return fix_failure(
-            pass.arguments.as_slice(),
-            EngineFailureCode::TransactionFailed,
-            NO_WORKTREE_MESSAGE,
+    if changes.is_empty() {
+        return with_notices(pass, notices);
+    }
+    let (Some(top_level), Some(real_index), Some(journal_dir)) =
+        (root, checks.content.real_index(), git_dir)
+    else {
+        // What: A failure to install says what the sweep found the same way a success does.
+        // Why:  The notice's path is the only place a person finds the edit an interrupted fix displaced, so no path out
+        //       of this function may drop it.
+        //
+        // In TS you'd write (pseudocode):
+        // return withNotices(fixFailure(NO_WORKTREE_MESSAGE), notices);
+        return with_notices(
+            fix_failure(
+                pass.arguments.as_slice(),
+                EngineFailureCode::TransactionFailed,
+                if root.is_none() || checks.content.real_index().is_none() {
+                    NO_WORKTREE_MESSAGE
+                } else {
+                    NO_GIT_DIR_MESSAGE
+                },
+            ),
+            notices,
         );
     };
-    if let Err(message) = install_corrections(top_level, real_index, changes.as_slice()) {
-        return fix_failure(
-            pass.arguments.as_slice(),
-            EngineFailureCode::TransactionFailed,
-            message.as_str(),
-        );
-    }
+    let outcome: InstallOutcome = match install_corrections(
+        top_level,
+        journal_dir.as_path(),
+        real_index,
+        changes.as_slice(),
+    ) {
+        Ok(installed) => installed,
+        Err(message) => {
+            // What: The notices the sweep built reach the person with the installation failure.
+            // Why:  The journal stays where it was, and its location is the only way to find the edit inside it.
+            //
+            // In TS you'd write (pseudocode):
+            // return withNotices(fixFailure(message), notices);
+            return with_notices(
+                fix_failure(
+                    pass.arguments.as_slice(),
+                    EngineFailureCode::TransactionFailed,
+                    message.as_str(),
+                ),
+                notices,
+            );
+        }
+    };
     let mut changed_paths: Vec<EventPath> = Vec::new();
     for change in &changes {
         changed_paths.push(EventPath::from_git_bytes(change.path.as_slice()));
     }
-    let mut events: Vec<PolicyEvent> = pass.events;
+    notices.extend(outcome.notices);
+    let mut events: Vec<PolicyEvent> = with_notices(pass.clone(), notices).events;
     events.push(PolicyEvent::FixSummary {
         trigger: Trigger::DirectFix,
         // `as u64` widens the count to the event's number type.
@@ -316,6 +378,44 @@ pub fn settled_fix<F: RepositoryFacts>(
         arguments: pass.arguments,
         events,
         end: pass.end,
+    };
+}
+
+/// What:
+///  `pass` with one engine failure per notice after its own events.
+/// Why:
+///   A byte a fix keeps for the person,
+/// and a journal a sweep found,
+/// are reported as engine failures,
+/// which
+///       neither block nor end the pass:
+/// the corrections went in,
+/// so the command must not fail,
+/// and the person
+///       still has to know where those bytes are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withNotices = (pass, notices) => ({ ...pass, events: [...pass.events, ...notices.map(engineFailure)] });
+/// ```
+fn with_notices(pass: PassResult, notices: Vec<String>) -> PassResult {
+    if notices.is_empty() {
+        return pass;
+    }
+    let mut events: Vec<PolicyEvent> = pass.events;
+    for notice in notices {
+        events.push(PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PolicyIncomplete,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
+            message: notice,
+            trigger: Some(Trigger::DirectFix),
+            policy: None,
+            path: None,
+        });
+    }
+    return PassResult {
+        events,
+        ..pass
     };
 }
 
@@ -338,7 +438,7 @@ pub fn settled_fix<F: RepositoryFacts>(
 pub fn finish_fix<F: RepositoryFacts>(
     convergence: Convergence,
     pass: PassResult,
-    checks: &ShippedChecks<F>,
+    checks: &mut ShippedChecks<F>,
     root: Option<&Path>,
 ) -> PassResult {
     match convergence {

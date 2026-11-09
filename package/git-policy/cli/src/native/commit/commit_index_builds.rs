@@ -69,6 +69,14 @@ pub struct IndexBuild {
 
 /// The builds of this process since a record last took them,
 /// in the order built.
+/// Lock kept:
+///  one `Vec` the commit's own preparation pushes to and the timing record takes,
+///  held for that
+///  push or take and nothing else:
+///  no Git process,
+///  no file and no other lock runs under it,
+///  and a build
+///  can be noted from more than one thread of a command.
 static BUILDS: Mutex<Vec<IndexBuild>> = Mutex::new(Vec::new());
 
 /// What:

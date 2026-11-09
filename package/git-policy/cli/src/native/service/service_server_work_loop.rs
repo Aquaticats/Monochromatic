@@ -133,6 +133,7 @@ pub fn work_loop(receiver: &mut UnboundedReceiver<Wake>, handlers: &GitHandlers,
         }
         let mut ran: Vec<PathBuf> = Vec::new();
         for (directory, _) in &wakes {
+
             ran.push(directory.clone());
         }
         // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one

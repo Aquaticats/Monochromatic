@@ -91,7 +91,7 @@ fn request() -> CommitRequest {
         git_dir: PathBuf::from("/nowhere/.git"),
         reference: String::from("refs/heads/main"),
         base: "a".repeat(40),
-        changes: vec![Change { path: String::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some("b".repeat(40)) }],
+        changes: vec![Change { path: PathBuf::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some("b".repeat(40)) }],
         message: String::from("m\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
