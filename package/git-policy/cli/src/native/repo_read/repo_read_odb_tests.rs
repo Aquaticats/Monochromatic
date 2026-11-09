@@ -256,3 +256,30 @@ fn a_packed_object_is_read_without_looking_for_a_loose_file() {
     assert!(loose_looks() > before_late, "the loose file was looked at after the packs");
     remove(root.as_path());
 }
+
+/// `contains` finds a packed object without a look at its loose path,
+/// which is what a ref listing spends most of its time on,
+/// and still finds an object that is only loose.
+#[test]
+fn contains_asks_the_packs_before_the_loose_paths() {
+    let root = fixture("repo-read-odb-contains-pack-first");
+    let repo = history(root.as_path(), "repo", "sha1");
+    let packed_names: Vec<String> = git_objects(repo.as_path()).into_iter().map(|(name, _, _)| { return name; }).collect();
+    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+    git(repo.as_path(), &["prune-packed"]);
+    let format = format_of(repo.as_path());
+    let database = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("plain database");
+    let before: u64 = loose_looks();
+    for name in &packed_names {
+        assert!(database.contains(from_hex(name.as_bytes(), format).expect("name").as_slice()), "{name} is in a pack");
+    }
+    assert_eq!(loose_looks() - before, 0, "no loose path was looked at for {} packed objects", packed_names.len());
+    std::fs::write(repo.join("late.txt"), "late\n").expect("late");
+    let late = git_output(repo.as_path(), &["hash-object", "-w", "late.txt"]);
+    let late_name: String = String::from_utf8(late.stdout).expect("UTF-8").trim().to_string();
+    let loose = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("database with a loose object");
+    assert!(loose.contains(from_hex(late_name.as_bytes(), format).expect("name").as_slice()), "the loose object is found");
+    assert!(loose_looks() > before, "the loose file was looked at after the packs");
+    assert!(!loose.contains(from_hex("1".repeat(40).as_bytes(), format).expect("name").as_slice()), "an object nowhere is not found");
+    remove(root.as_path());
+}
