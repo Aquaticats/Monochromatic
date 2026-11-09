@@ -196,7 +196,7 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
             directory.display()
         ));
     }
-    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     return Ok(directory);
 }
 
@@ -329,7 +329,7 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
         Err(error) => return Err(error),
     }
     assert_private_directory(directory.as_path())?;
-    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     sweep_earlier_repository_scratch(common_dir);
     return Ok(directory);
 }
@@ -375,7 +375,7 @@ fn sweep_earlier_repository_scratch(common_dir: &Path) {
         debug(TAG, format!("will not sweep {}: {error}", earlier.display()).as_str());
         return;
     }
-    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
 }
 
 /// What:
@@ -429,6 +429,7 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 
 /// What:
 ///  Remove every entry of `directory` last modified more than `max_age` before `now`,
+///  within `ceiling` for each entry,
 ///  and return how many it removed.
 ///  A link is removed itself and never followed;
 ///  a directory is removed with its contents.
@@ -439,12 +440,15 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 ///  so every entry in it is the wrapper's;
 ///  an entry modified in the future is kept,
 ///  because a wrong clock must not delete live files.
+///  Each removal goes through `remove_within`,
+///  so an entry whose deletion stalls costs the caller `ceiling` and no more,
+///  and what did not finish stays for a later sweep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const entry of await readdir(dir)) if (now - (await lstat(entry)).mtimeMs > maxAgeMs) await rm(entry, { recursive: true });
+/// for (const entry of await readdir(dir)) if (now - (await lstat(entry)).mtimeMs > maxAgeMs) await removeWithin(entry, ceiling);
 /// ```
-pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usize {
+pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling: Duration) -> usize {
     let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
         Ok(found) => found,
         Err(error) => {
@@ -481,14 +485,12 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usiz
         if !old_enough {
             continue;
         }
-        let outcome: std::io::Result<()> = if metadata.is_dir() {
-            std::fs::remove_dir_all(&path)
-        } else {
-            std::fs::remove_file(&path)
-        };
-        match outcome {
-            Ok(()) => removed += 1,
-            Err(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
+        // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the
+        //  next sweep, instead of holding the command that asked for scratch for as long as the device takes.
+        match remove_within(path.as_path(), ceiling) {
+            Removal::Finished => removed += 1,
+            Removal::Unfinished => debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str()),
+            Removal::Failed(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
         }
     }
     return removed;
