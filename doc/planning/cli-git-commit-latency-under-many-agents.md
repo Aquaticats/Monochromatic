@@ -1568,11 +1568,154 @@ The tail is elsewhere:
 - the post-commit gate,
   p95 2 701 ms in run A and 4 380 ms in the run one commit at a time;
 - the per-commit refresh of the real index by the preparation,
-  which the landing of a batch waits for and which a batch needs once.
+  which the landing of a batch waits for and which a batch needs once;
+  closed by the section below,
+  which also corrects what the 10,539 ms of run B was.
 
-The first and the third are the preparation's,
+The first is the preparation's,
 which another branch is changing,
-and the second is the gate's.
+the second is the gate's,
+and the third was taken off the preparation's path on 2026-11-09.
+
+## What a batch's own refresh cost, and what moving it into the landing bought (2026-11-09T16:52:30-05:00)
+
+Branch `perf/git-policy-cli-commit-preparation-without-the-real-index-lock`,
+by the owner's instruction for it,
+which quotes the requirements this record is judged by:
+"commits vs native git should not take 5s longer.",
+"Commits should never fail.",
+"Use as few locks as possible."
+and "never discard user data".
+`doc/decision/cli-git-concurrent-commits.md:29` already says "Each commit prepares without the real index lock."
+
+### What the 10,539 ms of run B was
+
+The preparations do take the real index lock.
+Measured directly,
+with `strace --follow-forks` over one batch of two commits in a disposable clone
+(`${HOME}/temp/agent/pi-commit-preparation-before-after/cause-lock.strace`):
+the missing child
+(`execve("/usr/bin/git", [..., "update-index", "--refresh", ...])`,
+pid 1576606)
+opened `.git/index.lock` with `O_RDWR|O_CREAT|O_EXCL`,
+and its sibling (pid 1576613) was refused that file with `EEXIST`
+and refreshed its own `commit.index.lock` instead.
+So the batch's members did contend on the one file the landing needs,
+and the landing could only take it after them.
+
+The figure above that piece of this record read as that contention, 10,539 ms at the median,
+is not a wait for a holder.
+The service's `answered` line splits the acquisition:
+`lock_wait_ms` is the whole of it,
+`lock_stage_ms` is the marked lock file's own creation and flush,
+and `lock_place_ms` is the wait for a holder (`service_index_found.rs`,
+`WaitNotes`).
+Over the landing agent's own run B document,
+`package/git-policy/cli/perf/commit-landing-2026-11-09-overlapping-b.json`,
+the three are
+10,539 ms,
+5,818 ms
+and 17 ms at the median,
+with `lock_place_ms` at most 4,720 ms.
+The run one commit at a time in the same document set has `lock_place_ms` 0 at the median and 3,040 ms `lock_wait_ms`.
+So the batch did not make the landing wait ten seconds for a holder:
+the marker's flush on this disk took most of that,
+and the holder wait was tens of milliseconds,
+seconds at its worst.
+
+### What changed
+
+- `commit/commit_index.rs` refreshes the private commit index,
+  after the copy and the selection are in it,
+  and never the real one (`initialize_commit_index`, `initialize_retry_index`).
+  The in-process question about the copy comes first
+  (`commit_index_stat_staleness.rs`),
+  so a copy that describes the worktree costs no Git start and no lock.
+- `landing/service_land_follow.rs` records the worktree's stat data in the copy the landing is about to install,
+  through the same question and the same refresh,
+  while it holds the real index lock anyway.
+  It leaves out the entries the reset just wrote, so it never hashes the batch's own change set,
+  and `index/index_reset_file.rs` now hands back the names it reset,
+  which is what lets a list derived from the branch leave them out too.
+- A refresh that fails, is killed, or is ended at its step ceiling costs time and never a result:
+  the landing installs the copy it built either way,
+  and it flushes that copy only when Git replaced it.
+- A path whose bytes the commit does not hold keeps no stat data,
+  so a person's unstaged edit is still a change after the landing (`a_landing_whose_refresh_meets_an_unstaged_change_keeps_it_visible`).
+
+The sharing native Git gets from the one index it owns now happens once per batch,
+in the step that already holds the lock,
+instead of once per client that then blocks the landing.
+
+### The measurement, same method as the runs above
+
+One binary per arm, built from the same merged base,
+four rounds of eight overlapping commits in a disposable clone of this repository,
+four runs alternating:
+base,
+this change,
+this change,
+base.
+The harness is the one this section's runs used
+(`native-commit-landing-perf.ts`, `${HOME}/temp/agent/gitp-bin`),
+and the four documents are
+`perf/commit-landing-2026-11-09-base-a.json`,
+`...-mine-a.json`,
+`...-mine-b.json`
+and `...-base-b.json`
+beside this record.
+
+The commit's own time,
+median of 32 commits, p95, largest, and commits over 5,000 ms, in whole milliseconds:
+
+- base run A: 929, 3,134, 3,159, 0 of 32.
+- this change, run A: 785, 4,936, 4,940, 0 of 32.
+- this change, run B: 23,461, 35,551, 35,553, 24 of 32.
+- base run B: 17,260, 50,124, 50,126, 32 of 32.
+
+Two runs of one binary differ by 18.6 times at the median for the base and 29.9 times for this change,
+and 16.0 and 7.2 times at p95.
+The arms overlap completely,
+so the whole-commit times of this host cannot resolve the change,
+exactly as the 5.1 times spread of the runs above warned.
+
+What the runs do say, because it does not depend on the host's spread:
+
+- A preparation never held the real index any more.
+  In the two probes
+  (three agents, three rounds, the same disposable source),
+  the preparation's `git update-index` step is there on both sides:
+  83 to 86 ms in round 1 for the base,
+  4,249 to 4,277 ms in round 1 for this change.
+  Beside the base's steps the real `.git/index.lock` shows as an unmarked file for the six samples of 5 ms that fall inside them;
+  beside this change's steps the real index file is never seen,
+  and the only spans that name it are the service's own marked lock, in the landings.
+- The landing now runs that refresh itself when it is needed:
+  `git update-index` appears among the landing's steps in 3 of 32 landings for this change and none for the base.
+- The landing's hold of the index grew by the walk it now makes:
+  median 39 ms against 79 ms in the quiet pair of runs,
+  and 217 against 358 ms in the slow pair.
+  Its `lock_place_ms` (the wait for a holder) stayed at 0 and 19 ms at the median,
+  2,414 and 3,489 ms at the worst.
+  Those longest waits appear on both sides, so they are not the preparations'.
+
+### What this leaves
+
+- The landing's walk over the copy is the one cost this change adds:
+  22,000 entries stat'ed per landing,
+  inside the lock,
+  measured as part of the 39 to 79 ms above.
+  Consecutive landings of one batch ask it again over an index the previous landing had just refreshed,
+  so a stamp of the real index and the answer it gave would take the walk off all but the first landing of a batch.
+  Not built here.
+- A whole index that no longer describes the worktree (a moved repository) still pays one full refresh per cold batch,
+  in the landing,
+  and each of that batch's preparations still pays its own full refresh of its private copy,
+  as the fallback already did.
+  That case was not measured here:
+  the controls use repositories of twelve files behind a sleeping clean filter
+  (`commit_index_stat_tests.rs`),
+  never a whole checkout.
 
 ## What this could not determine
 
