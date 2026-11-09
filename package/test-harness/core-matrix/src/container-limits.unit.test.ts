@@ -101,6 +101,43 @@ await describe({
           },
         },),
         it({
+          name: 'mounts the shared pnpm store read-only at the path the checkout links name',
+          fn: async () => {
+            const args = containerRunArguments({
+              image: 'docker.io/library/ubuntu:latest',
+              monorepoRoot: '/repo',
+              command: 'true',
+            },);
+            /**
+             Mount argument that carries the store, found by its read-only suffix.
+             */
+            const store = args.find((argument,) => argument.endsWith(':ro',) && argument.includes('/pnpm/store:',),);
+            expect(store,).toBeDefined();
+            /**
+             Where the mount reads from, and where the cell sees it.
+             */
+            const [source, destination,] = (store ?? '').split(':',);
+            expect(source,).toBe(destination,);
+          },
+        },),
+        it({
+          name: 'keeps SELinux labels off the cell, so neither the shared store nor the checkout is relabelled',
+          fn: async () => {
+            const args = containerRunArguments({
+              image: 'docker.io/library/ubuntu:latest',
+              monorepoRoot: '/repo',
+              command: 'true',
+            },);
+            /**
+             Position of the label option.
+             */
+            const label = args.indexOf('--security-opt',);
+            expect(label,).toBeGreaterThan(-1,);
+            expect(args[label + 1],).toBe('label=disable',);
+            expect(args.some((argument,) => argument.endsWith(',z',) || argument.endsWith(',Z',),),).toBe(false,);
+          },
+        },),
+        it({
           name: 'puts the limits before the image and ends with the shell command',
           fn: async () => {
             const args = containerRunArguments({

@@ -40,7 +40,9 @@ run = ["mise run build", "mise run test:unit"]
 # container filesystem as well as on the host. The repo is mounted read-only at
 # its host path so pnpm's symlinks resolve, with `label=disable` instead of `:Z`
 # so SELinux never relabels the whole checkout (AGENTS.md BOX); every write
-# lands in the container-local /tmp and $HOME.
+# lands in the container-local /tmp and $HOME. The shared pnpm store is mounted
+# read-only where those symlinks point too, or every imported package is
+# ERR_MODULE_NOT_FOUND (package/test-harness/core-matrix/src/pnpm-store-mount.ts).
 [tasks."test:container"]
 description = "Run every *.unit.test.ts in a 2 GiB / 2 CPU podman container with a disposable HOME and tmpdir"
 usage = 'arg "[args]" var=#true help="Test file paths to run (when provided, only those files run)"'
@@ -52,6 +54,7 @@ const { resolve } = await import('node:path')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR). 512 processes is the
 // cargo-mutants defaultPidsLimit, whose rationale is a measured `fork` failure at 128: adopted, not measured.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/pnpm-store-mount.ts')).href)
 const packageRoot = process.cwd()
 const repoRoot = resolve(packageRoot, '../../..')
 const args = (process.env.usage_args ?? '').trim().split(' ').filter(Boolean)
@@ -75,6 +78,7 @@ const child = spawn('podman', [
   'run', ...containerLimitArguments({ memory: '2g', cpus: 2, pidsLimit: 512 }), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
+  ...pnpmStoreMountArguments(),
   '--workdir', packageRoot,
   '--env', 'HOME=/tmp/conf-fork-home',
   '--env', 'TMPDIR=/tmp',

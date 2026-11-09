@@ -57,7 +57,11 @@ const dateTextArbitrary: Arbitrary<string> = tuple(
     max: 28,
   },),
 )
-  .map(function build([year, month, day,],) {
+  .map(function build([year, month, day,]: readonly [
+    number,
+    number,
+    number
+  ],) {
     return `${pad({
     value: year,
     width: 4,
@@ -93,7 +97,12 @@ const timeTextArbitrary: Arbitrary<string> = tuple(
     '.123456789',
   ),
 )
-  .map(function build([hour, minute, second, fraction,],) {
+  .map(function build([hour, minute, second, fraction,]: readonly [
+    number,
+    number,
+    number,
+    string
+  ],) {
     return `${pad({
     value: hour,
     width: 2,
@@ -128,7 +137,11 @@ const offsetTextArbitrary: Arbitrary<string> = oneof(
       max: 59,
     },),
   )
-    .map(function build([sign, hour, minute,],) {
+    .map(function build([sign, hour, minute,]: readonly [
+      string,
+      number,
+      number
+    ],) {
       return `${sign}${pad({
       value: hour,
       width: 2,
@@ -152,7 +165,12 @@ const offsetDateTimeArbitrary: Arbitrary<ValueSample> = tuple(
   ),
   offsetTextArbitrary,
 )
-  .map(function build([date, time, separator, offset,],) {
+  .map(function build([date, time, separator, offset,]: readonly [
+    string,
+    string,
+    string,
+    string
+  ],) {
     return { text: `${date}${separator}${time}${offset}`, };
   },);
 
@@ -168,7 +186,11 @@ const localDateTimeArbitrary: Arbitrary<ValueSample> = tuple(
     ' ',
   ),
 )
-  .map(function build([date, time, separator,],) {
+  .map(function build([date, time, separator,]: readonly [
+    string,
+    string,
+    string
+  ],) {
     return { text: `${date}${separator}${time}`, };
   },);
 
