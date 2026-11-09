@@ -15,6 +15,8 @@ import {
   expandMixinRegistry,
 } from './mixin.ts';
 
+//region Build options
+
 /**
  Build options for the CSS file pipeline.
  */
@@ -28,6 +30,10 @@ export type CssBuildOptions = {
    */
   readonly output: string;
 };
+
+//endregion Build options
+
+//region Build pipeline
 
 /**
  Builds a CSS bundle from an entry file: inlines `\@import` rules with
@@ -115,3 +121,5 @@ export async function buildCss(options: CssBuildOptions,): Promise<string> {
 
   return result;
 }
+
+//endregion Build pipeline

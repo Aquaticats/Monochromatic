@@ -1,3 +1,5 @@
+//region Mixin reference errors
+
 /**
  Error thrown when an `\@apply` references a mixin absent from the registry.
  
@@ -68,3 +70,5 @@ export class CircularCssMixinError extends Error {
     this.trail = trail;
   }
 }
+
+//endregion Mixin reference errors

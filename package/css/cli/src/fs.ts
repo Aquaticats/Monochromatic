@@ -9,6 +9,8 @@
 import type NodeFs from 'node:fs';
 import { fsRegistry, } from './fs-registry.ts';
 
+//region Runtime module loading
+
 /**
  Whether the current runtime has Node-compatible `fs` APIs.
  Bun and Node both set `process.versions.node`.
@@ -40,6 +42,10 @@ const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic import lacks static type
   ? await import(nodeFsSpecifier) as typeof NodeFs
   : NO_NODE_FS;
+
+//endregion Runtime module loading
+
+//region File reading
 
 /**
  Reads a CSS file by absolute path.
@@ -116,6 +122,10 @@ export function readCssFileSync(absolutePath: string,): string {
   );
 }
 
+//endregion File reading
+
+//region Existence probing
+
 /**
  Checks whether a file exists at the given absolute path.
  Checks {@link fsRegistry} first, then disk.
@@ -138,3 +148,5 @@ export function existsSync(absolutePath: string,): boolean {
 
   return false;
 }
+
+//endregion Existence probing
