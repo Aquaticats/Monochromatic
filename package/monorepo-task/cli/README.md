@@ -11,6 +11,35 @@ Use `task-run //package/<category>/<name>:<task>` or a root task name.
 The source entry used by GitHub Actions is `src/run.ts`;
 the published command is `dist/final/node/run.mjs`.
 
+## Package entries
+
+`package.json` declares three entries alongside the `task-run` command.
+
+- `.` is the library:
+  the task shapes and loader helpers from `src/index.ts`,
+  built to `dist/final/node/index.mjs`,
+  so importing the package name loads no command line.
+- `./ts` is the TypeScript source of the same library,
+  the subpath workspace packages import
+  ([workspace TypeScript source imports](../../../doc/decision/workspace-ts-source-imports.md)).
+- `./ts/*` is any other module under `src/`.
+
+`src/run.ts` stays the command line:
+it runs `main()` when it loads,
+ so nothing re-exports it and an import of the package name never dispatches a task.
+`bin` names the built `dist/final/node/run.mjs`,
+ which keeps the `#!/usr/bin/env node` shebang.
+
+Every `task.ts` file in this repository,
+ including the root one,
+ keeps importing `src/types.ts` and `src/load.ts` by relative path.
+The CLI loads those declarations before any dependency install:
+CI jobs bootstrap from a filtered `pnpm install`,
+ so a package-name import there would need a workspace link those jobs never create.
+See `.github/actions/task-cli-setup`,
+ whose `install-filter` input exists because a task body importing a workspace package by name
+ stopped with `ERR_MODULE_NOT_FOUND` when the link was missing.
+
 A CLI invocation shares each task's completion or failure for the same task name,
 arguments,
 and explicit inherited environment.
@@ -79,6 +108,18 @@ root tasks,
 and every package task file.
 The CLI tests supply the repository root explicitly;
 they do not establish default loader-path behavior for a separately installed library artifact.
+
+On 2026-11-09 the exports-map tests (`src/package-exports.unit.test.ts`) imported the package root,
+`./ts`,
+and `./ts/*`,
+loaded this package's `task.ts` through the root entry,
+and imported the root in a child process with no arguments.
+Deleting the exports map made the test file fail with `ERR_MODULE_NOT_FOUND`;
+pointing `.` at `src/run.ts` made the same import throw
+`task-cli: usage: task-run <task> [-- options] [-- passthrough]`.
+Restoring the map and rebuilding made all four cases pass,
+and a throwaway consumer outside the repository imported every subpath by package name
+and executed the installed `task-run` command.
 
 ## Ordered task execution
 

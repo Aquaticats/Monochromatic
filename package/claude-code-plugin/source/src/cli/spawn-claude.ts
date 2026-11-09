@@ -96,86 +96,97 @@ const args = runSync(
 );
 
 /**
+ Thrown when the calling Claude session cannot be found, so no child session
+ can be tied to a parent.
+ */
+class SessionNotFoundError extends Error {
+  /**
+   @param detail - what the person must check before trying again
+   */
+  constructor(detail: string,) {
+    super(detail,);
+    this.name = 'SessionNotFoundError';
+  }
+}
+
+/**
  Resolved session identity of the calling Claude instance.
  */
 const identity = await findCallingSession();
 
-if (identity === SESSION_NOT_FOUND) {
-  console.error(
-    'Error: Could not find calling Claude session. Ensure the claude-spawn plugin hooks are active and SessionStart has fired.',
+if (identity === SESSION_NOT_FOUND)
+  throw new SessionNotFoundError(
+    'Could not find calling Claude session. Ensure the claude-spawn plugin hooks are active and SessionStart has fired.',
   );
-  process.exitCode = 1;
-}
-else {
-  /**
-   Unique identifier for this spawn, used to coordinate state between parent and child.
-   */
-  const spawnId = randomUUID();
-  /**
-   Working directory for the child session, defaulting to the current directory.
-   */
-  const cwd = args.cwd
-    ?? process
-      .cwd();
 
-  /**
-   Extra args split on whitespace, filtering empty strings.
-   */
-  const extraArgs = splitWhitespace(args.extraArguments
-    ?? '',);
+/**
+ Unique identifier for this spawn, used to coordinate state between parent and child.
+ */
+const spawnId = randomUUID();
+/**
+ Working directory for the child session, defaulting to the current directory.
+ */
+const cwd = args.cwd
+  ?? process
+    .cwd();
 
-  await mkdir(
+/**
+ Extra args split on whitespace, filtering empty strings.
+ */
+const extraArgs = splitWhitespace(args.extraArguments
+  ?? '',);
+
+await mkdir(
+  SPAWNS_DIR,
+  { recursive: true, },
+);
+
+/**
+ Pre-create the spawn state file before launching the child.
+ 
+ `sessionId` starts empty; the first SessionStart that sees it empty
+ claims ownership. Subsequent sessions with stale `CLAUDE_SPAWN_ID`
+ env vars see a non-empty `sessionId` and skip registration.
+ */
+const initialState: SpawnState = {
+  spawnId,
+  sessionId: '',
+  transcriptPath: '',
+  parentSessionId: identity.sessionId,
+  status: 'running',
+  lastMessage: '',
+};
+
+await writeFile(
+  join(
     SPAWNS_DIR,
-    { recursive: true, },
-  );
+    `${spawnId}.json`,
+  ),
+  JSON.stringify(initialState,),
+);
 
-  /**
-   Pre-create the spawn state file before launching the child.
-   
-   `sessionId` starts empty; the first SessionStart that sees it empty
-   claims ownership. Subsequent sessions with stale `CLAUDE_SPAWN_ID`
-   env vars see a non-empty `sessionId` and skip registration.
-   */
-  const initialState: SpawnState = {
-    spawnId,
-    sessionId: '',
-    transcriptPath: '',
-    parentSessionId: identity.sessionId,
-    status: 'running',
-    lastMessage: '',
-  };
-
-  await writeFile(
-    join(
-      SPAWNS_DIR,
-      `${spawnId}.json`,
-    ),
-    JSON.stringify(initialState,),
-  );
-
-  /**
-   Detached child process running the spawned Claude session in a terminal instance.
-   */
-  const proc = spawn(
-    'terminal-exec',
-    [
-      '--',
-      'claude',
-      ...extraArgs,
-      args.prompt,
-    ],
-    {
-      cwd,
-      env: {
-        ...process.env,
-        CLAUDE_SPAWN_ID: spawnId,
-      },
-      detached: true,
-      stdio: 'ignore',
+/**
+ Detached child process running the spawned Claude session in a terminal instance.
+ */
+const proc = spawn(
+  'terminal-exec',
+  [
+    '--',
+    'claude',
+    ...extraArgs,
+    args.prompt,
+  ],
+  {
+    cwd,
+    env: {
+      ...process.env,
+      CLAUDE_SPAWN_ID: spawnId,
     },
-  );
+    detached: true,
+    stdio: 'ignore',
+  },
+);
 
-  proc.unref();
+proc.unref();
 
-  console.log(JSON.stringify({ spawnId, },),);
-}
+console.log(JSON.stringify({ spawnId, },),);

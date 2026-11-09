@@ -36,6 +36,9 @@ use std::path::{Path, PathBuf};
 /// the proof its checkout is whole or gone,
 /// and the names of the files that proof reads:
 /// re-exported so a reader of the claims and a control of them reach them here.
+/// The settlement lives in a file of its own (`worktree_copy_interrupted_add_settlement.rs`),
+/// which is where this
+///  branch's proof of the destination's pointer now is too.
 pub use crate::worktree_copy_interrupted_add_settlement::*;
 
 /// What:

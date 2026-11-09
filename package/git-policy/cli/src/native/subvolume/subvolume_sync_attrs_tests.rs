@@ -185,3 +185,26 @@ fn carried_attributes_are_equal_only_when_names_and_values_agree() {
     assert!(!carried_attributes_equal(one.as_path(), parent.join("absent").as_path()), "a path that is not there");
     remove(parent.as_path());
 }
+
+/// A set the system refused loses nothing when the copy already holds that value,
+/// which is what a mount forcing one security context reports:
+/// the value it carries and the value it refuses to take are the same bytes.
+#[test]
+fn a_value_the_copy_already_holds_is_not_a_loss() {
+    let parent: PathBuf = fixture("attrs-already-carried");
+    let path: PathBuf = parent.join("copy");
+    std::fs::write(path.as_path(), b"x").expect("file");
+    let name: std::ffi::CString = std::ffi::CString::new("user.cli-git-test").expect("name");
+    let handle: File = std::fs::File::open(path.as_path()).expect("copy");
+    assert!(!already_carries(Handle::Descriptor(&handle), name.as_c_str(), b"value"), "nothing is carried before it is set");
+    if !set_user_attribute(path.as_path(), "user.cli-git-test", b"value") {
+        eprintln!("ATTRIBUTE CONTROL NOT RUN: a_value_the_copy_already_holds_is_not_a_loss (no user attributes on {})", parent.display());
+        remove(parent.as_path());
+        return;
+    }
+    assert!(already_carries(Handle::Descriptor(&handle), name.as_c_str(), b"value"), "the value it holds is the one a refused set would have given");
+    assert!(!already_carries(Handle::Descriptor(&handle), name.as_c_str(), b"other"), "another value is not the one it holds");
+    let absent: std::ffi::CString = std::ffi::CString::new("user.cli-git-absent").expect("name");
+    assert!(!already_carries(Handle::Descriptor(&handle), absent.as_c_str(), b"value"), "a name it does not carry holds no value");
+    remove(parent.as_path());
+}

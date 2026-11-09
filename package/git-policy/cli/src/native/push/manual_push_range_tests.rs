@@ -8,9 +8,11 @@
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;
+use crate::manual_push_range_published_tips::*;
 use crate::candidate_prediction::{CandidateRequest, PushedScope, prepare_candidates};
 use crate::manual_push_probe::PushUpdate;
 use crate::test_support::{fixture, git, remove};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 

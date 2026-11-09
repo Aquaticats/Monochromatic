@@ -29,6 +29,11 @@ import {
   MAX_AUTOFIX_PASSES,
   type OxlintRunResult,
 } from './oxlint-fix-loop.ts';
+import {
+  isCapturedSubprocessFailure,
+  ToolKilledBySignalError,
+  ToolNotStartedError,
+} from './tool-failure.ts';
 
 //region Argument construction
 
@@ -147,30 +152,18 @@ async function runOxlint(args: readonly string[],): Promise<OxlintRunResult> {
     };
   }
   catch (error) {
-    if ((error !== null) && ((typeof error) === 'object')
-      && ('exitCode' in error)) {
-      /* oxlint-disable typescript/no-unsafe-type-assertion -- 'exitCode' in check above narrows error to the captured-subprocess shape */
-      /**
-       Re-typed thrown error so its captured stdout, stderr, and exit fields can be normalized.
-       */
-      const subprocessError = error as {
-        stdout?: string;
-        stderr?: string;
-        exitCode?: number;
-        signalName?: string;
-      };
-      /* oxlint-enable typescript/no-unsafe-type-assertion */
+    if (isCapturedSubprocessFailure(error,)) {
       return {
-        stdout: subprocessError.stdout
+        stdout: error.stdout
           ?? '',
-        stderr: subprocessError.stderr
+        stderr: error.stderr
           ?? '',
-        ...((subprocessError.exitCode === undefined)
+        ...((error.exitCode === undefined)
           ? {}
-          : { exitCode: subprocessError.exitCode, }),
-        ...((subprocessError.signalName === undefined)
+          : { exitCode: error.exitCode, }),
+        ...((error.signalName === undefined)
           ? {}
-          : { signalName: subprocessError.signalName, }),
+          : { signalName: error.signalName, }),
       };
     }
     return {
@@ -186,16 +179,22 @@ async function runOxlint(args: readonly string[],): Promise<OxlintRunResult> {
  
  Mirrors Oxlint's result exactly: standard output receives diagnostic guidance,
  standard error passes through, and every nonzero exit remains nonzero.
- An execution failure reports and exits with status one.
+ A run that never produced a status of its own throws, so the throw decides
+ the wrapper's exit status and prints its message.
  
  @param result - final run result from the loop or a single pass
+ 
+ @throws {@link ToolNotStartedError} when oxlint never started.
+ 
+ @throws {@link ToolKilledBySignalError} when oxlint was killed by a signal.
  */
 function finalizeResult(result: OxlintRunResult,): void {
-  if (result.executionError !== undefined) {
-    console.error(`[task-oxlint] failed to execute oxlint: ${result.executionError}`,);
-    process.exitCode = 1;
-    return;
-  }
+  if (result.executionError !== undefined)
+    throw new ToolNotStartedError({
+      task: 'task-oxlint',
+      tool: 'oxlint',
+      detail: result.executionError,
+    },);
 
   if (result.exitCode === 0) {
     if (result.stdout
@@ -241,10 +240,11 @@ function finalizeResult(result: OxlintRunResult,): void {
     !== undefined)
     && (result.signalName
       !== ''))
-    {
-    console.error(`[task-oxlint] oxlint terminated by signal: ${result.signalName}`,);
-    process.exitCode = 1;
-  }
+    throw new ToolKilledBySignalError({
+      task: 'task-oxlint',
+      tool: 'oxlint',
+      detail: result.signalName,
+    },);
 }
 
 //endregion Execution

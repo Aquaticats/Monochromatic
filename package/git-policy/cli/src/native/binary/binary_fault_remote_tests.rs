@@ -235,7 +235,7 @@ fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Obse
 fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Observed, tripwire: Tripwire, expected: &[&str]) {
     let stderr: String = super::support::push_report(repo, &stderr_of(landed));
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
-    assert!(stderr.contains(super::support::push_failed_words()), "the failure is reported: {stderr}");
+    assert!(stderr.contains(super::support::push_unfinished_words()), "the failure is reported, and it says the remote may or may not have the commit: {stderr}");
     assert!(
         expected.iter().any(|words| { return stderr.contains(words); }),
         "the report names the cause (one of {expected:?}): {stderr}"

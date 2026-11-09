@@ -367,3 +367,115 @@ fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
         assert!(!crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
 }
+
+/// What:
+///  A stubbed Git whose questions are awaited:
+/// the same answers and the same failures the synchronous stub gives.
+/// Why:
+///   The two faces of the plan must ask the same questions and read the same answers,
+/// so one stub answers
+///  both.
+struct StubAwaiting<'a> {
+    /// Answers by key.
+    answers: &'a [(&'a str, &'a str)],
+    /// Keys that fail.
+    failing: &'a [&'a str],
+    /// How many questions were asked.
+    asked: usize,
+}
+
+impl StubAwaiting<'_> {
+    /// The answer to one question,
+    /// counted.
+    fn answer(&mut self, arguments: &[&str]) -> Result<String, String> {
+        self.asked += 1;
+        let key: String = if arguments[0] == "for-each-ref" {
+            format!("for-each-ref:{}", arguments[arguments.len() - 1])
+        } else {
+            arguments[0].to_owned()
+        };
+        if self.failing.contains(&key.as_str()) {
+            return Err(format!("{key} failed"));
+        }
+        return Ok(self
+            .answers
+            .iter()
+            .find(|(name, _)| {
+                return *name == key;
+            })
+            .map_or(String::new(), |(_, answer)| {
+                return (*answer).to_owned();
+            }));
+    }
+}
+
+impl GitQueryAwaiting for StubAwaiting<'_> {
+    fn ask<'a>(&'a mut self, arguments: &'a [&'a str]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>> {
+        return Box::pin(async move { return self.answer(arguments); });
+    }
+}
+
+/// Plan a push with the awaited face of the plan and the same stub.
+fn plan_in_awaiting(
+    directory: &Path,
+    global_prefix: &[&str],
+    region: &[&str],
+    environment: &[(OsString, OsString)],
+    settings: &Settings,
+    stub: &Stub<'_>,
+) -> (Result<Option<UploadPlan>, PlanError>, usize) {
+    let mut awaiting: StubAwaiting<'_> = StubAwaiting { answers: stub.answers, failing: stub.failing, asked: 0 };
+    let (planned, _ticks): (Result<Option<UploadPlan>, PlanError>, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(plan_upload_awaiting(
+        words(global_prefix).as_slice(),
+        words(region).as_slice(),
+        environment,
+        directory,
+        settings.as_slice(),
+        &mut awaiting,
+    ));
+    return (planned, awaiting.asked);
+}
+
+/// What:
+///  The awaited face of the plan asks the same questions and gives the same plan as the synchronous face,
+/// for every shape of a push and every way a question can fail.
+/// Why:
+///   The landing round's push plans its upload as a task,
+/// and a plan that differed would send other objects or
+///  refuse a push the synchronous face allows.
+#[test]
+fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() {
+    let answers: &[(&str, &str)] = &[
+        ("for-each-ref:refs/heads", "main\nother\n"),
+        ("for-each-ref:refs/tags", "v1\n"),
+        ("symbolic-ref", "refs/heads/main"),
+    ];
+    let settings: Settings = config(&[("remote.origin.push", "refs/heads/*:refs/heads/*")]);
+    let cases: &[(&[&str], &[&str])] = &[
+        (&[], &[]),
+        (&["origin"], &[]),
+        (&["--all"], &[]),
+        (&["--tags"], &[]),
+        (&["--mirror"], &[]),
+        (&["origin", "refs/heads/main"], &[]),
+        (&["origin", "main"], &[]),
+        (&["origin", "refs/heads/*"], &[]),
+        (&["--dry-run"], &[]),
+        (&["--no-verify"], &[]),
+        (&["origin", ":refs/heads/gone"], &[]),
+        (&["--recurse-submodules=only"], &[]),
+    ];
+    for (region, failing) in cases {
+        for environment in [vec![], vec![(OsString::from("GIT_LFS_SKIP_PUSH"), OsString::from("1"))]] {
+            let stub: Stub<'_> = Stub { answers, failing };
+            let synchronous = plan_in(Path::new("/work"), &[], region, environment.as_slice(), &settings, &stub);
+            let awaited = plan_in_awaiting(Path::new("/work"), &[], region, environment.as_slice(), &settings, &stub);
+            assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{region:?}");
+        }
+    }
+    // One question that fails, so the failure text is compared too.
+    let stub: Stub<'_> = Stub { answers, failing: &["for-each-ref:refs/heads"] };
+    let synchronous = plan_in(Path::new("/work"), &[], &["--all"], &[], &settings, &stub);
+    let awaited = plan_in_awaiting(Path::new("/work"), &[], &["--all"], &[], &settings, &stub);
+    assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"));
+}

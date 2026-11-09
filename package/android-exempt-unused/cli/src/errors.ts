@@ -1,9 +1,9 @@
 /**
  Custom error subclasses for programmatic discrimination via `instanceof`.
  
- The top-level handler in {@link ./index.ts} distinguishes these from unknown
- failures: known {@link AdbError}s become a one-line message plus a non-zero
- exit code, while {@link PromptCancelledError} is treated as a clean abort.
+ The top-level handler in {@link ./index.ts} treats {@link PromptCancelledError}
+ as a clean abort and lets every other error surface, so the throw, not an
+ exit-code assignment, decides the status.
  
  @module
  */
@@ -123,6 +123,26 @@ export class AdbCommandError extends AdbError {
       options,
     );
     this.name = 'AdbCommandError';
+  }
+}
+
+/**
+ Thrown when at least one exemption write failed, so the device does not match
+ the selection the user confirmed.
+ 
+ @example
+ ```ts
+ throw new ExemptApplyError('com.example (ignore): adb shell failed',);
+ ```
+ */
+export class ExemptApplyError extends Error {
+  /**
+   @param message - one line per application whose write failed, naming the
+   application, the mode, and what adb answered
+   */
+  constructor(message: string,) {
+    super(message,);
+    this.name = 'ExemptApplyError';
   }
 }
 

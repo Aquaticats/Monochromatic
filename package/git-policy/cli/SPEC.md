@@ -862,6 +862,27 @@ so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
 `--literal-pathspecs`)
 cannot make the name match nothing and leave the file in the source uncopied.
 A bare repository has no source root and synchronizes an empty set.
+The copy settles itself against the source in bounded passes,
+because a live checkout removes and rewrites its
+ ignored files while the copy runs:
+a source entry that is gone when its turn comes has nothing left to copy and
+ leaves the manifest,
+an entry that changed under the copy is copied again,
+twice at most,
+and an entry that is
+ still changing after that is left where it is,
+untouched,
+in its source,
+is not installed,
+and is
+ named on one line beside the entries the person could not read.
+The stage equals the source for every entry it holds,
+and a copy
+ that cannot finish names the path of the entry it failed on rather than only the checkout it came from.
+The number of
+ passes is bounded (`worktree_copy_settling.rs`),
+so a source that churns faster than the copy can prove it never
+ holds a command indefinitely.
 The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
 a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
 so nothing is staged from it.
@@ -1243,6 +1264,28 @@ so a command that runs
  `git add --all` in that window stages what the container holds,
 and emptying the trash afterwards does not take those
  blobs out of the index.
+A directory that is set aside whole,
+a registered nested worktree or another checkout,
+is swept for the same
+ containers first,
+because a container stands beside the destination of one add and such a directory is another place
+ one can stand:
+every entry named with the stage prefix,
+at any depth,
+is removed with the directory's own files
+ still in it,
+so nothing of another command's reaches the trash through that route either.
+The sweep walks the
+ directory it is moving,
+`.git` included,
+because that directory is itself another checkout and a container can stand
+ beside that marker,
+reads no file and
+follows no link.
+A directory the sweep cannot look inside is never taken for one with nothing to
+ sweep:
+the leave-out refuses and names it,
+so nothing is set aside on a guess.
 Everything else the leave-out sets aside,
 the caches,
 the other checkouts and the run
@@ -1260,8 +1303,9 @@ where a target commit that stops
 so `git add --all` would stage another command's stage container and its
  credentials.
 The emptying runs beside the package repair (`finish_trash_and_repair`,
-on a thread when the repair
- has work to do),
+as a wait of one task of the process's runtime when the repair
+ has work to do,
+and here on the command's own thread when it has none),
 one plain line on standard error first names the worktree and says that the directories left out
  are being emptied now,
 and the person waits for the slower of the two.
@@ -1297,9 +1341,29 @@ order.
 A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason;
 it
  does not fail the add,
-because the worktree is already in place and complete,
-and it is never left for a later service to
-find.
+because the worktree is already in place and complete.
+Nothing else will ever empty it:
+this path writes no work item and keeps no durable record of the
+ manifest,
+so the line says that the trash stays inside the worktree,
+that no work item names it,
+that only the
+ person will remove it,
+and gives `rm --recursive --force -- '<path>'` with the path quoted for their shell
+ when that command deletes exactly what the snapshot made.
+It gives no removal command when the emptying kept something:
+ a directory under the
+ recorded name that the snapshot did not make,
+ an entry that is no longer the object the leave-out moved
+ there,
+ or a file somebody put in the trash.
+The line then names the path and says that what is in it
+ is not the snapshot's and that only the person removes it,
+ by name,
+ because a recursive removal of that path
+ would delete what the emptying deliberately left.
+A line that
+ promised a later service would promise work nothing records.
 A work item of kind `trash` that an earlier release wrote is still emptied by the service's handler
 (`empty_trash`),
 with the same checks and the same identities,
@@ -2277,6 +2341,16 @@ which JSON quoting did not do:
 beneath `/work/other` when `bucket=other` stood in the person's shell.
 A record or a completion marker that cannot be
 looked up keeps the record and says that the state is unknown.
+The same holds for the destination's own pointer,
+which is asked three things and not two:
+it is there,
+it is not,
+or the
+ directory cannot be searched,
+and only its absence says the add left nothing to finish.
+A refusal read as absence
+ deleted the record and the claim of a worktree that is still registered,
+and no later command named it.
 The cost:
 an interrupted or failed add keeps naming the same worktree and stage in every command that
 runs the recovery,
@@ -2600,7 +2674,8 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 workers of the process's
+blocking pool,
 bounded by the CPUs the process may use,
 over contiguous slices after every directory exists;
 the first failure stops the others.
