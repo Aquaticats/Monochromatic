@@ -119,6 +119,16 @@ pub static RENEWALS_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::At
 #[cfg(test)]
 pub static TASKS_ENDED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
+/// How many renewal tasks have begun,
+/// for the controls;
+/// nothing in the release executable.
+/// Why:
+///   A task is spawned when its renewal is started and picked up by the runtime's workers after that,
+/// so a control that counts the threads a
+///  renewal adds otherwise reads a process whose renewals have not begun yet and passes.
+#[cfg(test)]
+pub static TASKS_STARTED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// What:
 ///  A running renewal:
 /// a thread that stamps every held claim again each interval until this value is dropped.
@@ -203,6 +213,9 @@ async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<R
 /// for (;;) { const request = await Promise.race([requests.next(), timer(every)]); if (request === STOP) return; renew(request ?? clockNow()); }
 /// ```
 async fn renew_until_stopped(mut renewer: Renewer, mut requests: UnboundedReceiver<Control>, every: Option<Duration>) {
+    // The task says it began, which a control waits for before it reads what the renewal costs the process.
+    #[cfg(test)]
+    TASKS_STARTED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let mut due: Option<Instant> = every.map(due_after);
     loop {
         // What the task woke for: `Some(request)` when a controller asked (nothing when every controller is gone), `None` when the

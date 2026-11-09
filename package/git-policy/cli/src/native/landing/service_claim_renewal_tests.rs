@@ -7,7 +7,7 @@
 
 use crate::work_item_recovery::requeue_expired;
 use super::*;
-use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWALS_MADE, RENEWAL_STOP_CEILING, TASKS_ENDED};
+use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWALS_MADE, RENEWAL_STOP_CEILING, TASKS_ENDED, TASKS_STARTED};
 use crate::service_work::MAX_TRIES;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};
@@ -320,14 +320,31 @@ fn threads_of_this_process() -> usize {
 /// How many renewals the control below keeps running at once.
 const RENEWALS_RUNNING: usize = 16;
 
+/// Waits until `count` renewal tasks have begun beyond `before`,
+/// which the tasks themselves say,
+/// and gives whether they did within `PASS_PATIENCE`.
+fn wait_for_starts(before: usize, count: usize) -> bool {
+    let began: std::time::Instant = std::time::Instant::now();
+    while TASKS_STARTED.load(std::sync::atomic::Ordering::SeqCst) < before.saturating_add(count) {
+        if began.elapsed() >= PASS_PATIENCE {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    return true;
+}
+
 /// Renewals run as tasks of the process's runtime:
 /// many running at once add far fewer threads than renewals,
 /// where a thread each added one thread each.
+/// The tasks say when they have begun,
+/// so the count of threads is read of renewals that really run and not of renewals the runtime has not started yet.
 #[test]
 fn renewals_running_at_once_start_no_thread_each() {
     // The runtime's own workers are started by the first use, and are not the renewals' threads.
     crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime starts");
     let before: usize = threads_of_this_process();
+    let started_before: usize = TASKS_STARTED.load(std::sync::atomic::Ordering::SeqCst);
     let mut running: Vec<ClaimRenewal> = Vec::new();
     let mut roots: Vec<PathBuf> = Vec::new();
     for number in 0..RENEWALS_RUNNING {
@@ -336,6 +353,7 @@ fn renewals_running_at_once_start_no_thread_each() {
         running.push(ClaimRenewal::start(renewer, LEASE));
         roots.push(root);
     }
+    assert!(wait_for_starts(started_before, RENEWALS_RUNNING), "{RENEWALS_RUNNING} renewals began");
     let growth: usize = threads_of_this_process().saturating_sub(before);
     drop(running);
     for root in &roots {
