@@ -237,8 +237,22 @@ pub fn integrate_and_push(
         .strip_prefix("refs/heads/")
         .unwrap_or(&destination.merge_ref)
         .to_owned();
+    // The branch the merge is into, named the way Git's own message names it: the branch whose tip is the merge's
+    // first parent, and the tracked ref's short name for a detached HEAD, which has no branch to name. A branch whose
+    // upstream has another name (`branch.feature.merge = refs/heads/main`) is merged into by the same rule, so naming
+    // the tracked ref would name a branch nobody merged into.
+    let merged_into: &str = match plan.branch_ref {
+        Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
+        None => short.as_str(),
+    };
+    // The merge is published to the tracked ref, which the branch's name does not always spell.
+    let published: String = if merged_into == short {
+        String::new()
+    } else {
+        format!("\nPublished to {remote}/{short}, which {merged_into} tracks.", remote = destination.remote)
+    };
     let message = format!(
-        "Merge {}/{short} into {short}\n\nCreated by monochromatic-git-policy-cli {label} because {}/{short} advanced after the commit landed.",
+        "Merge {}/{short} into {merged_into}\n\nCreated by monochromatic-git-policy-cli {label} because {}/{short} advanced after the commit landed.{published}",
         destination.remote, destination.remote
     );
     let mut previous = rejected.output.clone();

@@ -157,9 +157,54 @@ fn is_copy_name(name: &str) -> bool {
 }
 
 /// What:
-///  Whether the owner of the copy at `directory`,
-///  named `name`,
-///  is proven gone.
+/// What:
+///  The bytes of a copy's owner record,
+///  read only from a name that holds a regular file,
+///  through an open that cannot wait.
+/// Why:
+///   A FIFO at that name with no writer blocks a plain read for ever,
+///   so a directory an earlier command left took every later command's private index
+///   with it (finding of the fifth review).
+///   `O_NONBLOCK` answers at once whatever the name holds,
+///   and the descriptor's own type then decides whether its bytes may be read at all.
+///  A pipe,
+/// a socket or a device proves nothing about its owner,
+///  so the copy stays and the person can look at it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordText = (path) => { const opened = openSync(path, 'r', 0o666, O_NONBLOCK); return fstatSync(opened).isFile() ? readFileSync(opened, 'utf8') : undefined; };
+/// ```
+#[cfg(unix)]
+fn record_text(record: &Path) -> Option<String> {
+    /// `OpenOptionsExt` adds `custom_flags`,
+    ///  the open flags the standard library has no setting for.
+    use std::os::unix::fs::OpenOptionsExt as _;
+    /// `Read` adds `read_to_string` to the opened record.
+    use std::io::Read as _;
+    let mut opened: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(record).ok()?;
+    // The type is read from the open descriptor, so the name cannot be swapped for a pipe after a separate check.
+    if !opened.metadata().ok()?.is_file() {
+        return None;
+    }
+    let mut text: String = String::new();
+    opened.read_to_string(&mut text).ok()?;
+    return Some(text);
+}
+
+/// Platforms without `O_NONBLOCK` read a record whose name holds a regular file,
+/// and one that holds anything else proves nothing.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(unix))]
+fn record_text(record: &Path) -> Option<String> {
+    if !std::fs::symlink_metadata(record).ok()?.is_file() {
+        return None;
+    }
+    return std::fs::read_to_string(record).ok();
+}
+
+/// What:
+///  Whether the owner of the copy at `directory` is proven gone.
 /// Why:
 ///   Nothing else may remove a copy:
 ///  a running command's copy that disappeared under it would
@@ -169,45 +214,33 @@ fn is_copy_name(name: &str) -> bool {
 ///  the process's birth identity in this PID namespace,
 ///  and for an owner of
 ///       another namespace its record's age),
-///  and a directory an earlier release made,
-///  which holds no record,
-///  is judged by the process id in its name alone.
-///  Anything the platform will not report is kept.
+///  and a copy whose record is absent,
+///  empty,
+///  unreadable,
+///  or not a regular file proves nothing,
+///  so it stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ownerIsGone = (path, name) => tokenOwnerIsDead(readOwner(path), path) ?? pidIsGone(pidOfName(name));
+/// const ownerIsGone = (path) => { const text = recordText(join(path, OWNER_RECORD)); return text?.trim() ? tokenOwnerIsDead(text.trim(), path) : false; };
 /// ```
-fn owner_is_proven_gone(directory: &Path, name: &str) -> bool {
+fn owner_is_proven_gone(directory: &Path) -> bool {
     let record: PathBuf = directory.join(OWNER_RECORD);
-    match std::fs::symlink_metadata(record.as_path()) {
-        // What: A record that exists is the only evidence there is, so one that cannot be read proves nothing.
-        // Why:  A corrupt record is not a dead owner; the copy stays and the person can look at it.
-        Ok(_) => {
-            let Ok(text) = std::fs::read_to_string(record.as_path()) else {
-                return false;
-            };
-            if text.trim().is_empty() {
-                return false;
-            }
-            // `unwrap_or(false)`: a refusal of another namespace's expired record keeps the copy.
-            return token_owner_is_dead(Some(text.trim()), directory).unwrap_or(false);
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        // A record that cannot be inspected at all proves nothing either.
-        Err(_) => return false,
-    }
-    // What: A copy with no record is kept, whatever its name says: a process id means something only inside its own
-    //       PID namespace, so a live command of another namespace looks exactly like a dead one from here.
-    // Why:  Removing a live command's copy makes that command fail while it copies or reads the index, and no rule on
-    //       the name can tell the two apart.
+    // What: A record that exists is the only evidence there is, so one that cannot be read proves nothing.
+    // Why:  A corrupt record is not a dead owner; the copy stays and the person can look at it.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return false; // nothing proves this owner dead
+    // const text = recordText(record); if (!text || !text.trim()) return false; return tokenOwnerIsDead(text.trim(), directory);
     // ```
-    let _ = name;
-    return false;
+    let Some(text) = record_text(record.as_path()) else {
+        return false;
+    };
+    if text.trim().is_empty() {
+        return false;
+    }
+    // `unwrap_or(false)`: a refusal of another namespace's expired record keeps the copy.
+    return token_owner_is_dead(Some(text.trim()), directory).unwrap_or(false);
 }
 
 /// What:
@@ -242,7 +275,7 @@ fn reap_copies_of_gone_owners(parent: &Path) {
         if !path.is_dir() {
             continue;
         }
-        if !owner_is_proven_gone(path.as_path(), name.as_str()) {
+        if !owner_is_proven_gone(path.as_path()) {
             continue;
         }
         // `.remove_dir_all` takes the copy and whatever Git wrote beside it; a failure leaves it for the next

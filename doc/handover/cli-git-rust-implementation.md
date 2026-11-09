@@ -133,7 +133,39 @@ The old tree kept for the rollback stays until the owner deletes it.
   `87f5771748` the index offset guard,
   `cc6ebc3a07` the wording for a refused blocking thread,
   `dea0f5d24e` the landing branch's follow-up on a failed head probe,
-  and `8026d49827` the alias branch.
+  `8026d49827` the alias branch,
+  `8d210d933a` the standards-review branch,
+  `b28c5cca6f` the entry-and-service branch,
+  `b3210c70ae` the worktree-copy branch,
+  `147f5badc3` the conversion branch,
+  `30a87b27fd` the push branch's last round,
+  `3de639be89` the wrapper-issue branch,
+  `ee8a1db87c` the health branch,
+  `3149b8baae` the literal-pathspec branch,
+  `82dff2e79a` the intent-to-add branch,
+  `f6716da242` the commit-ceiling branch,
+  and `78ca211085` the worktree-copy branch's follow-up.
+  The first clause of that merge's message names a change it does not contain;
+  commit comment 209008614 on it says so.
+- Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
+  though `push-route-findings-fixed` run 1 reported it fixed:
+  a second branch reaching a commit is answered `Known` and never pushed.
+  `landing/work_item.rs:89-91` keys a record by kind and commit alone,
+  and `git log main --first-parent -m -S'branch_digest'` is empty.
+  `c3c6a50098` added the branch key,
+  and `24bb297e9a` on another branch deleted it on the belief that main had gone back to the plain id.
+  Push run 7 restores it and rechecks that agent's other fixes against main.
+- `~/temp/agent/pi-runs/find-functions-lost-in-merges.ts` over commits since 2026-11-05:
+  of the functions and tests added,
+  134 are gone from main,
+  none of them lost in a merge,
+  and each was removed by a named non-merge commit.
+  Of those commits,
+  only `24bb297e9a` gives "main's version" as its reason,
+  by their subjects.
+  It reads names only,
+  so a fix that changed lines inside a function that still exists is not covered.
+  A note warning against this went to the running agents.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -153,9 +185,33 @@ The old tree kept for the rollback stays until the owner deletes it.
   which their briefs tell them to resolve first,
   so neither branch has landed.
 - Deferred until a slot frees,
-  because the practical limit of agents was reached when it was written:
-  `~/temp/agent/pi-runs/resume-after-wall-clock-prompt.md` for `worktree-removal-findings-fixed`,
-  whose run 6 reached its time limit while writing a test for the report after the exchange.
+  because the practical limit of agents was reached when each was written,
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `literal-pathspec-round-4-prompt.md` for `literal-pathspec-remaining-starts` as run 4
+  (a commit from a nested directory can leave out staged content,
+  and inherited pathspec modes can fail a commit's completion step),
+  `intent-to-add-round-4-prompt.md` for `intent-to-add-keeps-stat-data` as run 6
+  (a hook restaging an unrelated file can make a retry delete a tracked file nobody named),
+  `commit-ceiling-follow-ups-round-4-prompt.md` for `commit-ceiling-and-private-index-follow-ups` as run 4
+  (a successful exit reported as a ceiling kill,
+  and a signing program it could not stop going unrecorded),
+  and `worktree-copy-round-5-prompt.md` for `worktree-copy-records-keep-path-bytes` as run 5
+  (recovery reads the `.git` pointer and not the registration,
+  so a pointer cut short or missing during a rewrite can discard a pending copy).
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
+  Start each with `start-pi-run-if-a-slot-is-free.ts`,
+  which counts launchers as well as units and refuses at the limit.
+- The provider ended several runs with `terminated`:
+  `commit-ceiling-and-private-index-follow-ups` run 1,
+  `intent-to-add-keeps-stat-data` runs 3 and 4,
+  `invocation-route-findings-fixed` run 2,
+  `tokio-repair-threads-on-the-runtime` run 1
+  and `worktree-add-findings-fixed` run 4.
+  All have been resumed.
+- `merge-route-round-8-sol.txt` names defects in code new on that branch,
+  among them a clean filter that hides bytes recovery then deletes,
+  so the branch is not to land until its run 9 reports.
 - `discarding-commands-round-3-sol.txt` names a regression:
   an ignored file inside a directory the target replaces with a file is deleted unguarded,
   so that branch is not to land until its run 4 reports.
@@ -171,21 +227,17 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on the intent-to-add branch
   and passed 6 of 6 on it and on main,
   and went to `commit-ceiling-and-private-index-follow-ups` by inbox note.
-- Checks on top of main with cross-vendor reviews running:
-  merge 272 of 272,
-  standards review 249 of 249,
-  entry and service 703 of 704,
-  worktree copy 283 of 284.
-  The one failure each is a test `wrapper-tests-that-fail-only-in-a-suite` has changed.
-- The conversion branch passed 397 of 402 on top of main,
-  and its three migration timeouts not yet named on main are running alone on it and on main.
+- The conversion branch passed 397 of 402 on top of main.
+  The three migration timeouts not yet named on main passed alone on it in 12 to 34 s,
+  and its review is running.
+  Those tests failed in seconds when two checkouts ran them at the same moment,
+  which went to `wrapper-tests-that-fail-only-in-a-suite` by inbox note.
+- The conflict-resolution branch's merge of main stopped on three files under `push/`,
+  and its run 4 is resolving them.
+  The push branch is being tested on top of main.
 - `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
   of which index 57.8 s and journal 20.6 s,
   and said a real commit makes the same writes and flushes.
-- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
-  The branch is not to be merged or landed until that run reports,
-  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
-  That merge left the four files alone.
 - The locks branch passed 379 of 379 on top of main.
   `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
   and a pid file declaring an owner dead while a holder could not be resolved.

@@ -121,6 +121,12 @@ Read-only commands,
    the content policies check the exact bytes,
    and only then does the commit service of the worktree land it on the real index and branch
    by compare-and-swap.
+  That private index is a copy of the real index,
+  so the `git commit` built from it reads no file whose entry it copied;
+   an intent-to-add entry copies as it is and carries no stat data to lose,
+   and an assume-unchanged or skip-worktree entry sends the build to the preparation base instead
+   (`SPEC.md`,
+  "Explicit-path commit").
   The service is started by the operating system on the first commit (socket activation);
    the wrapper never starts it,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
@@ -430,6 +436,10 @@ Read-only commands,
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
+  The merge's message names the branch whose tip is its first parent
+  (`Merge origin/main into feature`),
+  as `git merge` names the branch it is on,
+   and it names the ref the merge is published to when that ref's name differs from the branch's.
   While the merge is computed and pushed,
   the local branch,
   the index,
@@ -488,6 +498,10 @@ Read-only commands,
   the copy is a transaction of its own whose journal and
   stage claim name the process that owns them,
   and a copy a dead process left is recovered by the next command.
+  A destination,
+  source or stage whose path holds bytes that are not text is named in every record by those bytes,
+  so recovery fills and reaps exactly that directory and no other,
+  and a record written by an earlier release is still read.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
   A worktree whose own ignored-state copy is still running is no source:
@@ -1572,7 +1586,8 @@ The rule is:
   `--keep`) override that token,
   so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
   write tracks,
-  and the rejection names both.
+  or where one of those paths needs a directory,
+  and the rejection names the path.
   The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
@@ -1775,7 +1790,11 @@ the release,
 the process and its parent,
  the worktree kind and the worktree's Git directory (`gitDir`),
 the form,
-the working directory and the arguments
+the working directory and the arguments,
+ each path field and each argument written beside its text as its bytes (`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+ so a name that is not UTF-8 still names the command that was run
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
@@ -1890,7 +1909,9 @@ when all of these hold:
    `-q`,
   `-v`,
   `--stat`,
+  `--summary` (Git's synonym for it),
   `--no-stat`,
+  `--no-summary`,
   `-n`,
   `--log`,
   `--no-log`,
@@ -2962,6 +2983,10 @@ Each line names what the command waits for,
    and does not hash the work tree again (measured:
    233,618,538 bytes of LFS content cleaned and 3.6 s with an index built by a plain `read-tree`,
    against 0.1 s with the real index's stat data).
+   An intent-to-add entry copies as it is,
+   and an index that holds an assume-unchanged or skip-worktree mark,
+   or one the wrapper cannot read,
+   is built from the tree alone instead.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
@@ -4706,6 +4731,8 @@ all durations in whole milliseconds taken from the monotonic clock:
   `kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
   and `statDataKept` says whether that build started from a copy of the real index,
   so every entry its tree shares with the real index kept its cached stat data.
+  An index whose only marks are intent-to-add entries is copied as well,
+  so its build keeps the stat data too.
   A build from the base or the tree alone holds none,
   and the scratch `git commit` then hashes every file of the work tree
   (233,618,538 bytes of LFS content cleaned and 3.6 s,

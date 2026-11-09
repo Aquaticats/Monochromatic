@@ -56,9 +56,10 @@ pub mod config_discarded;
 /// audit and doctor report.
 pub mod discarded_prune;
 
-/// The folder of saved copies as a reader finds it,
-/// under whichever data folder spelling stands in the common Git directory.
-pub mod discarded_prune_reading;
+/// What the folder of saved copies holds,
+/// and the text the doctor prints for it,
+/// read without moving anything.
+pub mod discarded_report;
 
 /// The audit line one removed directory leaves.
 pub mod discarded_prune_audit_line;

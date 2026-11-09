@@ -72,6 +72,11 @@ pub const LIST: u16 = 13;
 pub const SHOW_CURRENT: u16 = 14;
 /// `--edit-description`.
 pub const EDIT_DESCRIPTION: u16 = 15;
+/// `-r`,
+///  `--remotes`:
+///  selects remote-tracking references,
+///  and the deletion record reads the namespace from it.
+pub const REMOTES: u16 = 20;
 /// `--delete-merged=<pattern>`.
 pub const DELETE_MERGED: u16 = 16;
 /// `--dry-run`,
@@ -119,7 +124,7 @@ pub const BRANCH_TABLE: &[OptionSpec] = &[
         true,
     ),
     row(UNREAD, None, Some("color"), Arity::Optional, true),
-    row(KIND, Some(b'r'), Some("remotes"), Arity::None, false),
+    row(REMOTES, Some(b'r'), Some("remotes"), Arity::None, false),
     row(FILTER, None, Some("contains"), Arity::LastArgDefault, false),
     row(
         FILTER,
