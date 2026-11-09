@@ -155,6 +155,23 @@ fn unstartable_program_is_an_error() {
 }
 
 /// What:
+///  The ceiling the two controls that end a child use.
+/// Why:
+///   Each control reads its children's numbers from files the children write,
+/// so a ceiling shorter than the host's
+///  scheduling delay would end the child before it wrote anything,
+/// and the control would fail on a missing file
+///  rather than on what it measures.
+/// Measured:
+/// these controls failed together inside a 98-test run under a load average of
+///  57 (0.45 s,
+/// `the child wrote its number`),
+/// and passed alone and in the same run afterwards;
+/// five
+///  seconds is more than ten times the delay a busy host added there.
+const ENDED_CHILD_CEILING: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// What:
 ///  Whether a process with this number is still there,
 /// asked for up to two seconds so a just-killed one is not counted by its zombie.
 /// Why:
@@ -193,7 +210,7 @@ fn number_in(path: &Path) -> i32 {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const error = await awaitReject(runRealGitUntil(program, [], [], 300))
+/// const error = await awaitReject(runRealGitUntil(program, [], [], endedChildCeiling))
 /// expect(error.kind).toBe('TimedOut'); expect(isAlive(grandchild)).toBe(false)
 /// ```
 #[test]
@@ -209,10 +226,11 @@ fn a_run_with_a_ceiling_ends_the_child_and_what_it_started() {
     );
     executable(program.as_path(), script.as_bytes());
     let began: std::time::Instant = std::time::Instant::now();
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_millis(300)).expect_err("the ceiling ends the step");
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
     let waited: std::time::Duration = began.elapsed();
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
-    assert!(error.to_string().contains("300ms") && error.to_string().contains("was ended"), "the error names the ceiling and what happened: {error}");
+    let named: String = format!("{ENDED_CHILD_CEILING:?}");
+    assert!(error.to_string().contains(named.as_str()) && error.to_string().contains("was ended"), "the error names the ceiling and what happened: {error}");
     assert!(waited < std::time::Duration::from_secs(20), "the ceiling ends it near its number, not when the child would have finished: {waited:?}");
     assert!(!still_alive(number_in(child_number.as_path())), "the leader is gone");
     assert!(!still_alive(number_in(grandchild_number.as_path())), "the process the step started is gone too");
@@ -242,7 +260,8 @@ fn a_run_inside_its_ceiling_reports_what_the_child_did() {
 ///  interrupt (a hung filesystem,
 /// a dead FUSE server);
 /// a plain `wait` there would wait for exactly the thing the
-///  ceiling exists to end (owner: "nothing should ever wait forever or indefinitely").
+///  ceiling exists to end,
+/// and the owner forbade that ("nothing should ever wait forever or indefinitely").
 /// The grace is set to zero for
 ///  this thread,
 /// so the leaving path is what the control reaches,
@@ -250,7 +269,7 @@ fn a_run_inside_its_ceiling_reports_what_the_child_did() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// shortenStopGrace(0); const error = await awaitReject(runRealGitUntil(program, [], [], 300));
+/// shortenStopGrace(0); const error = await awaitReject(runRealGitUntil(program, [], [], endedChildCeiling));
 /// expect(error.message).toContain('has not exited'); expect(isAlive(leader)).toBe(false);
 /// ```
 #[test]
@@ -262,11 +281,12 @@ fn a_ceiling_whose_child_cannot_be_collected_returns_and_says_so() {
     executable(program.as_path(), script.as_bytes());
     STOP_GRACE_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<std::time::Duration>>| slot.set(Some(std::time::Duration::ZERO)));
     let began: std::time::Instant = std::time::Instant::now();
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_millis(300)).expect_err("the ceiling ends the step");
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
     let waited: std::time::Duration = began.elapsed();
     STOP_GRACE_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<std::time::Duration>>| slot.set(None));
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
-    assert!(error.to_string().contains("300ms") && error.to_string().contains("has not exited"), "the error names the ceiling and what it saw: {error}");
+    let named: String = format!("{ENDED_CHILD_CEILING:?}");
+    assert!(error.to_string().contains(named.as_str()) && error.to_string().contains("has not exited"), "the error names the ceiling and what it saw: {error}");
     assert!(waited < std::time::Duration::from_secs(20), "it does not wait for a child that cannot be stopped: {waited:?}");
     assert!(collected_here(number_in(child_number.as_path())), "the kill ended the child, and only its collection was left to this process");
     remove(root.as_path());
