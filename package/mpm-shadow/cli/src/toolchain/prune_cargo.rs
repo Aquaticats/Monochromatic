@@ -349,24 +349,38 @@ pub fn prune_toolchain(
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
     let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
-    if !dry_run {
-        // What: every repository-published crate's `current` is repointed before anything is deleted.
-        // Why: `current` names the newest finished version, which is never one of the deletions below;
-        // moving the link first leaves a run killed at any later point with a link that resolves,
-        // instead of one naming a directory this run has already removed.
-        for crate_name in present.keys() {
-            if crate_name.starts_with(OWN_CRATE_PREFIX) {
-                point_current_at_newest(&scope.toolchain_root, crate_name)?;
-            }
-        }
-    }
-    let mut removed: Vec<PathBuf> = Vec::new();
+    // What: the deletions this run will make, with the versions the other toolchain root forwards to left out.
+    // Why: the link decision below has to know which versions really stay, and that forward is one way one stays.
+    let mut planned: Vec<(String, String, PathBuf)> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
         // A version the other toolchain root's `current` forwards to is the one that root runs: never pruned from here.
         if other_root_forwards_to(&current_link(&scope.other_toolchain_root, &crate_name), &directory) {
             continue;
         }
+        planned.push((crate_name, version, directory));
+    }
+    if !dry_run {
+        // What: every repository-published crate's `current` is settled before anything is deleted.
+        // Why: a crate that keeps a version has the newest finished one, which is never one of the deletions
+        // below, so the link is moved to it; a crate that keeps none loses the link,
+        // because every version the link could name is about to go.
+        // Either way a run killed at any later point leaves a link that resolves or none at all.
+        for crate_name in present.keys() {
+            if !crate_name.starts_with(OWN_CRATE_PREFIX) || present[crate_name].is_empty() {
+                // A crate with no version here holds only a link forwarding to the other toolchain root's newer
+                // copy (see `managed_losers.rs`): nothing is pruned from it, so its link is not this run's to move.
+                continue;
+            }
+            if keeps_a_version(crate_name, &present[crate_name], &planned) {
+                point_current_at_newest(&scope.toolchain_root, crate_name)?;
+            } else {
+                remove_current_link(&scope.toolchain_root, crate_name)?;
+            }
+        }
+    }
+    let mut removed: Vec<PathBuf> = Vec::new();
+    for (_crate_name, _version, directory) in planned {
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
         }
@@ -397,6 +411,33 @@ pub fn prune_toolchain(
     }
     removed.extend(prune_archives(scope, &named_archive_tools, dry_run)?);
     return Ok(removed);
+}
+
+/// What:
+/// Whether at least one version of `crate_name` is not one of `removals`.
+/// Why:
+/// A crate that keeps a version has `current` to point at its newest finished one;
+/// a crate that keeps none must lose the link before the versions it names are deleted.
+fn keeps_a_version(crate_name: &str, versions: &[PresentVersion], removals: &[(String, String, PathBuf)]) -> bool {
+    return versions.iter().any(|candidate| {
+        return !removals.iter().any(|(crate_of_removal, version, _directory)| {
+            return crate_of_removal == crate_name && version == &candidate.version;
+        });
+    });
+}
+
+/// What:
+/// Removes a crate's `current` link.
+/// Why:
+/// When no version of the crate remains, the link would name a directory this run deletes;
+/// removing it first leaves a run killed at any later point with no link rather than a dangling one.
+fn remove_current_link(toolchain_root: &Path, crate_name: &str) -> Result<(), ToolchainError> {
+    let link: PathBuf = current_link(toolchain_root, crate_name);
+    return match fs::remove_file(&link) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ToolchainError::failure(format!("cannot remove {}: {error}; nothing was deleted", link.display()))),
+    };
 }
 
 /// What:

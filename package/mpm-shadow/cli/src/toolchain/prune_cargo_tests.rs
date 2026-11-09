@@ -186,6 +186,34 @@ fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
     assert!(leftover.exists(), "the crate directory was removed with something inside it: {removed:?}");
 }
 
+/// A crate no lock names loses every version, so its `current` link goes before them:
+/// a run killed in between leaves no link rather than one naming a version that is deleted.
+#[test]
+fn a_crate_no_lock_names_loses_its_current_link_before_its_versions() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(
+        &version_directory(&root, "monochromatic-lint", "1.1.0"),
+        "monochromatic-lint",
+        "1.1.0",
+        &["monochromatic-lint"],
+    );
+    std::os::unix::fs::symlink("1.1.0", current_link(&root, "monochromatic-lint")).expect("current");
+    // A leftover the scan does not count keeps the directory, so what happens to the link is the link's own
+    // and not the directory removal's.
+    let leftover = root.join("cargo").join("monochromatic-lint").join(".current.4242.tmp");
+    fs::write(&leftover, "").expect("drop the leftover");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert!(!version_directory(&root, "monochromatic-lint", "1.1.0").exists(), "the version goes: {removed:?}");
+    assert!(
+        std::fs::symlink_metadata(current_link(&root, "monochromatic-lint")).is_err(),
+        "the link that named the deleted version is still there"
+    );
+    assert!(leftover.exists(), "the leftover keeps the directory: {removed:?}");
+}
+
 /// A prune that cannot repoint `current` deletes nothing:
 /// the link is moved to the newest finished version before the older one goes,
 /// so a run that stops at the link has never deleted the version the link named.
