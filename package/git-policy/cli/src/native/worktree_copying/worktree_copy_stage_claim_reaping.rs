@@ -92,8 +92,9 @@ fn add_is_finished(binding: &Binding) -> bool {
 ///  What finishes or removes an interrupted add,
 /// with the stale lock named first when one stands in the way.
 /// Why:
-///   `git -C <destination> reset --hard` cannot start while that lock exists (Git answers "Unable to create
-///  .../index.lock: File exists"),
+///   `git -C <destination> reset --hard` cannot start while that lock exists,
+/// and Git refuses it with
+/// `fatal: Unable to create '.../index.lock': File exists`;
 /// so the report names the file and the condition for removing it;
 ///  the worktree's own `git status` still works,
 /// so nothing else would tell a person why every write to it fails.

@@ -367,6 +367,27 @@ fn run_settled(
     use crate::worktree_copy_error::WorktreeCopyError;
 
     /// What:
+    ///  The words of a step as one line for a message.
+    /// Why:
+    ///   A stopped step is named by the command it ran,
+    /// so a person can run it again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// arguments.map(String).join(' ')
+    /// ```
+    fn words_of(arguments: &[OsString]) -> String {
+        let mut text: String = String::new();
+        for (index, word) in arguments.iter().enumerate() {
+            if index > 0 {
+                text.push(' ');
+            }
+            text.push_str(word.to_string_lossy().as_ref());
+        }
+        return text;
+    }
+
+    /// What:
     ///  Decide once whether the checkout gets parallel workers,
     /// and say the decision.
     /// Why:
@@ -474,7 +495,7 @@ fn run_settled(
                 Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
                 // A step that was ended at its ceiling did start, so the failure says what happened rather than that it could not start.
                 Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` was ended: {error}", child_arguments.iter().map(|word| { return word.to_string_lossy(); }).collect::<Vec<std::borrow::Cow<'_, str>>>().join(" "))));
+                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` was ended: {error}", words_of(child_arguments.as_slice()))));
                 }
                 Err(error) => {
                     return Err(WorktreeCopyError(format!(

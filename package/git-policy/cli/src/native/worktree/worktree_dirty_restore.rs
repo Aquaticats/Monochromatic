@@ -233,7 +233,15 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, c
     if listed != Some(0) {
         return Err(String::from("Git could not list the untracked files of the restored worktree"));
     }
-    if let Some(name) = untracked.split(is_nul_byte).filter(is_nonempty_name).find(|name| { return !is_carried(name, carried); }) {
+    // The first untracked name the restore did not carry; the loop stops there, as `find` did.
+    let mut first_untracked: Option<&[u8]> = None;
+    for name in untracked.split(is_nul_byte).filter(is_nonempty_name) {
+        if !is_carried(name, carried) {
+            first_untracked = Some(name);
+            break;
+        }
+    }
+    if let Some(name) = first_untracked {
         return Err(format!("{} is still untracked in the restored worktree", crate::worktree_snapshot_source::plain(String::from_utf8_lossy(name).as_ref())));
     }
     let files: Option<i32> = ask(context, target, work_tree, &["diff-files", "--quiet"])?.0;

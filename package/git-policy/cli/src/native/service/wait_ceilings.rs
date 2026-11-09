@@ -466,8 +466,9 @@ pub const REPAIR_TOOL_CEILING: Duration = Duration::from_secs(18 * 60);
 /// (`.git/monochromatic-git-policy-cli-worktree-add-timing.jsonl`,
 /// 338 records):
 /// the step that holds `git read-tree -m -u` (`applyDifference`) took at most 2,560 ms over 81 adds,
-/// and the one
-///  that holds `git read-tree --reset -u`, the `clean` and the proof (`restoreDirty`) at most 24,989 ms over 229.
+/// and the one that holds `git read-tree --reset -u`,
+/// the `clean` and the proof (`restoreDirty`),
+/// at most 24,989 ms over 229.
 /// Ten minutes is 24 times the longer of the two,
 /// and it is the ceiling of every other bulk step of the wrapper.
 pub const LADDER_READ_TREE_CEILING: Duration = OBJECT_STEP_CEILING;
@@ -481,8 +482,8 @@ pub const LADDER_READ_TREE_CEILING: Duration = OBJECT_STEP_CEILING;
 /// which writes a whole checkout,
 /// took 229,386 ms.
 /// Margin:
-/// the smallest whole number of minutes that is at least five times that (1,146,930 ms), the
-///  factor the ceilings above use,
+/// the smallest whole number of minutes that is at least five times that (1,146,930 ms),
+/// the factor the ceilings above use,
 /// so 20 minutes.
 /// A stopped checkout loses nothing of the person's:
 /// it writes the new

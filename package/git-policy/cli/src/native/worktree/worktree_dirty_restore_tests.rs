@@ -16,7 +16,8 @@ use std::path::{Path, PathBuf};
 const LEADING_WORDS: usize = 2;
 
 /// What:
-///  The commit `revision` names in `repo`, as hexadecimal.
+///  The commit `revision` names in `repo`,
+/// as hexadecimal.
 /// Why:
 ///   The fixture names the two commits it restores between by what they are.
 ///
@@ -29,7 +30,8 @@ fn commit_of(repo: &Path, revision: &str) -> String {
 }
 
 /// What:
-///  Copy the files of `from` into `to`, leaving out the top-level `.git`,
+///  Copy the files of `from` into `to`,
+/// leaving out the top-level `.git`,
 /// the way a snapshot's files reach the stage.
 /// Why:
 ///   The stage is the source's files with the new worktree's Git directory,

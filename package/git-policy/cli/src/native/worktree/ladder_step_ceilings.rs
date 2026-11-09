@@ -47,7 +47,7 @@ use std::time::Duration;
 /// subcommandOf(arguments) === 'read-tree' ? READ_TREE_CEILING : isFallbackCheckout(arguments) ? CHECKOUT_CEILING : undefined
 /// ```
 pub fn ceiling_of(arguments: &[OsString]) -> Option<Duration> {
-    let Some((_index, name)) = subcommand_of(arguments) else { return None };
+    let (_index, name) = subcommand_of(arguments)?;
     let ceiling: Duration = if name == "read-tree" {
         LADDER_READ_TREE_CEILING
     } else if is_fallback_checkout(arguments) {
