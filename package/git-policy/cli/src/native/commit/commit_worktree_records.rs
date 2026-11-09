@@ -106,7 +106,10 @@ pub fn settled_entry(
 ) -> Result<Option<(String, String)>, GitFailure> {
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
     pathspec.extend_from_slice(path);
-    let mut request: GitRequest = GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--"]);
+    // The pathspec is magic, and this start skips the caller's prefix, so literal pathspec mode,
+    // from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`, is switched off here: under it the
+    // name would match nothing and a landed correction would never reach the worktree copy.
+    let mut request: GitRequest = GitRequest::new(cwd, &["--no-literal-pathspecs", "ls-files", "--stage", "-z", "--"]);
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());

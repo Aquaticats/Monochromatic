@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:12:53-05:00)
+#### Reviews and landings in progress (2026-11-09T04:16:51-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -243,7 +243,18 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a launcher that clears its environment and so defeats both recursion guards.
   Run 2 of its agent reports all four fixed,
   677 of 677 selected tests pass on top of main,
-  and the review `entry-and-service-round-2` is running.
+  and the review (`${HOME}/temp/agent/reviews/entry-and-service-round-2-sol.txt`) names a launcher that clears the environment and still starts the wrapper without end,
+  a digest that certifies unit files the manager never loaded so a commit keeps ending on `OtherRelease`,
+  a signal turned into a normal exit on the plain child route,
+  and a new test that can wait forever.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `entry-and-service-findings-fixed` as run 3,
+  with `entry-and-service-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  The review's fifth finding,
+  the bound of 32 on a finite alias chain,
+  stays as it is.
   A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
   because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
@@ -344,10 +355,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`) names a prune that can delete a version a lock still names,
   and a `current` link left pointing at a deleted version.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `mpm-shadow-open-issues` as run 3,
-  with `mpm-shadow-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  Run 3 of its agent is on them.
   Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
   By its own report the agent ran its cargo commands outside the required resource limits,
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
@@ -403,7 +411,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   The agent `repo-read-findings-fixed` is on them.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
-  The agent `policy-and-candidate-findings-fixed` is on them.
+  Its fix landed on main as `3d53f1f46a`,
+  with 544 of 544 selected tests passing on top of main.
+  The review (`${HOME}/temp/agent/reviews/policy-and-candidate-round-1-sol.txt`) and the agent's report name smaller gaps in other routes.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start the run `literal-pathspec-remaining-starts` from main,
+  on `fix/git-policy-cli-literal-pathspec-remaining-starts`,
+  with `literal-pathspec-remaining-starts-prompt.md`.
 - `doc/planning/cli-git-hook-route-findings-on-main.md` names four defects,
   among them a stopped push that kills a local remote's `post-receive` after the branch has landed and then reports failure.
   The agent `hook-route-findings-fixed` is on them.
