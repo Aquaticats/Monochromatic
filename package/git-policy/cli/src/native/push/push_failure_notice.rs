@@ -571,14 +571,16 @@ pub trait CommitNamer {
 }
 
 /// What:
-///  Reads and removes the records that are for the asking worktree (all of them when no worktree is given),
+///  Reads the records that are for the asking worktree (all of them when no worktree is given),
 /// oldest name
 ///  first,
-/// worded with the commit named by `abbreviate`.
+/// words each with the commit named by `abbreviate`,
+/// and removes it once its words exist.
 /// Why:
 ///   A record is shown once,
 /// to the worktree whose commit it is about;
-/// another worktree's command leaves it where it is.
+/// another worktree's command leaves it where it is,
+/// and the removal comes after the words so a command killed while it names the commit loses nothing.
 ///  When nothing failed the notice directory does not exist,
 /// and this is one directory read.
 ///
@@ -625,17 +627,19 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         {
             continue;
         }
-        // The record is removed before its text is used, so two commands that start together cannot both show it.
-        if std::fs::remove_file(path.as_path()).is_err() {
-            continue;
-        }
-        texts.push(match parsed {
+        // The text is made before the record goes: naming the commit asks Git, and a command killed there, or a standard error
+        //  that cannot be written, must leave the only durable statement that the commit is not backed up where the next
+        //  command finds it. Two commands that start together can therefore both show it, which costs a repeat and loses nothing.
+        let shown: String = match parsed {
             Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
             // The finished text an earlier release wrote.
             None => text,
-        });
+        };
+        // A record another command took meanwhile is already shown by it, and one that cannot be removed is shown again next time.
+        let _removed = std::fs::remove_file(path.as_path());
+        texts.push(shown);
     }
     return texts;
 }

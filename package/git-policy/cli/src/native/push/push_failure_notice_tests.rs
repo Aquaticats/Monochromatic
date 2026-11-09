@@ -351,3 +351,23 @@ fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
     assert_eq!(branch_of_head(root.join("missing").as_path()), None);
     remove(root.as_path());
 }
+
+/// A notice is still on disk while its commit is being named,
+/// so a command killed there,
+/// or one whose standard error cannot be written,
+/// leaves the only durable statement that the commit is not backed up for the next command.
+#[test]
+fn a_notice_survives_being_worded() {
+    let root: PathBuf = fixture("push-failure-word-then-remove");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    let naming = |commit: &str| {
+        assert!(record.exists(), "the record is on disk while its commit is named");
+        return commit.to_string();
+    };
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &naming);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
+    assert!(!record.exists(), "and it is gone once its words exist");
+    assert!(take_push_failures(root.as_path()).is_empty(), "a record is shown once");
+    remove(root.as_path());
+}
