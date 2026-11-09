@@ -169,6 +169,104 @@ pub fn option_tokens(global_prefix: &[OsString]) -> Vec<&OsString> {
 }
 
 /// What:
+///  The directories the caller's `-C` options move Git through,
+///  in the order Git reads them,
+///  and without the empty value Git treats as no move.
+/// Why:
+///   A relative `PATH` entry or exec path is resolved against the directory Git runs in,
+///  and `-C` moves that directory before any command is looked up
+///  (`git.c:316` to `git.c:328`,
+///  then `git.c:988`);
+///  an empty `-C` moves Git nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directoryChanges = (prefix: string[]) =>
+///   prefix.flatMap((token, index) => token === '-C' && prefix[index + 1] ? [prefix[index + 1]] : []);
+/// ```
+pub fn directory_changes(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut directories: Vec<OsString> = Vec::new();
+    // True while the token being visited is the value of the separated-value option before it.
+    let mut is_value: bool = false;
+    for (index, token) in global_prefix.iter().enumerate() {
+        if is_value {
+            is_value = false;
+            continue;
+        }
+        let argument: &[u8] = token.as_encoded_bytes();
+        if !takes_value(argument) {
+            continue;
+        }
+        is_value = true;
+        if argument != b"-C" {
+            continue;
+        }
+        let Some(value) = global_prefix.get(index + 1) else {
+            continue;
+        };
+        if value.as_encoded_bytes().is_empty() {
+            continue;
+        }
+        directories.push(value.clone());
+    }
+    return directories;
+}
+
+/// What:
+///  The directory the last `--exec-path=` option of a global prefix names,
+///  or nothing when the prefix holds no such option.
+///  A value is returned as the caller wrote it,
+///  relative and empty included.
+/// Why:
+///   Git's own option loop sets its exec path from that option,
+///  and `git_exec_path` answers with the setting before it reads the
+///       environment
+///  (`git.c:178` to `git.c:181`,
+///  `exec-cmd.c:313` to `exec-cmd.c:323`),
+///  so a reading that looked at `GIT_EXEC_PATH` first
+///  would search a directory Git never searches.
+///  An empty value is a real answer:
+///  Git adds no executables directory for it
+///  (`exec-cmd.c:325`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const execPathOption = (prefix: string[]) =>
+///   prefix.filter((token, index) => !(index > 0 && takesValue(prefix[index - 1])))
+///     .filter((token) => token.startsWith('--exec-path='))
+///     .at(-1)?.slice('--exec-path='.length);
+/// ```
+pub fn exec_path_option(global_prefix: &[OsString]) -> Option<OsString> {
+    /// Counted bytes of the inline spelling this reads.
+    const SPELLING: &[u8] = b"--exec-path=";
+    let mut value: Option<OsString> = None;
+    // True while the token being visited is the value of the separated-value option before it.
+    let mut is_value: bool = false;
+    for token in global_prefix {
+        if is_value {
+            is_value = false;
+            continue;
+        }
+        let argument: &[u8] = token.as_encoded_bytes();
+        if let Some(configured) = argument.strip_prefix(SPELLING) {
+            #[cfg(unix)]
+            {
+                /// The Unix byte-to-native-string conversion for a configured path.
+                use std::os::unix::ffi::OsStrExt;
+                value = Some(std::ffi::OsStr::from_bytes(configured).to_os_string());
+            }
+            // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+            #[cfg(not(unix))]
+            {
+                value = Some(OsString::from(String::from_utf8_lossy(configured).into_owned()));
+            }
+        }
+        is_value = takes_value(argument);
+    }
+    return value;
+}
+
+/// What:
 ///  The caller's global prefix without the options that set a pathspec mode.
 /// Why:
 ///   A mode the caller chose governs the caller's own pathspecs,

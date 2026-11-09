@@ -8975,6 +8975,13 @@ it never drops a byte that either side added or kept,
 and it never orders two insertions at one point,
 so both sides appending different text at one place stays a conflict.
 
+A `.gitattributes` that a merge left conflicted is no rule at all:
+the worktree copy holds Git's markers and a copy in a merge tree the same,
+so a rule read from between them is neither side's rule,
+and every candidate of that merge keeps its conflict
+(`src/native/merge/merge_second_pass_worktree.rs`,
+`src/native/merge/merge_second_pass_tree.rs`).
+
 A conflicted file is a candidate only when all three stages exist with one mode that is a plain file,
 none holds a NUL byte in its
 first 8000 bytes (Git's `FIRST_FEW_BYTES`,
@@ -8983,7 +8990,8 @@ none is larger than 8 MiB,
 and the `merge` attribute is unspecified,
 set or `text`
 (a driver,
-`-merge` and `merge=binary` keep the merge to their setting).
+`-merge` and `merge=binary` keep the merge to their setting,
+read from the worktree for a merge a person runs and from the tree the merge produced for a merge from objects).
 Git's own limit is `MAX_XDIFF_SIZE`,
 1023 MiB (`xdiff-interface.h` line 14),
 above which its merge calls a file binary
@@ -9027,11 +9035,104 @@ which replaces the conflict stages) and written to the worktree with `git checko
 so the repository's filters apply;
 if the checkout fails the conflict stages are put back.
 Standard error gets one line per part,
-`monochromatic-git-policy-cli: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`.
+`monochromatic-git-policy-cli: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>" from base blob <oid>, ours blob <oid>, theirs blob <oid>`,
+and one sentence for the reader:
+the part lines end with the three blobs they came from,
+and `git cat-file blob <oid>` shows one.
+The spans locate the part in the three texts,
+and the object names are the whole stage blobs those spans index into:
+the pass replaces the stages when it stages the file as resolved,
+so `git show :1:<path>`,
+`:2:` and `:3:` answer nothing afterwards,
+while the blobs stay readable,
+which is the handle a person needs to check what the merge did,
+for a merge a person finishes and for the merges from objects that leave no stage at all.
 Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli`,
 with the fields
 `CLI_GIT_WORD_MERGE_FILE`,
-`CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+`CLI_GIT_WORD_MERGE_OPERATION`,
+`CLI_GIT_WORD_MERGE_PARTS` and
+`CLI_GIT_WORD_MERGE_BLOBS`
+(`base=<oid>,ours=<oid>,theirs=<oid>`,
+with `none` for a stage the merge had not).
+
+The list ends with one line that names what the pass staged
+(`monochromatic-git-policy-cli: word-level merge: staged as resolved by the second merge pass: <paths>. ...`),
+whether or not a finish follows it:
+the pass has already changed the index and the worktree,
+so no later step can be the only account of that change.
+A file the pass does not install moved while it computed the merge
+(another command resolved it and
+ `git add`ed it,
+or a person edited it),
+and one line names each such path:
+what the worktree held at each of those paths is read the moment the command left them,
+before the merge looks at any stage,
+so an edit made while the merge runs is never the baseline it is compared with;
+the bytes of each are what the comparison uses,
+not their length and modification time,
+because a writer can write different bytes of the same length and put the saved time back
+(`src/native/merge/merge_second_pass_worktree_unchanged.rs`),
+and a conflicted file is one the pass has already read:
+measuring the read on the development host on 2026-11-09 took 1.56 ms for 16 MiB against 1.23 ms for 64 bytes,
+medians of five runs each,
+so the two reads of a 14 MiB conflicted file cost about 0.6 ms beside the 396 ms and 403 ms the whole merge step
+of a 7 MiB conflict was measured at;
+a file larger than three times the pass's 8 MiB stage limit is never compared by its bytes,
+and the pass leaves that conflict alone;
+the index stages are read again just before the install,
+and the worktree file's device,
+inode,
+length and modification time are compared with what they were when the stages were read,
+so a path that moved in either place keeps the version that is there now and is never replaced by the pass.
+Where every merged file moved,
+nothing is installed and that line alone is printed.
+The check and the install are two Git commands,
+so a second process that resolves and stages the same path in the few instructions between them still loses that resolution:
+`git update-index --index-info` replaces its stage 0 entry and `git checkout-index --force` replaces its worktree bytes.
+The owner's instruction of 2026-11-09 is to record that window rather than close it with more mechanism
+(`doc/planning/cli-git-conflict-resolution-route-findings-on-main.md`),
+and what the person sees if they are in it is their resolution replaced:
+the file holds the pass's merged bytes,
+the line names the path among those staged as resolved,
+and `git diff --cached -- <path>` and the file itself show the merge rather than what they wrote.
+Nothing else is lost:
+/// the index stages,
+/// the merge's own inputs and the commit are untouched.
+When a finish is planned the line says the wrapper finishes the operation below;
+otherwise it says what is left to do.
+A finish that does not end the operation (a commit the commit service cannot be reached for,
+a commit a policy refuses,
+any other failure of the ending step)
+is followed by one line naming the state the person will find,
+read from the index and from the Git directory as it is after that step:
+the operation did not finish,
+the files the pass staged as resolved are named,
+and either no file is conflicted or the files that are,
+or that the index could not be read again and which files are conflicted now cannot be said,
+with the sentence that Git stopped again there,
+because a continuation commits the pick it resolved and then stops on the next change's conflict
+(`git rebase --continue` does exactly that).
+The command that ends the operation is read from the state files Git writes
+(`rebase-merge`,
+`rebase-apply`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD`,
+`MERGE_HEAD`),
+so a `git pull` that runs a rebase is told `git rebase --continue` and never `git commit`;
+the operation's own word is only the fallback for a state file that is gone.
+The failing step's own words describe that step alone,
+and a commit's plain failure ends with "Nothing in the repository changed.",
+which is true of the commit and false of the merge that staged the files before it;
+the wrapper's line after it is the last word,
+and it is the true one.
+
+The merge stays in progress in that case (`MERGE_HEAD`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD` or the rebase state files as Git left them),
+the resolved files stay staged,
+and the exit status is the failing step's,
+so a script that tests it still stops.
 
 When every conflicted file of the command resolved,
 the operation is finished the way Git finishes it after a clean run
@@ -9227,6 +9328,14 @@ else `GIT_ATTR_SOURCE`,
 else the configuration `attr.tree`,
 and ignores an `attr.tree` that is no tree
 (`attr.c` lines 1202 to 1231).
+A `-c attr.tree=<spec>` on the command line is a configuration value Git takes above every file,
+in any letter case the key allows,
+because a Git configuration key's letters are not significant and `canonical_key` is the wrapper's one spelling of them
+(`git_config_from_parameters`),
+so a resolving one there is the person's choice even where a file sets the key,
+and one that is no tree is ignored as a configured one is;
+`-c attr.tree` with no value sets `true`,
+which no tree resolves to.
 The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`,
 the
 reconcile merge's branch tip,
@@ -9244,7 +9353,56 @@ do not,
 each checked against Git 2.56.0 in `repo_read_layout.rs`),
 which costs one Git start in that case.
 The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them.
-A `.gitattributes` that only the second side has is not read (Git takes one tree).
+A `.gitattributes` that only the second side has is not read by `git merge-tree` itself (Git takes one tree),
+but the second pass reads the `merge` attribute from the tree that merge produced,
+so a rule the merge introduces governs the pass:
+the candidates are asked of one `git check-attr --source=<tree>` start,
+and a `--source` outranks `--attr-source` and `GIT_ATTR_SOURCE` in Git 2.56.0.
+The tree is named as that source only where the person named no source above;
+where a person's choice cannot be read,
+the pass names none.
+A `.gitattributes` that the merge itself left conflicted names no source at all:
+its file in the merge tree holds Git's markers,
+no side's rule can be read from between them,
+and every candidate therefore keeps its conflict,
+so the merge is refused as one that does not resolve.
+A merge whose own `.gitattributes` is settled reads its rules there,
+including one only the second side carries:
+a path its settings exclude (a driver,
+`-merge`,
+`merge=binary`) is left exactly as Git left it.
+Every Git command of the reconcile merge's second pass (`merge-tree`,
+`cat-file --batch`,
+`check-attr`,
+`hash-object`,
+the scratch index's `read-tree`,
+`update-index` and `write-tree`)
+runs under the push's stall window and,
+beside it,
+under a total ceiling,
+300 seconds by default and settable with `CLI_GIT_PUSH_MERGE_CEILING_SECONDS`:
+the window ends a command that shows no sign of work,
+and only the ceiling ends one that keeps working without ever returning,
+because a merge driver that rewrites a scratch file for ever shows progress in every sample.
+The measured cost of the step is 396 ms and 403 ms for a merge of one 7 MiB file the pass resolves
+(load average 66 to 75 on 8 CPUs),
+and the pass takes no file past 8 MiB,
+so the ceiling is hundreds of times the measured work.
+When it fires,
+the merge is not made and nothing was written:
+the commit is kept,
+no reference moved and the worktree was not touched,
+the failure says so in those words,
+and the service retries the push on its own,
+naming that text in the notice on the person's next command.
+The rest of the bound is the one a push query has:
+the push's stall window,
+the service's stop and the grace a stopped query gets,
+with its request on the standard input and an answer ceiling of one stage per name it asks for
+(`src/native/push/auto_push_reconcile_merge_commit.rs`),
+so a merge driver that never returns ends the merge and is named as a stopped query,
+and the push worker,
+its claim and the drain of that repository are not held for good.
 The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
 the reconcile merge appends the part lines to the merge commit's message,
 prints them with the push report and sends the entries after the push succeeded,
@@ -10078,6 +10236,25 @@ which Git refuses with `changes environment variables` and runs nothing for
 `-P`),
 and one whose name an installed `git-<name>` program carries,
 which Git runs before it looks any alias up.
+Whether a program carries the name is read from Git's own search:
+the directory the caller's last `--exec-path=` names,
+else a nonempty `GIT_EXEC_PATH`,
+else the path Git reports for itself,
+and then every `PATH` entry.
+A relative value in either of the first two,
+and every `PATH` entry without a leading separator,
+is read from the directory Git runs in after the caller's ordered `-C` chain,
+which is why that chain is walked rather than guessed;
+an empty `--exec-path=` adds no directory,
+as Git adds none.
+An answer the reading cannot prove leaves the alias to Git,
+which then decides.
+The endings that reach that answer are starts of Git that fail for the exec path question,
+and the alias lookup is another start of the same Git with the same globals,
+environment and directory,
+so it fails with them and there is no alias to read.
+A failure that hits only the first start can still leave an alias to Git,
+and that is this reading's remaining limit.
 No fact of the caller then describes a repository the command never runs in,
 and the audit names what Git runs.
 A built-in word is decided without reading any configuration,
@@ -10105,6 +10282,16 @@ backtick,
 glob,
 brace or separator,
 and whose words name no global option of their own.
+Git appends the caller's own words to the value before the shell reads it
+(`git.c:401` to `git.c:402`),
+so the command followed is the value's words and then the caller's:
+a value of exactly `!git` starts that command with the caller's first word,
+and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
+The Git inside the shell also reads the configuration and the exec path the caller passed,
+which Git exports to what it starts
+(`config.c:469` to `config.c:504`,
+`exec-cmd.c:303` to `exec-cmd.c:310`),
+so `-c 'alias.outer=!git inner' -c 'alias.inner=reset --hard' outer` is decided on the inner reset.
 `!git reset --hard` is then refused where `git reset --hard` is refused,
 and the alias itself is still forwarded unchanged,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
