@@ -360,6 +360,37 @@ and their callers read the values from the lock through three commands that run 
   1 when the build fails,
   2 for a malformed command line.
 
+## Mounting the shared pnpm store
+
+This repository installs with `storeDir` and `virtualStoreType: global` in `pnpm-workspace.yaml`,
+so every entry in a
+`node_modules` folder is a symbolic link into `${HOME}/.local/share/pnpm/store`.
+A container that mounts this checkout and nothing else cannot follow those links and fails every import of an installed
+package with `ERR_MODULE_NOT_FOUND`,
+which is why every container run of a JavaScript tool against the checkout takes
+`pnpmStoreMountArguments()` and `--security-opt label=disable`.
+
+- `pnpmStoreMountArguments({ home?, physicalStoreDirectory? })` returns one `['--volume', '<store>:<store>:ro']` pair
+  per spelling of the store the checkout's links can name,
+  and source and destination spell the same absolute path.
+  A link is relative to its own directory,
+  so the path it resolves to depends on how deep the checkout is mounted:
+  at `/workspace` or `/work` it lands on `$HOME/.local/share/pnpm/store`,
+  and at the host path it lands on the physical spelling,
+  which differs on a host whose home directory is a symbolic link
+  (`doc/troubleshooting/pnpm-symlinked-store-path.md`).
+  The physical spelling comes from `PNPM_CONFIG_STORE_DIR`,
+  which mise supplies;
+  equal spellings collapse to one mount.
+- `pnpmStoreDirectory({ home? })` returns the home-relative spelling.
+- `STORE_DIRECTORY_FROM_HOME` mirrors the `storeDir` setting,
+  which this module cannot read without a synchronous
+  filesystem call;
+  `src/pnpm-store-mount.unit.test.ts` reads `pnpm-workspace.yaml` and fails when the two disagree.
+- Locally imported task bodies take it by path,
+  `package/test-harness/core-matrix/src/pnpm-store-mount.ts`,
+  as they already take `package/container-limit/core/src/index.ts`.
+
 ## Supported runtimes
 
 - **bun**:

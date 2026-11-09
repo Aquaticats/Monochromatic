@@ -80,13 +80,12 @@ await describe({
           fn: async () => {
             assertOneWireModelPerBench({ bench: 'editors', modelIds: ['claude-sonnet-5-5', 'claude-haiku-5-5',], },);
             assertOneWireModelPerBench({ bench: 'empty', modelIds: [], },);
-            assertOneWireModelPerBench({
-              bench: 'roster',
-              modelIds: ROSTER_MODEL_IDS.filter(function notEffortCard(modelId,): boolean {
-                return !modelId.includes('-effort-',);
-              },),
+            const onePerModel = ROSTER_MODEL_IDS.filter(function notEffortCard(modelId,): boolean {
+              return !modelId.includes('-effort-',);
             },);
-            expect(true,).toBe(true,);
+            assertOneWireModelPerBench({ bench: 'roster', modelIds: onePerModel, },);
+            // A nonempty fixture, so the accepted roster above is a case the rule had to allow.
+            expect(onePerModel.length,).toBeGreaterThan(0);
           },
         },),
       ],
