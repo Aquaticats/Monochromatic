@@ -5,10 +5,9 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readdir,
   readFile,
-  rm,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -179,7 +178,8 @@ await describe({
     it({
       name: 'keeps the failure text and the last states, zone focus route and unfolded, in a file of the output folder',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         attachStates(recorder, 'wide', statesOf(30,),);
         await recorder.verify({
@@ -192,7 +192,6 @@ await describe({
         const [outcome,] = recorder.outcomes();
         const path = outcome?.evidence ?? '';
         const text = await readFile(path, 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(path.startsWith(evidenceDir,),).toBe(true,);
         expect(path,).toContain('settings--licenses-row',);
         expect(text,).toContain('settings/licenses-row',);
@@ -207,7 +206,8 @@ await describe({
     it({
       name: 'skips the position ticks of a playing track, which would fill the file and hide what changed, and counts them',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         const changes = statesOf(14,).map((state,) => ({ ...state, reason: `key-${state.seq}`, }),);
         const ticks = Array.from({ length: 40, }, (_unused, index,): EvidenceState => ({
@@ -227,7 +227,6 @@ await describe({
           },
         },);
         const text = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(text,).toContain('seq=14 reason=key-14',);
         expect(text,).toContain('seq=5 reason=key-5',);
         expect(text,).not.toContain('seq=4 reason=key-4',);
@@ -239,7 +238,8 @@ await describe({
     it({
       name: 'keeps the session\'s own files beside the failure file and names each where it came from',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         recorder.attach({
           label: 'wide',
@@ -260,7 +260,6 @@ await describe({
         const failure = await readFile(outcome?.evidence ?? '', 'utf8',);
         const log = await readFile(join(evidenceDir, 'play--enter-plays-row.unit.log',), 'utf8',);
         const cpuStat = await readFile(join(evidenceDir, 'play--enter-plays-row.cpu.stat',), 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(log,).toBe('the app said nothing new\n',);
         expect(cpuStat,).toBe('usage_usec 4815161\n',);
         expect(failure,).toContain('the session\'s own files, beside this one:',);
@@ -271,7 +270,8 @@ await describe({
     it({
       name: 'says in the failure file why a file the session names was not kept',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         recorder.attach({
           label: 'wide',
@@ -292,7 +292,6 @@ await describe({
         },);
         const failure = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
         const files = await readdir(evidenceDir,);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(files,).toEqual([
           'session--wide.failure.txt',
         ],);
@@ -302,7 +301,8 @@ await describe({
     it({
       name: 'keeps the states when the session cannot hand over its files',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         recorder.attach({
           label: 'wide',
@@ -319,7 +319,6 @@ await describe({
           },
         },);
         const failure = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(failure,).toContain('the check failed',);
         expect(failure,).toContain('seq=3 reason=reason-3',);
         expect(failure,).not.toContain('the session\'s own files',);
@@ -328,7 +327,8 @@ await describe({
     it({
       name: 'records a failure outside any check, whatever the filter selects, with its evidence',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: 'settings', evidenceDir, },);
         attachStates(recorder, 'wide', statesOf(3,),);
         await recorder.fail({
@@ -338,7 +338,6 @@ await describe({
         },);
         const [outcome,] = recorder.outcomes();
         const text = await readFile(outcome?.evidence ?? '', 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(outcome?.ok,).toBe(false,);
         expect(outcome?.id,).toBe('session/wide',);
         expect(outcome?.detail,).toBe('timed out waiting for the player page',);
@@ -349,7 +348,8 @@ await describe({
     it({
       name: 'keeps the failure text when no session was attached, and says so',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         await recorder.verify({
           id: 'a/early',
@@ -359,7 +359,6 @@ await describe({
           },
         },);
         const text = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(text,).toContain('too early',);
         expect(text,).toContain('no session',);
       },
@@ -367,7 +366,8 @@ await describe({
     it({
       name: 'keeps the failure text when the states cannot be read, and says why',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         recorder.attach({
           label: 'wide',
@@ -384,7 +384,6 @@ await describe({
           },
         },);
         const text = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(text,).toContain('the check failed',);
         expect(text,).toContain('the log file is gone',);
       },
@@ -392,7 +391,8 @@ await describe({
     it({
       name: 'writes nothing for a pass, a skip or a check the filter leaves out',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: 'a/', evidenceDir, },);
         attachStates(recorder, 'wide', statesOf(3,),);
         await recorder.verify({ id: 'a/ok', title: 'passes', body: async () => undefined, },);
@@ -405,7 +405,6 @@ await describe({
           },
         },);
         const files = await readdir(evidenceDir,);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(files,).toEqual([],);
         expect(recorder.outcomes().map((outcome,) => outcome.evidence,),).toEqual([undefined, undefined,],);
       },
@@ -413,7 +412,8 @@ await describe({
     it({
       name: 'reads the states of the session attached last',
       fn: async ({ expect, }) => {
-        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-evidence-',),);
+        const evidenceDir = scratchDirectory.path;
         const recorder = createRecorder({ only: '', evidenceDir, },);
         attachStates(recorder, 'first', statesOf(2,),);
         attachStates(recorder, 'second', statesOf(1,),);
@@ -425,7 +425,6 @@ await describe({
           },
         },);
         const text = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
-        await rm(evidenceDir, { recursive: true, force: true, },);
         expect(text,).toContain('session: second',);
         expect(text,).not.toContain('session: first',);
         expect(text,).not.toContain('seq=2 ',);

@@ -1,5 +1,8 @@
 # actions/download-artifact v7 flattens one pattern match and breaks a nested receipt consumer
 
+Note 2026-11-09T16:51:23-05:00:
+`.github/workflows/music-player-windows.yml` left the tree on 2026-10-22 in `4a0994eb2b`.
+
 ## Symptom
 
 With `actions/download-artifact` at `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c`,

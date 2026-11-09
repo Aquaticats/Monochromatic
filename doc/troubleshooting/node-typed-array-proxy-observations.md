@@ -1,5 +1,14 @@
 # Node 26.8.2 byte-view proxies escape consumer input diagnostics
 
+Note 2026-11-09T16:54:06-05:00:
+these citations in this record name paths that no longer exist.
+`package/module/translation-repair/src/` was split into the `src` folders of the packages under
+`package/translation-repair/` on 2026-10-18 in `4bd1aea8d5`.
+`package/module/translation-repair/src/preparation-selection-evidence.unit.test.ts`
+left the tree on 2026-09-15 in `cbedea3574`.
+`package/module/translation-repair/src/preparation-artifact-property.ts` left the tree on 2026-09-15 in
+`cbedea3574`.
+
 ## Symptom
 
 The translation-repair supporting-artifact reader initially allowed native or caller-controlled failures

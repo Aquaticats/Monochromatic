@@ -1,5 +1,9 @@
 # Codex 0.163.0 standalone Linux host completes hooks but cannot launch shell commands without Bubblewrap
 
+Note 2026-11-09T16:52:23-05:00:
+`package/dev-script/task-util` is now `package/monorepo-task/core-exec`,
+moved 2026-10-29 in `592d78b143`.
+
 ## Symptom
 
 The frozen installed-host fixture in `package/codex-plugin/bash-limit/tests/native_host.rs`

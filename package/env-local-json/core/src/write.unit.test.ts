@@ -42,9 +42,13 @@ import {
 //region Fixtures
 
 /**
- Missing-path fixture root for the store-absence case.
+ Missing-path fixture root for the store-absence case, removed when this
+ module's scope ends.
  */
-const tempMissingRoot = await createTempRoot({ prefix: 'env-local-json-write-', },);
+await using missingRoot = await createTempRoot({ prefix: 'env-local-json-write-', },);
+
+/** Fixture root the cases read; `missingRoot` owns its removal. */
+const tempMissingRoot = missingRoot;
 
 //endregion Fixtures
 

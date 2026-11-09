@@ -333,6 +333,7 @@ report({ name: 'control: the tree comparison sees a created file', passed: contr
 rmSync(control, { recursive: true, force: true });
 report({ name: 'no scratch note exists in any project', passed: [withToolchain, broken, hung, uninstalled, outside].every(root => !existsSync(join(root, 'scratch-note.txt'))) });
 
-writeFileSync(join(results, 'results.json'), JSON.stringify(summary, null, 2));
-console.log('Language toolchain inspection ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));
-if (failed) process.exitCode = 1;
+const resultsPath = join(results, 'results.json');
+writeFileSync(resultsPath, JSON.stringify(summary, null, 2));
+if (failed) throw new Error('Language toolchain inspection FAILED: ' + resultsPath);
+console.log('Language toolchain inspection passed: ' + resultsPath);

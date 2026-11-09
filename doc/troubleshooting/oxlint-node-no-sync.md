@@ -4,6 +4,12 @@
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/parser/` is not in the tree;
+its files were deleted on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/parser/push.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 `mise run //package/git-policy/cli:lint:oxlint` reports `node(no-sync)` warnings for Optique CLI parser calls:

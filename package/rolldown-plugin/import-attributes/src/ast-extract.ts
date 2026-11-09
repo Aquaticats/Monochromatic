@@ -14,6 +14,7 @@
 
 
 import type { ESTree, } from 'rolldown/utils';
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { HANDLERS, } from './handlers.ts';
 
@@ -48,7 +49,9 @@ export const NO_ATTR_TYPE: unique symbol = Symbol('import-attributes/no-attr-typ
  
  @returns key name as string, or {@link NON_STRING_NODE} for computed/non-string keys
  */
-function getPropertyKeyName(key: ESTree.PropertyKey,): string | typeof NON_STRING_NODE {
+function getPropertyKeyName(
+  key: ForeignBorrowed<ESTree.PropertyKey>,
+): string | typeof NON_STRING_NODE {
   if (key.type
     === 'Identifier')
     return key.name;
@@ -71,7 +74,9 @@ function getPropertyKeyName(key: ESTree.PropertyKey,): string | typeof NON_STRIN
  getStringLiteralValue(identifierNode); // NON_STRING_NODE
  ```
  */
-export function getStringLiteralValue(node: ESTree.Expression,): string | typeof NON_STRING_NODE {
+export function getStringLiteralValue(
+  node: ForeignBorrowed<ESTree.Expression>,
+): string | typeof NON_STRING_NODE {
   if (('value' in node) && ((typeof node.value) === 'string'))
     return node.value as string;
   return NON_STRING_NODE;
@@ -97,7 +102,7 @@ export function getStringLiteralValue(node: ESTree.Expression,): string | typeof
  ```
  */
 export function extractTypeFromAttributes(
-  attributes: readonly ESTree.ImportAttribute[],
+  attributes: ForeignBorrowed<readonly ESTree.ImportAttribute[]>,
 ): string | typeof NO_ATTR_TYPE {
   for (const attr of attributes) {
     /**
@@ -120,6 +125,35 @@ export function extractTypeFromAttributes(
 }
 
 /**
+ Extracts the attribute type of one static import or export declaration.
+ 
+ This owns the shape every static-declaration visitor in this package repeats:
+ a declaration carrying no attributes has no type, and a set whose `type` value
+ is not a registered handler has none either. A visitor therefore reads
+ {@link NO_ATTR_TYPE} once, from here, instead of re-testing both conditions.
+ 
+ @param attributes - import attribute nodes of a static import or export declaration
+ 
+ @returns supported attribute type string, or {@link NO_ATTR_TYPE} when the declaration carries none
+ 
+ @example
+ ```ts
+ // For: import x from './file.sql' with { type: 'text' }
+ staticDeclAttrType(node.attributes); // 'text'
+ // For: import x from './file.ts'
+ staticDeclAttrType(node.attributes); // NO_ATTR_TYPE
+ ```
+ */
+export function staticDeclAttrType(
+  attributes: ForeignBorrowed<readonly ESTree.ImportAttribute[]>,
+): string | typeof NO_ATTR_TYPE {
+  return attributes.length
+    === 0
+    ? NO_ATTR_TYPE
+    : extractTypeFromAttributes(attributes,);
+}
+
+/**
  Extracts the attribute type from a dynamic import's options expression.
  
  Handles the `{ with: { type: '...' } }` pattern used in dynamic `import()`,
@@ -137,7 +171,7 @@ export function extractTypeFromAttributes(
  ```
  */
 export function extractTypeFromOptions(
-  options: ESTree.Expression,
+  options: ForeignBorrowed<ESTree.Expression>,
 ): string | typeof NO_ATTR_TYPE {
   if (options.type
     !== 'ObjectExpression')

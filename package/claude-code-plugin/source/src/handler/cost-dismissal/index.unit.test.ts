@@ -5,7 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   writeFile,
 } from 'node:fs/promises';
@@ -20,9 +20,13 @@ import {
 import { BLOCK_HASH_CHARS, } from './detect.ts';
 
 /**
- Scratch directory for this suite's fixture transcripts and shadow logs.
+ Scratch directory for this suite's fixture transcripts and shadow logs,
+ removed when this module's scope unwinds.
  */
-const SCRATCH = await mkdtemp(join(scratchRoot(), 'cost-dismissal-',),);
+await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'cost-dismissal-',),);
+
+/** Fixture root this suite shares; `scratchDirectory` owns its removal. */
+const SCRATCH = scratchDirectory.path;
 
 /**
  Transcript line with one thinking block.

@@ -14,7 +14,6 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   cancel,
   intro,
-  log,
   note,
   outro,
   spinner,
@@ -28,7 +27,7 @@ import {
 import { CONNECTED_STATE, } from './constants.ts';
 import { listDevices, } from './devices.ts';
 import {
-  AdbError,
+  ExemptApplyError,
   NoDevicesError,
   PromptCancelledError,
 } from './errors.ts';
@@ -96,6 +95,8 @@ function summarize({ changes, }: { readonly changes: Changes; },): string {
  the top-level handler renders both.
  
  @throws {@link NoDevicesError} when no authorized device is connected.
+ 
+ @throws {@link ExemptApplyError} when at least one write the user confirmed failed.
  
  @throws {@link PromptCancelledError} when the user cancels any prompt.
  */
@@ -225,40 +226,29 @@ async function runCli(): Promise<void> {
   },);
   apply.stop(`Applied ${String(total - failures.length,)}/${String(total,)} changes`,);
 
-  if (failures.length > 0) {
-    log.error(
+  if (failures.length > 0)
+    throw new ExemptApplyError(
       failures
         .map(function toFailureLine(failure,): string {
           return `${failure.packageName} (${failure.mode}): ${failure.message}`;
         },)
         .join('\n',),
     );
-    process.exitCode = 1;
-    outro('Completed with errors.',);
-    return;
-  }
 
   outro('Done.',);
 }
 
 /**
- Map a thrown value to terminal output. Cancellation is a clean exit; known
- {@link AdbError}s become a message plus a non-zero exit code; anything else
- is rethrown for Node to surface with a stack.
+ Map a thrown value to terminal output. Cancellation is a clean exit; anything
+ else is rethrown for Node to surface with a stack and a failing status.
  
  @param error - Value caught from runCli.
  
- @throws Re-throws any error that is not a {@link PromptCancelledError} or
-   {@link AdbError}.
+ @throws Re-throws any error that is not a {@link PromptCancelledError}.
  */
 function handleTopLevelError({ error, }: { readonly error: unknown; },): void {
   if (error instanceof PromptCancelledError) {
     cancel('Cancelled.',);
-    return;
-  }
-  if (error instanceof AdbError) {
-    log.error(error.message,);
-    process.exitCode = 1;
     return;
   }
   throw error;

@@ -2,6 +2,7 @@
 
 use super::load;
 use crate::frx_scan::scan_file;
+use crate::runtime_cache::CacheAccess;
 
 // Creates a fresh temp dir under the test scratch root, keyed by label and pid.
 fn temp_dir(label: &str) -> std::path::PathBuf {
@@ -156,7 +157,7 @@ fn listed_files_keep_list_order_and_the_builtin_follows_the_last_of_them() {
     std::fs::write(dir.join("b.txt"), "BBB_USER_TWO_LONG\n").expect("write b");
     let bytes = precompiled("BUILTIN_MARKER_LONG_ENOUGH\n");
     let entries = [entry(&dir, "a.txt", false), entry(&dir, "b.txt", false)];
-    let loaded = super::load_listed(&entries, true, false, &bytes, &unnamed_sidecar(1)).expect("load");
+    let loaded = super::load_listed(&entries, true, false, CacheAccess::ReadWrite, &bytes, &unnamed_sidecar(1)).expect("load");
     let buf = b"BBB_USER_TWO_LONG\nAAA_USER_ONE_LONG\nBUILTIN_MARKER_LONG_ENOUGH\n";
     let hits = scan_file("t.txt", buf, &loaded);
     assert_eq!(
@@ -175,7 +176,7 @@ fn an_absent_optional_entry_is_reported_and_its_rules_are_not_loaded() {
     let dir = temp_dir("list-optional");
     std::fs::write(dir.join("a.txt"), "AAA_USER_ONE_LONG\n").expect("write a");
     let entries = [entry(&dir, "a.txt", false), entry(&dir, "absent.txt", true)];
-    let loaded = super::load_listed(&entries, false, false, b"", "").expect("load");
+    let loaded = super::load_listed(&entries, false, false, CacheAccess::ReadWrite, b"", "").expect("load");
     assert_eq!(loaded.skipped_optional(), &[dir.join("absent.txt")]);
     let hits = scan_file("t.txt", b"AAA_USER_ONE_LONG\n", &loaded);
     assert_eq!(hits, vec!["t.txt:1 rule=0".to_string()]);
@@ -186,7 +187,7 @@ fn a_required_entry_after_a_present_one_still_errors_naming_it() {
     let dir = temp_dir("list-required");
     std::fs::write(dir.join("a.txt"), "AAA_USER_ONE_LONG\n").expect("write a");
     let entries = [entry(&dir, "a.txt", false), entry(&dir, "gone.txt", false)];
-    let error = super::load_listed(&entries, true, false, b"", "").err().expect("must error");
+    let error = super::load_listed(&entries, true, false, CacheAccess::ReadWrite, b"", "").err().expect("must error");
     let rendered = format!("{error}");
     assert!(rendered.contains("read rules") && rendered.contains("gone.txt"), "{rendered}");
 }
@@ -197,12 +198,12 @@ fn only_absent_optional_entries_scan_with_the_baseline_alone_or_fail_closed() {
     let entries = [entry(&dir, "one.txt", true), entry(&dir, "two.txt", true)];
     let bytes = precompiled("BUILTIN_MARKER_LONG_ENOUGH\n");
     let loaded =
-        super::load_listed(&entries, true, false, &bytes, &unnamed_sidecar(1)).expect("baseline alone");
+        super::load_listed(&entries, true, false, CacheAccess::ReadWrite, &bytes, &unnamed_sidecar(1)).expect("baseline alone");
     assert_eq!(loaded.skipped_optional().len(), 2);
     let hits = scan_file("t.txt", b"BUILTIN_MARKER_LONG_ENOUGH\n", &loaded);
     assert_eq!(hits, vec!["t.txt:1 rule=0".to_string()]);
 
-    let error = super::load_listed(&entries, false, false, b"", "").err().expect("must error");
+    let error = super::load_listed(&entries, false, false, CacheAccess::ReadWrite, b"", "").err().expect("must error");
     let rendered = format!("{error}");
     assert!(rendered.contains("no rules loaded"), "{rendered}");
     assert!(rendered.contains("one.txt") && rendered.contains("two.txt"), "{rendered}");
@@ -215,7 +216,7 @@ fn a_name_in_a_later_file_colliding_with_a_builtin_name_fails_closed() {
     std::fs::write(dir.join("b.txt"), "==> qqq-shared <==\nBBB_USER_TWO_LONG\n").expect("write b");
     let bytes = precompiled("BUILTIN_MARKER_LONG_ENOUGH\n");
     let entries = [entry(&dir, "a.txt", false), entry(&dir, "b.txt", false)];
-    let error = super::load_listed(&entries, true, false, &bytes, "qqq-shared\n").err().expect("must error");
+    let error = super::load_listed(&entries, true, false, CacheAccess::ReadWrite, &bytes, "qqq-shared\n").err().expect("must error");
     let rendered = format!("{error}");
     assert!(rendered.contains("collides") && rendered.contains("qqq-shared"), "{rendered}");
 }

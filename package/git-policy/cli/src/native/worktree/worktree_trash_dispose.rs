@@ -39,6 +39,7 @@ use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
+use std::os::unix::ffi::OsStrExt as _;
 use std::sync::Arc;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -57,6 +58,76 @@ pub const TRASH_REFERENCE: &str = "refs/cli-git/trash";
 
 /// The most bytes of a worktree's `.git` file that are read.
 const POINTER_LIMIT: u64 = 64 * 1024;
+
+/// What:
+///  A trash the emptying left where it is,
+/// and whether a removal that names it would delete only what the snapshot made.
+/// Why:
+///   The line the person reads must never hand them a command that deletes what the emptying
+///  deliberately kept:
+/// a directory under the recorded name that the snapshot did not make,
+/// an entry that
+///  is no longer the object the leave-out moved there,
+/// and a file somebody put in the trash all stay,
+///  so the line may give no removal command for them.
+/// A step that could not finish leaves what it did
+///  not examine where it is,
+/// so a trash whose contents were not shown to be the snapshot's own is
+///  never called the snapshot's either.
+/// The one case that keeps the command is the trash directory the
+///  snapshot made,
+/// empty,
+/// which only its parent's permissions kept from being removed;
+/// `rm --recursive
+///  --force` on it deletes exactly what the snapshot made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TrashLeft = { reason: string; onlyTheSnapshots: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrashLeft {
+    /// Why the trash stays,
+    /// naming what is in it.
+    pub reason: String,
+    /// Whether everything the trash holds is what the snapshot made,
+    /// so a recursive removal of its path deletes nothing else.
+    pub only_the_snapshots: bool,
+}
+
+impl TrashLeft {
+    /// What:
+    ///  A refusal with the reason it gives,
+    /// for a trash nothing showed to hold only the snapshot's own directories.
+    /// Why:
+    ///   A step that could not finish leaves what it did not examine where it is,
+    /// and an unexamined
+    ///  directory is never called the snapshot's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const kept = (reason) => ({ reason, onlyTheSnapshots: false });
+    /// ```
+    fn kept(reason: String) -> TrashLeft {
+        return TrashLeft { reason, only_the_snapshots: false };
+    }
+
+    /// What:
+    ///  A refusal of the empty trash directory the snapshot made,
+    /// which a refusal of its parent's permissions kept.
+    /// Why:
+    ///   Everything the trash held is gone,
+    /// so nothing below it is anybody else's and the
+    ///  removal command names only what the snapshot made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const keptEmptyTrash = (reason) => ({ reason, onlyTheSnapshots: true });
+    /// ```
+    fn kept_empty_trash(reason: String) -> TrashLeft {
+        return TrashLeft { reason, only_the_snapshots: true };
+    }
+}
 
 /// What:
 ///  A snapshot's trash waiting for the disposal:
@@ -229,7 +300,9 @@ fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashMa
     let _told = writeln!(notices, "{}", emptying_words(destination));
     return match delete_trash(destination, git_dir, manifest) {
         Ok(()) => Ok(()),
-        Err(reason) => Err(trash_stays_words(destination, manifest, reason.as_str())),
+        // Both sides, one line: a later command in this worktree names the trash and deletes nothing from it, and a
+        //  removal command is given only when that command removes exactly what the snapshot made.
+        Err(left) => Err(trash_stays_words(destination, manifest, &left)),
     };
 }
 
@@ -248,7 +321,7 @@ async fn empty_before_returning_awaiting(destination: &Path, git_dir: &Path, man
     let _told = writeln!(notices, "{}", emptying_words(destination));
     return match delete_trash_awaiting(destination, git_dir, manifest).await {
         Ok(()) => Ok(()),
-        Err(reason) => Err(trash_stays_words(destination, manifest, reason.as_str())),
+        Err(left) => Err(trash_stays_words(destination, manifest, &left)),
     };
 }
 
@@ -281,11 +354,18 @@ fn emptying_words(destination: &Path) -> String {
 /// ```ts
 /// const trashStaysWords = (destination, manifest, reason) => `the directories left out of the new worktree ${destination} were not emptied (${reason}); the trash ${manifest.name} stays there, ...`;
 /// ```
-fn trash_stays_words(destination: &Path, manifest: &TrashManifest, reason: &str) -> String {
+fn trash_stays_words(destination: &Path, manifest: &TrashManifest, left: &TrashLeft) -> String {
+    let trash: PathBuf = destination.join(TRASH_PARENT).join(&manifest.name);
+    let shown: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
+    let removing: String = match left.only_the_snapshots {
+        true => format!(": `rm --recursive --force -- {shown}`"),
+        // The command could delete what the emptying kept, so the line names what is there and gives none.
+        false => String::from(". No removal command is given here: nothing showed that everything below that path is what this snapshot made, and a recursive removal would delete whatever the emptying left alone; remove by name only what you want gone"),
+    };
     return format!(
-        "the directories left out of the new worktree {} were not emptied ({reason}); the trash {} stays there, and a later command in this worktree names it",
+        "the directories left out of the new worktree {} were not emptied ({}); the trash {shown} stays inside the worktree, no work item names it, a later command in this worktree names it and deletes nothing, and only you will remove it{removing}",
         destination.display(),
-        manifest.name
+        left.reason
     );
 }
 
@@ -496,18 +576,20 @@ fn entry_removal_of(TheRemovalOfTrashEntries { inside, trash, manifest }: TheRem
 /// ```ts
 /// function settleTrashRemoval(held: HeldTrash): void; // throws the reason something stays
 /// ```
-fn settle_trash_removal(held: HeldTrash) -> Result<(), String> {
+fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let HeldTrash { holders, trash, inside, shown, names } = held;
     let mut strangers: Vec<String> = Vec::new();
-    for entry in path_failure(std::fs::read_dir(handle_path(&trash)), inside.as_path(), "cannot be listed")?.flatten() {
+    for entry in path_failure(std::fs::read_dir(handle_path(&trash)), inside.as_path(), "cannot be listed").map_err(TrashLeft::kept)?.flatten() {
         strangers.push(entry.file_name().to_string_lossy().into_owned());
     }
     if !strangers.is_empty() {
-        return Err(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", ")));
+        return Err(TrashLeft::kept(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", "))));
     }
     drop(trash);
     let Some(parent) = holders.last() else { return Ok(()) };
-    path_failure(remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true), inside.as_path(), "cannot be removed")?;
+    // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
+    //  exactly what the snapshot made, and the line the person reads may say so.
+    path_failure(remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept_empty_trash)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()
@@ -539,14 +621,16 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await deleteTrash({ repository, gitDir, manifest }); // throws the reason something stays
+/// await deleteTrash({ repository, gitDir, manifest }); // rejects with the reason something stays, and whether its removal is the snapshot's own
 /// ```
-pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), String> {
+pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
-    let Some(held) = prepare_trash_removal(opened)? else { return Ok(()) };
+    let Some(held) = prepare_trash_removal(opened).map_err(TrashLeft::kept)? else { return Ok(()) };
     let left: Vec<String> = remove_entries(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() }));
     if !left.is_empty() {
-        return Err(left.join("; "));
+        // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
+        //  them apart, so what the trash holds is not shown to be the snapshot's own.
+        return Err(TrashLeft::kept(left.join("; ")));
     }
     return settle_trash_removal(held);
 }
@@ -562,30 +646,33 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
 /// The steps are the synchronous face's:
 /// the same `prepare_trash_removal`,
 /// the same request and the same `settle_trash_removal`,
-///  so the two faces cannot remove different things.
+///  so the two faces cannot remove different things,
+/// and both answer with the same `TrashLeft`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function deleteTrashAwaiting({ repository, gitDir, manifest }): Promise<void>;
+/// async function deleteTrashAwaiting({ repository, gitDir, manifest }): Promise<void>; // rejects with the reason and whether its removal is the snapshot's own
 /// ```
-pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), String> {
+pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
     let opened_trash: Option<HeldTrash> = match run_a_job_or_in_turn(opened, prepare_trash_removal).await {
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
-        Ok(Err(reason)) => return Err(reason),
+        Ok(Err(reason)) => return Err(TrashLeft::kept(reason)),
         // Nothing was opened and nothing was removed, and the reason the system gave is why.
-        Err(refused) => return Err(format!("the directories of the trash {} could not be examined ({refused})", manifest.name)),
+        Err(refused) => return Err(TrashLeft::kept(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
     };
     let Some(held) = opened_trash else { return Ok(()) };
     let left: Vec<String> = remove_entries_awaiting(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() })).await;
     if !left.is_empty() {
-        return Err(left.join("; "));
+        // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
+        //  them apart, so what the trash holds is not shown to be the snapshot's own.
+        return Err(TrashLeft::kept(left.join("; ")));
     }
     return match run_a_job_or_in_turn(held, settle_trash_removal).await {
         Ok(outcome) => outcome,
         // The entries are gone and the directory above them stays, which the words say.
-        Err(refused) => Err(format!("the trash directory {} stays ({refused})", manifest.name)),
+        Err(refused) => Err(TrashLeft::kept_empty_trash(format!("the trash directory {} stays ({refused})", manifest.name))),
     };
 }
 
@@ -614,6 +701,6 @@ pub fn empty_trash(item: &WorkItem) -> Verdict {
     };
     return match delete_trash(item.repository.as_path(), item.git_dir.as_path(), &manifest) {
         Ok(()) => Verdict::Done,
-        Err(reason) => Verdict::Failed(reason),
+        Err(left) => Verdict::Failed(left.reason),
     };
 }

@@ -63,6 +63,11 @@ mod scanner;
 pub use scanner::{CandidateScan, Scanner};
 /// Fixed-token cache warnings remain structured for embedded event reporting.
 pub use runtime_cache::CacheWarning;
+/// Embedding hosts say whether a load that misses may write the shared compiled-rules cache,
+///  and ask beforehand whether the cache already holds the text.
+pub use runtime_cache::{compiled_rules_artifact_exists, CacheAccess};
+/// Lowercase hexadecimal spelling shared by digest directory names and redacted labels.
+mod bytes_as_lowercase_hex;
 /// Native-byte path normalization and protocol-safe display encoding.
 mod path_name_bytes;
 /// Registers component-level pathname matching and masked display labels.

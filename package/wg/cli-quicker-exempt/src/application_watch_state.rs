@@ -1,5 +1,7 @@
 //! Persists exact application-watcher identity for start and stop commands.
 
+/// Lowercase hexadecimal spelling shared with the pin keys.
+use crate::bytes_as_lowercase_hex::bytes_as_lowercase_hex;
 /// Standard state errors and durable writes.
 use std::io::{self, Write};
 /// Unix file creation mode.
@@ -11,8 +13,6 @@ use std::path::{Path, PathBuf};
 const WATCH_STATE_ROOT: &str = "/run/wg-quicker-exempt/watchers";
 /// Numeric state schema version.
 const WATCH_STATE_VERSION: u32 = 1;
-/// Hex digits encode arbitrary watcher keys as one safe component.
-const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 /// Exact process identity and watcher inputs.
 #[derive(Clone, Copy)]
@@ -35,12 +35,7 @@ fn encode_key(key: &str) -> io::Result<String> {
             "watcher key must not be empty",
         ));
     }
-    let mut encoded = String::new();
-    for byte in key.as_bytes() {
-        encoded.push(HEX_DIGITS[(byte >> 4) as usize] as char);
-        encoded.push(HEX_DIGITS[(byte & 0x0f) as usize] as char);
-    }
-    return Ok(encoded);
+    return Ok(bytes_as_lowercase_hex(key.as_bytes()));
 }
 
 /// Maps watcher key into private state directory.

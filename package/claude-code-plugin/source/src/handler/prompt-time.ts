@@ -2,6 +2,13 @@ import type {
   UserPromptSubmitInput,
   UserPromptSubmitOutput,
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
+
+import {
+  makeHookInputParser,
+  makeJsonWriter,
+  type Parser,
+  type JsonWriter,
+} from '../runtime/handler-runtime.ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
 import { formatTimeContext, } from '@monochromatic-dev/agent-harness-shared-current-time-context/ts';
@@ -53,39 +60,24 @@ function promptTimeHandler(_event: ReadonlyDeep<UserPromptSubmitInput>,): Prompt
  
  Input is trusted; it comes from Claude Code's hook dispatch system.
  
- @param raw - JSON payload from Claude Code stdin
- 
- @returns parsed UserPromptSubmit event
- 
  @example
  ```ts
  const event = promptTimeParser(await text(process.stdin));
  ```
  */
-function promptTimeParser(raw: string,): UserPromptSubmitInput {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-  return JSON.parse(raw,) as UserPromptSubmitInput;
-}
+const promptTimeParser: Parser<UserPromptSubmitInput> = makeHookInputParser<UserPromptSubmitInput>();
 
 /**
  Serializes the prompt-time output for stdout.
  
  No trailing newline; matches Claude Code's wire convention.
  
- @param output - {@link PromptTimeOutput} handler result to serialize
- 
- @returns JSON string for stdout
- 
- @mutates output - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
- 
  @example
  ```ts
  process.stdout.write(promptTimeWriter(output));
  ```
  */
-function promptTimeWriter(output: PromptTimeOutput,): string {
-  return JSON.stringify(output,);
-}
+const promptTimeWriter: JsonWriter<PromptTimeOutput> = makeJsonWriter<PromptTimeOutput>();
 
 export type { PromptTimeOutput, };
 

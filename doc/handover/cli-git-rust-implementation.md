@@ -167,6 +167,105 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Claude Sonnet audits, the gate on `742076c71d`, and what waits for an agent slot (2026-11-09T16:48:18-05:00)
+
+The release gate on `742076c71d` ended with 69 of 6,699 tests failed
+(`gpc-gate-wrapper-next-alpha-on-742076c71d-20261109T161449-0500.log` in `~/temp/agent/gate/`).
+A new gate runs on `776281f4ee`.
+Owners of the failures:
+
+- The lock scan refuses every file on an `overlay` mount (`process/open_file_of_a_descriptor.rs:159`),
+  so in a container a stale lock is never cleared:
+  the Pi agent `lock-scan-reads-overlay-mounts`.
+- Panics where the system refused a thread,
+  under the gate's `--pids-limit 512`:
+  the Pi agent `refused-thread-ends-no-command`.
+- The rest,
+  among them commit budgets that rose and controls that no longer match the product:
+  the Pi agent `gate-failures-after-todays-landings`.
+
+The owner asked for long reviews and audits on Claude Sonnet.
+Reports are at `~/temp/agent/sonnet-audits/<name>/final.md`,
+and every finding has a reproduction beside it.
+The coordinator's judgement of each,
+under rule `WGH`:
+
+- `push-delivery`:
+  a pending push a killed wrapper left is never delivered,
+  a delivered held commit is reported as held for ever,
+  and a reconcile's report never reaches the person.
+  The Pi agent `push-delivery-audit-findings-fixed` owns them.
+  Its blocked-commit finding is the open owner question in `doc/handover/questions-for-the-owner.md`.
+- `service-restart-and-version-skew`:
+  no commit was lost or doubled in any combination.
+  A landed commit can be reported as not made,
+  and the rollback advice does not say how to stop the newer service:
+  both are briefed.
+  Dismissed:
+  an older release moves a newer push record to `failed`,
+  because only a rollback reaches it,
+  that release cannot change,
+  and the next push carried the commit.
+- `worktree-lifecycle`:
+  a `0600` credential is `0644` until its chmod,
+  and permanently if the add is killed there,
+  and a kill during install leaves empty files and a half-filled worktree that nothing records.
+  Both come from the EXDEV copy fallback.
+  The Pi agent `worktree-copy-install-keeps-modes-and-finishes` owns them.
+  A later run killed a snapshot-route add ten times:
+  two kills left a full snapshot of the main checkout beside the destination,
+  credentials and a copy of `.git` included,
+  and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
+  `package/git-policy/cli/SPEC.md` says the person removes the stage,
+  so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
+  Killing `migrate-to-subvolume` eight times during its copy phase lost nothing and every run resumed;
+  the swap and index-rewrite phases were not reached.
+  Two `worktree_copy` controls,
+  `a_creation_recovers_a_dead_journal_first` and `a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`,
+  timed out at 300 s in a 344-test run of the ignored-names branch and pass alone.
+  The first took 0.7 s to 27.3 s on a checkout without that branch and 1.4 s to 12.0 s with it,
+  so the branch did not add the time.
+  What the time goes to is unmeasured,
+  and under rule `SUF` it stays a contention defect until it is.
+- `merge-and-pull-never-fail`:
+  a dead Git's `index.lock` makes every command exit 2,
+  read-only commands wait 60 s over a saved merge,
+  and the owner's "Carry edits forward" is still not built:
+  both are briefed.
+- `never-stuck`:
+  a FIFO at `.git/index.lock` or at a rules file blocks for ever,
+  and it is briefed.
+- `differential-against-real-git`:
+  `git commit -- .` also commits untracked files,
+  global pathspec modes are ignored by an explicit-path commit,
+  service-landed commits write an empty reflog message,
+  and a stopped service leaves its lock marker.
+  All are briefed.
+  Dismissed as cosmetic:
+  the wrapper's merge omits `Auto-merging <path>`.
+
+The `worktree-lifecycle`,
+`never-stuck`,
+`merge-and-pull-never-fail` and `differential-against-real-git` audits returned early or are still ending under rule `PLQ`,
+with some probes running;
+what each has left is at the end of its `final.md`.
+
+These agents wait for a free Pi slot,
+each with its brief at `~/temp/agent/pi-runs/<name>-prompt.md`,
+highest priority first:
+
+- `commit-survives-a-dead-ref-lock-and-a-moved-branch`,
+  from the audit `commit-kills-and-concurrency`:
+  `git commit -a` fails when the branch moves while it waits,
+  and a killed `git update-ref` leaves `refs/heads/main.lock`,
+  after which every commit fails saying the branch kept changing.
+- `client-reports-landed-commit-after-service-restart`,
+  which also owns that audit's finding of clients told "not known" while a slow recovery lands their commits.
+- `merge-recovers-after-a-dead-gits-lock`
+- `fifo-where-a-file-is-expected-ends-no-command`
+- `merge-carries-unsaved-edits-forward`
+- `commit-pathspecs-and-reflog-match-real-git`
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
@@ -3622,6 +3721,187 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
 
+### The copy route stops failing an add for a live checkout's ignored churn (2026-11-09T15:20:00-05:00)
+
+Two live failures on the owner's machine,
+installed wrapper 0.6.1-alpha.5,
+minutes apart,
+both while a landing's merge was
+ open in the main checkout,
+so the snapshot rung declined and the copy route ran:
+
+```text
+monochromatic-git-policy-cli: could not stage ignored state from "/var/mnt/encrypted/repository/Monochromatic". Cause: No such file or directory (os error 2)
+monochromatic-git-policy-cli: ignored source entry changed while copying: ".cache/cargo-shadow/stamps/package__browserslist__core-rust.json".
+```
+
+Both held.
+The first was a bare `No such file or directory` because the leaf copy opened the source without
+ naming it;
+the second was the positional final check,
+which failed the whole add for one file a build rewrote.
+What a failed add left behind is the same for both,
+and is why this was worth fixing rather than reporting:
+real Git had already made the destination,
+its registration under `.git/worktrees/<name>` and the branch,
+the tracked files were checked out,
+and the worktree had no ignored state at all;
+the stage container is removed,
+and the copy's stage claim and its record stay,
+so the next command reports the destination as an interrupted add.
+
+`663496c5d7` answers both,
+and `03b2421946` is the documentation and the linter's findings:
+
+- An entry the source removed before its copy has nothing left to copy,
+  so it leaves the manifest
+  (`CopiedLeaf::Gone` in `worktree_copying/worktree_copy_stage_leaf_copying.rs`).
+- An entry that changed under the copy is copied again,
+  twice at most
+  (`SETTLING_RETRIES` in `worktree_copying/worktree_copy_settling.rs`).
+- An entry that keeps changing stays untouched in its source,
+  leaves the stage,
+  and is named on one line
+  beside the entries the person could not read
+  (`unsettled_notice` in `worktree_copying/worktree_copy_notices.rs`).
+- The manifest is compared by relative path,
+  so one vanished entry no longer makes every later entry look
+  changed
+  (`differences_from_the_source` in `worktree_copying/worktree_copy_compare.rs`).
+- A copy step that fails names the source path it failed on.
+- The passes are bounded (`MOST_PASSES`),
+  and a source that churns faster than the copy can prove it ends
+  the copy with one sentence instead of walking forever.
+
+Decision note for the owner,
+not edited here:
+`doc/decision/cli-git-policies-platform.md`,
+"Linked-worktree ignored state",
+requires exact final source-to-stage equivalence before installation.
+The stage still equals the source for every entry it holds;
+an entry that could not be settled is not in it and is named.
+That record's sentence should say so,
+and this round did not change `doc/decision/`.
+
+Controls,
+each run against the pre-fix source and each failing there with one of the two messages above:
+`a_file_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure`,
+`a_file_that_changed_under_the_copy_is_copied_again` and
+`a_file_that_keeps_changing_is_left_in_its_source_and_named`.
+Measured after the change:
+the package's 299 `worktree_copy` library controls pass,
+the 13 `worktree_copy_stage` ones too,
+`native:clippy` is clean,
+and `monochromatic-lint --max-warnings 0` reports nothing on the changed files
+(one pre-existing line-break finding in `worktree_copy_lifecycle_tests.rs` remains,
+which this branch does not touch).
+The binary-level masks:
+`worktree_copy::a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself`
+still fails with the documented "received no ignored-state copy" sentence,
+and the `fault_trace::a_worktree_copy_killed_at_*` family still fails,
+both of them before this change and in the list above.
+
+### The round-5 review of the leave-out's sweep and the removal line (2026-11-09T13:33:01-05:00)
+
+Source:
+`/var/home/user/temp/agent/reviews/worktree-add-round-5-sol.txt`,
+which read source only;
+every finding was reproduced here before it was fixed.
+Branch `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`,
+which merged `origin/main` at `caeeadacf5` first.
+The owner's requirement in force is "never discard user data".
+All three findings held.
+
+- A directory set aside whole is swept for another command's stage containers,
+  and the sweep stopped at the first `.git` entry.
+  The directory it is handed is that checkout,
+  so an ordinary nested checkout,
+  whose `.git` is a real directory,
+  had nothing swept at all;
+  only a linked worktree lost the marker,
+  because `unlink_pointer` removes a `.git` file and never a directory.
+  Held.
+  `86d56bb567` makes the sweep walk everything below the directory it sets aside.
+  Control `btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it`
+  (`23f5c46e14`) reported "the container beside its .git marker is not in the trash"
+  before the change,
+  and the three controls of the previous round still pass.
+- An entry the sweep could not look at was skipped as though it held nothing to sweep,
+  and the leave-out reported success.
+  Held,
+  with the review's reproduction corrected:
+  measured here,
+  `rename` of a `0400` directory answers `EACCES`,
+  so the shape the review describes fails at the rename before anything moves;
+  a directory at `0600` can be listed and renamed and not searched,
+  and that is the shape that reaches the trash.
+  `b75f35ebe5` makes the look answer with a reason,
+  so the leave-out refuses and names the path,
+  and `bf65e86b3d` fixes the control's own planted path.
+  Control `btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named`
+  (`a7cc0af818`) reported "pruning must refuse a subtree it cannot examine,
+  but it returned Ok(...) and the credentials are gone".
+- The line that reports a trash the emptying kept ended in
+  `rm --recursive --force -- <path>` whatever the reason,
+  including the reasons that exist to preserve what is in the trash.
+  Held.
+  `delete_trash` now answers with `TrashLeft`:
+  the reason,
+  and whether everything the trash holds is what the snapshot made;
+  `47f8fc6cef` gives the removal command only for the empty trash directory the snapshot
+  made itself,
+  and names the path,
+  says that nothing showed the rest to be the snapshot's,
+  and gives no command otherwise.
+  `be0816a4ba` keeps that sentence true of a refusal that stopped before it could look.
+  Controls `a_trash_that_is_not_the_snapshots_is_not_given_a_removal_command`,
+  `a_trash_holding_what_was_not_moved_there_is_not_given_a_removal_command` and
+  `a_trash_entry_that_was_replaced_is_not_given_a_removal_command`
+  (`54c3535643`) each failed on the old line;
+  the read-only-parent control keeps the command and still passes.
+- Verification of the three:
+  `native:clippy` clean;
+  `monochromatic-lint --max-warnings 0` on the five changed files reports nothing;
+  each fix was removed from the tree,
+  its control failed with the message above,
+  and the fix was put back.
+  The whole suite,
+  `native:test:host:btrfs` at `be0816a4ba` in one run with nothing else building:
+  6353 run,
+  6324 passed (39 slow),
+  29 failed,
+  17 skipped,
+  in 2724 s.
+  The 29 are not this branch's:
+  four `source_guard::no_self_invocation_tests` tests
+  (two of them fail alone,
+  and both files are byte for byte `origin/main`'s,
+  so main fails them today:
+  the LFS hook-shim text arrived with its allow-list out of date),
+  twenty-three `native_binary` tests the planning record below already names as failing on main
+  (`fault_trace` kill sweeps,
+  `package_repair::pnpm_runs_after_the_snapshot_rung`,
+  `worktree_snapshot`,
+  `worktree_dirty_snapshot`,
+  `worktree_copy`,
+  `service`,
+  `service_provision`,
+  `version_cache`,
+  `word_merge`),
+  and `subvolume::subvolume_index_files::parallel_tests::the_lines_of_a_run_are_the_ones_recorded_before_the_step`,
+  which passes alone.
+  A filtered run of the package's whole suite was not needed beyond that,
+  and no whole-suite run repeated the one above.
+- One site of the same shape as the second finding is left alone by this round:
+  `is_directory_entry` (`worktree/worktree_trash_set_aside_entries.rs`)
+  reads a failure of `file_type()` as "not a directory",
+  so an entry of the trash parent that cannot be examined is not moved into this add's trash
+  and travels into the new worktree instead.
+  That keeps the person's data,
+  which is why it is not this round's finding,
+  but it is the wrong answer for the same reason,
+  and it is the next round's work.
+
 ### The disposal's notice stream and the thread it did not need (2026-11-08T18:54:15-05:00)
 
 Two questions were left by `b1e1818bab`,
@@ -5972,6 +6252,72 @@ are in append mode now).
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
+
+- `subvolume::subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`
+  was aborted by nextest's 300 s bound in a filtered suite and passed alone in 260.6 s
+  (2026-11-09,
+  a host full-suite run also hit the bound on `subvolume_migrate::` and on
+  `worktree_convert::ownership_tests::`).
+  Cause,
+  measured on this host:
+  the stand-in platform says its writes stay in memory
+  (`Platform::flushes_to_disk`),
+  and the migration's journal,
+  locks and index rewrites already asked that switch,
+  but the claim file's write and its directory flush did not,
+  nor did the index rewrite's install,
+  which runs on a thread of the blocking pool that never inherits the answer.
+  One migration command took 79 s at a load average of 119,
+  of which the claim's take and release were 44 s and the two index installs 7 s
+  (per-step probes,
+  `~/temp/agent/time-limits/`);
+  after the change the claim took 1.0 ms and the index rewrite 5.0 ms.
+  The sweep then fell to 110 s one after another and 25.2 s with its twelve kill points
+  walking side by side (load average 115 and 119),
+  and the whole `ownership_tests` module from 193.1 s to 55.4 s,
+  its slowest control from 144.5 s to 33.0 s (load average 81).
+  Commits:
+  `75d8a46bcb` (the switch reaches the claim and the index rewrites,
+  with `a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice` and
+  `a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere` plus a flushing sibling each;
+  both failed before the change with `SyncCounts { made: 0, skipped: 0 }` and `made: 4, skipped: 0`),
+  `a6d7341191` (the sweep walks its points side by side).
+  On the final binary all 37 controls of `push_slow_server_tests`,
+  `subvolume_migrate::tests`,
+  `ownership_tests` and the four new ones passed under the standard bound in 71.9 s,
+  the sweep in 4.5 s at a load average of 36.
+- `push::push_slow_server_tests::a_server_that_holds_the_connection_without_answering_is_waited_for`
+  failed once inside a 5,603-test run,
+  reporting 1.70 s against its own 3 s floor.
+  Cause:
+  the control could not tell a fixture that lost the connection from a wrapper that stopped one.
+  Its server swallowed the answer of `listener.accept` (`if let Ok(..)`) and held exactly one connection,
+  so a refused accept ended that thread and dropped the listener under the push,
+  and its only verdict on earliness was the push's duration against its own 4 s sleep.
+  Measured 2026-11-09:
+  with the listener dropped before the push Git ends in 12.6 ms,
+  with the connection closed at once in 105.1 ms,
+  both exit 128 with no stall line and no wait note,
+  so both would have failed that floor and nothing else.
+  The product's wait itself was right in every run made:
+  4.10 s,
+  4.12 s and 4.19 s against its 4 s hold,
+  each saying the wait,
+  while the disconnected control beside it still stops at the 1 s stall window.
+  The control now lets the connection go only when it says so,
+  accepts every connection the push opens,
+  and fails naming the push's own exit status and output;
+  planted with `push_progress` ignoring an open connection it fails in 4.93 s with
+  "the push ended while the server still held the connection ... after 1.596346729s with 124:
+  ... (limit=stall ...)".
+  Commit `b7c5eeb5a1`.
+  Not measured,
+  and left open:
+  whether a single sample that does not attribute the push's socket to its process tree
+  (`push_progress::Meter::observe_sockets` over `descendants_of`) can stop a connected push;
+  the new control would now name that as `limit=stall` instead of as a clock,
+  which is what a
+  reproduction would need.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 

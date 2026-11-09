@@ -1,5 +1,9 @@
 # Oxlint 1.88.0 adds a cause to aggregate failures during autofix
 
+Note 2026-11-09T16:46:15-05:00:
+`package/pi-plugin/auto-mode/native/contract/collector/program-rule-batch-sdk-copy-v2/input/judgment-assessment.ts`
+left the tree on 2026-10-19 in `ff55ced353`.
+
 ## Symptom
 
 During the Pi judgment lifecycle TypeScript extraction,

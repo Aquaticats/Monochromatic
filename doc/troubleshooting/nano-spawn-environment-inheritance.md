@@ -1,5 +1,12 @@
 # `nano-spawn` 2.1.0 inherits a value omitted by an absent-variable fixture
 
+Note 2026-11-09T16:49:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/src/native-process-network.unit.test.ts` left the tree on 2026-10-19 in
+`7ac15b19b4`.
+`package/pi-plugin/auto-mode/native/contract/integration/native-host/process-network-guard.ts`
+left the tree on 2026-10-19 in `ff55ced353`.
+
 ## Symptom
 
 On Node `26.12.0`,

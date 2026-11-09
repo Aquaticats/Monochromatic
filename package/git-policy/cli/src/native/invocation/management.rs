@@ -392,7 +392,9 @@ fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> Acti
                 return Action::ExitBytes { code, stdout, stderr };
             }
             let note: String = units_note(environment);
-            return Action::ExitBytes { code, stdout, stderr: format!("{stderr}{note}") };
+            let mut explained: Vec<u8> = stderr;
+            explained.extend_from_slice(note.as_bytes());
+            return Action::ExitBytes { code, stdout, stderr: explained };
         }
         other => return other,
     }
@@ -427,7 +429,9 @@ fn with_earlier_batches_note(action: Action, global_arguments: &[OsString], envi
             }
             let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
             let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
-            return Action::ExitBytes { code, stdout, stderr: format!("{stderr}{note}") };
+            let mut explained: Vec<u8> = stderr;
+            explained.extend_from_slice(note.as_bytes());
+            return Action::ExitBytes { code, stdout, stderr: explained };
         }
         other => return other,
     }
