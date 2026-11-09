@@ -67,14 +67,17 @@ The audit brief supplies these requirements verbatim:
 - "nothing should ever wait forever or indefinitely"
 
 The last requirement also has the owner's explicit boundary behavior:
-"Return with an error" and "No, keep it for a retry (Recommended)"
-(`doc/handover/cli-git-rust-implementation.md:7283`).
+"Return with an error" and "No,
+keep it for a retry (Recommended)"
+(`doc/handover/cli-git-rust-implementation.md:7292` to `:7307`).
 The saved work stays saved;
 nothing should land later by itself because the waiting command gave up.
 
 External hooks are intentionally unsupported.
 The owner's words were "Stop supporting them and port anything in."
-and the selected option was "B: Only hooks we declare, natively"
+and the selected option was "B:
+Only hooks we declare,
+natively"
 (`doc/handover/cli-git-rust-implementation.md:8165`).
 The older dispatcher and hook-lock paragraphs in
 `doc/decision/cli-git-concurrent-commits.md:50` describe the superseded design,
@@ -93,9 +96,9 @@ none of the probes started a monitor daemon.
 For retained names,
 the owner answered "rename them."
 (`doc/planning/git-policy-cli-program-rename.md:115`).
-That plan's handling at `:130` moves wrapper-owned state when first needed,
+That plan's handling at `:136` to `:137` moves wrapper-owned state when first needed,
 while the doctor's contract says it "changes nothing"
-(`package/git-policy/cli/SPEC.md:527`).
+(`package/git-policy/cli/SPEC.md:527` to `:529`).
 The selected-repository migration finding records that conflict explicitly,
 not an invented ban on all migrations.
 
@@ -266,7 +269,8 @@ a report command moves a saved-state directory even when it reports no unsupport
 The bytes survived this probe.
 The risk is an unexpected state change during inspection,
 not a demonstrated discard.
-The owner's "rename them." decision supports migration generally;
+The owner's "rename them."
+decision supports migration generally;
 it does not make the documented statement that doctor changes nothing true.
 The later rename-plan explanation also calls doctor's earlier-batch note read-only
 (`doc/planning/git-policy-cli-program-rename.md:684`).
@@ -293,12 +297,12 @@ its byte cap is not a time bound.
 The filesystem section calls `filesystem_kind` and subvolume metadata synchronously
 (`package/git-policy/cli/src/native/health/doctor_filesystem.rs:218`),
 which reaches `libc::statfs`
-(`package/git-policy/cli/src/native/subvolume/fs_kind.rs:97`).
+(`package/git-policy/cli/src/native/subvolume/fs_kind.rs:98`).
 `doctor_action_with_section` calls these functions directly,
 with no outer deadline (`doctor.rs:487` to `:506`).
 `run_on_runtime` waits for the future's result via `block_on`,
 not a report deadline
-(`package/git-policy/cli/src/native/foundation/lazy_runtime.rs:297`).
+(`package/git-policy/cli/src/native/foundation/lazy_runtime.rs:300`).
 
 Concrete filesystem sequence:
 configure `core.hooksPath` to an existing directory on a mount,
@@ -322,9 +326,13 @@ The warning route has a separate I/O instance of the same missing boundary:
   before continuing preparation.
 
 Concrete warning sequence:
-a caller supplies a full blocking pipe as standard error,
-keeps its read end open without draining it,
-and starts a commit that reaches preparation with a warning-triggering configuration.
+the standard error of the process running preparation is a full blocking pipe,
+its reader keeps the read end open without draining it,
+and a commit reaches preparation with a warning-triggering configuration.
+The source places preparation in the committing process before submission to the service
+(`package/git-policy/cli/src/native/commit/commit_command.rs:215`,
+`package/git-policy/cli/src/native/landing/service_commit.rs:172`);
+this audit did not observe live descriptor routing through that full command boundary.
 The warning's `write_all` cannot complete until the reader drains or closes the pipe.
 No warning deadline lets preparation move on.
 Logging a returned write error does not handle a write that never returns.
@@ -482,7 +490,7 @@ Git's `fsmonitor-settings.c:119` first asks its boolean reader;
 it uses the hook-path interpretation only when that reader rejects the value.
 The inspected Git 2.56.0 source is in the read-only local checkout
 `${HOME}/temp/agent/git-2.56.0-20261103`;
-`parse.c:192` accepts integers through `git_parse_int`.
+`parse.c:197` accepts integers through `git_parse_int`.
 The executable's own output,
 not that checkout's build,
 is the differential oracle.
@@ -569,7 +577,7 @@ pass an established main-checkout identity to the section,
 and emit no checkout advice when that identity cannot be established.
 A basename is not a repository-layout proof.
 
-## Verification and limits at 2026-11-09T06:59:33-05:00
+## Verification and limits at 2026-11-09T07:11:23-05:00
 
 The native build passed.
 The temporary warning tests ran through nextest,
@@ -600,8 +608,37 @@ they do not cover the adverse path shapes,
 parser uncertainty,
 or a writer that blocks instead of returning an error.
 No full-crate test suite or mutation campaign was run.
-Package lint and the report's format,
-lint and rendered checks are still being recorded at this checkpoint.
+The package lint fanout initially failed:
+Clippy reported `could not run cargo` with `Resource temporarily unavailable`,
+and the Oxlint configuration build reported
+`OS can't spawn worker thread: Resource temporarily unavailable (os error 11)`.
+The initial run had a 192-task cap.
+The failed children were retried separately with a 512-task cap,
+the same CPU and memory caps,
+and a 15-minute deadline:
+`native:clippy` and `lint:oxlint` both passed.
+The package's `lint:types`,
+`lint:sidecar-locks` and `lint:monochromatic-lint` completed in the initial fanout.
+This records the diagnostics and successful retries,
+not a measured attribution of the spawn failures to a particular system limit.
+The requested report checks passed:
+`mise run //:format:monochromatic-lint -- doc/planning/cli-git-health-route-findings-on-main.md`,
+then `mise run //:lint:monochromatic-lint -- doc/planning/cli-git-health-route-findings-on-main.md`.
+Pandoc's CommonMark reader rendered the report into the uncommitted scratch `report.html`;
+headings,
+status emphasis,
+code spans,
+output blocks and links were inspected in that renderer output.
+The scratch render task was initially undiscovered from the repository root:
+Mise reported `no task //package/git-policy/cli/target/health-route-audit:render:help found`.
+Running it from its owning scratch directory worked,
+following the existing workaround in
+`doc/troubleshooting/mise-excluded-research-task-discovery.md`.
+No production task configuration was changed.
+The evidence checkpoint is commit `97325e9978`;
+this verification update follows it without amending it.
+Cross-vendor reviews by DeepSeek and Kimi checked the evidence labels and owner-decision framing;
+Kimi's citation corrections and warning-descriptor qualification are incorporated.
 
 ### What could not be determined
 
