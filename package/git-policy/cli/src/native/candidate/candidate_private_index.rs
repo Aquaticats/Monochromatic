@@ -13,9 +13,7 @@
 //!  and a copy with a fresh
 //!      time would make it trust stat data from the same second as a later edit of the
 //!      same size,
-//!  so the prediction could miss that edit (the installed wrapper's
-//!      `index-file-timestamps.ts`,
-//!  issue #544).
+//!  so the prediction could miss that edit (issue #544).
 //!
 //! What a kill leaves,
 //! and what removes it:

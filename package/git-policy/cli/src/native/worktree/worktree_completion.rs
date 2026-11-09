@@ -10,9 +10,7 @@
 //!      temporary file.
 //!  A copy holding neither is kept and reported,
 //!  since the commit already
-//!      landed (`src/policy-engine/commit-transaction-added-paths.ts`,
-//!  `-worktree-check.ts`,
-//!      `-worktree-replace.ts`).
+//!      landed,
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

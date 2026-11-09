@@ -13,8 +13,7 @@
 //!      evidence-free;
 //!  an absent open holder never proves abandonment,
 //!  because native
-//!      `git commit` keeps `index.lock` without a descriptor through its hooks and editor
-//!      (`src/index-lock/index-lock-evidence.ts`).
+//!      `git commit` keeps `index.lock` without a descriptor through its hooks and editor.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

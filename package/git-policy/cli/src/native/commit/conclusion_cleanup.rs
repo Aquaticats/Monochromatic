@@ -9,10 +9,7 @@
 //!      worktree must end the same way,
 //!  but an entry is removed only while it still holds the
 //!      bytes or value copied at preparation,
-//!  because a changed entry belongs to a later command
-//!      (`src/shadow-repository/shadow-conclusion-cleanup.ts`,
-//!  `-files.ts`,
-//!  `-names.ts`).
+//!  because a changed entry belongs to a later command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

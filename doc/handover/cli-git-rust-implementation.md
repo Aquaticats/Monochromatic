@@ -576,7 +576,20 @@ The old tree kept for the rollback stays until the owner deletes it.
   which still exists and is not being deleted,
   which closes the concurrent install's link with one
   `read_link` and one `metadata` and leaves only the instant between them.
-  718 of 718 tests and Clippy pass on top of main (`b38de34bb2`).
+  718 of 718 tests and Clippy passed on top of main (`b38de34bb2`).
+  Run 6 fixed the three findings of the fifth review
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-5-sol.txt`),
+  all about `current` in the prune:
+  `5bb9a79345` settles the link from the plan,
+  so a crate whose only survivor is an unfinished version
+  does not keep a link naming the version the run deletes;
+  `56af702c9a` reports a link-removal failure with the links the same pass already removed,
+  through `after_removing`;
+  `32073f8771` reads the target before writing the link (never at a version that is gone) and leaves a link
+  already naming a finished newer version,
+  then settles the link when the kept version had vanished,
+  with the instant between each read and the write written down beside the code and in the package README.
+  723 of 723 tests and Clippy pass on top of main (`84e9497694`).
   Open:
   a row naming a bare `nightly` with a dated version text still reads `ok`,
   the tag characters `+`,

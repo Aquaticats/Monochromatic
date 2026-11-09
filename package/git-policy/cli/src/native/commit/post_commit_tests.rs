@@ -1,6 +1,9 @@
 //! Controls for the post-commit gate against real repositories.
-//! The TypeScript corpus is `src/policy-engine/post-commit-lifecycle.unit.test.ts` and `post-commit-facts.unit.test.ts`.
-//! The incumbent's test plugins have no native equivalent,
+//! The corpus is `package/git-policy/cli/src/policy-engine/post-commit-lifecycle.unit.test.ts` and
+//! `package/git-policy/cli/src/policy-engine/post-commit-facts.unit.test.ts`,
+//! both deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//! so `git show 642b6d72cb^` holds each.
+//! The TypeScript tests' plugins have no native equivalent,
 //! so the same behaviors are driven with the built-in
 //! final-newline and forbidden-strings policies at fixed severities.
 
