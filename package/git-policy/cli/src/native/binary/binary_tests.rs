@@ -37,6 +37,10 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// How a fixture tells that its service is at work and that it is ready.
+#[path = "binary_support_fixture_service_readiness.rs"]
+mod support_fixture_service_readiness;
+
 /// What a fixture's services write on their standard error:
 /// the pipe that keeps it while they run,
 /// and the end of it that a failure carries.

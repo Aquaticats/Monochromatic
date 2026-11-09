@@ -356,13 +356,13 @@ fn a_candidate_the_linter_cannot_check_fails_the_policy() {
 fn exclude_patterns_that_do_not_compile_fail_the_policy() {
     let root: PathBuf = fixture("markdown-bad-exclude");
     let repo: PathBuf = single_repository(root.as_path());
-    // What: A character range that runs backwards is a class matching nothing to Git and a refusal to the compiler.
-    // Why:  A literal brace is no longer such a pattern: it is text to Git, and the matcher is given it escaped
-    //       (`markdown::markdown_exclude`).
+    // What: A trailing escape is the shape left that the glob compiler refuses, and Git matches nothing with.
+    // Why:  A literal brace and a character range that runs backwards are no longer such patterns: both are read
+    //       the way Git reads them (`markdown::markdown_exclude`, `monochromatic_lint::gitignore_pattern`).
     //
     // In TS you'd write (pseudocode):
-    // // scriptedState(rewrite, ['[z-a].md']) and expect the policy to fail naming that pattern.
-    let (mut state, log) = scripted_state(rewrite, &["[z-a].md"]);
+    // // scriptedState(rewrite, ['a\\']) and expect the policy to fail naming that pattern.
+    let (mut state, log) = scripted_state(rewrite, &["a\\"]);
     for _ in 0..2 {
         match check_markdown(
             &mut ContentState::new(),
@@ -378,7 +378,7 @@ fn exclude_patterns_that_do_not_compile_fail_the_policy() {
             } => {
                 assert!(
                     message.starts_with(
-                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"[z-a].md\": "
+                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a\\\\\": "
                     ) && message.ends_with(UNCHECKED_REMEDY),
                     "{message}"
                 );

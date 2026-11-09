@@ -234,7 +234,8 @@ fn the_copy_just_saved_survives_a_pass_that_would_otherwise_remove_it() {
 /// one for each of the phases a pass can meet it in,
 /// and no more.
 /// Why:
-///   A save is a durable copy: the file is flushed and the two directories that hold it,
+///   A save is a durable copy:
+/// the file is flushed and the two directories that hold it,
 /// measured on 2026-11-09 at 30
 ///  to 82 ms a save against 0.4 ms a pass,
 /// so forty saves cost the disk a hundred and twenty flushes and took one suite run

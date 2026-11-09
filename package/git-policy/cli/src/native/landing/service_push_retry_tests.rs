@@ -125,7 +125,9 @@ fn stage_with(name: &str, hook_name: &str) -> Stage {
 ///   A control waits for the push by asking this every `WAIT_LOOK_EVERY`,
 /// and starting Git for it costs the contended disk a process a second,
 /// which is work that keeps a wait for the push alive and delays the very push it watches.
-/// The stage's own first push, made by real Git before any control runs, is the positive control that this reading sees a push.
+/// The stage's own first push,
+/// made by real Git before any control runs,
+/// is the positive control that this reading sees a push.
 fn remote_tip(stage: &Stage) -> String {
     return std::fs::read_to_string(stage.remote.join("refs").join("heads").join("main")).map(|text| { return text.trim().to_owned(); }).unwrap_or_default();
 }
@@ -300,7 +302,8 @@ const HALF_A_CONTENDED_PUSH: Duration = Duration::from_millis(11_550);
 /// the longest contended push and half of it again,
 /// its first pause,
 /// and the slack the schedule adds.
-///  Kept as a figure, not as a bound:
+///  Kept as a figure,
+/// not as a bound:
 /// a wait that ended on it failed while the push went on to land.
 const RESTART_PATIENCE: Duration = LONGEST_CONTENDED_PUSH
     .saturating_add(HALF_A_CONTENDED_PUSH)
@@ -355,13 +358,16 @@ fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers
 /// The plan is not the person's failure
 ///  record,
 /// which the next wrapper command shows and removes.
-/// The wait is for the delivery, never for a number of seconds:
+/// The wait is for the delivery,
+/// never for a number of seconds:
 /// measured on 2026-11-09 while the host ran at a load average of 70 to 100,
 /// the restarted service delivered the commit
-///  2.2 s, 10.7 s and 12.3 s after it started,
+///  2.2 s,
+/// 10.7 s and 12.3 s after it started,
 /// and every round of its work is real Git whose starts took 0.9 to 2.8 s
 /// there.
-/// A control that allowed a stated number of seconds failed at whichever delivery was slower than it, though the service
+/// A control that allowed a stated number of seconds failed at whichever delivery was slower than it,
+/// though the service
 ///  retried every time.
 #[test]
 fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {

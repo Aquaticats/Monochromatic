@@ -121,7 +121,8 @@ fn child_that_has_needed_no_runtime_yet() {
 /// and a sibling test of the same process can have built the runtime
 ///  before this one runs,
 /// which made the assertion an order of the runner's rather than a fact about the code.
-/// The child is a process of its own, so the fact is the code's.
+/// The child is a process of its own,
+/// so the fact is the code's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,7 +164,8 @@ fn a_spawned_task_runs_while_the_caller_is_blocked() {
 
 /// How long the builder of the control below takes,
 /// counted from the moment it is released:
-/// a stated span, so the control's ordering is its own and never the scheduler's.
+/// a stated span,
+/// so the control's ordering is its own and never the scheduler's.
 const A_LATE_BUILD: Duration = Duration::from_millis(100);
 
 /// How long the caller's stand-in is held in the control below:
@@ -177,7 +179,8 @@ const THE_STAND_IN_IS_HELD: Duration = Duration::from_millis(400);
 const BEFORE_THE_DEADLINE: Duration = Duration::from_millis(50);
 
 /// How many workers the controls' runtime is planned for:
-/// one is all a late build has to bring, because one worker is what a watcher of a wait needs.
+/// one is all a late build has to bring,
+/// because one worker is what a watcher of a wait needs.
 const ONE_WORKER: usize = 1;
 
 /// What:

@@ -13,7 +13,10 @@
 //! ```
 
 /// The module under test.
-use super::{Attribute, attributes_of, give_to};
+use super::reading::read_until_it_fits;
+use super::{
+    ATTRIBUTE_ATTEMPTS, Attribute, AttributeRefusal, attributes_of, give_to, is_a_label,
+};
 /// A disposable fixture and its removal.
 use crate::test_support::{fixture, remove};
 /// `CString` names the attribute the control plants.
@@ -167,8 +170,11 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
         name: b"bogus.never".to_vec(),
         value: b"x".to_vec(),
     };
-    let (refused, why): (Attribute, std::io::Error) =
+    let refusal: AttributeRefusal =
         give_to(&file, [impossible.clone()].as_slice()).expect_err("no such namespace");
+    let AttributeRefusal::NotGiven { attribute: refused, reason: why } = refusal else {
+        panic!("the refusal names the attribute the system would not set: {refusal:?}");
+    };
     assert_eq!(refused, impossible);
     assert_ne!(why.raw_os_error(), None, "the system's own reason is kept: {why}");
     assert_eq!(refused.display_name(), "bogus.never");
@@ -182,7 +188,14 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
         name: DRAFT.to_vec(),
         value: b"second".to_vec(),
     };
-    assert!(give_to(&known, [wanted.clone()].as_slice()).is_ok(), "the value is given");
+    // The list is the file's own with the wanted value in place of the one it holds, as the fix's list is the
+    // original's: every attribute the file carries is named, so nothing is taken off it.
+    let mut asked: Vec<Attribute> = attributes_of(known_path.as_path(), "reading a file").expect("read");
+    asked.retain(|attribute| {
+        return attribute.name != wanted.name;
+    });
+    asked.push(wanted.clone());
+    assert!(give_to(&known, asked.as_slice()).is_ok(), "the value is given");
     let read_back: Vec<Attribute> = attributes_of(known_path.as_path(), "reading a file").expect("read");
     assert!(
         read_back.contains(&wanted),
@@ -190,4 +203,314 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
     );
     remove(root.as_path());
     remove(known_root.as_path());
+}
+
+/// What:
+///  An extended attribute the replacement carries and the original never did is taken off it.
+/// Why:
+///  A directory's default access-control list is copied onto every file created inside it,
+///  and the replacement is created inside the Git directory:
+///  a replacement that kept the inherited list would grant an account read access the original
+///       never gave,
+///  which no comparison of the displaced original can see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(replacement, 'user.inherited', 'from the directory'); giveTo(replacement, []); expect(getxattr(replacement, 'user.inherited')).toBeUndefined()
+/// ```
+#[test]
+fn an_attribute_the_original_never_had_is_taken_off_the_replacement() {
+    const INHERITED: &[u8] = b"user.inherited";
+    let root: PathBuf = fixture("xattr-not-inherited");
+    let path: PathBuf = root.join("replacement.txt");
+    std::fs::write(&path, b"x\n").expect("a file");
+    if !set_attribute(path.as_path(), INHERITED, b"from the directory") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(root.as_path());
+        return;
+    }
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    // The list is what the original carried: every attribute of the file but the one the directory planted on it.
+    let kept: Vec<Attribute> = attributes_of(path.as_path(), "reading a file")
+        .expect("read")
+        .into_iter()
+        .filter(|attribute| {
+            return attribute.name != INHERITED;
+        })
+        .collect();
+    give_to(&file, kept.as_slice()).expect("every attribute the original never had is taken off");
+    let found: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    let user: Vec<&Attribute> = found
+        .iter()
+        .filter(|attribute| {
+            return attribute.name.starts_with(b"user.");
+        })
+        .collect();
+    assert_eq!(user, Vec::<&Attribute>::new(), "the inherited attribute is gone: {found:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  One answer as another process can leave it between the length question and the reading call:
+///  empty when
+///       the length is asked,
+///  and holding the person's bytes by the time the reading runs.
+/// Why:
+///  A value that grows after the size question is exactly what makes a zero-sized buffer come back with a
+///  length instead of bytes,
+///  and the control plants that growth rather than racing a real writer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GrowingAnswer = { after: Buffer; asked: number };
+/// ```
+struct GrowingAnswer {
+    /// The bytes the answer holds once it has grown.
+    after: Vec<u8>,
+    /// How many times the length was asked.
+    asked: u32,
+}
+
+/// What:
+///  The length question of a growing answer:
+///  nothing before the first reading,
+///  the grown length after it.
+/// Why:
+///  This is what the kernel answers when the attribute was empty at the first question and nonempty at the
+///  second.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const growingLength = (answer) => ++answer.asked === 1 ? 0 : answer.after.length;
+/// ```
+fn growing_length(answer: &mut GrowingAnswer) -> std::io::Result<usize> {
+    answer.asked += 1;
+    if answer.asked == 1 {
+        return Ok(0);
+    }
+    return Ok(answer.after.len());
+}
+
+/// What:
+///  The reading of a growing answer:
+///  a buffer that cannot hold it copies nothing and reports the length it needs.
+/// Why:
+///  A zero-sized buffer is another length question to the kernel,
+///  which is the answer the loop must not
+///  mistake for an empty value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const growingRead = (answer, buffer) => buffer.length < answer.after.length ? answer.after.length : copy(buffer);
+/// ```
+fn growing_read(answer: &mut GrowingAnswer, buffer: &mut [u8]) -> std::io::Result<usize> {
+    if buffer.len() < answer.after.len() {
+        return Ok(answer.after.len());
+    }
+    buffer[..answer.after.len()].copy_from_slice(answer.after.as_slice());
+    return Ok(answer.after.len());
+}
+
+/// What:
+///  A value that grows between the length question and the reading call is read whole.
+/// Why:
+///  Truncating the empty buffer to the length the second call reports cannot grow it,
+///  so the person's
+///       nonempty value would come back as empty,
+///  and a displaced file holding newer data would compare equal to the
+///       state the fix recorded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await readUntilItFits({ after: 'only-copy-of-draft', asked: 0 })).toEqual('only-copy-of-draft')
+/// ```
+#[test]
+fn a_value_that_grows_between_the_length_question_and_the_read_is_read_whole() {
+    let mut answer: GrowingAnswer = GrowingAnswer {
+        after: DRAFT_VALUE.to_vec(),
+        asked: 0,
+    };
+    let read: Vec<u8> = read_until_it_fits(
+        &mut answer,
+        "its value kept changing while it was read",
+        growing_length,
+        growing_read,
+    )
+    .expect("the value is read once its length fits");
+    assert_eq!(read, DRAFT_VALUE, "the grown value is the one that comes back");
+    assert_eq!(answer.asked, 2, "the length was asked again after the buffer did not fit");
+}
+
+/// What:
+///  A list that grows between the length question and the reading call is read whole.
+/// Why:
+///  The names of a file's attributes are read with the same two calls,
+///  and an empty answer that grows would
+///  otherwise read as a file with no attributes at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await readUntilItFits({ after: 'user.draft\0', asked: 0 })).toEqual('user.draft\0')
+/// ```
+#[test]
+fn a_list_that_grows_between_the_length_question_and_the_read_is_read_whole() {
+    const LISTED: &[u8] = b"user.draft\0";
+    let mut answer: GrowingAnswer = GrowingAnswer {
+        after: LISTED.to_vec(),
+        asked: 0,
+    };
+    let read: Vec<u8> = read_until_it_fits(
+        &mut answer,
+        "the list of its extended attributes kept changing while it was read",
+        growing_length,
+        growing_read,
+    )
+    .expect("the list is read once its length fits");
+    assert_eq!(read, LISTED, "the grown list is the one that comes back");
+    assert_eq!(answer.asked, 2, "the length was asked again after the buffer did not fit");
+}
+
+/// What:
+///  The length question of an answer that is always larger than the buffer it was given.
+/// Why:
+///  A file whose attributes never settle has no list and no value this process can name,
+///  so the reading
+///       must stop rather than ask for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const neverFittingLength = () => 0;
+/// ```
+fn never_fitting_length(_answer: &mut GrowingAnswer) -> std::io::Result<usize> {
+    return Ok(0);
+}
+
+/// The reading of an answer that is always larger than the buffer it was given.
+fn never_fitting_read(answer: &mut GrowingAnswer, buffer: &mut [u8]) -> std::io::Result<usize> {
+    answer.asked += 1;
+    return Ok(buffer.len() + answer.after.len() + 1);
+}
+
+/// What:
+///  An answer that never fits its buffer is refused after the attempts the reading allows.
+/// Why:
+///  A file whose attributes keep changing must cost a refusal,
+///  never a loop;
+///  the count is the constant the
+///       reading is built on,
+///  so a change to it shows here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(await readUntilItFits(neverFitting)).rejects.toThrow('kept changing'); expect(attempts).toBe(ATTEMPTS)
+/// ```
+#[test]
+fn an_answer_that_never_fits_is_refused_after_the_attempts_it_allows() {
+    let mut answer: GrowingAnswer = GrowingAnswer {
+        after: b"still growing".to_vec(),
+        asked: 0,
+    };
+    let refusal: std::io::Error = read_until_it_fits(
+        &mut answer,
+        "its value kept changing while it was read",
+        never_fitting_length,
+        never_fitting_read,
+    )
+    .expect_err("an answer that never fits is refused");
+    assert_eq!(refusal.to_string(), "its value kept changing while it was read");
+    assert_eq!(answer.asked, ATTRIBUTE_ATTEMPTS, "the reading stops at its own bound");
+}
+
+/// What:
+///  A security label the system will not let this process set does not stop the write.
+/// Why:
+///  A label is the identity the kernel and its policy give a file,
+///  never something a person typed,
+///  and a
+///       container without the label's module answers "operation not supported" for every one of them;
+///  refusing
+///       there would install no correction at all,
+///  which is the failure the container gate showed
+///       (`security.selinux`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(giveTo(file, [{ name: 'security.apparmor', value: 'x' }])).toBeUndefined()
+/// ```
+#[test]
+fn a_label_the_system_will_not_set_does_not_stop_the_write() {
+    const LABEL: &[u8] = b"security.apparmor";
+    const VALUE: &[u8] = b"a label this control plants";
+    let root: PathBuf = fixture("xattr-label-unsettable");
+    let path: PathBuf = root.join("kept.txt");
+    std::fs::write(&path, b"x\n").expect("a file");
+    // A label this process may not set; a system that lets it set one reports a control that did not run.
+    if set_attribute(path.as_path(), LABEL, VALUE) {
+        eprintln!(
+            "LABEL CONTROL NOT RUN: this system lets this process set {}",
+            String::from_utf8_lossy(LABEL)
+        );
+        remove(root.as_path());
+        return;
+    }
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    let mut asked: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    asked.push(Attribute {
+        name: LABEL.to_vec(),
+        value: VALUE.to_vec(),
+    });
+    give_to(&file, asked.as_slice())
+        .expect("a label the system will not set does not stop the write");
+    remove(root.as_path());
+}
+
+/// What:
+///  A security label the original never had is not taken off the replacement,
+///  and a system that will not take one off does not stop the write.
+/// Why:
+///  The label a new file carries is the identity this system gives it,
+///  and a process may not be allowed
+///       to remove or set one at all,
+///  so counting it against the original would refuse a correction the
+///       person asked for;
+///  what the person wrote,
+///  and who may read the file,
+///  is still refused when it cannot be
+///       kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const kept = carried.filter((attribute) => !isALabel(attribute.name)); expect(giveTo(file, kept)).toBeUndefined()
+/// ```
+#[test]
+fn a_label_this_process_may_not_take_off_does_not_stop_the_write() {
+    let root: PathBuf = fixture("xattr-label-unremovable");
+    let path: PathBuf = root.join("replacement.txt");
+    std::fs::write(&path, b"x\n").expect("a file");
+    let carried: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    let labels: Vec<&Attribute> = carried.iter().filter(is_a_label_attribute).collect();
+    if labels.is_empty() {
+        eprintln!("LABEL CONTROL NOT RUN: this system gives a new file no security label");
+        remove(root.as_path());
+        return;
+    }
+    // The original carried none of them, so the replacement ends without them where this process may take one off.
+    let kept: Vec<Attribute> = carried.into_iter().filter(is_not_a_label_attribute).collect();
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    give_to(&file, kept.as_slice())
+        .expect("a label this process may not take off does not stop the write");
+    remove(root.as_path());
+}
+
+/// Whether a listed attribute is a security label.
+fn is_a_label_attribute(attribute: &&Attribute) -> bool {
+    return is_a_label(attribute.name.as_slice());
+}
+
+/// Whether a listed attribute is not one.
+fn is_not_a_label_attribute(attribute: &Attribute) -> bool {
+    return !is_a_label(attribute.name.as_slice());
 }

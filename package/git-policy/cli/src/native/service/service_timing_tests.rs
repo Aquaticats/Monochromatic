@@ -35,13 +35,18 @@ const INDEX_UPDATE_MS: u64 = 23;
 /// the branch move and the index build,
 /// so within their sum.
 const HOLD_MS: u64 = 31;
-/// Time of the landing no named phase covers.
-const READS_MS: u64 = 29;
+/// Time of the landing no named phase covers,
+/// more than the named reads of `landing_with_named_reads` add up to:
+/// the named reads are parts of the residual and never more than it.
+const READS_MS: u64 = 137;
 const ANSWER_MS: u64 = 31;
 /// The flush of the marker and the wait for the holder,
 /// which the controls give other numbers than the phases.
 const STAGE_MS: u64 = 37;
 const PLACE_MS: u64 = 953;
+
+/// How many other commits were waiting for this one's landing to finish in the controls.
+const QUEUED_BEHIND: usize = 4;
 
 /// The `key=value` words of a line (a quoted value is taken whole),
 /// after the leading word.
@@ -85,6 +90,8 @@ fn landing() -> LandTiming {
         index_update: Duration::from_millis(INDEX_UPDATE_MS),
         hold: Duration::from_millis(HOLD_MS),
         attempts: 2,
+        reads_split: super::ReadSplit::default(),
+        syncs: Vec::new(),
         lock_notes: WaitNotes {
             holder: Some(String::from("Process 4242 (git)")),
             found: Some(String::from("foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]")),
@@ -108,6 +115,7 @@ fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
         batch: 9,
         size: 3,
         position: 2,
+        queued_behind: QUEUED_BEHIND,
         arrival: Arrival { accepted: Instant::now(), read: Duration::from_millis(READ_MS) },
         queued: Duration::from_millis(QUEUED_MS),
         settle: Duration::from_millis(SETTLE_MS),
@@ -145,6 +153,7 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["ref_ms"], REF_MS.to_string());
     assert_eq!(found["index_update_ms"], INDEX_UPDATE_MS.to_string());
     assert_eq!(found["lock_hold_ms"], HOLD_MS.to_string(), "the hold is stated, and is no phase of the landing");
+    assert_eq!(found["queued_behind"], QUEUED_BEHIND.to_string(), "how many commits waited for this landing is stated");
     assert_eq!(found["attempts"], "2");
     assert_eq!(found["answer_ms"], ANSWER_MS.to_string());
 }
@@ -159,6 +168,120 @@ fn the_phases_add_up_to_the_totals() {
     assert_eq!(landing_phases, number("landing_ms"));
     let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|name| { return number(name); }).sum();
     assert_eq!(request_phases, number("total_ms"));
+}
+
+/// Milliseconds each named read is given in the controls,
+/// all different and all below `READS_MS`,
+/// so a field read from the wrong read shows.
+const READS_CONFIG_MS: u64 = 2;
+const READS_BRANCH_MS: u64 = 3;
+const READS_PARENTS_MS: u64 = 5;
+const READS_CHANGED_MS: u64 = 7;
+const READS_CONTENT_MS: u64 = 11;
+const READS_WITNESS_MS: u64 = 13;
+const READS_CONCLUSION_MS: u64 = 17;
+const READS_OWED_MS: u64 = 19;
+const READS_FOLLOW_MS: u64 = 23;
+
+/// A landing whose residual reads are named one by one.
+fn landing_with_named_reads() -> LandTiming {
+    let mut split: LandTiming = landing();
+    split.reads_split = super::ReadSplit {
+        config: Duration::from_millis(READS_CONFIG_MS),
+        branch: Duration::from_millis(READS_BRANCH_MS),
+        parents: Duration::from_millis(READS_PARENTS_MS),
+        changed: Duration::from_millis(READS_CHANGED_MS),
+        content: Duration::from_millis(READS_CONTENT_MS),
+        witness: Duration::from_millis(READS_WITNESS_MS),
+        conclusion: Duration::from_millis(READS_CONCLUSION_MS),
+        owed: Duration::from_millis(READS_OWED_MS),
+        follow: Duration::from_millis(READS_FOLLOW_MS),
+    };
+    return split;
+}
+
+/// What:
+///  The residual reads of a landing are named one by one,
+/// so a slow landing says which read spent the time.
+/// Why:
+///   `reads_ms` alone was one number for the branch reads,
+/// the comparisons,
+/// the content check,
+/// the witness,
+/// the conclusion copy,
+/// the records the batch owes and the head question under the lock;
+/// a landing
+///  that took a second there could not say where.
+#[test]
+fn the_answered_line_names_each_read_of_the_landing() {
+    let line: String = line_for("req-reads", "refs/heads/main", &landing_with_named_reads());
+    let found: HashMap<String, String> = fields(line.as_str());
+    assert_eq!(found["reads_config_ms"], READS_CONFIG_MS.to_string());
+    assert_eq!(found["reads_branch_ms"], READS_BRANCH_MS.to_string());
+    assert_eq!(found["reads_parents_ms"], READS_PARENTS_MS.to_string());
+    assert_eq!(found["reads_changed_ms"], READS_CHANGED_MS.to_string());
+    assert_eq!(found["reads_content_ms"], READS_CONTENT_MS.to_string());
+    assert_eq!(found["reads_witness_ms"], READS_WITNESS_MS.to_string());
+    assert_eq!(found["reads_conclusion_ms"], READS_CONCLUSION_MS.to_string());
+    assert_eq!(found["reads_owed_ms"], READS_OWED_MS.to_string());
+    assert_eq!(found["reads_follow_ms"], READS_FOLLOW_MS.to_string());
+    // The named reads are parts of `reads_ms` and never more than it: the landing's own phases stay the whole.
+    let named: u64 = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"]
+        .iter()
+        .map(|name| {
+            return found[*name].parse::<u64>().expect("a number");
+        })
+        .sum();
+    assert!(named <= READS_MS, "the named reads add up to no more than the residual: {named} of {READS_MS}");
+    assert_eq!(found["reads_ms"], READS_MS.to_string(), "the residual still states its whole");
+}
+
+/// Milliseconds each sync of the control's landing is given:
+/// two the landing waited for,
+/// and two it handed to the background.
+const SYNC_BUILT_INDEX_MS: u64 = 41;
+const SYNC_LOCK_MARKER_MS: u64 = 43;
+
+/// A landing that made two syncs and handed two to the background.
+fn landing_with_syncs() -> LandTiming {
+    let mut timed: LandTiming = landing();
+    timed.syncs = vec![
+        crate::service_durable_syncs::SyncFigure { what: "built-index", waited: true, took: Duration::from_millis(SYNC_BUILT_INDEX_MS) },
+        crate::service_durable_syncs::SyncFigure { what: "intent-file", waited: false, took: Duration::ZERO },
+        crate::service_durable_syncs::SyncFigure { what: "lock-marker", waited: true, took: Duration::from_millis(SYNC_LOCK_MARKER_MS) },
+        crate::service_durable_syncs::SyncFigure { what: "intent-dir", waited: false, took: Duration::ZERO },
+    ];
+    return timed;
+}
+
+/// What:
+///  The answered line states every sync the landing made,
+///  what each was for and how long it took,
+///  and how many it handed to the background.
+/// Why:
+///   A landing that made more syncs and a landing whose syncs met a stalling device
+///  looked alike in the phases;
+///  the report of one landing in an fsync test spent 107.9 s,
+///  and nothing said how many syncs made it.
+#[test]
+fn the_answered_line_states_each_sync_of_the_landing_with_its_time() {
+    let line: String = line_for("req-syncs", "refs/heads/main", &landing_with_syncs());
+    let found: HashMap<String, String> = fields(line.as_str());
+    assert_eq!(found["syncs_waited"], "2");
+    assert_eq!(found["syncs_queued"], "2");
+    assert_eq!(found["sync_held_ms"], (SYNC_BUILT_INDEX_MS + SYNC_LOCK_MARKER_MS).to_string());
+    assert_eq!(found["syncs"], "built-index=41;intent-file=queued;lock-marker=43;intent-dir=queued");
+}
+
+/// A landing that made no sync says so in numbers and in an empty list,
+/// so a reader never has to tell a missing field from a landing that made none.
+#[test]
+fn a_landing_that_made_no_sync_states_none() {
+    let found: HashMap<String, String> = fields(line_for("req-nosyncs", "refs/heads/main", &landing()).as_str());
+    assert_eq!(found["syncs_waited"], "0");
+    assert_eq!(found["syncs_queued"], "0");
+    assert_eq!(found["sync_held_ms"], "0");
+    assert_eq!(found["syncs"], "");
 }
 
 /// A landing that waited for nobody names no holder.
@@ -359,6 +482,7 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         batch: 1,
         size: 1,
         position: 1,
+        queued_behind: 0,
         arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
         queued: Duration::ZERO,
         settle: Duration::ZERO,
@@ -395,6 +519,7 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
         batch: 1,
         size: 1,
         position: 1,
+        queued_behind: 0,
         arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
         queued: Duration::ZERO,
         settle: Duration::ZERO,

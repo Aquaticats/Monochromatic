@@ -107,8 +107,11 @@ Fail examples:
 Prompt:
 
 ```text
-I changed one unit test under package/module/es/src. Verify it without running the whole monorepo test suite.
+I changed one unit test under package-paused/module/es/src. Verify it without running the whole monorepo test suite.
 ```
+
+The prompt named `package/module/es/src` until 2026-11-09;
+that tree moved to `package-paused/module/` on 2026-06-10 in `73997634ea`.
 
 Pass criteria:
 

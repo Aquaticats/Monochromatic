@@ -32,7 +32,16 @@ Native build tasks and the mixed-language TypeScript configuration are retired.
 Normal plugin output may recreate `dist`;
 it must not contain a rebuilt or transformed Pi distribution.
 The remaining native descriptions and source links in this README are historical.
-Their source is preserved at `~/temp/agent/pi-auto-mode-before-rebuild-20261019/package/pi-plugin/auto-mode/`.
+Their source is preserved in Git history:
+`ff55ced353` (2026-10-19,
+refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build)
+removed it,
+so `git show ff55ced353^:package/pi-plugin/auto-mode/native` is the durable copy.
+A working copy also sits at `~/temp/agent/pi-auto-mode-before-rebuild-20261019/package/pi-plugin/auto-mode/`
+on the machine that made the move;
+nothing backs that scratch directory up,
+and a reboot or a scratch cleanup discards it.
 No replacement plugin is currently available.
 
 ## Historical implementation

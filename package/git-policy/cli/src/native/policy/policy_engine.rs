@@ -360,8 +360,16 @@ pub fn run_policy_stage(
             continue;
         }
         let severity: Severity = request.config.setting(*policy).severity;
+        // Each policy's own evaluation is timed under its registry name, so a preparation that spent its milliseconds in
+        //  one policy says which; the name is the word the person's configuration and the tool's events use.
+        let began: std::time::Instant = std::time::Instant::now();
+        let outcome: PolicyOutcome = checks.check(*policy, request.trigger);
+        crate::prepare_work_spans::note_span(
+            crate::prepare_work_spans::policy_span_name(policy_descriptor(*policy).name, request.trigger).as_str(),
+            began.elapsed(),
+        );
         // `match` unpacks the three outcomes; only `Findings` continues past it.
-        let findings: Vec<PolicyFinding> = match checks.check(*policy, request.trigger) {
+        let findings: Vec<PolicyFinding> = match outcome {
             PolicyOutcome::Findings(found) => found,
             PolicyOutcome::Unavailable(needs) => {
                 return StageResult {

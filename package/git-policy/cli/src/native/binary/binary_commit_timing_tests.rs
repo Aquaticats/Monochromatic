@@ -248,12 +248,24 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let line: &str = answered[0].as_str();
     assert!(line.contains("outcome=landed") && line.contains(format!("branch=\"refs/heads/{branch}\"").as_str()), "{line}");
     assert!(line.contains(" size=1 position=1 "), "{line}");
+    // One commit waits for nothing: nothing queued behind its landing.
+    assert_eq!(ms_of(line, "queued_behind"), 0, "a lone commit has nothing behind it: {line}");
     let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|key| { return ms_of(line, key); }).sum();
     assert!(request_phases <= ms_of(line, "total_ms"), "the phases lie inside the request's total: {line}");
     let landing_keys: [&str; 6] = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"];
     let landing_phases: u64 = landing_keys.iter().map(|key| { return ms_of(line, key); }).sum();
     let landing_total: u64 = ms_of(line, "landing_ms");
     assert!(landing_phases <= landing_total && landing_total - landing_phases < u64::try_from(landing_keys.len()).expect("a small count"), "{line}");
+    // The residual reads are named one by one, so a slow landing says which read spent the time; each is a part of `reads_ms`.
+    let read_names: [&str; 9] = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"];
+    let named_reads: u64 = read_names.iter().map(|key| { return ms_of(line, key); }).sum();
+    assert!(named_reads <= ms_of(line, "reads_ms"), "the named reads are parts of the residual ({} of {}): {line}", named_reads, ms_of(line, "reads_ms"));
+    // Every sync of the landing is stated with what it was for: one handed to the background says `queued`, and the landing
+    //  says how many it waited for and how long that took.
+    assert!(ms_of(line, "syncs_queued") >= 1, "the records of the landing are flushed after the answer: {line}");
+    assert!(line.contains("lock-marker=queued"), "the flush of the lock marker is named: {line}");
+    assert_eq!(ms_of(line, "syncs_waited"), 0, "an unset `core.fsync` waits for no sync: {line}");
+    assert_eq!(ms_of(line, "sync_held_ms"), 0, "nothing was waited for, so nothing was held: {line}");
     assert!(!line.contains("lock_holder"), "nobody held the index: {line}");
     let everything: String = std::fs::read_to_string(&places.log).expect("log") + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
     assert!(!everything.contains(MESSAGE), "the commit's text is in a log");
@@ -515,6 +527,14 @@ fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration
         assert!(phase_lies_beside_the_wait(number(record, other), number(record, "answerWaitMs"), number(record, "totalMs")), "{other} is not what the time went to: {record}");
     }
     assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
+    // The record states the landing's own figures, which the service cannot put anywhere else: the reads it names, the time it
+    //  held the index, and each of its syncs with the time of each.
+    let landing: &serde_json::Value = &record["landing"];
+    assert!(landing.is_object(), "the answer carries the landing's figures into the record: {record}");
+    assert!(landing["readsMs"].is_u64() || landing["readsMs"].is_i64() || landing["readsMs"].is_f64(), "{record}");
+    assert!(landing["reads"].is_object(), "{record}");
+    assert!(landing["lockHoldMs"].is_number(), "{record}");
+    assert!(landing["syncs"].is_array(), "{record}");
     assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
     // The wait is written down when it ends, with what it found: the foreign commit has the lock open.
     let waited: Vec<String> = lines_of(&places.log, "waited for the index lock");

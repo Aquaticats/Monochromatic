@@ -243,11 +243,8 @@ fn discovery_reads_the_base_and_tracked_patterns_from_the_root() {
         "[lfs]\n\turl = https://lfs.example\n",
     )
     .expect("supported endpoint");
-    std::fs::write(
-        fixture.path.join(".gitattributes"),
-        "[z-a].png filter=lfs\n",
-    )
-    .expect("attributes with a reversed range");
+    std::fs::write(fixture.path.join(".gitattributes"), "a\\ filter=lfs\n")
+        .expect("attributes with a trailing escape");
     let invalid = discover_lfs_image_repo(&fixture.path).expect_err("pattern");
     assert!(
         invalid.message.contains(".gitattributes"),
