@@ -10,6 +10,7 @@
 use super::*;
 use crate::index_lock_holders::Holder;
 use crate::test_support::{fixture, remove};
+use crate::wait_ceilings::MERGE_LOCK_CEILING;
 use std::path::PathBuf;
 
 /// A lock whose change time is one second after the epoch,
@@ -348,16 +349,22 @@ fn the_host_gather_reports_no_lock_when_none_exists() {
     remove(root.as_path());
 }
 
-/// The waiting line names the proof and ends with a newline;
-///  a missing command is not invented.
+/// The waiting line names the proof,
+/// how long the wait lasts before it ends,
+/// what becomes of the command then,
+///  and ends with a newline;
+/// a missing command is not invented.
 #[test]
 fn the_proven_holder_line_names_its_proof() {
     let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"));
+    let ceiling_seconds: u64 = MERGE_LOCK_CEILING.as_secs();
     assert_eq!(
         descriptor,
-        "monochromatic-git-policy-cli: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); this waits for as long as that process holds the lock and leaves the lock in place.\n"
+        format!(
+            "monochromatic-git-policy-cli: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); this waits until that process lets go, for at most {ceiling_seconds} seconds; after that, git merge meets Git's own refusal, and the lock is left in place.\n"
+        )
     );
-    assert!(!descriptor.contains("giving up"), "a holder proven alive is waited for with no bound: {descriptor}");
+    assert!(!descriptor.contains("giving up"), "a notice while the wait goes on never says the wait ended; only the ceiling's line does: {descriptor}");
     let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"));
     assert!(file.contains("waiting for PID 9, which holds"));
     assert!(file.contains("(proven by its Git lock PID file)"));

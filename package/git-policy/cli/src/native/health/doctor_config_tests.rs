@@ -50,7 +50,9 @@ fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
     assert!(lock_only.retired_index_lock_key && !lock_only.retired_landing_key && !lock_only.retired_hooks_key);
     let lock_notes: String = render_notes(&lock_only);
     assert!(lock_notes.contains("`indexLock.unprovenOwnerTimeoutMs`") && lock_notes.contains("does nothing"), "{lock_notes}");
-    assert!(lock_notes.contains("for as long as the lock stays there") && lock_notes.contains("Remove the key"), "{lock_notes}");
+    let service_wait_seconds: u64 = crate::wait_ceilings::LANDING_LOCK_CEILING.as_secs();
+    assert!(lock_notes.contains(format!("for at most {service_wait_seconds} seconds").as_str()) && lock_notes.contains("Remove the key"), "{lock_notes}");
+    assert!(!lock_notes.contains("for as long as the lock stays there"), "the service's wait has a ceiling: {lock_notes}");
     assert!(!lock_notes.contains("CLI_GIT_LOCK_WAIT_SECONDS"), "the variable no longer exists: {lock_notes}");
     assert!(!lock_notes.contains("landing.reserveAfterLostRaces"), "{lock_notes}");
     std::fs::write(&config, "{ \"landing\": { \"reserveAfterLostRaces\": 3 } }\n").expect("config");
