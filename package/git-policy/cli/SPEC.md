@@ -9295,15 +9295,19 @@ and leave one audit line each
   so the owner's line is written for every deletion Git runs;
   the typed reference is asked about first,
   so a plain name costs the one query it always did.
-  A short cluster is read letter by letter,
-  except after `-u`,
-  whose value takes the rest of the token (`-ur` sets the upstream of `r` and selects nothing).
-  A name with no local branch writes no line:
+  The region is read with the wrapper's own `git branch` option table and tokenizer,
+  the same ones every other `git branch` fact uses,
+  so every spelling and abbreviation Git accepts is read
+  (`--remote` is `--remotes`,
+  `-rD` is one cluster,
+  and the value of `-u` is never a name:
+  `-ur` sets the upstream of `r` and selects nothing)
+  and no list of spellings can fall behind Git's table.
+  A name with no reference in that namespace writes no line:
   it deletes nothing and Git's own error is the answer.
   `--delete-merged` is not read,
-  because it deletes only branches a merged branch already contains.
-  An abbreviation of `--delete` is not read either:
-  every one of them is ambiguous with `--delete-merged` in Git 2.56.0.
+  because it deletes only branches a merged branch already contains,
+  and an abbreviation of `--delete` is a region Git refuses for ambiguity with `--delete-merged` in Git 2.56.0.
 
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 

@@ -1065,7 +1065,11 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
             .to_owned();
     assert_ne!(local, remote, "the control needs two different commits");
     git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
-    for spelling in [vec!["branch", "--remotes", "-D", "origin/gone"], vec!["branch", "-rD", "origin/gone"]] {
+    for spelling in [
+        vec!["branch", "--remotes", "-D", "origin/gone"],
+        vec!["branch", "--remote", "-D", "origin/gone"],
+        vec!["branch", "-rD", "origin/gone"],
+    ] {
         // The remote-tracking ref is there again before each spelling, and the local branch never moves.
         git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
         let deletion: Observed = run_wrapped(&fixture, repo.as_path(), spelling.as_slice());
