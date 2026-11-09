@@ -137,7 +137,7 @@ fn set_to_head_unchecked(git: &GitContext, repository: &Path, index: &Path, path
         OsStr::new("--"),
     ];
     prune_words.extend(specs.iter().map(OsString::as_os_str));
-    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice()).without_pathspec_modes();
+    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice()).own_pathspecs();
     prune.index = Some(index.to_path_buf());
     match run_git(git, &prune) {
         Ok(output) if output.succeeded() => {}
