@@ -51,7 +51,39 @@ fn a_commit_leaves_no_scratch_directory_once_its_landing_is_over() {
         assert!(began.elapsed() < PATIENCE, "the tree of a finished commit stayed: {left:?}");
         std::thread::sleep(Duration::from_millis(20));
     }
-    assert!(!scratch_directory(repo.as_path()).is_some_and(|path| { return !std::fs::read_dir(path).map(|entries| { return entries.count(); }).unwrap_or(0) == 0; }), "the repository scratch directory holds nothing");
+    assert!(the_scratch_directory_holds_nothing(repo.as_path()), "the repository scratch directory holds nothing");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Whether the repository scratch directory of `repo` is gone or holds no entry at all.
+/// Why:
+///   The names `left_behind` waits for are the trees the wrapper removes,
+///  and an entry its two prefixes do not name would end that wait while it is still there:
+///  the directory has to be counted,
+///  every entry of it,
+///  not only the ones a leak would be named by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const empty = (repo) => (await readdir(scratch(repo))).length === 0;
+/// ```
+fn the_scratch_directory_holds_nothing(repo: &Path) -> bool {
+    let Some(directory) = scratch_directory(repo) else { return true };
+    return std::fs::read_dir(directory).map(|entries| { return entries.count(); }).unwrap_or(0) == 0;
+}
+
+/// The emptiness check the control above ends with is a check:
+/// an entry neither prefix names still means the directory holds something,
+/// so a directory holding one is not reported empty.
+#[test]
+fn a_scratch_directory_that_holds_an_entry_the_prefixes_do_not_name_is_not_empty() {
+    let fixture: Fixture = fixture("service-scratch-not-empty");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let directory: PathBuf = repo.join(".git/monochromatic-git-policy-cli-scratch");
+    std::fs::create_dir_all(directory.as_path()).expect("the repository scratch directory");
+    std::fs::write(directory.join("commit.index"), b"a private index").expect("an entry left behind");
+    assert!(!the_scratch_directory_holds_nothing(repo.as_path()), "an entry `left_behind` does not name still means the directory holds something");
     remove_settled(&fixture);
 }
 
