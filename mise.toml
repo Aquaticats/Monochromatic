@@ -1122,11 +1122,16 @@ const { dirname, join, resolve } = await import('node:path')
 const WORKSPACE_STATE = 'node_modules/.pnpm-workspace-state-v1.json'
 const NODE_MODULES_MARKER = '/node_modules/'
 
+const LINK_OVERRIDE = /^\\s+'?([^':\\n]+)'?:\\s*'link:[^'\\n]*'/gmu
 const workspaceYaml = readFileSync('pnpm-workspace.yaml', 'utf8')
-const overrideNames = [...workspaceYaml.matchAll(/^\\s+'?([^':\\n]+)'?:\\s*'link:[^'\\n]*'/gmu)]
+const overrideNames = [...workspaceYaml.matchAll(LINK_OVERRIDE)]
   .map((match) => match[1].split('>').at(-1))
-if (overrideNames.length === 0)
-  throw new Error('no `link:` override found in pnpm-workspace.yaml, so this check would prove nothing')
+if (overrideNames.length === 0) {
+  if (workspaceYaml.includes('link:'))
+    throw new Error('pnpm-workspace.yaml holds a `link:` override this check cannot read, so it would prove nothing; teach `LINK_OVERRIDE` the new shape')
+  console.log('store links: pnpm-workspace.yaml has no `link:` override, nothing to check')
+  process.exit(0)
+}
 
 if (!existsSync(WORKSPACE_STATE)) {
   console.log('store links: no node_modules yet, nothing to check')
