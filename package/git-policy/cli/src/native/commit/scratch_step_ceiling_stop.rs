@@ -71,21 +71,6 @@ pub enum CeilingCame {
     Unknown,
 }
 
-/// What:
-///  End the step the ceiling watches and what it started,
-/// and answer what that came to.
-/// Why:
-///   The step is signalled through the descriptor made at its start,
-/// so no read of its number can name a successor.
-/// Its children are read only while that descriptor says it is still there,
-/// which is the only moment its number is still its own.
-///  A step that ended is not signalled and its old number is not walked:
-/// children it left behind are another process's business now.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const came = ceilingCame(step); // an unreadable tree: 'unknown'
-/// ```
 // What:
 //  A control that plants what the walk below the step answers.
 // Why:
@@ -117,6 +102,21 @@ fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
     return descendants_of_read(number);
 }
 
+/// What:
+///  End the step the ceiling watches and what it started,
+/// and answer what that came to.
+/// Why:
+///   The step is signalled through the descriptor made at its start,
+/// so no read of its number can name a successor.
+/// Its children are read only while that descriptor says it is still there,
+/// which is the only moment its number is still its own.
+///  A step that ended is not signalled and its old number is not walked:
+/// children it left behind are another process's business now.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const came = ceilingCame(step); // an unreadable tree: 'unknown'
+/// ```
 pub fn ceiling_came(step: &ChildNumber) -> CeilingCame {
     let Some(number) = step.number() else {
         // A step that never started has nothing to end, and nothing is concluded about it.

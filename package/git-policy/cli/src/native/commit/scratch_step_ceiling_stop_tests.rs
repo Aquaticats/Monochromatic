@@ -172,3 +172,26 @@ fn a_walk_whose_step_ended_signals_nothing() {
     assert_eq!(came, CeilingCame::TheStepEnded, "a step that ended while its children were read has ended");
     assert!(ended.is_none(), "a number the walk read was signalled although the step had ended: {ended:?}");
 }
+
+/// What:
+///  A refused signal that is not "no such process" keeps the ceiling armed.
+/// Why:
+///   Finding 3 of the third review at the level of the ceiling:
+/// a refusal such as `EPERM` says nothing about whether the step is still running,
+/// so `TheStepEnded` there takes the ceiling away from a step that is still there and waiting.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_refused_signal_that_is_not_no_such_process_keeps_the_ceiling_armed() {
+    let mut step: Child = a_step();
+    let watched: ChildNumber = ChildNumber::not_started_pinned();
+    watched.publish(i32::try_from(step.id()).expect("a process number"));
+    crate::member_signalled_through_its_pidfd::refuse_the_next_signal_with(libc::EPERM);
+    let came: CeilingCame = ceiling_came(&watched);
+    let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert_eq!(came, CeilingCame::Unknown, "a refused signal proves nothing about the step, so the ceiling stays armed");
+    assert!(ended.is_none(), "the step was reported gone and left alone although the refusal was not `ESRCH`: {ended:?}");
+}

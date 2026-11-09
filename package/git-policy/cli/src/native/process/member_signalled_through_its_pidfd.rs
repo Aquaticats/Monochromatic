@@ -265,7 +265,7 @@ impl PinnedMember {
 pub fn signal_through(descriptor: &std::os::fd::OwnedFd, signal: i32) -> Delivered {
     #[cfg(test)]
     if let Some(refused) = a_signal_is_refused() {
-        return if refused == libc::ESRCH { Delivered::Gone } else { Delivered::Gone };
+        return a_refusal_means(Some(refused));
     }
     let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
         // A signal this build cannot name to the kernel: nothing is sent, and a real-time signal is the only case.
@@ -273,9 +273,25 @@ pub fn signal_through(descriptor: &std::os::fd::OwnedFd, signal: i32) -> Deliver
     };
     return match rustix::process::pidfd_send_signal(descriptor, named) {
         Ok(()) => Delivered::Sent,
-        // The kernel took the descriptor but the process it names has ended: nothing of the person's was reached.
-        Err(_) => Delivered::Gone,
+        Err(refused) => a_refusal_means(Some(refused.raw_os_error())),
     };
+}
+
+/// What:
+///  What a refused signal proves.
+/// Why:
+///   Only "no such process" establishes that the process is absent;
+/// a sandbox that permits `pidfd_open` and denies `pidfd_send_signal` refuses with `EPERM`,
+/// which says nothing about whether the step is still running,
+/// and reading it as gone takes the ceiling away from a step that is still there
+/// (finding 3 of the third review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aRefusalMeans = (errno) => errno === 'ESRCH' ? 'gone' : 'unproven';
+/// ```
+fn a_refusal_means(errno: Option<i32>) -> Delivered {
+    return if errno == Some(libc::ESRCH) { Delivered::Gone } else { Delivered::Unproven };
 }
 
 /// What:
