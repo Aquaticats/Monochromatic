@@ -168,12 +168,42 @@ fn split_on_blanks(line: &str) -> Vec<&str> {
 }
 
 /// What:
+///  What one attribute line says about a file's `filter`:
+///  `Some(true)` for `filter=lfs`,
+///  `Some(false)` for any other assignment,
+///  and nothing when the line does not name the filter at all.
+/// Why:
+///  Git resolves the attribute left to right on the line and then by the last matching line,
+///  so `*.png filter=lfs` followed by `*.png filter=other` leaves the image with `other`,
+///  and a bare `filter` means `set`,
+///  which is not `lfs` either.
+///  A line that names the filter any other way must therefore unselect the path,
+///  or a fix would rewrite an ordinary image to an object URL Git never stored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filterAssignment = (attributes) => { let wanted; for (const a of attributes) { if (a.startsWith('filter=')) wanted = a === 'filter=lfs'; else if (a === 'filter' || a === '-filter' || a === '!filter') wanted = false; } return wanted; };
+/// ```
+fn filter_assignment(attributes: &[&str]) -> Option<bool> {
+    let mut wanted: Option<bool> = None;
+    for token in attributes {
+        if let Some(value) = token.strip_prefix("filter=") {
+            wanted = Some(value == "lfs");
+        } else if *token == "filter" || *token == "-filter" || *token == "!filter" {
+            wanted = Some(false);
+        }
+    }
+    return wanted;
+}
+
+/// What:
 ///  Translate `.gitattributes` text into the gitignore-syntax pattern list of LFS-tracked paths.
 /// Why:
-///  A line that sets `filter=lfs` selects its pattern;
-///  a later line that unsets the filter
-/// (`-filter` or `!filter`) becomes a negation,
-///  matching git's last-match-wins attribute resolution.
+///  A line whose resolved filter is `lfs` selects its pattern;
+///  a line that assigns the filter any other way becomes a negation,
+///  matching git's last-match-wins attribute resolution,
+///  so a later `filter=other` takes an earlier `filter=lfs` away.
+///  A line that never names the filter contributes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,10 +220,10 @@ pub(crate) fn lfs_tracked_patterns(text: &str) -> Vec<String> {
         let Some((pattern, attributes)): Option<(&&str, &[&str])> = tokens.split_first() else {
             continue;
         };
-        if attributes.contains(&"filter=lfs") {
-            patterns.push(String::from(*pattern));
-        } else if attributes.contains(&"-filter") || attributes.contains(&"!filter") {
-            patterns.push(format!("!{pattern}"));
+        match filter_assignment(attributes) {
+            Some(true) => patterns.push(String::from(*pattern)),
+            Some(false) => patterns.push(format!("!{pattern}")),
+            None => {}
         }
     }
     return patterns;
