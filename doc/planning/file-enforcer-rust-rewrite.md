@@ -14,9 +14,12 @@ This record keeps the names of its time.
 ## Status
 
 Being grilled with the user,
-started 2026-10-29.
-Nothing here is accepted yet;
-decisions land in this file as the user answers them.
+started 2026-10-29,
+and accepted 2026-10-29:
+the record is [`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md).
+The sections below keep the state each was written in;
+this file is the history,
+not the decision.
 
 Superseded next action (2026-10-29;
 the current one is the section "Next action (2026-10-29,
