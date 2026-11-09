@@ -5408,6 +5408,19 @@ because they catch different defects:
   `the_conversions_take_places_of_the_processs_bound_on_blocking_jobs`.
   With the bound held to one place by another job of the pool,
   no item's work starts until that job gives the place back.
+  The holder gives it back because a job of the work under test is waiting for a place
+  (`blocking_jobs_within_the_budget::jobs_waiting_for_a_place`,
+  test-only),
+  and it reports that ask,
+  which each control asserts,
+  so a work path that never takes a place fails the control.
+  A review of the first version of these controls found the holder giving the place back after a fixed
+  second instead,
+  and it is right:
+  with that helper and a conversion run on the worker after a 1,500 ms wait,
+  the conversion control passed although no place was ever taken.
+  With the ask it fails,
+  and the plant is recorded in the commit that changed it.
   Planted for the third site by running the conversion on the worker instead of as a job,
   the place control fails with
   "a conversion started while another job held the only place of the process's bound,
@@ -5574,6 +5587,28 @@ and what it does not:
   interleave the two binaries one arm each,
   many times,
   under whatever load the host carries then.
+
+#### What a review of the branch found, and what changed
+
+Two findings,
+both about what the code promises rather than about the move,
+both read from the committed code and both right:
+
+- A rewrite that panicked after it installed its index was counted with the rewrites that never
+  started,
+  and the error said "the indexes stay as they were".
+  The kinds of end are counted apart now (`RewritesThatGaveNoResult`),
+  and the message keeps the uncertainty:
+  "1 of 4 index file(s) ended without a known result,
+  so whether those were rewritten is not known;
+  run the command again to rewrite them",
+  with the line of that index saying that it "may have been written or may be as it was".
+  The control installs the checkout's index and then panics,
+  and fails on the old message.
+- The place controls gave their place back after a fixed second instead of on an attempt,
+  so a work path that bypasses the bound could start after that second and pass.
+  The holder now waits for the ask and reports it (see the controls above),
+  and the review's own scenario was reproduced as a false pass before the change.
 
 #### Checks
 

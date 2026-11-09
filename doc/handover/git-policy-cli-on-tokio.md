@@ -851,6 +851,37 @@
   for the next agent:
   the container gate of this branch (no gate image was made) and the mutation campaign
   (paused by the owner).
+- A review of this branch by another vendor (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-sol.txt`)
+  found two defects in what the code promises,
+  both right,
+  and both fixed in `c316f98b42` and `51e5958ff6`
+  (the plan,
+  "What a review of the branch found,
+  and what changed"):
+  a rewrite that panicked after installing its index was promised as unchanged
+  (the kinds of end are counted apart now,
+  and only a job that never started is promised that),
+  and
+  the place controls gave their place back on a clock instead of on an attempt
+  (`jobs_waiting_for_a_place` in `blocking_jobs_within_the_budget.rs`,
+  test-only,
+  and the holder reports the ask each control asserts).
+  Measured for the second:
+  with the old helper and a conversion run on the worker after a 1,500 ms
+  wait,
+  the conversion control passed although no place was taken;
+  with the ask it fails.
+- Round 2's checks,
+  only the folders a fix touches plus Clippy and the package lint,
+  and no whole-suite run:
+  `worktree_trash_entries` 7 of 7,
+  `worktree_convert` 86 of 86,
+  `subvolume_index` 45 of 45,
+  `parallel_runner` 20 of 20,
+  `native:clippy` clean,
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- Main was merged into this branch at `69a0e7f75c` (the coordinator);
+  the sixteen commits of this step are its own.
 
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
