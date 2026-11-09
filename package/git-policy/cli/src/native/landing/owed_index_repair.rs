@@ -240,13 +240,17 @@ pub fn exclude_what_a_landed_commit_left(
                 Err(code) => return Err(format!("the entries the index moved since this commit copied it cannot be read ({code:?})")),
             },
         };
-        let kept: Vec<Vec<u8>> = moved.into_iter().filter(|path| { return named.contains(path); }).collect();
-        let moved: Vec<Vec<u8>> = kept;
-        if !moved.is_empty() {
-            if let Err(code) = set_to_head_paths(git, repository, index, moved.as_slice()) {
+        let mut owned: Vec<Vec<u8>> = Vec::with_capacity(moved.len());
+        for path in moved {
+            if named.contains(&path) {
+                owned.push(path);
+            }
+        }
+        if !owned.is_empty() {
+            if let Err(code) = set_to_head_paths(git, repository, index, owned.as_slice()) {
                 return Err(format!("the entries the index moved since this commit copied it cannot be set to the head ({code:?})"));
             }
-            for path in &moved {
+            for path in &owned {
                 left.push(crate::path_bytes::path_message_text(path.as_slice()));
             }
         }
