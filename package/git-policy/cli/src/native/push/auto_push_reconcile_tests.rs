@@ -1856,7 +1856,10 @@ fn a_second_pass_command_that_stalls_is_stopped_and_named() {
 
 /// A `git switch` that lands in the window between the checks and the move moves only the branch this command checked:
 /// the move names its branch,
-/// so the branch the person switched to is where the person left it.
+/// so the branch the person switched to is where the person left it,
+/// and the checkout that
+///  switch made is left showing that branch's commit,
+/// never the merge's files staged on a branch that does not hold them.
 #[test]
 fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
     let s = scenario("ar-ff-window-switch");
@@ -1873,6 +1876,12 @@ fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
     assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "the checkout the person switched to holds no staged change of the merge"
+    );
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "it shows the commit its branch names");
     remove(&s.root);
 }
 

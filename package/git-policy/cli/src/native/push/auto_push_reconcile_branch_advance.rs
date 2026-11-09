@@ -60,6 +60,33 @@ pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
 pub(crate) type BranchMove<'a> = &'a dyn Fn(&PushGit, &str, &str, &str) -> Result<Result<(), String>, SingleFlightError>;
 
 /// What:
+///  Whether this worktree still has `branch_ref` checked out at `local`.
+/// Why:
+///   The index and the files of a worktree belong to no branch:
+/// any command of that worktree can check another one out,
+/// and
+///  that is what the write below must not mistake for its own.
+/// The question is asked either side of the write,
+/// so the window between them is the only
+///  one a switch can still land in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = await git.symbolicRefQuiet('HEAD'); const tip = await git.revParse('HEAD^{commit}'); return head === branchRef && tip === local;
+/// ```
+fn still_on_the_branch(git: &PushGit, branch_ref: &str, local: &str) -> Result<bool, SingleFlightError> {
+    let checked_out = run_query(git, &argv(&["symbolic-ref", "--quiet", "HEAD"]))?;
+    if checked_out.code != Some(0) || String::from_utf8_lossy(&checked_out.stdout).trim() != branch_ref {
+        return Ok(false);
+    }
+    let head = run_query(git, &argv(&["rev-parse", "--verify", "HEAD^{commit}"]))?;
+    if head.code != Some(0) {
+        return Ok(false);
+    }
+    return Ok(String::from_utf8_lossy(&head.stdout).trim() == local);
+}
+
+/// What:
 ///  Bring this worktree's index and files to the merge,
 /// then move the branch this command checked,
 /// and only that branch.
@@ -74,6 +101,12 @@ pub(crate) type BranchMove<'a> = &'a dyn Fn(&PushGit, &str, &str, &str) -> Resul
 /// and a `git switch` over that refuses;
 /// the branch then moves by compare-and-swap against the tip this command checked,
 /// so a branch that moved meanwhile is refused instead of overwritten.
+///   The checkout is written only while this worktree still shows the branch that was checked:
+/// a `git switch` that
+///  finished first leaves another branch's files alone and the branch below moves without it,
+/// and one that finished inside the
+///  write gets its files put back,
+/// because the commit a worktree shows is not this command's to rewrite.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,12 +128,32 @@ pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str
             return Ok(Err(format!("Git refused the fast-forward: merge-base --is-ancestor exited {how}")));
         }
     }
-    let checked_out = run_query(git, &argv(&["read-tree", "-u", "-m", local, merge_oid]))?;
-    if checked_out.code != Some(0) {
-        return Ok(Err(refusal_of(&checked_out.stderr)));
+    if !still_on_the_branch(git, branch_ref, local)? {
+        debug(TAG, "another branch is checked out here, so the fast-forward moves the branch and leaves that checkout as it is");
+    } else {
+        let checked_out = run_query(git, &argv(&["read-tree", "-u", "-m", local, merge_oid]))?;
+        if checked_out.code != Some(0) {
+            return Ok(Err(refusal_of(&checked_out.stderr)));
+        }
+        // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
+        record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
+        // The question again, after the write: a `git switch` that landed inside it was given the merge's files, and they go
+        //  back before the branch moves below, so the checkout shows the commit the person switched to.
+        if !still_on_the_branch(git, branch_ref, local)? {
+            let put_back = run_query(git, &argv(&["read-tree", "-u", "-m", merge_oid, local]))?;
+            if put_back.code != Some(0) {
+                return Ok(Err(format!(
+                    "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
+                    refusal_of(&put_back.stderr)
+                )));
+            }
+            record_streams(&["read-tree", "-u", "-m", merge_oid, local], &put_back.stdout, &put_back.stderr);
+            warn(
+                TAG,
+                "another command checked out another branch while the fast-forward wrote its files; they were put back and only the branch moved",
+            );
+        }
     }
-    // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-    record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
     let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
     let moved = run_query(git, &argv(&["update-ref", "-m", message.as_str(), branch_ref, merge_oid, local]))?;
     if moved.code != Some(0) {
