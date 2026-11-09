@@ -66,6 +66,24 @@ fn a_change_path_that_is_not_text_round_trips() {
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
 }
 
+/// What:
+///  A commit request speaks the protocol version that carries a changed path's bytes,
+///  and a line of the version before it is no request this release serves.
+/// Why:
+///   A service built before the bytes travelled ignores `pathHex` and commits the readable spelling of the name,
+/// so the version both sides compare is what keeps such a service from ever being handed the request:
+/// the release text alone cannot, because two builds of one crate version name the same release.
+#[test]
+fn a_commit_request_carries_the_version_that_knows_a_changed_paths_bytes() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
+    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
+    assert!(PROTOCOL_VERSION > 7, "the version that knows `pathHex` is the first after the one that does not");
+    value["version"] = serde_json::Value::from(7);
+    assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
+}
+
 /// Every service message survives encoding,
 /// and every failure code is reachable on the wire.
 #[test]

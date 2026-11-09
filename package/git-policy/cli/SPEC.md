@@ -8169,6 +8169,18 @@ and the checks for paths that changed or that two requests share compare bytes.
 The readable plain field is used only where a path is a key for something else:
 the compiled-rules warm-up after a landing.
 
+The commit request speaks protocol version 8,
+the first that carries a changed path's bytes.
+The version is what keeps a service built before them from being served,
+not the release text:
+`reach_current` (`src/native/service/service_client_reach_service.rs`)
+serves only a service whose welcome names its own version and its own release,
+and asks any other to retire before a request is sent.
+Two builds of one crate version name the same release,
+so a service built before this change would pass the release check,
+take the readable spelling of a name that is not text,
+and report a successful commit of another file.
+
 ### Compatibility and degradation
 
 The executable is tested with real Git 2.56.0,

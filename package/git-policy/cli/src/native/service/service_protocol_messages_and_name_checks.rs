@@ -21,7 +21,14 @@ use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 7;
+/// It is 8 because a commit request's changed paths carry their bytes beside the readable spelling,
+/// and a service of version 7 ignores that field and would commit the spelling instead:
+/// the release text cannot keep such a service from being served,
+/// because a rebuild of the same crate version names the same release,
+/// so the version a service announces in its welcome is what is compared,
+/// and a service of another version is asked to retire before any request is sent
+/// (`service_client_reach_service.rs`).
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// The release of this build:
 /// the crate version,
