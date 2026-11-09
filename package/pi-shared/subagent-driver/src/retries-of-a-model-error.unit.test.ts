@@ -108,6 +108,21 @@ await describe({
       fn: async () => {
         expect(kindOfModelError('the request held 15203 tokens',),).toBe('permanent',);
         expect(kindOfModelError('retry 5203 later',),).toBe('permanent',);
+        // A number later in the text is not the response's status, however much it looks like one: the provider's own limit is
+        // a fixed configuration that a continuation prompt cannot change.
+        expect(kindOfModelError('400 Bad Request: max_tokens must not exceed 500',),).toBe('permanent',);
+        // The control: a status the text starts with does decide.
+        expect(kindOfModelError('500 Internal Server Error',),).toBe('transient',);
+        expect(kindOfModelError('520 ',),).toBe('transient',);
+      },
+    },),
+    it({
+      name: 'reads a rate limit that names what it limited as a rate limit, not as a bad credential',
+      fn: async () => {
+        expect(kindOfModelError('429 Too many requests for this API key; retry_after=1',),).toBe('throttled',);
+        expect(kindOfModelError('Rate limit reached for the API key of this workspace',),).toBe('throttled',);
+        // A credential failure no rate limit names stays one another attempt cannot fix.
+        expect(kindOfModelError('Invalid API key for upstream provider',),).toBe('permanent',);
       },
     },),
   ],
@@ -148,6 +163,25 @@ await describe({
         },),).toBe(MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,);
         expect(retryDelayMilliseconds({
           problem: 'Retry-After: 3600',
+          retryNumber: 1,
+          baseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
+        },),).toBe(MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,);
+      },
+    },),
+    it({
+      name: 'reads a wait written across a line break',
+      fn: async () => {
+        // A body pretty-printed over several lines is still JSON, and its wait is still the wait it asks for.
+        expect(waitAskedByProvider('503 {"retry_after":\n3600}',),).toEqual({
+          asked: true,
+          milliseconds: 3_600_000,
+        },);
+        expect(waitAskedByProvider('Retry-After:\r\n 30',),).toEqual({
+          asked: true,
+          milliseconds: 30_000,
+        },);
+        expect(retryDelayMilliseconds({
+          problem: '503 {"retry_after":\n3600}',
           retryNumber: 1,
           baseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
         },),).toBe(MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,);

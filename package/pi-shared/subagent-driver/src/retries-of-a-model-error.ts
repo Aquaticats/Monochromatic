@@ -16,7 +16,8 @@
  shape that is known to pass is waited out.
 
  Every text is folded to lower case once, and each shape is then a plain substring of it, so a failure of a few kilobytes is
- read in one pass and nothing here can backtrack.
+ read in one pass and nothing here can backtrack. A status code is read only where the text starts with one, which is where a
+ response writes it: the same digits inside a body name a token count or a limit the provider states, and neither is transient.
 
  @module
  */
@@ -126,7 +127,7 @@ const THROTTLE_PHRASES: readonly string[] = [
 ];
 
 /**
- The status code of a throttle, which counts only as a whole number.
+ The status code of a throttle, read only where the failure text starts with one.
  */
 const THROTTLE_CODE = '429';
 
@@ -177,7 +178,8 @@ const TRANSIENT_PHRASES: readonly string[] = [
 ];
 
 /**
- The server status codes of a failure another attempt can fix, each of which counts only as a whole number.
+ The server status codes of a failure another attempt can fix, read only where the failure text starts with one: that is where a
+ response writes its status, before the body that explains it.
  */
 const TRANSIENT_CODES: readonly string[] = [
   '500',
@@ -223,7 +225,8 @@ function isDigit(character: string,): boolean {
 }
 
 /**
- Tells whether a character is an ASCII letter or digit, so a number that touches one is part of a longer word.
+ Tells whether a character is an ASCII letter or digit, so a number that touches one is part of a longer word, count or request
+ number.
 
  @param character - one character of the text
 
@@ -234,70 +237,57 @@ function isLetterOrDigit(character: string,): boolean {
 }
 
 /**
- Tells whether a text holds a number as a whole word, so a request number or a token count carrying the same digits does not
- read as a status code.
+ Finds the status code a failure text starts with.
+
+ A response writes its status before the body that explains it, so a number anywhere else is a count, a request number or a limit
+ the provider states, and none of those is a status. Reading only the first word is what keeps `max_tokens must not exceed 500`
+ from being read as a server error another attempt may fix.
 
  @param text - text folded to lower case
 
- @param number - the digits to look for
-
- @returns whether they stand alone
+ @returns the digits of the status, or an empty string when the text starts with anything else
  */
-function holdsNumberAlone({
-  text,
-  number,
-}: {
-  readonly text: string;
-  readonly number: string
-},): boolean {
-  for (let at = text.indexOf(number,); at !== (-1); at = text.indexOf(
-    number,
-    at + 1,
-  )) {
-    /**
-     What touches the digits on either side, which is nothing at either end of the text.
-     */
-    const before = text.charAt(at - 1,);
-    /**
-     What touches the digits on the right.
-     */
-    const after = text.charAt(at + number.length,);
-    if ((!isLetterOrDigit(before,)) && (!isLetterOrDigit(after,))) {
-      return true;
+function leadingStatusCode(text: string,): string {
+  /**
+   How many digits a status code has.
+   */
+  const statusDigits = 3;
+  for (let at = 0; at < statusDigits; at += 1) {
+    if (!isDigit(text.charAt(at,),)) {
+      return '';
     }
   }
-  return false;
+  // A letter or digit right after those three digits makes them part of a longer word or number, which is no status.
+  return isLetterOrDigit(text.charAt(statusDigits,),) ? '' : text.slice(
+    0,
+    statusDigits,
+  );
 }
 
 /**
- Tells whether a text folded to lower case holds one of these phrases, or one of these numbers standing alone.
+ Tells whether a text folded to lower case holds one of these phrases, or starts with one of these status codes.
 
  @param text - text folded to lower case
 
  @param phrases - phrases to look for
 
- @param numbers - numbers to look for as whole words
+ @param statusCodes - status codes to look for at the start of the text
 
  @returns whether the text holds one of them
  */
 function holdsOneOf({
   text,
   phrases = [],
-  numbers = [],
+  statusCodes = [],
 }: {
   readonly text: string;
   readonly phrases?: readonly string[];
-  readonly numbers?: readonly string[]
+  readonly statusCodes?: readonly string[]
 },): boolean {
   return phrases.some(function isInText(phrase,) {
     return text.includes(phrase,);
   },)
-    || numbers.some(function standsAlone(number,) {
-      return holdsNumberAlone({
-        text,
-        number,
-      },);
-    },);
+    || statusCodes.includes(leadingStatusCode(text,),);
 }
 
 /**
@@ -332,14 +322,14 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
   if (holdsOneOf({
     text,
     phrases: THROTTLE_PHRASES,
-    numbers: [THROTTLE_CODE,],
+    statusCodes: [THROTTLE_CODE,],
   },)) {
     return 'throttled';
   }
   if (holdsOneOf({
     text,
     phrases: TRANSIENT_PHRASES,
-    numbers: TRANSIENT_CODES,
+    statusCodes: TRANSIENT_CODES,
   },)) {
     return 'transient';
   }
