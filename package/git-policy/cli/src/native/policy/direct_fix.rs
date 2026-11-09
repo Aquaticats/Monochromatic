@@ -317,7 +317,8 @@ pub fn settled_fix<F: RepositoryFacts>(
     if changes.is_empty() {
         return with_notices(pass, notices);
     }
-    let (Some(top_level), Some(real_index), Some(git_dir)) = (root, checks.content.real_index(), git_dir)
+    let (Some(top_level), Some(real_index), Some(journal_dir)) =
+        (root, checks.content.real_index(), git_dir)
     else {
         return fix_failure(
             pass.arguments.as_slice(),
@@ -331,7 +332,7 @@ pub fn settled_fix<F: RepositoryFacts>(
     };
     let outcome: InstallOutcome = match install_corrections(
         top_level,
-        git_dir.as_path(),
+        journal_dir.as_path(),
         real_index,
         changes.as_slice(),
     ) {

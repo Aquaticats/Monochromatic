@@ -218,19 +218,38 @@ impl Kept {
 /// the replacement would belong to the user running the fix,
 ///  which silently hands the
 ///       person's file to another account.
+///  The comparison is against what the new file
+///  actually carries,
+///  read from its own descriptor,
+///  never against this process's own
+///  credentials:
+///  a directory with its set-group-ID bit gives every new file that directory's
+///  group,
+///  so a file created here can belong to a group this process is not in,
+///  and comparing with
+///  the process would skip the very change that has to be made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (kept.uid !== geteuid() || kept.gid !== getegid()) fchownSync(fd, kept.uid, kept.gid); fchmodSync(fd, kept.mode);
+/// const actual = fstatSync(fd); if (actual.uid !== kept.uid || actual.gid !== kept.gid) fchownSync(fd, kept.uid, kept.gid); fchmodSync(fd, kept.mode);
 /// ```
 #[cfg(unix)]
 fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), WriteFailure> {
     /// `AsRawFd` lends the descriptor the system calls take.
     use std::os::unix::io::AsRawFd;
     let descriptor: libc::c_int = file.as_raw_fd();
-    // SAFETY: `geteuid` and `getegid` read this process's own credentials and touch no memory.
-    let (own_uid, own_gid): (u32, u32) = unsafe { (libc::geteuid(), libc::getegid()) };
-    if kept.uid != own_uid || kept.gid != own_gid {
+    // What: The owner and group this file has now, from the descriptor that wrote it.
+    // Why:  The name could be swapped; the descriptor cannot, and a set-group-ID directory has already chosen the
+    //       group of what was created.
+    //
+    // In TS you'd write (pseudocode):
+    // const actual = Kept::of(&file.metadata()?);
+    let described: std::fs::Metadata = match file.metadata() {
+        Ok(found) => found,
+        Err(error) => return Err(WriteFailure::Io(error)),
+    };
+    let actual: Kept = Kept::of(&described);
+    if actual.uid != kept.uid || actual.gid != kept.gid {
         // SAFETY: `fchown` takes a descriptor this file owns and two plain numbers; it reads no memory of this
         // process.
         let given: libc::c_int =
