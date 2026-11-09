@@ -1593,15 +1593,25 @@ and one report names the path,
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,
-prints that report once for a bound add (or says that nothing proves a leftover is the add's when the add was
+prints that report for a bound add (or says that nothing proves a leftover is the add's when the add was
 never bound),
 prints the stage it did not remove,
-and drops the record.
+and keeps the record,
+the marker and the claim while the worktree is
+not proven whole and while that stage still stands:
+a worktree holds nothing but Git's `.git` file until a checkout wrote beside it,
+so every later command
+that runs the recovery prints the same report again,
+and the records go in the command that finds the worktree
+whole (a checkout wrote an index and something beside Git's pointer) or gone.
+The stage is the person's to remove,
+and its claim goes with it.
 A record or a completion marker that cannot be
 looked up keeps the record and says that the state is unknown.
 The cost:
-an interrupted or failed add can leave an
-incomplete registered worktree for the person to complete or remove.
+an interrupted or failed add keeps naming the same worktree and stage in every command that
+runs the recovery,
+until the person finishes or removes it.
 
 `git worktree remove <directory>` with no option and a non-empty directory name,
 for a clean,

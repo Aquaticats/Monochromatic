@@ -8,7 +8,12 @@
 //! a
 //!  claim of an add names a stage by path alone,
 //! which proves nothing,
-//! so that stage is reported and never removed.
+//! so that stage is reported and never removed,
+//! and the claim stays so that the
+//!  next command reports it again.
+//! An add's record stays too while the worktree it names is not proven whole:
+//! a line on one
+//!  command's standard error is not a place to keep an obligation a person has to act on.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +23,7 @@
 
 use crate::json_record::quote;
 use crate::private_storage::sync_directory;
-use crate::worktree_add_binding::{Recorded, decode_record};
+use crate::worktree_add_binding::{Binding, Recorded, decode_record};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
@@ -34,8 +39,48 @@ pub struct Settlement {
     /// What to tell the person,
     /// if anything.
     pub notice: Option<String>,
-    /// Whether the record and the claim stay because the record could not be read or settled.
+    /// Whether the record and the claim stay because the state is unknown or the add is not proven whole,
+    /// so the
+    ///  next command reports it again.
     pub keep: bool,
+}
+
+/// What:
+///  Whether the worktree an add's binding names is proven whole or gone,
+/// which is when nothing is left for a person
+///  to finish.
+/// Why:
+///   Recovery never runs Git and never waits,
+/// so the proof is what the two directories say:
+/// the destination
+///  is gone,
+/// or it holds a file besides Git's pointer and its administrative directory holds an index,
+/// which
+///  only a checkout writes.
+/// A destination that holds only its `.git` file is the shape a kill between real Git and
+///  the checkout leaves,
+/// and it is what the report names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// !exists(destination) || (exists(join(admin, 'index')) && entries(destination).length > 1)
+/// ```
+fn add_is_finished(binding: &Binding) -> bool {
+    // `match` on the lookup: a destination that is gone is nothing to finish, while one that cannot be examined is kept.
+    match std::fs::symlink_metadata(binding.destination.as_path()) {
+        Ok(_present) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return true,
+        Err(_refused) => return false,
+    }
+    if !binding.admin.join("index").exists() {
+        return false;
+    }
+    // More than the `.git` file Git wrote: a checkout put something beside it.
+    let held_listing = match std::fs::read_dir(binding.destination.as_path()) {
+        Ok(listing) => listing,
+        Err(_unreadable) => return false,
+    };
+    return held_listing.count() > 1;
 }
 
 /// What:
@@ -139,9 +184,14 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         }
         Some(Recorded::Registered(binding)) => {
             let shown: String = quote(binding.destination.to_string_lossy().as_ref());
+            // A worktree that is whole or gone settles silently; everything else keeps its record so the next command says
+            //  the same again, because nothing else names the worktree, the stage or what finishes them.
+            if add_is_finished(&binding) {
+                return Settlement { notice: None, keep: false };
+            }
             Settlement {
                 notice: Some(format!("monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. `git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.")),
-                keep: false,
+                keep: true,
             }
         }
     };
@@ -341,6 +391,12 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 ///  a claimed container no journal names,
 /// whose owner is dead,
 /// was abandoned by a process that died.
+/// A stage an add left is never removed,
+/// and its claim stays while it stands,
+/// so every command that runs the
+///  recovery names it again instead of leaving the name in one command's output;
+/// the claim goes when the person
+///  has removed the stage.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,11 +437,13 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
             // (a snapshot, a directory another process put there, or nothing): such a stage is reported and never removed.
             // A record that cannot be looked up counts as one: when in doubt the stage is kept.
             let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
+            let mut stage_stays: bool = false;
             if present && !journaled.contains(&container) && of_an_add {
                 notices.push(format!(
                     "monochromatic-git-policy-cli: the stage {} was left by an interrupted `git worktree add` and was not changed; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
                     quote(container.to_string_lossy().as_ref())
                 ));
+                stage_stays = true;
             } else if present && !journaled.contains(&container) {
                 assert_private_path(container.as_path(), Role::PrivateStage)?;
                 remove_stage(container.as_path())?;
@@ -398,7 +456,9 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
             if let Some(notice) = settled.notice {
                 notices.push(notice);
             }
-            if settled.keep {
+            // A stage of an add is never removed, so its claim is what names it: the record, the marker and the claim stay while
+            //  the stage or the incomplete worktree is still there, and the next command reports them again.
+            if settled.keep || stage_stays {
                 continue;
             }
             remove_file_if_present(record.as_path())?;

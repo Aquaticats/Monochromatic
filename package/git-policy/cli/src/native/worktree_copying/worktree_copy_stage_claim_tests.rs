@@ -379,7 +379,9 @@ fn releasing_an_add_claim_removes_the_destination_record() {
 /// a stage and a destination nothing
 ///  proves to be the add's:
 /// recovery changes nothing,
-/// and tells the person about the stage and how to see and remove the destination.
+/// tells the person about the stage and how to see and remove the destination,
+/// and keeps
+///  the stage's claim while the stage stands so the next command names it again.
 #[test]
 fn an_unbound_add_deletes_nothing_and_is_reported() {
     let (root, common, destination) = scene("claim-add-interrupted");
@@ -397,7 +399,8 @@ fn an_unbound_add_deletes_nothing_and_is_reported() {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     assert!(notices[1].contains("nothing proves it is the add's") && notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
     assert!(destination.join(".git").exists(), "nothing was deleted");
-    assert_eq!(reap_abandoned_stages(common.as_path()).expect("again"), Vec::<String>::new(), "the notice is given once");
+    let again: Vec<String> = reap_abandoned_stages(common.as_path()).expect("again");
+    assert!(again.iter().any(|notice: &String| { return notice.contains("was left by an interrupted"); }), "the stage is named again while it stands: {again:?}");
     remove(root.as_path());
 }
 
@@ -447,8 +450,10 @@ fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_pa
 /// An add killed after it was bound and before it completed leaves a registered worktree:
 /// recovery changes nothing,
 /// says
-///  once what is incomplete and the commands that finish or remove it,
-/// and drops its records.
+///  what is incomplete and the commands that finish or remove it,
+/// and keeps its records until that worktree is whole or
+///  gone,
+/// so the next command says the same.
 #[test]
 fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let (root, repo, destination, admin) = killed_add("claim-add-killed", true, false);
@@ -458,8 +463,8 @@ fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     assert_eq!(notices.len(), 1, "{notices:?}");
     let shown: String = quote(destination.to_string_lossy().as_ref());
     assert!(notices[0].contains(format!("git -C {shown} reset --hard").as_str()) && notices[0].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[0]);
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), Vec::<String>::new(), "said once");
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records stay while the worktree is not whole");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), notices, "the next command says the same");
     remove(root.as_path());
 }
 
@@ -563,7 +568,9 @@ fn a_lookup_that_fails_keeps_the_record_and_says_the_state_is_unknown() {
 }
 
 /// A stage that the claim of a worktree add names is reported and never removed,
-/// whatever stands at the name.
+/// whatever stands at the name,
+/// and
+///  its claim stays so the next command reports it again.
 #[test]
 fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     let (root, common, destination) = scene("claim-add-stage");
@@ -575,7 +582,8 @@ fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
     assert!(container.join("payload/foreign").exists(), "the stage stays");
     assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("was left by an interrupted"); }), "{notices:?}");
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "reported once");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the claim stays while the stage stands");
+    assert_eq!(reap_abandoned_stages(common.as_path()).expect("again"), notices, "the next command names the stage again");
     std::fs::set_permissions(container.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("writable");
     remove(root.as_path());
 }
