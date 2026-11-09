@@ -290,12 +290,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         Ok(output) => output,
         Err(reason) => GitOutput { code: None, stdout: Vec::new(), stderr: reason.into_bytes() },
     };
-    let place: RecoveryPlace = RecoveryPlace {
-        git: GitContext { global_prefix: Vec::new(), ..session.context.clone() },
-        cwd: root.to_path_buf(),
-        common_dir: git_dir.to_path_buf(),
-        git_dir: git_dir.to_path_buf(),
-    };
+    let place: RecoveryPlace = RecoveryPlace::settling(&session.context, git_dir, root);
     if !moved.succeeded() {
         let detail: String = moved.error_text();
         let lock_taken: bool = detail.contains("index.lock");
