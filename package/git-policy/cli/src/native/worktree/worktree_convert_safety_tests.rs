@@ -250,6 +250,33 @@ fn a_same_size_edit_during_the_proving_pass_keeps_the_old_tree() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A same-size edit made to the *installed* copy after the proof,
+/// with its modification time put back,
+/// keeps the old tree and is named.
+/// Why:
+///  Only the old file's change time decided whether the contents were read,
+/// so an edit to the installed file
+///  left both sides equal by every compared field,
+/// and the old tree,
+/// the only copy of the earlier bytes,
+///  was deleted.
+#[test]
+fn a_same_size_edit_to_the_installed_copy_keeps_the_old_tree() {
+    let (parent, _root, worktree) = quiet_worktree("safety-installed-edit");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    let installed: PathBuf = worktree.join("script.sh");
+    let before: std::fs::Metadata = std::fs::metadata(&installed).expect("the installed copy");
+    let mut bytes: Vec<u8> = std::fs::read(&installed).expect("its bytes");
+    bytes[0] = b'B';
+    std::fs::write(&installed, &bytes).expect("an edit of the same length");
+    std::fs::OpenOptions::new().write(true).open(&installed).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("script.sh") && message.contains("contents") && message.contains("kept"), "{message}");
+    remove(parent.as_path());
+}
+
 /// A difference between the old tree and the installed one keeps the old tree and is reported;
 /// nothing is ever copied from the
 ///  old tree,
