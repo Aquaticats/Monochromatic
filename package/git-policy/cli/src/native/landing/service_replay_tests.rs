@@ -108,6 +108,78 @@ fn edits_of_the_same_line_conflict_and_the_first_commit_is_named() {
     remove(world.root.as_path());
 }
 
+//region names that alias under one encoding
+// What: a name whose bytes are read as Latin-1 and written as UTF-8 spells a different real name.
+// Why: the synthetic merge base is an index:
+//  its records are bytes, so each name must reach Git as the bytes it came from.
+
+/// A name with a two-byte UTF-8 character.
+const NON_ASCII_FILE: &str = "é.txt";
+
+/// The real,
+/// distinct name that `NON_ASCII_FILE`'s bytes spell when they are read as Latin-1 and written as UTF-8.
+const ALIASING_FILE: &str = "Ã©.txt";
+
+/// The exact bytes of one file of a tree.
+fn file_bytes_of(world: &World, tree: &str, name: &str) -> Vec<u8> {
+    return git(world.repo.as_path(), &["show", format!("{tree}:{name}").as_str()]).stdout;
+}
+
+/// The mode and type a tree records for one name,
+/// nothing when the tree holds no such name.
+fn recorded_mode(world: &World, tree: &str, name: &str) -> Option<Vec<u8>> {
+    let listing: Vec<u8> = git(world.repo.as_path(), &["ls-tree", "-z", tree]).stdout;
+    for record in listing.split(|byte| { return *byte == 0; }) {
+        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else { continue };
+        if record[tab + 1..] == *name.as_bytes() {
+            return Some(record[..tab].to_vec());
+        }
+    }
+    return None;
+}
+
+/// A conflict on one name keeps the landed edit of a different name whose bytes that name spells:
+/// the synthetic base holds each name as its own bytes,
+/// so an edit meant for one file never lands on another.
+#[test]
+fn a_conflict_on_one_name_keeps_the_other_names_landed_edit() {
+    let root: PathBuf = fixture("replay-non-ascii-names");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let base_text: &str = "a\nb\nc\nd\n";
+    let landed_text: &str = "a\nB\nc\nd\n";
+    let prepared_text: &str = "a\nB\nC\nd\n";
+    std::fs::write(repo.join(NON_ASCII_FILE), base_text).expect("base file");
+    std::fs::write(repo.join(ALIASING_FILE), "unrelated base\n").expect("base file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join(NON_ASCII_FILE), landed_text).expect("landed file");
+    std::fs::write(repo.join(ALIASING_FILE), landed_text).expect("landed file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=landed"]);
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "mine", base.as_str()]);
+    std::fs::write(repo.join(NON_ASCII_FILE), prepared_text).expect("prepared file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=mine"]);
+    let tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::create_dir(root.join("scratch")).expect("scratch");
+    let world: World = World { root, repo, context: git_context(), base };
+    let mine: Captured = Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
+    let merged_tree: String = match merge(&world, &mine) {
+        Merged::Tree(merged) | Merged::Combined { tree: merged, .. } => merged,
+        Merged::Conflict(paths) => panic!("the captured bytes contain the landed edit of the conflicting name: {paths:?}"),
+    };
+    assert_eq!(file_bytes_of(&world, merged_tree.as_str(), NON_ASCII_FILE), prepared_text.as_bytes(), "the captured bytes land");
+    assert_eq!(file_bytes_of(&world, merged_tree.as_str(), ALIASING_FILE), landed_text.as_bytes(), "the other name keeps its landed edit");
+    for name in [NON_ASCII_FILE, ALIASING_FILE] {
+        let recorded: Vec<u8> = recorded_mode(&world, merged_tree.as_str(), name).unwrap_or_else(|| { panic!("{name} is missing from the merged tree") });
+        let mode: String = String::from_utf8_lossy(recorded.as_slice()).into_owned();
+        assert!(mode.starts_with("100644 blob "), "{name}: {mode}");
+    }
+    remove(world.root.as_path());
+}
+
+//endregion
+
 /// A captured file that already holds the landed edit and one more on the next line lands as captured:
 /// Git alone calls the
 ///  adjacent hunks a conflict,

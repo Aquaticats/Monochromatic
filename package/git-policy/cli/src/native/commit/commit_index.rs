@@ -35,7 +35,7 @@ use crate::transaction_journal::TransactionMode;
 /// The index copy steps,
 /// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
-use crate::commit_index_copying::{PrivateIndexSeed, copy_index_failure, private_index_seed};
+use crate::commit_index_copying::{PrivateIndexSeed, copy_index_failure, drop_intent_to_add, private_index_seed};
 /// The note of how each build was made,
 /// which the commit's timing record takes.
 use crate::commit_index_builds::{IndexBuildKind, note_index_build};
@@ -300,7 +300,8 @@ fn stage_into_the_private_index(
 /// and the tree is read into a fresh index;
 /// an index whose only marks are intent-to-add entries is copied as it is,
 /// so the commit keeps the real index's stat data,
-///  and the reset below leaves those marks as Git's own reset does.
+///  and the paths those marks name are written as the requested tree's own entries before the reset,
+/// so a scratch-commit hook that invalidates the cached tree cannot leave one of them out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -327,6 +328,17 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, WorktreeStaging::None);
     if seed != PrivateIndexSeed::Base {
         copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
+        if let PrivateIndexSeed::CopyWithIntentToAdd(paths) = &seed {
+            // Before the reset, so the tree writes its own entry over each path rather than a mark that leaves it out.
+            drop_intent_to_add(
+                context,
+                cwd,
+                indexes.commit_index.as_path(),
+                indexes.object_directory.as_path(),
+                paths.as_slice(),
+                tree.len(),
+            )?;
+        }
         arguments.push(String::from("--reset"));
     }
     arguments.push(tree.to_string());

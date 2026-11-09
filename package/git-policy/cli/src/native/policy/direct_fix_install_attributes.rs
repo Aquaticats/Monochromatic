@@ -1,0 +1,436 @@
+//! What:
+//!  The extended attributes a file carries outside its bytes:
+//!  reading them from the file a fix replaces,
+//!  giving them to
+//!       its replacement,
+//!  and the value each one holds.
+//! Why:
+//!  An extended attribute is data of the person's that no commit holds:
+//!  Git stores bytes and a
+//!       mode,
+//!  so a draft kept in `user.draft`,
+//!  or the access-control list that decides who may read a
+//!       file,
+//!  exists nowhere else.
+//!  A replacement that did not carry them would delete the only copy,
+//!  which is
+//!       the loss the owner forbids;
+//!  so a replacement either carries every attribute the file lists or the fix
+//!       refuses that file and says which attribute it could not keep.
+//!
+//! What is out of reach:
+//!  a namespace this process may not list (another user's `trusted.*`)
+//!  is invisible here,
+//!  so an
+//!       attribute the kernel does not report cannot be carried or counted;
+//!  `SPEC.md` names that limit.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // const attributes = await listxattr(path).map((name) => ({ name, value: await getxattr(path, name) }));
+//! // for (const { name, value } of attributes) await fsetxattr(file, name, value);
+//! ```
+
+/// `CStr` is a NUL-terminated name for the system calls;
+///  `CString` is one this code builds.
+use std::ffi::{CStr, CString};
+/// `File` is the open replacement the attributes are given to.
+use std::fs::File;
+/// `OsStrExt` lends a path's bytes.
+use std::os::unix::ffi::OsStrExt;
+/// `AsRawFd` lends the descriptor the system calls take.
+use std::os::unix::io::AsRawFd;
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
+
+/// How many times a list or a value is asked for before a changing file is refused.
+///  Exempt from a citation under `LQM` (class:
+/// poll):
+/// it sets how often a condition is looked at again,
+/// so it adds at
+///  most one retry to a read that already exists.
+/// Why:
+///   The kernel answers a list that grew between the size question and the answer with `ERANGE`,
+///  and a
+///       second answer is the usual end of it;
+///  a file whose attributes keep changing has no list this
+///       process can name,
+///  so the reading stops rather than loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ATTRIBUTE_ATTEMPTS = 4;
+/// ```
+const ATTRIBUTE_ATTEMPTS: u32 = 4;
+
+/// What:
+///  One extended attribute:
+///  its name as the kernel spells it,
+///  and the bytes it holds.
+/// Why:
+///  A name is a property of the file,
+///  so it is carried beside its value and never inferred;
+///  the order
+///       of two attributes is their names' order,
+///  so two files' lists compare as one sequence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Attribute = { name: Uint8Array; value: Uint8Array };
+/// ```
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct Attribute {
+    /// The attribute's name,
+    ///  as `user.draft` or `system.posix_acl_access`.
+    pub(crate) name: Vec<u8>,
+    /// The bytes the attribute holds.
+    pub(crate) value: Vec<u8>,
+}
+
+impl Attribute {
+    /// What:
+    ///  The attribute's name as text a person reads.
+    /// Why:
+    ///  A refusal names the attribute it could not keep,
+    ///  and an attribute name is almost always text;
+    ///  a byte that is not text is shown as a replacement character rather than failing the message.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const displayName = (attribute) => Buffer.from(attribute.name).toString('utf8');
+    /// ```
+    pub(crate) fn display_name(&self) -> String {
+        return String::from_utf8_lossy(self.name.as_slice()).into_owned();
+    }
+}
+
+/// What:
+///  A pathname as the system calls want it.
+/// Why:
+///   They take NUL-terminated bytes,
+///  and a pathname holding a NUL byte cannot name a file at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = (path) => Buffer.concat([path, Buffer.from([0])]);
+/// ```
+#[cfg(unix)]
+fn name_of(path: &Path) -> Result<CString, std::io::Error> {
+    let text: Result<CString, std::ffi::NulError> = CString::new(path.as_os_str().as_bytes());
+    return match text {
+        Ok(built) => Ok(built),
+        Err(_invalid) => Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
+    };
+}
+
+/// Whether `byte` is the zero that separates two attribute names in a list.
+/// Why:
+///   The list is one buffer of names,
+///  each one NUL-terminated,
+///  so the separator is what splits them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isZero = (byte) => byte === 0;
+/// ```
+#[cfg(unix)]
+fn is_zero(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// Whether a listed name is one,
+///  rather than the empty rest after a final separator.
+/// Why:
+///   The list ends with a zero,
+///  which would otherwise read as an attribute with an empty name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = (name) => name.length > 0;
+/// ```
+#[cfg(unix)]
+fn named(name: &&[u8]) -> bool {
+    return !name.is_empty();
+}
+
+/// What:
+///  The names of every extended attribute of the regular file at `path`,
+///  in the order the kernel
+///       lists them.
+/// Why:
+///   The list is what the replacement must carry;
+///  a namespace the kernel does not report here is one this
+///       process cannot see,
+///  and `SPEC.md` records that limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = (path) => llistxattr(path).split('\0').filter(Boolean);
+/// ```
+#[cfg(unix)]
+fn names_of_attributes(path: &Path) -> std::io::Result<Vec<Vec<u8>>> {
+    let text: CString = name_of(path)?;
+    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
+        // SAFETY: a null buffer with size 0 asks the system for the length of the list.
+        let length: libc::ssize_t = unsafe { libc::llistxattr(text.as_ptr(), std::ptr::null_mut(), 0) };
+        if length < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let mut names: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
+        // SAFETY: `names` holds `names.len()` writable bytes, and the path outlives the call.
+        let filled: libc::ssize_t =
+            unsafe { libc::llistxattr(text.as_ptr(), names.as_mut_ptr().cast(), names.len()) };
+        if filled < 0 {
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::ERANGE) {
+                continue;
+            }
+            return Err(error);
+        }
+        names.truncate(usize::try_from(filled).unwrap_or(0));
+        return Ok(names
+            .split(is_zero)
+            .filter(named)
+            .map(<[u8]>::to_vec)
+            .collect());
+    }
+    return Err(std::io::Error::other(
+        "the list of its extended attributes kept changing while it was read",
+    ));
+}
+
+/// What:
+///  The bytes the extended attribute `attribute` holds on the file at `path`.
+/// Why:
+///   The value is the person's data,
+///  and a name whose value cannot be read is a refusal rather than an
+///       attribute left behind on the replacement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const value = (path, attribute) => lgetxattr(path, attribute);
+/// ```
+#[cfg(unix)]
+fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
+    let text: CString = name_of(path)?;
+    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
+        // SAFETY: a null buffer with size 0 asks the system for the length of the value.
+        let length: libc::ssize_t =
+            unsafe { libc::lgetxattr(text.as_ptr(), name.as_ptr(), std::ptr::null_mut(), 0) };
+        if length < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let mut value: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
+        // SAFETY: `value` holds `value.len()` writable bytes, and both names outlive the call.
+        let read: libc::ssize_t = unsafe {
+            libc::lgetxattr(
+                text.as_ptr(),
+                name.as_ptr(),
+                value.as_mut_ptr().cast(),
+                value.len(),
+            )
+        };
+        if read < 0 {
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::ERANGE) {
+                continue;
+            }
+            return Err(error);
+        }
+        value.truncate(usize::try_from(read).unwrap_or(0));
+        return Ok(value);
+    }
+    return Err(std::io::Error::other(
+        "its value kept changing while it was read",
+    ));
+}
+
+/// What:
+///  Every extended attribute of the regular file at `path`,
+///  in name order,
+///  read without following a
+///       symbolic link.
+///  `&str` names the step that failed,
+///  for the person's message.
+/// Why:
+///   A fix replaces a file only when it can carry what the file holds,
+///  so the list is read before anything is
+///       written,
+///  and a value this process may not read refuses the correction instead of dropping a
+///       namespace silently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attributesOf = (path, step) => listxattr(path).sort().map((name) => ({ name, value: getxattr(path, name) }));
+/// ```
+#[cfg(unix)]
+pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, String> {
+    let names: Vec<Vec<u8>> = match names_of_attributes(path) {
+        Ok(listed) => listed,
+        Err(error) => return Err(unreadable_list(step, &error)),
+    };
+    let mut found: Vec<Attribute> = Vec::with_capacity(names.len());
+    for name in names {
+        let Ok(text) = CString::new(name.as_slice()) else {
+            return Err(unaddressable_name(step));
+        };
+        let value: Vec<u8> = match value_of_attribute(path, text.as_c_str()) {
+            Ok(read) => read,
+            Err(error) => return Err(unreadable_value(step, name.as_slice(), &error)),
+        };
+        found.push(Attribute { name, value });
+    }
+    found.sort();
+    return Ok(found);
+}
+
+/// What:
+///  The failure sentence of a list this process could not read.
+/// Why:
+///   A list that cannot be read means the fix cannot tell what it would delete,
+///  so the sentence is a refusal rather than a note.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unreadableList = (step, error) => `${step} failed (${error})`;
+/// ```
+#[cfg(unix)]
+fn unreadable_list(step: &str, error: &std::io::Error) -> String {
+    return format!("{step} failed ({error})");
+}
+
+/// What:
+///  The failure sentence of an attribute name this process cannot address.
+/// Why:
+///   The system calls take NUL-terminated names,
+///  and a name holding a NUL cannot be one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unaddressableName = (step) => `${step} failed (the system named an extended attribute this process cannot address)`;
+/// ```
+#[cfg(unix)]
+fn unaddressable_name(step: &str) -> String {
+    return format!(
+        "{step} failed (the system named an extended attribute this process cannot address)"
+    );
+}
+
+/// What:
+///  The failure sentence of a value this process could not read,
+///  naming the attribute.
+/// Why:
+///  The person must know which of their attributes is the one the fix cannot carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unreadableValue = (step, name, error) => `${step} failed (its extended attribute ${name} could not be read: ${error})`;
+/// ```
+#[cfg(unix)]
+fn unreadable_value(step: &str, name: &[u8], error: &std::io::Error) -> String {
+    return format!(
+        "{step} failed (its extended attribute {} could not be read: {error})",
+        String::from_utf8_lossy(name)
+    );
+}
+
+/// What:
+///  Every extended attribute of the file at `path`;
+///  this system has none.
+/// Why:
+///   The attributes are data of a Unix file,
+///  and a system without them has nothing for a replacement to carry.
+/// UNTESTED ON WINDOWS:
+///  no gate compiles or runs this branch (the crate does not build for Windows;
+///  README,
+///  Requirements).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attributesOf = () => [];
+/// ```
+#[cfg(not(unix))]
+pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, String> {
+    let _ = (path, step);
+    return Ok(Vec::new());
+}
+
+/// What:
+///  Give the open replacement at `file` each of `attributes`,
+///  and nothing else.
+///  `Result<(), (Attribute, std::io::Error)>` is the attribute the system refused and why.
+/// Why:
+///   The descriptor cannot be redirected by a swap of the name,
+///  so the attributes land on the file that will be
+///  swapped in;
+///  the first refusal stops the write,
+///  because a replacement missing one of the
+///       person's attributes must not be installed at all.
+///  An attribute already present with the value the person had is set
+///       the same way:
+///  a system label that the file was created with is then replaced by the label the
+///       person's file carried,
+///  and a refusal to replace it is a refusal to fix.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const { name, value } of attributes) { try { fsetxattr(file, name, value) } catch (error) { return { refused: name, error } } }
+/// ```
+#[cfg(unix)]
+pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attribute, std::io::Error)> {
+    let descriptor: libc::c_int = file.as_raw_fd();
+    for attribute in attributes {
+        let Ok(text) = CString::new(attribute.name.as_slice()) else {
+            return Err((
+                attribute.clone(),
+                std::io::Error::from(std::io::ErrorKind::InvalidInput),
+            ));
+        };
+        // SAFETY: the names are NUL-terminated strings, and `value` holds `value.len()` initialised bytes.
+        let result: libc::c_int = unsafe {
+            libc::fsetxattr(
+                descriptor,
+                text.as_ptr(),
+                attribute.value.as_ptr().cast(),
+                attribute.value.len(),
+                0,
+            )
+        };
+        if result != 0 {
+            return Err((attribute.clone(), std::io::Error::last_os_error()));
+        }
+    }
+    return Ok(());
+}
+
+/// What:
+///  Give the open replacement at `file` each of `attributes`;
+///  this system has none to give.
+/// Why:
+///   An attribute list is empty everywhere outside Unix,
+///  and one that is not is a state this system cannot produce.
+/// UNTESTED ON WINDOWS:
+///  no gate compiles or runs this branch (the crate does not build for Windows;
+///  README,
+///  Requirements).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const giveTo = (file, attributes) => attributes.length === 0 ? undefined : { refused: attributes[0], error: unsupported };
+/// ```
+#[cfg(not(unix))]
+pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attribute, std::io::Error)> {
+    let _ = file;
+    return match attributes.first() {
+        Some(attribute) => Err((
+            attribute.clone(),
+            std::io::Error::from(std::io::ErrorKind::Unsupported),
+        )),
+        None => Ok(()),
+    };
+}
+
+/// Attribute controls stay out of the release executable.
+#[cfg(test)]
+#[path = "direct_fix_install_attributes_tests.rs"]
+mod tests;
