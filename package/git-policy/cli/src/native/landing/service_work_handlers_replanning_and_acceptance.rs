@@ -312,8 +312,15 @@ impl Replanning {
     /// Ask the plan to drop the branch:
     /// its push landed,
     /// or the person must act.
+    /// The moment is kept,
+    /// because the loop applies this after the round,
+    /// and a plan another worker keeps meanwhile is newer than it.
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+        self.changes.push(RetryChange::Forget {
+            git_dir: git_dir.to_path_buf(),
+            branch_ref: branch_ref.to_string(),
+            made: std::time::SystemTime::now(),
+        });
     }
 
     /// What:

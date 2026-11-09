@@ -36,11 +36,11 @@
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk.
-use crate::push_retry_store::{StoredPlan, load, remove, save};
+use crate::push_retry_store::{StoredPlan, load, remove_before, save};
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Environment variable that sets,
 /// in whole seconds,
@@ -344,6 +344,9 @@ pub enum RetryChange {
         git_dir: PathBuf,
         /// The branch reference.
         branch_ref: String,
+        /// When the forget was asked:
+        /// a plan kept after this moment is a newer statement about the branch and stays.
+        made: SystemTime,
     },
 }
 
@@ -453,9 +456,15 @@ impl PushRetries {
     /// its push landed,
     /// or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.forget_before(git_dir, branch_ref, SystemTime::now());
+    }
+
+    /// `forget` for a change that was asked at `made`:
+    /// a plan kept after that moment is a newer statement and stays on disk.
+    pub fn forget_before(&mut self, git_dir: &Path, branch_ref: &str, made: SystemTime) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
-            remove(directory, git_dir, branch_ref);
+            remove_before(directory, git_dir, branch_ref, made);
         }
     }
 
@@ -465,7 +474,7 @@ impl PushRetries {
         for change in changes {
             match change {
                 RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
-                RetryChange::Forget { git_dir, branch_ref } => self.forget(git_dir.as_path(), branch_ref.as_str()),
+                RetryChange::Forget { git_dir, branch_ref, made } => self.forget_before(git_dir.as_path(), branch_ref.as_str(), made),
             }
         }
     }
