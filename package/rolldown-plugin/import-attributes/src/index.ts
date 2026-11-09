@@ -34,6 +34,8 @@ import {
 } from 'node:path';
 import type {
   Plugin,
+  PluginContext,
+  ResolveIdExtraOptions,
   ResolveIdResult,
 } from 'rolldown';
 
@@ -52,6 +54,120 @@ import {
 } from './transform.ts';
 
 export { importAttributesPlugin, };
+
+//region Resolve and tag
+
+/**
+ Returns the file path of module ID, without any query parameters.
+ 
+ An importer ID can carry a query of its own (`main.ts?variant=1`), and only the
+ path before it names a file that exists on disk, so both the record read and the
+ directory used for a relative fallback take this form.
+ 
+ @param id - module ID that may carry a query string
+ 
+ @returns path before the first `?`, or the ID itself when it carries none
+ 
+ @example
+ ```ts
+ filePathOf('/project/src/main.ts?__importattr=text'); // '/project/src/main.ts'
+ ```
+ */
+function filePathOf(id: string,): string {
+  return id.split('?',)[0]
+    ?? id;
+}
+
+/**
+ Resolves one specifier and tags the result with the attribute query, so the
+ load hook can hand the file to the handler for that attribute type.
+ 
+ Both resolveId entry paths call this: the query-tagged specifier the transform
+ already rewrote, and the untagged specifier whose clause the importer scan
+ found. Rolldown's own resolver answers first; when it returns `null` a relative
+ specifier falls back to the importer-relative absolute path, which is how a
+ file rolldown cannot resolve on its own still loads through the handler.
+ 
+ @param context - plugin context whose `resolve` runs rolldown's resolver
+ 
+ @param specifier - specifier to resolve, already stripped of any attribute query
+ 
+ @param importer - importing module, or `undefined` for an entry
+ 
+ @param attrType - attribute type encoded into the resolved ID
+ 
+ @param options - extra options the resolveId hook received; forwarded as a copy
+ 
+ @returns tagged resolution, or `null` when neither the resolver nor the relative fallback applies
+ 
+ @example
+ ```ts
+ const resolved = await resolveTaggedSpecifier({
+   context: this,
+   specifier: './schema.sql',
+   importer: '/project/src/main.ts',
+   attrType: 'text',
+   options,
+ });
+ // resolved.id: '/project/src/schema.sql?__importattr=text'
+ ```
+ */
+async function resolveTaggedSpecifier({
+  context,
+  specifier,
+  importer,
+  attrType,
+  options,
+}: {
+  readonly context: PluginContext;
+  readonly specifier: string;
+  readonly importer: string | undefined;
+  readonly attrType: string;
+  readonly options: ResolveIdExtraOptions;
+},): Promise<ResolveIdResult> {
+  /**
+   Resolved descriptor from the underlying resolver; `null` triggers the relative-path fallback.
+   */
+  const resolved = await context.resolve(
+    specifier,
+    importer,
+    {
+      ...options,
+      skipSelf: true,
+    },
+  );
+
+  if (resolved !== null) {
+    return {
+      id: `${resolved.id}?${ATTR_QUERY_KEY}=${attrType}`,
+      external: false,
+    };
+  }
+
+  /**
+   An entry has no directory to resolve against, and an absolute or bare specifier has no relative base either.
+   */
+  if ((importer === undefined) || (!specifier.startsWith('.',)))
+    return null;
+
+  /**
+   Importer directory used as the base for the relative-resolution fallback; the attribute query is not part of the path.
+   */
+  const importerDir = dirname(filePathOf(importer,),);
+  /**
+   Absolute path produced when the resolver could not locate the target.
+   */
+  const absolutePath = resolve(
+    importerDir,
+    specifier,
+  );
+  return {
+    id: `${absolutePath}?${ATTR_QUERY_KEY}=${attrType}`,
+    external: false,
+  };
+}
+
+//endregion Resolve and tag
 
 //region Plugin factory
 
@@ -126,115 +242,41 @@ function importAttributesPlugin(): Plugin {
        */
       const queryAttrType = extractAttrType(source,);
       if (queryAttrType !== NO_QUERY_ATTR) {
-        /**
-         Specifier without the attribute query so the downstream resolver can locate the file.
-         */
-        const cleanSource = stripAttrQuery(source,);
-
-        /**
-         Resolved descriptor from the underlying resolver; `null` triggers the relative-path fallback.
-         */
-        const resolved = await this.resolve(
-          cleanSource,
+        return await resolveTaggedSpecifier({
+          context: this,
+          specifier: stripAttrQuery(source,),
           importer,
-          {
-            ...options,
-            skipSelf: true,
-          },
-        );
-
-        if (resolved !== null) {
-          return {
-            id: `${resolved.id}?${ATTR_QUERY_KEY}=${queryAttrType}`,
-            external: false,
-          };
-        }
-
-        if ((importer !== undefined) && (cleanSource
-          .startsWith('.',))) {
-          /**
-           Importer directory used as the base for resolving the relative specifier.
-           */
-          const importerDir = dirname(importer.split('?',)[0]
-            ?? importer,);
-          /**
-           Absolute path produced when the resolver could not locate the target.
-           */
-          const absolutePath = resolve(
-            importerDir,
-            cleanSource,
-          );
-          return {
-            id: `${absolutePath}?${ATTR_QUERY_KEY}=${queryAttrType}`,
-            external: false,
-          };
-        }
-
-        return null;
+          attrType: queryAttrType,
+          options,
+        },);
       }
+
+      /*
+       Every remaining case handles an untagged specifier, where only the
+       importer's own source can say whether an attribute clause was written.
+       */
+      if (importer === undefined)
+        return null;
 
       /**
-       For untagged specifiers from an importer, scan the importer's source
-       to check if this import has an attribute clause.
-       This catches dynamic imports that rolldown's scanner discovered
-       from the original AST before `transform` could rewrite them.
+       Attribute type discovered by scanning the importer's AST for this specifier.
        */
-      if (importer !== undefined) {
-        /**
-         Importer path stripped of any attribute query; used both as scan target and base directory.
-         */
-        const cleanImporter = importer.split('?',)[0]
-          ?? importer;
-        /**
-         Attribute type discovered by scanning the importer's AST for this specifier.
-         */
-        const attrType = await scanImporterForAttribute({
-          specifier: source,
-          importerPath: cleanImporter,
-          importerSourceCache,
-        },);
+      const attrType = await scanImporterForAttribute({
+        specifier: source,
+        importerPath: filePathOf(importer,),
+        importerSourceCache,
+      },);
 
-        if (attrType !== NO_ATTR_TYPE) {
-          /**
-           Resolved descriptor for an untagged dynamic-import specifier; `null` triggers the relative fallback.
-           */
-          const resolved = await this.resolve(
-            source,
-            importer,
-            {
-              ...options,
-              skipSelf: true,
-            },
-          );
+      if (attrType === NO_ATTR_TYPE)
+        return null;
 
-          if (resolved !== null) {
-            return {
-              id: `${resolved.id}?${ATTR_QUERY_KEY}=${attrType}`,
-              external: false,
-            };
-          }
-
-          if (source.startsWith('.',)) {
-            /**
-             Importer directory used as the base for the relative-resolution fallback.
-             */
-            const importerDir = dirname(cleanImporter,);
-            /**
-             Absolute path produced when the resolver returned `null`.
-             */
-            const absolutePath = resolve(
-              importerDir,
-              source,
-            );
-            return {
-              id: `${absolutePath}?${ATTR_QUERY_KEY}=${attrType}`,
-              external: false,
-            };
-          }
-        }
-      }
-
-      return null;
+      return await resolveTaggedSpecifier({
+        context: this,
+        specifier: source,
+        importer,
+        attrType,
+        options,
+      },);
     },
 
     /**
