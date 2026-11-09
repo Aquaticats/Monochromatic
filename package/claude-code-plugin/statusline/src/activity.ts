@@ -6,7 +6,10 @@
 
 import { openAsBlob, } from 'node:fs';
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
 import { findGerundInText, } from './gerund.ts';
 
 //region Transcript tail
@@ -119,7 +122,15 @@ function parseJsonLine(line: string,): unknown {
   try {
     return JSON.parse(line,);
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // A transcript's final line is still being written while the session is
+    // live, so an unparsable line is ordinary and this stays at debug; the
+    // caught value still names why the line carried no word.
+    tagged({
+      tag: parseJsonLine.name,
+      l: diagnosticLogger,
+    },)
+      .debug(`transcript line is not JSON: ${caughtValueText(error,)}`,);
     return undefined;
   }
 }
@@ -262,7 +273,14 @@ async function readActivityWord({
     }
     return '';
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // Without the transcript the status line loses its activity word, so the
+    // path and the read failure are both reported.
+    tagged({
+      tag: readActivityWord.name,
+      l: diagnosticLogger,
+    },)
+      .debug(`activity word unavailable because ${transcriptPath} could not be read: ${caughtValueText(error,)}`,);
     return '';
   }
 }

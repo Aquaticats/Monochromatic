@@ -17,8 +17,11 @@ import {
   extname,
   join,
 } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 
 import { readActivityWord, } from './activity.ts';
+import { diagnosticLogger, } from './diagnostic-logger.ts';
 import { findGerundInText, } from './gerund.ts';
 
 //region Memory file
@@ -101,7 +104,14 @@ async function readRememberedWord({
       ? word
       : '';
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // A session's first render has no remembered word, which is ordinary, so
+    // this stays at debug; the path names which memory file was unreadable.
+    tagged({
+      tag: readRememberedWord.name,
+      l: diagnosticLogger,
+    },)
+      .debug(`remembered activity word unreadable from ${memoryPath}: ${caughtValueText(error,)}`,);
     return '';
   }
 }
@@ -135,8 +145,15 @@ async function writeRememberedWord({
       `${word}\n`,
     );
   }
-  catch (_error: unknown) {
-    // A statusline must still render when the memory is not writable.
+  catch (error: unknown) {
+    // The status line still renders without the memory, but the activity word
+    // stops surviving renders that find no gerund, so the write failure is
+    // reported with the path it could not reach.
+    tagged({
+      tag: writeRememberedWord.name,
+      l: diagnosticLogger,
+    },)
+      .debug(`remembered activity word not persisted to ${memoryPath}: ${caughtValueText(error,)}`,);
   }
 }
 

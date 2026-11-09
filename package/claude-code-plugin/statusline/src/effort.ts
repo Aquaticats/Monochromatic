@@ -5,6 +5,10 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
 
 //region Constants
 
@@ -64,7 +68,15 @@ function effortLevelFromSettings(raw: string,): string {
       ? level
       : DEFAULT_EFFORT_LEVEL;
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // The effort indicator disappears from the status line while the settings
+    // file stays unparsable, so the reason has to be recoverable: the caught
+    // value names what made the text invalid.
+    tagged({
+      tag: effortLevelFromSettings.name,
+      l: diagnosticLogger,
+    },)
+      .debug(`settings JSON is unparsable, so the effort level stays unknown: ${caughtValueText(error,)}`,);
     return DEFAULT_EFFORT_LEVEL;
   }
 }
@@ -84,15 +96,15 @@ function effortLevelFromSettings(raw: string,): string {
  ```
  */
 async function readEffortIndicator(): Promise<string> {
+  /**
+   User home directory; empty path simply fails to resolve settings.
+   */
+  const { HOME: home = '', } = process.env;
+  /**
+   Path to the global Claude Code settings file storing `effortLevel`.
+   */
+  const settingsPath = `${home}/.claude/settings.json`;
   try {
-    /**
-     User home directory; empty path simply fails to resolve settings.
-     */
-    const { HOME: home = '', } = process.env;
-    /**
-     Path to the global Claude Code settings file storing `effortLevel`.
-     */
-    const settingsPath = `${home}/.claude/settings.json`;
     /**
      Raw JSON read from disk.
      */
@@ -106,7 +118,15 @@ async function readEffortIndicator(): Promise<string> {
     const level = effortLevelFromSettings(raw,);
     return EFFORT_SYMBOLS[level] ?? '';
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // A home without a settings file is ordinary, and so is this line: the
+    // reason still names the file the level was read from, so an unreadable
+    // settings file is distinguishable from a missing one.
+    tagged({
+      tag: readEffortIndicator.name,
+      l: diagnosticLogger,
+    },)
+      .debug(`effort level unreadable from ${settingsPath}: ${caughtValueText(error,)}`,);
     return '';
   }
 }

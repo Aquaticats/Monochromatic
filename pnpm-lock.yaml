@@ -1159,6 +1159,12 @@ importers:
       '@monochromatic-dev/agent-harness-shared-usage-projection':
         specifier: workspace:*
         version: link:../../agent-harness-shared/usage-projection
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
