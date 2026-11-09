@@ -12,9 +12,9 @@
 //! index,
 //! objects,
 //! conclusion state,
-//! lock files) stay the shadow's own
-//!  (`src/shadow-repository/shadow-links.ts`).
-//!  On Windows the incumbent uses junctions and copies;
+//! lock files) stay the shadow's own.
+//!  On Windows the TypeScript wrapper (deleted on 2026-10-13 in `642b6d72cb`) used junctions and
+//!  copies;
 //!  this port uses directory symbolic links and copies,
 //! because the standard library has no junction API.
 //!

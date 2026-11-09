@@ -118,6 +118,12 @@ fn workers_by_address_space(left: u64) -> usize {
 /// const workers = Math.min(workerBudget(...), (threadsLeft - 1) / 2, (addressLeft - reserve) / (2 * threadBytes));
 /// ```
 pub fn budgeted_workers(host: &HostResources, limits: &RuntimeLimits) -> usize {
+    // A control can give this process more room than the CPUs allow, so a control that proves its work overlaps
+    //  runs at any CPU quota (`room_for_blocking_jobs_in_a_control.rs`).
+    #[cfg(test)]
+    if let Some(room) = crate::room_for_blocking_jobs_in_a_control::the_room() {
+        return room;
+    }
     let by_budget: usize = worker_budget(&BudgetRequest {
         items: usize::MAX,
         per_item_memory: WORKER_RESIDENT_BYTES,

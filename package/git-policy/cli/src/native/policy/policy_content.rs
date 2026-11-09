@@ -37,6 +37,9 @@ use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the change a converged fix installs,
 ///  which also records a corrected file.
 use crate::direct_fix_install::InstallChange;
+/// Import the event form of a pathname,
+///  which a skipped check names.
+use crate::event_path::EventPath;
 /// Import the outcome a check returns.
 use crate::policy_engine::PolicyOutcome;
 /// Import the facts interface that prepares candidates.
@@ -247,12 +250,58 @@ fn overlaid_bytes(
 /// const candidateFailure = (error: CandidateError): PolicyOutcome => ({ kind: 'failed', code: candidateFailureCode(error.failure), message: error.message });
 /// ```
 pub fn candidate_failure(error: &CandidateError) -> PolicyOutcome {
+    // What: A read the wrapper ended is its own answer, because its hint is its own: fetching history answers a
+    //       missing object and nothing about a Git that stopped answering.
+    // Why:  The person must be told that nothing changed and to run the command again, not to fetch.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (error.failure === 'git-stopped') return { kind: 'stopped', message: error.message, path: undefined };
+    // ```
+    if error.failure == CandidateFailure::GitStopped {
+        return PolicyOutcome::Stopped {
+            message: error.message.clone(),
+            path: None,
+        };
+    }
     return PolicyOutcome::Failed {
         code: candidate_failure_code(error.failure),
         // `.clone()` copies the message the remembered failure keeps.
         message: error.message.clone(),
         // `None`: the layer's failures name no candidate.
         path: None,
+    };
+}
+
+/// What:
+///  The outcome of a failed read of one candidate:
+///  a skipped check for an object larger than a check reads
+///       whole,
+///  and the failure every other cause is.
+/// Why:
+///   The owner's "commits should never fail" and the memory bound meet here:
+///  the file is named,
+///  the
+///       check is named,
+///  and the pass goes on instead of reading 256 MiB or refusing the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readFailure = (candidate, error) => error.failure === 'object-too-large' ? { kind: 'skipped', path: candidate.path, message: error.message } : candidateFailure(error);
+/// ```
+pub fn candidate_read_failure(candidate: &Candidate, error: &CandidateError) -> PolicyOutcome {
+    if error.failure == CandidateFailure::GitStopped {
+        return PolicyOutcome::Stopped {
+            message: error.message.clone(),
+            path: Some(EventPath::from_git_bytes(candidate.path.as_slice())),
+        };
+    }
+    if error.failure != CandidateFailure::ObjectTooLarge {
+        return candidate_failure(error);
+    }
+    return PolicyOutcome::Skipped {
+        message: error.message.clone(),
+        path: Some(EventPath::from_git_bytes(candidate.path.as_slice())),
     };
 }
 
@@ -369,7 +418,7 @@ impl ContentState {
             Some(Ok(prepared)) => {
                 match overlaid_bytes(&mut prepared.store, &self.corrected, candidate) {
                     Ok(read) => return Ok(read),
-                    Err(error) => return Err(candidate_failure(&error)),
+                    Err(error) => return Err(candidate_read_failure(candidate, &error)),
                 }
             }
             Some(Err(_)) | None => return Err(candidate_failure(&not_prepared_error())),

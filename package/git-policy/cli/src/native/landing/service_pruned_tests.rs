@@ -33,7 +33,7 @@ fn request(blob: &str) -> CommitRequest {
         git_dir: PathBuf::from("/nowhere/.git"),
         reference: String::from("refs/heads/main"),
         base: NAME.to_string(),
-        changes: vec![Change { path: String::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob.to_string()) }],
+        changes: vec![Change { path: PathBuf::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob.to_string()) }],
         message: String::from("m\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
