@@ -55,7 +55,7 @@ pub enum Event<'line, R> {
 }
 
 /// What a worker hands the consumer.
-enum Message<R> {
+pub(crate) enum Message<R> {
     /// A line an item said.
     Line(usize, String),
     /// An item is complete.
@@ -137,26 +137,61 @@ pub struct OrderedRun<'run, T, R> {
 }
 
 /// What the calling thread has reported so far.
-struct Cursor<R> {
+pub(crate) struct Cursor<R> {
     /// The first item that is not complete.
-    head: usize,
+    pub(crate) head: usize,
     /// Whether `Begin` was reported for `head`.
-    begun: bool,
+    pub(crate) begun: bool,
     /// The lines of items that are not the head yet,
     /// by index.
-    held_lines: Vec<Vec<String>>,
+    pub(crate) held_lines: Vec<Vec<String>>,
     /// The results of items that are complete but not reported,
     /// by index.
-    finished: Vec<Option<R>>,
+    pub(crate) finished: Vec<Option<R>>,
 }
 
 impl<R> Cursor<R> {
+    /// A cursor with nothing reported yet,
+    /// for `count` items.
+    pub(crate) fn new(count: usize) -> Self {
+        // One empty slot per item: no held lines and no result yet.
+        let mut held_lines: Vec<Vec<String>> = Vec::new();
+        held_lines.resize_with(count, Vec::new);
+        let mut finished: Vec<Option<R>> = Vec::new();
+        finished.resize_with(count, Option::default);
+        return Cursor { head: 0, begun: false, held_lines, finished };
+    }
+
+    /// What:
+    ///  Takes one message from a worker and reports whatever is now reportable.
+    /// Why:
+    ///   Every runner of this folder shares this one place,
+    /// so the order the consumer sees cannot drift between them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// cursor.tell(message, onEvent);
+    /// ```
+    pub(crate) fn tell(&mut self, message: Message<R>, on_event: &mut dyn OrderedEvents<R>) {
+        match message {
+            Message::Line(index, text) => {
+                if index == self.head && self.begun {
+                    on_event.on_event(Event::Line(index, text.as_str()));
+                } else {
+                    self.held_lines[index].push(text);
+                }
+            }
+            Message::Done(index, result) => self.finished[index] = Some(result),
+        }
+        self.advance(on_event);
+    }
+
     /// Report everything that is now reportable:
     /// the head begins,
     /// its held lines follow,
     /// and a complete head ends and the
     ///  next item becomes the head.
-    fn advance(&mut self, on_event: &mut dyn OrderedEvents<R>) {
+    pub(crate) fn advance(&mut self, on_event: &mut dyn OrderedEvents<R>) {
         loop {
             if self.head >= self.finished.len() {
                 return;
@@ -263,22 +298,35 @@ impl<'env, T: Sync + 'env, R: Send + 'env> ScopeBody<'env> for OrderedScope<'env
         drop(sender);
         cursor.advance(on_event);
         while let Ok(message) = receiver.recv() {
-            match message {
-                Message::Line(index, text) => {
-                    if index == cursor.head && cursor.begun {
-                        on_event.on_event(Event::Line(index, text.as_str()));
-                    } else {
-                        cursor.held_lines[index].push(text);
-                    }
-                }
-                Message::Done(index, result) => cursor.finished[index] = Some(result),
-            }
-            cursor.advance(on_event);
+            cursor.tell(message, on_event);
         }
         if let Some(payload) = inline_panic {
             std::panic::resume_unwind(payload);
         }
     }
+}
+
+/// What:
+///  Refuses lanes that do not name every item exactly once.
+/// Why:
+///   Both runners of this folder rest on it,
+/// and a lane set that leaves an item out would report a run that
+///  never ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assertLanesCoverEveryItem(items.length, lanes);
+/// ```
+pub(crate) fn refuse_lanes_that_do_not_cover_every_item(count: usize, lanes: &[Vec<usize>]) {
+    let mut covered: Vec<bool> = vec![false; count];
+    for &index in lanes.iter().flatten() {
+        let Some(slot) = covered.get_mut(index) else {
+            panic!("a lane names item {index}, but there are {count} items");
+        };
+        assert!(!*slot, "item {index} is in two lanes");
+        *slot = true;
+    }
+    assert!(!covered.contains(&false), "a lane set must cover every item");
 }
 
 /// What:
@@ -301,23 +349,10 @@ impl<'env, T: Sync + 'env, R: Send + 'env> ScopeBody<'env> for OrderedScope<'env
 /// or the lanes do not cover every item exactly once.
 pub fn run_ordered<T: Sync, R: Send>(run: OrderedRun<'_, T, R>) {
     let OrderedRun { items, lanes, workers, work, on_event } = run;
-    let mut covered: Vec<bool> = vec![false; items.len()];
-    for &index in lanes.iter().flatten() {
-        let Some(slot) = covered.get_mut(index) else {
-            panic!("a lane names item {index}, but there are {} items", items.len());
-        };
-        assert!(!*slot, "item {index} is in two lanes");
-        *slot = true;
-    }
-    assert!(!covered.contains(&false), "a lane set must cover every item");
+    refuse_lanes_that_do_not_cover_every_item(items.len(), lanes);
     let next_lane: AtomicUsize = AtomicUsize::new(0);
     let (sender, receiver) = channel::<Message<R>>();
-    // One empty slot per item: no held lines and no result yet.
-    let mut held_lines: Vec<Vec<String>> = Vec::new();
-    held_lines.resize_with(items.len(), Vec::new);
-    let mut finished: Vec<Option<R>> = Vec::new();
-    finished.resize_with(items.len(), Option::default);
-    let cursor: Cursor<R> = Cursor { head: 0, begun: false, held_lines, finished };
+    let cursor: Cursor<R> = Cursor::new(items.len());
     in_thread_scope(OrderedScope { items, lanes, workers, work, on_event, next_lane: &next_lane, sender, receiver, cursor });
 }
 

@@ -7071,7 +7071,7 @@ comments) and then hit GitHub's secondary rate limit mid-run:
 Repair,
 all applied and verified:
 
-1. `file-issues.ts` hardened (see the pipeline section above).
+1. `file-issues.ts` hardened (see the `Filing pipeline` section).
 2. `filed-log.jsonl` stripped from 671 to the 500 good entries;
    the 171 bad entries are in
    `filed-log.jsonl.bak-batch2`.
@@ -7362,8 +7362,10 @@ then files.
 
 Thirty-two children were created for the sweep.
 Twenty-seven died in the 2026-10-31 outage
-and are structurally unkillable and unrevivable (see the kill investigation above);
-their
+and are structurally unkillable and unrevivable;
+see the section
+`2026-10-31 kill investigation (user request: "kill all the failed subagents")`.
+Their
 work is relayed to the five live children.
 The live children are the worker pool now.
 

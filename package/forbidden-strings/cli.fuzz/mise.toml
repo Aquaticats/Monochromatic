@@ -5,11 +5,13 @@
 
 [tasks."lint:clippy:container"]
 description = "Check all fuzz sidecar targets with Clippy in the bounded mount-free offline snapshot"
-run = "node bin/smoke-container.ts --clippy"
+# Mechanism D: this task writes embedding-fuzz- and fuzz-clippy- records of its own, so it sweeps the run records first.
+run = ["cargo-shadow lean records target/verification", "node bin/smoke-container.ts --clippy"]
 
 [tasks."smoke:embedding:container"]
 description = "Fuzz native embedding snapshots with ASan in a mount-free offline 2 GiB / 2 CPU container"
-run = "node bin/smoke-container.ts"
+# Mechanism D: this task writes embedding-fuzz- and fuzz-clippy- records of its own, so it sweeps the run records first.
+run = ["cargo-shadow lean records target/verification", "node bin/smoke-container.ts"]
 
 [tasks.test]
 description = "cargo nextest run --lib (unit tests for the structured generator)"

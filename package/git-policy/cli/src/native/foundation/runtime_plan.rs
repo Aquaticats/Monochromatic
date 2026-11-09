@@ -103,6 +103,35 @@ fn workers_by_address_space(left: u64) -> usize {
 }
 
 /// What:
+///  How many workers the budget allows under the limits:
+/// `worker_budget` bounded by the threads and the address space the limits leave,
+/// and never below one.
+/// Why:
+///  The runtime's workers and the process's bound on blocking jobs are one figure,
+/// derived once here,
+/// so that a second copy of it cannot drift away and let more jobs run at once than the runtime has threads for.
+/// The count is one even where no worker fits,
+///  which is what `plan_runtime` needs to pick the current-thread runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const workers = Math.min(workerBudget(...), (threadsLeft - 1) / 2, (addressLeft - reserve) / (2 * threadBytes));
+/// ```
+pub fn budgeted_workers(host: &HostResources, limits: &RuntimeLimits) -> usize {
+    let by_budget: usize = worker_budget(&BudgetRequest {
+        items: usize::MAX,
+        per_item_memory: WORKER_RESIDENT_BYTES,
+        ceiling: None,
+        cap: None,
+        host,
+    });
+    // Each worker comes with a blocking-pool thread, and one more thread builds the runtime.
+    let by_threads: usize = limits.threads_left.map_or(usize::MAX, workers_by_threads);
+    let by_address_space: usize = limits.address_space_left.map_or(usize::MAX, workers_by_address_space);
+    return by_budget.min(by_threads).min(by_address_space);
+}
+
+/// What:
 ///  The plan for this host:
 /// the budget's worker count,
 /// bounded by the threads and the address space the limits leave,
@@ -120,17 +149,7 @@ fn workers_by_address_space(left: u64) -> usize {
 /// return workers < 1 ? { kind: 'current' } : { kind: 'multi', workers, blockingThreads: workers };
 /// ```
 pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan {
-    let by_budget: usize = worker_budget(&BudgetRequest {
-        items: usize::MAX,
-        per_item_memory: WORKER_RESIDENT_BYTES,
-        ceiling: None,
-        cap: None,
-        host,
-    });
-    // Each worker comes with a blocking-pool thread, and one more thread builds the runtime.
-    let by_threads: usize = limits.threads_left.map_or(usize::MAX, workers_by_threads);
-    let by_address_space: usize = limits.address_space_left.map_or(usize::MAX, workers_by_address_space);
-    let workers: usize = by_budget.min(by_threads).min(by_address_space);
+    let workers: usize = budgeted_workers(host, limits);
     if workers < 1 {
         return RuntimePlan::CurrentThread;
     }
