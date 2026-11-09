@@ -1425,7 +1425,8 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   it completes the conversion in place.
   `--abandon` undoes one that has not
   reached its swap,
-  destroying only the subvolume its journal says it created.
+  destroying only the subvolume its journal says it created,
+  and refuses while a process has a shell or a file open inside it (the process is named).
   It also reaches the copy a conversion left behind when its worktree was removed before the
   conversion was finished (a worktree path without a `.git` that still has `<path>.cli-git-converting`
   beside it):

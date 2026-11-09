@@ -1431,7 +1431,11 @@ A rerun completes an unfinished conversion in place whatever phase it stopped at
 including a stop between the exchange and
 its journal line;
 `--abandon` destroys only the subvolume whose identity the journal recorded,
-and only before the exchange.
+only before the exchange,
+and only while no process has a working directory or an open file inside that stage,
+which it reports by
+process number,
+as the removal phase of the same conversion does.
 A worktree removed after its conversion stopped past the swap leaves the original tree at
 `<path>.cli-git-converting`,
 a full copy nobody can name once the registration and its journal are gone,

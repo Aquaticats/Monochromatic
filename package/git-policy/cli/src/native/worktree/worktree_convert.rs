@@ -190,6 +190,12 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
         say.say("  the swap already happened; run the command again to finish it (there is nothing to undo)");
         return Ok(Verdict::Skipped(vec![String::from("past the swap")]));
     }
+    // The stage is a directory a person may have a shell or an editor in, and destroying it takes the working directory of
+    // that process with it, so the same scan the removal phase runs comes first here too.
+    let holders: Vec<String> = processes_inside(converting.as_path());
+    if !holders.is_empty() {
+        return Ok(Verdict::Skipped(vec![format!("the stage {} is kept because {}; stop that and run the command again", converting.display(), holders.join("; "))]));
+    }
     if let Some(found) = stage_identity_of(candidate.path.as_path())? {
         if journal.new_identity == Some(found) {
             if !platform.is_subvolume_root(converting.as_path())? {

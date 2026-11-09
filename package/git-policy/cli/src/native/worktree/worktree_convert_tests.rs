@@ -269,6 +269,56 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
     remove(parent.as_path());
 }
 
+/// A sleeping process whose working directory is a chosen directory,
+/// killed and reaped when it goes out of scope.
+struct Sleeper(std::process::Child);
+
+impl Sleeper {
+    /// Start `sleep` inside `directory`.
+    fn start(directory: &Path) -> Sleeper {
+        let mut command: std::process::Command = std::process::Command::new("sleep");
+        command.arg("120").current_dir(directory).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        return Sleeper(command.spawn().expect("the sleeper starts"));
+    }
+
+    /// The sleeping process's number.
+    fn pid(&self) -> i64 {
+        return i64::from(self.0.id());
+    }
+}
+
+impl Drop for Sleeper {
+    /// Kill and reap the process.
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// What:
+///  The abandon destroys the stage only while no process is working inside it,
+///  as the removal phase of the same conversion refuses,
+///  because the stage is a directory a person may have a shell or an editor in.
+#[test]
+fn an_abandon_keeps_the_stage_while_a_process_is_inside_it() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-holder");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let holder: Sleeper = Sleeper::start(converting.as_path());
+    let (refused, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    let Verdict::Skipped(reasons) = refused.expect("no failure") else { panic!("the abandon refuses while a process is inside the stage: {lines:?}") };
+    let named: String = reasons.join("; ");
+    assert!(named.contains(format!("process {}", holder.pid()).as_str()), "the refusal names the process: {named} {lines:?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the stage is kept while a process is in it");
+    drop(holder);
+    let (undone, lines2) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    assert_eq!(undone.expect("abandoned"), Verdict::Abandoned, "{lines2:?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the stage goes once nothing is inside it");
+    remove(parent.as_path());
+}
+
 /// What:
 ///  A conversion interrupted past its swap keeps the original tree at the converting name on purpose,
 ///  so a worktree removed afterwards leaves that full copy beside where it was,
