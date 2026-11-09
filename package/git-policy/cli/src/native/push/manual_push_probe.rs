@@ -42,6 +42,8 @@ use crate::command_options::{Boundary, DEFAULT_MODE, parse_options};
 use crate::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
+/// Maps each ref the remote listed to the object name it reported.
+use std::collections::HashMap;
 pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
 
 /// The bytes one query holds at its peak:
@@ -178,6 +180,30 @@ fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> R
 }
 
 /// What:
+///  The object name the listing gives each ref,
+///  from that ref's first record.
+/// Why:
+///   One `ls-remote --refs` prints one record per ref asked for,
+/// and a mirror or `--all` push publishes hundreds of them;
+///  a map answers each update's question by naming the one record it compares with,
+///  so the confirmation is one pass over the listing (`AGENTS.md` `RG2`),
+///  and the first record a ref gets is the one the scan took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reported = new Map(listing.split('\n').flatMap((line) => { const [oid, name] = line.split('\t'); return name ? [[name, oid]] : [] }));
+/// ```
+fn oids_by_ref(listing: &str) -> HashMap<&str, &str> {
+    let mut by_ref: HashMap<&str, &str> = HashMap::new();
+    for line in listing.lines() {
+        let Some((oid, name)) = line.split_once('\t') else { continue };
+        crate::collected_elements_looked_at::note_looked_at(1);
+        by_ref.entry(name).or_insert(oid);
+    }
+    return by_ref;
+}
+
+/// What:
 ///  Confirm one destination's values with `git ls-remote --refs` and turn each reported update into a public update.
 /// Why:
 ///   A destination that changed after the dry run reported would publish something the scan did not see,
@@ -219,17 +245,11 @@ pub fn confirm_group(
         ));
     }
     let listing: String = String::from_utf8_lossy(&output.stdout).into_owned();
+    let reported: HashMap<&str, &str> = oids_by_ref(listing.as_str());
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     for (update, local) in updates {
-        let mut authoritative: Option<String> = None;
-        for line in listing.lines() {
-            if let Some((oid, name)) = line.split_once('\t')
-                && name == update.to
-            {
-                authoritative = Some(oid.to_owned());
-                break;
-            }
-        }
+        crate::collected_elements_looked_at::note_looked_at(1);
+        let authoritative: Option<String> = reported.get(update.to.as_str()).map(|oid| return (*oid).to_owned());
         let changed: bool = match &update.before {
             RemoteBefore::Absent => authoritative.is_some(),
             RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),
