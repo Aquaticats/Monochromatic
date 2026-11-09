@@ -57,7 +57,8 @@ fn an_attributes_file_that_grows_under_the_read_takes_no_byte_past_the_room() {
 
 /// An attributes file rewritten on the same inode under the read is refused,
 /// even when the pieces it handed over add up to the length the file has afterwards:
-/// the accumulated bytes then mix two versions, and the rule that survives may be the obsolete one.
+/// the accumulated bytes then mix two versions,
+/// and the rule that survives may be the obsolete one.
 #[test]
 fn an_attributes_file_rewritten_under_the_read_is_refused() {
     let root: std::path::PathBuf = fixture_root("attributes-rewritten", b"a -text\n");
