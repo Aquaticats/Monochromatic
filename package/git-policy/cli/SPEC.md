@@ -931,6 +931,23 @@ untracked file.
 Callers and the sentence for the person decide by the kind,
 never by the words of the reason.
 
+The two halves of that check are waits of the process's runtime:
+the listing of untracked files is a Git run awaited there,
+and the proof of the index and of every tracked file is a job of the blocking
+pool beside it,
+so a filesystem that stops answering the proof holds no bounded Git wait open.
+Where the system refuses to start a pool thread (`ulimit -u`,
+the control group's `pids.max`),
+`run_a_job_or_in_turn` runs the proof on the awaiting task itself,
+under a place of the process's bound,
+because a thread is only a way to do the work sooner;
+the person then sees the add wait until that filesystem answers,
+with no ceiling firing,
+and raising the limit and running the command again is the remedy.
+Where no runtime can be built at all,
+the listing and the proof run one after another on the calling thread and every verdict
+is the one the runtime gives.
+
 Snapshot of a main checkout with uncommitted changes:
 a main checkout whose only trouble is an ordinary change (a staged change,
 an edited,
