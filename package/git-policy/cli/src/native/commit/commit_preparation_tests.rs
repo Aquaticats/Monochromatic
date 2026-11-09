@@ -680,6 +680,7 @@ fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() 
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
         commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
         global_args: global_args.as_slice(),
         commit_args: commit_args.as_slice(),
         object_directory: None,

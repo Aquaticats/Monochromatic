@@ -449,6 +449,8 @@ struct Filtered {
     capture: InvocationCapture,
     /// Private indexes and object store.
     indexes: CaptureIndexes,
+    /// The commit's own scratch directory.
+    scratch: PathBuf,
     /// Recorded base.
     base: String,
     /// The clean filter script,
@@ -504,7 +506,7 @@ fn filtered_fixture(root: &Path) -> Filtered {
         commit_index: transaction.join("commit.index"),
         object_directory: capture.layout.object_directory.clone(),
     };
-    return Filtered { repo, shadow, capture, indexes, base, filter };
+    return Filtered { repo, shadow, capture, indexes, scratch: transaction, base, filter };
 }
 
 /// The paths the clean filter wrote down,
@@ -544,6 +546,7 @@ fn prepare_and_commit(filtered: &Filtered, paths: &[OsString]) -> Result<i32, Pr
         capture: &filtered.capture,
         shadow: filtered.shadow.as_path(),
         commit_index: filtered.indexes.commit_index.as_path(),
+        scratch: filtered.scratch.as_path(),
         global_args: &[],
         commit_args: commit_args.as_slice(),
         object_directory: None,
@@ -618,6 +621,7 @@ fn an_index_built_from_the_base_alone_cleans_every_filtered_file() {
         capture: &filtered.capture,
         shadow: filtered.shadow.as_path(),
         commit_index: filtered.indexes.commit_index.as_path(),
+        scratch: filtered.scratch.as_path(),
         global_args: &[],
         commit_args: commit_args.as_slice(),
         object_directory: None,
