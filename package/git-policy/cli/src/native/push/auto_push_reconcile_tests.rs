@@ -14,6 +14,7 @@ use crate::test_support::{fixture, git, remove};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// A function-like value with the right shape is a merge push in these controls:
 /// the shipped callers write a small struct that holds the state.
@@ -1810,5 +1811,38 @@ fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported
     let _refused = crate::scoped_start::RefusedStarts::here();
     let reported: String = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect_err("no thread to give it its input");
     assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
+    crate::test_support::remove(root.as_path());
+}
+
+/// How long the stand-in of the stalled second pass sleeps:
+/// several times the window it is given.
+const STALLED_STAND_IN_SLEEP: Duration = Duration::from_secs(8);
+
+/// The stall window of the controls,
+/// one whole second,
+/// which is the smallest the variable reads.
+const STALLED_WINDOW: &str = "1";
+
+/// A second-pass command that shows no sign of work is stopped at the push's stall window and named,
+/// and it is not waited out:
+/// it is not a person's command,
+/// and a `merge-tree` that never returns would hold the push worker,
+/// its claim and the drain of that repository for good.
+#[test]
+fn a_second_pass_command_that_stalls_is_stopped_and_named() {
+    let root: PathBuf = crate::test_support::fixture("reconcile-stalled-second-pass");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let shim: PathBuf = root.join("stalled-git");
+    std::fs::write(&shim, format!("#!/bin/sh\nexec sleep {}\n", STALLED_STAND_IN_SLEEP.as_secs()).as_str()).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut git: PushGit = push_git(repo.as_path());
+    git.real_git = shim;
+    git.environment.push((OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from(STALLED_WINDOW)));
+    let runner: PushRunner<'_> = PushRunner { git: &git };
+    let began: std::time::Instant = std::time::Instant::now();
+    let reported: String = runner.run(&["merge-tree", "--write-tree"], None, None).expect_err("a stalled command is stopped, not waited out");
+    let waited: Duration = began.elapsed();
+    assert!(reported.contains("merge-tree"), "{reported}");
+    assert!(waited < STALLED_STAND_IN_SLEEP, "the command was stopped at its window: {reported}");
     crate::test_support::remove(root.as_path());
 }

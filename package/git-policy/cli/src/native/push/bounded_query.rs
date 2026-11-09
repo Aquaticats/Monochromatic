@@ -50,10 +50,10 @@ use crate::start_retry::spawn_retrying_without_blocking;
 use std::ffi::OsString;
 /// The anonymous output files and their reading back.
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 /// `Command` describes the query;
 /// `Stdio` connects its streams.
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 /// Time spans.
 use std::time::Duration;
 
@@ -133,7 +133,31 @@ pub fn run_bounded_query(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_query_awaiting(command, arguments, window, grace, environment)) {
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, grace, environment, None)) {
+        Ok(output) => output,
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+    };
+}
+
+/// What:
+///  `run_bounded_git_awaiting` for a caller that is not inside the runtime.
+/// Why:
+///   The reconcile's second pass is a synchronous value its callers use,
+/// so it enters the runtime the way every other synchronous query does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnRuntime(() => runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input }))
+/// ```
+pub fn run_bounded_git(
+    command: Command,
+    arguments: &str,
+    window: Duration,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+    input: Option<Vec<u8>>,
+) -> Result<QueryOutput, SingleFlightError> {
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, grace, environment, input)) {
         Ok(output) => output,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -154,11 +178,41 @@ pub fn run_bounded_query(
 /// const output = await runBoundedQueryAwaiting({ command, arguments, windowMs, graceMs, environment });
 /// ```
 pub async fn run_bounded_query_awaiting(
+    command: Command,
+    arguments: &str,
+    window: Duration,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+) -> Result<QueryOutput, SingleFlightError> {
+    return run_bounded_git_awaiting(command, arguments, window, grace, environment, None).await;
+}
+
+/// What:
+///  Run one read-only Git command to its end,
+/// or until it has shown no sign of work for the quiet window,
+/// with `input` given on its standard input.
+/// Why:
+///   `merge-tree` and every command of the word-level second pass read their request from the standard input,
+/// and they are started by the reconcile,
+/// which runs them in an object store another program may have wedged:
+///  the same meter,
+/// the same stop of the service and the same grace that bound the queries must bound them.
+///  The input goes in from a thread of its own,
+/// so a command that answers while it still reads cannot block on a full pipe;
+/// a stopped command's pipe closes,
+/// and the thread's write fails instead of waiting for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input });
+/// ```
+pub async fn run_bounded_git_awaiting(
     mut command: Command,
     arguments: &str,
     window: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
+    input: Option<Vec<u8>>,
 ) -> Result<QueryOutput, SingleFlightError> {
     // The service's shutdown waits for this query and ends it when the service is stopped; a query that would begin after the stop is not started.
     let mut unfinished: Unfinished = match begin_unfinished_work(false, "git query") {
@@ -171,13 +225,21 @@ pub async fn run_bounded_query_awaiting(
     let for_stdout: File = stdout.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = stderr.try_clone().map_err(SingleFlightError::Start)?;
     command
-        .stdin(Stdio::null())
+        .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
     // Taken before the query starts, so a lock born earlier is never taken for the query's.
     let locks = LockLedger::before_start(&command);
-    let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
+    let mut started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
+    if let Some(bytes) = input
+        && let Err(error) = feed_standard_input(started.stdin.take(), bytes)
+    {
+        // The command never got its request, so it is stopped here and the failure names why.
+        let _stopped = started.kill();
+        let _reaped = started.wait();
+        return Err(SingleFlightError::Start(std::io::Error::other(error)));
+    }
     let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
     let ended: Result<ExitStatus, StopCause> =
@@ -210,6 +272,30 @@ pub async fn run_bounded_query_awaiting(
                 },
             })
         }
+    };
+}
+
+/// What:
+///  Write `bytes` to the standard input of a started command from a thread of its own.
+/// Why:
+///  The command may answer before it has read all of its input,
+/// so writing here could block on a full pipe while nothing reads the answer;
+/// the thread's write fails once the command is stopped and its pipe closes.
+///
+/// # Errors
+///
+/// A thread that cannot be started.
+fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>) -> Result<(), String> {
+    let Some(mut open) = pipe else {
+        return Ok(());
+    };
+    return match crate::scoped_start::spawn_named("cli-git-second-pass-input", move || {
+        if let Err(error) = open.write_all(bytes.as_slice()) {
+            crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("the input of a second-pass command was not taken: {error}").as_str());
+        }
+    }) {
+        Ok(_writer) => Ok(()),
+        Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
     };
 }
 
