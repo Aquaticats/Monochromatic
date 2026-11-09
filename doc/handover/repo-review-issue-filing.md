@@ -280,13 +280,13 @@ per `code-claude-code-plugin-1-016`;
  per `code-codex-plugin-1` notes;
  hand to the `config-root` reviewer when it launches.
  The hand-written `isRecord` type guard (57 sites repo-wide,
- owner candidate `package/cli/mutation-test/src/is-record.ts`) per
+ owner candidate `package/mutation-test/cli/src/is-record.ts`) per
  `code-agent-harness-shared-1-002`;
  hand to the `cross-duplication` reviewer when it launches.
  The byte-to-hex nibble encoder is hand-copied across at least six Rust packages
  (`code-cli-2-006` names three more sites in its notes);
  hand to the `cross-duplication` reviewer when it launches.
- `package/pi-plugin/morph-compact/src/visible-context.ts` is a near-twin of
+ `package-paused/pi-plugin/morph-compact/src/visible-context.ts` is a near-twin of
  `package/pi-plugin/auto-mode/src/visible-context.ts` per `code-pi-plugin-1` notes;
  hand to the `cross-duplication` reviewer when it launches.
  `doc/decision/npm-publishing.md` says `./ts` is stripped at publish via

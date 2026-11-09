@@ -219,7 +219,7 @@ stayed out of the commit
     Its parse fallout is recorded in
     `doc/troubleshooting/oxlint-no-arrow-function-unparseable-autofix.md`.
 1.  Root `lint:parse` alias:
-    add a root-mise alias for `//package/dev-script/task-util:lint:parse`
+    add a root-mise alias for `//package/monorepo-task/core-exec:lint:parse`
     once the concurrent root `mise.toml` work lands
     (that file is concurrently dirty and stays untouched here).
 1.  `doc/*.mjs` files have no format owner:

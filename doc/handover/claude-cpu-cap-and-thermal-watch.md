@@ -1679,7 +1679,7 @@ The day-one checks under "Checks before buying" still decide it.
 1. No monitor and no 4-hour check (ended by the user).
    Read alerts from the journal only when the user asks.
 2. When a session has run sustained load,
-   run `node package/dev-script/claude-cpu-cap/src/summarize-samples.ts 1`.
+   run `node package/claude-cpu-cap/daemon/src/summarize-samples.ts 1`.
    It still needs a chiplet comparison and a (Tctl minus probe) per watt figure.
 3. The service stays running;
    stop it only if the user asks.
@@ -1707,7 +1707,7 @@ The day-one checks under "Checks before buying" still decide it.
    not
    raw temperature,
    because the load will differ.
-   `node package/dev-script/claude-cpu-cap/src/analyze-episode.ts <from> <to>` prints the medians.
+   `node package/claude-cpu-cap/daemon/src/analyze-episode.ts <from> <to>` prints the medians.
    The NT-H2 AM5 Edition includes the NA-TPG1 paste guard and 3 cleaning wipes;
    Noctua's AM5 pattern is five small
    dots (four of about 2 mm near the corners,

@@ -73,7 +73,7 @@ section "Stages 5 and 6".
 
 ## Next steps
 
-1. `mise run //package/desktop-app/ide:lint`,
+1. `mise run //package/ide/app:lint`,
    then `test:native` once,
    then `test`,
    `test:bin`,
