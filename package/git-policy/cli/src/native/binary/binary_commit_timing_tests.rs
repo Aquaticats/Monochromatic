@@ -527,6 +527,14 @@ fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration
         assert!(phase_lies_beside_the_wait(number(record, other), number(record, "answerWaitMs"), number(record, "totalMs")), "{other} is not what the time went to: {record}");
     }
     assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
+    // The record states the landing's own figures, which the service cannot put anywhere else: the reads it names, the time it
+    //  held the index, and each of its syncs with the time of each.
+    let landing: &serde_json::Value = &record["landing"];
+    assert!(landing.is_object(), "the answer carries the landing's figures into the record: {record}");
+    assert!(landing["readsMs"].is_u64() || landing["readsMs"].is_i64() || landing["readsMs"].is_f64(), "{record}");
+    assert!(landing["reads"].is_object(), "{record}");
+    assert!(landing["lockHoldMs"].is_number(), "{record}");
+    assert!(landing["syncs"].is_array(), "{record}");
     assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
     // The wait is written down when it ends, with what it found: the foreign commit has the lock open.
     let waited: Vec<String> = lines_of(&places.log, "waited for the index lock");

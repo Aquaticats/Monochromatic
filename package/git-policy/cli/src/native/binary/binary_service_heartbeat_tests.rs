@@ -143,7 +143,7 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
         std::thread::sleep(FAKE_BEAT);
     }
     let commit: String = "c".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert!(!notices.contains(SILENT_NOTICE), "a service that beats is never called silent: {notices:?}");
@@ -285,7 +285,7 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
     greet(&stream);
     read_request(&stream);
     let commit: String = "d".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, _notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
 }
@@ -321,7 +321,7 @@ fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
     greet(&stream);
     read_request(&stream);
     let commit: String = "e".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, _notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
     MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
@@ -384,7 +384,7 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
     // The sweep runs while the command still waits.
     let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER);
     let commit: String = "f".repeat(40);
-    if let Err(error) = (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })) {
+    if let Err(error) = (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })) {
         // The client is the one that closed the connection, so what it ended with says why the answer had nowhere to go.
         let (answered, notices) = waiting.join().expect("client thread");
         panic!("the answer could not be written ({error}); the client ended with {answered:?}: {notices}");
@@ -482,7 +482,7 @@ fn a_commit_that_landed_as_the_bound_passed_is_reported_as_landed() {
     let name: String = address("ceiling-race-landed");
     let service: UnixListener = listen(name.as_str());
     let commit: String = "9".repeat(40);
-    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: true };
+    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: true, landing: None };
     let fake = serve_a_wait_and_a_withdrawal(service, Some(landed));
     let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, ..config(name.as_str()) };
     let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceiling");
@@ -595,7 +595,7 @@ fn trace_after(label: &str, notices: Vec<ServiceMessage>) -> git_policy_cli::com
         (&stream).write_all(&line(notice)).expect("a notice");
     }
     let commit: String = "c".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, trace) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
     return trace;
