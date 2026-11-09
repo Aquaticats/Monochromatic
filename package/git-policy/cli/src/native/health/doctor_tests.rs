@@ -484,3 +484,29 @@ fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
     assert!(stdout.ends_with("pre-commit\n"), "{stdout}");
     remove(root.as_path());
 }
+
+/// What:
+///  A report reads the names an earlier release kept, and moves none of them.
+/// Why:
+///  The command's contract says it changes nothing (`SPEC.md`,
+/// section Doctor),
+/// and a check that moves what it inspects can hide the state it was asked about.
+///  The saved copies are read through the folder that exists,
+/// so the earlier name is still reported.
+#[test]
+fn the_report_moves_none_of_the_names_it_reads() {
+    let root: PathBuf = fixture("doctor-read-only");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let earlier: PathBuf = repo.join(".git/cli-git");
+    let save: PathBuf = earlier.join("discarded/2026-11-02T19-33-20");
+    std::fs::create_dir_all(save.as_path()).expect("earlier kept folder");
+    std::fs::write(save.join("copy.txt"), b"saved-content\n").expect("kept copy");
+    std::fs::write(earlier.join("kept.txt"), b"saved-content\n").expect("kept file");
+    let (code, _stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(earlier.join("kept.txt").exists(), "the report moved a folder it was only reading: {stderr}");
+    assert!(save.join("copy.txt").exists(), "a saved copy stays where it is");
+    assert!(!repo.join(".git/monochromatic-git-policy-cli").exists(), "the report wrote the current name");
+    assert!(stderr.contains("discarded copies:"), "the saved copies are still reported: {stderr}");
+    remove(root.as_path());
+}

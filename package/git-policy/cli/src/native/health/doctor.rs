@@ -567,8 +567,8 @@ pub async fn doctor_action_with_section(
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd).await;
     let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd).await);
-    // The first time the common Git directory is known to this command, an earlier release's names in it are moved.
-    crate::kept_names_in_the_git_directories::settle_common_directory_names(location.common_directory.as_path());
+    // A report changes nothing, so the earlier release's names in this directory are read where they are and never moved
+    // (`SPEC.md`, section Doctor): moving them is left to the commands that write there.
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
     let section: String = filesystem_section(location.common_directory.as_path(), home);
     if hooks.is_empty() && findings.hooks.is_empty() {

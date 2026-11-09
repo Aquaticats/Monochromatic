@@ -46,6 +46,7 @@ use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::diagnostic_log::debug;
 use crate::discard_audit::{AUDIT_FILE, append_line, check_appendable};
 use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};
+use crate::kept_names_in_the_git_directories::relative_path_for_reading;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -70,7 +71,29 @@ pub struct PruneOutcome {
 }
 
 /// What:
-///  Every directory of the folder that is named like the wrapper's own,
+///  The folder of saved copies as a reader that moves nothing finds it:
+/// the current data folder,
+/// or the
+///  earlier one when only that exists.
+/// Why:
+///  A report reads the names an earlier release kept without moving them (`SPEC.md`,
+/// section Doctor),
+/// so
+///  the folder it lists is the one that is there.
+///  `Store::open` walks the relative path below the Git directory without following a link on the way,
+/// so the path a report
+///  names is the path it read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const relative = relativePathForReading(commonDir, SAVED_DIRECTORY);
+/// ```
+fn saved_folder_for_reading(common_dir: &Path) -> String {
+    return relative_path_for_reading(common_dir, SAVED_DIRECTORY);
+}
+
+/// What:
+///  Every directory of the folder at `relative` below a Git directory,
 /// oldest first,
 /// with its size and what it was when
 ///  listed,
@@ -86,14 +109,32 @@ pub struct PruneOutcome {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// const { entries, problems } = await listStampedBelow(commonDir, SAVED_DIRECTORY);
+/// ```
+fn list_stamped_below(common_dir: &Path, relative: &str) -> Listing {
+    return match Store::open(common_dir, relative) {
+        Ok(Some(store)) => list_in(&store, common_dir.join(relative).as_path()),
+        Ok(None) => Listing::default(),
+        Err(failure) => Listing { problems: vec![unusable(common_dir.join(relative).as_path(), &failure)], ..Listing::default() },
+    };
+}
+
+/// What:
+///  Every directory of the folder that is named like the wrapper's own,
+/// oldest first,
+/// with its size and what it was when
+///  listed,
+/// and what could not be read.
+/// Why:
+///  The pruning pass works on the folder the current name holds,
+/// because it is the pass that may write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
 /// const { entries, problems } = await listStamped(commonDir);
 /// ```
 pub fn list_stamped(common_dir: &Path) -> Listing {
-    return match Store::open(common_dir, SAVED_DIRECTORY) {
-        Ok(Some(store)) => list_in(&store, common_dir.join(SAVED_DIRECTORY).as_path()),
-        Ok(None) => Listing::default(),
-        Err(failure) => Listing { problems: vec![unusable(common_dir.join(SAVED_DIRECTORY).as_path(), &failure)], ..Listing::default() },
-    };
+    return list_stamped_below(common_dir, SAVED_DIRECTORY);
 }
 
 /// The problem that says why the folder cannot be used.
@@ -449,7 +490,21 @@ pub struct Report {
 /// or nothing when it holds no copy and nothing
 /// went wrong.
 pub fn report(common_dir: &Path) -> Option<Report> {
-    let listing: Listing = list_stamped(common_dir);
+    return report_below(common_dir, saved_folder_for_reading(common_dir).as_str());
+}
+
+/// What:
+///  `report` for the folder at `relative` below the Git directory.
+/// Why:
+///  A report reads the folder that exists,
+/// under whichever of its two names it has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reportBelow(commonDir, relative);
+/// ```
+fn report_below(common_dir: &Path, relative: &str) -> Option<Report> {
+    let listing: Listing = list_stamped_below(common_dir, relative);
     if listing.entries.is_empty() && listing.problems.is_empty() {
         return None;
     }
@@ -476,7 +531,9 @@ pub fn report(common_dir: &Path) -> Option<Report> {
 /// the oldest save and the limits that apply,
 /// then a sentence for each thing that could not be read.
 pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
-    let Some(found) = report(common_dir) else {
+    // The report changes nothing, so it reads the folder under the name it has now, else under the earlier one.
+    let relative: String = saved_folder_for_reading(common_dir);
+    let Some(found) = report_below(common_dir, relative.as_str()) else {
         return String::new();
     };
     let mut text: String = String::new();
@@ -485,7 +542,7 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
             "git monochromatic-git-policy-cli doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
              are removed, and the oldest are removed past {} bytes, never one younger than a day (`discardedCopies.maxAgeDays` and \
              `discardedCopies.maxSize` in monochromatic-git-policy-cli.config.jsonc change the limits).\n",
-            common_dir.join(SAVED_DIRECTORY).display(),
+            common_dir.join(relative.as_str()).display(),
             found.bytes,
             found.copies,
             found.saves,
