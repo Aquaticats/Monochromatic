@@ -28,7 +28,7 @@
 
 /// The shared fixtures,
 /// bounded runs and observation of what a run showed its caller.
-use super::support::{Fixture, Observed, bounded, copy_executable, executable, fixture, observe, remove, repository};
+use super::support::{Fixture, Observed, REAL_GIT, bounded, copy_executable, executable, fixture, git, observe, remove, repository};
 /// Operating-system text,
 /// for building the one `PATH` value of a run.
 use std::ffi::{OsStr, OsString};
@@ -47,6 +47,18 @@ const START_CAP: usize = 6;
 /// The exit code of a stand-in that has reached `START_CAP`;
 /// no wrapper exit code uses it.
 const STAND_IN_STOP_CODE: i32 = 97;
+
+/// What:
+///  The most times a control's stand-in may be started before it ends the chain with `STAND_IN_STOP_CODE` itself.
+/// Why:
+///   The wrapper's own bound on one chain of starts (`started_as_git::MOST_STARTS_IN_ONE_CHAIN`)
+/// is reached first by a
+///  correct run;
+/// this is the fixture's backstop above it,
+/// so a chain that ignores the bound fails as a start count
+///  and an exit code,
+/// never as a host or a scope that runs out of processes.
+const CHAIN_CAP: usize = 12;
 
 /// The exit code of a wrapper that stops because it has no real Git to run.
 const WRAPPER_STOP_CODE: i32 = 2;
@@ -122,6 +134,39 @@ fn starts(counter: &Path) -> usize {
         Ok(text) => text.lines().count(),
         Err(_) => 0,
     };
+}
+
+/// What:
+///  Write a stand-in `git` that starts `target` as a **child** and waits,
+/// counting every start in `counter` and
+///  ending the chain itself after `cap` starts.
+/// Why:
+///  The covered failure is a script that names the wrapper without `exec`,
+/// which puts a shell between the wrapper
+///  that replaced itself with the script and the wrapper the script starts.
+/// The cap is the control's own backstop, not a wrapper
+///  limit: without it a regression here would grow the chain until the host or the test's supervisor refused another
+///  process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeExecutable(path, `appendLine(counter); if (lines(counter) > cap) process.exit(97); ${target} "$@"`);
+/// ```
+fn counting_child_stand_in(path: &Path, counter: &Path, target: &Path, cap: usize) {
+    let script: String = format!(
+        "#!/bin/sh\n\
+         echo started >> '{counter}'\n\
+         started=0\n\
+         while read -r line; do started=$((started + 1)); done < '{counter}'\n\
+         if [ \"$started\" -gt {cap} ]; then\n\
+         echo 'stand-in: start cap reached' >&2\n\
+         exit {STAND_IN_STOP_CODE}\n\
+         fi\n\
+         '{target}' \"$@\"\n",
+        counter = counter.display(),
+        target = target.display(),
+    );
+    executable(path, script.as_bytes());
 }
 
 /// One directory under the fixture,
@@ -352,5 +397,107 @@ fn a_symlink_a_hard_link_and_a_copy_of_the_wrapper_alone_on_path_are_skipped() {
         assert!(observed.stdout.is_empty(), "{}", form.display());
         assert!(text.contains(form.join("git").to_string_lossy().as_ref()), "{}: {text}", form.display());
     }
+    remove(&fixture);
+}
+
+/// What:
+///  A user script named `git` that starts the wrapper as a child, with no `exec`,
+/// anywhere on `PATH`.
+/// Why:
+///  A `replace` start keeps its process number,
+/// so the arriving wrapper's parent is the process the marker
+///  names,
+/// not its own number;
+/// the guard that compares only the number therefore matched nothing,
+/// and each level
+///  started another wrapper with nothing printed
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+///  "Reproductions" A).
+/// The chain must end within the wrapper's own bound,
+/// with the stop and the message that names the
+///  `git` on `PATH` that led back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [binWithWrapper, dirWithScript] }).code).toBe(2); expect(starts).toBeLessThanOrEqual(bound + 1);
+/// ```
+#[test]
+fn a_script_named_git_that_starts_the_wrapper_without_exec_ends_the_chain() {
+    let fixture: Fixture = fixture("script-no-exec");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let scripts: PathBuf = directory(&fixture, "scripts");
+    let counter: PathBuf = fixture.root.join("starts");
+    let script: PathBuf = scripts.join("git");
+    counting_child_stand_in(script.as_path(), counter.as_path(), fixture.wrapper.as_path(), CHAIN_CAP);
+    let bin: PathBuf = fixture.root.join("bin");
+    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
+    let text: String = words(&observed);
+    let started: usize = starts(counter.as_path());
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, {started} starts: {text}");
+    assert!(
+        started < CHAIN_CAP,
+        "the chain must end before the stand-in's backstop of {CHAIN_CAP} starts: {started} starts: {text}"
+    );
+    assert!(text.contains("started as Git"), "{text}");
+    assert!(text.contains(script.to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
+    assert!(observed.stdout.is_empty());
+    remove(&fixture);
+}
+
+/// What:
+///  The same script spelled with `exec`,
+/// which keeps the wrapper in the process the marker names.
+/// Why:
+///  This spelling is the positive control of the control above:
+/// it stopped at once before any bound existed,
+///  so a bound that stops this one too would be stopping a chain that never ran away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [binWithWrapper, dirWithExecScript] }).code).toBe(2); expect(starts).toBe(1);
+/// ```
+#[test]
+fn a_script_named_git_that_execs_the_wrapper_stops_on_arrival() {
+    let fixture: Fixture = fixture("script-exec");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let scripts: PathBuf = directory(&fixture, "scripts");
+    let counter: PathBuf = fixture.root.join("starts");
+    counting_stand_in(scripts.join("git").as_path(), counter.as_path(), fixture.wrapper.as_path());
+    let bin: PathBuf = fixture.root.join("bin");
+    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
+    let text: String = words(&observed);
+    assert_eq!(starts(counter.as_path()), 1, "{text}");
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{text}");
+    assert!(text.contains("started as Git"), "{text}");
+    remove(&fixture);
+}
+
+/// What:
+///  An ordinary user script named `git` that runs the real Git,
+/// with no `exec`.
+/// Why:
+///  A bound on how many wrapper starts one chain may hold must not touch a script that leads to Git:
+/// forwarding through it is what `PATH` says to do,
+/// and the command must be Git's own,
+/// with Git's output and status.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [binWithWrapper, dirWithScriptToGit] }, ['rev-parse', 'HEAD'])).toMatchObject({ code: 0, stdout: head });
+/// ```
+#[test]
+fn a_script_named_git_that_runs_the_real_git_forwards_to_it() {
+    let fixture: Fixture = fixture("script-real-git");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let scripts: PathBuf = directory(&fixture, "scripts");
+    let counter: PathBuf = fixture.root.join("starts");
+    counting_child_stand_in(scripts.join("git").as_path(), counter.as_path(), Path::new(REAL_GIT), CHAIN_CAP);
+    let expected: std::process::Output = git(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let bin: PathBuf = fixture.root.join("bin");
+    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
+    let text: String = words(&observed);
+    assert_eq!(observed.code, Some(0), "{text}");
+    assert_eq!(observed.stdout, expected.stdout, "Git's own answer through the script");
+    assert_eq!(starts(counter.as_path()), 1, "the script is started once: {text}");
     remove(&fixture);
 }
