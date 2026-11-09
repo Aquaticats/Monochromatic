@@ -47,7 +47,7 @@ No match-span API is needed for the updated behavior.
 - `package/git-policy/forbidden-strings/src/scanner-output.ts` currently relays original candidate paths
   (deleted on 2026-10-13 in `642b6d72cb`;
   `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`
-  now carries the scanner's masked display path and never the original candidate path).
+  now carries the scanner's masked display path rather than the original candidate path).
 
 ## Implemented transport
 
