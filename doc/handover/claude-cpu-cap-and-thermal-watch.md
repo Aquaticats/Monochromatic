@@ -1002,8 +1002,8 @@ for VFIO passthrough.
   Ubuntu reports of it working and one Ubuntu 24.04 report of it failing for lack of current firmware.
   A Linux review
   of a Gigabyte board with an MT7925 module found its Bluetooth not detected.
-  Realtek RTL8922AE boards carry the OGC
-  kernel regression report from the earlier note.
+  Realtek RTL8922AE boards carry the OGC kernel regression report in the `Linux Wi-Fi` bullet of
+  `Replacement board research (2026-10-13, about 21:20 EDT, nothing bought or decided)`.
   Result:
   Wi-Fi does not separate the Taichi Lite from the Hero on
   paper;
@@ -1338,7 +1338,7 @@ current stock and street price were not checked.
   The B650E-E beats the Taichi Lite because the Lite is discontinued,
   so only
   used stock exists.
-  Against the earlier list,
+  Against the `Ranking and reasons` list,
   both Strix boards give the RX 7600 a better slot than the Nova (CPU or
   chipset Gen4 x4 instead of Gen3 x2) at a similar launch price,
   but have less VFIO evidence.

@@ -13,6 +13,12 @@ import {
   getRecent,
   store,
 } from './analyze/memory.ts';
+import {
+  DECISION_WINDOW_SIZE,
+  initialDecisionWindow,
+  recordVerdict,
+  type DecisionWindow,
+} from './analyze/decision-window.ts';
 import { isBlackFrame, } from './infra/blackdetect.ts';
 import {
   captureScreenshot,
@@ -23,50 +29,15 @@ import { isScreenLocked, } from './infra/screenlock.ts';
 import { log, } from './infra/syslog.ts';
 
 //region Decision tracking
-// Sliding window of last 5 verdicts. A ring buffer would work here, but a
-// fixed-length tuple gives compile-time size enforcement and the shift cost
-// for 5 elements is negligible.
-
-/**
- Possible productivity verdict values.
- */
-type Decision = 'PRODUCTIVE' | 'UNPRODUCTIVE';
-
-/**
- Fixed-size tuple tracking the 5 most recent verdicts.
- */
-type DecisionWindow = [
-  Decision,
-  Decision,
-  Decision,
-  Decision,
-  Decision,
-];
+// The window of recent verdicts and the streak policy live in
+// `analyze/decision-window.ts` as pure functions; this module only keeps the
+// one live window between cycles.
 
 /**
  Module-singleton mutable state for the rolling decision window; wrapped so it satisfies no-module-root-let.
  */
-const state: { decisions: DecisionWindow; } = {
-  decisions: [
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-  ],
-};
+const state: { decisions: DecisionWindow; } = { decisions: initialDecisionWindow(), };
 //endregion
-
-/**
- Checks whether a decision is unproductive.
- 
- @param d - decision to check
- 
- @returns true when the decision is UNPRODUCTIVE
- */
-function isUnproductive(d: Decision,): boolean {
-  return d === 'UNPRODUCTIVE';
-}
 
 /**
  Executes one capture-analyze-notify cycle.
@@ -74,9 +45,10 @@ function isUnproductive(d: Decision,): boolean {
  ({@link captureWebcam}), buffers the pair via {@link store} and reads the
  recent window back with {@link getRecent}, feeds them to the local vision
  LLM by bracketing {@link analyze} with {@link startLlama} and
- {@link stopLlama}, records the verdict via {@link parseVerdict}, and sends
- a desktop notification ({@link sendNotification}) when 5 consecutive
- cycles are unproductive.
+ {@link stopLlama}, records the verdict via {@link parseVerdict} and
+ {@link recordVerdict}, and sends a desktop notification
+ ({@link sendNotification}) when every verdict in the window is
+ unproductive.
  
  Skips the cycle when {@link isScreenLocked} reports the screen is locked
  or {@link isBlackFrame} reports the webcam cover is down.
@@ -142,43 +114,31 @@ export async function cycle(): Promise<void> {
     await stopLlama();
 
     /**
-     Verdict extracted from the LLM response and pushed into the sliding decision buffer.
+     Verdict extracted from the LLM response, recorded into the sliding decision window; the rest of the line
+     reports its unproductive count and whether the user is told.
      */
     const verdict = parseVerdict(result,);
-    /* oxlint-disable no-magic-numbers -- sliding window indices 1..4 */
-    state.decisions = [
-      state.decisions[1],
-      state.decisions[2],
-      state.decisions[3],
-      state.decisions[4],
-      verdict,
-    ];
-    /* oxlint-enable no-magic-numbers */
     /**
-     Count of unproductive verdicts in the current 5-cycle window; surfaced in the log line as `streak: N/5`.
+     The window with this verdict in it, its unproductive count, and whether it completes the streak.
      */
-    const streakCount = state
-      .decisions
-      .filter(function checkUnproductive(d,) {
-        return isUnproductive(d,);
-      },)
-      .length;
+    const {
+      window: filledWindow,
+      streakCount,
+      notified,
+    } = recordVerdict({
+      window: state.decisions,
+      verdict,
+    },);
+    state.decisions = filledWindow;
 
     log.info(`[report] ${result}`,);
-    log.info(`[verdict] ${verdict} (streak: ${streakCount}/5)`,);
+    log.info(`[verdict] ${verdict} (streak: ${streakCount}/${DECISION_WINDOW_SIZE})`,);
 
-    if (state.decisions
-      .every(function checkUnproductive(d,) {
-        return isUnproductive(d,);
-      },)) {
+    if (notified) {
+      // The window is reset only after the user has actually been told, so a failed notification keeps the
+      // completed streak and the next unproductive cycle reports it again instead of losing it.
       await sendNotification(result,);
-      state.decisions = [
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-      ];
+      state.decisions = initialDecisionWindow();
     }
   }
   catch (err: unknown) {

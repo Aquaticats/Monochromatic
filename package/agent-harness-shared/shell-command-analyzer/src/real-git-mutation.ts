@@ -60,6 +60,7 @@ export const REAL_GIT_MUTATION_BAN_REASON: string = [
   'and a search path this repository cannot install into (`command -p git commit`, `env -i git commit`).',
   'The wrapper enforces the repository policies, commit-time checks and the automatic push after each commit;',
   'every one of those forms bypasses all of them.',
+  'A program wrapper in front of the command (`env`, `sudo`, `timeout`, `systemd-run`, a lock or a shell string) is read through, so it changes none of that.',
   'Run the same subcommand through the wrapper instead:',
   '`git -C <repository-root> <subcommand> ...` works from any directory,',
   'and `git <subcommand> ...` works from the repository root.',
@@ -245,13 +246,18 @@ function commandVerdict({
   ];
   /**
    Whether this record leaves its program on a search path that does not find the wrapper.
+   
+   A program handed to another host never inherits the caller's search path,
+   so only a spelled path word can prove it skips a wrapper there.
    */
-  const excludesWrapper = commandExcludesWrapper({
-    info,
-    wrapped,
-    realGitDirectories,
-    searchPathExcludesWrapper,
-  },);
+  const excludesWrapper = wrapped.reachesAnotherHost
+    ? false
+    : commandExcludesWrapper({
+      info,
+      wrapped,
+      realGitDirectories,
+      searchPathExcludesWrapper,
+    },);
 
   /**
    Command word of the innermost program.
@@ -444,7 +450,8 @@ export type RealGitMutationCheck = {
  
  Uses the shared `unbash` analyzer so quoting, chaining, and nested shells are classified by
  shell grammar instead of text boundaries.
- Wrappers that launch another program (`env`, `sudo`, `timeout`, a shell `-c`) are unwrapped first.
+ Wrappers that launch another program (`env`, `sudo`, `timeout`, `systemd-run`, `flock`,
+ a shell `-c`, `find -exec`, `watch` and `eval`) are unwrapped first.
  Subcommands with unknown effects count as mutating; only a proven read stays allowed.
  
  A Git path known only at run time (`bash -c "$CMD commit"`, `G=/usr/bin/git; $G commit`)

@@ -108,7 +108,8 @@ and the next actions.
 
 ## Owner decisions on record
 
-- Earlier in this work:
+- Owner decision,
+  undated:
   "No audit,
   keep logging".
   Luna may also be used to detect uncertainty,

@@ -3,7 +3,7 @@
 //! the event-driven release,
 //! the
 //!  notice,
-//! and the absence of any limit on a holder proven to run.
+//! and the ceiling that ends a wait on a holder proven to run.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -232,13 +232,13 @@ fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
     remove(root.as_path());
 }
 
-/// A holder the mark proves to run is waited for with no bound:
+/// A holder the mark proves to run is waited for until it lets go:
 /// the lock is looked at,
 /// notices repeat over many intervals
 ///  without ever saying the wait gives up,
 /// and the wait ends when the holder lets go.
 #[test]
-fn a_holder_the_mark_proves_to_run_is_waited_for_with_no_bound() {
+fn a_holder_the_mark_proves_to_run_is_waited_for_until_it_lets_go() {
     let root: PathBuf = fixture("index-wait-no-bound");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());

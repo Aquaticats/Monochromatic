@@ -3114,13 +3114,33 @@ and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
 
-`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` tell the reader to run `mpm update -g <tool id>`,
-and the README says it works from any directory.
-Run at 2026-11-08 from the home folder and from the repository,
-that command reached the real `mpm`,
-which answered `Error: No such option '-g'.` under `Usage: mpm upgrade [OPTIONS]`.
-`mise exec -- mpm-shadow update -g <tool id>` is the route that reached the shadow.
-What decides between them is not measured yet.
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` told the reader to run `mpm update -g <tool id>`
+for the machine-global lock.
+Measured 2026-11-08 and fixed on branch `fix/mpm-shadow-printed-global-update-reaches-the-shadow`:
+what decides is the program the shell starts,
+not the verb.
+`toolchain-global/exposure/mpm` is a link to `~/.local/bin/mpm`,
+the uv tool `meta-package-manager`,
+which the global plan's `mpm` entry exposes;
+no scope but a worktree's `PATH` ever makes `mpm` the shadow,
+through `.cache/mpm-shadow-bin/mpm`,
+the `mpm-shadow` entry's postinstall link.
+Started as `mpm`,
+the real program maps `update` onto its own `upgrade` and refuses `-g`;
+started as `mpm-shadow`,
+the shadow runs the verb (`names_a_declared_verb`,
+`src/main.rs`).
+The sentence and the README now name `mpm-shadow`,
+and `tests/printed_remedy.rs` runs the warning's own command in a disposable home.
+
+Still open,
+because it is the owner's file under the config directory:
+the machine-global plan declares no `mpm-shadow` entry,
+so `mpm-shadow` is not on the machine `PATH` either.
+Adding the entry the repository plan carries (`route: archive`,
+`bins: ["mpm-shadow"]`,
+`tagPrefix: monochromatic-mpm-shadow-v`,
+then `mpm-shadow install -g`) exposes it in the global exposure directory.
 
 Ordered behind other work rather than waiting for a slot:
 
@@ -4768,6 +4788,85 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
 
+### The disposal's notice stream and the thread it did not need (2026-11-08T18:54:15-05:00)
+
+Two questions were left by `b1e1818bab`,
+on branch `fix/git-policy-cli-worktree-add-disposal-notices-and-thread`.
+
+The first was whether a notice is lost or misplaced because the emptying of a snapshot's trash wrote to the
+process's standard error while the rest of the add's report went to the writer the command was given
+(`worktree_copy_after_lock.rs`,
+`dispose_timed`).
+It is misplaced,
+and only for a caller that hands in its own stream:
+the shipped caller passes `&mut std::io::stderr()` (`worktree_copy_forward.rs`,
+`run_settled`),
+so the person at a terminal reads the line,
+but a caller that passes another writer reads the repair's findings and never the one line that says why the
+add is taking longer.
+The controls in `worktree_copy_after_lock_tests.rs` show that,
+and their positive control beside a real repair
+shows the same line missing there too.
+The fix gives both threads the command's stream through one lock (`foundation/shared_notice_stream.rs`):
+a line is rendered first,
+then written whole while the lock is held,
+and the lock is never held across the file work either thread does,
+so neither waits for the other's work and no line can be split.
+The notice keeps the place `SPEC.md` gives it ("after one plain line on standard error that names the worktree
+and says why the service could not take it over"),
+before the emptying and not after it.
+The stream the public entry asks for is now `&mut (dyn Write + Send)`,
+because a thread writes through it.
+The add's timing record is unchanged:
+the work `disposeTrash`,
+the step `disposeTrashWait` and the step `repair` mean what they meant.
+What was not changed is the second place that writes a report line beside the writer:
+`finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
+output Git's checkout line goes to,
+so that note needs a second writer plumbed through the ladder,
+which is a change of its own.
+
+The second question was whether a background thread starts where nothing overlaps it,
+and what that costs.
+Today the early return answers the case the sentence names most literally:
+with no trash there is no thread at all (`finish_trash_and_repair`,
+the `let Some(pending) = after.trash.as_ref()
+else` arm).
+The case left is the one where a trash exists and the package repair beside it has nothing to do:
+a bare repository has no source to repair from,
+a copy that failed leaves no whole worktree to repair,
+and `--no-checkout` asked for no checkout (the add plan declines that form,
+so a snapshot never carries one).
+A snapshot of a successful add always carries one created worktree,
+so this is a path of failures,
+not of the common add.
+It now empties the trash on the calling thread,
+timed as before,
+with a panic of the disposal reported and not failing the add,
+as the thread's join reported it.
+Measured on 2026-11-08T18:54:07-05:00 at load average 53 to 57 on eight CPUs,
+with a program that copies `in_thread_scope` and `start_or_run_with` line for line and times them against
+calling the job directly (seven alternating repetitions,
+2000 calls each,
+run-to-run spread first):
+the scoped thread with its slot costs a median 37.66 µs per call (every reading from 35.74 to 41.81,
+a spread of 1.2 times),
+and the job on the calling thread is below the timer's resolution.
+So it costs 37.66 µs of the person's time and one thread slot per occurrence,
+which is 0.0002 percent of the 16.6 s add this section measured,
+and it is gone.
+Not measured,
+because the path is not reachable from a successful add:
+an end-to-end add delta for this case.
+Not done,
+because it puts the service's preparation on the critical path and that cost was not measured:
+splitting the hand-over from the foreground emptying,
+so that a trash the service takes over costs no thread at
+all rather than a thread that runs to the service and back.
+That reading of the question was left open,
+since a wedged service would then delay the repair by its start
+wait.
+
 Not done:
 parallelism audit of loops over independent items (branch `perf/git-policy-cli-parallel-independent-work` merged the
 first round;
@@ -5219,11 +5318,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   with its reason
   (why the line is otherwise invisible:
   `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
-- Older umbrella items from October,
-  reconciled against Git state on 2026-11-08T16:49:36-05:00 (read only;
-  no campaign,
+- The October umbrella items were reconciled against Git state again on
+  2026-11-08T19:33:30-05:00 (read only;
+  no code changed and no campaign,
   fuzz run or Windows check was started).
-  Each entry gives its verdict and where its evidence or its open work lives.
+  One of them closes:
+  the linter cutover,
+  whose closure and wiring commit now sit in `doc/handover/unified-linter-cutover.md`.
+  The rest are paused by an owner sentence,
+  answered in part,
+  or open,
+  and each entry says which,
+  what settled it,
+  and where its evidence or its open work lives.
 - The scanner's pathname mutation scope on Windows is paused,
   not closed.
   `doc/handover/scanner-native-verification.md`,
@@ -5233,28 +5340,43 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and that the guest was destroyed with nothing run.
   The one timeout the 2026-10-06 Windows campaign ended with is still unverified
   (the timeout mutant in `count_prefix_parts`,
-  `src/path_name_bytes.rs` line 59,
-  as that section locates it),
+  `package/forbidden-strings/cli/src/path_name_bytes.rs` line 59,
+  which that section locates as `src/path_name_bytes.rs:59:35`),
   so the item resumes there in that section when the owner lifts the pause.
-- The Windows checks are paused by that same sentence:
-  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not installed,
+- The Windows and macOS checks are paused by that same sentence,
+  not closed.
+  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not
+  installed,
   and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
   Windows branch without ever running it.
-  The release-artifact performance gate is closed instead of paused.
-  It is the `native:perf` task,
-  which measures the added latency of the release binary against paired direct Git within the limits its
-  description states (added p95 under 2,000 ms on forwarded commands,
-  every paired delta under 5,000 ms on commits),
-  and its figures are recorded in
-  `doc/planning/one-release-each-batch-2026-11.md`,
-  the release record of 2026-11-07T22:11:47-05:00,
-  under its "Latency" bullet,
+  The macOS results are the last recorded ones:
+  it is not a release target (the GitHub release carries Linux assets only),
+  its `native_binary` tests fail there (`/dev/full` is absent,
+  several fixture spawns fail with NotFound),
+  and its lib tests pass on `m1`.
+  The release-artifact performance gate is answered in part.
+  `native:perf` measures the release binary's added latency,
+  its limits are its own task description,
+  and its figures are the release records of `doc/planning/one-release-each-batch-2026-11.md`,
   with the same-binary spread the comparison needs.
-  A search of `doc/` and `.github/workflows` for `release-artifact`,
-  `release performance` and `perf` found no other definition of that gate,
-  so `native:perf` is the gate the older item named.
-- Long fuzz campaigns stay open.
-  Neither recorded pause names them:
+  The binary it measures comes out of the published archive,
+  which `toolchain.lock.json` names as the tarball and sha256 mpm installs,
+  so the latency gate does run on a packaged binary;
+  no record defines a check of the archive's own contents,
+  so whether the older entry also meant one stays open.
+  The Windows and macOS checks resume when the owner lifts the pause.
+- Long fuzz campaigns are open,
+  and another agent is running one now.
+  It works on branch `test/git-policy-cli-fuzz-long-campaign-results`
+  (worktree `.claude/worktrees/pi-fuzz-long-campaign-results`,
+  at `13e215b5a5` when this entry was read)
+  and runs `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900`
+  through the gate slot under `GIT_POLICY_NATIVE_IMAGE_TAG=pi-fuzz-long-campaign-20261108`,
+  writing `${HOME}/temp/agent/fuzz-campaign-20261108T1818-0500.log`.
+  It was still running at 2026-11-08T19:33:30-05:00,
+  so this entry reports no totals,
+  and its result belongs in `doc/handover/cli-git-native-replay-core.md`.
+  Neither recorded pause names fuzzing:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
   the other covers wrapper mutation campaigns
   (`doc/handover/questions-for-the-owner.md`,
@@ -5301,12 +5423,6 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and the signals and automatic-maintenance scope
   (`doc/handover/cli-git-native-signals.md`,
   "Trailing gates").
-- The linter cutover task is closed.
-  It landed on 2026-10-10 as the fast-forward merge `b111c0ca39`,
-  the five incumbent packages were deleted in `5bc05682e`,
-  and `main` holds both,
-  while the root lint and format tasks have run `monochromatic-lint` since `0b49ae109e`.
-  The durable record is `doc/handover/unified-linter-cutover.md`.
 - The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
   2026-11-04 pause.
   The rerun was waiting on a multi-pass control,
@@ -5315,13 +5431,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `snapshots_equal` through two corrections,
   and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
   Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
-  so the pause is the only thing that keeps this open,
-  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
+  so the pause is the only thing that stops the rerun from starting,
+  and what the rerun would show remains unverified;
+  the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
   so what those numbers cover beyond this item is unverified here.
-- macOS is not a release target (the GitHub release carries Linux assets only);
-  the `native_binary` tests still fail there (`/dev/full` is absent,
-  several fixture spawns fail with NotFound);
-  the lib tests pass on `m1`.
 - Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
   Closed 2026-11-08T15:41:28-05:00:
   the Android-target build is no longer blocked.
@@ -7166,6 +7279,15 @@ the btrfs ladder replaced the copy on btrfs hosts,
 but main still has the older lock-based copy modules,
 which no review covers.
 No later decision to merge or drop it is recorded.
+The audit of those modules on main,
+with a verdict per finding and the branch's options,
+is `doc/planning/cli-git-copy-route-findings-on-main.md`
+(2026-11-09;
+main at `64596b62f4`),
+and it records two reachable defects there
+(a lost copy with no notice,
+and a copy into a registration the command did not create),
+so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
 

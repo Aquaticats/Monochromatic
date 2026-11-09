@@ -16,6 +16,9 @@
 /// Imports the dispatcher and the record it reads.
 use crate::policy::{Invocation, refusal_for};
 
+/// Imports the kind of standard input the record carries.
+use crate::stdin_kind::StdinKind;
+
 /// Imports the `find` and `bfs` rule and its two parsers.
 use crate::policy_find::{find_max_depth, find_refusal, find_start_points};
 
@@ -220,14 +223,14 @@ fn find_lets_the_information_flags_through() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const invocation = (name, args, workingDirectory, home): Invocation => ({ name, arguments: args, allowWide: false, ... });
+/// const invocation = (name, args, workingDirectory, home): Invocation => ({ name, arguments: args, allowWide: false, stdin: 'none', ... });
 /// ```
 fn invocation(name: &str, arguments: &[&str], working_directory: &Path, home: &Path) -> Invocation {
     return Invocation {
         name: name.to_string(),
         arguments: texts(arguments),
         allow_wide: false,
-        stdin_has_data: false,
+        stdin: StdinKind::None,
         working_directory: working_directory.to_path_buf(),
         home: home.to_path_buf(),
     };

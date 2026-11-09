@@ -59,6 +59,60 @@ Each record is cited so the context is one read away.
   Both values are kept as they were;
   lowering the patience changes when another namespace's record counts as abandoned,
   so that stays open.
+- Should `AGENTS.md` gain this rule?
+  "A control's verdict comes from the order of events:
+  release its fixture from the wait's own line,
+  never from a sleep whose passing only the host's speed decides."
+  The same defect was fixed twice in the wrapper's index-lock tests (`2b33c7bd32` and `35cd5ae7e5`).
+  The code the proposing agent suggested,
+  `TSX`,
+  reads as the file extension,
+  so the rule needs a different one.
+- May `cargo-shadow lean` remove a run record that a process of another user could be holding,
+  when that process cannot be inspected?
+  Refusing stops the sweep on this host.
+  Do the `container-`,
+  `windows-` and `test-` record prefixes belong in its list?
+  And what should happen to the eighteen logs redirected by hand,
+  and the one renamed 17.9 MB record,
+  in the linter's verification folder?
+- Fuzzing the wrapper:
+  is a cheap native control over the checked-in seeds wanted,
+  and may the artifact reference stand without a landed evidence file?
+- The unmerged copy-in-service branch:
+  the audit in `doc/planning/cli-git-copy-route-findings-on-main.md` ranks B over C over A.
+  The coordinator picked option B,
+  with the veto open:
+  port three narrow fixes into `main` and leave the branch as it is,
+  neither merged nor deleted.
+  The reason is that a kill during a worktree add on the copy route silently loses that worktree's ignored files,
+  and recovery can fill a registration the command did not create.
+  Two agents are building it.
+  Is a repository shared by two hosts supported?
+  If it is,
+  a foreign host's process reads as dead to the copy,
+  which the audit could not settle alone.
+- The `search-shadow` refusal of `rg` with a piped standard input and a named path is on `main` and not yet released.
+  It refuses on the kind of standard input alone,
+  so a program that starts `rg` through `PATH` with a pipe it never writes to is refused too,
+  and `SEARCH_SHADOW_ALLOW_WIDE=1` does not lift it.
+  Pi's `grep` tool and this repository's own callers are not affected:
+  they give `rg` an ignored or null standard input,
+  or pass `--files`.
+  Should that override apply to this refusal before the release?
+- Issue 3474 also asked whether an unbounded `rg` over a large tree that is not a repository,
+  such as `~/temp/agent`,
+  should be limited too:
+  by a cap on the shadow's own output,
+  or by treating known scratch roots like a repository root.
+  Neither is built.
+  Is either wanted?
+- `package/hall-monitor/daemon` fails its own `lint:oxlint` on `test-import(require-eventual-artifact)`,
+  two findings before and four now that it has the tests issue 1297 asked for.
+  The rule needs an import from a built artifact,
+  and that package has none.
+  Should it gain a `dist` build,
+  or an exemption?
 - The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
   Should a systemd timer run it,
   and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
@@ -75,11 +129,20 @@ Each record is cited so the context is one read away.
   Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
   which is gitignored and is the owner's file;
   that reservation is the last unmet line of issue 1720.
-- The umbrella list (`225a3b6318`) left open points:
-  how to split its Windows and release-gate entries,
-  whether its release-artifact gate meant a packaged-tarball gate,
+- The umbrella list (`225a3b6318`) has three open points left:
   which of its disagreeing maintenance mutation records is right,
-  and whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees.
+  whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees,
+  and whether its release-artifact gate also meant a check of the archive's own contents.
+  Its Windows and release-gate entries are split in
+  `doc/handover/cli-git-rust-implementation.md`,
+  where the gate's latency half is answered:
+  `native:perf`,
+  run against the installed binary,
+  measures what mpm installs from the release tarball,
+  its limits are its own task description,
+  and the release records of `doc/planning/one-release-each-batch-2026-11.md` hold its figures.
+  A search of `doc/` and `.github/` on 2026-11-08 for `release-artifact` and `release performance`
+  found only items forwarding to that list.
 - The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
   which ask what each shipped limit should cite.
 - Does "never discard user data" cover the audit history?

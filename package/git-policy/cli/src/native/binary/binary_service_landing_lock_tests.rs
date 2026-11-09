@@ -149,11 +149,11 @@ const RELEASED_HOLD_SECONDS: u32 = 0;
 /// at one notice a second,
 /// more seconds of waiting than
 ///  the second an owner nothing proves alive used to be given,
-/// so only a wait with no bound lasts this long.
+/// so a wait that lasts past that second is what the control reads.
 const NOTICES_BEYOND_BACKOFF: usize = 4;
 
 /// The holder is proven alive (Git's lock PID file names it),
-/// so the commit waits for it however long it holds the lock,
+/// so the commit waits for it until the holder lets go,
 /// with
 ///  the holder named,
 /// and lands on top of the holder's commit when the holder lets go:
@@ -163,7 +163,7 @@ const NOTICES_BEYOND_BACKOFF: usize = 4;
 /// so the outcome does not depend on how fast the host runs
 ///  the commit and the wait is known to have gone on past that second.
 #[test]
-fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_lands_on_top() {
+fn a_foreign_holder_proven_alive_is_waited_for_until_it_lets_go_and_the_commit_lands_on_top() {
     let fixture: Fixture = fixture("landing-lock-no-bound");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("ll-nobound-{}", std::process::id());

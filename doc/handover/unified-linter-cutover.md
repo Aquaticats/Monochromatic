@@ -254,6 +254,16 @@ The order that avoided a window in which commits failed:
 The user approved the trust step.
 Commits made on the branch used `--no-enforce-markdown/autofix` while the installed wrapper still ran the deleted CLI.
 
+Note 2026-11-08T19:33:30-05:00:
+the October umbrella item "the linter cutover task"
+(`doc/handover/cli-git-rust-implementation.md`) named no closing record,
+so this record now carries its closure.
+`b111c0ca39` landed the cutover on 2026-10-10 and `5bc05682e` deleted the five incumbent packages;
+`0b49ae109e` (2026-10-06T18:38:11-04:00,
+`feat(*): run monochromatic-lint from the root lint and format tasks and the Markdown commit policy`)
+is the wiring the item asked about.
+All three are ancestors of `main` at `c6cc850c6d`.
+
 ## Cutover change
 
 The `markdown/autofix` options in `cli-git.config.ts` now take the policy defaults:
