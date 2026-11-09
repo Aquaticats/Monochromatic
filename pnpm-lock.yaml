@@ -1332,6 +1332,9 @@ importers:
       nano-spawn:
         specifier: 'catalog:'
         version: 2.1.0
+      string-dedent:
+        specifier: 'catalog:'
+        version: 3.0.2
       yaml:
         specifier: 'catalog:'
         version: 3.0.0-2
