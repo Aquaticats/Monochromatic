@@ -3599,9 +3599,13 @@ each is named with what the person would see.
   and neither the Git object nor the merged file holds them.
 - Two recoveries of the same dead record.
   The first takes a file aside and writes the merge's index entry for it;
-  the second, starting on the same dead owner's record, finds the private name and renames the file back to its path,
+  the second,
+  starting on the same dead owner's record,
+  finds the private name and renames the file back to its path,
   because the repair does not ask whether the process that left it is still running.
-  The first then finishes: its private name is gone, so its removal step says so and reports the merge complete.
+  The first then finishes:
+  its private name is gone,
+  so its removal step says so and reports the merge complete.
   What the person sees:
   the branch moves onto the merge while the file the merge deletes is back in the checkout as an untracked file,
   and both commands report success.
