@@ -215,9 +215,11 @@ fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
     // an identity that cannot be read is treated the same way rather than deleting what it cannot name.
     let recorded: crate::fs_beneath::ObjectId = run.journal.stage_identity()?;
     let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(new_path);
-    if found.as_ref().is_some_and(|identity: &crate::fs_beneath::ObjectId| {
-        return identity.device == recorded.device && identity.inode == recorded.inode && (recorded.birth.is_none() || recorded.birth == identity.birth);
-    }) {
+    if let Some(identity) = found
+        && identity.device == recorded.device
+        && identity.inode == recorded.inode
+        && (recorded.birth.is_none() || recorded.birth == identity.birth)
+    {
         return None;
     }
     return Some(Refusal {

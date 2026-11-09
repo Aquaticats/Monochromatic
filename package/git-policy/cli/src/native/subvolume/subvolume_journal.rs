@@ -212,7 +212,10 @@ impl Journal {
         // then has only the stage's type to judge it by.
         let stage_identity: Option<crate::fs_beneath::ObjectId> = match value.get("stage_identity").and_then(Value::as_str) {
             None => None,
-            Some(encoded) => Some(crate::fs_beneath::ObjectId::decode(encoded).ok_or_else(|| { return broken_journal(path, "has a stage identity that is not one"); })?),
+            Some(encoded) => match crate::fs_beneath::ObjectId::decode(encoded) {
+                Some(identity) => Some(identity),
+                None => return Err(broken_journal(path, "has a stage identity that is not one")),
+            },
         };
         let mut states: BTreeMap<String, String> = BTreeMap::new();
         let mut times: BTreeMap<String, i64> = BTreeMap::new();

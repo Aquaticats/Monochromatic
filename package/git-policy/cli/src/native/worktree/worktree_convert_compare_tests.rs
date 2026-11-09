@@ -123,7 +123,9 @@ fn a_mode_change_of_a_named_pipe_is_a_difference() {
 ///  A named pipe planted at the old entry after the walk read its metadata does not block the
 ///  comparison.
 /// Why:
-///  The contents were opened through `File::open`, which blocks on a FIFO and follows a link, and nothing around the call has
+///  The contents were opened through `File::open`,
+/// which blocks on a FIFO and follows a link,
+/// and nothing around the call has
 /// a deadline;
 /// the conversion holds its claim while it waits.
 /// The comparison opens both sides through the plain-file open,
