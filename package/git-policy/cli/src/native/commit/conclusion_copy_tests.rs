@@ -114,7 +114,7 @@ fn a_reftable_copy_keeps_the_record_and_its_flush() {
     let record: PathBuf = transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME);
     assert_eq!(std::fs::read_to_string(record.as_path()).expect("record"), "{}\n");
     let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert!(synced.iter().any(|path| path == &record), "the reftable record is flushed: {synced:?}");
+    assert!(synced.contains(&record), "the reftable record is flushed: {synced:?}");
     remove(root.as_path());
 }
 
