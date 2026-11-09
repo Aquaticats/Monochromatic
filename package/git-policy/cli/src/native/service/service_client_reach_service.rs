@@ -34,6 +34,11 @@ use std::time::{Duration, Instant};
 /// when the manager has said twice in a
 ///  row that the unit failed,
 /// or at `START_CEILING` (one minute).
+/// A unit the manager calls `failed` is asked to be
+///  reset and started once,
+/// and a unit it calls `inactive` is asked to start at the first answer,
+/// because nothing else
+///  repairs either state.
 /// Where the manager cannot be asked it ends at the start wait,
 /// as it always did.
 /// Once a service
@@ -59,6 +64,7 @@ pub(crate) fn reach(
     let mut failed_answers: u32 = 0;
     let mut cannot_ask: bool = false;
     let mut last_start_request: Option<Instant> = None;
+    let mut repairs: u32 = 0;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
@@ -101,11 +107,20 @@ pub(crate) fn reach(
                 if last_asked.elapsed() >= watch.every {
                     last_asked = Instant::now();
                     let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
-                    // A unit still `inactive` after the start wait, with the client's connection waiting on its socket, is one the
-                    //  manager did not start; it is asked to, again after each further start wait, and the client goes on waiting.
-                    // A unit that is `activating` is being started and is left alone.
+                    // What: A unit the manager answers `inactive` for is asked to start at once, then again after each start
+                    //       wait while it stays inactive.
+                    // Why:  The client's connection was refused, so nothing of this worktree listens and nothing is starting it: an
+                    //       `inactive` unit is the answer a person's `systemctl --user stop` leaves, and provisioning counts the
+                    //       socket file it kept as in place, so nothing else starts it. Waiting the start wait (ten seconds)
+                    //       before asking made that commit ten seconds slower than native Git
+                    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 5). A unit that
+                    //       is `activating` is being started and is left alone.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (answer === 'inactive' && (lastStartRequest === undefined || lastStartRequest.elapsed() >= startWait)) { await start(unit); }
+                    // ```
                     if answer.as_deref() == Some("inactive")
-                        && started.elapsed() >= config.start_wait
                         && match last_start_request {
                             Some(at) => at.elapsed() >= config.start_wait,
                             None => true,
@@ -115,6 +130,27 @@ pub(crate) fn reach(
                         last_start_request = Some(Instant::now());
                     }
                     cannot_ask = answer.is_none();
+                    // What: A unit the manager calls `failed` is asked to be reset and started, once, and the wait goes on.
+                    // Why:  Provisioning finds the unit text current and the socket file there (systemd keeps it) and so
+                    //       leaves the failed state alone, and a unit in that state never comes back by itself; the
+                    //       command would fail with "run the commit again", which reproduces the same state. The reset
+                    //       comes first because a unit that failed too often refuses a start as "repeated too quickly".
+                    //       One repair only, and a second `failed` answer still ends the wait, so a unit that cannot start fails
+                    //       the commit in seconds.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (answer === 'failed' && repairs++ === 0) { await reset(unit); await start(unit); failedAnswers = 0; }
+                    // ```
+                    if answer.as_deref() == Some("failed") && repairs == 0 {
+                        repairs += 1;
+                        // The service unit requires the socket unit, so one start covers both and both states are forgotten.
+                        let _forgotten = (watch.reset)(watch.bus.as_path(), watch.unit.as_str());
+                        let _socket_forgotten = (watch.reset)(watch.bus.as_path(), watch.socket_unit.as_str());
+                        let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
+                        last_start_request = Some(Instant::now());
+                        failed_answers = 0;
+                    }
                     failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
                 }
                 // One answer of "failed" can be the unit's last run, before the connection made the manager start it again. A start the
@@ -188,6 +224,18 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             Some(fixed) => fixed,
             None => {
                 let _written = writeln!(notices, "{UPDATING_NOTICE}");
+                // What: The record of the unit texts the manager was told about is dropped the moment another release
+                //       answers.
+                // Why:  That answer alone proves the unit the manager loaded and the files describe are not the same
+                //       (an interrupted downgrade, then an interrupted upgrade), whatever happens next: the service may
+                //       take the retire and leave, and the manager may then try a cached executable an upgrade removed,
+                //       which ends the wait with `DidNotStart` instead of the retirement deadline. Dropping the record
+                //       here makes the next commit write the units and reload instead of taking the fast path into that
+                //       same answer (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+                //       findings 2 of the round-2 review and 3 of the round-3 review).
+                if let Some(directory) = config.units_record_dir.as_ref() {
+                    crate::service_provision_loaded_unit_texts::forget(directory.as_path());
+                }
                 let fresh: Instant = Instant::now() + config.start_wait;
                 give_up_at = Some(fresh);
                 fresh
@@ -204,3 +252,8 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
         std::thread::sleep(CONNECT_PAUSE * 4);
     }
 }
+
+/// Controls of the wait and of the repair it asks the manager for stay out of the release executable.
+#[cfg(test)]
+#[path = "service_client_reach_service_tests.rs"]
+mod tests;

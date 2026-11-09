@@ -143,19 +143,47 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(format!("writing the plan failed: {error}")),
     }
-    remove_files_of(directory, plan.git_dir.as_path(), plan.item.branch_ref.as_str(), &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())], Some(name.as_str()));
+    remove_files_of(
+        directory,
+        plan.git_dir.as_path(),
+        plan.item.branch_ref.as_str(),
+        &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())],
+        std::slice::from_ref(&name),
+    );
     return Ok(());
+}
+
+/// The file name the plan of a branch is kept under,
+/// for a caller that must know which files a round is about to write.
+pub fn name_of(plan: &StoredPlan) -> String {
+    return plan_name(plan);
 }
 
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], None);
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[]);
+}
+
+/// What:
+///  Removes the files of the plan of a branch except the ones named in `keep`.
+/// Why:
+///   A forget a worker asked for is applied by the service loop after the round,
+/// so a plan another worker kept meanwhile is newer than the forget and is the statement that still counts;
+/// its file name is known before it is written,
+/// and is not removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeFilesOf(gitDir, branchRef, keys, keep)
+/// ```
+pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String]) {
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], keep);
 }
 
 /// Removes the plan files of one branch of `git_dir`,
 /// whose keys are `keys`,
-/// except the one named `keep`,
+/// except the ones named in `keep`,
 /// and removes a file only when its record was read and names this directory and this branch.
 /// Why:
 ///   "never discard user data."
@@ -169,11 +197,13 @@ pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
 /// which may be neither done nor cancelled,
 /// so it stays and `load` judges it and says so,
 /// since deleting it needs permission on its directory alone.
-fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: Option<&str>) {
+///  The names in `keep` are the plans a round is about to write,
+/// which a forget of the same round must not take.
+fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String]) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if keep == Some(name.as_str()) || !names_the_branch(keys, name.as_str()) {
+        if keep.contains(&name) || !names_the_branch(keys, name.as_str()) {
             continue;
         }
         let path: PathBuf = entry.path();

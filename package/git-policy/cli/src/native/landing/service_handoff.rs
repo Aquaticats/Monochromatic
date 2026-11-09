@@ -26,7 +26,7 @@ use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
 use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What the wrapper knows about a commit the service landed.
 #[derive(Clone, Debug)]
@@ -139,8 +139,6 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = push_item(handoff, landed);
-    // The push is released, so the line that says it is held must not be shown.
-    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
     if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
         return Ok(());
     }
@@ -165,7 +163,6 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 /// forgetThePush(handoff, landed) // unlink the pending record
 /// ```
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
-    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let id: String = push_item(handoff, landed).id();
     // The verdict is durable: a later recovery of the same batch must not hold the push again.
@@ -189,7 +186,7 @@ fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
 
 /// What:
 ///  Writes the push record for a branch tip that a command other than a commit moved,
-/// and wakes the service.
+/// before anything asks whether a service can be reached.
 /// Why:
 ///   A merge,
 /// a cherry-pick,
@@ -198,23 +195,43 @@ fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
 ///  be the first to push.
 /// Only the push is left:
 /// the review and the upkeep belong to a commit.
+///   The record is a directory of this worktree's own Git directory,
+/// so writing it needs no service,
+/// no socket and no session bus,
+/// and a context with no route to the service still leaves the push on disk for the next wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writePushRecord({ repository, gitDir, reference, tip, parent })
+/// ```
+pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repository.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
+        branch_ref: reference.to_string(),
+        oid: tip.to_string(),
+        parent: parent.to_string(),
+        created: now_iso(),
+        tries: 0,
+    };
+    enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    return Ok(());
+}
+
+/// What:
+///  `write_push_record` for a handoff,
+/// and then the wake of the service.
+/// Why:
+///   The caller that already knows how to reach the service leaves both in one call;
+/// a caller that may find no route writes the record with `write_push_record` and wakes only when it has one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await handOverPush(handoff, tip)
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Push,
-        repository: handoff.repository.clone(),
-        git_dir: handoff.git_dir.clone(),
-        branch_ref: handoff.reference.clone(),
-        oid: tip.to_string(),
-        parent: handoff.parent.clone(),
-        created: now_iso(),
-        tries: 0,
-    };
-    enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
     return wake(&handoff.config, handoff.git_dir.as_path(), None, notices);
 }
 
@@ -236,5 +253,56 @@ mod tests;
 /// heldPushLine(branchRef, commit)
 /// ```
 pub fn held_push_line(reference: &str, commit: &str) -> String {
+    if reference.is_empty() {
+        return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push of its branch");
+    }
     return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {reference}");
+}
+
+/// What:
+///  The lines a command says about the pushes this worktree holds,
+/// read from the held records themselves.
+/// Why:
+///   The record is the only place the state exists,
+/// so the line cannot disagree with it:
+/// a kill between
+///  writing the record and writing a second file cannot lose the line,
+/// a release cannot leave a stale
+///  one,
+/// and two commands cannot interleave into either.
+/// A release,
+/// a block or a claim removes or moves the record,
+///  and the line goes with it.
+/// The wording claims only what is known,
+/// which is that the push has not been
+///  released yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldPushNotices(gitDir) // one line per held record
+/// ```
+pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
+    let work_dir: PathBuf = work_directory(git_dir);
+    let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
+        return Vec::new();
+    };
+    let mut lines: Vec<String> = Vec::new();
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let Some(commit) = name.strip_prefix(format!("{}-", WorkKind::Push.name()).as_str()) else { continue };
+        // A record that cannot be read still names its commit through its own file name, and its branch is unknown: the line is
+        //  said with the branch the record would have carried when it can be read, and without a branch otherwise.
+        let branch: String = match std::fs::read_to_string(entry.path()).ok().and_then(work_item_of) {
+            Some(item) => item.branch_ref,
+            None => String::new(),
+        };
+        lines.push(held_push_line(branch.as_str(), commit));
+    }
+    return lines;
+}
+
+/// The item one held record's text holds,
+/// or nothing when it cannot be read.
+fn work_item_of(text: String) -> Option<WorkItem> {
+    return WorkItem::decode(text.as_str()).ok();
 }
