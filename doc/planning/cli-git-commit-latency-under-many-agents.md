@@ -576,7 +576,12 @@ and how:
   the tree now lives in the repository scratch directory the sweep covers,
   the service removes it beside its landing loop and bounded,
   a command that no service took it from removes it as it ends,
-  and a tree a kill left is removed by a later command's preparation once it is two hours old.
+  and a tree a kill left is removed by a later command's preparation once it is two hours old
+  (that last rule changed on 2026-11-09,
+  when a tree a kill left began going at the next command;
+  see "The tree a kill leaves goes at the next command,
+  and a live one never goes",
+  below).
   `package/git-policy/cli/SPEC.md`,
   "The commit's scratch directory",
   holds the rules and every size.
@@ -645,6 +650,11 @@ each control run against the branch's own change undone:
   once the service accepted only the Git directory.
 - `an_abandoned_scratch_tree_goes_before_the_sweeps_day` failed with `left: 0, right: 1`,
   once the age rule removed nothing.
+  That test and the age rule it proves were replaced on 2026-11-09
+  (see "The tree a kill leaves goes at the next command,
+  and a live one never goes",
+  below);
+  the test that holds the same ground now is `an_unmarked_tree_goes_by_age_and_a_fresh_one_stays`.
 - `a_removal_says_what_became_of_it` failed with `a removal that outlasts its ceiling says so: Finished`,
   once the removal was given an hour instead of `SCRATCH_REMOVAL_CEILING`.
 
@@ -655,10 +665,110 @@ What this leaves open:
   the fixtures start cold,
   and one commit there pays a `git update-index --refresh` of 122 to 173 seconds.
 - What bounds the trees in a repository nobody commits in again:
-  eight per command and a day of age,
+  eight per command,
+  a day of age for one with no marker,
   stated in `SPEC.md`,
-  but the day's own sweep belongs to a command,
+  but every one of those rules belongs to a command,
   so a repository left alone keeps the trees it had.
+
+## The tree a kill leaves goes at the next command, and a live one never goes (2026-11-09T08:12:27-05:00)
+
+The rule above decided a leftover tree by its age alone,
+and age cannot tell a killed command's tree from a live one's:
+the scratch `git commit` runs with the terminal attached and no watch,
+so a person who leaves an editor open in the scratch repository holds the tree for as long as they like,
+and a two-hour-old tree of a running commit is what the next command would then have removed:
+the private indexes and the typed message of a commit still being made.
+The tree is now owned,
+and ownership decides:
+
+- As a tree is made,
+  the command writes `owner` into it,
+  a marker in the index lock's own format
+  (`cli-git-service v2 0 <pid> <birth>`,
+  `service_index_marker.rs`),
+  naming its process and that process's birth identity.
+- A later command's preparation reads that marker and removes the tree at once when `/proc`
+  proves the process is gone,
+  at most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) of them,
+  and leaves a live command's tree alone however old it is.
+- A tree with no marker,
+  which a release before this one made,
+  or one a command was killed in between making and marking,
+  goes once it is `UNMARKED_SCRATCH_TREE_AGE` old (two hours,
+  as every tree did before),
+  and the sweep of the place still removes whatever is a day old whatever its number.
+- `ScratchRenewal` sets the tree's modification time to now every `SCRATCH_REFRESH_EVERY`
+  (an hour) while the command lives,
+  so the age those age rules see is the command's liveness,
+  and it stops when the command lets the tree go.
+- The two rules sit beside the landing rather than in the foundation:
+  `src/native/landing/service_scratch_abandonment.rs`,
+  `src/native/landing/service_scratch_renewal.rs`,
+  with `scratch_entry_removal.rs` keeping only the bounded removal of one entry.
+
+What this adds to the preparation,
+measured on the four fixtures of the round above,
+every arm alternating inside each round,
+six rounds and twenty-four commits,
+all of them landed (exit 0):
+
+- The whole stretch the work is in,
+  `prepareParts.scratch` (making the tree,
+  marking it,
+  reading the place for trees to collect,
+  starting the renewal):
+  0 ms in twenty-three of the twenty-four records and 2 ms in one,
+  and 0 in every record of the two arms without the work.
+  The record's resolution is a whole millisecond,
+  so what the change spends is under it.
+- `prepareMs`,
+  median:
+  4,482 and 2,655 ms on the two arms with the work,
+  1,085 and 6,239 ms on the two without it.
+  The same-binary spread is 1.7 times between the first pair and 5.8 times between the second,
+  and whole-commit wall clock spans 1,446 to 22,335 ms,
+  so these records cannot tell the two builds apart:
+  the change buys a rule,
+  not time.
+- The host was at load average 124.81,
+  105.99 and 89.60 (one,
+  five and fifteen minutes)
+  at 2026-11-09T07:41:33-05:00,
+  before the round,
+  and at 58.83,
+  59.99 and 70.51 at 2026-11-09T08:12:52-05:00,
+  when it ended,
+  on six CPUs,
+  with `/proc/pressure/io` reporting `full` at 46.40 percent over ten seconds at the end;
+  no load was generated for this measurement,
+  and every probe ran in a `systemd-run --user --scope` scope.
+
+Proof by removal,
+each control run against the branch's own change undone:
+
+- `a_made_tree_names_the_command_that_made_it` failed with `the tree names the command that made it`
+  once `mark_the_owner` was no longer called as the tree is made.
+- `a_made_tree_is_renewed_while_its_command_lives` failed with
+  `a made tree is renewed while the command lives: ["git_policy_cli-", "landing::servic", "unit-test-watch"]`
+  once the renewal was no longer started.
+- `a_cleanup_names_only_a_scratch_directory_of_the_worktree` failed with
+  `.../monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-`
+  accepted at the decoder,
+  once the cleanup was checked with the earlier rule
+  (`is_absolute` and `starts_with(git_dir)`) again.
+  That rule was also the one that refused the place this release makes the tree in,
+  and it accepted any directory at all inside the Git directory,
+  so a request could ask the service to remove one the wrapper never made.
+
+What this leaves open:
+
+- A released scratch tree's removal starts where its job sits in the batch,
+  before that batch's landings run,
+  so a client killed while its request is still queued can have its tree removed before its own landing reads it.
+  The fix is to collect the batch's releases and start them after its landings;
+  no test drives a killed client's queued request today,
+  so the change is left for a round that can prove it.
 
 ## What the preparation spends, named (2026-11-09T06:41:47-05:00)
 
