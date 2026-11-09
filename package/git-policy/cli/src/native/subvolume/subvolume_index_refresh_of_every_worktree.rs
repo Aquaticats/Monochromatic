@@ -19,6 +19,7 @@
 //! const count = await refreshAllIndexes(root, lock, references, say);
 //! ```
 
+use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::lazy_runtime::run_on_runtime;
 use crate::line_sink::LineSink;
@@ -32,7 +33,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The number of copies of an index file one rewrite holds at once:
 /// the bytes read,
@@ -155,9 +156,32 @@ struct RewriteEachIndex {
     /// The length of the repository's object hashes,
     /// when it could be read.
     hash_length: Option<usize>,
-    /// How many rewrites never ran,
+    /// How many rewrites gave no result,
     /// so a phase that covered fewer indexes than it counted says so instead of marking itself done.
-    not_rewritten: Arc<AtomicUsize>,
+    gave_no_result: Arc<RewritesThatGaveNoResult>,
+}
+
+/// What:
+///  How many rewrites gave no result, by the kind of end,
+/// because the two kinds promise different things about the person's files.
+/// Why:
+///   A job that never started left its index alone.
+/// A job that ended without a result may have installed its index before it ended,
+/// and nothing here can tell which,
+///  so the report keeps that uncertainty instead of promising an unchanged file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RewritesThatGaveNoResult = { neverStarted: number; endedWithoutAResult: number };
+/// ```
+#[derive(Default)]
+struct RewritesThatGaveNoResult {
+    /// The jobs the process's bound refused a thread for,
+    /// whose indexes are as they were.
+    never_started: AtomicUsize,
+    /// The jobs that panicked or were cancelled,
+    /// whose indexes may or may not have been installed.
+    ended_without_a_result: AtomicUsize,
 }
 
 impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
@@ -175,12 +199,17 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
             .await;
             return match rewritten {
                 Ok(line) => line,
-                // Whether the index was published is not known here: the step may have ended before it began,
-                //  or after it installed the file, and this line says which kind of end this was.
-                Err(refused) => {
-                    self.not_rewritten.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    format!("not rewritten ({refused})")
-                }
+                // The kinds of end promise different things: one wrote nothing, and one may have written the index.
+                Err(refused) => match refused {
+                    BlockingJobError::NoThreadToStart => {
+                        self.gave_no_result.never_started.fetch_add(1, Ordering::SeqCst);
+                        format!("not rewritten ({refused})")
+                    }
+                    BlockingJobError::Panicked | BlockingJobError::Cancelled => {
+                        self.gave_no_result.ended_without_a_result.fetch_add(1, Ordering::SeqCst);
+                        format!("ended without a known result, so this index may have been written or may be as it was ({refused})")
+                    }
+                },
             };
         });
     }
@@ -281,12 +310,12 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     // The items are shared, so the consumer still knows the path of each index it reports.
     let items: Arc<[IndexTarget]> = Arc::from(targets);
     let count: usize = items.len();
-    let not_rewritten: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let gave_no_result: Arc<RewritesThatGaveNoResult> = Arc::new(RewritesThatGaveNoResult::default());
     let reported = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: Arc::clone(&items),
         lanes: Arc::from(lanes),
         workers,
-        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length, not_rewritten: Arc::clone(&not_rewritten) }),
+        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length, gave_no_result: Arc::clone(&gave_no_result) }),
         on_event: &mut SayEachIndex { say, targets: items.as_ref() },
     })
     .await;
@@ -294,12 +323,21 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     if let Err(stopped) = reported {
         return Err(MigrateError::Runtime(stopped.to_string()));
     }
-    // A rewrite that never ran is not an index that needed nothing: the caller marks its phase done, so it must be told.
-    let missed: usize = not_rewritten.load(std::sync::atomic::Ordering::SeqCst);
-    if missed > 0 {
-        return Err(MigrateError::Runtime(format!("{missed} of {count} index file(s) were not rewritten, because the work of each one could not be started; the indexes stay as they were")));
+    // A rewrite that gave no result is not an index that needed nothing: the caller marks its phase done, so it must be
+    //  told, and each kind of end says only what it can vouch for.
+    let never_started: usize = gave_no_result.never_started.load(Ordering::SeqCst);
+    let ended_without_a_result: usize = gave_no_result.ended_without_a_result.load(Ordering::SeqCst);
+    if never_started == 0 && ended_without_a_result == 0 {
+        return Ok(count);
     }
-    return Ok(count);
+    let mut why: Vec<String> = Vec::new();
+    if never_started > 0 {
+        why.push(format!("{never_started} of {count} index file(s) were not rewritten, because the work of each one could not be started, so those stay as they were"));
+    }
+    if ended_without_a_result > 0 {
+        why.push(format!("{ended_without_a_result} of {count} index file(s) ended without a known result, so whether those were rewritten is not known; run the command again to rewrite them"));
+    }
+    return Err(MigrateError::Runtime(format!("{}.", why.join(". "))));
 }
 
 /// Each reference tree path joined with `relative`,
