@@ -268,7 +268,7 @@ const SLOW_STEP_SECONDS: u64 = 3;
 /// How long the ceiling of the scratch commit is set to in the controls that sleep in that step to watch its notices and records,
 /// in seconds:
 /// far above their sleeps,
-/// so the measured production ceiling (3,006 ms) does not decide them.
+/// so the measured production ceiling (16,332 ms) does not decide them.
 const CONTROL_CEILING_SECONDS: &str = "600";
 
 /// A directory with a stand-in `git` that sleeps `seconds` before any run whose words include `commit`,
@@ -294,10 +294,10 @@ fn slow_commit_git(fixture: &Fixture, seconds: u64) -> PathBuf {
 const BEYOND_THE_CEILING_SECONDS: u64 = 60;
 
 /// A commit whose message came with the command and whose scratch `git commit` outlasts the ceiling
-/// (3,006 ms,
+/// (16,332 ms,
 /// owner,
 /// 2026-11-08,
-/// "About 3 s now")
+/// "About 16 seconds")
 /// is stopped,
 /// says that nothing was committed and that the same command can be run again,
 /// and changes neither the branch nor the person's files.
@@ -378,6 +378,21 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     // Steps are listed in the order they began.
     let offsets: Vec<u64> = steps.iter().map(|step| { return number(step, "offsetMs"); }).collect();
     assert!(offsets.windows(2).all(|pair| { return pair[0] <= pair[1]; }), "{offsets:?}");
+    // What the step's own figure cannot say is in the record beside it: whether a ceiling was armed, how long the notice's own
+    // join took (a line that waits for its reader is that figure and not the step's), and which programs ran below the step.
+    // The stand-in sleeps before it execs Git, so the sleep is one of them, and its time is the time Git was not running.
+    let scratch: &Vec<serde_json::Value> = record["scratchSteps"].as_array().unwrap_or_else(|| { panic!("the record has no scratch step list: {record}") });
+    assert_eq!(scratch.len(), 1, "one entry for the one build: {record}");
+    let build: &serde_json::Value = &scratch[0];
+    assert_eq!(build["armed"], true, "a message on the command line arms the ceiling: {record}");
+    assert_eq!(number(build, "ceilingMs"), CONTROL_CEILING_SECONDS.parse::<u64>().expect("the control's ceiling") * 1000, "{record}");
+    assert!(build["stoppedAfterMs"].is_null(), "the step ended by itself: {record}");
+    assert!(number(build, "looks") >= 1 && number(build, "looksFound") >= 1, "the notice looked and found the step: {record}");
+    let below: &Vec<serde_json::Value> = build["below"].as_array().unwrap_or_else(|| { panic!("no programs below the step: {record}") });
+    let sleeping: &serde_json::Value = below.iter().find(|program| { return program["name"] == "sleep"; }).unwrap_or_else(|| { panic!("the stand-in's sleep is not named below the step: {record}") });
+    let slept: u64 = number(sleeping, "seenMs");
+    assert!(slept >= (SLOW_STEP_SECONDS - 1) * 1000, "the sleep ran {SLOW_STEP_SECONDS} s: {record}");
+    assert!(slept <= SLOW_STEP_SECONDS * 1000, "the sleep cannot be seen longer than it ran: {record}");
     remove_settled(&fixture);
 }
 

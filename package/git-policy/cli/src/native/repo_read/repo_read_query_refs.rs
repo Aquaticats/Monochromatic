@@ -34,6 +34,29 @@ use std::ffi::OsString;
 /// The `--format` text of the one listing the wrapper asks for.
 const LISTING_FORMAT: &str = "--format=%(refname)%00%(objectname)%00%(symref)";
 
+/// How many refs a `for-each-ref` listing answers in process;
+/// a repository above this count starts Git.
+/// Why:
+///   Every ref the listing prints is checked against the object database,
+///  because Git drops a ref whose object is missing (`warning: ignoring broken ref`)
+///  and the answer must drop it too,
+///  and that check is one pack-index lookup per ref.
+///   Measured on 2026-11-09 (release profile,
+///  arms alternating in one binary,
+///  this repository:
+/// 1442 refs,
+///  four packs of 514k objects,
+///  load average 61 to 84):
+///  the answer took 7.1 ms at the median against 3.8 ms for `git for-each-ref`,
+///  and 4.3 ms of it was that check,
+///  after the check was changed to ask the packs before the loose paths.
+///  The layout and the ref walk alone take 1.8 ms,
+///  so the two meet near 490 refs by the measured per-ref cost (3.5 us) and the answer loses above them.
+///   This limit sits well below that meeting point,
+///  because a larger object database makes each check dearer than it is here,
+///  and the Git start it is compared against is a constant.
+const REF_LISTING_LIMIT: usize = 256;
+
 /// How many tag levels are peeled.
 const PEEL_LIMIT: usize = 8;
 
@@ -216,9 +239,21 @@ pub(crate) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
         return None;
     }
     let refs: Refs = shared_refs(context)?;
+    // Past this count the answer takes longer than the Git start it saves, so Git answers.
+    //  The packed file is counted before anything else,
+    //  because opening the database and walking `refs/` are the costs this check exists to avoid.
+    if refs.packed_ref_count()? > REF_LISTING_LIMIT {
+        return None;
+    }
     let database: ObjectDatabase = context.database()?;
+    let listing: Vec<(String, RefValue)> = refs.list()?;
+    // Loose refs are counted only now, because counting them means walking `refs/`;
+    //  a repository whose count is this high because of loose refs is declined before one object is checked.
+    if listing.len() > REF_LISTING_LIMIT {
+        return None;
+    }
     let mut stdout: Vec<u8> = Vec::new();
-    for (name, value) in refs.list()? {
+    for (name, value) in listing {
         let (object, symref): (String, &str) = match &value {
             RefValue::Direct(object) => (object.clone(), ""),
             RefValue::Symbolic(target) if is_terminal(&refs, target.as_str()) => (refs.resolve(name.as_str())?, target.as_str()),
