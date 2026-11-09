@@ -8184,20 +8184,21 @@ Options that select the whole index (`--all`,
 
 #### The commit's scratch directory
 
-The commit's scratch directory holds the private indexes,
-the marker that names the command that made it,
-and,
+The commit's scratch directory holds the private indexes and,
 when real Git must build the commit,
 the scratch repository.
 It is made at
-`<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>`,
+`<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>-<attempt>`,
 inside the repository scratch directory,
 and never in the worktree's own Git directory as releases before this one made it.
+The attempt's number is in the name because the service removes the tree of an attempt once that attempt's landing is over,
+and the next attempt of the same command must not be the directory that removal is taking.
 Code:
 `src/native/foundation/scratch_location.rs`,
 `src/native/landing/service_prepare_ready_shapes.rs`,
 `src/native/landing/service_scratch_abandonment.rs`,
-`src/native/landing/service_scratch_renewal.rs`.
+`src/native/landing/service_scratch_renewal.rs`,
+`src/native/service/service_scratch_release_removal.rs`.
 
 Why there:
 a command killed at any instruction,
@@ -8210,103 +8211,77 @@ which a preparation of a commit now is.
 Who removes it,
 and how long anyone waits:
 
-- The resident service removes it when the connection that holds it closes,
-  however the client ends,
+- A request names its tree:
+  through the private index it carries,
+  and,
+  for a commit built elsewhere,
+  through the cleanup it asks for.
+  The resident service removes that tree once the landing of that request is over,
   in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
   with a line at warning priority in the service journal when the removal cannot finish.
   Neither the client nor the landing loop waits for it.
-- A command that never handed it to a service,
-  because the service refused it or because the preparation stopped where
-  it was,
+  Nothing else in the service removes a tree a request named:
+  the tree holds the private index and the conclusion copies the landing reads,
+  and a client killed while its request waits is not evidence that the landing is over.
+- A command that never submitted its tree,
+  because the service refused it or because the preparation stopped where it was,
   removes it itself as it goes out of scope,
   with the same ceiling,
   so a declined or abandoned commit leaves nothing.
-- A command killed before it could remove its tree,
-  and a tree whose removal did not finish,
-  wait for a later command.
-  Two things there decide,
-  and neither of them is age alone:
-  the tree carries a file `owner`,
-  written as the tree is made,
-  which names this command's own process and that process's birth identity
-  in the marker format the index lock uses
-  (`service_index_marker.rs`,
-  `service_index_identity.rs`);
-  a later command's preparation reads it and removes the tree at once when `/proc`
-  proves that process is gone,
-  and leaves it alone while that process lives,
-  **however old the tree is**:
-  a commit can hold its tree for as long as a person leaves an editor open in it,
-  because the step that runs real Git in the scratch repository is unwatched and unbounded.
-  A tree with no marker at all is one a release before this one made,
-  or one a command was killed in between making and marking;
-  that one goes once it is older than
-  `UNMARKED_SCRATCH_TREE_AGE` (two hours,
-  six times the longest wait a commit can have),
-  and the sweep removes whatever is older than `SCRATCH_STALE_AFTER` (a day) whatever its number.
-  A marker that cannot be written,
-  and a `/proc` that cannot answer,
-  leave the tree to the age rule and a line in the debug log,
-  so a commit never fails over either.
+- A tree no request ever named,
+  because the command was killed before it submitted or before it made the tree at all,
+  goes when nothing has written it for `SCRATCH_TREE_ABANDONED_AFTER` (two hours,
+  six times the longest wait a commit can have).
+  Its command renews the tree's modification time every `SCRATCH_REFRESH_EVERY` (an hour) while it lives,
+  so the age a sweep sees is the liveness of the command that made the tree,
+  not how long its work takes.
+  Age is the only evidence a collection has,
+  and it is enough here because no landing can still be reading a tree nothing has written for two hours.
+- One decision answers which entry may go,
+  for the sweep of a scratch place and for every other collection
+  (`may_go`,
+  `service_scratch_abandonment.rs`):
+  a commit tree at `SCRATCH_TREE_ABANDONED_AFTER`,
+  and every other entry of a scratch place at the age its caller gives,
+  which is `SCRATCH_STALE_AFTER` (a day) for the sweep.
+- At most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) entries go per sweep,
+  oldest first,
+  so a backlog another command left delays this one by that many removals and never by the backlog's length,
+  and the next sweep takes the next eight.
   That is what bounds the trees a kill leaves:
   one tree of about 9 MiB per killed command,
-  gone at the next command instead of after two hours,
-  and at most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) removed per command,
-  which holds whether or not a service ever held them.
-- A tree a command still holds is kept fresh while that command lives:
-  `ScratchRenewal` sets the tree's modification time to now every `SCRATCH_REFRESH_EVERY`
-  (a twenty-fourth of a day,
-  so a sweep finds a live tree at most an hour old),
-  and it stops when the command lets the tree go,
-  by an answer,
-  a stop or a panic,
-  and with the process when the command is killed.
-  So the age a sweep sees is the liveness of the command that made the tree,
-  not how long its work takes.
+  gone at the first sweep after two hours.
+- A leftover of a command's own earlier attempt whose removal its ceiling cut short is moved aside under a name no
+  commit tree has,
+  where the sweep collects it by age,
+  and the attempt creates its own tree as it always does:
+  a stalled device costs a removal and a debug line,
+  never a failed commit.
 - Every removal of a scratch entry runs on a thread of its own and stops being waited for at
   `SCRATCH_REMOVAL_CEILING` (thirty seconds,
   twelve times the slowest single `unlinkat` the timing record holds),
   so a stalled device costs a partial removal and a reported line,
   never a command that waits.
+  A removal that outlasted its ceiling holds one of the process's places for blocking work until its thread ends,
+  and a removal that finds every place held takes none and leaves its entry to a later sweep,
+  so stalled removals cannot gather without bound.
   A name that is not one of the wrapper's scratch trees,
   and a name that holds a link or a file,
   is never removed by that rule.
 
-A repository whose scratch directory cannot be made private still commits:
-the tree goes into the worktree's Git directory,
-where nothing sweeps it,
-and the debug log says so.
-
-##### What a scratch announcement can name
-
-The service removes whatever a scratch announcement names when the announcing connection closes,
-so the decoder accepts only the wrapper's own directory names:
-the prefix and an identity of letters,
-digits and dashes,
-directly inside the repository scratch directory of the announced Git directory,
-or directly inside that Git directory as releases before this one made it,
-with no relative part that could lead elsewhere
-(`is_scratch_path`,
-`service_protocol_messages_and_name_checks.rs`).
-
 Two linked worktrees of one repository share that repository scratch directory,
-so a client that announces **another worktree's** tree under it is accepted,
-and the tree is removed when the announcing connection closes,
+so a client that names **another worktree's** tree is accepted,
+and the tree is removed once the landing of the request that named it is over,
 even though the worktree that owns it still runs.
-The wrapper never sends such an announcement:
-each one names the tree the command itself made,
-whose name carries that command's identity,
-and the watch that holds it lives exactly as long as that command.
+The wrapper never sends such a request:
+each one names the index inside the tree the command itself made,
+whose name carries that command's identity and its attempt's number.
 A client that sent one anyway,
 by a defect or on purpose,
 would take another worktree's private index and typed message with it,
 and the service cannot tell the two apart:
 the announced Git directory is the one the client says it serves,
 and the tree's name is one the wrapper makes.
-Nothing on the service side guards this,
-because the removal a release starts removes what was announced
-(`service_scratch_release_removal.rs`);
-the guard is that no other message of this kind exists.
 
 A cleanup a request carries,
 which names the directory of a commit built elsewhere,
@@ -8318,14 +8293,36 @@ with no relative part that could lead elsewhere
 `service_protocol_messages_and_name_checks.rs`),
 so no request can ask the service to remove a directory the wrapper did not make.
 
-A service of an earlier release refuses an announcement of a place it does not know,
-and the client does not read that refusal,
-because a service that takes the announcement answers nothing at all and reading for an answer would put a wait on every
-commit.
-Such a tree carries no marker,
-so it waits for the age a tree without one has to reach instead of being removed at once,
+A service of an earlier release does not know the message a client of this one used to announce a tree,
+and the client does not read that refusal;
+such a tree carries nothing a later command reads,
+so it goes at `SCRATCH_TREE_ABANDONED_AFTER`,
 which costs one tree of about 9 MiB per worktree for two hours while an installation switches releases:
 the next commit retires the service of the other release and starts this one.
+
+##### A command stopped for longer than the tree's age
+
+A command that stops running,
+by a stopped process,
+a frozen cgroup,
+or a machine that is not running it,
+stops renewing its tree,
+so the tree's age keeps growing while its command still lives.
+Once the tree is older than `SCRATCH_TREE_ABANDONED_AFTER`,
+the sweep of another command removes it,
+and the stopped command resumes without the private index it was writing:
+its next Git child fails,
+and the commit reports that failure.
+No rule distinguishes a stopped command from a killed one,
+because the only fact that would (a process that still exists)
+is exactly the fact that cannot be acted on:
+the tree of a killed client whose request is queued belongs to a process that is gone,
+and a landing is still reading it.
+The window is therefore the whole of a stop longer than two hours,
+and not only the moment between creating the tree and writing anything into it.
+The wrapper accepts losing that tree.
+What keeps every other live command's tree is the renewal,
+which needs no marker file and no reader of `/proc`.
 
 #### Scratch repository layout
 
