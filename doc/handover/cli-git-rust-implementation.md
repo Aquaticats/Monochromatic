@@ -331,10 +331,22 @@ The old tree kept for the rollback stays until the owner deletes it.
   a Git step reads its child through the runtime,
   so inside a blocking job of the pool every step refuses as nested.
   Its branch keeps the corrected wording for a refused thread.
-- Open from the test-coverage report,
-  not yet given to an agent:
-  the kill sweeps list calls a flow never makes,
-  so those names add no positions and nothing says so.
+- The kill sweeps list only calls their flow makes
+  (`test/git-policy-cli-kill-sweeps-reach-the-calls-they-name`,
+  `41b8f27188`,
+  awaiting review):
+  a listed call with no position fails the sweep,
+  every state-changing call the measurement showed is listed,
+  and one call is one control of its own,
+  because the copy flow's 44 positions had reached nextest's five-minute limit.
+  That split found a state the timeout had hidden:
+  a kill inside the copy's staging window leaves the add's stage,
+  which `38e01bcd33` keeps and reports and never removes,
+  so `copy_recovered` now requires that report instead of the removal it demanded.
+  Open from the same measurement:
+  a kill during a journal write in the copy journal root leaves a hidden `.partial` scratch file,
+  whose name carries no owner,
+  so the dead-temporary sweep (which matches `.tmp`) never removes it.
 - `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` failed once in a suite and passes alone on the branch and on main.
 - The worktree-copy branch does not land yet.
   `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
