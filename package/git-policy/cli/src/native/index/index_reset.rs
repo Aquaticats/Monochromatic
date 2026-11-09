@@ -26,13 +26,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const done: boolean = resetPaths(index, names, treeEntries, settings, timestampSeconds); // false: ask Git
+//! const done: boolean = resetPaths(index, names, treeEntries, settings, stamp, stat); // false: ask Git
 //! ```
 
-use crate::index_byte_search::is_slash;
+use crate::index_reset_path_names::path_is_plain;
 use crate::index_full::{FullEntry, FullIndex, SKIP_WORKTREE};
 use crate::index_settings::{IndexSettings, UntrackedMode};
-use crate::index_stat::StatData;
+use crate::index_stat::{IndexStamp, StatData};
+use crate::index_reset_worktree_stat_source::WorktreeStat;
 use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
 
 /// The mode a regular file with an executable bit gets in the index.
@@ -53,149 +54,6 @@ fn index_mode(mode: u32) -> u32 {
         return MODE_GITLINK;
     }
     return if mode & 0o100 != 0 { MODE_EXECUTABLE } else { MODE_FILE };
-}
-
-/// Whether `byte` is a space or a dot,
-/// the two characters NTFS drops from the end of a name.
-fn is_space_or_dot(byte: &u8) -> bool {
-    return *byte == b' ' || *byte == b'.';
-}
-
-/// Whether `rest` is only the spaces and dots NTFS drops from the end of a name.
-fn only_spaces_and_dots(rest: &[u8]) -> bool {
-    return rest.iter().all(is_space_or_dot);
-}
-
-/// The byte of `name` at `index`;
-/// a position past the end reads as the terminating NUL,
-/// as Git's string would.
-fn byte_at(name: &[u8], index: usize) -> u8 {
-    return name.get(index).copied().unwrap_or(0);
-}
-
-/// Whether `name` from `start` on is only spaces and periods up to its end or a `:` that opens a stream.
-fn spaces_and_periods(name: &[u8], start: usize) -> bool {
-    for index in start.. {
-        let byte: u8 = byte_at(name, index);
-        if byte == 0 || byte == b':' {
-            return true;
-        }
-        if byte != b' ' && byte != b'.' {
-            return false;
-        }
-    }
-    return false;
-}
-
-/// Whether the two bytes are the start of a UTF-8 sequence for one of the ignorable characters U+2000 to U+206F.
-fn is_ignorable_pair(pair: &[u8]) -> bool {
-    return pair == [0xe2, 0x80] || pair == [0xe2, 0x81];
-}
-
-/// Whether the three bytes are the UTF-8 form of the ignorable character U+FEFF.
-fn is_ignorable_triple(triple: &[u8]) -> bool {
-    return triple == [0xef, 0xbb, 0xbf];
-}
-
-/// What:
-///  Git's `is_ntfs_dotgitmodules` (`path.c:1451-1522`,
-/// `is_ntfs_dot_generic` with the name `gitmodules` and the hashed short-name
-///  prefix `gi7eba`) for one path component:
-/// `.gitmodules`,
-/// its short form `gitmod~1` to `gitmod~4`,
-/// and the fall-back short name
-///  NTFS makes from the hash (`GI7EBA~1`),
-/// each followed only by spaces and dots or a stream.
-/// Why:
-///   A link with any of these names is refused by Git with the NTFS protection on,
-/// so the update must decline it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const refused: boolean = isNtfsDotGitmodules(component);
-/// ```
-fn is_ntfs_dotgitmodules(name: &[u8]) -> bool {
-    if byte_at(name, 0) == b'.' && name.len() > 10 && name[1..11].eq_ignore_ascii_case(b"gitmodules") {
-        return spaces_and_periods(name, 11);
-    }
-    if name.len() > 5 && name[..6].eq_ignore_ascii_case(b"gitmod") && byte_at(name, 6) == b'~' && (b'1'..=b'4').contains(&byte_at(name, 7)) {
-        return spaces_and_periods(name, 8);
-    }
-    let (mut index, mut saw_tilde): (usize, bool) = (0, false);
-    while index < 8 {
-        let byte: u8 = byte_at(name, index);
-        if byte == 0 {
-            return false;
-        } else if saw_tilde {
-            if !byte.is_ascii_digit() {
-                return false;
-            }
-        } else if byte == b'~' {
-            index += 1;
-            if !(b'1'..=b'9').contains(&byte_at(name, index)) {
-                return false;
-            }
-            saw_tilde = true;
-        } else if index >= 6 || byte & 0x80 != 0 || byte.to_ascii_lowercase() != b"gi7eba"[index] {
-            return false;
-        }
-        index += 1;
-    }
-    return spaces_and_periods(name, 8);
-}
-
-/// What:
-///  Whether one path component is one Git's name checks (`verify_path_internal` in `read-cache.c` with `core.protectNTFS`,
-///  which is on by default,
-/// and `core.protectHFS`) cannot refuse or alias to a refused name.
-/// Why:
-///   Git refuses `.`,
-/// `..` and `.git` in any case;
-/// with the protections on it also refuses the spellings a file system folds
-///  to `.git` (trailing spaces and dots,
-/// the `::$INDEX_ALLOCATION` stream,
-/// `git~1`,
-/// the ignorable characters of a case-folding
-///  disk) and,
-/// for a link,
-/// the same spellings of `.gitmodules` (`is_ntfs_dotgit`,
-/// `is_ntfs_dotgitmodules`,
-/// `is_hfs_dotgit`,
-///  `is_hfs_dotgitmodules` in `path.c` and `utf8.c`).
-/// A backslash and a colon separate or open a stream on those disks.
-/// This
-///  declines every such spelling whatever the settings say,
-/// which is a superset of what Git refuses with them on,
-/// so the
-///  update never writes a name Git would not and Git answers the rest.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const plain = (component, isLink) => !/[\\:]/.test(component) && !aliasesDotGit(component) && !(isLink && aliasesDotGitmodules(component));
-/// ```
-fn component_is_plain(component: &[u8], is_link: bool) -> bool {
-    let lowered: Vec<u8> = component.to_ascii_lowercase();
-    let dot_git_like: bool = lowered.strip_prefix(b".git").is_some_and(only_spaces_and_dots);
-    let dot_gitmodules_like: bool = is_link && (is_ntfs_dotgitmodules(component) || lowered.strip_prefix(b".gitmodules").is_some_and(only_spaces_and_dots) || lowered.starts_with(b"gitmod~"));
-    // The ignorable characters of a case-folding disk: U+2000 to U+206F begin with E2 80 or E2 81, and U+FEFF is EF BB BF.
-    let ignorable: bool = component.windows(2).any(is_ignorable_pair) || component.windows(3).any(is_ignorable_triple);
-    let separators: bool = component.contains(&b'\\') || component.contains(&b':');
-    return !component.is_empty() && component != b"." && component != b".." && !separators && !dot_git_like && !dot_gitmodules_like && !lowered.starts_with(b"git~") && !ignorable;
-}
-
-/// Whether Git could refuse the path or treat it specially on a file system that folds names;
-/// those paths are left to Git.
-fn path_is_plain(path: &[u8], mode: u32) -> bool {
-    if path.is_empty() {
-        return false;
-    }
-    let is_link: bool = mode & 0o170_000 == MODE_LINK;
-    for component in path.split(is_slash) {
-        if !component_is_plain(component, is_link) {
-            return false;
-        }
-    }
-    return true;
 }
 
 /// Whether the path is one a literal pathspec `name` selects:
@@ -276,6 +134,8 @@ struct Edit<'a> {
     index: &'a mut FullIndex,
     /// What Git's configuration makes of the extensions.
     settings: IndexSettings,
+    /// Where the stat data of an entry the reset makes comes from.
+    stat: WorktreeStat<'a>,
 }
 
 impl Edit<'_> {
@@ -328,9 +188,14 @@ impl Edit<'_> {
             Some(at) => self.index.entries[at].extended & SKIP_WORKTREE,
             None => 0,
         };
+        let mode: u32 = index_mode(wanted.mode);
+        let stat: StatData = match self.stat {
+            WorktreeStat::Recorded(source) => source.recorded(path, wanted.id.as_slice(), mode).unwrap_or_default(),
+            WorktreeStat::None => StatData::default(),
+        };
         let made: FullEntry = FullEntry {
-            stat: StatData::default(),
-            mode: index_mode(wanted.mode),
+            stat,
+            mode,
             id: wanted.id.clone(),
             flags: 0,
             extended: skip,
@@ -393,17 +258,20 @@ fn prepare_extensions(index: &mut FullIndex, settings: IndexSettings) -> Option<
 /// with the
 ///  index then in an unspecified state.
 /// Why:
-///   `timestamp_seconds` is the index file's modification time:
-/// an entry that stays and was recorded in that second or later
-///  is racily clean,
-/// and Git would compare it with the worktree while writing,
+///   `stamp` is the index file's own modification time:
+/// an entry that stays and is not older than it is racily clean by Git's own rule,
+/// and Git would compare such an entry with the worktree while writing,
 /// which this update does not.
+/// `stat` names where the stat data of an entry the reset makes comes from,
+/// and this update records a value only
+///  for a path whose file it proved holds the bytes of the entry's object name
+/// (`index_reset_worktree_stat.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resetPaths(index: FullIndex, names: Uint8Array[], tree: FlatEntry[], settings: IndexSettings, timestampSeconds: number): void | undefined;
+/// function resetPaths(index: FullIndex, names: Uint8Array[], tree: FlatEntry[], settings: IndexSettings, stamp: IndexStamp, stat: WorktreeStat): void | undefined;
 /// ```
-pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry], settings: IndexSettings, timestamp_seconds: u32) -> Option<()> {
+pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry], settings: IndexSettings, stamp: IndexStamp, stat: WorktreeStat<'_>) -> Option<()> {
     for name in names {
         if !path_is_plain(name.as_slice(), 0) || name.last() == Some(&b'/') {
             return None;
@@ -422,7 +290,7 @@ pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry],
     }
     paths.sort();
     paths.dedup();
-    let mut edit: Edit<'_> = Edit { index, settings };
+    let mut edit: Edit<'_> = Edit { index, settings, stat };
     for path in paths {
         let wanted: Option<&FlatEntry> = find_in_tree(tree, path.as_slice());
         let start: usize = first_at(edit.index.entries.as_slice(), path.as_slice());
@@ -450,7 +318,7 @@ pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry],
     }
     // Git hashes a racily clean entry from the worktree when it writes the index; that is left to Git.
     for entry in &index.entries {
-        if entry.mode != MODE_GITLINK && timestamp_seconds <= entry.stat.mtime_sec {
+        if entry.mode != MODE_GITLINK && stamp.is_racy(&entry.stat) {
             return None;
         }
     }

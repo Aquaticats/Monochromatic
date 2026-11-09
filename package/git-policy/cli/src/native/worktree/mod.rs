@@ -69,6 +69,10 @@ pub mod worktree_attributes;
 
 pub mod worktree_clean_content;
 
+/// The attribute files a content decision reads,
+/// and what it charges the caller for them.
+pub mod worktree_clean_content_attributes;
+
 /// The environment and attribute files a content check reads,
 /// and the attributes that convert content.
 #[cfg(target_os = "linux")]
