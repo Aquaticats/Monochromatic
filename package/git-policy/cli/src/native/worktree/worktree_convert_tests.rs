@@ -337,6 +337,45 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
     remove(parent.as_path());
 }
 
+/// What:
+///  Bind a socket named `name` inside `directory` through a short path,
+///  and hand it back so the caller can drop it.
+/// Why:
+///   A socket path is limited to about a hundred bytes,
+/// and a fixture under the build directory is longer than that,
+///  so the bind goes through the open directory's descriptor.
+/// Dropping the listener leaves the socket file where it is,
+///  as a stopped development server does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listener = bindSocketIn(directory, 'agent.sock');
+/// ```
+fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListener {
+    use std::os::fd::AsRawFd as _;
+    use std::os::unix::fs::FileTypeExt as _;
+    let handle: std::fs::File = std::fs::File::open(directory).expect("directory handle");
+    let short: PathBuf = PathBuf::from(format!("/proc/self/fd/{}/{name}", handle.as_raw_fd()));
+    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(short).expect("socket");
+    assert!(std::fs::symlink_metadata(directory.join(name)).expect("the socket file").file_type().is_socket());
+    return listener;
+}
+
+/// A copy that leaves an entry out of the stage says which entry and why,
+/// so the silence cannot hide what
+///  the conversion does not carry.
+#[test]
+fn a_copy_that_leaves_a_socket_out_says_so() {
+    let (parent, _root, worktree) = quiet_worktree("convert-socket");
+    let listener: std::os::unix::net::UnixListener = bind_socket_in(worktree.as_path(), "agent.sock");
+    drop(listener);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (_verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let said: String = lines.join("\n");
+    assert!(said.contains("not recreated (a socket or device node): agent.sock"), "{said}");
+    remove(parent.as_path());
+}
+
 /// On a real btrfs filesystem the same conversion creates a real subvolume (root inode 256),
 /// clones the file data,
 /// keeps the
