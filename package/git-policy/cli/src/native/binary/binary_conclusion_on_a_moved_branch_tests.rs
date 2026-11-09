@@ -1,11 +1,15 @@
 //! What:
-//!  A commit that concludes a merge, a cherry-pick or a revert, and an amend,
+//!  A commit that concludes a merge,
+//! a cherry-pick or a revert,
+//! and an amend,
 //! whose branch another command moved while the commit waited.
 //! Why:
-//!  The owner, on this exact failure (2026-11-09):
+//!  The owner,
+//! on this exact failure (2026-11-09):
 //! "I would consider this to be a defect in our wrapper.
 //! Agents should never wait on each other on commits or merges.",
-//! beside "Commits should never fail." and "never discard user data".
+//! beside "Commits should never fail."
+//! and "never discard user data".
 //! A merge is open in a checkout several sessions share,
 //! another session lands a commit of its own paths,
 //! and the commit that concludes the merge must land on the branch as it is now:
@@ -41,7 +45,8 @@ use std::time::{Duration, Instant};
 /// Why:
 ///   The preparation of a conclusion runs several Git starts and a policy pass,
 /// and this host under a load average above a hundred took most of a minute for one of them;
-/// the wait is bounded, never a hang,
+/// the wait is bounded,
+/// never a hang,
 /// and the command's own bound is the one that ends work that really is stuck.
 const PATIENCE_SECONDS: u64 = 300;
 
@@ -439,10 +444,13 @@ fn repository_for_an_amend(fixture: &Fixture) -> PathBuf {
 /// with the amended message and author,
 /// and says so.
 /// Why:
-///   The owner chose exactly this (verbatim, 2026-11-09):
-/// "A: land as a new commit (Recommended)",
+///   The owner chose exactly this (verbatim,
+/// 2026-11-09):
+/// "A:
+/// land as a new commit (Recommended)",
 /// rejecting both the refusal and a rewrite of the commit another session landed.
-/// The result is the replaced commit, then the commit that moved the branch,
+/// The result is the replaced commit,
+/// then the commit that moved the branch,
 /// then the amendment as a commit of its own.
 ///
 /// In TS you'd write (pseudocode):

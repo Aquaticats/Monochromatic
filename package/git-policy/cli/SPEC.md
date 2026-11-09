@@ -4975,7 +4975,8 @@ now inside these bounds:
   A PID file holding a number this process table does not have is waited for the same way by a commit,
   and its line says which number it read and that a Git of another PID namespace writes one this table has
   never had:
-  the number proves no death, so no commit ends early on it
+  the number proves no death,
+  so no commit ends early on it
   (cross-vendor review of 2026-11-09,
   finding 2).
   A merge is the command that acts on that evidence:
@@ -10515,8 +10516,10 @@ A cleanup that fails cannot be redone once the wrapper has removed its scratch d
 ### The amend a moved branch makes
 
 An amend whose branch is no longer at the commit it replaces lands its changes as a new commit on the branch as it is now
-(the owner's choice, 2026-11-09:
-"A: land as a new commit (Recommended)";
+(the owner's choice,
+2026-11-09:
+"A:
+land as a new commit (Recommended)";
 the refusal and a rewrite of the commit another session landed were both rejected).
 The result is the replaced commit,
 then the commit that moved the branch,
@@ -11103,14 +11106,17 @@ and the preparation refuses with `ConclusionStateChanged` when that state is no 
 prepared over,
 because another command either finished the operation or abandoned it
 (`conclusion_state_text` in `conclusion_copy.rs`).
-No commit waits for another, and no command is refused for another session's commit or merge
-(the owner, 2026-11-09:
+No commit waits for another,
+and no command is refused for another session's commit or merge
+(the owner,
+2026-11-09:
 "I would consider this to be a defect in our wrapper.
 Agents should never wait on each other on commits or merges.").
 An amend whose branch moved is not made as an amend again:
 it lands as a new commit on the branch as it is now
 (see "The amend a moved branch makes").
-The retry is bounded by time, not by a count of builds:
+The retry is bounded by time,
+not by a count of builds:
 `MOVED_BRANCH_REBUILD_CEILING` in `src/native/service/wait_ceilings.rs`,
 which `CLI_GIT_REBUILD_CEILING_SECONDS` sets for a control,
 and every rebuild says how many builds were made,
