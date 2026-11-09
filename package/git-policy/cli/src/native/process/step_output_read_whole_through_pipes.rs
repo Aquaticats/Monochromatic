@@ -462,7 +462,8 @@ async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync
 /// the writes that closed are the step's whole answer,
 /// and a step that finished inside its
 ///  ceiling must not be reported as one whose output a program holds open.
-///  The descriptor is asked itself, and not the reactor:
+///  The descriptor is asked itself,
+/// and not the reactor:
 /// every operation of the runtime answers a read of a stream it has not
 ///  yet heard about with nothing,
 /// and the kernel's own answer is what decides here.
