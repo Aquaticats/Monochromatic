@@ -204,6 +204,102 @@ pub fn run_real_git(
 }
 
 /// What:
+///  How often a run with a ceiling looks at its child before the ceiling.
+/// Why:
+///   `Child::try_wait` is the whole wait,
+/// so the loop that reads the clock needs an interval;
+/// one look every twentieth of a second
+///  costs nothing beside a checkout and ends the child close to its ceiling.
+const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(20);
+
+/// What:
+///  Run real Git as a child with inherited streams and wait no longer than `ceiling`,
+/// ending the child and every process
+///  it started when the ceiling is reached.
+/// Why:
+///   The wrapper's own Git steps are not the person's command and must not wait forever (owner:
+/// "nothing should ever
+///  wait forever or indefinitely"):
+/// a step that runs the checkout's conversion filters can be held by a smudge filter,
+/// a
+///  Git LFS process or a filesystem that never answers.
+/// The child is its own process group,
+/// so a stop takes the
+///  filters it started with it and nothing beside it,
+/// and the leader is then reaped so it leaves no zombie.
+///  The person's own forwarded command is never run this way:
+/// native Git waits as long as its own work
+///  takes,
+/// and the wrapper adds no ceiling to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(gitPath, args, { stdio: 'inherit', detached: true });
+/// const deadline = Date.now() + ceilingMs;
+/// while (Date.now() < deadline) { const status = tryWait(child); if (status) return status; await delay(20); }
+/// process.kill(-child.pid, 'SIGKILL'); await child.exited;
+/// throw new Error(`it ran longer than ${ceiling}s and was ended`);
+/// ```
+pub fn run_real_git_until(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    ceiling: std::time::Duration,
+) -> std::io::Result<ChildOutcome> {
+    let mut command: Command = git_command(real_git, arguments, overlay);
+    // The group is this child's own, so a stop reaches every filter and helper Git started and nothing else.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child: std::process::Child = command.spawn_retrying()?;
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Ok(outcome_of(status)),
+            Ok(None) if began.elapsed() >= ceiling => break,
+            Ok(None) => std::thread::sleep(BOUNDED_LOOK_INTERVAL),
+            Err(error) => {
+                stop_child_group(&mut child);
+                return Err(error);
+            }
+        }
+    }
+    stop_child_group(&mut child);
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
+        format!(
+            "it ran longer than {:?} and was ended, with the filters and helpers it started; something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)",
+            ceiling
+        ),
+    ));
+}
+
+/// What:
+///  End the child's whole process group and reap the leader.
+/// Why:
+///   Killing only the leader would leave a smudge filter or a Git LFS process writing into the worktree
+///  beside a cleanup that removes what it writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.kill(-child.pid, 'SIGKILL'); await child.exited;
+/// ```
+fn stop_child_group(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        if let Ok(leader) = libc::pid_t::try_from(child.id()) {
+            // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made for this
+            // child by `process_group(0)` above.
+            let _stopped: libc::c_int = unsafe { libc::kill(-leader, libc::SIGKILL) };
+        }
+    }
+    // A child killed so must be collected: a leader left unreaped is a zombie for as long as this process lives.
+    let _collected: std::io::Result<std::process::ExitStatus> = child.wait();
+}
+
+/// What:
 ///  Become real Git;
 ///  returns only when Git could not be started.
 ///       The returned `std::io::Error` says why the operating system refused.

@@ -20,7 +20,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git};
+use crate::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git, run_real_git_until};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
@@ -463,9 +463,19 @@ fn run_settled(
                     }
                 }
             }
-            match run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()) {
+            // The person's own command waits as long as native Git does, while a step the ladder started has the ceiling of its
+            //  class: a filter or a filesystem that never answers must not hold the add (owner: nothing waits forever).
+            let ran: std::io::Result<ChildOutcome> = match crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) {
+                Some(ceiling) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), ceiling),
+                None => run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()),
+            };
+            match ran {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
                 Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
+                // A step that was ended at its ceiling did start, so the failure says what happened rather than that it could not start.
+                Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` was ended: {error}", child_arguments.iter().map(|word| { return word.to_string_lossy(); }).collect::<Vec<std::borrow::Cow<'_, str>>>().join(" "))));
+                }
                 Err(error) => {
                     return Err(WorktreeCopyError(format!(
                         "monochromatic-git-policy-cli: cannot start {}: {error}",

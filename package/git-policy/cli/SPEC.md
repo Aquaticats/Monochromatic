@@ -1590,6 +1590,26 @@ the command fails with Git's
 status,
 and one report names the path,
 `git -C <path> reset --hard` (retry) and `git worktree remove --force <path>`.
+Every Git step the ladder starts itself (`git read-tree` of a rung,
+the fallback `git reset --hard`) has a
+ceiling and is ended with the whole process group it started when the ceiling is reached
+(`service/wait_ceilings.rs`:
+`LADDER_READ_TREE_CEILING`,
+the class of a bulk step that can be run twice,
+and
+`LADDER_CHECKOUT_CEILING`,
+five times the longest measured whole checkout),
+because those steps run the checkout's
+conversion filters and a smudge filter,
+a Git LFS process or a filesystem that never answers must not hold the add.
+The person's own forwarded command has no ceiling:
+native Git waits as long as its own work takes.
+A step ended at
+its ceiling loses nothing of the person's:
+it writes the wrapper's own stage or the new worktree,
+the source is
+never written,
+and a lock it held is named by the report of an interrupted `git worktree add`.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,

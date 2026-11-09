@@ -150,6 +150,11 @@ pub mod worktree_clone;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_target;
 
+/// Which of the ladder's own Git steps has a ceiling,
+/// and which number that ceiling is.
+#[cfg(target_os = "linux")]
+pub mod ladder_step_ceilings;
+
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;

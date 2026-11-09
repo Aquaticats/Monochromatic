@@ -223,3 +223,96 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
     assert_eq!(stops[0].instance, crate::service_instance::instance_of(registered.as_path()));
     remove(root.as_path());
 }
+
+/// What:
+///  A ladder step that waits on the checkout's conversion filter is ended at its ceiling,
+/// so the add returns
+///  instead of waiting for the filter.
+/// Why:
+///   The wiring is what this proves:
+/// the `read-tree` of a rung and the fallback `git reset --hard` are started by
+///  the forwarded runner,
+/// and a smudge filter that never answers must not hold the add (owner:
+/// "nothing should ever wait
+///  forever or indefinitely").
+/// The attribute selects a filter whose driver is not the standard LFS definition,
+/// so `prepare_target`
+///  refuses the rung and the fallback checkout is the step that would run the filter,
+/// and the filter is a
+///  `git-lfs` on the overlay's `PATH` that never answers.
+/// The source is a subvolume root,
+/// because no rung serves a source that is not one,
+/// and the ceiling is
+///  shortened for this thread,
+/// so the control ends in a moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shortenCeiling(500); const began = now(); const run = runForwardedGit(...); expect(now() - began).toBeLessThan(20_000)
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
+    use crate::fs_btrfs_ioctl::subvolume_create_at;
+    use crate::fs_btrfs_test_support::btrfs_fixture;
+    use crate::ladder_step_ceilings::CEILING_FOR_THIS_THREAD;
+    use crate::worktree_ladder_test_support::{commit_all, tracked};
+    use std::time::Duration;
+    let Some(root) = btrfs_fixture("forward-ladder-ceiling") else { return };
+    let source_root: PathBuf = root.join("main");
+    subvolume_create_at(source_root.as_path()).expect("the source is a subvolume root");
+    git(source_root.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    tracked(source_root.as_path(), ".gitignore", b".cache/\n");
+    tracked(source_root.as_path(), ".gitattributes", b"stored.txt filter=lfs\n");
+    tracked(source_root.as_path(), "stored.txt", b"one\n");
+    commit_all(source_root.as_path(), "first");
+    git(source_root.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    // A different length, so the aged file cannot pass for the committed one by size and time alone.
+    tracked(source_root.as_path(), "stored.txt", b"two, longer\n");
+    commit_all(source_root.as_path(), "second");
+    git(source_root.as_path(), &["checkout", "--quiet", "main"]);
+    let main: PathBuf = std::fs::canonicalize(source_root.as_path()).expect("canonical main");
+    let common: PathBuf = main.join(".git");
+    // A smudge filter that never answers, on the overlay's PATH, and a definition `prepare_target` refuses: the rung ends
+    // and the fallback checkout is the step that would run it. No `clean` command is configured, so the clean check does not
+    // start the filter.
+    let filters: PathBuf = root.join("filters");
+    std::fs::create_dir_all(filters.as_path()).expect("filter directory");
+    crate::test_support::executable(filters.join("git-lfs").as_path(), b"#!/bin/sh\nsleep 5\n");
+    git(main.as_path(), &["config", "filter.lfs.clean", "cat"]);
+    git(main.as_path(), &["config", "filter.lfs.smudge", "git-lfs smudge -- %f"]);
+    git(main.as_path(), &["config", "filter.lfs.required", "true"]);
+    let topic: PathBuf = root.join("topic");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: true,
+        destination: Some(topic.clone()),
+        add_plan: Some(AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
+        remove_plan: None,
+    };
+    let mut overlay: Vec<(OsString, OsString)> = isolated_overlay();
+    overlay.push((OsString::from("PATH"), OsString::from(format!("{}:/usr/bin:/bin", filters.display()))));
+    CEILING_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<Duration>>| slot.set(Some(Duration::from_millis(500))));
+    let run: ForwardedRun = run_forwarded_git(
+        Path::new(REAL_GIT),
+        arguments(&[
+            "-C",
+            main.to_str().expect("utf8"),
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            topic.to_str().expect("utf8"),
+        ])
+        .as_slice(),
+        overlay.as_slice(),
+        Some(&facts),
+    );
+    CEILING_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<Duration>>| slot.set(None));
+    // Ended at its ceiling, the step cannot complete the add; waiting for the filter would have.
+    assert_ne!(run, ForwardedRun::Ran(0), "a step ended at its ceiling cannot complete the add");
+    // A step ended at its ceiling leaves the registration Git made, without a checkout.
+    assert!(!topic.join("stored.txt").exists(), "the add was not completed");
+    remove(root.as_path());
+}
