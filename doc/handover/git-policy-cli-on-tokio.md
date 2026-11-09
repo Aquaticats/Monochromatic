@@ -407,6 +407,98 @@
   8 skipped;
   Clippy clean.
 
+## Step T12, its first part, 2026-11-08T18:40:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-steps-12-and-13` in
+  `.claude/worktrees/pi-tokio-step-t12`,
+  from main at `1a907ccfb9`.
+  Not merged into main.
+- Done,
+  and the whole of what T12 could be from this tree:
+  the process's one bound on blocking jobs
+  (`foundation/blocking_jobs_within_the_budget.rs`),
+  and the ordered runner with each item as a job of the runtime under that bound
+  (`foundation/parallel_runner_on_the_runtime.rs`),
+  with `runtime_plan::budgeted_workers` as the one derivation of the worker count the
+  runtime plan and the bound share.
+  Commits `2b1f830568` and `c1e6a78a4c`.
+  Details,
+  the controls,
+  the planted controls and the checks:
+  the plan,
+  "Step T12,
+  the runner's jobs on the runtime".
+- Not done,
+  and blocked,
+  with the evidence in the plan:
+  the per-call-site conversion of the seven `run_ordered` sites and the nine
+  `run_all_side_by_side`/`run_beside_caller` sites.
+  Each must hand its items,
+  lanes and work over as shared values (`Arc`) because a `spawn_blocking` job must own what it reads,
+  and the service round (`landing/service_round.rs`) runs Git inside those jobs,
+  so it needs the leaf-first `async` Git first.
+  That leaf does not exist:
+  `transaction/transaction_git.rs` has `pub fn run_git`,
+  not an `async fn`,
+  and T11 wrote down why it stopped there.
+- The one thing this step found that the plan did not have:
+  a refused `spawn_blocking` pushes the job into the pool's queue and then panics,
+  and the queued job keeps everything it captured for the life of the process.
+  A permit inside the job is therefore lost for good,
+  and a sending end inside it keeps a channel open forever.
+  Both were measured as planted controls (30 s and a 300 s timeout).
+  The design that carries it:
+  the place is held by the awaiting frame,
+  and the consumer ends when every job has returned (a counter and a `Notify`),
+  then drains what was already sent.
+  The next agent must keep that shape in any new job helper.
+- Exact next steps,
+  in order:
+  1. The leaf-first `async` Git:
+     an `async fn` beside `run_git` in `transaction/transaction_git.rs`
+     (`run_git_once`/`run_git_watched`/`run_git_once_with`/`run_git_pausing` become
+     `async` cores over the async pipe reader and `OwnedChild::wait`,
+     with the synchronous
+     faces kept as bridges),
+     then its callers one folder at a time.
+  2. Then `landing/service_round.rs` (`drain_directories`) onto
+     `run_ordered_on_the_runtime`,
+     and the pure-file sites
+     (`worktree/worktree_trash_entries.rs`,
+     `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+     `worktree/worktree_convert_command.rs`,
+     the copy and repair sites of `side_by_side_threads.rs`) once their state is shared.
+  3. Then T13's removals and lint:
+     no `std::thread`,
+     no `std::process::Command` outside the guarded start,
+     no `thread::sleep`,
+     and the hand D-Bus wire format with its fuzz target.
+     None of the three guards can be tightened before step 2 lands,
+     because `foundation/scoped_start.rs`,
+     `foundation/side_by_side_threads.rs` and the rest still start threads and sleep.
+- Not run,
+  for the next agent:
+  the container gate of this branch (no gate image was made),
+  `native:perf`,
+  and the mutation campaign.
+
+## Step T13, not started, 2026-11-08T18:40:00-05:00
+
+Nothing of T13 is done and nothing of it can be done first:
+its three source guards fail today
+(35 files start threads through `foundation/scoped_start.rs`,
+`foundation/side_by_side_threads.rs` and their callers,
+and the remaining sleeps are listed in the plan,
+"What T11 did not convert,
+and why"),
+and its removals (the hand wire format `service/systemd_dbus_wire_format.rs` and the fuzz
+target `dbus_reply`,
+the thread helpers,
+the poll constants) wait for their last caller to go.
+The `format:monochromatic-lint` fixer and the package lint are clean on this branch,
+so the tree is ready for whoever takes the guards after step 2 above.
+
 ## Rules that bit during this work
 
 - A `mise run` task never runs from inside `package/git-policy/cli` for Git commands:
