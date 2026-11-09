@@ -737,6 +737,11 @@ and symbolic links.
 Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
+A selection that names repository paths asks about each one as `:(top,literal)<path>`,
+and that listing runs real Git with `--no-literal-pathspecs`,
+so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
+`--literal-pathspecs`)
+cannot make the name match nothing and leave the file in the source uncopied.
 A bare repository has no source root and synchronizes an empty set.
 The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
 a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
@@ -879,6 +884,9 @@ or a submodule,
 found anywhere in the index (not only at the first refusal);
 a `.gitattributes`
 file among the changes or untracked anywhere;
+that untracked listing (`:(glob)**/.gitattributes`)
+runs real Git with `--no-literal-pathspecs`,
+so a global pathspec mode cannot hide a deep attributes file from the refusal;
 a sparse checkout;
 a source that is a linked worktree,
 whose index lies outside
@@ -5950,7 +5958,8 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments alone and starts no process.
+`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone,
+reads no file and starts no process.
 It rejects `-A`,
 `--all`,
 `-u`
@@ -5977,6 +5986,17 @@ pathspec magic and globs can select the same set in further spellings.
 so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
 The rejection names every matched token as the caller wrote it and offers
 `--no-enforce-bulk-add` for one invocation.
+A token that names the working directory still does so whatever pathspec mode the caller set,
+so `.` and `./` stay bulk under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1`;
+every other spelling of the list is one plain name under that mode
+(so `**` stages a file named `**`,
+and `:/` names no file and is left to Git's own refusal),
+and the policy reads the caller's mode
+(the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
+and otherwise the variable's own boolean reading)
+before it judges a spelling.
+A variable value Git would refuse to read as a boolean is no mode,
+so an unmodelled spelling keeps the rejection rather than lifting it.
 
 ## Whole-sequence fixing
 
@@ -7496,6 +7516,12 @@ private file,
 so Git's `core.fsync` governs only that fallback;
 the in-process write always flushes the file,
 as Git's default does.
+A `reset` the service starts (that fallback and the reconciliation's own index update) carries `--no-literal-pathspecs`,
+because every spec it is given is `:(top,literal)<path>`,
+and `reset` accepts a spec that matches nothing without a word:
+under a global literal pathspec mode,
+inherited from the command that first started the service,
+it would install no entry and report success.
 The entries the update makes from the tree record the worktree's stat data where the file provably holds the tree's bytes
 (`index_reset_worktree_stat.rs`),
 and the all-zero value `git reset --no-refresh` writes everywhere else.
@@ -8227,6 +8253,9 @@ Three further private Git starts carry the same switch:
 the whole-index staging `commit -a` does in the private index (`:/`),
 the staging of each unmerged worktree copy that finishes a merge,
 and the settled-entry lookup that installs a landed correction into the worktree copy.
+That lookup also compares the pathname of every entry Git lists with the path it asked about:
+`GIT_ICASE_PATHSPECS` makes `:(top,literal)<path>` list every name that differs only in case,
+and the first of them is not necessarily the corrected path.
 Only the replay of a caller's `git add` keeps the caller's own mode.
 Preparation constructs candidate facts from the private index,
 writes each policy's corrections into the private index,
