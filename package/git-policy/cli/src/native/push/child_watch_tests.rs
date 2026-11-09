@@ -7,6 +7,7 @@
 
 use super::*;
 use std::io::Write;
+use crate::child_class::CHILD_WAIT_VARIABLE;
 use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
