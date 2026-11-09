@@ -963,7 +963,8 @@ fn the_fast_forward_moves_a_clean_checkout_to_the_target() {
 /// Why:
 ///   The directory comes from `rev-parse --absolute-git-dir`,
 /// which prints its bytes;
-/// read as text it names another directory, or none,
+/// read as text it names another directory,
+/// or none,
 /// so the record is written where recovery never looks
 ///  and a kill between Git's checkout and its ref update leaves a merge with no intent.
 #[test]

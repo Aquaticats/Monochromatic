@@ -142,8 +142,8 @@ pub fn intent_text(intent: &Intent) -> String {
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
-        format!("paths={}", intent.paths.iter().map(|path| { return String::from_utf8_lossy(path).into_owned(); }).collect::<Vec<String>>().join("\t")),
-        format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(|path| { return path_bytes::hex_of_bytes(path); }).collect::<Vec<String>>().join("\t")),
+        format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
+        format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
         format!("derived={}", u8::from(intent.derived)),
     ]);
     lines.extend(cleanup_lines(intent.cleanup.as_ref()));
@@ -205,7 +205,8 @@ pub(crate) fn intent_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 /// Why:
 ///   A path that is not text survives only in the bytes,
 /// and an intent an earlier release wrote holds only the plain line.
-/// An error is damage: a line of bytes that is there and does not decode is no path,
+/// An error is damage:
+/// a line of bytes that is there and does not decode is no path,
 /// and a reader that took it for an absent line would name the place the older form names.
 ///
 /// In TS you'd write (pseudocode):
@@ -272,7 +273,13 @@ pub(crate) fn intent_path_list(text: &str, key: &str) -> Result<Option<Vec<Vec<u
             None => return Ok(None),
         },
     };
-    return Ok(Some(items.into_iter().filter(|item| { return !item.is_empty(); }).map(|item| { return item.as_bytes().to_vec(); }).collect()));
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for item in items {
+        if !item.is_empty() {
+            paths.push(item.as_bytes().to_vec());
+        }
+    }
+    return Ok(Some(paths));
 }
 
 /// What:
@@ -309,7 +316,7 @@ pub(crate) fn parse_cleanup(entry: &str, hexadecimal: bool) -> Option<Cleanup> {
 /// parseIntent(text) // undefined when damaged
 /// ```
 pub fn parse_intent(text: &str) -> Option<Intent> {
-    let Some(repository) = intent_path(text, "repository").ok().flatten() else { return None };
+    let repository: PathBuf = intent_path(text, "repository").ok().flatten()?;
     // An intent written before the index was recorded names it as the repository's own; one whose line of bytes is damaged
     //  is no intent, because the ordinary index is not where that batch was prepared.
     let index: PathBuf = match intent_path(text, "index") {

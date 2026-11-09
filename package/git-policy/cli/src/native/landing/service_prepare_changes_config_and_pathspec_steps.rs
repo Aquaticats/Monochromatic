@@ -52,16 +52,16 @@ pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, ba
         &indexed_request(cwd, &arguments, Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
     )?;
     // The listing is read as the bytes Git wrote: the header is text, and the name after it is a name and not text.
-    let mut fields = output.stdout.split(|byte| { return *byte == b'\0'; }).filter(is_not_empty_field);
+    let mut fields = output.stdout.split(ends_a_field).filter(is_not_empty_field);
     let mut changes: Vec<Change> = Vec::new();
-    while let Some(header) = fields.next() {
-        let Some(path) = fields.next() else { return Ok(None) };
-        let Ok(header) = std::str::from_utf8(header) else { return Ok(None) };
+    while let Some(raw_header) = fields.next() {
+        let Some(named) = fields.next() else { return Ok(None) };
+        let Ok(header) = std::str::from_utf8(raw_header) else { return Ok(None) };
         let parts: Vec<&str> = header.trim_start_matches(':').split(' ').collect();
         let [_, new_mode, _, new_name, status] = parts.as_slice() else { return Ok(None) };
         let deletion: bool = status.starts_with('D');
         let mode: u32 = if deletion { ALLOWED_MODES[0] } else { u32::from_str_radix(new_mode, 8).unwrap_or(0) };
-        let path: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(path));
+        let path: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(named));
         if !is_plain_path(path.as_path()) || !ALLOWED_MODES.contains(&mode) || (!deletion && !is_object_name(new_name)) {
             return Ok(None);
         }
@@ -71,6 +71,11 @@ pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, ba
         }
     }
     return Ok(Some(changes));
+}
+
+/// Whether a byte ends a field of Git's `-z` output.
+fn ends_a_field(byte: &u8) -> bool {
+    return *byte == b'\0';
 }
 
 /// What:

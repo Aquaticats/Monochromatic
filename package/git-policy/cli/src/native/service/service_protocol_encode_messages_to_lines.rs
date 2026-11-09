@@ -12,6 +12,7 @@
 
 use serde_json::{Map, Value};
 use crate::path_bytes_in_records as path_bytes;
+use std::path::Path;
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, Change, Cleanup, LandedCapture, ClientMessage, ServiceMessage};
 
 /// What:
@@ -44,7 +45,13 @@ fn put(fields: &mut Map<String, Value>, key: &str, value: Value) {
 /// ```
 fn change_json(change: &Change) -> Value {
     let mut fields: Map<String, Value> = Map::new();
-    path_bytes::write_field(&mut fields, "path", change.path.as_path());
+    let path: &Path = change.path.as_path();
+    // A name that is text is exactly the plain field, so the bytes are written only when the plain field cannot spell them:
+    //  a request of `MAX_CHANGES` changes stays inside `MAX_LINE_BYTES` at the path length that bound was measured for.
+    put(&mut fields, "path", Value::from(path.display().to_string()));
+    if path.to_str().is_none() {
+        put(&mut fields, "pathHex", Value::from(path_bytes::hex_of_path(path)));
+    }
     put(&mut fields, "mode", Value::from(change.mode));
     put(&mut fields, "blob", change.blob.as_deref().map_or(Value::Null, Value::from));
     return Value::Object(fields);

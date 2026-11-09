@@ -111,7 +111,8 @@ pub(super) fn checkout_present(git_dir: &Path) -> Option<bool> {
 /// an earlier release wrote the text of the directory and nothing after it,
 /// so the last byte of that text is the path's even when it is a line break.
 /// A name that does not decode is no name;
-/// the snapshot is then kept, never settled on a guess.
+/// the snapshot is then kept,
+/// never settled on a guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,8 +124,13 @@ pub(super) fn named_git_dir(text: &str) -> Option<PathBuf> {
         None if text.is_empty() => (None, None),
         None => (None, Some(text)),
     };
-    let named: Option<PathBuf> = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten();
-    return named.filter(|path| { return !path.as_os_str().is_empty(); });
+    let named: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten()?;
+    return has_a_name(named.as_path()).then_some(named);
+}
+
+/// Whether a path read from a record names anything at all.
+fn has_a_name(path: &Path) -> bool {
+    return !path.as_os_str().is_empty();
 }
 
 /// What:

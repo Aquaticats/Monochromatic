@@ -119,7 +119,8 @@ pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
     /// Repository-relative path with `/` separators,
-    /// as the bytes Git listed: a file name that is not text is still a file name.
+    /// as the bytes Git listed:
+    /// a file name that is not text is still a file name.
     pub path: PathBuf,
     /// File mode,
     /// one of `ALLOWED_MODES`.
@@ -487,6 +488,11 @@ fn is_plain_component(part: std::path::Component<'_>) -> bool {
     return !matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir);
 }
 
+/// Whether a byte separates the parts of a repository-relative path.
+fn is_a_separator(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
 /// Whether `path` is a plain repository-relative path:
 /// no leading slash,
 /// no empty,
@@ -501,7 +507,7 @@ pub fn is_plain_path(path: &Path) -> bool {
         && !bytes.starts_with(b"/")
         && !bytes.contains(&b'\0')
         && !bytes.contains(&b'\n')
-        && bytes.split(|byte| { return *byte == b'/'; }).all(is_plain_part);
+        && bytes.split(is_a_separator).all(is_plain_part);
 }
 
 /// The name prefix of a commit's scratch directory.

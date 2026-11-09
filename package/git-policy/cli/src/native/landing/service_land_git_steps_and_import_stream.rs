@@ -167,6 +167,11 @@ pub(crate) fn quoted(path: &[u8]) -> Vec<u8> {
     return text;
 }
 
+/// Whether a byte ends a field of Git's `-z` output.
+fn ends_a_field(byte: &u8) -> bool {
+    return *byte == b'\0';
+}
+
 /// Whether two repository paths touch the same file or one contains the other.
 /// Why:
 ///   Both are the bytes Git listed,
@@ -321,7 +326,7 @@ pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, reques
         if request.base != old && !changed_since.contains_key(request.base.as_str()) {
             let listing: Vec<u8> = checked_bytes(git, repository, &["diff-tree", "-r", "--name-only", "-z", request.base.as_str(), old], None)?;
             let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
-            for name in listing.split(|byte| { return *byte == b'\0'; }) {
+            for name in listing.split(ends_a_field) {
                 if !name.is_empty() {
                     names.insert(name.to_vec());
                 }

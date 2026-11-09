@@ -3630,7 +3630,8 @@ in-process reader can) gives every value of the multi-valued keys.
   then a count).
   The merge commit skips commit-time hooks and policies because it is made from objects.
   The record that guards the move is written before Git starts and removed once it ended,
-  in the Git directory `rev-parse --absolute-git-dir` printed, read as the bytes Git printed,
+  in the Git directory `rev-parse --absolute-git-dir` printed,
+  read as the bytes Git printed,
   so a kill between Git's checkout and its ref update leaves an intent recovery finds
   whatever bytes the worktree's path holds.
   Every line the reconcile adds begins with `monochromatic-git-policy-cli: auto-push: `;
@@ -6619,7 +6620,8 @@ so a checkout whose path holds a line break is looked for as the whole path.
 A name that does not decode keeps the snapshot for the next command;
 it never settles it on a guess.
 
-The note that names an instance's worktree, written beside the socket,
+The note that names an instance's worktree,
+written beside the socket,
 holds the directory the same way.
 
 ### Machines with no way to reach the service
@@ -7680,11 +7682,17 @@ an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
-A field of bytes that is present and does not decode is damage, never absence.
-An intent whose `repositoryHex`, `commonHex`, `gitdirHex`, `indexHex`, `cleanupHex` or `pathsHex` does not decode is no intent,
+A field of bytes that is present and does not decode is damage,
+never absence.
+An intent whose `repositoryHex`,
+`commonHex`,
+`gitdirHex`,
+`indexHex`,
+`cleanupHex` or `pathsHex` does not decode is no intent,
 and a restart drops the batch as it drops any damaged record
 instead of reading the plain field beside it,
-which names another index, another worktree or another list of paths.
+which names another index,
+another worktree or another list of paths.
 Commit records of an earlier release in `.git/cli-git-transactions`
 are not read,
 and the directory is no longer used:
@@ -8103,20 +8111,28 @@ so one file whose name is not text no longer sends the whole commit to native Gi
 
 Every path in a protocol message or a line-oriented record carries two fields
 (`path_bytes_in_records.rs`):
-the plain field, which is the readable spelling of the path with U+FFFD for each byte that is not text,
-and the field named with the `Hex` suffix, which is the path's bytes in lowercase hexadecimal.
-A reader prefers the bytes field, so a name that is not text survives whole;
-a record with no bytes field is one an earlier release wrote, and the plain field is the path.
+the plain field,
+which is the readable spelling of the path with U+FFFD for each byte that is not text,
+and the field named with the `Hex` suffix,
+which is the path's bytes in lowercase hexadecimal.
+A reader prefers the bytes field,
+so a name that is not text survives whole;
+a record with no bytes field is one an earlier release wrote,
+and the plain field is the path.
 A bytes field that is present and does not decode is damage and no path:
 the reader refuses the record rather than naming what the plain field spells,
 because that is a different name.
 
-The commit request's changes hold `path` and `pathHex`;
+The commit request's changes hold `path`,
+and `pathHex` only when the plain field cannot spell the name,
+so a request of `MAX_CHANGES` changes stays inside `MAX_LINE_BYTES` at the path length that bound was measured for;
 the batch intent holds `paths=` and `pathsHex=`,
 so a restart builds the index from the same names the batch committed
 (`IndexPaths::Named` in `src/native/landing/service_land_follow.rs`).
 The `fast-import` stream quotes each name from its bytes,
-writing every byte below 0x20, a quote, a backslash and 0x7f as the octal escape `fast-import` reads
+writing every byte below 0x20,
+a quote,
+a backslash and 0x7f as the octal escape `fast-import` reads
 (`quoted` in `src/native/landing/service_land_git_steps_and_import_stream.rs`),
 and the checks for paths that changed or that two requests share compare bytes.
 The readable plain field is used only where a path is a key for something else:

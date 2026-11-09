@@ -171,7 +171,8 @@ fn the_checkout_of_a_directory_that_is_not_text_is_found_by_the_bytes_git_wrote(
 /// What:
 ///  A checkout path that holds a line break is read whole from the registration Git wrote.
 /// Why:
-///   Git ends that file with one line break, and a path may hold one of its own;
+///   Git ends that file with one line break,
+/// and a path may hold one of its own;
 /// stopping at the first one examines a prefix of the checkout,
 /// and an existing directory of that name makes an incomplete removal read as refused,
 /// which discards the snapshot that keeps the removed worktree's records.

@@ -158,13 +158,22 @@ pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
 /// except the one named `keep`.
 fn remove_files_of(directory: &Path, keys: &[String], keep: Option<&str>) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
-    let prefixes: Vec<String> = keys.iter().map(|key| { return format!("{key}{NAME_SEPARATOR}"); }).collect();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if prefixes.iter().any(|prefix| { return name.starts_with(prefix.as_str()); }) && keep != Some(name.as_str()) {
+        if names_the_branch(keys, name.as_str()) && keep != Some(name.as_str()) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }
+}
+
+/// Whether a plan file's name begins with the key of one of the branch's plans.
+fn names_the_branch(keys: &[String], name: &str) -> bool {
+    for key in keys {
+        if name.starts_with(format!("{key}{NAME_SEPARATOR}").as_str()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Order two stored plans with the one written later first;

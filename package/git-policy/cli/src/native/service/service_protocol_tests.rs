@@ -407,6 +407,7 @@ fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_li
     let mut sent: CommitRequest = request();
     let path: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS);
     sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: PathBuf::from(path.clone()), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    assert_eq!(sent.changes[0].path.to_str(), Some(path.as_str()), "the control's names are text, so they take the plain field only");
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
     assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
 }
