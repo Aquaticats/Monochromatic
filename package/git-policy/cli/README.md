@@ -556,6 +556,21 @@ Read-only commands,
      It shares disk but takes about as long as Git's checkout.
   3. Git's own checkout,
      then the ignored-state copy.
+  The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
+     and each has a ceiling of its class (`LADDER_READ_TREE_CEILING`,
+     `LADDER_CHECKOUT_CEILING` in `src/native/service/wait_ceilings.rs`):
+     a smudge filter,
+     a Git LFS process or a filesystem that never answers must not hold the add.
+     The person's own command has no ceiling.
+     Such a step keeps the process group and the terminal the wrapper has,
+     which is what a Git the person starts themselves keeps,
+     so a conversion filter that reads `/dev/tty` runs in the foreground and `Ctrl-C` reaches Git as usual.
+     When the ceiling is reached the wrapper sends `SIGKILL` to Git and nothing else,
+     which is what killing a Git the person started also leaves behind:
+     the filters and helpers Git started are not signalled and may still run,
+     the add returns,
+     and the line says that Git ended (or that it has not exited,
+     when it cannot be collected inside `STOP_GRACE`) and that a helper may still be running.
   A source is clean when no operation is in progress,
      its index equals the tree of its `HEAD`,
      every tracked file has

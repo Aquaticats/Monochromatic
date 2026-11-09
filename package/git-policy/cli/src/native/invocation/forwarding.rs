@@ -213,53 +213,67 @@ pub fn run_real_git(
 const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(20);
 
 /// What:
-///  How long a child that was just killed is given to exit and be collected before the wrapper leaves without it.
+///  How long Git is given to exit and be collected after it was killed before the wrapper leaves without it.
 /// Why:
 ///   `SIGKILL` cannot be ignored,
-/// so a child still running after this grace is inside a system call the kernel cannot
-///  interrupt (a hung filesystem,
+/// so Git still running after this grace is inside a system call the kernel cannot interrupt
+///  (a hung filesystem,
 /// a dead NFS or FUSE server);
 /// the ceiling exists for exactly that case,
-/// and waiting for the
-///  child to leave it would wait for the thing that never answers (owner:
+/// and waiting for
+///  Git to leave it would wait for the thing that never answers (owner:
 /// "nothing should ever wait forever or
 ///  indefinitely").
-/// A killed child normally exits in microseconds,
+/// A killed Git normally exits in microseconds,
 /// so this grace is hundreds of thousands of times that,
-/// and only a child the kernel cannot stop uses it up.
+/// and only a
+///  process the kernel cannot stop uses it up.
 const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
 #[cfg(test)]
 thread_local! {
     /// What:
-    ///  The grace for the runs of the current thread;
-    /// a control shortens it so a child that cannot be collected ends the control
-    ///  at once instead of at the shipped bound.
+    ///  What a control's runs report about Git after the kill,
+    /// instead of asking the operating system.
     /// Why:
-    ///   The grace is a shipped resource limit,
-    /// and a control that proved the leaving path by a real hung filesystem would need a
-    ///  hung filesystem.
+    ///   A grace of zero does not force an uncollected child:
+    /// a child that exits before the next look is
+    ///  collected,
+    /// so a control that demanded being unable to collect one failed under a valid scheduling order and
+    ///  without any defect.
+    /// The control states the outcome and the production path is unchanged.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// let stopGrace = STOP_GRACE;
+    /// let stopOutcome: 'collected' | 'left' | undefined;
     /// ```
-    pub(crate) static STOP_GRACE_FOR_THIS_THREAD: std::cell::Cell<Option<std::time::Duration>> = const { std::cell::Cell::new(None) };
+    pub(crate) static STOP_OUTCOME_FOR_THIS_THREAD: std::cell::Cell<Option<StopOutcome>> = const { std::cell::Cell::new(None) };
 }
 
-/// The stop grace the current thread's runs use.
-fn stop_grace() -> std::time::Duration {
-    #[cfg(test)]
-    if let Some(shortened) = STOP_GRACE_FOR_THIS_THREAD.with(std::cell::Cell::get) {
-        return shortened;
-    }
-    return STOP_GRACE;
+/// What:
+///  What became of Git when the ceiling ended it.
+/// Why:
+///   The report says what is known and nothing more,
+/// and only two things are known:
+/// Git was collected,
+/// or it did not
+///  exit inside the grace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StopOutcome = 'collected' | 'left';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StopOutcome {
+    /// Git exited and was collected.
+    Collected,
+    /// Git was killed but had not exited when the grace ran out.
+    Left,
 }
 
 /// What:
 ///  Run real Git as a child with inherited streams and wait no longer than `ceiling`,
-/// ending the child and every process
-///  it started when the ceiling is reached.
+/// ending Git when the ceiling is reached.
 /// Why:
 ///   The wrapper's own Git steps are not the person's command and must not wait forever (owner:
 /// "nothing should ever
@@ -267,15 +281,23 @@ fn stop_grace() -> std::time::Duration {
 /// a step that runs the checkout's conversion filters can be held by a smudge filter,
 /// a
 ///  Git LFS process or a filesystem that never answers.
-/// The child is its own process group,
-/// so a stop takes the
-///  filters it started with it and nothing beside it,
-/// and the leader is then reaped so it leaves no zombie.
-///  The reap is bounded by `STOP_GRACE`:
-/// a child the kernel cannot stop is left,
-/// and the error says so,
-/// because
-///  waiting for it is waiting for the call the ceiling exists to end.
+/// Git keeps the process group and the terminal this wrapper has,
+/// exactly as a Git the person starts themselves:
+/// a
+///  conversion filter that reads `/dev/tty` is then a foreground reader and not one the line discipline stops
+///  with `SIGTTIN`,
+/// and a `Ctrl-C` reaches Git as it always does.
+/// The cost is the one native Git
+///  has:
+/// the filters and helpers Git started are not signalled when Git is killed,
+/// so one of them may still be
+///  running after this function returns,
+/// and the error says so instead of claiming they ended.
+///  The reap of Git itself is bounded by `STOP_GRACE`:
+/// a Git the kernel cannot stop is left,
+/// and the error says
+///  that too,
+/// because waiting for it is waiting for the call the ceiling exists to end.
 ///  The person's own forwarded command is never run this way:
 /// native Git waits as long as its own work
 ///  takes,
@@ -283,12 +305,12 @@ fn stop_grace() -> std::time::Duration {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const child = spawn(gitPath, args, { stdio: 'inherit', detached: true });
+/// const child = spawn(gitPath, args, { stdio: 'inherit' });
 /// const deadline = Date.now() + ceilingMs;
 /// while (Date.now() < deadline) { const status = tryWait(child); if (status) return status; await delay(20); }
-/// process.kill(-child.pid, 'SIGKILL');
+/// process.kill(child.pid, 'SIGKILL');
 /// const collected = await collectWithin(child, STOP_GRACE);
-/// throw new Error(collected ? `it ran longer than ${ceiling}s and was ended` : `it ran longer than ${ceiling}s and has not exited`);
+/// throw new Error(collected ? `it ran longer than ${ceiling}s and Git ended` : `it ran longer than ${ceiling}s and Git has not exited`);
 /// ```
 pub fn run_real_git_until(
     real_git: &Path,
@@ -297,12 +319,6 @@ pub fn run_real_git_until(
     ceiling: std::time::Duration,
 ) -> std::io::Result<ChildOutcome> {
     let mut command: Command = git_command(real_git, arguments, overlay);
-    // The group is this child's own, so a stop reaches every filter and helper Git started and nothing else.
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        command.process_group(0);
-    }
     let mut child: std::process::Child = command.spawn_retrying()?;
     let began: std::time::Instant = std::time::Instant::now();
     loop {
@@ -311,60 +327,69 @@ pub fn run_real_git_until(
             Ok(None) if began.elapsed() >= ceiling => break,
             Ok(None) => std::thread::sleep(BOUNDED_LOOK_INTERVAL),
             Err(error) => {
-                stop_child_group(&mut child);
+                stop_git(&mut child);
                 return Err(error);
             }
         }
     }
-    let collected: bool = stop_child_group(&mut child);
-    // A child that did not exit inside the grace is still running: the message says what was seen instead of claiming it ended.
-    let ending: String = if collected {
-        String::from("and was ended, with the filters and helpers it started")
-    } else {
-        format!("and was told to stop {:?} ago, but it has not exited: it is inside a call the kernel cannot interrupt, so it may still write, and this command did not wait for it", stop_grace())
+    let outcome: StopOutcome = stop_git(&mut child);
+    // The report says only what is known: Git ended, or it has not exited, and a helper Git started may still run, which is
+    //  the one thing native Git also leaves behind when it is killed.
+    let ending: String = match outcome {
+        StopOutcome::Collected => String::from("and Git ended"),
+        StopOutcome::Left => format!("and Git was told to stop {STOP_GRACE:?} ago but has not exited, so it is inside a call the kernel cannot interrupt and this command did not wait for it"),
     };
     return Err(std::io::Error::new(
         std::io::ErrorKind::TimedOut,
         format!(
-            "it ran longer than {ceiling:?} {ending}; something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)"
+            "it ran longer than {ceiling:?} {ending}; a filter or helper Git started may still be running, something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)"
         ),
     ));
 }
 
 /// What:
-///  End the child's whole process group and collect the leader,
+///  Kill Git and collect it,
 /// waiting no longer than the stop grace,
-///  and report whether the leader was collected.
+/// and report what became of it.
 /// Why:
-///   Killing only the leader would leave a smudge filter or a Git LFS process writing into the worktree
-///  beside a cleanup that removes what it writes.
-/// A plain `wait` here would wait for the child to leave the call that the ceiling
-///  interrupted,
-/// which is the wait this whole path exists to avoid;
-/// a leader left unreaped is a zombie for as
-///  long as this process lives,
-/// which is cheaper than a command that never returns.
+///   Only Git is signalled.
+/// Its filters and helpers stay in this process group and this terminal,
+/// so a filter
+///  that reads `/dev/tty` runs in the foreground as it does under native Git,
+/// and a helper may outlive the kill,
+/// which
+///  the caller's message says.
+/// A plain `wait` here would wait for Git to leave the call that the ceiling interrupted,
+/// which is the
+///  wait this whole path exists to avoid;
+/// a Git left unreaped is a zombie for as long as this process lives,
+/// which is
+///  cheaper than a command that never returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.kill(-child.pid, 'SIGKILL'); return await collectWithin(child, STOP_GRACE);
+/// process.kill(child.pid, 'SIGKILL'); return await collectWithin(child, STOP_GRACE);
 /// ```
-fn stop_child_group(child: &mut std::process::Child) -> bool {
+fn stop_git(child: &mut std::process::Child) -> StopOutcome {
     #[cfg(unix)]
     {
-        if let Ok(leader) = libc::pid_t::try_from(child.id()) {
-            // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made for this
-            // child by `process_group(0)` above.
-            let _stopped: libc::c_int = unsafe { libc::kill(-leader, libc::SIGKILL) };
+        if let Ok(pid) = libc::pid_t::try_from(child.id()) {
+            // SAFETY: `kill` takes a process id and a signal number and touches no memory; the id is the child this function
+            // was given, and a positive number names that process and not its group.
+            let _stopped: libc::c_int = unsafe { libc::kill(pid, libc::SIGKILL) };
         }
+    }
+    #[cfg(test)]
+    if let Some(reported) = STOP_OUTCOME_FOR_THIS_THREAD.with(std::cell::Cell::get) {
+        return reported;
     }
     let began: std::time::Instant = std::time::Instant::now();
     loop {
         match child.try_wait() {
-            Ok(Some(_status)) => return true,
-            Ok(None) if began.elapsed() >= stop_grace() => return false,
+            Ok(Some(_status)) => return StopOutcome::Collected,
+            Ok(None) if began.elapsed() >= STOP_GRACE => return StopOutcome::Left,
             Ok(None) => std::thread::sleep(BOUNDED_LOOK_INTERVAL),
-            Err(_unwaitable) => return false,
+            Err(_unwaitable) => return StopOutcome::Left,
         }
     }
 }

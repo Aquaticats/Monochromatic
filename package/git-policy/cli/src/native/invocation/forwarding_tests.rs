@@ -12,7 +12,7 @@
 #![cfg(unix)]
 
 /// Import the forwarding functions under test and shared fixtures.
-use super::{ChildOutcome, STOP_GRACE_FOR_THIS_THREAD, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
+use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
@@ -199,29 +199,36 @@ fn number_in(path: &Path) -> i32 {
 }
 
 /// What:
-///  A run with a ceiling ends the child and everything the child started at that ceiling,
-///  and says what happened.
+///  A run with a ceiling ends Git at that ceiling,
+/// leaves a helper Git started to run,
+/// and says which of the
+///  two is known about Git.
 /// Why:
-///   The ladder's own steps run the checkout's conversion filters:
-/// a smudge filter or a Git LFS process that never
-///  answers must not hold the add,
-/// and stopping only the leader would leave that filter writing into the
-///  worktree beside a cleanup that removes what it writes.
+///   Git keeps this wrapper's process group and terminal,
+/// which is what a conversion filter reading `/dev/tty`
+///  needs,
+/// so only Git is signalled when the ceiling is reached,
+/// exactly as a Git the person starts themselves leaves its
+///  helpers behind when it is killed.
+/// The line names what was seen,
+/// so it does not claim the helper ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const error = await awaitReject(runRealGitUntil(program, [], [], endedChildCeiling))
-/// expect(error.kind).toBe('TimedOut'); expect(isAlive(grandchild)).toBe(false)
+/// expect(error.message).toContain('Git ended'); expect(isAlive(leader)).toBe(false); expect(isAlive(helper)).toBe(true)
 /// ```
 #[test]
-fn a_run_with_a_ceiling_ends_the_child_and_what_it_started() {
+fn a_run_with_a_ceiling_ends_git_and_leaves_its_helpers_running() {
     let root: PathBuf = fixture("forward-ceiling");
     let child_number: PathBuf = root.join("child.pid");
-    let grandchild_number: PathBuf = root.join("grandchild.pid");
+    let helper_number: PathBuf = root.join("helper.pid");
     let program: PathBuf = root.join("slow-git");
+    // `exec` at the end makes the leader the process that hangs, so the only helper left after the kill is the one this
+    //  control reads and ends itself.
     let script: String = format!(
-        "#!/bin/sh\nsleep 600 &\necho $! > {}\necho $$ > {}\nsleep 600\n",
-        grandchild_number.display(),
+        "#!/bin/sh\nsleep 600 &\necho $! > {}\necho $$ > {}\nexec sleep 600\n",
+        helper_number.display(),
         child_number.display()
     );
     executable(program.as_path(), script.as_bytes());
@@ -230,10 +237,16 @@ fn a_run_with_a_ceiling_ends_the_child_and_what_it_started() {
     let waited: std::time::Duration = began.elapsed();
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     let named: String = format!("{ENDED_CHILD_CEILING:?}");
-    assert!(error.to_string().contains(named.as_str()) && error.to_string().contains("was ended"), "the error names the ceiling and what happened: {error}");
+    let said: String = error.to_string();
+    assert!(said.contains(named.as_str()) && said.contains("Git ended"), "the error names the ceiling and what it knows about Git: {said}");
+    assert!(said.contains("a filter or helper Git started may still be running"), "the error does not claim the helper ended: {said}");
     assert!(waited < std::time::Duration::from_secs(20), "the ceiling ends it near its number, not when the child would have finished: {waited:?}");
-    assert!(!still_alive(number_in(child_number.as_path())), "the leader is gone");
-    assert!(!still_alive(number_in(grandchild_number.as_path())), "the process the step started is gone too");
+    assert!(!still_alive(number_in(child_number.as_path())), "Git is gone");
+    let helper: i32 = number_in(helper_number.as_path());
+    assert!(still_alive(helper), "the helper Git started is not signalled, as under native Git: {said}");
+    // SAFETY: `kill` with SIGKILL takes a process number this control started through the runner and touches no memory.
+    unsafe { libc::kill(helper, libc::SIGKILL) };
+    assert!(!still_alive(helper), "the control ends the helper it let run, so nothing outlives it");
     remove(root.as_path());
 }
 
@@ -251,25 +264,30 @@ fn a_run_inside_its_ceiling_reports_what_the_child_did() {
 }
 
 /// What:
-///  A ceiling whose child cannot be collected inside the stop grace still returns,
-/// and its error says the child has not
+///  A ceiling whose Git does not exit inside the stop grace still returns,
+/// and its error says Git has not
 ///  exited.
 /// Why:
 ///   `SIGKILL` cannot be ignored,
-/// so a child still running after the grace is inside a system call the kernel cannot
+/// so a Git still running after the grace is inside a system call the kernel cannot
 ///  interrupt (a hung filesystem,
 /// a dead FUSE server);
 /// a plain `wait` there would wait for exactly the thing the
 ///  ceiling exists to end,
 /// and the owner forbade that ("nothing should ever wait forever or indefinitely").
-/// The grace is set to zero for
-///  this thread,
-/// so the leaving path is what the control reaches,
-/// and the leader's number proves the kill itself was sent.
+/// The outcome is stated by a seam and not by a shorter grace:
+/// a grace of zero does not force an
+///  uncollected child (one that exits before the next look is collected),
+/// so the old control could fail under a valid
+///  scheduling order and without any defect.
+/// The kill itself is real,
+/// and the control reaps Git itself,
+/// which proves the
+///  kill was sent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// shortenStopGrace(0); const error = await awaitReject(runRealGitUntil(program, [], [], endedChildCeiling));
+/// stateStopOutcome('left'); const error = await awaitReject(runRealGitUntil(program, [], [], endedChildCeiling));
 /// expect(error.message).toContain('has not exited'); expect(isAlive(leader)).toBe(false);
 /// ```
 #[test]
@@ -277,18 +295,18 @@ fn a_ceiling_whose_child_cannot_be_collected_returns_and_says_so() {
     let root: PathBuf = fixture("forward-ceiling-uncollected");
     let child_number: PathBuf = root.join("child.pid");
     let program: PathBuf = root.join("uninterruptible-git");
-    let script: String = format!("#!/bin/sh\necho $$ > {}\nsleep 600\n", child_number.display());
+    // `exec` makes the leader the process that hangs, so the kill leaves no helper of the control's own behind.
+    let script: String = format!("#!/bin/sh\necho $$ > {}\nexec sleep 600\n", child_number.display());
     executable(program.as_path(), script.as_bytes());
-    STOP_GRACE_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<std::time::Duration>>| slot.set(Some(std::time::Duration::ZERO)));
-    let began: std::time::Instant = std::time::Instant::now();
+    STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Left)));
     let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
-    let waited: std::time::Duration = began.elapsed();
-    STOP_GRACE_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<std::time::Duration>>| slot.set(None));
+    STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(None));
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     let named: String = format!("{ENDED_CHILD_CEILING:?}");
-    assert!(error.to_string().contains(named.as_str()) && error.to_string().contains("has not exited"), "the error names the ceiling and what it saw: {error}");
-    assert!(waited < std::time::Duration::from_secs(20), "it does not wait for a child that cannot be stopped: {waited:?}");
-    assert!(collected_here(number_in(child_number.as_path())), "the kill ended the child, and only its collection was left to this process");
+    let said: String = error.to_string();
+    assert!(said.contains(named.as_str()) && said.contains("has not exited"), "the error names the ceiling and what it saw: {said}");
+    assert!(said.contains("a filter or helper Git started may still be running"), "and what it cannot know about the helpers: {said}");
+    assert!(collected_here(number_in(child_number.as_path())), "the kill reached Git, and only its collection was left to this process");
     remove(root.as_path());
 }
 

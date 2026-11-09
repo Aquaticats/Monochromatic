@@ -1641,7 +1641,7 @@ and one report names the path,
 `git -C <path> reset --hard` (retry) and `git worktree remove --force <path>`.
 Every Git step the ladder starts itself (`git read-tree` of a rung,
 the fallback `git reset --hard`) has a
-ceiling and is ended with the whole process group it started when the ceiling is reached
+ceiling and is ended with a `SIGKILL` to Git when the ceiling is reached
 (`service/wait_ceilings.rs`:
 `LADDER_READ_TREE_CEILING`,
 the class of a bulk step that can be run twice,
@@ -1663,14 +1663,23 @@ the source is
 never written,
 and a lock it held is named by the report of an interrupted `git worktree add`.
 The ending is bounded too:
-`SIGKILL` goes to the step's whole process group,
-and the wrapper waits `STOP_GRACE` for the leader to exit and be collected
+`SIGKILL` goes to Git and to nothing else,
+and the wrapper waits `STOP_GRACE` for it to exit and be collected
 (`src/native/invocation/forwarding.rs`,
 a few seconds,
-which only a child the kernel cannot stop uses up);
-a child still inside an uninterruptible call after that is left where it is,
+which only a process the kernel cannot stop uses up);
+a Git still inside an uninterruptible call after that is left where it is,
 the add fails with the step's words and says that it has not exited,
 and nothing waits for the call the ceiling exists to end.
+The step keeps this wrapper's process group and terminal,
+which a Git the person starts themselves keeps:
+a conversion filter that reads `/dev/tty` is then a foreground reader,
+not one the line discipline stops with `SIGTTIN`,
+and `Ctrl-C` reaches Git as it always does.
+The price is the one native Git pays when it is killed:
+the filters and helpers Git started are not signalled,
+so one of them may still run after the add returned,
+and the report says so instead of claiming they ended.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,

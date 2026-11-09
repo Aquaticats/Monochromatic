@@ -454,7 +454,9 @@ pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 pub const REPAIR_TOOL_CEILING: Duration = Duration::from_secs(18 * 60);
 
 /// The longest one step of the cheap-worktree ladder that owns the checkout's conversion filters (`git read-tree`)
-/// runs before the wrapper ends it and the whole process group it started.
+/// runs before the wrapper ends it with a `SIGKILL` to Git,
+/// which leaves the filters Git started to run,
+/// as a Git the person kills does.
 /// It is `OBJECT_STEP_CEILING`,
 /// the class of a bulk Git step that can be run twice,
 /// because such a step writes only the wrapper's own stage:
@@ -475,7 +477,9 @@ pub const LADDER_READ_TREE_CEILING: Duration = OBJECT_STEP_CEILING;
 
 /// The longest a whole checkout the wrapper runs itself (the fallback `git reset --hard` of a refused rung)
 /// runs before the
-///  wrapper ends it and the whole process group it started.
+///  wrapper ends it with a `SIGKILL` to Git,
+/// which leaves the helpers Git started to run,
+/// as a Git the person kills does.
 /// Measured:
 /// the add timing log of this repository (338 records):
 /// the longest whole `git worktree add`,
