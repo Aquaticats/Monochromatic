@@ -2428,7 +2428,13 @@ a claim whose owner lives is a copy between claiming and journaling and is left 
 so a copy that died while staging (a signal,
 the out-of-memory killer,
 a power loss) left it.
-Recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
+A claim with a destination record beside it was made by an add,
+and its stage is reported and never removed (`38e01bcd33`):
+the claim names a stage by its path alone,
+which proves nothing about what stands there now,
+so the notice names the stage and says to remove it once nothing needs it.
+For a claim no add recorded,
+recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix,
 and the container to be a private directory owned by the user,
 removes it with its read-only subdirectories,
@@ -4005,6 +4011,13 @@ on the commit path:
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
   then runs and reports what Git says.
+  Before the wait it learns which index it writes from two queries,
+  `git rev-parse --path-format=absolute --absolute-git-dir` and then `--git-path index`,
+  each asked on its own and each answer read as bytes with only its one terminating line feed removed,
+  because a pathname may hold a line feed,
+  the reading `src/native/landing/landing_location.rs` and `health/doctor.rs` both make.
+  The in-process reader answers first,
+  so a command in a plain checkout starts no query for it.
 - A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
   journal
   command.
@@ -4550,14 +4563,20 @@ in-process reader can) gives every value of the multi-valued keys.
   (`feature` tracking `origin/main` wrote
   `Merge remote-tracking branch 'origin/main' into feature`),
   and a branch whose name differs from the tracked ref's short name also gets
-  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  `Published to <remote>/<tracked ref>.`
   as a further line of its body,
-  because the commit lands on a branch its subject does not name.
+  because the commit lands on a ref its subject does not name.
+  That ref is the destination of the rejected push,
+  which is not always the branch's upstream
+  (an explicit `feature:main` push sends a branch that tracks `origin/feature`),
+  so the line states where the merge was published and nothing about what the branch tracks.
   A detached `HEAD` has no branch to name and keeps the tracked ref's short name
   (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
-  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths,
+  in a sentence that names the branch the merge was into,
+  the same name the merge's subject carries and never the destination ref.
   A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
   (the lines `word-level merge: <path>: part <n> of <m>: ...`),
   the same lines in the report after the push (each begins with `monochromatic-git-policy-cli: auto-push: `),
@@ -8832,14 +8851,27 @@ and the executable does not read the name it was started under.
   so no hook runs in the shadow whatever the
   real config defines,
   and the native commit repeats the hooks-off hooks path after the caller's global options.
-- The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
-  commit ...` with no `--work-tree`:
+- The native commit runs `git <caller global options> --git-dir=<shadow> -c include.path=<scratch>/native-commit.config
+  -c core.hooksPath=/dev/null/cli-git-no-hooks commit ...` with no `--work-tree`:
   the shadow's `config` names the work tree.
   A caller's `-c core.worktree` cannot redirect it:
   with an explicit `--git-dir`,
   Git reads the work tree from the git
   directory's own config file only (measured on Git 2.56.0),
   and the wrapper removes `GIT_WORK_TREE` from the environment.
+- `native-commit.config` in the commit's scratch directory states every entry of the keys native `git commit`
+  reads that the invocation resolved,
+  in the order Git resolved them,
+  because an `includeIf` condition that names the real Git directory no longer matches in the shadow.
+  The entries travel in one included file and not as `-c` settings:
+  a `-c key=value` argument stops a key at its first equals sign,
+  so a subsection such as
+  `[trailer "review=bot"]` would lose its configuration,
+  and an argument stops at the platform's single-argument limit,
+  which a configured value can exceed (measured on Git 2.56.0:
+  262144 bytes is
+  `Argument list too long` as one argument,
+  and reads back from the file unchanged).
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit,
   decided from the configuration snapshot the commit already holds:

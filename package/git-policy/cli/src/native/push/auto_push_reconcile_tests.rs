@@ -1631,8 +1631,45 @@ fn a_branch_whose_upstream_has_another_name_is_the_one_the_message_names() {
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
     let mut lines = message.lines();
     assert_eq!(lines.next(), Some("Merge origin/main into feature"), "{message}");
-    assert!(message.contains("Published to origin/main, which feature tracks."), "{message}");
+    assert!(message.contains("Published to origin/main."), "{message}");
     assert!(message.contains("because origin/main advanced after the commit landed."), "{message}");
+    remove(&s.root);
+}
+
+/// What:
+///  An explicit `feature:main` push whose branch tracks `origin/feature` publishes a merge whose message names only what
+///  is true of that push.
+/// Why:
+///  `Reconcile.destination` is the ref the rejected push updated,
+///  which is not always the branch's upstream.
+///  A commit message is permanent,
+///  and the line said the branch tracked the destination,
+///  which it did not.
+#[test]
+fn the_published_line_names_the_push_destination_and_no_tracking_relation() {
+    let s = scenario("ar-gh2646-tracking-elsewhere");
+    advance_remote(&s, "a.txt", "remote\n");
+    // The review's sequence: the branch tracks its own remote branch, and the push goes to another ref.
+    git(&s.local, &["switch", "--quiet", "-c", "feature"]);
+    git(&s.local, &["config", "branch.feature.remote", "origin"]);
+    git(&s.local, &["config", "branch.feature.merge", "refs/heads/feature"]);
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut published: String = String::new();
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        published = merge_oid.to_owned();
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    assert_eq!(attempt.exit_code, 0, "{attempt:?}");
+    let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
+    assert_eq!(message.lines().next(), Some("Merge origin/main into feature"), "{message}");
+    assert!(message.contains("Published to origin/main."), "{message}");
+    assert!(!message.contains("tracks"), "the message states no tracking relation: {message}");
+    assert_eq!(text_of(&s.remote, &["log", "-1", "--format=%s", "main"]), "Merge origin/main into feature");
     remove(&s.root);
 }
 
@@ -1657,6 +1694,29 @@ fn a_branch_named_like_its_upstream_keeps_the_message_it_had() {
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
     assert_eq!(message.lines().next(), Some("Merge origin/main into main"), "{message}");
     assert!(!message.contains("Published to"), "{message}");
+    remove(&s.root);
+}
+
+/// What:
+///  A conflict is reported against the branch the merge was into,
+///  the name the merge's subject uses.
+/// Why:
+///  The refusal named the destination ref,
+///  so an explicit `feature:main` push reported a merge into `main` that was into `feature`.
+#[test]
+fn a_conflict_is_reported_against_the_branch_the_merge_was_into() {
+    let s = scenario("ar-gh-conflict-target-name");
+    advance_remote(&s, "a.txt", "remote\n");
+    git(&s.local, &["switch", "--quiet", "-c", "feature"]);
+    let landed = commit_local(&s, "a.txt", "local\n");
+    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        panic!("a conflicting merge publishes nothing");
+    };
+    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    assert_ne!(attempt.exit_code, 0, "{attempt:?}");
+    assert!(attempt.output.contains("merging origin/main into feature"), "{}", attempt.output);
+    assert!(!attempt.output.contains("into main"), "{}", attempt.output);
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), text_of(&s.local, &["rev-parse", "origin/main"]), "nothing was published");
     remove(&s.root);
 }
 

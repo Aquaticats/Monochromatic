@@ -31,7 +31,7 @@
 //! ```
 
 pub use crate::service_prepare_ready_shapes::{LandedFirst, ReplayConflict};
-use crate::service_replay_path_and_line_text::{byte_of_character, is_not_empty_line, latin1_of_path};
+use crate::service_replay_line_text::is_not_empty_line;
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{TransactionResult, TransactionStop, failed};
 use crate::path_bytes::{os_from_path_bytes, path_message_text};
@@ -247,7 +247,6 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
         ReplayMerge::Merged { tree_oid } => return Ok(Merged::Tree(tree_oid)),
         ReplayMerge::Conflict { paths, tree_oid, conflicts } => (paths, tree_oid, conflicts),
     };
-    let names: Vec<String> = conflicting.iter().map(latin1_of_path).collect();
     let listed: Vec<SharedPath> = match list_shared_paths(site.context, site.common_dir, site.cwd, captured.base.as_str(), tip, captured.tree.as_str()) {
         Ok(found) => found,
         Err(error) => return Err(failed(format!("listing the paths the branch changed failed: {error:?}"))),
@@ -255,13 +254,13 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
     // Only the paths still in conflict are compared with what landed.
     let mut shared: Vec<SharedPath> = Vec::new();
     for entry in listed {
-        if names.contains(&entry.path) {
+        if conflicting.contains(&entry.path) {
             shared.push(entry);
         }
     }
-    let mut order: BTreeMap<String, CaptureOrderDecision> = BTreeMap::new();
+    let mut order: BTreeMap<Vec<u8>, CaptureOrderDecision> = BTreeMap::new();
     for entry in &shared {
-        let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_str())?;
+        let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_slice())?;
         order.insert(entry.path.clone(), decision);
     }
     let compared = subsume_landed_changes(
@@ -395,15 +394,14 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
 /// ```ts
 /// await captureOrder(site, captured, tip, path) // 'prepared' | 'landed' | 'unordered'
 /// ```
-fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &str) -> Result<CaptureOrderDecision, TransactionStop> {
+fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &[u8]) -> Result<CaptureOrderDecision, TransactionStop> {
     if captured.captured == 0 {
         return Ok(CaptureOrderDecision::Unordered);
     }
-    let bytes: Vec<u8> = path.chars().filter_map(byte_of_character).collect();
     let exclusion: String = format!("^{}", captured.base);
     let mut request: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
-    pathspec.extend_from_slice(bytes.as_slice());
+    pathspec.extend_from_slice(path);
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     request.environment = vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("0"))];
     let listed = run_git_checked(site.context, &request)?;
