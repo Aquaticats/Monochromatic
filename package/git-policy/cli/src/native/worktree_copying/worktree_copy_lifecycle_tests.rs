@@ -477,6 +477,71 @@ fn an_add_aimed_at_a_registered_worktree_does_not_mark_it_as_being_filled() {
     remove(root.as_path());
 }
 
+/// Two adds at one destination: the one whose own real Git did not create the worktree copies nothing into it,
+/// even though a registration stands at the path it named.
+#[cfg(unix)]
+#[test]
+fn a_failed_add_does_not_copy_into_the_worktree_another_command_registered() {
+    let root: PathBuf = fixture("lifecycle-two-adds-one-destination");
+    let (main, common) = source(root.as_path());
+    // The repository's own exclusion file, so every worktree of it ignores `cache` whether or not it holds the file.
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("taken");
+    // This command's source is a linked worktree holding its own ignored entry, so a copy of it can be told apart.
+    let source_root: PathBuf = canonical_root.join("own-source");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "own", source_root.to_str().expect("utf8")]);
+    std::fs::create_dir_all(source_root.join("cache")).expect("cache");
+    std::fs::write(source_root.join("cache/from-this-command"), b"mine").expect("own entry");
+    let mut other_stderr: Vec<u8> = Vec::new();
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity: WorktreeIdentity::LinkedWorktree {
+                common_dir: common.clone(),
+                git_dir: common.join("worktrees").join("own"),
+                worktree_root: source_root.clone(),
+            },
+            effective_cwd: source_root.clone(),
+            creates: true,
+            destination: Some(destination.clone()),
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
+        },
+        &mut |_step: &GitStep<'_>| {
+            // A whole add of another command at the same destination, run while this command's Git runs.
+            let other: Invocation = creation_from(main.as_path(), common.as_path(), Some(destination.as_path()));
+            let _settled = run_with_worktree_copy(
+                &other,
+                &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice())),
+                &mut other_stderr,
+            )
+            .expect("settled");
+            // This command's own Git then refuses, because the destination exists now.
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert_eq!(
+        std::fs::read(destination.join("cache/data")).ok(),
+        Some(b"payload".to_vec()),
+        "the other command's copy filled the worktree: {said}"
+    );
+    assert_eq!(
+        std::fs::read(destination.join("cache/from-this-command")).ok(),
+        None,
+        "this command wrote nothing into the worktree another command registered: {said}"
+    );
+    assert!(said.contains("was registered by another `git worktree add`"), "{said}");
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();

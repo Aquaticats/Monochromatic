@@ -266,6 +266,58 @@ fn unconfirmed_destination_notice(destination: &Path) -> String {
 }
 
 /// What:
+///  The text this command proves its own registration with:
+/// the stage claim's random name on the first line and the owning process on the second.
+/// Why:
+///   The name tells two commands of one process apart,
+/// and the process lets the person's line name who made the worktree.
+/// A command whose claim could not be made still proves a registration of its own,
+/// with a
+///  name made here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${claim?.identifier() ?? randomUuid()}\n${currentCopyOwner().token()}`
+/// ```
+fn command_token(recorded: Option<&StageClaim>, destination: &Path) -> Result<String, WorktreeCopyError> {
+    let name: String = match recorded {
+        Some(claim) => claim.identifier(),
+        None => crate::random_id::random_uuid().map_err(|error| {
+            let message: String = format!(
+                "monochromatic-git-policy-cli: could not name the worktree add of {}.",
+                quote(destination.to_string_lossy().as_ref())
+            );
+            return crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0));
+        })?,
+    };
+    let owner: String = crate::worktree_copy_owner::current_copy_owner()?.token();
+    return Ok(format!("{name}\n{owner}"));
+}
+
+/// What:
+///  The line for a destination another command registered while this one's real Git ran.
+/// Why:
+///   Git refuses this command's add because the destination exists,
+/// and the worktree there is the other command's:
+///  this command copies nothing into it,
+///  and the person is told which process made it and how to see the worktrees of the repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: ${quote(destination)} was registered by another git worktree add (process ${pid}) ...`
+/// ```
+fn registered_by_another_notice(destination: &Path, other: &str) -> String {
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let owner: String = match crate::worktree_copy_owner::CopyOwner::from_token(other) {
+        Some(found) => format!("process {}", found.pid),
+        None => String::from("another command"),
+    };
+    return format!(
+        "monochromatic-git-policy-cli: {shown} was registered by another `git worktree add` ({owner}) while this one ran, so this command copied nothing into it. `git worktree list` shows the worktrees of this repository.\n"
+    );
+}
+
+/// What:
 ///  Synchronizes the worktree this command registered at its destination and writes the summary line for it;
 /// the root of
 ///  the created worktree,
@@ -300,8 +352,20 @@ pub(crate) fn synchronize_after(
             .map_err(raw_failure_of)?;
         return Ok(Vec::new());
     };
+    // This command's own name for the registration: its stage claim's random name, which no other command shares, and the
+    // process, so the person's line can name which process made a worktree this command did not.
+    let mine: String = command_token(recorded.as_ref(), destination)?;
     let mut found: CreatedWorktrees =
-        find_created_worktree(&invocation.context, observation, destination, registered_before)?;
+        find_created_worktree(&invocation.context, observation, destination, registered_before, mine.as_str())?;
+    // The registration at the destination proves it was made by another command, so this command's own worktree is not
+    // there and nothing is written into that one: its ignored state is that command's to copy.
+    if let Some(other) = found.other_commands.as_deref() {
+        let line: String = registered_by_another_notice(destination, other);
+        stderr
+            .write_all(line.as_bytes())
+            .map_err(raw_failure_of)?;
+        return Ok(Vec::new());
+    }
     // A destination Git made but whose registration cannot be confirmed is told, not skipped without a word.
     if found.created.is_empty()
         && git_succeeded

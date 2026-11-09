@@ -24,7 +24,7 @@
 
 use crate::git_metadata::path_from_git_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::worktree_add_binding::{Binding, bind_registration};
+use crate::worktree_add_binding::{Binding, Bound, RegistrationOwner, bind_registration, claim_registration};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_identity::WorktreeIdentity;
@@ -96,6 +96,9 @@ pub struct CreatedWorktrees {
     pub created: Vec<CreatedWorktree>,
     /// Every registered root that exists on the filesystem.
     pub registered_roots: Vec<PathBuf>,
+    /// The token of the command that proved the destination's registration is its own,
+    /// when that command is not this one.
+    pub other_commands: Option<String>,
 }
 
 /// What:
@@ -319,26 +322,47 @@ pub fn find_created_worktree(
     observation: &WorktreeCopyObservation,
     destination: &Path,
     registered_before: bool,
+    mine: &str,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
+    if registered_before {
+        return Ok(nothing_created(None));
+    }
     // The binding is proved here, when Git has returned, so the copy and a later recovery check the registration this
     // command saw and not merely whatever stands at the path now.
-    let bound: Option<Binding> = match registered_before {
-        true => None,
-        false => match bind_registration(observation.common_dir.as_path(), destination) {
-            Ok(found) => Some(found.binding),
-            Err(_reason) => None,
-        },
+    let Ok(bound) = bind_registration(observation.common_dir.as_path(), destination) else {
+        return Ok(nothing_created(None));
     };
-    let Some(binding) = bound else {
-        return Ok(CreatedWorktrees {
-            created: Vec::new(),
-            registered_roots: Vec::new(),
-        });
-    };
+    // A worktree another command registered while this command's Git ran stands where this command's own would; the
+    // registration says which command made it, and only that command copies into it.
+    let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
+    let Bound { binding, .. } = bound;
+    if let RegistrationOwner::Another(other) = owner {
+        return Ok(nothing_created(Some(other)));
+    }
     return Ok(CreatedWorktrees {
         created: vec![CreatedWorktree { root: destination.to_path_buf(), binding }],
         registered_roots: read_registered_roots(context, observation)?,
+        other_commands: None,
     });
+}
+
+/// What:
+///  The answer that this command created no linked worktree,
+/// with the token of the command that owns the one at the destination when there is one.
+/// Why:
+///   Both refusals return the same shape,
+/// and the caller tells them apart only by the token.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nothingCreated(otherCommands: string | undefined): CreatedWorktrees;
+/// ```
+fn nothing_created(other_commands: Option<String>) -> CreatedWorktrees {
+    return CreatedWorktrees {
+        created: Vec::new(),
+        registered_roots: Vec::new(),
+        other_commands,
+    };
 }
 
 /// Registry controls stay out of the release executable.

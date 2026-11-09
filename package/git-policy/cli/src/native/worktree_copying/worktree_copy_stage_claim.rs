@@ -69,6 +69,24 @@ pub struct StageClaim {
 
 impl StageClaim {
     /// What:
+    ///  The random name this claim was made under,
+    /// which no other command of this process shares.
+    /// Why:
+    ///   The registration one command created is told apart from another command's
+    /// by this name,
+    /// because two commands
+    ///  of one process have one process token between them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// claim.identifier(); // the file stem, e.g. '0247e85a-...'
+    /// ```
+    pub fn identifier(&self) -> String {
+        let Some(stem) = self.path.file_stem() else { return String::new() };
+        return stem.to_string_lossy().into_owned();
+    }
+
+    /// What:
     ///  The stage container this claim names.
     /// Why:
     ///   Staging creates exactly this directory,
