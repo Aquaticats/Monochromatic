@@ -206,6 +206,10 @@ pub fn clean_reason(said: &str) -> String {
 /// ```
 fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    // The stop says what the remote holds when it proved it: then nothing failed, and the commit is not only here.
+    if reason.contains(crate::bounded_push::DELIVERED_BEFORE_THE_STOP) {
+        return worded_delivered(branch, shown, reason);
+    }
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
@@ -218,6 +222,36 @@ fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
          The commit service runs with its own settings, not your terminal's, so a push that works in your terminal can \
          fail here when it needs a variable only your terminal has; give the service such a variable with \
          `systemctl --user set-environment NAME=value` and then `{RESTART_COMMAND}`.\n{PUSH_FAILED_NOTE}"
+    );
+}
+
+/// What:
+///  The text shown for a backup push the wrapper stopped after the remote had already written the references.
+/// Why:
+///   Nothing failed and nothing is left to deliver,
+/// so the text never says the commit is only on this computer and never sends
+///  the person to push again;
+/// it gives the remote's own unfinished work
+///  as the thing to finish,
+/// and it says where the wrapper's words are.
+///  It carries no advice about the service's settings either:
+/// nothing about them was refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordedDelivered(branch, shown, reason)
+/// ```
+fn worded_delivered(branch: &str, shown: &str, reason: &str) -> String {
+    let detail: String = if reason.is_empty() {
+        NO_REASON.to_string()
+    } else {
+        format!("monochromatic-git-policy-cli said:\n{}", indented(reason))
+    };
+    return format!(
+        "The backup push of branch {branch} delivered commit {shown} to the remote, and monochromatic-git-policy-cli stopped it \
+         while the remote was running its own work after that update, so that work was ended before it finished. The commit is on \
+         the remote and nothing is left to deliver, so nothing here needs fixing. Pushing again runs no remote hook, so it does not \
+         restart that work: finish it at the remote by hand if it matters (a deploy, a mirror, a ledger append).\n{detail}"
     );
 }
 

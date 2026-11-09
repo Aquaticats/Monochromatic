@@ -33,13 +33,19 @@
 //!  unmeasured windows (`child_class.rs`),
 //! and the longest quiet gap of every watched step is kept for the timing records
 //!  (`quiet_ledger.rs`) so a measured interval can replace them.
-//!  A person's hook is never ended:
+//!  A person's hook is never below a watched child the wrapper starts for itself:
 //! every Git the wrapper starts carries `core.hooksPath` below `/dev/null` and the hook
 //!  switches (`hooks_off.rs`),
-//! so no hook of the person is ever below a watched child,
-//! and the stop signals the child and what
+//! so the stop signals the child and what
 //!  it started,
 //! never a process beside it.
+//!  A push to a local path or a `file://` remote is the one place a hook of the person runs below a watched child:
+//! the setting does not follow the push into the remote,
+//! so its own `receive-pack` runs `pre-receive`,
+//! `update` and `post-receive` in the push's tree,
+//! and a stop that ends that tree ends those with it (`bounded_push.rs`,
+//! `SPEC.md`,
+//! "A local remote's hooks run in the push's tree").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

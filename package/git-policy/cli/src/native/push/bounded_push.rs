@@ -8,6 +8,16 @@
 //!  Such a push is stopped when its stall window passes,
 //!  the commit stays saved locally,
 //!  and the failure is reported like any other failed push.
+//!  A push whose remote already holds every reference it was asked to deliver is the one stop that is not a failure:
+//! the remote's own `receive-pack` runs the hooks after the references are written,
+//! so a stalled `post-receive` hook
+//!  leaves the branch published;
+//! the report then says what the remote holds,
+//! names the remote's work as what was cut
+//!  short,
+//! and says that no push can run that hook again (`delivered_before_the_stop.rs`,
+//! `SPEC.md`,
+//! "A local remote's hooks run in the push's tree").
 //!  A push whose connection to the remote is open is never stopped for time (owner,
 //! 2026-11-03:
 //! "Wait while connected
@@ -46,6 +56,8 @@ use crate::lazy_runtime::run_on_runtime;
 /// The stop of a push and the sweep of the locks it leaves,
 /// and the pause between two looks at a running push.
 use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
+/// The question that proves a stopped push had already delivered its references.
+use crate::delivered_before_the_stop::{AskingGit, DeliveryQuestion, refs_already_delivered};
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
@@ -55,6 +67,9 @@ use std::ffi::OsString;
 /// `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+/// The program and the directory the push ran with,
+/// for the question the stop asks.
+use std::path::{Path, PathBuf};
 /// `Child` is a push handed to the sweeper;
 /// `Command` describes it;
 /// `Stdio` connects its streams.
@@ -387,8 +402,10 @@ pub fn run_bounded_push(
 /// Why:
 ///   Both streams share one anonymous file so lines keep the order Git wrote them,
 ///  and a file needs no reader thread that a stuck helper could keep alive.
-///  A stopped push becomes a failed attempt that says so,
-///  so the commit stays saved and the failure is recorded for later invocations.
+///  A stopped push becomes an attempt that says so,
+///  so the commit stays saved and the report is recorded for later invocations;
+/// an attempt whose references the
+///  remote already holds says that instead, so a published branch is never reported as a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -445,6 +462,15 @@ pub async fn run_bounded_push_awaiting(
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
     let label: String = command_label(&command);
+    // Read while the command still has its arguments: a push stopped after its remote wrote the references must not be
+    //  called a failure, and what the remote holds is the only proof of that.
+    let asking: AskingGit = AskingGit {
+        program: PathBuf::from(command.get_program()),
+        cwd: command.get_current_dir().map(Path::to_path_buf),
+        environment: environment.to_vec(),
+    };
+    let arguments: Vec<OsString> = command.get_args().map(OsString::from).collect();
+    let question: Option<DeliveryQuestion> = DeliveryQuestion::of(arguments.as_slice());
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
@@ -453,6 +479,14 @@ pub async fn run_bounded_push_awaiting(
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
+    // A stop that ended a push whose remote had already written the references is not a push that failed: the proof is
+    //  taken after the stop, when the remote's own program can no longer be writing,
+    // and it is answered in the time a killed
+    //  child is given, so a remote that does not answer leaves the report as it was.
+    let delivered: Option<Vec<String>> = match (&ended, question) {
+        (Err(StopCause::Stalled(_)), Some(question)) => refs_already_delivered(&asking, &question, grace, grace).await,
+        _ => None,
+    };
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
@@ -481,15 +515,29 @@ pub async fn run_bounded_push_awaiting(
                     },
                     extend_clause()
                 ),
-                StopCause::Stalled(report) => format!(
-                    "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
-                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
-                     offline connection, your commit is already saved; push again when the connection works.",
-                    report.limit.as_secs(),
-                    report.moved,
-                    report.elapsed.as_secs(),
-                    extend_clause()
-                ),
+                StopCause::Stalled(report) => match &delivered {
+                    Some(refs) => format!(
+                        "monochromatic-git-policy-cli: {DELIVERED_BEFORE_THE_STOP} and then showed no sign of work for {} seconds while the \
+                         remote ran the work that follows that update, such as a `post-receive` hook, so the push was stopped and that \
+                         work was ended with it (limit=stall, bytes_moved={}, elapsed_seconds={}). The remote holds {}: nothing is left to \
+                         deliver, and pushing again runs no remote hook, so it does not restart that work. If the remote's work matters (a \
+                         deploy, a mirror, a ledger append), it is unfinished and has to be done by hand at the remote; {}.",
+                        report.limit.as_secs(),
+                        report.moved,
+                        report.elapsed.as_secs(),
+                        refs.join(", "),
+                        extend_clause()
+                    ),
+                    None => format!(
+                        "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
+                         elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
+                         offline connection, your commit is already saved; push again when the connection works.",
+                        report.limit.as_secs(),
+                        report.moved,
+                        report.elapsed.as_secs(),
+                        extend_clause()
+                    ),
+                },
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
                      {PUSH_QUEUED_LINE}"

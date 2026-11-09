@@ -351,3 +351,31 @@ fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
     assert_eq!(branch_of_head(root.join("missing").as_path()), None);
     remove(root.as_path());
 }
+
+/// What:
+///  A pushed commit the wrapper stopped only after the remote had written the references is worded as delivered,
+///  and no longer as a commit that exists only on this computer.
+/// Why:
+///   The stop's report carries the phrase that proves it,
+/// and the framing sentence of a failed push would contradict that
+///  phrase,
+/// send the person to `git push` for a reference that is already there,
+/// and blame the service's settings for
+///  nothing.
+#[test]
+fn a_push_the_stop_delivered_is_worded_as_delivered() {
+    let said: String = format!(
+        "monochromatic-git-policy-cli: {} and then showed no sign of work for 30 seconds",
+        crate::bounded_push::DELIVERED_BEFORE_THE_STOP
+    );
+    let text: String = push_failure_text(BRANCH, COMMIT, said.as_str());
+    assert!(text.contains("delivered commit") && text.contains(COMMIT), "{text}");
+    assert!(text.contains("nothing is left to deliver"), "{text}");
+    assert!(text.contains("does not restart that work"), "{text}");
+    for absent in ["exists only on this computer", "Fix what Git names", "The backup push of branch main failed", PUSH_FAILED_NOTE] {
+        assert!(!text.contains(absent), "{absent} in {text}");
+    }
+    // A push that says nothing about a delivery keeps the words of a failed push.
+    let failed: String = push_failure_text(BRANCH, COMMIT, "fatal: could not read from remote repository");
+    assert!(failed.contains("failed for commit") && failed.contains(PUSH_FAILED_NOTE), "{failed}");
+}

@@ -2529,18 +2529,28 @@ of the review call and of the whole review).
   so it
   does not die of `SIGPIPE` when the command exits,
   and the system's init or subreaper reaps it.
-- The person's hook is never ended.
-  No hook of the person runs below a step the wrapper starts,
+- The person's hook is never ended by a step the wrapper starts for itself.
+  No hook of the person runs below such a step,
   because every Git the wrapper starts carries
   `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`),
   so the watch
   needs no way
   to tell a hook from Git.
   The stop signals the step and the processes it started and never a process beside it.
-  If hooks are ever started below a watched step,
-  a descendant that is a hook must count as work before this rule is
-  true.
-  The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+  A push to a local path or a `file://` remote is the one place a hook of the person runs below a watched step:
+  the setting does not follow the push into the remote,
+  so the remote's own `receive-pack` runs its `pre-receive`,
+  `update` and
+  `post-receive` hooks in the push's tree,
+  and the stop of a stalled push ends them with it (`src/native/push/bounded_push.rs`).
+  Such a stop is not reported as a failure when the remote already wrote the references:
+  the wrapper asks the remote what it
+  holds for every reference the push named,
+  and the report says the delivery is done,
+  names the remote's own work as what was cut short,
+  and says that pushing again runs no remote hook,
+  so that work has to be finished at the remote
+  (`src/native/push/delivered_before_the_stop.rs`).
 - The long-lived object reader (`git cat-file --batch`) is judged the same way per request;
   a request that stalls ends
   the
@@ -2992,7 +3002,10 @@ on the commit path:
   and an open
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
-  Hooks are never ended by the wrapper.
+  A step of the landing never ends a hook of the person:
+  every Git it starts carries the hooks-off options,
+  and the one place a hook of the person runs below a step of the wrapper is a push to a local path
+  (see "The person's hook is never ended by a step the wrapper starts for itself").
 - A landing that ends before its intent is in the journal,
   and a restart that drops an open batch whose branch has not moved,
   keep the same two things:
@@ -3783,7 +3796,12 @@ in-process reader can) gives every value of the multi-valued keys.
   the connection closes or TCP gives up.
   A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime`
   reach Git unchanged and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
-  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
+  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before;
+  when the remote had already written the references,
+  the report says the delivery is done and names the remote's own work as what the
+  stop ended,
+  instead of reporting a published branch as a failed push
+  (`src/native/push/delivered_before_the_stop.rs`).
   There is no ceiling:
   no total time ends a run that shows progress or holds an open connection (pick 5,
   above).
@@ -3842,7 +3860,12 @@ in-process reader can) gives every value of the multi-valued keys.
   seconds after a stop,
   which justify the kill and the sweep and not five seconds;
   an open question for the owner),
-  and reported as failed with exit code 124.
+  and reported with exit code 124.
+  The report names what was cut short,
+  and when the remote already holds every reference the push named it
+  says the delivery is done and the remote's own work is what the stop ended,
+  instead of a failed push whose commit is only local
+  (`src/native/push/delivered_before_the_stop.rs`).
   The same stop (a catchable request,
   five seconds,
   then the kill) ends every Git child the wrapper stops:
