@@ -107,7 +107,6 @@ fn a_program_on_the_path_is_the_command_git_runs() {
         environment(pairs.as_slice()).as_slice(),
         &[],
         Some(root.as_path()),
-        None,
         OsStr::new("audit-external"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
@@ -147,7 +146,6 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
         environment(pairs.as_slice()).as_slice(),
         globals(given.as_slice()).as_slice(),
         Some(root.as_path()),
-        None,
         OsStr::new("audit-external"),
     );
     assert_eq!(
@@ -169,7 +167,6 @@ fn a_word_no_program_names_is_not_an_external_command() {
         environment(pairs.as_slice()).as_slice(),
         &[],
         Some(root.as_path()),
-        None,
         OsStr::new("audit-absent"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-absent"));
@@ -193,7 +190,6 @@ fn a_program_in_the_exec_path_is_the_command_git_runs() {
         environment(pairs.as_slice()).as_slice(),
         &[],
         Some(root.as_path()),
-        None,
         OsStr::new("audit-external"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
@@ -226,7 +222,6 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
         environment(pairs.as_slice()).as_slice(),
         &[],
         Some(root.as_path()),
-        None,
         OsStr::new("audit-external"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
@@ -268,7 +263,6 @@ fn a_relative_path_entry_is_read_from_the_directory_git_changed_into() {
         environment(pairs.as_slice()).as_slice(),
         given.as_slice(),
         Some(caller.as_path()),
-        None,
         OsStr::new("audit-relative"),
     );
     assert_eq!(
@@ -286,7 +280,6 @@ fn a_relative_path_entry_is_read_from_the_directory_git_changed_into() {
         environment(here.as_slice()).as_slice(),
         given.as_slice(),
         Some(caller.as_path()),
-        None,
         OsStr::new("audit-here"),
     );
     assert_eq!(
@@ -319,7 +312,6 @@ fn a_file_without_the_owner_execute_bit_is_no_command() {
         environment(pairs.as_slice()).as_slice(),
         &[],
         Some(root.as_path()),
-        None,
         OsStr::new("audit-plain"),
     );
     assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-plain"));
