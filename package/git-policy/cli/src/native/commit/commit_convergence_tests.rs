@@ -107,8 +107,8 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
 ///  and the owner decided on 2026-09-06 that the pre-forward policy autofixes staged Markdown
 ///  inside the commit;
 ///  a commit that only warns hands the person the original link instead.
-///  The person's working file deliberately holds other prose, so a correction taken from it
-///  would show here.
+///  The person's working file deliberately holds other prose,
+///  so a correction taken from it would show here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

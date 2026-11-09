@@ -228,7 +228,7 @@ fn each_eligible_candidate_reaches_the_linter_once_in_order() {
     ];
     for trigger in [Trigger::PreForward, Trigger::DirectCheck] {
         assert_eq!(
-            check_markdown(&mut content, &add_all(), &mut facts, &mut state, trigger),
+            check_markdown(&mut content, &add_all(), &mut facts, &mut state, trigger, false),
             PolicyOutcome::Findings(expected.clone()),
             "{trigger:?}"
         );
@@ -253,7 +253,7 @@ fn each_eligible_candidate_reaches_the_linter_once_in_order() {
         &add_all(),
         &mut facts,
         &mut state,
-        Trigger::DirectFix,
+        Trigger::DirectFix, false,
     );
     assert_eq!(
         fixed,
@@ -292,7 +292,7 @@ fn single(answer: Answer, trigger: Trigger) -> PolicyOutcome {
         &add_all(),
         &mut facts_for(repo.as_path()),
         &mut state,
-        trigger,
+        trigger, false,
     );
     remove(root.as_path());
     return outcome;
@@ -339,7 +339,7 @@ fn a_candidate_the_linter_cannot_check_fails_the_policy() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::PolicyIncomplete,
@@ -369,7 +369,7 @@ fn exclude_patterns_that_do_not_compile_fail_the_policy() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::PreForward,
+            Trigger::PreForward, false,
         ) {
             PolicyOutcome::Failed {
                 code: EngineFailureCode::PolicyIncomplete,
@@ -403,7 +403,7 @@ fn nothing_to_lint_lints_nothing() {
             &LifecycleContent::None,
             &mut idle,
             &mut state,
-            Trigger::DirectFix
+            Trigger::DirectFix, false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -414,7 +414,7 @@ fn nothing_to_lint_lints_nothing() {
             &add_all(),
             &mut scripted_facts(),
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -431,7 +431,7 @@ fn nothing_to_lint_lints_nothing() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::DirectFix
+            Trigger::DirectFix, false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -456,7 +456,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut text_only,
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -470,7 +470,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut unlocated,
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -486,7 +486,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut bare,
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -529,7 +529,7 @@ fn unreadable_candidate_bytes_are_content_unavailable() {
         &add_all(),
         &mut facts,
         &mut state,
-        Trigger::PreForward,
+        Trigger::PreForward, false,
     ) {
         PolicyOutcome::Failed { code, .. } => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable)
@@ -590,7 +590,7 @@ fn a_literal_brace_in_an_exclude_pattern_excludes_only_its_own_file() {
         &add_all(),
         &mut facts_for(repo.as_path()),
         &mut state,
-        Trigger::DirectCheck,
+        Trigger::DirectCheck, false,
     );
     assert_eq!(
         outcome,

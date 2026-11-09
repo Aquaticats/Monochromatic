@@ -135,6 +135,12 @@ An executable that predates the policy refuses a configuration that lists it,
  so a repository lists the policy only after every checkout runs an executable that ships it.
 `markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
  the executable links the linter library without its semantic engine.
+A candidate the engine would rewrite is reported,
+ and the correction is proposed wherever the caller may apply patches:
+ on a direct fix,
+ and in the commit's own patch-enabled convergence,
+ the same way `final-newline` corrects a commit;
+ a read-only selection or a direct check reports the finding and proposes none.
 A panic,
 or 60 seconds in which the linter thread shows no sign of work,
 ends that candidate's check,
