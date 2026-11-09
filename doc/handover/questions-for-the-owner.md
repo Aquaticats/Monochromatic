@@ -49,6 +49,16 @@ Each record is cited so the context is one read away.
   since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
   Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
   Nothing has proved it necessary.
+- `doc/decision/cli-git-concurrent-commits.md` (line 158 and lines 190 to 205) still says an `index.lock` owner proven alive gets an unbounded wait.
+  The shipped code bounds that wait at one minute for a merge and at the service hold ceiling for the service,
+  following the owner's later "nothing should ever wait forever or indefinitely".
+  May the decision record be amended to say so?
+- `LOCK_CEILING` (600 s) no longer bounds any wait;
+  it only feeds `FOREIGN_OWNER_PATIENCE` (1,200 s).
+  The longest lock wait in 4,386 landings that ended by release was 11.49 s.
+  Both values are kept as they were;
+  lowering the patience changes when another namespace's record counts as abandoned,
+  so that stays open.
 - The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
   Should a systemd timer run it,
   and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
