@@ -448,6 +448,6 @@ fn the_markdown_options_reach_the_post_commit_policy() {
 
 /// A character range that runs backwards,
 /// which the exclude matcher refuses and Git reads as a class matching nothing.
-/// A literal brace is no longer such a pattern: the matcher is given it escaped
-/// (`markdown_exclude`).
+/// A literal brace is no longer such a pattern:
+/// the matcher is given it escaped (`markdown_exclude`).
 const UNCOMPILABLE_PATTERN: &str = "[z-a].md";
