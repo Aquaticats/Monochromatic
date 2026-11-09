@@ -130,62 +130,51 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(format!("writing the plan failed: {error}")),
     }
-    remove_files_of(directory, branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()).as_str(), Some(name.as_str()), None);
+    remove_files_of(directory, branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()).as_str(), &[name.clone()]);
     return Ok(());
+}
+
+/// The file name the plan of a branch is kept under,
+/// for a caller that must know which files a round is about to write.
+pub fn name_of(plan: &StoredPlan) -> String {
+    return plan_name(plan);
 }
 
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), None, None);
+    remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), &[]);
 }
 
 /// What:
-///  Removes the files of the plan of a branch that were written before `made`,
-/// and keeps the ones written after it.
+///  Removes the files of the plan of a branch except the ones named in `keep`.
 /// Why:
 ///   A forget a worker asked for is applied by the service loop after the round,
 /// so a plan another worker kept
-///  meanwhile is newer than the forget and is the statement that still counts.
-/// Removing it would take the retry the
-///  person was told about.
+///  meanwhile is newer than the forget and is the statement that still counts;
+/// its file name is known before it is
+///  written,
+/// and is not removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeFilesOf(key, undefined, made)
+/// removeFilesOf(key, keep)
 /// ```
-pub fn remove_before(directory: &Path, git_dir: &Path, branch_ref: &str, made: SystemTime) {
-    remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), None, Some(made));
+pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String]) {
+    remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), keep);
 }
 
 /// Removes the plan files of one branch key,
-/// except the one named `keep`,
-/// and,
-///  when `before` is given,
-/// only those written earlier than it.
-fn remove_files_of(directory: &Path, key: &str, keep: Option<&str>, before: Option<SystemTime>) {
+/// except the ones named in `keep`.
+fn remove_files_of(directory: &Path, key: &str, keep: &[String]) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
     let prefix: String = format!("{key}{NAME_SEPARATOR}");
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with(prefix.as_str()) && keep != Some(name.as_str()) && written_before(&entry, before) {
+        if name.starts_with(prefix.as_str()) && !keep.contains(&name) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }
-}
-
-/// Whether the file was written before `before`,
-/// or at all when there is no such moment;
-/// a file whose time cannot be read is kept,
-/// since nothing proves it older than the forget.
-fn written_before(entry: &std::fs::DirEntry, before: Option<SystemTime>) -> bool {
-    let Some(before) = before else {
-        return true;
-    };
-    return match entry.metadata().and_then(|metadata| { return metadata.modified(); }) {
-        Ok(written) => written < before,
-        Err(_) => false,
-    };
 }
 
 /// Order two stored plans with the one written later first;

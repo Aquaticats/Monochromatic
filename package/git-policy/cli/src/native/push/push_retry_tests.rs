@@ -71,46 +71,21 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
 }
 
 /// What:
-///  A plan kept after a forget was asked survives that forget being applied later.
+///  A forget ends the plan a branch had,
+/// while the plans of other branches stay.
 /// Why:
-///   A worker keeps its branch's plan on disk at once,
-/// and the loop applies the round's changes after it,
-/// so the forget
-///  of an earlier push of the same branch would remove the plan of a push nothing else knows about,
-/// and a restart would
-///  find no retry where a notice promised one.
-#[test]
-fn a_plan_kept_after_an_older_forget_survives_its_replay() {
-    let root: PathBuf = crate::test_support::fixture("retry-forget-replay");
-    let here: &Path = Path::new("/srv/repo/.git");
-    let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
-    // The worker asks for the branch to be forgotten first, then keeps the plan of the new try on disk.
-    let made: SystemTime = SystemTime::now();
-    save(root.as_path(), &StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 }).expect("kept");
-    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: String::from("refs/heads/main"), made }]);
-    assert!(retries.next_wait(here, Instant::now()).is_none(), "the memory of the branch is dropped as it was asked");
-    // A service started in the place of the one that never applied the worker's plan finds it.
-    let restored: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
-    assert!(restored.next_wait(here, Instant::now()).is_some(), "the plan the worker kept is still there after the replay");
-    crate::test_support::remove(root.as_path());
-}
-
-/// The control of the test above:
-/// a plan the branch had before the forget is removed by it,
-/// so the moment kept with the change holds back only what is newer.
+///   A landed push makes an earlier failure of its branch untrue,
+/// and the other branches' retries are still wanted.
 #[test]
 fn a_plan_written_before_the_forget_is_removed_by_it() {
     let root: PathBuf = crate::test_support::fixture("retry-forget-older");
     let here: &Path = Path::new("/srv/repo/.git");
     save(root.as_path(), &StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 }).expect("saved");
-    // The plan was kept well before the forget, as one of an earlier round was.
-    let past: SystemTime = SystemTime::now() - Duration::from_secs(60);
-    for entry in std::fs::read_dir(root.as_path()).expect("plans").flatten() {
-        std::fs::File::options().append(true).open(entry.path()).and_then(|file| { return file.set_modified(past); }).expect("aged");
-    }
+    let other: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/topic"), attempt: 1 };
+    save(root.as_path(), &other).expect("saved");
     let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
     retries.forget(here, "refs/heads/main");
-    assert!(load(root.as_path()).is_empty(), "the plan of the branch is gone");
+    assert_eq!(load(root.as_path()), vec![other], "only the forgotten branch's plan is gone");
     crate::test_support::remove(root.as_path());
 }
 

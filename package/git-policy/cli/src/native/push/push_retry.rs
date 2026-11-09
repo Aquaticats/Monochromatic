@@ -36,11 +36,11 @@
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk.
-use crate::push_retry_store::{StoredPlan, load, remove_before, save};
+use crate::push_retry_store::{StoredPlan, load, name_of, remove_except, save};
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 /// Environment variable that sets,
 /// in whole seconds,
@@ -344,10 +344,31 @@ pub enum RetryChange {
         git_dir: PathBuf,
         /// The branch reference.
         branch_ref: String,
-        /// When the forget was asked:
-        /// a plan kept after this moment is a newer statement about the branch and stays.
-        made: SystemTime,
     },
+}
+
+/// What:
+///  The plan file names the changes after `from` write for one branch of one Git directory.
+/// Why:
+///   A forget replayed after those plans were kept must not remove them,
+/// and their names are known before
+///  they are written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// changes.slice(from).filter((c) => c.plan && c.plan.gitDir === gitDir && c.plan.item.branchRef === branchRef).map(planName)
+/// ```
+fn later_plans_of(changes: &[RetryChange], from: usize, git_dir: &Path, branch_ref: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for change in &changes[from..] {
+        if let RetryChange::Plan { git_dir: planned_dir, item, attempt, .. } = change
+            && planned_dir == git_dir
+            && item.branch_ref == branch_ref
+        {
+            names.push(name_of(&StoredPlan { git_dir: planned_dir.clone(), item: item.clone(), attempt: *attempt }));
+        }
+    }
+    return names;
 }
 
 /// What:
@@ -456,25 +477,41 @@ impl PushRetries {
     /// its push landed,
     /// or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.forget_before(git_dir, branch_ref, SystemTime::now());
+        self.forget_keeping(git_dir, branch_ref, &[]);
     }
 
-    /// `forget` for a change that was asked at `made`:
-    /// a plan kept after that moment is a newer statement and stays on disk.
-    pub fn forget_before(&mut self, git_dir: &Path, branch_ref: &str, made: SystemTime) {
+    /// `forget` for a branch whose plan the rest of this round keeps,
+    /// under the file names in `keep`:
+    /// those are newer statements than the forget and stay on disk.
+    pub fn forget_keeping(&mut self, git_dir: &Path, branch_ref: &str, keep: &[String]) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
-            remove_before(directory, git_dir, branch_ref, made);
+            remove_except(directory, git_dir, branch_ref, keep);
         }
     }
 
-    /// Apply what the workers of a round asked,
+    /// What:
+    ///  Apply what the workers of a round asked,
     /// in the order they asked it.
+    /// Why:
+    ///   A forget is applied after the round,
+    /// so a plan another worker of the same round kept on disk is already there;
+    /// its
+    ///  file name is known,
+    /// so the forget keeps it and the round's own plan stays.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (const [at, change] of changes.entries()) { if (change.forget) forgetKeeping(branch, laterPlanNames(changes.slice(at + 1))) else plan(change) }
+    /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
-        for change in changes {
-            match change {
-                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
-                RetryChange::Forget { git_dir, branch_ref, made } => self.forget_before(git_dir.as_path(), branch_ref.as_str(), made),
+        for index in 0..changes.len() {
+            match &changes[index] {
+                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), item, *attempt, *due),
+                RetryChange::Forget { git_dir, branch_ref } => {
+                    let keep: Vec<String> = later_plans_of(changes.as_slice(), index + 1, git_dir, branch_ref);
+                    self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice());
+                }
             }
         }
     }

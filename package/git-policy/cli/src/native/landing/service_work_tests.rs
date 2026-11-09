@@ -1027,6 +1027,43 @@ fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
 }
 
 /// What:
+///  A plan a round kept is still the file that is on disk after the round's changes are applied,
+/// even though an
+///  earlier change of the same round forgets that branch.
+/// Why:
+///   A worker keeps its branch's plan on disk at once,
+/// and the loop applies the round's changes afterwards,
+/// so
+///  the forget of an earlier push of that branch would remove the very file the new plan was published as;
+/// a service
+///  killed between the two changes would then find no retry where the notice promised one.
+/// The file is named here by
+///  the inode it was published as:
+/// a forget that removed it would leave the plan change to publish another one.
+#[test]
+fn a_plan_kept_after_an_older_forget_survives_its_replay() {
+    use std::os::unix::fs::MetadataExt as _;
+    let repo: Repo = repo("work-retry-plan-replayed-forget");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    // The round asks, in this order, for the branch to be forgotten (the earlier push landed) and for the next try to be planned;
+    //  the plan reaches the disk at once, as the worker's keeps do.
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    replanning.forget(repo.common.as_path(), BRANCH);
+    let _said: String = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down");
+    let published: PathBuf = plans.join(crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: newest.clone(), attempt: 1 }));
+    let kept_inode: u64 = std::fs::metadata(published.as_path()).expect("the plan the notice promises is on disk before the loop applies anything").ino();
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    retries.apply(replanning.changes);
+    let still: u64 = std::fs::metadata(published.as_path()).expect("the plan is still there after the replay").ino();
+    assert_eq!(still, kept_inode, "the file the worker published was never taken away");
+    // A service started in the place of one that stopped right after the forget finds it.
+    let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the plan the worker kept is still there after the replay");
+    remove(repo.root.as_path());
+}
+
+/// What:
 ///  A push whose retry plan cannot be kept is not told that the service keeps trying.
 /// Why:
 ///   The plan is what keeps that promise across a restart;
