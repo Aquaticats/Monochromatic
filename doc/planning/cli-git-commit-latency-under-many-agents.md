@@ -575,7 +575,8 @@ and how:
   on `fix/git-policy-cli-commit-scratch-removal-off-the-path`);
   the tree now lives in the repository scratch directory the sweep covers,
   the service removes it beside its landing loop and bounded,
-  and a tree no service held is removed by a later command's preparation once it is two hours old.
+  a command that no service took it from removes it as it ends,
+  and a tree a kill left is removed by a later command's preparation once it is two hours old.
   `package/git-policy/cli/SPEC.md`,
   "The commit's scratch directory",
   holds the rules and every size.
@@ -583,10 +584,10 @@ and how:
 The split,
 over the eight commits of each binary,
 in whole milliseconds
-(these arms were measured once before,
-on the build that still removed a tree no service had taken,
-and gave 17 ms of removal and 0 after it;
-the figures here are the last run of the final build):
+(the four arms were run at 06:41:47-05:00 and again at 07:14:17-05:00,
+the second time on the final build;
+the earlier run gave 17 ms of removal and 0 after it,
+and the figures here are the last one):
 
 - The scratch tree's removal:
   `scratchRemovalMs` was 3,
