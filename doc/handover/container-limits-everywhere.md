@@ -834,6 +834,13 @@ counts above rather than on a stopwatch.
   2026-11-09T02:15:56Z:
   exit 0 in 13 s with `positive control: 65 clean cases pass: true; tampered caught 42/45`,
   which is the fuzz package's container shape against the store.
+- Both required tasks once more on the exact final revision,
+  whose only change since the runs above is a docblock:
+  `mise run //package/env-local-json/core:test:container` passed both combinations in 415.6 s
+  (`[PASS] container:ubuntu / root / node, container:ubuntu / user / node`),
+  the extra 6 min being `apt-get` retries inside the cell (`Ign:` lines while archive.ubuntu.com stalled),
+  and `mise run test:browser -- --workers=2` gave `82 passed`,
+  `1 skipped` and `1 failed` in 57.2 s at 2026-11-09T02:50:24Z.
 - `mise run //package/upstream-fork/conf:test:container src/bytes.unit.test.ts`,
   2026-11-09T02:13:27Z:
   exit 0 in 3 s with `byte conversions` passing,
