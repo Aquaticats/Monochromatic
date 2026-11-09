@@ -315,5 +315,14 @@ fn refs_git_refuses_stay_declined() {
     }
     std::fs::write(repo.join(".git/refs/heads/refused name"), format!("{tip}\n")).expect("broken name");
     declined(root.as_path(), repo.as_path(), &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+    // A broken packed name beside a good ref: Git words the name for a listing and prints the other refs without it,
+    // while a lookup of the good ref answers with nothing on standard error.
+    std::fs::remove_file(repo.join(".git/refs/heads/refused name")).expect("remove the loose broken name");
+    git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+    let packed = repo.join(".git/packed-refs");
+    let original = std::fs::read_to_string(&packed).expect("packed refs");
+    std::fs::write(&packed, format!("{original}{tip} refs/heads/refused name\n")).expect("broken packed name");
+    declined(root.as_path(), repo.as_path(), &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+    answered(root.as_path(), repo.as_path(), &["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"]);
     remove(root.as_path());
 }
