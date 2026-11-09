@@ -55,6 +55,25 @@ fn the_entries_of_a_path_are_read_without_its_case_twin() {
     remove(root.as_path());
 }
 
+/// The repair looks an entry up by its repository-relative path,
+/// and `git ls-files` answers relative to the directory Git runs in,
+/// so a caller whose prefix moves Git into a subdirectory must still be answered in full names.
+#[test]
+fn the_index_entries_of_a_nested_path_keep_their_repository_relative_names() {
+    let root: PathBuf = fixture("owed-entries-nested-c");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::create_dir(repo.join("sub")).expect("sub directory");
+    std::fs::write(repo.join("sub/f"), b"landed\n").expect("write sub/f");
+    git(repo.as_path(), &["add", "--", "sub/f"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "sub/f"]);
+    let mut context: crate::transaction_git::GitContext = git_context();
+    context.global_prefix = vec![OsString::from("-C"), repo.join("sub").into_os_string()];
+    let asked: [Vec<u8>; 1] = [b"sub/f".to_vec()];
+    let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
+    assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the entry is named as the caller looks it up");
+    remove(root.as_path());
+}
+
 /// A mode the caller wrote as a global option reaches no read of the wrapper's own pathspecs either:
 /// under `--literal-pathspecs` the generated `:(top,literal)a.txt` is a file name that matches nothing,
 /// and every read answers an empty map although the entry is there,
