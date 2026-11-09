@@ -106,7 +106,9 @@ pub fn read_in_a_child_with(process: &Path, fd: &OsStr, ceiling: Duration, ask: 
         let mut answer: [u64; 4] = [1, 0, 0, 0];
         match ask(name.as_c_str()) {
             Ok(opened) => answer = [0, opened.device, opened.inode, 0],
-            Err(error) => answer[3] = error.raw_os_error().and_then(|number| u64::try_from(number).ok()).unwrap_or(0),
+            Err(error) => {
+                answer[3] = error.raw_os_error().and_then(|number| { return u64::try_from(number).ok(); }).unwrap_or(0);
+            }
         }
         write_whole(write_end, &answer);
         // SAFETY: the child ends here, without a parent's exit handler or a flushed stream that another thread's lock
@@ -184,7 +186,7 @@ fn link_name(process: &Path, fd: &OsStr) -> std::io::Result<CString> {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte"));
     }
     return CString::new(name).map_err(|_zero| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte")
+        return std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte");
     });
 }
 
@@ -326,6 +328,7 @@ fn reap_soon(pid: libc::pid_t) {
     if started.is_err() {
         keep(pid);
     }
+    return;
 }
 
 /// What:
