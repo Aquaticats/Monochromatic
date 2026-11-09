@@ -312,27 +312,31 @@ fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
 }
 
 /// What:
-///  Credit the time since the previous look to every program that was below the step at both looks.
+///  Credit the time since the previous look to every program that was below the step at both looks,
+/// and keep every program the look saw that cannot be credited at all.
 /// Why:
 ///   The kernel records no start and no end of a short program that the notice could read,
 /// so it measures what it can:
 /// a program that starts and ends between two looks is not seen at all,
 /// and the time an entry holds is a lower bound of the time that program ran.
+///  Only the same process at both looks is credited:
+/// a name is not an identity,
+/// and a program that took another's name between the looks ran in neither interval it would be credited with.
+///  A program seen once is kept with a zero lower bound,
+/// so the record says it was below the step even when no interval can be measured for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const name of namesAtBothLooks) facts.credit(name, sinceLastLook);
+/// for (const [pid, used] of now) facts.credit(used.name, seenAtBothLooks(before, pid, used.started) ? sinceLastLook : 0);
 /// ```
 fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[SeenBelow], now: &[(i32, ProcessUse)], interval: Duration) {
     let mut credited: Vec<&str> = Vec::new();
-    for (_pid, used) in now {
+    for (pid, used) in now {
         if credited.contains(&used.name.as_str()) {
             continue;
         }
-        if !before.iter().any(|known| { return known.name == used.name; }) {
-            continue;
-        }
-        facts.credit(used.name.as_str(), interval);
+        let at_both_looks: bool = before.iter().any(|known| { return known.pid == *pid && known.started == used.started; });
+        facts.credit(used.name.as_str(), if at_both_looks { interval } else { Duration::ZERO });
         credited.push(used.name.as_str());
     }
 }
