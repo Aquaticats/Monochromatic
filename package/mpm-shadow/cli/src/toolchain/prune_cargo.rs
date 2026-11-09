@@ -406,6 +406,9 @@ pub fn prune_toolchain(
         // below, so the link is moved to it; a crate that keeps none loses the link,
         // because every version the link could name is about to go.
         // Either way a run killed at any later point leaves a link that resolves or none at all.
+        // What: the links this pass removed, so a failure on a later crate says what already went.
+        // Why: no version directory has been removed yet, and the failure must not claim that nothing was.
+        let mut unlinked: Vec<PathBuf> = Vec::new();
         for crate_name in present.keys() {
             if !crate_name.starts_with(OWN_CRATE_PREFIX) || present[crate_name].is_empty() {
                 // A crate with no version here holds only a link forwarding to the other toolchain root's newer
@@ -418,13 +421,32 @@ pub fn prune_toolchain(
             // naming a directory it removed.
             let kept: Vec<&PresentVersion> =
                 present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
-            if kept.is_empty() {
-                remove_current_link(&scope.toolchain_root, crate_name, &planned)?;
-            } else if let Some(newest) = newest_finished(&kept) {
-                point_current_at(&scope.toolchain_root, crate_name, &newest)?;
+            // What: the versions of this crate the plan deletes, which the link must never be left on.
+            // Why: a link naming one of them would dangle once the deletions run, so the guard that leaves a newer
+            // link alone does not apply to them.
+            let deleted_here: Vec<&str> = planned
+                .iter()
+                .filter(|(crate_of_removal, _version, _directory)| return crate_of_removal == crate_name)
+                .map(|(_crate, version, _directory)| return version.as_str())
+                .collect();
+            match newest_finished(&kept) {
+                Some(newest) => {
+                    // What: a repoint that fails is restated with the links this pass already removed.
+                    // Why: the links are gone whether or not the new one lands, and the report is the only place a
+                    // person learns it.
+                    let pointed: bool = point_current_at(&scope.toolchain_root, crate_name, &newest, &deleted_here)
+                        .map_err(|error| return after_removing(error, &unlinked))?;
+                    if !pointed {
+                        // The version this run keeps is not there any more, so the link was left alone:
+                        // it must then not go on naming a version this run deletes.
+                        remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?;
+                    }
+                }
+                // What: with no finished version that stays, the link is kept only when what it names stays too.
+                // Why: an unfinished install is not something `current` may name,
+                // and a link left naming a version this run deletes dangles once the deletions run.
+                None => remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?,
             }
-            // Nothing finished stays: there is no finished version for the link to name, and another step's link is
-            // left as it is rather than removed on the way to installing one.
         }
     }
     let mut removed: Vec<PathBuf> = Vec::new();
@@ -494,17 +516,21 @@ fn newest_finished(kept: &[&PresentVersion]) -> Option<String> {
 }
 
 /// What:
-/// Removes a crate's `current` link when it names a version this run deletes or one that is already gone.
+/// Removes a crate's `current` link when it names a version this run deletes or one that is already gone,
+/// and records the link in `unlinked`.
 /// Why:
 /// When no version of the crate remains, the link would name a directory this run deletes;
 /// removing it first leaves a run killed at any later point with no link rather than a dangling one.
 /// A link that names a version which still exists and is not one of the deletions belongs to another
 /// command's install, so it is left alone. The check is one `read_link` and one `metadata`: no lock, no wait,
 /// and the instant between the check and the unlink is the one window left.
+/// This pass runs before any version directory is removed, so `unlinked` is everything the run has deleted
+/// when a later crate's link cannot be removed.
 fn remove_current_link(
     toolchain_root: &Path,
     crate_name: &str,
     removals: &[(String, String, PathBuf)],
+    unlinked: &mut Vec<PathBuf>,
 ) -> Result<(), ToolchainError> {
     let link: PathBuf = current_link(toolchain_root, crate_name);
     let named: String = match running_version(toolchain_root, crate_name) {
@@ -519,9 +545,15 @@ fn remove_current_link(
         return Ok(());
     }
     return match fs::remove_file(&link) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            unlinked.push(link);
+            Ok(())
+        }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ToolchainError::failure(format!("cannot remove {}: {error}; nothing was deleted", link.display()))),
+        Err(error) => Err(after_removing(
+            ToolchainError::failure(format!("cannot remove {}: {error}", link.display())),
+            unlinked,
+        )),
     };
 }
 
