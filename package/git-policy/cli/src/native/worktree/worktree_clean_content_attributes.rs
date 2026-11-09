@@ -90,6 +90,18 @@ fn identity_beneath(directory: &std::fs::File, _label: &str) -> Result<(u64, u64
 /// The bytes one attribute read asks for at most.
 const ATTRIBUTES_CHUNK: usize = 64 * 1024;
 
+/// How many times one attributes read is tried again after the system interrupts it.
+/// Why:
+///  An interruption is not a fact about the file,
+/// so one is retried;
+/// a file system that interrupts every attempt for ever would otherwise hold the landing
+///  without a bound,
+/// which the owner's rule forbids ("nothing should ever wait forever or indefinitely").
+/// Three tries is the coordinator's pick:
+/// a single signal is the interruption the retry exists for,
+/// and a source that interrupts three reads in a row is one this reader refuses rather than waits on.
+const INTERRUPTED_TRIES: usize = 3;
+
 impl<'a> ContentJudge<'a> {
     /// Read an attributes file at an absolute path the way Git does,
     /// following a link;
@@ -250,6 +262,9 @@ impl<'a> ContentJudge<'a> {
     /// as the recorded-content reader already does:
     ///  an interruption is not a fact about the file,
     /// and it may not cost every remaining path of the landing its stat data.
+    /// The tries are counted (`INTERRUPTED_TRIES`):
+    /// a source that interrupts every one of them ends in the same refusal a hard read error does,
+    /// so nothing waits for an interruption to stop.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -266,6 +281,7 @@ impl<'a> ContentJudge<'a> {
             return Ok(None);
         }
         let mut data: Vec<u8> = Vec::new();
+        let mut interrupted: usize = 0;
         let mut buffer: Vec<u8> = vec![0; usize::try_from(room.min(ATTRIBUTES_CHUNK as u64)).unwrap_or(ATTRIBUTES_CHUNK)];
         while (data.len() as u64) < room {
             let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(ATTRIBUTES_CHUNK);
@@ -278,8 +294,12 @@ impl<'a> ContentJudge<'a> {
             };
             let taken: usize = match read {
                 Ok(taken) => taken,
-                // An interruption is not a fact about the file; the read is tried again.
-                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                // An interruption is not a fact about the file, so it is tried again;
+                // a source that interrupts every try is refused rather than waited on.
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted && interrupted < INTERRUPTED_TRIES => {
+                    interrupted += 1;
+                    continue;
+                }
                 Err(error) => return Err(format!("{label} cannot be read ({error})")),
             };
             if taken == 0 {
