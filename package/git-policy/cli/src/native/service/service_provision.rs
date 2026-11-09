@@ -210,6 +210,14 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         written.push(path);
         reload |= existed;
     }
+    // What: The note names the worktree before the manager is asked to start the units.
+    // Why:  The service reads the note to learn whose units it runs, and a service that finds none answers `Unmapped`, never asks
+    //       whether its worktree is still there, and cannot be named by the sweep that stops the units of a removed worktree. A
+    //       kill between the start and the note left exactly that service behind, for up to the idle exit
+    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 4). The note names a directory
+    //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
+    //       never started, which no service reads and the next provisioning writes again.
+    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
     // Whatever the retirement of the earlier service took, the reload and the start have the time of a whole exchange.
     manager.within(EXCHANGE_WAIT);
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
@@ -221,8 +229,6 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
-    // After the units are in place and started: a refused provisioning writes nothing, and no note of a worktree whose units never started stays.
-    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
     stop_earlier_instance_socket(host, manager);
     return Ok(());
 }
