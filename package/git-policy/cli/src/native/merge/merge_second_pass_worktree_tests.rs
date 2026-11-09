@@ -1,12 +1,15 @@
-//! Controls for the pieces of the worktree pass that need no running Git:
+//! Controls for the pieces of the worktree pass:
 //! the stages read from index entries,
 //! the records
 //!  that put a conflict back,
-//! and the closing words.
+//! the closing words,
+//! and what the pass refuses to replace when another command moved it.
 //! The pass as a whole runs through the built executable in
 //!  `binary_word_merge_tests.rs`.
 
 use super::*;
+use crate::merge_second_pass::tests::{Change, World, corpus, runner, world};
+use crate::test_support::{git, git_context, git_output, git_text, remove};
 use std::path::Path;
 
 /// An index entry of a path at a stage.
@@ -124,4 +127,112 @@ fn a_failed_staging_writes_nothing_to_the_worktree() {
     let runner = Scripted { calls: std::cell::RefCell::new(Vec::new()), failing: "update-index" };
     assert!(install(&runner, &[merged_file()], &[String::from("dd")]).is_err());
     assert_eq!(runner.calls.borrow().len(), 1);
+}
+
+/// The index entries of a repository's index, as the pass reads them in process.
+fn entries_of(repo: &Path) -> Vec<IndexEntry> {
+    let bytes: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("the index");
+    return parse_index(bytes.as_slice(), crate::repo_read_layout::ObjectFormat::Sha1).expect("an index the in-process reader takes");
+}
+
+/// The text of the index entry at stage 0 of a path, or nothing when the path has no resolved entry.
+fn staged_text(repo: &Path, path: &str) -> Option<String> {
+    let shown: std::process::Output = crate::test_support::git_output(repo, &["show", format!(":0:{path}").as_str()]);
+    return if shown.status.code() == Some(0) { Some(String::from_utf8_lossy(&shown.stdout).into_owned()) } else { None };
+}
+
+/// A repository whose merge of the two branches stopped with `a.md` conflicted,
+/// with the index entries the pass reads after the command.
+fn stopped_merge(name: &str) -> (World, Vec<IndexEntry>) {
+    let world: World = world(
+        name,
+        &[("a.md", corpus("md1b", "base").as_slice())],
+        &[("a.md", Change::Write(corpus("md1b", "ours").as_slice()))],
+        &[("a.md", Change::Write(corpus("md1b", "theirs").as_slice()))],
+    );
+    let merged: std::process::Output = git_output(world.repo.as_path(), &["merge", "--no-edit", "theirs"]);
+    assert_eq!(merged.status.code(), Some(1), "the merge stops on the conflict: {}", String::from_utf8_lossy(&merged.stderr));
+    let entries: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    return (world, entries);
+}
+
+/// The one file of a stopped merge, merged by word, with its blob written.
+fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap<Vec<u8>, Option<Held>>) {
+    let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
+    let conflicts: Vec<Conflict> = conflicts_of_index(entries, &created);
+    let context: GitContext = git_context();
+    let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
+    let verdicts: Vec<Verdict> = second_pass(&pass, conflicts.as_slice(), AttributeSource::Invocation).expect("the pass runs");
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("the one file resolves by word: {verdicts:?}") };
+    let oid: String = write_blob(&pass, file.bytes.as_slice()).expect("the merged blob");
+    let held: BTreeMap<Vec<u8>, Option<Held>> = held_paths(world.repo.as_path(), &created);
+    return ((**file).clone(), oid, held);
+}
+
+/// What:
+///  A resolution another command staged while the pass was computing is never replaced:
+/// the pass names the path and leaves the index and the file exactly as that command left them.
+/// Why:
+///   The owner's rule is that user data is never discarded.
+/// A person who resolves the file and runs `git add` while the pass works
+///  holds a resolution the pass never read,
+/// and staging over it loses that work at exit `0`.
+#[test]
+fn a_resolution_another_command_staged_is_left_alone() {
+    let (world, entries) = stopped_merge("second-pass-worktree-staged");
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    // Another command resolves the file and stages it, after the pass read the stages.
+    std::fs::write(world.repo.join("a.md"), b"a resolution another command wrote\n").expect("the resolution");
+    git(world.repo.as_path(), &["add", "--", "a.md"]);
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert_eq!(kept.moved, vec![b"a.md".to_vec()], "the path that moved is named");
+    assert!(kept.files.is_empty(), "nothing is installed over it");
+    install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice()).expect("nothing to install is not a failure");
+    assert_eq!(staged_text(world.repo.as_path(), "a.md"), Some(String::from("a resolution another command wrote\n")), "the index keeps the other command's resolution");
+    assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), b"a resolution another command wrote\n".to_vec(), "the worktree keeps it too");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The other half of the same control:
+/// a path that did not move is staged and written,
+/// so the check can say `unchanged` as well as `moved`.
+/// Why:
+///   A guard that refused everything would pass the control above while losing the pass.
+#[test]
+fn a_path_that_did_not_move_is_installed() {
+    let (world, entries) = stopped_merge("second-pass-worktree-unmoved");
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    let expected: Vec<u8> = file.bytes.clone();
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert!(kept.moved.is_empty(), "nothing moved: {:?}", kept.moved);
+    install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice()).expect("the install works");
+    assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), expected, "the worktree holds the merged bytes");
+    assert_eq!(staged_text(world.repo.as_path(), "a.md"), Some(String::from_utf8_lossy(expected.as_slice()).into_owned()), "and the index does too");
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--unmerged"]), "", "the conflict stages are gone");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A worktree file a person edited after the pass read the stages is left,
+/// even when the index still holds the conflict stages.
+/// Why:
+///   The person's edit is a resolution in progress,
+/// and writing the worktree file over it discards it.
+#[test]
+fn a_worktree_file_edited_after_it_was_read_is_left_alone() {
+    let (world, entries) = stopped_merge("second-pass-worktree-edited");
+    let (file, oid, held) = merged_of(&world, entries.as_slice());
+    std::fs::write(world.repo.join("a.md"), b"half of my own resolution\n").expect("the edit");
+    let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
+    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
+    assert_eq!(kept.moved, vec![b"a.md".to_vec()], "the edited file is named");
+    assert!(kept.files.is_empty(), "nothing is installed over it");
+    assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), b"half of my own resolution\n".to_vec());
+    remove(world.root.as_path());
 }

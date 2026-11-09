@@ -7412,6 +7412,16 @@ The list ends with one line that names what the pass staged
 whether or not a finish follows it:
 the pass has already changed the index and the worktree,
 so no later step can be the only account of that change.
+A file the pass does not install moved while it computed the merge
+(another command resolved it and
+ `git add`ed it,
+or a person edited it),
+and one line names each such path:
+the index stages are read again just before the install,
+and the worktree file's device, inode, length and modification time are compared with what they were when the
+stages were read,
+so a path that moved in either place keeps the version that is there now and is never replaced by the pass.
+Where every merged file moved, nothing is installed and that line alone is printed.
 When a finish is planned the line says the wrapper finishes the operation below;
 otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,

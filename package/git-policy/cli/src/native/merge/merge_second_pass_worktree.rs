@@ -39,14 +39,16 @@ use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitRepl
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
-use crate::path_bytes::path_message_text;
+use crate::path_bytes::{os_from_path_bytes, path_message_text};
 use crate::private_storage::read_regular_file;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
 use crate::repo_read_object::to_hex;
 use crate::transaction_git::GitContext;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "wordMergeWorktree";
@@ -213,6 +215,134 @@ fn install(runner: &dyn GitRunner, merged: &[Merged], oids: &[String]) -> Result
     return Ok(());
 }
 
+/// What a worktree path held when the conflicts were read.
+/// Why:
+///   The pass computes a merge from the index stages and then replaces the worktree file.
+/// A file that moved in between holds
+///  bytes the merge was never computed from,
+/// and writing over it discards them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Held {
+    /// The file's length in bytes.
+    size: u64,
+    /// Its last modification time,
+    /// when the system reports one.
+    modified: Option<SystemTime>,
+    /// Its device and inode on a system that numbers them,
+    /// so a replacement of the same length at the same time still shows.
+    numbers: Option<(u64, u64)>,
+}
+
+/// What the worktree holds at `path` now,
+/// or nothing when it cannot be read.
+fn worktree_state(path: &Path) -> Option<Held> {
+    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
+    #[cfg(unix)]
+    let numbers: Option<(u64, u64)> = {
+        use std::os::unix::fs::MetadataExt;
+        Some((metadata.dev(), metadata.ino()))
+    };
+    #[cfg(not(unix))]
+    let numbers: Option<(u64, u64)> = None;
+    return Some(Held { size: metadata.len(), modified: metadata.modified().ok(), numbers });
+}
+
+/// The path a stage names, below the top of the worktree.
+fn path_under(root: &Path, path: &[u8]) -> PathBuf {
+    return root.join(os_from_path_bytes(path));
+}
+
+/// What the worktree holds at each of `paths`.
+fn held_paths(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Option<Held>> {
+    let mut held: BTreeMap<Vec<u8>, Option<Held>> = BTreeMap::new();
+    for path in paths {
+        held.insert(path.clone(), worktree_state(path_under(root, path).as_path()));
+    }
+    return held;
+}
+
+/// What the install must find before it replaces anything.
+pub struct Before<'a> {
+    /// The top of the worktree,
+    /// whose paths the stages name.
+    worktree_root: &'a Path,
+    /// The index as it is now,
+    /// read again after the merge was computed.
+    entries: &'a [IndexEntry],
+    /// What the worktree held at each path when the conflicts were read.
+    held: &'a BTreeMap<Vec<u8>, Option<Held>>,
+}
+
+/// What the install may replace,
+/// and the paths it may not.
+struct Kept {
+    /// The merged files whose index stages and worktree file are still what the merge was computed from.
+    files: Vec<Merged>,
+    /// Their blobs,
+    /// in the same order.
+    oids: Vec<String>,
+    /// The paths that moved,
+    /// which the install leaves as it finds them.
+    moved: Vec<Vec<u8>>,
+}
+
+/// What:
+///  Whether the index stages and the worktree file of `file` are still what the merge was computed from.
+/// Why:
+///   Another command that resolved the conflict and staged it leaves a stage 0 entry where the merge read three stages,
+/// and a file a person
+///  edited is not the file Git left;
+/// either way the merged bytes were computed from something else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = (file) => stagesOf(index, file.path) === file.stages && stat(file.path) === recorded;
+/// ```
+fn still_holds(before: &Before<'_>, file: &Merged) -> bool {
+    let only: BTreeSet<Vec<u8>> = [file.path.clone()].into_iter().collect();
+    let now: Vec<Conflict> = conflicts_of_index(before.entries, &only);
+    if now.as_slice() != [file.stages.clone()] {
+        return false;
+    }
+    let Some(recorded) = before.held.get(&file.path) else { return false };
+    return *recorded == worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
+}
+
+/// What:
+///  Keep only the merged files whose path still holds what the merge was computed from,
+/// and name the paths that moved.
+/// Why:
+///   The person's own resolution,
+/// a commit another session made,
+/// or any other command may touch the conflict between the read and the
+///  install;
+/// the pass then leaves that path exactly as it is and says which one it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stillTheSame(before, merged, oids) { ... } // { files, oids, moved }
+/// ```
+fn still_the_same(before: &Before<'_>, merged: Vec<Merged>, oids: Vec<String>) -> Kept {
+    let mut kept: Kept = Kept { files: Vec::new(), oids: Vec::new(), moved: Vec::new() };
+    for (file, oid) in merged.into_iter().zip(oids) {
+        if still_holds(before, &file) {
+            kept.files.push(file);
+            kept.oids.push(oid);
+        } else {
+            kept.moved.push(file.path.clone());
+        }
+    }
+    return kept;
+}
+
+/// The sentence that names the paths the pass left because they moved.
+fn moved_words(moved: &[String]) -> String {
+    return format!(
+        "{LINE_PREFIX}{REPORT_MARK}: changed while the second merge pass computed its merge, so it is left as it is now: {}. ",
+        moved.join(", ")
+    );
+}
+
 /// The sentence after the list of staged files.
 fn closing_words(operation: &str, remaining: usize) -> String {
     let rest: String = if remaining == 0 {
@@ -323,6 +453,8 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     if merged.is_empty() {
         return None;
     }
+    // What the worktree held when the stages were read, so a file that moved before the install is left alone.
+    let held: BTreeMap<Vec<u8>, Option<Held>> = held_paths(layout.worktree_root.as_path(), &created);
     let mut oids: Vec<String> = Vec::new();
     for file in &merged {
         match write_blob(&runner, file.bytes.as_slice()) {
@@ -333,6 +465,28 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
             }
         }
     }
+    // The index is read again after the merge was computed: a path another command resolved and staged holds no stages of the merge's.
+    let Some(entries_now) = index_entries(&layout) else {
+        warn(TAG, "the index cannot be read again before the merged files are installed, so the conflicts stay as they are");
+        return None;
+    };
+    let before: Before<'_> = Before { worktree_root: layout.worktree_root.as_path(), entries: entries_now.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, merged, oids);
+    let mut moved_names: Vec<String> = Vec::new();
+    for path in &kept.moved {
+        moved_names.push(path_message_text(path.as_slice()));
+    }
+    if kept.files.is_empty() {
+        warn(TAG, format!("every merged file moved while the pass computed its merge, so they stay as they are now: {}", moved_names.join(", ")).as_str());
+        // The person must still be told which file the pass did not touch.
+        let alone: String = format!("{}\n", moved_words(moved_names.as_slice()).trim_end());
+        if let Err(error) = stderr.write_all(alone.as_bytes()) {
+            debug(TAG, format!("standard error did not take the line about the files the pass left alone: {error}").as_str());
+        }
+        return None;
+    }
+    let merged: Vec<Merged> = kept.files;
+    let oids: Vec<String> = kept.oids;
     if let Err(reason) = install(&runner, merged.as_slice(), oids.as_slice()) {
         warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
         return None;
@@ -360,6 +514,10 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let listed: String = names.join(", ");
     // What the pass staged is said whether or not a finish follows: a finish that fails must not be the only account of it.
     text.push_str(format!("{LINE_PREFIX}{REPORT_MARK}: staged as resolved by the second merge pass: {listed}. ").as_str());
+    if !moved_names.is_empty() {
+        // A path the pass left is said in the same breath, so the person knows why it still conflicts.
+        text.push_str(moved_words(moved_names.as_slice()).as_str());
+    }
     if planned.is_none() {
         text.push_str(format!("{}\n", closing_words(operation.as_str(), remaining)).as_str());
     } else {
