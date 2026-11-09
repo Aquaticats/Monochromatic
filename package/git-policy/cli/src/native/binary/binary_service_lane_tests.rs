@@ -126,14 +126,21 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
 /// A request that sets `path` to `content` in the worktree at `root`,
 /// whose own Git directory is `git_dir`,
 /// on `branch`.
+/// The tree it names is the one this release makes: a directory of the repository scratch place under the common Git
+///  directory, which is the place the sweep of a later command also covers.
 fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &str, path: &str) -> CommitRequest {
     std::fs::write(root.join(path), format!("{id}\n")).expect("write");
     let query = |arguments: &[&str]| -> String { return super::commit::git_text(fixture, root, arguments).trim_end().to_string(); };
     let blob: String = query(&["hash-object", "-w", "--", path]);
+    let common_dir: PathBuf = query(&["rev-parse", "--path-format=absolute", "--git-common-dir"]).into();
+    let scratch: PathBuf = common_dir
+        .join("monochromatic-git-policy-cli-scratch")
+        .join(format!("monochromatic-git-policy-cli-service-{id}-0"));
+    std::fs::create_dir_all(scratch.as_path()).expect("the tree the request names");
     return CommitRequest {
         id: id.to_string(),
         repository: root.to_path_buf(),
-        common_dir: query(&["rev-parse", "--path-format=absolute", "--git-common-dir"]).into(),
+        common_dir,
         git_dir: git_dir.to_path_buf(),
         reference: format!("refs/heads/{branch}"),
         base: query(&["rev-parse", "HEAD"]),
@@ -146,7 +153,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         commit: None,
         cleanup: None,
         index: git_dir.join("index"),
-        scratch: git_dir.join("monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
+        scratch,
         captured: 0,
     };
 }
