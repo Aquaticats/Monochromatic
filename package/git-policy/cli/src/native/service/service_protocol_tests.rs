@@ -325,6 +325,59 @@ fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
     remove(root.as_path());
 }
 
+/// The service removes what a request's cleanup names,
+/// so only a commit's own scratch directory is accepted there,
+/// in either of the two places the wrapper makes one,
+/// and every other directory is refused at the decoder.
+#[test]
+fn a_cleanup_names_only_a_scratch_directory_of_the_worktree() {
+    let root: PathBuf = fixture("protocol-cleanup-names");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b-2c";
+    let swept: PathBuf = common.join("monochromatic-git-policy-cli-scratch");
+    let asked = |scratch: PathBuf| -> String {
+        let mut request: CommitRequest = request();
+        request.git_dir = common.clone();
+        request.common_dir = common.clone();
+        request.repository = root.join("repo");
+        request.index = common.join("index");
+        request.commit = Some(String::from(BLOB));
+        request.base = String::from(BLOB);
+        request.cleanup = Some(Cleanup { git_dir: common.clone(), scratch, reftable: false });
+        return encode_client(&ClientMessage::Commit(Box::new(request)));
+    };
+    let accepted = |scratch: PathBuf| -> bool { return decode_client(asked(scratch).as_str()).is_ok(); };
+    assert!(accepted(swept.join(name)), "the place this release makes the tree in");
+    assert!(accepted(common.join(name)), "the place a release before this one made it in");
+    for refused in [
+        swept.join("monochromatic-git-policy-cli-service-"),
+        swept.join("monochromatic-git-policy-cli-service-a b"),
+        swept.join("notes"),
+        swept.join("deeper").join(name),
+        common.join("index"),
+        common.join("objects"),
+        common.join(name).join("deeper"),
+        root.join("repo").join(name),
+        root.join("elsewhere").join(name),
+        PathBuf::from("/etc/passwd"),
+        PathBuf::from(name),
+    ] {
+        assert!(!accepted(refused.clone()), "{}", refused.display());
+    }
+    // A cleanup belongs to a commit built elsewhere, so a request that names no commit names no cleanup either.
+    let mut without: CommitRequest = request();
+    without.commit = None;
+    without.cleanup = Some(Cleanup { git_dir: common.clone(), scratch: swept.join(name), reftable: false });
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(without))).as_str()).is_err());
+    // A cleanup whose own Git directory is relative cannot name a place inside it.
+    let mut relative: CommitRequest = request();
+    relative.commit = Some(String::from(BLOB));
+    relative.cleanup = Some(Cleanup { git_dir: PathBuf::from("repo/.git"), scratch: swept.join(name), reftable: false });
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err());
+    remove(root.as_path());
+}
+
 /// A commit request carries the worktree's own Git directory,
 /// which a request without it,
 /// or with a relative one,

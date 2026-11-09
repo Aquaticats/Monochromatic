@@ -18,9 +18,32 @@
 /// The directory under control,
 /// and the place it is made.
 use super::Scratch;
+/// The marker a later command reads,
+/// and the rule it decides with.
+use crate::service_index_marker::{holder_is_running, marker_of};
+use crate::service_scratch_abandonment::{OWNER_MARKER, UNMARKED_SCRATCH_TREE_AGE, remove_abandoned_trees};
 use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
 use crate::test_support::{fixture, remove};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
+
+/// Set an entry's modification time to `back` before now.
+fn age(path: &Path, back: Duration) {
+    std::fs::File::open(path).expect("open").set_modified(SystemTime::now() - back).expect("set modification time");
+}
+
+/// The names of this process's threads.
+fn thread_names() -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    if let Ok(tasks) = std::fs::read_dir("/proc/self/task") {
+        for task in tasks.flatten() {
+            if let Ok(name) = std::fs::read_to_string(task.path().join("comm")) {
+                names.push(name.trim_end().to_string());
+            }
+        }
+    }
+    return names;
+}
 
 /// A tree the command handed to the service is the service's to remove,
 /// and a tree nothing took is the command's own to remove,
@@ -28,14 +51,15 @@ use std::path::PathBuf;
 #[test]
 fn the_commit_removes_only_the_tree_no_service_took() {
     let root: PathBuf = fixture("ready-shapes-scratch");
-    let tree: PathBuf = root.join("repo/.git").join(REPOSITORY_SCRATCH_NAME).join("monochromatic-git-policy-cli-service-0a1b2c3d");
-    std::fs::create_dir_all(&tree).expect("the scratch tree");
-    std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
-    let mut handed: Scratch = Scratch(tree.clone(), false);
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    let mut handed: Scratch = Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
+    let tree: PathBuf = handed.0.clone();
     handed.held_by_the_service(true);
     drop(handed);
     assert!(tree.exists(), "the command that handed it over must not remove it: {}", tree.display());
-    drop(Scratch(tree.clone(), false));
+    drop(Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree again"));
     assert!(!tree.exists(), "a tree no service took is removed by the command: {}", tree.display());
     remove(root.as_path());
 }
@@ -87,5 +111,46 @@ fn an_unusable_repository_scratch_directory_falls_back_to_the_git_directory() {
     let scratch: Scratch = Scratch::make(git_dir.as_path(), git_dir.as_path(), name).expect("the scratch tree");
     assert_eq!(scratch.0, git_dir.join(name));
     drop(scratch);
+    remove(root.as_path());
+}
+
+/// The tree a command makes carries the marker of the process that made it,
+/// so a later command leaves it alone however old it is,
+/// and takes it once that process is gone.
+#[test]
+fn a_made_tree_names_the_command_that_made_it() {
+    let root: PathBuf = fixture("ready-shapes-scratch-marked");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    let scratch: Scratch = Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
+    let marker: PathBuf = scratch.0.join(OWNER_MARKER);
+    let marked = marker_of(marker.as_path()).expect("the tree names the command that made it");
+    assert!(holder_is_running(marked.holder.as_ref()), "the marker names this live process");
+    // A live command can hold its tree for longer than any age rule allows for, so the age never decides the tree's fate.
+    age(scratch.0.as_path(), UNMARKED_SCRATCH_TREE_AGE * 2);
+    assert_eq!(remove_abandoned_trees(common.join(REPOSITORY_SCRATCH_NAME).as_path()), 0);
+    assert!(scratch.0.exists(), "a later command keeps a live command's tree");
+    drop(scratch);
+    remove(root.as_path());
+}
+
+/// A tree a command makes is renewed while that command lives,
+/// and the renewal stops when the command lets the tree go,
+/// so a sweep of the place by age never takes a live tree
+/// and a killed command's tree ages out as it did before.
+#[test]
+fn a_made_tree_is_renewed_while_its_command_lives() {
+    let root: PathBuf = fixture("ready-shapes-scratch-renewed");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let scratch: Scratch = Scratch::make(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d").expect("the scratch tree");
+    assert!(thread_names().iter().any(|name| { return name == "scratch-renewal"; }), "a made tree is renewed while the command lives: {:?}", thread_names());
+    drop(scratch);
+    let began: std::time::Instant = std::time::Instant::now();
+    while thread_names().iter().any(|name| { return name == "scratch-renewal"; }) {
+        assert!(began.elapsed() < Duration::from_secs(15), "the renewal of a released tree stops");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     remove(root.as_path());
 }

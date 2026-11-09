@@ -33,10 +33,7 @@ use crate::diagnostic_log::debug;
 use crate::private_storage::{create_private_directory, create_private_directory_all};
 /// Removing one scratch entry within its ceiling,
 /// and which commit scratch trees a later command takes for abandoned.
-use crate::scratch_entry_removal::{
-    COMMIT_SCRATCH_TREE_ABANDONED_AFTER, COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND, SCRATCH_REMOVAL_CEILING, Removal, remove_abandoned_commit_scratch_trees,
-    remove_within,
-};
+use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
 /// The mode a private directory ends with,
 /// and the call that sets it,
 /// which only Unix has.
@@ -293,9 +290,6 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str) -> 
             None
         }
     };
-    if let Some(directory) = covered.as_ref() {
-        let _removed: usize = remove_abandoned_commit_scratch_trees(directory.as_path(), COMMIT_SCRATCH_TREE_ABANDONED_AFTER, COMMIT_SCRATCH_TREES_REMOVED_PER_COMMAND);
-    }
     let directory: PathBuf = match covered {
         Some(found) => found,
         None => git_dir.to_path_buf(),

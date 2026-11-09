@@ -152,6 +152,13 @@ pub mod service_index_watch;
 /// for every command line.
 pub mod service_prepare;
 
+/// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
+pub mod service_scratch_renewal;
+
+/// Which commit scratch trees a later command takes for abandoned,
+/// and which it leaves alone because their owner still runs.
+pub mod service_scratch_abandonment;
+
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
 

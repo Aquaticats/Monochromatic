@@ -134,12 +134,12 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     // A cleanup, when asked for, belongs to a commit built elsewhere and names absolute directories without NUL; none is fine.
     let cleanup_clean: bool = match request.cleanup.as_ref() {
         Some(cleanup) => {
+            // The directory is the commit's own scratch tree, so it has to be one: inside the repository scratch directory this
+            //  release makes it in, or inside the worktree's Git directory as a release before this one made it.
             request.commit.is_some()
                 && cleanup.git_dir.is_absolute()
-                && cleanup.scratch.is_absolute()
-                && cleanup.scratch.starts_with(&cleanup.git_dir)
+                && is_scratch_path(cleanup.scratch.as_path(), cleanup.git_dir.as_path())
                 && !cleanup.git_dir.to_string_lossy().contains('\0')
-                && !cleanup.scratch.to_string_lossy().contains('\0')
         }
         None => true,
     };
