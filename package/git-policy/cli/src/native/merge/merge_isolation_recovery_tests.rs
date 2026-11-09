@@ -2043,3 +2043,36 @@ fn an_installed_merge_whose_index_stays_held_stops_the_command() {
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A directory a killed recovery left empty is removed by the retry,
+///  so the merge that puts a file there finishes.
+/// Why:
+///  The kill sits between finishing the child's private name and removing the emptied directory,
+/// and the retry judged the
+///  missing child as already at its end state,
+/// so it never scheduled the removal and `checkout-index` refused the
+///  existing directory on every attempt
+///  (a cross-vendor review of the seventh round,
+/// its fifth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = directoryToFileWorld(); await readTree(repo, old, merged); rm('dir/child.txt'); deferredRecord(); const outcomes = await recover(...); expect(read('dir')).toEqual(mergeFile);
+/// ```
+#[test]
+fn a_directory_left_empty_by_a_killed_recovery_is_removed_on_the_retry() {
+    let world: World = directory_to_file_world("merge-recovery-empty-directory-retry");
+    // An earlier attempt installed the merge's index, finished the child's private name and died before removing the directory.
+    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
+    std::fs::remove_file(world.repo.join("dir/child.txt")).expect("the child's file goes, as a finished take leaves it");
+    assert!(world.repo.join("dir").is_dir(), "the emptied directory is still there");
+    assert_eq!(std::fs::read_dir(world.repo.join("dir")).expect("the directory").count(), 0, "and it is empty");
+    let _record: PathBuf = deferred_record_of(&world, "36363636-0000-4000-8000-000000000036", "refs/cli-git/kept/36");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the retry finishes the merge");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
+    assert_eq!(std::fs::read(world.repo.join("dir")).expect("the merge's file"), b"the merge's file\n");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    remove(world.parent.as_path());
+}

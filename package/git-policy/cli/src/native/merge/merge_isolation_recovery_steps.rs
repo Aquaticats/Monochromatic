@@ -549,10 +549,16 @@ pub fn install_entries(
     // because a merge may put a file
     //  where one of them stood.
     let mut deletions: Vec<PathBuf> = Vec::new();
-    for (change, judged) in changes.iter().zip(judgements.iter()) {
-        if change.exists_after() || judged.standing == Standing::New {
+    for change in changes {
+        if change.exists_after() {
             continue;
         }
+        // Every path the merge deletes has its emptied directories pruned,
+        // whether or not it already stands at its end state:
+        // a
+        //  recovery killed between finishing a child's private name and removing the directory it emptied leaves that
+        //  directory behind,
+        // and only an empty directory is ever removed here.
         deletions.push(worktree_path(root, change.path.as_slice()));
     }
     if let Err(error) = finish_asides(place, root, &taken_deletions, out) {

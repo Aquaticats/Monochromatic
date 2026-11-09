@@ -8901,7 +8901,11 @@ A take whose read of the bytes fails after the rename puts that file back before
 and a file that cannot go back is named and counted as installed;
 a take or a write that fails puts every file it already took back,
 and a path the merge deletes is never removed again after its take,
-so a file that appeared in that instant stays.
+so a file that appeared in that instant stays;
+the emptied directories of every path the merge deletes are pruned on each attempt,
+whether or not the path already stands at its end state,
+because a kill between finishing a child's private name and removing the directory it emptied leaves an empty directory
+that `checkout-index` would refuse.
 The settling of a branch that moved reads the checkout and the index the same way the completion does,
 so a directory the branch's own files explain is read the same way there,
 and a staged entry for a path the merge changes that is neither the merge's nor the moved head's stops it,
