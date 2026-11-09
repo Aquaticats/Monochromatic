@@ -129,8 +129,13 @@ fn names_a_file_of_a_repository(link: &Path) -> bool {
         return true;
     };
     let text: String = target.to_string_lossy().into_owned();
+    // The kernel writes a memory file's link as `/memfd:<name> (deleted)`, with the leading slash its other pseudo
+    // names do not have, so the slash is dropped before they are matched: a test for `memfd:` alone skipped the file,
+    // the count became unknown, and an abandoned lock stayed while a capture was open (cross-vendor review of
+    // 2026-11-09, finding 4).
+    let name: &str = text.strip_prefix('/').unwrap_or(text.as_str());
     for pseudo in ["pipe:[", "socket:[", "anon_inode:", "memfd:"] {
-        if text.starts_with(pseudo) {
+        if name.starts_with(pseudo) {
             return false;
         }
     }

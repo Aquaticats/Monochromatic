@@ -237,6 +237,45 @@ fn a_lock_filled_during_the_scan_is_never_removed() {
     remove(root.as_path());
 }
 
+/// What:
+///  An unrelated memory file of this process does not stop the removal of an abandoned lock.
+/// Why:
+///  A descriptor of this process on a file no repository could hold is skipped by the count,
+///  and the count decides whether the lock may be removed at all.
+///  A memory file's link is `/memfd:<name> (deleted)`, with the leading slash the kernel writes:
+///  a test for `memfd:` alone missed it,
+///  the count became unknown,
+///  and an abandoned lock stayed while a capture was open
+///  (cross-vendor review of 2026-11-09,
+/// finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const capture = memfdCreate('capture'); expect(removeIfUnheld(SYSTEM, index, completeAndEmpty)).toEqual({ kind: 'removed' });
+/// ```
+#[test]
+#[cfg(target_os = "linux")]
+fn a_memory_file_of_this_process_does_not_keep_an_abandoned_lock() {
+    let (root, index) = index_in("unheld-memfd");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, "").expect("empty foreign lock");
+    let name: std::ffi::CString = std::ffi::CString::new("capture").expect("a name");
+    // SAFETY: `memfd_create` takes a name that outlives the call and a flag word of zero, and returns a descriptor this
+    //  control keeps open until the memory file is dropped.
+    let descriptor: std::os::fd::RawFd = unsafe { libc::memfd_create(name.as_ptr(), 0) };
+    assert!(descriptor >= 0, "a memory file: {}", std::io::Error::last_os_error());
+    // SAFETY: the descriptor came from `memfd_create` and is owned by this control alone.
+    let capture: std::fs::File = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(descriptor) };
+    let link: PathBuf = PathBuf::from(format!("/proc/self/fd/{descriptor}"));
+    let named: PathBuf = std::fs::read_link(link.as_path()).expect("the memory file's link");
+    assert!(named.to_string_lossy().starts_with("/memfd:"), "the link names a memory file: {}", named.display());
+    let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
+    drop(capture);
+    assert!(matches!(outcome, Unheld::Removed(_)), "a memory file of this process kept an abandoned lock: {outcome:?}");
+    assert!(!lock.exists());
+    remove(root.as_path());
+}
+
 /// A lock that is gone asks for another placement,
 /// not for a wait.
 #[test]
