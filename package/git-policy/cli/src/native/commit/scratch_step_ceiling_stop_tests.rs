@@ -195,3 +195,29 @@ fn a_refused_signal_that_is_not_no_such_process_keeps_the_ceiling_armed() {
     assert_eq!(came, CeilingCame::Unknown, "a refused signal proves nothing about the step, so the ceiling stays armed");
     assert!(ended.is_none(), "the step was reported gone and left alone although the refusal was not `ESRCH`: {ended:?}");
 }
+
+/// What:
+///  A walk that cannot be made does not keep the pinned step from being signalled.
+/// Why:
+///   Finding 2 of the fourth review:
+/// the walk was read before the signal and its failure returned `Unknown` first,
+/// so a step whose descriptor names it perfectly well ran on although the ceiling had come,
+/// and the notice retried for as long as `/proc` refused the walk.
+///  The step here is alive and its descriptor was made at its start;
+/// only the walk below it fails.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_walk_that_cannot_be_made_does_not_keep_the_step_from_being_signalled() {
+    let mut step: Child = a_step();
+    let watched: ChildNumber = ChildNumber::not_started_pinned();
+    watched.publish(i32::try_from(step.id()).expect("a process number"));
+    refuse_the_next_walk();
+    let came: CeilingCame = ceiling_came(&watched);
+    let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert!(ended.is_some(), "the step the descriptor names ran on although the walk below it failed: {came:?}");
+    assert_eq!(came, CeilingCame::Stopped, "a step that was signalled through its descriptor was stopped");
+}

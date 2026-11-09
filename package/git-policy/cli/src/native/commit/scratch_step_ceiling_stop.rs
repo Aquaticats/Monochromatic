@@ -81,13 +81,19 @@ pub enum CeilingCame {
 #[cfg(all(test, target_os = "linux"))]
 thread_local! {
     // The answer the next walk gives.
-    static PLANTED_WALK: std::cell::RefCell<Option<Vec<TreeMember>>> = const { std::cell::RefCell::new(None) };
+    static PLANTED_WALK: std::cell::RefCell<Option<Option<Vec<TreeMember>>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Plant what the next walk below the step answers.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) fn plant_what_the_walk_finds(members: Vec<TreeMember>) {
-    PLANTED_WALK.with(|planted| { *planted.borrow_mut() = Some(members); });
+    PLANTED_WALK.with(|planted| { *planted.borrow_mut() = Some(Some(members)); });
+}
+
+/// Plant a walk that could not be made at all.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn refuse_the_next_walk() {
+    PLANTED_WALK.with(|planted| { *planted.borrow_mut() = Some(None); });
 }
 
 /// The processes below the step:
@@ -97,7 +103,7 @@ pub(crate) fn plant_what_the_walk_finds(members: Vec<TreeMember>) {
 fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
     #[cfg(test)]
     if let Some(planted) = PLANTED_WALK.with(|planted| { return planted.borrow_mut().take(); }) {
-        return Some(planted);
+        return planted;
     }
     return descendants_of_read(number);
 }
