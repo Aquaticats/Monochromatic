@@ -9,8 +9,9 @@
 //!  and the holder,
 //! and over as soon as the lock is gone.
 //! A holder proven alive and an owner that cannot be proven alive are
-//!  both waited for with no bound,
-//! because the person's own `git commit` with its editor open holds the lock with no proof;
+//!  both waited for until `MERGE_LOCK_CEILING` (one minute,
+//! `wait_ceilings.rs`),
+//! which is where the wait names the blocker and ends and the merge goes on to meet Git's own refusal;
 //!  the line for the second says what is known and how to remove the lock if no program uses the repository.
 //! A PID file naming
 //!  a process that is gone ends the wait at once with a diagnostic.
@@ -151,7 +152,9 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
 ///  known when the wait begins and then every notice interval,
 /// so a queued command can be told from a hung one.
 /// A holder
-///  proven alive and an owner nothing proves alive are waited for with no bound;
+///  proven alive and an owner nothing proves alive are waited for until `MERGE_LOCK_CEILING`,
+/// not forever,
+/// because the person's own `git commit` with its editor open holds the lock with no proof;
 /// a dead owner ends the wait at once.
 ///
 /// In TS you'd write (pseudocode):

@@ -6,7 +6,7 @@
 //! and waits for a holder proven alive,
 //! and for an owner nothing proves
 //! alive,
-//! with no bound.
+//! until the ceiling (`MERGE_LOCK_CEILING`).
 //! Why:
 //!  Merges must wait for a transient holder and never remove a lock,
 //! so each ending is pinned with a stand-in holder,
@@ -223,13 +223,15 @@ fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
     remove(root.as_path());
 }
 
-/// A holder proven alive is waited for with no bound:
+/// A holder proven alive is waited for until it lets go:
 /// the wait goes on through the whole hold,
 /// repeats its line naming the
-///  holder without ever saying it gives up,
-/// and ends when the holder lets go.
+///  holder,
+/// and ends when the holder lets go,
+/// well inside the one-minute ceiling it takes (`MERGE_LOCK_CEILING`,
+/// the control of that ceiling is `a_holder_proven_alive_is_given_up_on_at_the_ceiling`).
 #[test]
-fn a_holder_proven_alive_is_waited_for_with_no_bound() {
+fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
     let root: std::path::PathBuf = fixture("holder-wait-alive");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");

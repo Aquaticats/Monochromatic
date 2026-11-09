@@ -422,7 +422,7 @@ pub enum ServiceMessage {
     /// The service is alive and the request is still waiting for its answer:
     /// sent on a fixed beat while a request is queued
     ///  or landing,
-    /// so the client can wait for the answer with no clock of its own and end the wait on silence alone.
+    /// so the client can tell a working service from a stopped one and end the wait on silence.
     Heartbeat,
 }
 

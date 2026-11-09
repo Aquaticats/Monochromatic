@@ -399,7 +399,8 @@ the second attempt is the one recorded.
 ## Final gate
 
 On `e4725f72c`,
-the tree every later section measures,
+the tree the `Mutation testing`,
+`Refusal frontier` and `Differential results` sections measure,
 `GIT_POLICY_NATIVE_IMAGE_TAG=content-policies mise run //package/git-policy/cli:native:test:container`:
 578 unit tests,
 39 binary-level tests,

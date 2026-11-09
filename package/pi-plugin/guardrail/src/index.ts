@@ -235,3 +235,71 @@ export {
   registerGuardrail,
 };
 export type { RegisterGuardrailOptions, };
+
+//region Internal exports for built-artifact tests
+
+/**
+ Bash guard entry the extension dispatch calls, exported so built-artifact tests
+ can drive the same function a Pi tool call reaches.
+
+ @internal
+ */
+export { evaluateBashGuard, } from './bash-guard.ts';
+
+/**
+ Config loading and normalization steps, exported so built-artifact tests can
+ drive each stage the extension runs at load.
+
+ @internal
+ */
+export { loadGuardrailConfig, } from './config.ts';
+export { configPathForHome, } from './config-paths.ts';
+export { normalizeConfigFile, } from './config-normalize.ts';
+export { parseConfigJson, } from './config-file.ts';
+
+/**
+ Config file name and the missing-file code it reports, exported so
+ built-artifact tests can build a config fixture that matches the loader.
+
+ @internal
+ */
+export { FILE_NOT_FOUND_CODE, } from './constants.ts';
+
+/**
+ Path guard matcher and evaluation, exported so built-artifact tests can check
+ the gitignore-style matching the extension installs.
+
+ @internal
+ */
+export {
+  createPathGuardMatcher,
+  evaluatePathGuard,
+} from './path-guard.ts';
+
+/**
+ Tool path extraction and normalization, exported so built-artifact tests can
+ check how a tool call's path becomes the value the matcher sees.
+
+ @internal
+ */
+export {
+  extractToolPath,
+  normalizeToolPath,
+  TOOL_PATH_NOT_FOUND,
+  TOOL_PATH_NOT_MATCHABLE,
+} from './path-normalize.ts';
+
+/**
+ Guardrail decision values and shapes, exported so built-artifact tests can
+ compare decisions and build fixtures with the extension's own types.
+
+ @internal
+ */
+export { GUARDRAIL_NOT_BLOCKED, } from './types.ts';
+export type {
+  GuardrailConfig,
+  GuardrailDecision,
+  PathRule,
+} from './types.ts';
+
+//endregion Internal exports for built-artifact tests

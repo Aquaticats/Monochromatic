@@ -50,6 +50,10 @@ pub mod parallel_budget;
 /// as a trait a struct can implement.
 pub mod line_sink;
 
+/// One stream of a command's notices,
+/// written whole line by whole line by two threads through one small lock.
+pub mod shared_notice_stream;
+
 /// Independent items on a bounded number of threads,
 /// reported in input order with no lock.
 pub mod parallel_runner;

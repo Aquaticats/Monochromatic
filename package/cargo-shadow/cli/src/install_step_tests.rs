@@ -1123,7 +1123,8 @@ fn a_refusal_survives_a_failed_completion_marker_and_names_it() {
 /// sixth pass group 5):
 /// a refusal survives a failed sync of the completion marker's directory,
 /// and the message names both the policy refusal and the completion barrier.
-/// The rename itself succeeds, so the failure is the parent barrier that makes the marker durable,
+/// The rename itself succeeds,
+/// so the failure is the parent barrier that makes the marker durable,
 /// not the rename the other refusal test covers.
 #[test]
 fn a_refusal_survives_a_failed_completion_directory_sync_and_names_it() {
