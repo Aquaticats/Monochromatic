@@ -20,7 +20,7 @@ use crate::action::ENGINE_FAILURE_EXIT_CODE;
 #[cfg(unix)]
 use crate::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
 use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
-use crate::forwarding::replace_process_with_real_git;
+use crate::forwarding::{end_as_git_ended, replace_process_with_real_git};
 use crate::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use crate::forwarded_command::ResolvedCommand;
 use crate::worktree_identity::WorktreeIdentity;
@@ -41,9 +41,10 @@ use std::path::PathBuf;
 /// process.exitCode = outcome.exitCode;
 /// ```
 pub(crate) fn finish_forwarded(run: ForwardedRun) -> i32 {
-    // `match` on the ending: a status, or a failure with its own text.
+    // `match` on the ending: a status, the signal Git was ended by, or a failure with its own text.
     match run {
         ForwardedRun::Ran(code) => return code,
+        ForwardedRun::Killed(signal) => return end_as_git_ended(signal),
         ForwardedRun::Failed { stderr, code } => {
             write_stream(&mut std::io::stderr(), stderr.as_str());
             return code;

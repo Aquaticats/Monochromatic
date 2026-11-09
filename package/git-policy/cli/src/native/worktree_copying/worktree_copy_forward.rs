@@ -111,11 +111,13 @@ pub fn copy_applies_with(identity: &WorktreeIdentity, creates: bool, serves_ladd
 ///  How one forwarded run ended.
 /// Why:
 ///   Only a run that failed before or after Git needs its own text;
-/// otherwise the status is Git's.
+/// otherwise the status is Git's,
+/// and a Git that
+///  was ended by a signal is this process's to end by (`Killed`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ForwardedRun = { exitCode: number } | { stderr: string; exitCode: number };
+/// type ForwardedRun = { exitCode: number } | { signal: number } | { stderr: string; exitCode: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ForwardedRun {
@@ -124,6 +126,11 @@ pub enum ForwardedRun {
     /// finished);
     /// this is the exit status.
     Ran(i32),
+    /// Git was ended by this signal,
+    /// so this process ends by it too;
+    /// a wrapper cannot always die of the same signal,
+    /// but [`crate::forwarding::end_as_git_ended`] does where it can.
+    Killed(i32),
     /// The run could not start or settle;
     /// the standard error text and exit status.
     Failed {
@@ -434,6 +441,9 @@ fn run_settled(
         /// decided at the first checkout step from what the person set,
         /// and not again.
         parallel: Option<bool>,
+        /// The signal the last Git step was ended by,
+        /// so a forwarded command's caller sees what Git's caller sees.
+        signalled: Option<i32>,
     }
 
     impl GitRunner for ForwardedGit<'_> {
@@ -465,7 +475,10 @@ fn run_settled(
             }
             match run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()) {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
-                Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
+                Ok(ChildOutcome::Signaled(signal)) => {
+                    self.signalled = Some(signal);
+                    return Ok(GitStatus { code: None });
+                }
                 Err(error) => {
                     return Err(WorktreeCopyError(format!(
                         "monochromatic-git-policy-cli: cannot start {}: {error}",
@@ -477,12 +490,24 @@ fn run_settled(
         }
     }
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
-    let mut run_git: ForwardedGit<'_> = ForwardedGit { overlay, arguments, facts, invocation: &invocation, real_git, parallel: None };
+    let mut run_git: ForwardedGit<'_> = ForwardedGit { overlay, arguments, facts, invocation: &invocation, real_git, parallel: None, signalled: None };
     match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
         Ok(settlement) => {
             if let Some(failure) = &settlement.copy_failure {
                 // A closed standard error leaves nowhere to report the failure, and the exit status still carries it.
                 let _ = writeln!(stderr, "{}", failure.0);
+            }
+            // What: A Git the person ran that was ended by a signal ends this process by that signal, unless the copy itself
+            //       failed, whose message and status are the wrapper's own.
+            // Why:  The plain forward replaces this process with Git, so a caller's `wait` sees `WIFSIGNALED` and a shell
+            //       reports 128 + the signal; the copy route has to end the same way or a script that tells "the reader went
+            //       away" from "Git failed" takes the wrong branch (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+            //       finding 3). A settled copy of a creating command keeps its own status, which is never a signal.
+            if settlement.copy_failure.is_none()
+                && settlement.git.code.is_none()
+                && let Some(signal) = run_git.signalled
+            {
+                return ForwardedRun::Killed(signal);
             }
             return ForwardedRun::Ran(exit_code(&settlement));
         }

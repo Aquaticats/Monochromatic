@@ -289,6 +289,9 @@ fn from_forwarded(run: ForwardedRun) -> CoordinatedRun {
     // `match` on the ending: a status, or a failure with its own text.
     match run {
         ForwardedRun::Ran(code) => return CoordinatedRun::Ran(code),
+        // A Git that was ended by a signal keeps a status of its own here: this run holds the landing lock and has to release
+        //  it before anything ends, so the death is reported as a shell reports it, 128 + the signal.
+        ForwardedRun::Killed(signal) => return CoordinatedRun::Ran(crate::forwarding::SIGNAL_EXIT_BASE + signal),
         ForwardedRun::Failed { stderr, code } => return CoordinatedRun::Failed { stderr, code },
     }
 }

@@ -1917,9 +1917,18 @@ write exactly one human summary line to stderr.
 Copy-only failure exits `2`.
 If real Git returned nonzero and synchronization also fails,
 preserve Git's numeric status;
-use `1` when Git ended by signal without a numeric status.
+use `1` when Git ended by signal without a numeric status and the copy failed too.
 If Git failed but synchronization succeeds,
 preserve its status after writing the successful copy summary.
+A command Git was ended by a signal ends the wrapper by that same signal,
+which `forwarding::end_as_git_ended` does by restoring the signal's default action and raising it:
+the caller's `wait` then sees `WIFSIGNALED` with Git's signal,
+and a shell reports 128 + the signal,
+exactly as the plain forward reports it by replacing its process with Git.
+Where that signal cannot end this process the exit status is 128 + the signal.
+So `git log -p | head -1` ends by `SIGPIPE` on this route as it does on native Git
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+finding 3).
 
 ### Package-manager repair of a new worktree
 

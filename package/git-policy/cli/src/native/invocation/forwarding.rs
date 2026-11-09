@@ -204,6 +204,43 @@ pub fn run_real_git(
 }
 
 /// What:
+///  End this process by the signal Git was ended by,
+/// as replacing the process with Git does,
+/// and answer the code a shell
+///  reports for that death when the signal cannot end it here.
+/// Why:
+///   The plain forward replaces this process with Git,
+/// so the caller's `wait` sees `WIFSIGNALED` with Git's
+///  signal and a shell reports 128 + the signal.
+/// A route that keeps a process around Git (the copy route's child, a
+///  coordinated run) has to end the same way:
+/// restoring the signal's default action and raising it makes the kernel report
+///  exactly what Git's own death reported.
+/// Rust's start makes `SIGPIPE` ignored,
+/// and an ignored signal is discarded,
+/// so the
+///  default action is restored first.
+/// The return is the fallback for a signal this process blocks or cannot receive,
+///  where ending is impossible but the status still has to be one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // signal(SIG, SIG_DFL); raise(SIG); return 128 + SIG;  // only reached when SIG cannot end this process
+/// ```
+pub fn end_as_git_ended(signal: i32) -> i32 {
+    #[cfg(unix)]
+    {
+        // SAFETY: `signal` and `raise` take one number each, touch no memory of this process, and cannot fail in a way this
+        //  process observes: a signal it blocks is left pending, which the return below covers.
+        unsafe {
+            libc::signal(signal, libc::SIG_DFL);
+            libc::raise(signal);
+        }
+    }
+    return SIGNAL_EXIT_BASE + signal;
+}
+
+/// What:
 ///  Become real Git;
 ///  returns only when Git could not be started.
 ///       The returned `std::io::Error` says why the operating system refused.
