@@ -334,11 +334,28 @@ pub fn settle_failed_merge(
         Err(error) => return Err(MergeRefusal { error, began }),
     };
     if checked_out != intent.target_ref {
+        // A record that names no side ref and has nothing of the merge in this checkout has nothing to finish and nothing to stop
+        //  a command for: the branch it was computed on is not the one here, and no index entry or file of it is either. Nothing
+        //  was saved of it, so the person runs the merge again on the branch it is for; leaving the record kept every command on
+        //  another branch refused for a merge nothing installed
+        //  (a cross-vendor review of the ninth round,
+        // its fifth finding).
+        // A merge kept on a side ref says where the commit is; one that was only recorded has nothing to promise about it.
+        let kept: &str = match intent.side_ref.is_some() {
+            true => " and the merge's commit is still where it was saved",
+            false => "",
+        };
+        if intent.side_ref.is_none() && !any_in_index && !any_in_worktree {
+            if let Err(error) = drop_record(record) {
+                return Err(MergeRefusal { error, began });
+            }
+            return Ok(MergeRecoveryAction::Discarded);
+        }
         return Err(MergeRefusal {
             error: RecoveryError(format!(
             "A merge saved for {target} in {} was not finished: this worktree has {} checked out, and finishing the merge would \
-             put it into that branch's checkout instead. Nothing was changed, the record {} was kept and the merge's commit is \
-             still where it was saved. Check out {target} in this worktree and run any git command again.",
+             put it into that branch's checkout instead. Nothing was changed and the record {} was kept{kept}. Check out {target} \
+             in this worktree and run any git command again.",
             root.display(),
             checked_out.as_deref().unwrap_or("a detached HEAD"),
             record.display()
