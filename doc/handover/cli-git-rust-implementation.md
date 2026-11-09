@@ -144,6 +144,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
+  `merge-route-round-8-prompt.md`,
   `shadow-and-replay-round-2-prompt.md`,
   `push-route-round-5-prompt.md`,
   and `literal-pathspec-round-3-prompt.md`.
@@ -151,8 +152,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
   a subsection holding `=` that loses its value,
   and a long value that stops the scratch commit from starting.
-- The merge branch passed 320 of 320 on top of main,
-  and its round 7 review is running.
+- The merge branch passed 320 of 320 on top of main.
+  Under the coordinator's decision to converge,
+  its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,
+  and documents in `SPEC.md` the three findings that need another process to act inside a few instructions.
 - The tokio landing-round agent converted nothing,
   and measured why:
   a Git step reads its child through the runtime,
