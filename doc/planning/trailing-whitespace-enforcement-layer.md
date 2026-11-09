@@ -94,16 +94,22 @@ not about line-end whitespace.
 - `final-newline` requires a non-empty UTF-8 text file without NUL bytes
   to end with exactly one LF byte,
   message "Non-empty text file must end with exactly one LF byte."
-  (`package/git-policy/cli/src/native/policy_final_newline.rs`).
+  (`package/git-policy/cli/src/native/policy/policy_final_newline.rs`).
 - Its normalizer rewrites only the run of trailing LF bytes at end of file,
   adds a missing one,
   and leaves interior bytes untouched
-  (`normalized_final_newline` in `package/git-policy/cli/src/native/policy_final_newline.rs`).
+  (`normalized_final_newline` in `package/git-policy/cli/src/native/policy/policy_final_newline.rs`).
   A file whose lines end in spaces before their LF passes this policy unchanged.
-- Its preserved families are the two fuzz seed directories,
-  `package/test-fixture/toml-edit/src/`,
-  and files below `dist/final/node/` or `bundle/node/`
-  (`is_final_newline_excluded` in the same module).
+- Its preserved families are the files below `dist/final/node/` or `bundle/node/`
+  (`is_final_newline_excluded` in `package/git-policy/cli/src/native/policy/policy_final_newline.rs`).
+  Fuzz seeds and fixture sources are exempt through a `-text` attribute
+  in each package's own `.gitattributes` instead,
+  never through their path:
+  four fuzz packages declare `seed/** -text` today
+  (`forbidden-strings/cli.fuzz`,
+  `git-policy/cli.fuzz`,
+  `jsonc-edit/core-rust.fuzz`,
+  `xml-edit/core-rust.fuzz`).
 - The four optional content policies
   (`markdown/autofix`,
   `mono/forbidden-root-context`,

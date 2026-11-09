@@ -52,7 +52,7 @@ an exit other than the scanner's success/finding statuses.
 The old artifact's `--help` lists no `--name-path` option,
 and its real invocation exits 2 for that option.
 The current forbidden-strings 0.4.1 artifact's `--help` lists it.
-`package/forbidden-strings/cli/src/cli.rs:251` declares:
+`package/forbidden-strings/cli/src/cli.rs:283` declares:
 
 ```rust
 // package/forbidden-strings/cli/src/cli.rs

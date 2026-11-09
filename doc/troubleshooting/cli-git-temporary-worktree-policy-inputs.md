@@ -77,16 +77,28 @@ Root `mise.toml:1239` supplies a worktree-relative generated rules input:
 FORBIDDEN_STRINGS_RULES = "{{config_root}}/.cache/forbidden-strings.rules.txt"
 ```
 
+That line is gone:
+the root `mise.toml` has 1490 lines and names `FORBIDDEN_STRINGS_RULES` nowhere.
+The live assignment is `.config/mise/conf.d/20-env.toml:77`,
+and it names two append-list files instead of the composed cache file:
+
+```toml
+# .config/mise/conf.d/20-env.toml
+FORBIDDEN_STRINGS_RULES = "{{config_root}}/forbidden-strings.append.txt,{{config_root}}/forbidden-strings.append.local.txt?"
+```
+
 Fresh worktree creation deliberately did not copy ignored state.
 The development rules file existed and was 10905 bytes;
 the corresponding temporary-worktree path was absent.
-`package/forbidden-strings/cli/src/lib.rs:601`
-classifies an environment-selected rules file as explicit:
+`package/forbidden-strings/cli/src/lib.rs:739`
+classifies an environment-selected rules file as explicit
+(the predicate sat at line 601 when this record was written;
+it is `rules_value` at lines 739 and 740 today):
 
 ```rust
 // package/forbidden-strings/cli/src/lib.rs
-let explicit_rules_source =
-    cli.rules_path.is_some() || env::var("FORBIDDEN_STRINGS_RULES").is_ok();
+let rules_value: Option<String> = cli.rules_path.or_else(rules_from_environment);
+let explicit_rules_source: bool = rules_value.is_some();
 ```
 
 An explicit missing rules input is not the scanner's allowed implicit-baseline-only case.
@@ -132,7 +144,13 @@ No production build-policy change was made by that commit.
 ## Verified remedies
 
 After comparing and reviewing the exact policy,
-use native trust consent:
+use native trust consent;
+`git cli-git trust` is a retired command today,
+answered with an explanation that changes nothing and exits `0`
+(`package/git-policy/cli/SPEC.md`,
+management commands),
+so the native wrapper needs no consent for either case,
+and the step below belongs to the retired TypeScript wrapper:
 
 ```sh
 # In the reviewed owned temporary worktree

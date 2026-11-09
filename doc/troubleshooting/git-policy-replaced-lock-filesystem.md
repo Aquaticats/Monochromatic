@@ -33,7 +33,7 @@ This is a source identity boundary demonstrated on every measured provider;
 filesystem type alone is not the explanation.
 No kernel defect or universal ext4 allocation behavior is established.
 
-At `package/git-policy/cli/src/native/real_index_lock.rs:255`,
+At `package/git-policy/cli/src/native/real_index_lock.rs:257`,
 exclusive creation returns a boolean rather than retaining the opened file:
 
 ```rust
@@ -69,7 +69,7 @@ The `RealIndexLock` fields at that file's line 57 retain paths and a `LockIdenti
 with no open `File` field.
 The identity is subsequently read from path metadata at line 300.
 The direct release path at line 138 calls `assert_identity()` before removing that path.
-Its deciding Unix comparison is at line 212:
+Its deciding Unix comparison is at line 218:
 
 ```rust
 //! package/git-policy/cli/src/native/real_index_lock.rs:218,

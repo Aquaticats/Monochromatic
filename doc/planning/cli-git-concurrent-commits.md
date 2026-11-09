@@ -41,6 +41,12 @@ issue #560 is a real collision.
 
 - `package/git-policy/cli/src/policy-engine/commit-transaction-workspace.ts` opens `<index>.lock` with `wx`,
   so a second transaction fails immediately instead of waiting.
+  That file was removed on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper.
+  The native wrapper takes no `index.lock` of its own:
+  a command that cannot take it ends as native Git ends it,
+  and the commit service's landing retries it a bounded number of times
+  (`package/git-policy/cli/src/native/lock/index_lock_wait.rs`,
+  module header).
 - The lock is held across every policy pass,
   the real `git commit` including its hooks,
   and post-commit index installation (`package/git-policy/cli/SPEC.md`,
@@ -331,6 +337,14 @@ Git source at commit `0f8e75abebff` plus experiments with real Git 2.55.0.
 - Hook concurrency:
    a per-repository hook lock serializes preparation hooks and post-landing `post-commit` by default;
   `cli-git.config` can declare the repository's hooks safe for parallel preparation.
+  Both are retired:
+  the wrapper runs no external hook,
+  so no hook lock exists,
+  and
+  `hooks.concurrentCommits` is only accepted and ignored
+  (`package/git-policy/cli/SPEC.md`,
+  section "Retired keys";
+  `git monochromatic-git-policy-cli doctor` says so).
 - Foreign `index.lock`:
   cli-git injects `core.lockfilePid=true` into every forwarded and spawned Git.
   Proven-live owners
@@ -389,6 +403,20 @@ the owner declined an `AGENTS.md` rule.
   the private admin dir stays unregistered,
   so `git worktree list` never shows it.
   The ref is briefly visible to `git for-each-ref` and `git log --all`.
+  The design session chose that ref;
+  the implementation has no `refs/cli-git/` pending ref.
+  What protects a prepared commit is the per-worktree scratch ref
+  `refs/worktree/cli-git-service/<sequence>`,
+  which the landing batch points at its commit and deletes afterwards
+  (`doc/decision/cli-git-concurrent-commits.md`,
+  section "Private `HEAD` shape:
+  shadow repository with alternates",
+  and its 2026-11-04 correction;
+  `package/git-policy/cli/src/native/landing/service_scratch_ref_marker_of_a_batch.rs`,
+  module header).
+  A `refs/cli-git/kept/<number>` ref is a kept copy of a stopped batch,
+  not a pending commit
+  (`package/git-policy/cli/src/native/transaction/transaction_git_step_rerun_and_end_rules.rs:516`).
 - Hooks during preparation run through the dispatcher shim.
   It resolves the repository's own `core.hooksPath`,
   respects user-disabled events,
@@ -398,6 +426,12 @@ the owner declined an `AGENTS.md` rule.
   Shim executables follow the repository's no-shell-script rule.
   `extensions.worktreeConfig` is rejected:
   it mutates every repository's config and still needs the shim for `post-commit`.
+  The shim is gone:
+  no tracked path matches `*hook_dispatch*`,
+  the tracked
+  `package/git-policy/cli/src/native/health/external_hooks.rs` is the module that inspects a
+  configured `core.hooksPath` today,
+  and `package/git-policy/cli/SPEC.md` says the wrapper runs no external hook.
 - `post-commit` runs once after landing through `git hook run post-commit` in the real worktree,
   with native-equivalent `GIT_INDEX_FILE`,
   `GIT_AUTHOR_*`,

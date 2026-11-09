@@ -207,12 +207,20 @@ while 128 lanes increased storage contention.
 The accepted tmpfs run added at most 1,205.014 ms relative to paired direct Git,
 leaving 794.986 ms below the 2,000 ms ceiling.
 
-The committed harness is
-`package/git-policy/cli/perf/manual-push-latency-benchmark.ts`.
+The committed harness was
+`package/git-policy/cli/perf/manual-push-latency-benchmark.ts`,
+removed with the TypeScript wrapper on 2026-10-13 in `642b6d72cb`;
+the package's latency harness today is
+`package/git-policy/cli/bin/native-perf.ts`,
+run by `mise run //package/git-policy/cli:native:perf`.
+So the block below is the command as it stood before that removal,
+and it cannot be re-run against this tree:
+it mounts a packed `cli.tgz` the package no longer builds,
+it names a `packages/` directory the repository never had,
+and on its second line it reverses two segments
+(the scanner lives at `package/forbidden-strings/cli/target/release/forbidden-strings`).
 Raw samples are stored in
 `package/git-policy/cli/perf/manual-push-latency-2026-07-10.json`.
-After building and packing both production artifacts,
-run it from the repository root with:
 
 ```sh
 podman run --memory=2g --cpus=2 --rm --tmpfs /tmp:rw,size=1g \
