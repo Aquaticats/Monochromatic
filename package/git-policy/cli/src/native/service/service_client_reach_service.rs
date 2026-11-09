@@ -135,7 +135,8 @@ pub(crate) fn reach(
                     //       leaves the failed state alone, and a unit in that state never comes back by itself; the
                     //       command would fail with "run the commit again", which reproduces the same state. The reset
                     //       comes first because a unit that failed too often refuses a start as "repeated too quickly".
-                    //       One repair, then the answer of two failed readings still ends the wait.
+                    //       One repair only, and a second `failed` answer still ends the wait, so a unit that cannot start fails
+                    //       the commit in seconds.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts

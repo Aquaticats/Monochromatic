@@ -3156,7 +3156,7 @@ on the commit path:
   for both of the worktree's units,
   and then to start,
   once;
-  a second and third `failed` answer still end the wait,
+  a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
 - A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
   left to the
