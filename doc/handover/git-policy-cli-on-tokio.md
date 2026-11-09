@@ -805,26 +805,31 @@
   `native:clippy` clean;
   `//package/git-policy/cli:lint` 0 warnings and 0 errors.
 - `native:perf`,
-  five arms with two binaries,
-  alternating (mine,
-  mine,
-  main's tree,
-  main's tree,
-  mine),
-  so each binary has a pair against the other binary's pair:
+  nine arms with two binaries over two windows,
+  the second interleaved (main's,
+  this tree,
+  main's,
+  this tree),
+  so each binary has arms on both sides of the other's:
   every arm inside the 2,000 ms forwarded bound by three orders of magnitude
-  (added medians 1.5 to 2.7 ms across all arms);
-  commit through the service paired delta median 146.8,
-  111.1 and 119.2 ms for this tree and 45.5 and 56.7 ms for main's,
-  with maxima of 4,486.9,
-  2,277.4 and 999.0 ms against 284.4 and 2,842.3 ms;
-  signed commit 167.8,
-  99.5 and 95.2 ms with maxima of 5,108.5,
-  457.2 and 2,386.7 ms against 108.5 and 93.6 ms with maxima of 7,658.5 and 296.3 ms.
-  The same-binary spread is the largest figure in the window
-  (1.3 times on the commit median and 4.5 times on its maximum within this tree,
-  1.25 and 10 times within main's),
-  so no arm here attributes anything to this step,
+  (added medians 1.4 to 2.2 ms);
+  commit through the service paired delta medians 146.8,
+  111.1,
+  119.2,
+  39.5 and 60.5 ms for this tree and 45.5,
+  56.7,
+  171.4 and 58.5 ms for main's,
+  and signed commit 167.8,
+  99.5,
+  95.2,
+  161.5 and 89.4 ms against 108.5,
+  93.6,
+  123.3 and 111.9 ms.
+  Each binary's own spread covers the whole difference (3.7 times on this tree's commit medians,
+  3.8 times on main's),
+  the first window's apparent separation reversed in the interleaved one,
+  and the 5,000 ms bar was broken by both binaries under this load.
+  So no arm here attributes anything to this step,
   and no file this step touches runs in a commit.
   The plan,
   "Step T12,

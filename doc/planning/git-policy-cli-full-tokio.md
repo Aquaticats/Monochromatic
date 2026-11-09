@@ -5451,79 +5451,128 @@ because they catch different defects:
 
 #### Latency
 
-Five `native:perf` arms over the window 22:53 to 22:57 on 2026-11-08,
+Nine `native:perf` arms over two windows on 2026-11-08 (22:53 to 22:57 and 23:45 to 23:47),
 with two binaries:
-this tree (built at `e96655c92e`) and main's tree at the base commit `3db3002750`
+this tree,
+and main's tree at the base commit `3db3002750`
 (the files of this step restored with `git restore --source=3db3002750`,
 built,
 measured,
 and restored,
-whose rebuild produced a binary byte for byte the one of the other arms of this tree).
-The host carried a load average between 63 and 72 on 12 CPUs throughout;
-the arms alternate so that whatever load there is falls on both binaries.
+whose rebuild produced a binary byte for byte the one the arms of this tree measured).
+The host carried a load average between 60 and 91 on 12 CPUs throughout,
+with another agent's whole host suite running in the second window,
+so the arms alternate and each binary has arms on both sides of the other's.
 
-- Forwarded commands,
-  added medians of `rev-parse`,
-  `status`,
-  `log` and `diff-stat`:
-  mine 2.7,
-  2.4,
-  2.0 and 1.7 ms,
-  then 2.0,
-  2.4,
-  1.9 and 2.0 ms;
-  main's 1.5,
-  1.8,
-  1.7 and 1.6 ms,
-  then 1.6,
-  1.7,
-  2.0 and 2.0 ms;
-  mine again 1.9,
-  1.9,
-  2.2 and 2.0 ms.
-  Every arm is inside the 2,000 ms bound by three orders of magnitude,
-  and the two binaries differ by less than the run-to-run spread of the forwarded figures
-  (1.5 to 2.7 ms across all arms).
-- Commit through the service,
-  paired delta median and maximum:
-  mine 146.8 ms and 4,486.9 ms,
-  then 111.1 ms and 2,277.4 ms,
-  then 119.2 ms and 999.0 ms;
-  main's 45.5 ms and 284.4 ms,
-  then 56.7 ms and 2,842.3 ms.
-- Signed commit through the service:
-  mine 167.8 ms and 5,108.5 ms,
-  then 99.5 ms and 457.2 ms,
-  then 95.2 ms and 2,386.7 ms;
-  main's 108.5 ms and 7,658.5 ms,
-  then 93.6 ms and 296.3 ms.
+The arms in the order they ran,
+commit through the service and signed commit through the service,
+each the paired delta against native Git:
+
+- 22:53,
+  this tree:
+  commit median 146.8 ms,
+  maximum 4,486.9 ms;
+  signed median 167.8 ms,
+  maximum 5,108.5 ms.
+- 22:54,
+  this tree:
+  commit median 111.1 ms,
+  maximum 2,277.4 ms;
+  signed median 99.5 ms,
+  maximum 457.2 ms.
+- 22:55,
+  main's tree:
+  commit median 45.5 ms,
+  maximum 284.4 ms;
+  signed median 108.5 ms,
+  maximum 7,658.5 ms.
+- 22:56,
+  this tree:
+  commit median 119.2 ms,
+  maximum 999.0 ms;
+  signed median 95.2 ms,
+  maximum 2,386.7 ms.
+- 22:57,
+  main's tree:
+  commit median 56.7 ms,
+  maximum 2,842.3 ms;
+  signed median 93.6 ms,
+  maximum 296.3 ms.
+- 23:45,
+  main's tree:
+  commit median 171.4 ms,
+  maximum 8,028.0 ms;
+  signed median 123.3 ms,
+  maximum 380.0 ms.
+- 23:46,
+  this tree:
+  commit median 39.5 ms,
+  maximum 1,228.1 ms;
+  signed median 161.5 ms,
+  maximum 9,664.7 ms.
+- 23:46,
+  main's tree:
+  commit median 58.5 ms,
+  maximum 3,533.3 ms;
+  signed median 111.9 ms,
+  maximum 1,039.8 ms.
+- 23:47,
+  this tree:
+  commit median 60.5 ms,
+  maximum 2,769.2 ms;
+  signed median 89.4 ms,
+  maximum 221.0 ms.
+
+Forwarded commands,
+the added medians of `rev-parse`,
+`status`,
+`log` and `diff-stat`,
+stayed between 1.4 and 2.2 ms in every arm,
+three orders of magnitude under the 2,000 ms bound.
+One arm of main's tree (23:45) reported `status` at a p95 of 3,843.1 ms with a median of 2.2 ms,
+a stall in one sample;
+no arm of this tree did.
 
 What that says,
 and what it does not:
 
-- The same-binary spread is the largest figure in the window.
-  The three arms of this tree differ by 1.3 times on the commit median and by 4.5 times on its
-  maximum,
-  and by 1.8 and 11 times on the signed commit;
-  the two arms of main's tree differ by 1.25 and 10 times on the commit,
-  and by 1.16 and 26 times on the signed commit.
-- The bound was broken by one arm of this tree (signed 5,108.5 ms) and by one arm of main's tree
-  (signed 7,658.5 ms),
-  and met by the other three arms of each.
-  So the bar is broken in this window by both binaries,
-  and no arm of this table attributes that to this step.
-- Nothing here is evidence that this step made the commit path slower or faster.
-  None of the files this step touches runs in a commit:
-  the trash entry removal is reached from the copy path of a new worktree
+- The first window looked like a separation on the commit median
+  (this tree 111.1 to 146.8 ms,
+  main's 45.5 to 56.7 ms),
+  and that reading does not survive the second:
+  the first window's arms were this tree,
+  this tree,
+  main's,
+  this tree,
+  main's,
+  so a slow half hour for one binary can look like an effect of the other.
+  The second window interleaves the two (main's,
+  this tree,
+  main's,
+  this tree),
+  and there this tree's commit medians are 39.5 and 60.5 ms against main's 171.4 and 58.5 ms,
+  the same order reversed.
+- The same-binary spread covers the whole difference:
+  this tree's five commit medians run from 39.5 to 146.8 ms (3.7 times),
+  main's four from 45.5 to 171.4 ms (3.8 times),
+  and each binary's signed medians run 89.4 to 167.8 and 93.6 to 123.3 ms.
+- The 5,000 ms bar was broken in this window by this tree (signed 5,108.5 and 9,664.7 ms) and by
+  main's tree (signed 7,658.5 ms and commit 8,028.0 ms),
+  and met by the other arms of both.
+  The bar is broken by both binaries under this load,
+  and no arm attributes that to this step.
+- Nothing here is evidence that this step made the commit path slower or faster,
+  and there is a reason to expect it cannot:
+  none of the files this step touches runs in a commit.
+  The trash entry removal is reached from the copy path of a new worktree
   (`worktree_copying/worktree_copy_after_lock_disposal.rs`)
   and from the service's work loop for a trash item,
   the index refresh of every worktree is reached from the subvolume migration,
-  the conversion command and the runner's trait are reached from neither.
+  and the conversion command and the runner's trait are reached from neither.
   A commit in these fixtures has no trash item and no migration.
-- The figures that the owner's bar is about cannot be separated on this host in this window.
-  The next agent gets the same advice the earlier sections gave:
-  alternate the binaries arm by arm,
-  more arms than this,
+- What would settle the commit bar is the earlier sections' advice with more arms than this:
+  interleave the two binaries one arm each,
+  many times,
   under whatever load the host carries then.
 
 #### Checks
