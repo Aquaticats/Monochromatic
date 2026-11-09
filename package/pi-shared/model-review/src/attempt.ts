@@ -14,6 +14,7 @@ import type {
   ForeignHostCapability,
 } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import { packageLogger, } from './logger.ts';
 import type { ReviewSimpleStreamOptions, } from './provider-data.ts';
 import { streamStructuredReview, } from './provider-streams.ts';
 import {
@@ -32,16 +33,11 @@ import type {
 } from './types.ts';
 
 /**
- Shared package logger.
- */
-const parentLogger = tagged({ tag: 'model-review', },);
-
-/**
  Attempt transport logger.
  */
 const l = tagged({
   tag: 'attempt',
-  l: parentLogger,
+  l: packageLogger,
 },);
 
 /**

@@ -41,7 +41,7 @@ await describe({
   children: [
     it({
       name: 'parses whole-text JSON object',
-      fn: () => {
+      fn: async () => {
         expect(extractStructuredJson('{"approved":true,"feedback":"complete"}',),).toEqual({
           approved: true,
           feedback: 'complete',
@@ -50,7 +50,7 @@ await describe({
     },),
     it({
       name: 'extracts first balanced object from surrounding prose',
-      fn: () => {
+      fn: async () => {
         expect(extractStructuredJson('prefix {"approved":false} suffix',),).toEqual({
           approved: false,
         },);
@@ -58,7 +58,7 @@ await describe({
     },),
     it({
       name: 'retains the whole-text parse failure as the cause when text holds no object',
-      fn: () => {
+      fn: async () => {
         /**
          Failure thrown for reviewer text without a JSON object.
          */

@@ -4,6 +4,19 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { packageLogger, } from './logger.ts';
+
+/**
+ Extraction logger.
+ */
+const l = tagged({
+  tag: 'json',
+  l: packageLogger,
+},);
+
 /**
  Maximum reviewer text copied into malformed-output diagnostics.
  */
@@ -98,22 +111,27 @@ function extractStructuredJson(text: string,): unknown {
   try {
     return JSON.parse(text,);
   }
-  catch (error) {
-    void error;
-  }
-  /**
-   First balanced object candidate.
-   */
-  const block = findBalancedJsonObject(text,);
-  if (block === '') {
-    throw new Error(
-      `Structured reviewer returned text without JSON object: ${text.slice(
-        0,
-        REVIEW_TEXT_DIAGNOSTIC_LIMIT,
-      )}`,
+  catch (wholeTextError) {
+    // Prose around the object is the expected shape, so the fallback is normal
+    // and the failure is recorded at debug level rather than as a warning.
+    l.debug(
+      `whole-text JSON parse failed (${caughtValueText(wholeTextError,)}); trying first balanced object`,
     );
+    /**
+     First balanced object candidate.
+     */
+    const block = findBalancedJsonObject(text,);
+    if (block === '') {
+      throw new Error(
+        `Structured reviewer returned text without JSON object: ${text.slice(
+          0,
+          REVIEW_TEXT_DIAGNOSTIC_LIMIT,
+        )}`,
+        { cause: wholeTextError, },
+      );
+    }
+    return JSON.parse(block,);
   }
-  return JSON.parse(block,);
 }
 
 export {
