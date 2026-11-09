@@ -10,9 +10,10 @@
 //! so a kill in that window leaves a file at that name that is not what the source holds,
 //!  a credential at a mode wider than its source,
 //! and a resumed copy refuses the destination and erases its own record.
-//!  A file with no name cannot leave either: the kernel gives its blocks back when the last
-//!  descriptor closes,
-//! so a kill leaves the destination as it was and the resumed copy installs the entry.
+//!  A file with no name cannot leave either:
+//!  the kernel gives its blocks back when the last descriptor closes,
+//! so a kill leaves the destination as it was,
+//! and the resumed copy installs the entry.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -95,10 +96,12 @@ const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const UNNAMED_UNSUPPORTED_CODES: [i32; 3] = [libc::EOPNOTSUPP, libc::ENOSYS, libc::EINVAL];
 
 /// What:
-///  The operating-system errors that mean the filesystem cannot publish a temporary by a rename that does not replace.
+///  The operating-system errors that mean the filesystem cannot publish a temporary
+///  by a rename that does not replace.
 /// Why:
 ///   Only those refusals fall back to a hard link;
-/// a name already taken is a refusal of the publication, not of the filesystem.
+/// a name already taken is a refusal of the publication,
+/// not of the filesystem.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,6 +124,20 @@ fn is_unsupported(error: &std::io::Error, codes: &[i32]) -> bool {
         Some(code) => codes.contains(&code),
         None => false,
     };
+}
+
+/// What:
+///  The error a name this release cannot hand the kernel stands for.
+/// Why:
+///   Every name and path here becomes NUL-terminated text,
+/// and a NUL byte inside one is not a name the kernel can take.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const invalidName = () => Object.assign(new Error('invalid'), { code: 'EINVAL' });
+/// ```
+fn invalid_name<T>(_refused: T) -> std::io::Error {
+    return std::io::Error::from_raw_os_error(libc::EINVAL);
 }
 
 /// What:
@@ -222,7 +239,7 @@ fn open_unnamed(directory: &std::fs::File, mode: u32) -> std::io::Result<std::fs
 /// const descriptor = openat(dir, name, O_CREAT | O_EXCL | O_WRONLY, mode);
 /// ```
 fn create_named(directory: &std::fs::File, name: &OsStr, mode: u32) -> std::io::Result<std::fs::File> {
-    let text: CString = CString::new(name.as_bytes()).map_err(|_nul| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let text: CString = CString::new(name.as_bytes()).map_err(invalid_name)?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
     let descriptor: libc::c_int = unsafe {
         libc::openat(
@@ -253,9 +270,9 @@ fn create_named(directory: &std::fs::File, name: &OsStr, mode: u32) -> std::io::
 /// await linkat(unnamed, destination); // EEXIST when anything is there
 /// ```
 fn link_unnamed(file: &std::fs::File, destination: &Path) -> std::io::Result<()> {
-    let text: CString = CString::new(destination.as_os_str().as_bytes()).map_err(|_nul| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let text: CString = CString::new(destination.as_os_str().as_bytes()).map_err(invalid_name)?;
     // The descriptor's path is the file itself, so the link names the object and not a directory entry.
-    let through_descriptor: CString = CString::new(format!("/proc/self/fd/{}", file.as_raw_fd())).map_err(|_nul| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let through_descriptor: CString = CString::new(format!("/proc/self/fd/{}", file.as_raw_fd())).map_err(invalid_name)?;
     // SAFETY: both strings are NUL-terminated and outlive the call.
     let linked: libc::c_int = unsafe {
         libc::linkat(
@@ -308,8 +325,8 @@ fn move_temporary_into_place(
     temporary: &OsStr,
     destination: &OsStr,
 ) -> std::io::Result<()> {
-    let from: CString = CString::new(temporary.as_bytes()).map_err(|_nul| std::io::Error::from_raw_os_error(libc::EINVAL))?;
-    let to: CString = CString::new(destination.as_bytes()).map_err(|_nul| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let from: CString = CString::new(temporary.as_bytes()).map_err(invalid_name)?;
+    let to: CString = CString::new(destination.as_bytes()).map_err(invalid_name)?;
     // SAFETY: both strings are NUL-terminated and outlive the call, and `directory` is an open descriptor.
     let renamed: libc::c_int = unsafe {
         libc::renameat2(
@@ -357,7 +374,7 @@ fn move_temporary_into_place(
 /// await unlinkat(dir, name).catch((e) => { if (e.code !== 'ENOENT') throw e; });
 /// ```
 fn remove_present(directory: &std::fs::File, name: &OsStr) -> std::io::Result<()> {
-    let text: CString = CString::new(name.as_bytes()).map_err(|_nul| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let text: CString = CString::new(name.as_bytes()).map_err(invalid_name)?;
     // SAFETY: the string is NUL-terminated and outlives the call, and `directory` is an open descriptor.
     let removed: libc::c_int = unsafe { libc::unlinkat(directory.as_raw_fd(), text.as_ptr(), 0) };
     if removed == 0 {
@@ -376,7 +393,8 @@ fn remove_present(directory: &std::fs::File, name: &OsStr) -> std::io::Result<()
 ///   The fallback needs a name that a later run of the same copy computes again,
 /// so the run that resumes an interrupted one removes that
 ///  run's own temporary and no other file;
-///  the digest is written out here, so a compiler change cannot rename them.
+///  the digest is written out here,
+///  so a compiler change cannot rename them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -466,9 +484,16 @@ pub fn publish_copy_of_file_with(
         }
         Err(error) => return Err(raw_failure(&error)),
     };
-    let written: Result<(), WorktreeCopyError> = fill_from_stage(stage_path, &mut file)
-        .and_then(|()| file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(mode)).map_err(raw_failure_of))
-        .and_then(|()| publish(&directory, &file, destination_path, &destination_name, temporary, named));
+    let written: Result<(), WorktreeCopyError> = fill_and_publish(Filling {
+        stage_path,
+        file: &mut file,
+        mode,
+        directory: &directory,
+        destination_path,
+        destination_name: destination_name.as_os_str(),
+        temporary,
+        named,
+    });
     if let Err(error) = written {
         // A file that was not published is not the destination's, so the name it may hold goes with it.
         if named {
@@ -477,6 +502,66 @@ pub fn publish_copy_of_file_with(
         return Err(error);
     }
     return Ok(());
+}
+
+/// What:
+///  Everything one fill needs to end with the file published,
+/// or the failure that stopped it.
+/// Why:
+///   The steps read the same five values,
+/// and a control can read them in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Filling = { stagePath; file; mode; directory; destinationPath; destinationName; temporary; named };
+/// ```
+struct Filling<'a> {
+    /// The staged file whose bytes are copied.
+    stage_path: &'a Path,
+    /// The file being filled.
+    file: &'a mut std::fs::File,
+    /// The entry's permission bits.
+    mode: u32,
+    /// The destination's directory,
+    /// held open.
+    directory: &'a std::fs::File,
+    /// The destination the file is published at.
+    destination_path: &'a Path,
+    /// The destination's one name.
+    destination_name: &'a OsStr,
+    /// The private name the fallback fills.
+    temporary: &'a OsStr,
+    /// Whether the file being filled holds a name.
+    named: bool,
+}
+
+/// What:
+///  Fill the file,
+/// give it its mode,
+/// and publish it,
+/// stopping at the first failure.
+/// Why:
+///   Each step must happen on the same object in this order,
+/// and the caller removes a name the fallback made when one of them fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fillAndPublish(filling): void { fillFromStage(...); filling.file.chmod(...); publish(...); }
+/// ```
+fn fill_and_publish(filling: Filling<'_>) -> Result<(), WorktreeCopyError> {
+    fill_from_stage(filling.stage_path, filling.file)?;
+    filling
+        .file
+        .set_permissions(std::os::unix::fs::PermissionsExt::from_mode(filling.mode))
+        .map_err(raw_failure_of)?;
+    return publish(
+        filling.directory,
+        filling.file,
+        filling.destination_path,
+        filling.destination_name,
+        filling.temporary,
+        filling.named,
+    );
 }
 
 /// What:

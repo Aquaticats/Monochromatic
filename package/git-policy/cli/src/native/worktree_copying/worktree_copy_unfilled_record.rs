@@ -136,7 +136,8 @@ pub struct UnfilledCopy {
 /// ```
 fn field_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
     for line in text.lines() {
-        if let Some(value) = line.strip_prefix(key).and_then(|rest| return rest.strip_prefix('=')) {
+        let Some(rest) = line.strip_prefix(key) else { continue };
+        if let Some(value) = rest.strip_prefix('=') {
             return Some(value);
         }
     }
@@ -162,6 +163,20 @@ fn bytes_of_hex(text: &str) -> Option<Vec<u8>> {
         bytes.push(u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?);
     }
     return Some(bytes);
+}
+
+/// What:
+///  The reason a record's bytes are not the text a reader names.
+/// Why:
+///   The reason holds whatever the operating system said,
+/// and a reader must be able to tell it from a record it cannot parse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notText = () => 'what it says the copy ended with is not text';
+/// ```
+fn not_text(_undecodable: std::string::FromUtf8Error) -> &'static str {
+    return "what it says the copy ended with is not text";
 }
 
 /// What:
@@ -204,8 +219,11 @@ pub fn decode_unfilled(text: &str) -> Result<UnfilledCopy, String> {
         .ok_or("it holds no identity of the worktree")?;
     let source: PathBuf = path_of_hex(field_of(text, SOURCE_FIELD).ok_or("it names no source worktree")?).ok_or("its source worktree is not a path")?;
     let reason: Vec<u8> = bytes_of_hex(field_of(text, REASON_FIELD).ok_or("it does not say what the copy ended with")?).ok_or("what it says the copy ended with is not bytes")?;
-    let reason: String = String::from_utf8(reason).map_err(|_not_text| return "what it says the copy ended with is not text")?;
-    let owner: Option<String> = field_of(text, OWNER_FIELD).filter(|token| return !token.is_empty()).map(str::to_string);
+    let reason: String = String::from_utf8(reason).map_err(not_text)?;
+    let owner: Option<String> = match field_of(text, OWNER_FIELD) {
+        Some(token) if !token.is_empty() => Some(token.to_string()),
+        _ => None,
+    };
     return Ok(UnfilledCopy {
         destination,
         destination_identity: identity,
@@ -229,7 +247,10 @@ pub fn decode_unfilled(text: &str) -> Result<UnfilledCopy, String> {
 /// const unfilledPathOf = (journalPath) => join(dirname(journalPath), `${basename(journalPath, '.json').split('.')[0]}${UNFILLED_SUFFIX}`);
 /// ```
 pub fn unfilled_path_of(journal: &Path) -> PathBuf {
-    let name: String = journal.file_name().map(|found| return found.to_string_lossy().into_owned()).unwrap_or_default();
+    let name: String = match journal.file_name() {
+        Some(found) => found.to_string_lossy().into_owned(),
+        None => String::new(),
+    };
     let stem: &str = name.split('.').next().unwrap_or_default();
     return journal.with_file_name(format!("{stem}{UNFILLED_SUFFIX}"));
 }
@@ -304,8 +325,21 @@ fn unfilled_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
             names.push(name);
         }
     }
-    names.sort_by(|left, right| return js_order(left, right));
+    names.sort_by(by_record_name);
     return Ok(names);
+}
+
+/// What:
+///  Order two records by name the way JavaScript's default sort does.
+/// Why:
+///   Which record is settled or named first must not depend on the directory's order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// names.sort((left, right) => compareJs(left, right))
+/// ```
+fn by_record_name(left: &String, right: &String) -> std::cmp::Ordering {
+    return js_order(left, right);
 }
 
 /// What:

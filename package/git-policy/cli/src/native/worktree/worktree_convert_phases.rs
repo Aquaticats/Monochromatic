@@ -28,6 +28,7 @@ use crate::subvolume_platform::Platform;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
+use crate::worktree_convert_unrecorded_stage::owns_unrecorded_stage;
 use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::path::{Path, PathBuf};
@@ -116,36 +117,6 @@ pub fn stage_identity_of(path: &Path) -> Result<Option<ObjectId>, MigrateError> 
         Ok(found) => Ok(Some(found)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(MigrateError::io("examine", converting.as_path(), &error)),
-    };
-}
-
-/// What:
-///  Whether the object at the converting name is the empty stage this conversion made but never recorded,
-/// because it was killed between the creation and the line that names it.
-/// Why:
-///   A leftover of that kind is the conversion's own,
-/// and leaving it there blocks the worktree with a refusal no command can
-///  lift:
-/// the journal says the phase that creates the stage,
-/// holds no identity yet,
-/// and the name holds
-///  nothing,
-/// which is the one state that window can leave.
-/// Anything that holds even one entry may be somebody's copy and is never adopted.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function ownsUnrecordedStage(journal, worktree): boolean; // creating, no identity, empty directory at the stage name
-/// ```
-pub fn owns_unrecorded_stage(journal: &Journal, worktree: &Path) -> Result<bool, MigrateError> {
-    if journal.new_identity.is_some() || journal.phase != Phase::Creating {
-        return Ok(false);
-    }
-    let converting: PathBuf = converting_path(worktree);
-    return match std::fs::read_dir(converting.as_path()) {
-        Ok(mut entries) => Ok(entries.next().is_none()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(_unreadable) => Ok(false),
     };
 }
 

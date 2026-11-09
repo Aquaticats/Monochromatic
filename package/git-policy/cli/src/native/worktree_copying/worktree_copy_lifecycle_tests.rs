@@ -5,7 +5,7 @@
 //! the summary line and exit statuses.
 
 use super::*;
-use crate::worktree_copy_synchronize::UNKNOWN_DESTINATION_NOTICE;
+use crate::worktree_copy_notices::UNKNOWN_DESTINATION_NOTICE;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use crate::worktree_copy_after_lock::trash_beside_repair_awaiting;
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
