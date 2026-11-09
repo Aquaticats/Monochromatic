@@ -15,6 +15,20 @@ Grilling session started 2026-09-25.
 Status:
  design in progress;
  nothing implemented.
+Note 2026-11-09T01:14:06-05:00:
+ superseded on 2026-09-25,
+ when the owner accepted the design
+ (`doc/decision/cli-git-concurrent-commits.md`,
+"Status"),
+ and implemented in `cefcee148e`,
+ `a50d674d7d` and `f7e501a685` (2026-09-25 to 26):
+ preparation in a shadow repository,
+ serial landing,
+ and replay of a commit that lost a landing race.
+ The replay modules sit under
+ `package/git-policy/cli/src/native/shadow/`,
+ and the landing ones under
+ `package/git-policy/cli/src/native/landing/`.
 
 ## Goal
 
@@ -424,3 +438,8 @@ Then promote this plan to `doc/decision/`,
 update `package/git-policy/cli/SPEC.md`,
 and open the implementation issue.
 No implementation before confirmation.
+Note 2026-11-09T01:14:06-05:00:
+ the plan became `doc/decision/cli-git-concurrent-commits.md` on 2026-09-25,
+ `package/git-policy/cli/SPEC.md` states the landing order and the replay refusal,
+ and the implementation landed in `cefcee148e`,
+ `a50d674d7d` and `f7e501a685`.
