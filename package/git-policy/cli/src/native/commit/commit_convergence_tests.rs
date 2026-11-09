@@ -99,6 +99,83 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
     });
 }
 
+
+/// What:
+///  The commit's patch-enabled pass lands the Markdown rewrite the policy promises,
+///  and the committed blob holds the object URL.
+/// Why:
+///  The hint beside the finding says "the commit applies the linter's corrections itself",
+///  the repository's own configuration says the rewrite happens inside the commit transaction,
+///  and the owner decided on 2026-09-06 that the pre-forward policy autofixes staged Markdown
+///  inside the commit;
+///  a commit that only warns hands the person the original link instead.
+///  The person's working file deliberately holds other prose,
+///  so a correction taken from it would show here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await stage('README.md', '![image](image.png)\n'); const outcome = await convergeCommitPolicies(...); expect(outcome.changedPaths).toEqual(['README.md']); expect(await show('HEAD:README.md')).toContain('https://lfs.example.com/org/repo/');
+/// ```
+#[test]
+fn the_markdown_rewrite_lands_in_the_commit_index() {
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-markdown-rewrite", b"changed\n");
+    // The repository that declares an endpoint, tracks PNGs with LFS and holds the image the candidate links.
+    std::fs::write(repo.join(".lfsconfig"), b"[lfs]\nurl = https://lfs.example.com/org/repo\n").expect("endpoint");
+    std::fs::write(repo.join(".gitattributes"), b"*.png filter=lfs\n").expect("attributes");
+    std::fs::write(repo.join("image.png"), b"image bytes").expect("image");
+    let staged: &str = "![image](image.png)\n";
+    std::fs::write(repo.join("README.md"), staged).expect("candidate");
+    let mut add: GitRequest = GitRequest::new(repo.as_path(), &["add", "--", "README.md"]);
+    add.without_prefix = true;
+    add.index = Some(index.clone());
+    assert!(run_git(&git_context(), &add).expect("private add").succeeded());
+    // The working file is not what the commit holds: the correction must come from the staged bytes.
+    std::fs::write(repo.join("README.md"), b"unstaged prose\n").expect("unstaged text");
+    let facts = git_facts(Path::new(REAL_GIT), &[], overlay(repo.as_path(), index.as_path()).as_slice());
+    let mut checks: ShippedChecks<_> = shipped_checks(
+        facts,
+        os_arguments(&[]),
+        LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("README.md")])),
+        Vec::new(),
+    );
+    let config: crate::config_schema::CliGitConfig =
+        crate::config_parse::parse_config(r#"{"policies":{"markdown/autofix":"warn"}}"#).expect("policy config");
+    let request: StageRequest = StageRequest {
+        trigger: Trigger::PreForward,
+        config: config.policies,
+        controls: no_controls(),
+        selected: Vec::new(),
+    };
+    let outcome: CommitConvergence = converge_commit_policies(CommitConvergenceInput {
+        request: &request,
+        checks: &mut checks,
+        stage: PrivateStage {
+            context: &git_context(),
+            cwd: repo.as_path(),
+            index: index.as_path(),
+            object_directory: None,
+        },
+    });
+    assert_eq!(
+        outcome.convergence,
+        Convergence::Settled { changed_passes: 1 },
+        "{:?}",
+        outcome.pass.events
+    );
+    assert_eq!(outcome.changed_paths, vec![b"README.md".to_vec()]);
+    let mut show: GitRequest = GitRequest::new(repo.as_path(), &["show", ":README.md"]);
+    show.without_prefix = true;
+    show.index = Some(index.clone());
+    let committed: Vec<u8> = run_git(&git_context(), &show).expect("staged blob").stdout;
+    let text: String = String::from_utf8_lossy(committed.as_slice()).into_owned();
+    assert!(
+        text.starts_with("![image](https://lfs.example.com/org/repo/"),
+        "the staged Markdown holds the object URL: {text}"
+    );
+    assert!(!text.contains("unstaged"), "the working file's prose never enters the commit: {text}");
+    remove(root.as_path());
+}
+
 /// The final-newline correction is written into the private index,
 /// and the path is reported once.
 #[test]

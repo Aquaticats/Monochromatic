@@ -18,6 +18,8 @@
 
 /// Import the record under test.
 use super::JournalRecord;
+/// One extended attribute the record carries.
+use crate::direct_fix_install_attributes::Attribute;
 /// `OsStringExt` builds OS text from raw bytes.
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
@@ -34,6 +36,16 @@ fn record() -> JournalRecord {
         gid: 1,
         owner: Some(String::from("1234~1234~pid%3a%5b4026531836%5d")),
         replacement: String::from("0f".repeat(32)),
+        attributes: vec![
+            Attribute {
+                name: b"system.posix_acl_access".to_vec(),
+                value: vec![2, 0, 0, 0],
+            },
+            Attribute {
+                name: b"user.draft".to_vec(),
+                value: b"only-copy-of-draft".to_vec(),
+            },
+        ],
     };
 }
 
@@ -45,6 +57,10 @@ fn a_record_survives_its_text() {
     let text: String = written.encode();
     assert!(text.starts_with("destination "), "{text}");
     assert!(text.contains("\nmode 6755\n"), "{text}");
+    assert!(
+        text.contains("\nattribute 757365722e6472616674 6f6e6c792d636f70792d6f662d6472616674\n"),
+        "{text}"
+    );
     assert_eq!(JournalRecord::decode(text.as_str()), Some(written.clone()));
     // A record whose writer the platform could not name decodes as one that names nobody.
     let mut unnamed: JournalRecord = written;

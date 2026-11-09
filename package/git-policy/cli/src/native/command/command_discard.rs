@@ -90,6 +90,29 @@ pub fn revision_before_paths(region: &[OsString], table: &[OptionSpec]) -> Optio
 }
 
 /// What:
+///  The revision expression Git resolves for a shorthand that only `switch` and `checkout` read.
+///  `Option<&'static [u8]>` is "the expression or nothing".
+/// Why:
+///   `git switch -` means the previous branch,
+///  and no other Git command reads `-` as one:
+///  `git ls-tree -`
+///  fails,
+///  so the tree a forced switch writes would be read as `HEAD` and the wrong tree protected.
+///  `@{-N}` is resolved by Git wherever an object name is read,
+///  so only `-` needs an expression of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function previousBranchExpression(revision: Buffer): Buffer | undefined;
+/// ```
+pub fn previous_branch_expression(revision: &[u8]) -> Option<&'static [u8]> {
+    if revision == b"-" {
+        return Some(b"@{-1}");
+    }
+    return None;
+}
+
+/// What:
 ///  Read a `git checkout` region.
 ///  `Result<A, B>` is "either success `A` or failure `B`".
 /// Why:

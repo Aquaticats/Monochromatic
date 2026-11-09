@@ -35,7 +35,7 @@ use crate::transaction_journal::TransactionMode;
 /// The index copy steps,
 /// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
-use crate::commit_index_copying::{PrivateIndexSeed, copy_index_failure, private_index_seed};
+use crate::commit_index_copying::{PrivateIndexSeed, copy_index_failure, copy_index_for_reset, private_index_seed};
 /// The note of how each build was made,
 /// which the commit's timing record takes.
 use crate::commit_index_builds::{IndexBuildKind, note_index_build};
@@ -238,16 +238,23 @@ fn stage_into_the_private_index(
         // The copy also keeps assume-unchanged and skip-worktree marks, and `git add --all` then skips or refuses a
         // marked file the commit named, so an index with such a mark (or one this crate cannot read) is built the
         // slower way, from the base alone. An intent-to-add entry carries no stat data and stops nothing: the copy is
-        // made, and the reset below leaves a mark whose mode and object name match the base's entry, replaces one that
-        // differs and drops one the base does not hold, as native Git's own partial commit does
-        // (`commit_index_copying.rs`).
+        // made, the marks it holds are cleared, and the reset below writes the base's own entry at each of those paths,
+        // replaces a mark whose mode or object name differs and drops one the base does not hold
+        // (`copy_index_for_reset`).
         let seed: PrivateIndexSeed = private_index_seed(indexes.captured_index.as_path());
         // A private index built without the real index's stat data makes the scratch commit hash every file (233 MB of LFS content
         //  here), so which way it was built goes into the commit's timing record, which is written on every commit.
         note_index_build(IndexBuildKind::First, seed.keeps_stat_data());
         if seed != PrivateIndexSeed::Base {
-            copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
-                .map_err(copy_index_failure)?;
+            copy_index_for_reset(
+                context,
+                cwd,
+                indexes.captured_index.as_path(),
+                indexes.commit_index.as_path(),
+                indexes.object_directory.as_path(),
+                &seed,
+                selection.base_revision.len(),
+            )?;
         }
         // An index that already holds exactly the base has nothing for `read-tree --reset` to remove and no staged addition
         // to carry, and the copy keeps everything the reset would have kept (the stat data and the extensions), so the Git
@@ -296,7 +303,10 @@ fn stage_into_the_private_index(
 /// and the tree is read into a fresh index;
 /// an index whose only marks are intent-to-add entries is copied as it is,
 /// so the commit keeps the real index's stat data,
-///  and the reset below leaves those marks as Git's own reset does.
+///  and the paths those marks name are cleared before the reset,
+/// as for the first preparation (`copy_index_for_reset`):
+/// the reset then writes the requested tree's own entry at each of them,
+/// so a scratch-commit hook that invalidates the cached tree cannot leave one of them out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -322,7 +332,15 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     // ```
     let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, WorktreeStaging::None);
     if seed != PrivateIndexSeed::Base {
-        copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
+        copy_index_for_reset(
+            context,
+            cwd,
+            real_index,
+            indexes.commit_index.as_path(),
+            indexes.object_directory.as_path(),
+            &seed,
+            tree.len(),
+        )?;
         arguments.push(String::from("--reset"));
     }
     arguments.push(tree.to_string());

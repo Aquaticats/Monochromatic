@@ -31,7 +31,7 @@
 //! ```
 
 pub use crate::service_prepare_ready_shapes::{LandedFirst, ReplayConflict};
-use crate::service_replay_path_and_line_text::{byte_of_character, is_not_empty_line, latin1_of_path};
+use crate::service_replay_line_text::is_not_empty_line;
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{TransactionResult, TransactionStop, failed};
 use crate::path_bytes::{os_from_path_bytes, path_message_text};
@@ -247,7 +247,6 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
         ReplayMerge::Merged { tree_oid } => return Ok(Merged::Tree(tree_oid)),
         ReplayMerge::Conflict { paths, tree_oid, conflicts } => (paths, tree_oid, conflicts),
     };
-    let names: Vec<String> = conflicting.iter().map(latin1_of_path).collect();
     let listed: Vec<SharedPath> = match list_shared_paths(site.context, site.common_dir, site.cwd, captured.base.as_str(), tip, captured.tree.as_str()) {
         Ok(found) => found,
         Err(error) => return Err(failed(format!("listing the paths the branch changed failed: {error:?}"))),
@@ -255,13 +254,13 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
     // Only the paths still in conflict are compared with what landed.
     let mut shared: Vec<SharedPath> = Vec::new();
     for entry in listed {
-        if names.contains(&entry.path) {
+        if conflicting.contains(&entry.path) {
             shared.push(entry);
         }
     }
-    let mut order: BTreeMap<String, CaptureOrderDecision> = BTreeMap::new();
+    let mut order: BTreeMap<Vec<u8>, CaptureOrderDecision> = BTreeMap::new();
     for entry in &shared {
-        let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_str())?;
+        let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_slice())?;
         order.insert(entry.path.clone(), decision);
     }
     let compared = subsume_landed_changes(
@@ -326,13 +325,36 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
 /// ```ts
 /// wordPass(site, tip, { tree, conflicts }, paths) // { combined: { tree, files } } | { conflict: paths }
 /// ```
+/// What:
+///  The top of the worktree Git printed,
+/// with its line break removed and nothing else.
+/// Why:
+///   A directory may end in a space,
+/// and trimming the line Git printed takes that space with it,
+/// so every command of the second pass would
+///  run in a directory that does not exist and the commit would be refused as an uncombinable change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const top = stdout.toString().replace(/\r?\n$/, '');
+/// ```
+fn toplevel_of(stdout: &[u8]) -> PathBuf {
+    let text: String = String::from_utf8_lossy(stdout).into_owned();
+    // Exactly one terminator goes, so a directory whose name ends in a line break keeps it.
+    let without_terminator: &str = match text.strip_suffix("\r\n") {
+        Some(rest) => rest,
+        None => text.strip_suffix('\n').unwrap_or(text.as_str()),
+    };
+    return PathBuf::from(without_terminator);
+}
+
 fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths: Vec<Vec<u8>>) -> Merged {
     let (tree, conflicts): (&str, &[Conflict]) = merge;
     // The commit may have been run from a subdirectory; the second pass reads paths from the top of the worktree.
     let mut top_request: GitRequest = GitRequest::new(site.cwd, &["rev-parse", "--show-toplevel"]);
     top_request.without_prefix = true;
     let top: PathBuf = match run_git_checked(site.context, &top_request) {
-        Ok(found) => PathBuf::from(String::from_utf8_lossy(found.stdout.as_slice()).trim()),
+        Ok(found) => toplevel_of(found.stdout.as_slice()),
         Err(_) => return Merged::Conflict(paths),
     };
     let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
@@ -346,7 +368,7 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         object_directory: Some(site.object_directory),
         environment: attribute_tree_variables(tip, &probe),
     };
-    return match resolve_tree(&runner, site.common_dir, tree, conflicts) {
+    return match resolve_tree(&runner, site.common_dir, tree, conflicts, &probe) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
         None => Merged::Conflict(paths),
     };
@@ -372,15 +394,14 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
 /// ```ts
 /// await captureOrder(site, captured, tip, path) // 'prepared' | 'landed' | 'unordered'
 /// ```
-fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &str) -> Result<CaptureOrderDecision, TransactionStop> {
+fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &[u8]) -> Result<CaptureOrderDecision, TransactionStop> {
     if captured.captured == 0 {
         return Ok(CaptureOrderDecision::Unordered);
     }
-    let bytes: Vec<u8> = path.chars().filter_map(byte_of_character).collect();
     let exclusion: String = format!("^{}", captured.base);
     let mut spec_words: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
-    pathspec.extend_from_slice(bytes.as_slice());
+    pathspec.extend_from_slice(path);
     spec_words.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it: literal mode would read
     // it as a file name, and two glob modes at once make Git refuse the log and end the replay as a failure.

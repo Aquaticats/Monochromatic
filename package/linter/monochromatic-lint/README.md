@@ -1220,9 +1220,24 @@ Production Rust and Markdown commands have not been replaced.
 `markdown/lfs-image-url` rewrites a relative image link to an LFS-tracked file
 into the object URL built from the repository's `.lfsconfig` endpoint,
 and reports an object URL whose target is missing or stale.
-The repository root is the nearest ancestor holding `.lfsconfig`;
-tracked paths come from the root `.gitattributes`.
+The repository root is the nearest ancestor holding `.lfsconfig`,
+and the search stops at the top of the checkout the file belongs to:
+every checkout top carries `.git`,
+as a directory in an ordinary repository and as a file in a linked worktree,
+and a file in a linked worktree is never configured by the checkout that encloses it,
+because Git gives it none of that checkout's attributes.
+Tracking comes from the root `.gitattributes`,
+resolved the way Git resolves an attribute:
+each line's own `filter` assignment counts from left to right and the last matching line wins,
+so `filter=lfs` tracks a path and every other assignment
+(`filter=other`,
+`filter`,
+`filter=`,
+`-filter`,
+`!filter`) unselects it.
 The `exclude` option takes gitignore-syntax patterns relative to that root.
+A pattern reaches the matcher through `gitignore_pattern::for_matcher`,
+because a brace is text to Git and an alternate group to the glob grammar beneath the matcher.
 
 Endpoint normalization is one standard-library function,
 `lfs_object_base`,

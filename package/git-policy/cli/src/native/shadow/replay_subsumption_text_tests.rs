@@ -27,7 +27,7 @@ fn shared(repo: &Path, scratch: &Path, sides: [Option<&[u8]>; 3]) -> SharedPath 
         return sides[index].and_then(|bytes| { return blob(repo, scratch, name, bytes); });
     };
     return SharedPath {
-        path: String::from("p.txt"),
+        path: b"p.txt".to_vec(),
         base: entry(0, "base"),
         landed: entry(1, "landed"),
         prepared: entry(2, "prepared"),
@@ -41,7 +41,7 @@ fn subsumed(name: &str, base: Option<&[u8]>, landed: &[u8], prepared: &[u8]) -> 
     let scratch: PathBuf = root.join("scratch");
     std::fs::create_dir(&scratch).expect("scratch");
     let candidate: SharedPath = shared(repo.as_path(), scratch.as_path(), [base, Some(landed), Some(prepared)]);
-    let result: Vec<String> = subsumed_text_paths(
+    let result: Vec<Vec<u8>> = subsumed_text_paths(
         &git_context(),
         repo.join(".git").as_path(),
         repo.as_path(),

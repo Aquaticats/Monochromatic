@@ -13,6 +13,7 @@
 
 use super::*;
 use crate::transaction_git::GitContext;
+use crate::word_merge::LineSpan;
 use std::ffi::OsString;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use std::path::PathBuf;
@@ -101,7 +102,7 @@ pub(crate) fn merge_tree_of(world: &World) -> (String, Vec<Conflict>) {
 fn verdicts_of(world: &World) -> Vec<Verdict> {
     let (_, conflicts) = merge_tree_of(world);
     let context: GitContext = git_context();
-    return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice()).expect("the pass runs");
+    return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice(), AttributeSource::Invocation).expect("the pass runs");
 }
 
 /// The merge-tree stages parse into one conflict per path with all three sides,
@@ -221,23 +222,29 @@ fn a_path_both_sides_added_is_left_for_the_person() {
 /// The report names the file,
 /// numbers the parts,
 /// shows what each became,
+/// names the three inputs as blobs,
 /// and keeps a control character out of the terminal.
 #[test]
 fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
     let span = LineSpan { first: 3, count: 2 };
     let part = |merged: &[u8]| { return MergedPart { base: LineSpan { first: 3, count: 0 }, ours: span, theirs: LineSpan { first: 4, count: 1 }, merged: merged.to_vec() }; };
-    let stages = Conflict { path: b"dir/a.md".to_vec(), base: None, ours: None, theirs: None };
+    let stage = |oid: &str| { return Some(Stage { mode: 0o100_644, oid: String::from(oid) }); };
+    let stages = Conflict { path: b"dir/a.md".to_vec(), base: stage("aa12"), ours: stage("bb34"), theirs: stage("cc56") };
     let merged = Merged { path: b"dir/a.md".to_vec(), mode: 0o100_644, bytes: Vec::new(), parts: vec![part(b"plain\n"), part(b"\x1b[31mred")], stages };
     let lines: Vec<String> = report_lines("monochromatic-git-policy-cli: ", &merged);
     assert_eq!(lines.len(), 2);
     for (at, line) in lines.iter().enumerate() {
         assert!(line.starts_with(format!("monochromatic-git-policy-cli: {REPORT_MARK}: dir/a.md: part {} of 2: ", at + 1).as_str()), "{line}");
         assert!(line.contains("lines 3 to 4") && line.contains("line 4") && line.contains("no line (before line 3)"), "{line}");
+        assert!(line.ends_with("from base blob aa12, ours blob bb34, theirs blob cc56"), "the three inputs are named by object: {line}");
         assert!(!line.contains('\x1b') && !line.contains('\n'), "{line:?}");
     }
     assert!(lines[0].contains("\"plain\\n\""), "{}", lines[0]);
     let long = Merged { parts: vec![part("w".repeat(EXCERPT_CHARACTERS * 2).as_bytes())], ..merged.clone() };
     assert!(report_lines("", &long)[0].contains("...\""), "a long part is cut");
+    // A merge the pass recorded with no stages of its own names no blob rather than a wrong one.
+    let unrecorded = Merged { stages: Conflict { path: b"dir/a.md".to_vec(), base: None, ours: None, theirs: None }, ..merged.clone() };
+    assert!(report_lines("", &unrecorded)[0].ends_with("from base no blob, ours no blob, theirs no blob"), "{}", report_lines("", &unrecorded)[0]);
     let none = Merged { parts: Vec::new(), ..merged };
     assert!(report_lines("", &none)[0].contains("resolved without a word pass"));
 }
@@ -264,16 +271,27 @@ fn only_the_configuration_options_of_the_prefix_are_kept() {
 }
 
 /// The journal entry names the file,
-/// the operation and the number of parts,
+/// the operation,
+/// the number of parts and the three blobs,
 /// and carries every part in its message.
 #[test]
 fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
     let span = LineSpan { first: 1, count: 1 };
     let part = MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() };
-    let stages = Conflict { path: b"a.md".to_vec(), base: None, ours: None, theirs: None };
+    let stage = |oid: &str| { return Some(Stage { mode: 0o100_644, oid: String::from(oid) }); };
+    let stages = Conflict { path: b"a.md".to_vec(), base: stage("aa12"), ours: stage("bb34"), theirs: stage("cc56") };
     let merged = Merged { path: b"a.md".to_vec(), mode: 0o100_644, bytes: Vec::new(), parts: vec![part.clone(), part], stages };
     let (message, fields) = journal_entry("rebase", &merged);
     assert!(message.contains("a.md") && message.contains("part 2 of 2"), "{message}");
-    assert_eq!(fields, vec![(FILE_FIELD, String::from("a.md")), (OPERATION_FIELD, String::from("rebase")), (PARTS_FIELD, String::from("2"))]);
+    assert!(message.contains("from base blob aa12, ours blob bb34, theirs blob cc56"), "{message}");
+    assert_eq!(
+        fields,
+        vec![
+            (FILE_FIELD, String::from("a.md")),
+            (OPERATION_FIELD, String::from("rebase")),
+            (PARTS_FIELD, String::from("2")),
+            (BLOBS_FIELD, String::from("base=aa12,ours=bb34,theirs=cc56")),
+        ]
+    );
     assert!(fields.iter().all(|(name, _)| { return crate::journald_native::valid_field_name(name); }));
 }

@@ -127,6 +127,44 @@ fn prior_destination_values_join_the_published_tips() {
     remove(repo.parent().expect("root"));
 }
 
+/// What:
+///  Collecting the published tips looks at one collected name per update.
+/// Why:
+///  `AGENTS.md` `RG2`:
+///  the updates of one push have no cap,
+///  and asking the accumulated list whether it already holds each prior commit is
+///  quadratic in that list,
+///  which an input of distinct prior commits reaches.
+///  The seam counts the collected names a question looked at,
+///  which is one per update when a set answers and every earlier name when a scan does
+///  (`foundation/collected_elements_looked_at_tests.rs` proves the count separates the two).
+#[test]
+fn collecting_the_published_tips_looks_at_each_name_once() {
+    let count: usize = 4096;
+    let mut prior: BTreeMap<String, String> = BTreeMap::new();
+    let mut updates: Vec<PushUpdate> = Vec::new();
+    let mut expected: Vec<String> = Vec::new();
+    for number in 0..count {
+        // Each update names a different prior value, and each prior value is a different commit.
+        let prior_value: String = format!("{number:040x}");
+        let commit: String = format!("{:040x}", number + count);
+        prior.insert(prior_value.clone(), commit.clone());
+        updates.push(update(Some(&commit), Some(&prior_value)));
+        expected.push(commit);
+    }
+    let tracking: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let tips: BTreeMap<String, Vec<String>> = published_tips(updates.as_slice(), &prior, &tracking);
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert_eq!(tips.get("origin"), Some(&expected), "every distinct prior commit once, in the order the updates came");
+    assert_eq!(
+        looked,
+        updates.len() as u64,
+        "{looked} collected names looked at for {} updates; one per update is linear",
+        updates.len()
+    );
+}
+
 /// A commit whose base is published scans only the commits the remote lacks.
 #[test]
 fn a_known_base_scans_only_the_new_commits() {
