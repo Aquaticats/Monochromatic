@@ -3197,16 +3197,21 @@ with the same one-way `warm` message a worktree-moving command sends,
 and loads the rules without writing:
 the rules it compiled are the ones it scans with,
 and the artifact becomes the service's write rather than the command's.
-The question is asked only when the cache holds nothing,
-so a warm cache costs one artifact read and nothing else.
+The question is asked only when the cache holds no artifact for that text,
+which one `stat` answers,
+so a warm cache pays nothing beside the read it always made.
 
 Two cases keep the write on the command's path,
 because nothing else can make it:
 
 - a machine where no service runs for that worktree,
   which is the first command after a boot or a fresh home;
-- a rules list the command took from `FORBIDDEN_STRINGS_RULES`,
-  since the service's own environment carries no such variable and it would compile the configuration's files instead.
+- a rules list the command took from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no
+  rules files,
+  since the service's own environment carries no such variable and it would compile the configuration's files
+  (or the default appendix) instead.
+  A configuration that names files wins over the variable,
+  so a repository with both lists leaves them to the service.
 
 The artifact itself is published without a file or directory sync:
 a reader validates its magic, scanner version, platform, source digest, payload digest and engine digest,

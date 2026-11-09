@@ -130,39 +130,38 @@ pub(crate) fn load_or_compile(snapshot: &RulesSnapshot, access: CacheAccess) -> 
     }
 }
 
-/// Whether the shared cache already holds a compiled form of this snapshot's text.
+/// Whether the shared cache holds a file for this snapshot's compiled form.
 /// Why:
 ///  A host asks this before it loads the rules,
 ///  to learn whether the load can miss and so whether it must arrange for someone else to publish;
-///  the answer is the same validation the load itself accepts,
-///  so a cache a read would reject is one this reports absent.
+///  the answer is the artifact file's presence,
+///  because the load validates whatever it finds and repairs an artifact a read rejects,
+///  so a corrupt file here costs this command the write the question was trying to place elsewhere.
+/// Nothing is read past one `stat`,
+///  so a warm cache pays no second read of the artifact.
 ///
-pub(crate) fn holds_compiled_rules(snapshot: &RulesSnapshot) -> bool {
+pub(crate) fn artifact_exists(snapshot: &RulesSnapshot) -> bool {
     let Ok(digest) = source_digest(snapshot.text().as_bytes()) else { return false };
     let Ok(root) = resolve_cache_root(&current_environment(), current_platform()) else { return false };
-    let location = cache_location(&root, digest);
-    return match read_artifact(&location.artifact_path, MAX_ARTIFACT_BYTES) {
-        Ok(bytes) => decode(&bytes, digest).is_ok(),
-        Err(_absent) => false,
-    };
+    return cache_location(&root, digest).artifact_path.is_file();
 }
 
-/// Whether the shared cache holds a compiled form of the text of these rules files.
+/// Whether the shared cache holds a file for the compiled form of these rules files' text.
 /// Why:
-///  An embedding host arranges for the compiled rules to be published off its own path
-///  when the cache holds none,
+///  An embedding host arranges for the compiled rules to be published off its own path when the cache
+///  holds no compiled form,
 ///  and every rules-file question this asks is the one its own load asks
 ///  (the files in list order,
 ///  an absent optional entry skipped).
 /// A list that cannot be read answers no,
 ///  so the caller keeps the write itself and the next load says why it failed.
 ///
-pub fn has_compiled_rules(entries: &[RulesEntry]) -> bool {
+pub fn compiled_rules_artifact_exists(entries: &[RulesEntry]) -> bool {
     let Ok(snapshot) = RulesSnapshot::read(entries) else { return false };
     if snapshot.is_empty() {
         return false
     }
-    return holds_compiled_rules(&snapshot);
+    return artifact_exists(&snapshot);
 }
 
 /// Compiles source snapshot and,

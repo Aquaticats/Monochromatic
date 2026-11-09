@@ -333,19 +333,20 @@ impl CandidateScanner {
 }
 
 /// What:
-///  Whether the shared cache already holds a compiled form of these rules files' text.
+///  Whether the shared cache holds a file for the compiled form of these rules files' text.
 ///  `&RulesSource` borrows the selection the load would make.
 /// Why:
 ///   A host that arranges the publication elsewhere asks this first,
-///  so a cache that already holds the text costs no write question and no process walk;
-///  the scanner answers with the same validation its own read accepts.
+///  so a cache that already holds an artifact costs no write question and no process walk;
+///  the scanner answers with the artifact file's presence, one `stat`,
+///  and the load validates whatever it finds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// hasCompiledRules(rules: RulesSource): boolean
 /// ```
-pub fn compiled_rules_are_cached(rules: &RulesSource) -> bool {
-    return forbidden_strings::has_compiled_rules(rules.entries.as_slice())
+pub fn compiled_rules_artifact_exists(rules: &RulesSource) -> bool {
+    return forbidden_strings::compiled_rules_artifact_exists(rules.entries.as_slice())
 }
 
 /// Scanner controls stay out of the release executable.

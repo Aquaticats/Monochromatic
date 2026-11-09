@@ -24,7 +24,7 @@
 use super::{
     ENGINE_ERROR_MESSAGE, FORBIDDEN_STRING_CODE, LINE_BREAK_MESSAGE, ScannerSettings, ScannerState,
     cache_access, check_forbidden_strings, default_scanner_settings, incomplete_scan, match_finding,
-    unloaded_scanner, CachePublisher,
+    service_reads_the_same_rules, unloaded_scanner, CachePublisher,
 };
 use crate::candidate_prediction::CandidateRequest;
 use crate::config_schema::RulesFileEntry;
@@ -34,7 +34,7 @@ use crate::event_path::EventPath;
 use crate::policy_content::{ContentState, LifecycleContent};
 use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts};
-use crate::scanner_adapter::{CandidateScanner, RulesSource, compiled_rules_are_cached};
+use crate::scanner_adapter::{CandidateScanner, RulesSource, compiled_rules_artifact_exists};
 use crate::scanner_selection::rules_source;
 use crate::scanner_test_support::{needle, run_isolated};
 use crate::test_support::{git, repository};
@@ -561,7 +561,7 @@ fn publishes_itself(work: &Path) {
         git_dir: git_dir.as_path(),
         repository: repo.as_path(),
     };
-    assert!(!compiled_rules_are_cached(&rules), "the fixture's cache starts empty");
+    assert!(!compiled_rules_artifact_exists(&rules), "the fixture's cache starts empty");
     assert_eq!(
         publisher.access(&rules),
         CacheAccess::ReadWrite,
@@ -576,6 +576,34 @@ fn publishes_itself(work: &Path) {
     // ```
     let writing: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
     assert!(!writing.cache_warnings().is_empty(), "the first load compiles from the text");
-    assert!(compiled_rules_are_cached(&rules), "the writing load published the artifact");
+    assert!(compiled_rules_artifact_exists(&rules), "the writing load published the artifact");
     assert_eq!(publisher.access(&rules), CacheAccess::ReadWrite);
+}
+
+/// What:
+///  Whether the service would compile the very list a command selected,
+///  for the three shapes a selection has.
+/// Why:
+///   The service resolves the configuration's files and its environment carries no
+///   `FORBIDDEN_STRINGS_RULES`, so a list the variable named is another text whose artifact never answers
+///   this command's reads; a repository whose configuration names files keeps the list whatever the
+///   variable says, and that is the usual setup here.
+#[test]
+fn only_a_list_the_configuration_names_is_left_to_the_service() {
+    let root: PathBuf = PathBuf::from("/repo");
+    // A configuration that names files wins over a variable that names another: the service compiles the same list.
+    let named: ScannerSettings = settings(Some("rules.txt"), Some(OsStr::new("elsewhere.txt")), false);
+    let configured: RulesSource = rules_source(
+        Some(&[RulesFileEntry { path: String::from("rules.txt"), optional: false }]),
+        Some(OsStr::new("elsewhere.txt")),
+        root.as_path(),
+    )
+    .expect("the fixture's rules must resolve");
+    assert!(service_reads_the_same_rules(&named, root.as_path(), &configured));
+    // No configuration and a variable that names a list: only this command can publish that text.
+    let from_variable: ScannerSettings = settings(None, Some(OsStr::new("elsewhere.txt")), false);
+    assert!(!service_reads_the_same_rules(&from_variable, root.as_path(), &configured));
+    // No configuration and no variable: both read the default file.
+    let default_list: RulesSource = rules_source(None, None, root.as_path()).expect("the default list must resolve");
+    assert!(service_reads_the_same_rules(&settings(None, None, false), root.as_path(), &default_list));
 }

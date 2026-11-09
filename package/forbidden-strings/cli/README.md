@@ -220,10 +220,13 @@ The standalone command scans with read-write caching: it compiles what the cache
 An embedding host chooses per load (`Scanner::load_writing_cache`,
   `Scanner::load_entries_writing_cache`,
   `forbidden_strings::CacheAccess`),
-  and `forbidden_strings::has_compiled_rules` says beforehand whether a load can miss at all.
+  and `forbidden_strings::compiled_rules_artifact_exists` says beforehand whether the cache holds a file for the
+  text at all, in one `stat` rather than a second read.
 A load that may not write still scans with the rules it compiled in memory,
   reports the miss as its cache warning,
   and leaves the artifact to whoever publishes it.
+An artifact a read rejects is repaired by a load that may write,
+  so a host that asked this question first and found a file still repairs damage itself.
 `FORBIDDEN_STRINGS_CACHE_DIR` may set an absolute cache root.
 Without the override,
 the scanner uses `$XDG_CACHE_HOME` or `$HOME/.cache` on XDG-oriented Unix,

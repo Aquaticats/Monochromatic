@@ -46,7 +46,7 @@ use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
 /// Import the scanner adapter and its failure.
 use crate::scanner_adapter::{
-    CandidateScanner, RulesSource, ScannerError, ScannerFailure, compiled_rules_are_cached,
+    CandidateScanner, RulesSource, ScannerError, ScannerFailure, compiled_rules_artifact_exists,
 };
 /// Import the code of each scanner and scan failure.
 use crate::scanner_failure_code::{
@@ -205,7 +205,7 @@ impl CachePublisher<'_> {
         let Self::Service { git_dir, repository } = self else {
             return CacheAccess::ReadWrite;
         };
-        if compiled_rules_are_cached(rules) {
+        if compiled_rules_artifact_exists(rules) {
             return CacheAccess::ReadWrite;
         }
         return cache_access(
@@ -407,6 +407,33 @@ fn repository_root<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyO
 }
 
 /// What:
+///  Whether the service of this worktree would compile the very rules list this command selected.
+///  `&ScannerSettings` borrows the options and the variable;
+///  `&Path` is the repository's top level;
+///  `&RulesSource` is the selection.
+/// Why:
+///   The service resolves the configuration's files only,
+///  because its environment carries no `FORBIDDEN_STRINGS_RULES`;
+///  a list the variable named is therefore another text,
+///  and its artifact is not the one this command reads.
+/// A configuration that names files wins over the variable,
+///  so a repository with both still leaves the list to the service,
+///  which is the usual setup here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceReadsTheSameRules(settings, root, selected)
+/// ```
+fn service_reads_the_same_rules(
+    settings: &ScannerSettings,
+    repository_root: &Path,
+    selected: &RulesSource,
+) -> bool {
+    let configured = rules_source(settings.options.rules_files.as_deref(), None, repository_root);
+    return configured.is_ok_and(|without_variable| without_variable == *selected);
+}
+
+/// What:
 ///  The worktree's own Git directory,
 ///  or nothing when the command runs outside one.
 /// Why:
@@ -566,18 +593,17 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
         }
     };
     // What: the publisher decides the load's access, and the loader records what the scanner said.
-    // Why:  A rules list this command took from `FORBIDDEN_STRINGS_RULES` is not the list a service would read
-    //       (its own environment carries no such variable, so it compiles the configuration's files instead), and
-    //       publishing another text's artifact would leave this one to compile on every command; only a list the
-    //       configuration also names may be left to the service.
+    // Why:  The service reads this repository's configuration and its own environment carries no
+    //       `FORBIDDEN_STRINGS_RULES`, so a list the variable named is not the list the service would compile:
+    //       leaving that text to the service publishes another text's artifact and compiles this one on every command.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const publisher = settings.rulesVariable === undefined ? servicePublisher(gitDir, root) : thisProcess;
+    // const publisher = serviceReadsTheSameRules(settings, root, rules) ? servicePublisher(gitDir, root) : thisProcess;
     // ```
     let service_git_dir: Option<PathBuf> = service_git_directory(facts);
-    let publisher: CachePublisher<'_> = match (settings.rules_variable.is_some(), service_git_dir.as_deref()) {
-        (false, Some(git_dir)) => CachePublisher::Service { git_dir, repository: root.as_path() },
+    let publisher: CachePublisher<'_> = match (service_reads_the_same_rules(settings, root.as_path(), &rules), service_git_dir.as_deref()) {
+        (true, Some(git_dir)) => CachePublisher::Service { git_dir, repository: root.as_path() },
         _ => CachePublisher::ThisProcess,
     };
     let access: CacheAccess = publisher.access(&rules);
