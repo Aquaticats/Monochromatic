@@ -1446,6 +1446,13 @@ a full copy nobody can name once the registration and its journal are gone,
 so `--abandon` reaches a path without a registration too:
 a subvolume root at `<path>.cli-git-converting` is destroyed and any other directory there is removed as a tree,
 which is the original directory a stop after the swap leaves.
+The name proves nothing by itself,
+so the two identities a conversion may leave there (the original worktree directory and
+the subvolume it created)
+are recorded beside the worktree in `.cli-git-convert-<name>.leftover-stage.json`,
+and the abandon destroys only an object whose identity is one of them:
+a directory put at that name instead is kept and named,
+and so is a stage whose conversion left no record.
 It says what it found before it destroys it,
 and refuses while a process is inside that directory.
 

@@ -1432,7 +1432,10 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   conversion was finished (a worktree path without a `.git` that still has `<path>.cli-git-converting`
   beside it):
   the copy is destroyed,
-  and nothing is destroyed while a process is inside it.
+  nothing is destroyed while a process is inside it,
+  and nothing is destroyed whose identity is not one the conversion recorded beside the worktree
+  (`.cli-git-convert-<name>.leftover-stage.json`),
+  so a directory someone put at that name is kept and named.
 - Measured on a fixture of four ordinary worktrees of 22.3 thousand entries each:
   4.2 s per worktree under a scope of
   `CPUQuota=400%`,

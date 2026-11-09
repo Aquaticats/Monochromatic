@@ -269,6 +269,37 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
     remove(parent.as_path());
 }
 
+/// What:
+///  `--abandon` destroys a leftover stage only while the object at that name is the one this conversion recorded,
+///  so a directory someone put there instead is kept and the reason is said.
+/// Why:
+///   Without that proof the suffix alone would let the command delete a directory of the person's own files,
+/// and a
+///  stage moved aside and replaced is exactly how a person changes their mind about a leftover copy.
+#[test]
+fn an_abandon_keeps_a_replacement_that_took_the_leftover_stage_name() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-replaced-stage");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let admin: PathBuf = admin_of(worktree.as_path());
+    // The worktree and its registration go, as a removal leaves them, and the stage stays beside them.
+    remove(worktree.as_path());
+    remove(admin.as_path());
+    let moved: PathBuf = parent.join("stage.kept");
+    std::fs::rename(converting.as_path(), moved.as_path()).expect("move the stage aside");
+    std::fs::create_dir_all(converting.join("d")).expect("a directory at the stage's name");
+    std::fs::write(converting.join("d/precious"), b"somebody else's file\n").expect("a file of theirs");
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let (verdict, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    let Verdict::Skipped(reasons) = verdict.expect("no failure") else { panic!("the abandon keeps what it cannot prove: {lines:?}") };
+    let named: String = reasons.join("; ");
+    assert!(named.contains("not the stage this conversion recorded"), "the refusal says why: {named}");
+    assert_eq!(std::fs::read(converting.join("d/precious")).expect("the replacement is kept"), b"somebody else's file\n");
+    assert!(moved.exists(), "the stage itself is still where the person moved it");
+    remove(parent.as_path());
+}
+
 /// A sleeping process whose working directory is a chosen directory,
 /// killed and reaped when it goes out of scope.
 struct Sleeper(std::process::Child);

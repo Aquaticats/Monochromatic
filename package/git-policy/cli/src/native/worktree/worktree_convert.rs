@@ -40,7 +40,8 @@ use crate::subvolume_remove::remove_tree;
 pub use crate::worktree_convert_inspection::{CONVERTING_SUFFIX, Candidate, Owned, Refusal, RefusalKind, converting_path, inspect, refusals};
 use crate::worktree_convert_journal::{CLAIM_PREFIX, Journal, legacy_lock_is_held};
 pub use crate::worktree_convert_journal::{JOURNAL_NAME, Phase};
-use crate::worktree_convert_phases::{Job, Where, copy_phase, finish, hold_index_lock, index_phase, old_tree_is_at, removal_phase, stage_free_identity, stage_identity_of, swap_phase, verify_swap};
+use crate::worktree_convert_leftover_stage_record::{LeftoverStage, forget_leftover_stage, leftover_stage_of, record_leftover_stage};
+use crate::worktree_convert_phases::{Job, Where, copy_phase, finish, hold_index_lock, identity_of_path, index_phase, old_tree_is_at, removal_phase, stage_free_identity, stage_identity_of, swap_phase, verify_swap};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
@@ -159,6 +160,29 @@ fn abandon_leftover_stage(platform: &dyn Platform, path: &Path, reason: &str, sa
         Err(error) => return Err(MigrateError::io("examine", converting.as_path(), &error)),
         Ok(_) => {}
     }
+    // The suffix proves nothing by itself: the record beside the worktree says which objects a conversion may have left
+    // there, and anything else is somebody's own directory.
+    let Some(recorded) = leftover_stage_of(path) else {
+        return Ok(Some(Verdict::Skipped(vec![format!(
+            "{} exists, and no record beside the worktree says this conversion made it, so it is left alone: look at it, and remove it yourself if it is a copy you do not want",
+            converting.display()
+        )])));
+    };
+    let Some(found) = identity_of_path(&converting) else {
+        return Ok(Some(Verdict::Skipped(vec![format!("{} cannot be examined, so it is left alone", converting.display())])));
+    };
+    if found != recorded.original && recorded.created != Some(found) {
+        return Ok(Some(Verdict::Skipped(vec![format!(
+            "{} is not the stage this conversion recorded (it is {}, and the record names {} and {}), so it is left alone: look at it, and remove it yourself if it is a copy you do not want",
+            converting.display(),
+            found.encode(),
+            recorded.original.encode(),
+            match recorded.created {
+                Some(created) => created.encode(),
+                None => String::from("nothing else"),
+            }
+        )])));
+    }
     let holders: Vec<String> = processes_inside(converting.as_path());
     if !holders.is_empty() {
         return Ok(Some(Verdict::Skipped(vec![format!(
@@ -174,6 +198,7 @@ fn abandon_leftover_stage(platform: &dyn Platform, path: &Path, reason: &str, sa
         MigrateError::from_io_result(remove_tree(converting.as_path()), "remove the leftover stage", converting.as_path())?;
     }
     say.say(format!("  destroyed the leftover stage {}", converting.display()).as_str());
+    forget_leftover_stage(path);
     return Ok(Some(Verdict::Abandoned));
 }
 
@@ -346,6 +371,9 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
     }
     if job.journal.phase < Phase::Exchanged {
         copy_phase(platform, &mut job, interrupt, say)?;
+        // Both objects this conversion may leave at the converting name are recorded beside the worktree now, because the
+        // journal that names them dies with the registration.
+        record_leftover_stage(candidate.path.as_path(), &LeftoverStage { original: job.journal.old_identity, created: job.journal.new_identity });
         swap_phase(platform, &mut job, interrupt)?;
     }
     verify_swap(platform, &job)?;

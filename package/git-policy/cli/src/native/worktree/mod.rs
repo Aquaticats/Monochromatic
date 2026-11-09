@@ -85,6 +85,11 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// The record,
+/// beside a worktree,
+/// of the objects one conversion may leave at its converting name.
+pub mod worktree_convert_leftover_stage_record;
+
 /// What a removal snapshot kept,
 /// promoted to the notices every worktree shows.
 pub mod worktree_removal_snapshot_promotion;
