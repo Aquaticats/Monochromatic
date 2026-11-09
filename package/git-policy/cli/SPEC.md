@@ -5472,6 +5472,38 @@ disk in the journal the message names.
 A rollback has no such window of its own:
 it decides nothing by reading the destination.
 
+##### What the person sees when that window is hit
+
+The window needs a second process writing inside a few instructions.
+The comparison of the displaced file and the removal of its journal are two system calls,
+and a write has to land between them through a descriptor opened before the exchange,
+which is what an editor holds when it saves a buffer for a file it opened before the fix ran.
+The person then sees this:
+
+- their editor still shows what they typed,
+  because the buffer is the editor's and not the file's;
+- the fix ends with no notice for that file,
+  and says nothing about a journal,
+  because the comparison it made succeeded and the journal was removed with the write inside it;
+- the file on disk holds the corrected bytes,
+  or,
+  after a rollback,
+  the bytes the fix found,
+  so a look at it shows anything but their save;
+- nothing of the file's earlier state is lost,
+  and no journal is left behind,
+  so there is nothing on disk to recover the write from.
+
+A caught write is the recognisable case:
+it is named with the journal that holds it,
+and this one is not named at all,
+which is how a person tells the two apart.
+The only copy of the lost text is then the editor's buffer,
+and the fix can be run again for the file.
+No mechanism removes this window:
+closing it needs the comparison and the removal to be one operation over a file another process may hold open,
+which no file system offers.
+
 Git loses that same write on its own file replacement,
 so this is not a cost the wrapper adds.
 Read in `git/git` at `master` on 2026-11-09:
