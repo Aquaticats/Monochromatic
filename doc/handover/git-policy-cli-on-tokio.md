@@ -175,7 +175,8 @@
   Host runs of the two askpass controls are skipped (`-- -- --skip askpass`),
   because they need `GIT_ASKPASS` unset.
 - Not started:
-  T11 (callers: the commit command and the policy run as `async fn`),
+  T11 (callers:
+  the commit command and the policy run as `async fn`),
   T12 (parallel runner),
   T13 (removal,
   lint).
