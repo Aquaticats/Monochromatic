@@ -57,7 +57,87 @@ about 26 to 30 agents would reach 20 open calls.
 Anything else using this key counts against the same limit,
 and the host may run short before the provider does.
 
-The trial at twenty is still running and decides the raise to 20 by itself.
+The trial passed,
+so 20 is now the permanent limit in `.agents/skills/pi-as-subagent/SKILL.md`,
+under your "Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20."
+Over 100 one-minute samples,
+60 had at least 20 agents running,
+the fewest were 16 and the most 20.
+Those 100 minutes saw 4919 model turns and no rate-limit error.
+The errors were 2 Cloudflare 520 responses and 1 request timeout,
+each ending one run,
+which is what the driver job is fixing.
+The median model turn was 3937 ms against 3153 ms in the two hours before,
+and that difference has not been compared with the run-to-run spread,
+so it may be noise.
+
+### What should a commit do when a step of it is stuck inside the kernel?
+
+The signed scratch commit has the ceiling you chose,
+about 16 seconds,
+and at the ceiling the wrapper sends `SIGKILL`.
+A process in uninterruptible sleep does not end until its kernel call returns,
+for example one waiting on a dead NFS server or a stopped FUSE daemon.
+So today that commit waits with no bound after the ceiling,
+against "nothing should ever wait forever or indefinitely".
+This rests on the kernel's documented behaviour and on reading the code,
+because no test on this host can produce that state.
+The write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`,
+on the branch `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`.
+
+Option B leaves after the ceiling and a short grace.
+The commit exits nonzero and says the step could not be stopped,
+and the killed process is reaped by the system later.
+It is the only option that bounds the wait.
+The cost is a failed commit in that case,
+against "Commits should never fail",
+and a dead process holding the scratch folder open until the kernel lets go,
+which holds none of your files.
+
+Option A keeps waiting and says so.
+After the ceiling the commit prints that the stop was sent and the kernel has not released the step.
+Nothing fails,
+but the terminal stays stuck for as long as the kernel call does,
+which can be forever.
+
+Ranking:
+B > A,
+because a failed commit that says why can be run again,
+and a stuck terminal cannot be acted on at all.
+Nothing changes until you answer:
+write "A" or "B" here.
+
+### Should a commit whose command died before its checks ran still be pushed?
+
+A landing moves the branch first and runs the post-commit checks after,
+holding the push until those checks approve it.
+If the command is killed in that gap,
+no verdict exists,
+and the commit is on the branch with its push held.
+The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now pushes such a commit the next time the service wakes for that worktree,
+because a cross-vendor review found a push could stay stranded,
+and a held push with no living owner would otherwise wait forever,
+against your "nothing should ever wait forever or indefinitely".
+The intent is that a check still running is never overtaken and that only a command proven gone has its push released.
+The review `landing-route-round-5` found two defects in that behaviour,
+and both go back to the branch's agent whatever you answer here:
+a command that has not yet written its owner record can be taken for gone,
+and a commit whose checks ran and blocked it can be pushed by a later recovery.
+This question is only about a commit whose checks never ran.
+
+The cost is that a commit whose checks never ran can reach the remote.
+The alternative keeps that commit local until someone pushes it,
+which needs the wrapper to hand the service a durable verdict,
+and the protocol has no such message today.
+Ranking:
+push it (current) > keep it local,
+because a commit left unpushed with no message is easy to miss,
+and a pushed commit can still be followed by a fix.
+That is the session's judgment and not something measured.
+Nothing is waiting on this answer;
+write "keep it local" here to change it.
 
 ### Should a commit add the manifests of dependents it bumps?
 
@@ -93,6 +173,48 @@ changes the decision,
 and makes a commit warn loudly that dependents were left behind.
 That is much less code,
 and the person has one more step to remember.
+
+### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
+
+The session picked the audit's recommendation,
+extending the fixed list,
+because it starts no process and is non-destructive.
+A fix agent is queued for it.
+Write "ask Git" here to change that.
+
+The policy exists so `git add` names the paths it stages
+(`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
+It reads the arguments alone and compares each positional pathspec with four
+byte strings,
+`.`,
+`./`,
+`*` and `:/`
+(`package/git-policy/cli/src/native/command/command_add.rs:113`).
+Five spellings that Git resolves to the whole tree pass that list and staged
+every file in a reproduction:
+`:/*`,
+`:/**`,
+`:(top)`,
+`**` and
+`:(glob)**`
+(`doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`,
+finding 2).
+`:(top)` is the one a person writes expecting a scope rather than a sweep.
+A sixth,
+`:(top)/*`,
+fails inside Git 2.56.0 (`fatal: oops in prep_exclude`) and is reported as
+`content-unavailable`,
+which is Git's own failure and not this choice.
+
+Recommended:
+extend the list with those five and name them in the rejection text,
+because the decision stays argument-only and starts no process before Git
+does,
+and the accidents this policy is about are the common spellings.
+The alternative asks Git what the pathspec selects,
+which catches every form including ones added to Git later,
+at the cost of one Git start per `git add`
+and a decision that no longer follows from the arguments.
 
 ### May a moved-path note be added to records in `doc/decision/`?
 
@@ -1134,6 +1256,29 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T03:14:38-05:00,
+  `mpm-shadow` now refuses a `cargo-git` plan entry that has no `packageId`,
+  where it used to take the plan key as the crate name (issue 2626).
+  The cross-vendor review points out that an entry whose key equals its crate name worked before and is refused now.
+  No entry in `toolchain.plan.jsonc` or `toolchain.lock.json` uses that route,
+  so nothing changes today.
+- 2026-11-09T02:08:59-05:00,
+  `search-shadow link` when something else already sits at a tool's name:
+  it leaves the entry in place,
+  names it on stderr and exits 0,
+  because the rest of the run succeeded.
+  It takes over an entry only when the link resolves to this program,
+  resolves to a shadow of any version,
+  or is spelled `.../search-shadow`,
+  the last so an upgrade can replace a link a version prune left dangling.
+  A dangling link named `find` that points elsewhere is left alone.
+  Say "undo" to make a conflict exit non-zero or refuse the whole run.
+- 2026-11-09T02:08:59-05:00,
+  the audit `doc/planning/cli-git-tests-that-pass-without-their-race.md` asked whether its weak controls should get fixed now.
+  They are queued for a fix agent,
+  in test code only,
+  under your "Fix flaky tests properly."
+  Say "undo" to leave it as an audit.
 - 2026-11-08T23:47:13-05:00,
   conclusion record on repositories using the files backend:
   a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),
