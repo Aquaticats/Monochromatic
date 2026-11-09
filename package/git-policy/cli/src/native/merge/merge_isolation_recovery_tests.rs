@@ -1390,7 +1390,8 @@ fn a_staged_edit_of_a_merge_path_stops_the_moved_branch_settling() {
 /// so the directory-to-file shape refused it for good,
 /// as the
 ///  straight path did before its own rule
-/// (a cross-vendor review of the third round, and the brief's item 1).
+/// (a cross-vendor review of the third round,
+/// and the brief's item 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1422,7 +1423,8 @@ fn a_directory_that_explains_itself_does_not_stop_the_moved_branch_settling() {
 ///  The catch for a saved merge accepted every error and said nothing of the merge was in the checkout,
 /// although the
 ///  index had been written and a file had been moved aside
-/// (a cross-vendor review of the third round, finding 5).
+/// (a cross-vendor review of the third round,
+/// finding 5).
 /// A partly installed merge read by a command as another session's work is exactly what the stop exists for.
 ///
 /// In TS you'd write (pseudocode):
@@ -1456,7 +1458,8 @@ fn a_saved_merge_that_is_partly_installed_stops_the_command() {
 /// so a ref that had come to hold another merge's commit was deleted with it,
 /// and that
 ///  merge's only name went with it
-/// (a cross-vendor review of the third round, finding 6).
+/// (a cross-vendor review of the third round,
+/// finding 6).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1485,7 +1488,8 @@ fn a_side_ref_another_command_repointed_is_not_deleted() {
 /// and installed the merge into whatever the
 ///  worktree had checked out,
 /// moving the recorded branch from a checkout that was not its own
-///  (a cross-vendor review of the third round, finding 7).
+///  (a cross-vendor review of the third round,
+/// finding 7).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

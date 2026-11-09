@@ -3175,7 +3175,8 @@ on the commit path:
   names the paths,
   keeps the record and leaves the staged content in the index,
   because a staged version has no other name.
-  That check is read before the write and cannot be made part of it: `git update-index --index-info` has no way to
+  That check is read before the write and cannot be made part of it:
+  `git update-index --index-info` has no way to
   write an entry only when the one it replaces is the one that was read,
   and `git read-tree -m -u`,
   which refuses a path that is not up to date,
