@@ -131,18 +131,21 @@ pub struct PreparedCommit {
 /// so no external program runs for a hook.
 ///  No `--work-tree` is passed:
 /// the shadow's own config names the work tree.
+///  Every configuration key native `git commit` reads travels as a `-c` setting,
+/// because an `includeIf` condition that named the real Git directory no longer matches in the shadow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...globalArgs, `--git-dir=${shadowPath}`, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
+/// [...globalArgs, `--git-dir=${shadowPath}`, ...nativeConfiguration, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
 /// ```
-fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
-    let mut arguments: Vec<String> = request.global_args.to_vec();
-    arguments.push(format!("--git-dir={}", request.shadow.display()));
-    arguments.push(String::from("-c"));
-    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
-    arguments.push(String::from("commit"));
-    arguments.extend(request.commit_args.iter().cloned());
+fn native_commit_arguments(request: &PreparationRequest) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
+    arguments.push(OsString::from(format!("--git-dir={}", request.shadow.display())));
+    arguments.extend(crate::native_commit_configuration::native_commit_configuration(request.capture.layout.config_snapshot.as_ref()));
+    arguments.push(OsString::from("-c"));
+    arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    arguments.push(OsString::from("commit"));
+    arguments.extend(request.commit_args.iter().map(OsString::from));
     return arguments;
 }
 
@@ -189,7 +192,7 @@ pub fn run_native_commit_within(
     request: &PreparationRequest,
     ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
-    let arguments: Vec<OsString> = native_commit_arguments(request).iter().map(OsString::from).collect();
+    let arguments: Vec<OsString> = native_commit_arguments(request);
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
     command
         .current_dir(cwd)
