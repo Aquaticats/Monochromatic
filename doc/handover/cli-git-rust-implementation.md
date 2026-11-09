@@ -251,19 +251,37 @@ The old tree kept for the rollback stays until the owner deletes it.
   but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
   and the installed copy answers `android sdk install --help`,
   so issue 2622 was closed as not holding.
-  The review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`) names a race on an explicit `--lock`,
-  which main has worse because it always deletes,
-  and rustup observation and reconciliation looking at different toolchains,
-  which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  and goes next:
-  resume the run `mpm-shadow-open-issues` as run 2,
-  with `mpm-shadow-round-2-prompt.md` and the session file named in run 1's `summary.json`.
-  That round also checks the fixes resting on claims about real tools against those tools.
-  `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
-  before that,
-  a branch outside the wrapper got an empty review.
+  Run 2 merged main (`904f005a34`) and fixed the two findings of
+  `${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`:
+  `5594cf9b6e` makes the prune refuse a caller-named `--lock` from the read that finds it missing,
+  since a check before the read can be outrun by a concurrent rename;
+  `6319dce3c2` makes observation,
+  the component and target listings and the lock comparison name the rustup channel a row does
+  (`packageId`,
+  else the version),
+  not the locked version;
+  `8a6659eef8` passes `RUSTUP_AUTO_INSTALL=0` to the two parts listings,
+  because the installed rustup 1.29.2 answers a listing for an absent channel by installing it.
+  The third finding,
+  a `packageId` requirement on `cargo-git` rows,
+  stays as it is:
+  no entry uses that route and it goes to the owner as a choice.
+  Items 3511,
+  3512 and 2623 were checked against the real service and tool:
+  every release-asset digest GitHub reported across about 11 000 sampled assets is `sha256:` plus 64 lowercase hex,
+  or absent;
+  the service decodes a percent-encoded tag path segment,
+  answers 400 to a raw `%`,
+  and treats a raw `#` as the start of a fragment;
+  `rustup component list --installed --toolchain stable` prints the triple spelling the reconciler reads.
+  Open:
+  a row naming a bare channel (`nightly`) is still read as the dated `nightly-2026-10-30` install
+  when that is the only toolchain present,
+  and the toolchain `1.99.0-x86_64-unknown-linux-gnu`,
+  which no step of this round installed,
+  appeared in the system rustup home during it.
+  Issue comments for 2623,
+  3511 and 3512 wait for the merge.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
   landed on main as `512bc52f56`,
   with 319 of 319 selected tests passing on top of main.
