@@ -3,13 +3,17 @@
  
  `runFilter` is the entry-point function called by the per-plugin filter shim.
  It reads stdin, applies all transformations, and writes filtered output to
- stdout. On any error, it falls through and writes the original input
- unchanged so tool output is never lost.
+ stdout.
+ 
+ Which failures keep the tool output: a failed stdin read still forwards every
+ byte that reached the filter before the stream broke, and a failed
+ transformation writes the input back unchanged. Both report on stderr, which
+ carries no hook protocol. Losing a command's output is worse than showing it
+ unfiltered.
  
  @module
  */
 
-import { text, } from 'node:stream/consumers';
 import {
   collapseCwdPaths,
   collapseHomePaths,
@@ -20,10 +24,20 @@ import {
 } from './filter-transforms.ts';
 
 /**
- Sentinel returned when stdin cannot be read. A unique symbol keeps unavailable
- input distinct from a legitimately empty Bash output stream.
+ What one stdin read produced: every byte received, and the failure that stopped
+ it early when there was one.
  */
-const STDIN_UNAVAILABLE: unique symbol = Symbol('bash-output-filter/stdin-stream-could-not-be-read',);
+type StdinRead = {
+  /**
+   Text of every byte that reached the filter, empty when the stream failed before any.
+   */
+  readonly text: string;
+
+  /**
+   Why the read stopped before the end of the stream; absent when stdin was read whole.
+   */
+  readonly failure?: Error;
+};
 
 /**
  Applies all filter transformations to raw tool output.
@@ -125,17 +139,46 @@ function collapseLines(lines: readonly string[],): string[] {
 }
 
 /**
- Reads stdin to EOF, returning an explicit sentinel when the stream fails.
+ Reads stdin to EOF, keeping whatever arrived when the stream fails part-way.
  
- @returns stdin text, or {@link STDIN_UNAVAILABLE} when unavailable
+ A single `text(process.stdin)` call discards its accumulator when the stream
+ errors, which would throw away a large command's output over one transient
+ read failure. Chunks are collected here instead, so the failure can be
+ reported without losing the bytes that did arrive. Encoding happens once over
+ the joined bytes, so a multi-byte character split across two chunks still
+ decodes correctly.
+ 
+ @param stream - readable stream carrying the tool output
+ 
+ @returns every byte received and, when the read failed, why
+ 
+ @example
+ ```ts
+ const { text, failure } = await readStdin(process.stdin);
+ ```
  */
-async function readStdin(): Promise<string | typeof STDIN_UNAVAILABLE> {
+async function readStdin(stream: NodeJS.ReadableStream,): Promise<StdinRead> {
+  /**
+   Raw chunks received so far, joined and decoded in one pass once the stream ends.
+   */
+  const chunks: Buffer[] = [];
+
   try {
-    return await text(process.stdin,);
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk,)
+        ? chunk
+        : Buffer.from(chunk,));
+    }
   }
-  catch (_error: unknown) {
-    return STDIN_UNAVAILABLE;
+  catch (error: unknown) {
+    return {
+      failure: Error.isError(error,) ? error : new Error(String(error,),),
+      text: Buffer.concat(chunks,)
+        .toString('utf8',),
+    };
   }
+  return { text: Buffer.concat(chunks,)
+    .toString('utf8',) };
 }
 
 /**
@@ -152,27 +195,43 @@ async function readStdin(): Promise<string | typeof STDIN_UNAVAILABLE> {
  */
 async function runFilter(): Promise<void> {
   /**
-   Full stdin payload from the Bash tool, awaited to EOF before transforms run.
+   Every byte the Bash tool sent, plus why the read stopped early when it did.
    */
-  const input = await readStdin();
-  if (input === STDIN_UNAVAILABLE)
-    return;
+  const stdin = await readStdin(process.stdin,);
+
+  if (stdin.failure !== undefined) {
+    /**
+     Read failure and the byte count that did reach the filter, both quoted in
+     the diagnostic.
+     */
+    const { failure, } = stdin;
+    /**
+     Bytes forwarded unfiltered.
+     */
+    const forwardedBytes = Buffer.byteLength(stdin.text,);
+    // stderr is safe here: stdout carries the tool output this filter exists to keep.
+    process.stderr
+      .write(`bash-output-filter: stdin read failed after ${forwardedBytes} bytes, forwarding them unfiltered: ${failure.message}\n`,);
+  }
 
   try {
     /**
      Filtered text written back to stdout in the happy path.
      */
-    const filtered = filterOutput(input,);
+    const filtered = filterOutput(stdin.text,);
     process.stdout
       .write(filtered,);
   }
   catch (_error: unknown) {
     process.stdout
-      .write(input,);
+      .write(stdin.text,);
   }
 }
 
+export type { StdinRead, };
+
 export {
   filterOutput,
+  readStdin,
   runFilter,
 };

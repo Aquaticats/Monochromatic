@@ -17,6 +17,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  spawnSync,
+} from 'node:child_process';
+import {
+  fileURLToPath,
+} from 'node:url';
+import {
   CWD_PREFIX,
   DEDUP_THRESHOLD,
   HOME_DIR,
@@ -24,7 +30,78 @@ import {
   MAX_REPEATED_CHARS,
   PATH_PREFIX_ABSENT,
 } from './filter-patterns.ts';
-import { filterOutput, } from './filter.ts';
+import {
+  filterOutput,
+  readStdin,
+  runFilter,
+} from './filter.ts';
+
+/**
+ Absolute path of the filter module, resolved from this file so the child
+ process imports the same source regardless of the working directory.
+ */
+const FILTER_PATH = fileURLToPath(new URL('filter.ts', import.meta.url,),);
+
+/**
+ Directory whose `node_modules` resolves the package's workspace dependencies
+ for the child script.
+ */
+const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url,),);
+
+/**
+ Text the failing stream delivers before it breaks, so losing it would show.
+ */
+const PARTIAL_TOOL_OUTPUT = 'first line of tool output\nsecond line\n';
+
+/**
+ Child script: replaces `process.stdin` with a stream that delivers
+ {@link PARTIAL_TOOL_OUTPUT} and then fails, and runs the real filter over it.
+ */
+const STDIN_FAILURE_SCRIPT = [
+  `const { Readable, } = await import('node:stream');`,
+  `const { runFilter, } = await import(${JSON.stringify(FILTER_PATH,)});`,
+  `const stream = new Readable({ read() {} });`,
+  `stream.push(${JSON.stringify(PARTIAL_TOOL_OUTPUT,)});`,
+  `setImmediate(function fail() {`,
+  `  stream.destroy(new Error('simulated stdin failure',));`,
+  `});`,
+  `Object.defineProperty(process, 'stdin', { value: stream, configurable: true });`,
+  `await runFilter();`,
+].join('\n',);
+
+/**
+ Runs the filter with a stdin stream that fails mid-read.
+ 
+ @returns captured stdout, stderr, and whether the run never finished
+ */
+function runFilterOverFailingStdin(): {
+  readonly stderr: string;
+  readonly stdout: string;
+  readonly timedOut: boolean;
+} {
+  /**
+   Child run, bounded so a hung stream cannot stall the suite.
+   */
+  const result = spawnSync(
+    'node',
+    [
+      '--input-type=module-typescript',
+      '-e',
+      STDIN_FAILURE_SCRIPT,
+    ],
+    {
+      cwd: PACKAGE_ROOT,
+      encoding: 'utf8',
+      input: '',
+      timeout: 30_000,
+    },
+  );
+  return {
+    stderr: result.stderr,
+    stdout: result.stdout,
+    timedOut: result.error !== undefined,
+  };
+}
 
 await describe({
   name: filterOutput.name,
@@ -193,6 +270,92 @@ await describe({
         expect(filterOutput(separator,),)
           .toBe(`${'='.repeat(MAX_REPEATED_CHARS,)} (x${String(MAX_LINE_LENGTH,)} repeated characters)`,);
       },
+    },),
+
+    describe({
+      name: readStdin.name,
+      children: [
+        it({
+          name: 'keeps the bytes that arrived when the stream fails part-way',
+          fn: async () => {
+            const { Readable, } = await import('node:stream');
+            /**
+             Stream that delivers one line and then fails.
+             */
+            const stream = new Readable({ read() {} });
+            stream.push(PARTIAL_TOOL_OUTPUT,);
+            /**
+             Read over that stream, which must report both the text and the failure.
+             */
+            const read = readStdin(stream,);
+            setImmediate(function fail() {
+              stream.destroy(new Error('simulated stdin failure',),);
+            });
+            const stdin = await read;
+            expect(stdin.text,)
+              .toBe(PARTIAL_TOOL_OUTPUT,);
+            expect(stdin.failure?.message,)
+              .toBe('simulated stdin failure',);
+          },
+        },),
+        it({
+          name: 'reports no failure when the stream ends normally',
+          fn: async () => {
+            const { Readable, } = await import('node:stream');
+            /**
+             Read of a stream carrying one complete payload.
+             */
+            const stdin = await readStdin(Readable.from([PARTIAL_TOOL_OUTPUT,],),);
+            expect(stdin.text,)
+              .toBe(PARTIAL_TOOL_OUTPUT,);
+            expect(stdin.failure,)
+              .toBeUndefined();
+          },
+        },),
+        it({
+          name: 'decodes a multi-byte character split across two chunks',
+          fn: async () => {
+            const { Readable, } = await import('node:stream');
+            /**
+             UTF-8 bytes of one character, split mid-sequence across two chunks.
+             */
+            const encoded = Buffer.from('✳', 'utf8',);
+            /**
+             Read of a stream whose chunks each carry half the character.
+             */
+            const stdin = await readStdin(Readable.from([
+              encoded.subarray(
+                0,
+                1,
+              ),
+              encoded.subarray(1,),
+            ],),);
+            expect(stdin.text,)
+              .toBe('✳',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'runFilter when the stdin read fails',
+      children: [
+        it({
+          name: 'forwards the partial tool output and reports the failure on stderr',
+          fn: async () => {
+            /**
+             Filter run over the failing stream.
+             */
+            const run = runFilterOverFailingStdin();
+            expect(run.timedOut,)
+              .toBe(false,);
+            expect(run.stdout,)
+              .toBe(PARTIAL_TOOL_OUTPUT,);
+            expect(run.stderr,)
+              .toContain('simulated stdin failure',);
+          },
+        },),
+      ],
     },),
   ],
 },);
