@@ -8542,16 +8542,24 @@ so a narrower workload list above the publish set cannot hide it.
 The `packages` mapping under `registries` grants a permission pattern to a scope and lists no
 publishable name,
 and is never read as one.
-The executable links no YAML parser,
-so `dependent_version_yaml` and `dependent_version_yaml_lines` read the mapping,
-sequence and scalar forms the generator writes and refuse the rest by line,
-instead of taking a dependency the lockfile does not carry.
-A space or a tab separates a key from its value and starts a comment,
-so `- app` with a tab and `# published` after it lists the package `app`,
-and an interior tab stays part of a plain scalar as it does to a YAML parser.
-A line this reader would have to guess at is refused with its line,
-never kept as text:
-a tag,
+The executable links no YAML parser.
+`package/config/pnpr/src/generated-config-render.ts` writes the file,
+so that template is the reader's whole specification:
+`dependent_version_yaml` and `dependent_version_yaml_lines` accept exactly the
+line forms it writes and refuse every other line by name and number,
+never keeping text they would have to guess at.
+The accepted forms are a blank line,
+a comment line beginning `#`,
+`key: value`,
+`key:` with its block below,
+and a sequence item whose dash is followed by exactly one space.
+Indentation counts spaces,
+never a tab,
+and reaches twelve spaces at most,
+the depth of the template's `claims` children and `packages` items.
+A line beginning `---` that is not exactly `---` is refused,
+because a document marker belongs alone on its line and this reader reads one document.
+A tag,
 anchor,
 alias,
 block scalar,
@@ -8564,7 +8572,21 @@ the `-`,
 an empty key,
 a colon a space or tab follows inside a value,
 text a closing quote does not separate,
-and an interior carriage return.
+and an interior carriage return are refused too.
+A space or a tab separates a key from its value and starts a comment,
+so `- app` with a tab and `# published` after it lists the package `app`,
+and an interior tab stays part of a plain scalar as it does to a YAML parser.
+Because no line sits deeper than twelve spaces,
+the block recursion is bounded by that indentation and the reader runs on constant stack;
+a configuration nested deeper is refused at its first over-deep line
+instead of exhausting the stack.
+Every line is read once,
+and a repeated key is refused in constant time,
+so a configuration of any length is one pass.
+A general YAML parser is not a dependency of this executable:
+it would accept every YAML document while the publish-set traversal would still
+have to map a shape set wider than the generator writes,
+which is the silent miss this reader refuses instead.
 
 A publish set that cannot be read is a `policy-incomplete` engine failure,
 which stops `check` and `fix` with exit `2`:

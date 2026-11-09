@@ -105,6 +105,25 @@ impl YamlProblem {
 pub const GENERATED_ITEM_GAP: usize = 1;
 
 /// What:
+/// The deepest indentation the generated configuration writes.
+/// Why:
+///  The template nests six blocks,
+/// and its deepest keys,
+/// the `claims` children and the
+///       `packages` items,
+/// sit twelve spaces in.
+/// No line may be deeper,
+/// which bounds the block
+///       recursion of the document reader,
+/// so no input can grow the stack.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GENERATED_MAX_INDENT = 12;
+/// ```
+pub const GENERATED_MAX_INDENT: usize = 12;
+
+/// What:
 /// The spaces a sequence dash is followed by,
 /// when it is followed by any.
 /// Why:
@@ -145,7 +164,12 @@ fn dash_gap(content: &str) -> Option<usize> {
 ///       guessing at a form it does not understand:
 /// a document marker inside a
 ///       line,
-/// and a sequence dash followed by anything but exactly one space.
+/// a deeper indentation than the template's deepest key,
+/// and a sequence dash
+///       followed by anything but exactly one space.
+/// Bounding the indentation also bounds the block
+///       recursion of `dependent_version_yaml`,
+/// so no input can grow the stack.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,6 +196,15 @@ pub fn read_lines(text: &str) -> Result<Vec<YamlLine<'_>>, YamlProblem> {
             return Err(YamlProblem::new(
                 number,
                 "holds a carriage return, which starts a new line",
+            ));
+        }
+        if indent > GENERATED_MAX_INDENT {
+            return Err(YamlProblem::new(
+                number,
+                &format!(
+                    "is indented deeper than the generated configuration's deepest key, \
+                     which sits {GENERATED_MAX_INDENT} spaces in"
+                ),
             ));
         }
         if content.starts_with("---") && content != "---" {

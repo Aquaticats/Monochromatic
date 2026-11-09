@@ -15,7 +15,7 @@
 /// The block reader and its node kind under test.
 use super::{YamlNode, parse_yaml_document};
 /// The problem type and the line reader the blocks build on.
-use crate::dependent_version_yaml_lines::YamlProblem;
+use crate::dependent_version_yaml_lines::{GENERATED_MAX_INDENT, YamlProblem};
 
 /// A tree of mappings and sequences,
 /// written the way the reader builds one.
@@ -251,6 +251,30 @@ fn refuses_a_tagged_key_by_line() {
         YamlProblem::new(
             2,
             "begins with '!', which opens a key this reader does not read"
+        )
+    );
+}
+
+/// A chain of blocks deeper than the generated configuration is refused at the
+/// first line past its deepest key,
+/// and that bound is what keeps the reader's block
+///       recursion constant:
+/// no document can nest further,
+/// so no document can grow the stack.
+#[test]
+fn refuses_indentation_deeper_than_the_generated_configuration() {
+    let mut text: String = String::new();
+    for level in 0..=GENERATED_MAX_INDENT + 1 {
+        text.push_str(&" ".repeat(level));
+        text.push_str("a:\n");
+    }
+    assert_eq!(
+        problem(&text),
+        YamlProblem::new(
+            GENERATED_MAX_INDENT + 2,
+            &format!(
+                "is indented deeper than the generated configuration's deepest key, which sits {GENERATED_MAX_INDENT} spaces in"
+            )
         )
     );
 }
