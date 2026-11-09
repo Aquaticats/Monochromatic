@@ -449,7 +449,7 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
         identity: main_identity(main.as_path(), main.join(".git").as_path()),
         creates: true,
         destination: Some(topic.clone()),
-        add_plan: None,
+        add_plan: Some(crate::worktree_add_plan::AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
         remove_plan: None,
     };
     let made: ForwardedRun = run_forwarded_git(
@@ -459,6 +459,9 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
         Some(&facts),
     );
     assert_eq!(made, ForwardedRun::Ran(0), "the add ran");
+    // The positive control on the rung: the record of the add's steps names the leave-out, which only a snapshot runs.
+    let timing: String = std::fs::read_to_string(main.join(".git").join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's timing record");
+    assert!(timing.contains("\"prune\""), "the snapshot rung served this add, so a trash was made: {timing}");
     assert!(topic.join("node_modules/pkg/index.js").is_file(), "the ignored state a new worktree needs is carried");
     assert!(!topic.join(container.as_str()).exists(), "the other command's stage container is not in the new worktree");
     assert!(std::fs::symlink_metadata(topic.join(crate::worktree_trash::TRASH_PARENT)).is_err(), "no trash is left in the new worktree");
