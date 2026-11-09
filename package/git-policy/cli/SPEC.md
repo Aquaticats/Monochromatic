@@ -1476,6 +1476,9 @@ extended attributes (user attributes and POSIX ACLs) for every entry,
 and none may be on another device (a nested
 subvolume or a mount point,
 which is not deleted).
+The old tree's own top directory is compared like any entry,
+and so is a named pipe or a socket,
+whose kind decides only that nothing else about it is compared.
 The last four are compared because a change of one of them leaves the size and the
 modification time alone,
 so nothing else in this comparison can see it,

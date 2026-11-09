@@ -20,6 +20,11 @@
 //! the owner,
 //! the group and the carried extended attributes are
 //!  compared,
+//!
+//!  The old tree's own top directory is compared like any entry,
+//! and so is a named pipe or a socket,
+//! whose kind decides
+//!  only that nothing else is compared;
 //! and a regular file whose size and modification time agree is compared by
 //!  contents when its change time is at or after the proving pass,
 //! because an edit can keep the length and put
@@ -183,7 +188,15 @@ pub fn first_difference(old: &Path, installed: &Path) -> std::io::Result<Option<
 /// ```
 pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i64>) -> std::io::Result<Option<String>> {
     // The root may be named through a descriptor's own path, a link that is followed to the directory it holds.
-    let device: u64 = std::fs::metadata(old)?.dev();
+    let before_root: std::fs::Metadata = std::fs::metadata(old)?;
+    let after_root: std::fs::Metadata = std::fs::metadata(installed)?;
+    if before_root.file_type() != after_root.file_type() {
+        return Ok(Some(String::from("the old tree itself is not the same kind of entry as the installed worktree")));
+    }
+    if let Some(why) = attribute_difference(&before_root, &after_root, old, installed) {
+        return Ok(Some(format!("the old tree itself differs from the installed worktree ({why})")));
+    }
+    let device: u64 = before_root.dev();
     let mut pending: Vec<PathBuf> = vec![PathBuf::new()];
     while let Some(relative) = pending.pop() {
         for item in std::fs::read_dir(old.join(&relative))? {
@@ -201,24 +214,20 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
             if before.file_type() != after.file_type() {
                 return Ok(Some(format!("{} is not the same kind of entry in the installed worktree", inside.display())));
             }
+            // Every kind of entry is compared by its attributes, a named pipe and a socket included; the kind decides only
+            // what else is compared.
+            if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
+                return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
+            }
             if before.file_type().is_dir() {
-                if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
-                    return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
-                }
                 pending.push(inside);
             } else if before.file_type().is_symlink() {
                 if std::fs::read_link(old.join(&inside))? != std::fs::read_link(installed.join(&inside))? {
                     return Ok(Some(format!("the link {} points elsewhere in the installed worktree", inside.display())));
                 }
-                if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
-                    return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
-                }
             } else if before.file_type().is_file() {
                 if before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec() {
                     return Ok(Some(format!("{} differs from the installed worktree (size or modification time)", inside.display())));
-                }
-                if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
-                    return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
                 }
                 if changed_since(&before, synced_ms) && contents_differ(&old.join(&inside), &installed.join(&inside))? {
                     return Ok(Some(format!("{} differs from the installed worktree (contents)", inside.display())));
