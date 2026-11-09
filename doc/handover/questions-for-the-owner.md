@@ -26,6 +26,112 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### May the ignored-state rule say what a copy does with a file that never settles?, asked 2026-11-09T16:22:51-05:00
+
+`doc/decision/cli-git-policies-platform.md`,
+section "Linked-worktree ignored state",
+requires exact final source-to-stage equivalence.
+The branch that fixes the live `git worktree add` failures keeps that for every entry the stage holds,
+and treats two cases differently:
+a file that keeps changing while the copy runs stays in its source and is named to the person,
+and a file the source removed during the copy is left out.
+Without that,
+a busy checkout fails the whole add,
+which is the live failure "ignored source entry changed while copying".
+This session may not edit `doc/decision/` without you.
+
+- A.
+  Add to the rule that equivalence holds for every entry the stage holds,
+  and that an entry which never settled during the copy stays in its source and is named.
+  Pro:
+  the record matches what ships and an add on a busy checkout succeeds.
+  Con:
+  the added worktree can lack a file that was changing at that moment.
+- B.
+  Keep the rule as it is and have the add fail when any ignored file keeps changing.
+  Pro:
+  a finished add always holds everything.
+  Con:
+  on this repository,
+  where builds rewrite ignored files all the time,
+  adds keep failing.
+
+Ranking:
+A > B,
+because B brings back a failure seen live in this session,
+and A loses nothing since the file stays in its source and the person is told its name.
+
+### Who should own task definitions, `mise.toml` or `task.ts`? (issues 5500 and 2103), asked 2026-11-09T16:22:51-05:00
+
+Issue 5500 says `mise.toml` should have been deleted where a `task.ts` exists.
+An agent measured 169 folders holding both,
+and the task names agree in all but one:
+`package/fs-path/core` declares `watch:lint:types` in `task.ts` only.
+It compared names,
+not task bodies.
+`doc/decision/mise-free-ci.md` keeps `mise.toml` as the local system and makes each `task.ts` a mirror of it,
+and `doc/planning/task-slice-pants-migration.md` calls that mirror "a stopgap,
+not an owner to extend",
+so deleting either side breaks an accepted rule or a live surface.
+
+- A.
+  Keep both and add a check that fails when the names differ.
+  Pro:
+  it closes the one risk measured,
+  drift,
+  and contradicts no decision.
+  Con:
+  two files stay to keep in step.
+- B.
+  Leave it until the Pants migration decides.
+  Pro:
+  no work now.
+  Con:
+  nothing catches drift meanwhile.
+- C.
+  `mise.toml` stays the source and `task.ts` is generated from it.
+  Pro:
+  one owner.
+  Con:
+  it builds a generator for something the plan calls a stopgap.
+- D.
+  `task.ts` becomes the source and local `mise run //package/...` retires.
+  Pro:
+  one owner with no `mise.toml`.
+  Con:
+  it contradicts `AGENTS.md` rules `CM3` and `CM5`.
+
+Ranking:
+A > B > C > D,
+because A closes the measured risk that B leaves open,
+B costs nothing where C builds for something planned away,
+and C keeps the rules that D breaks.
+Please also say whether `package/fs-path/core` should gain the missing name meanwhile,
+and whether issue 5500 should fold into 2103.
+
+### What should happen to catalog entries only paused packages use? (issue 1667), asked 2026-11-09T16:22:51-05:00
+
+The `pnpm-workspace.yaml` catalog has 22 entries that only manifests under `package-paused/` or `package-deprecated/` reference.
+The entries nothing references are already gone (`6f8dcd1102`).
+
+- A.
+  Keep each,
+  with a one-line comment naming the paused consumer.
+  Pro:
+  unpausing a package needs no version hunt.
+  Con:
+  the catalog keeps entries with no live consumer.
+- B.
+  Drop them and add each back when its package is unpaused.
+  Pro:
+  the catalog lists only what is live.
+  Con:
+  each unpause has to choose versions again.
+
+Ranking:
+A > B,
+because a comment costs one line per entry and B throws away the versions paused packages were last tested with.
+
 ### OpenAI stopped one audit with a cybersecurity flag: how should it continue?, asked 2026-11-09T06:03:57-05:00
 
 The `gpt-6.1-sol` audit of how the wrapper reads command lines ended after about 14 minutes with this error from the provider:
@@ -416,31 +522,6 @@ for notes of that one kind only,
 because the original words stay and the records stop pointing nowhere.
 The alternative is to leave those issues open,
 and each stays a dead reference.
-
-### Which build profile should the uncovered crates follow? (issue 1641)
-
-22 tracked `Cargo.toml` files declare a build profile,
-and the rules that keep those profiles the same name 11 folders.
-The other crates are uncovered,
-and several say "Enforced by file-enforcer" in their own comments,
-which is not true of them.
-They are `cargo-shadow/cli`,
-`codex-plugin/bash-limit`,
-`git-policy/cli`,
-`git-policy/cli.fuzz`,
-`ide/app`,
-`jsonc-edit/core-rust.fuzz`,
-`linter/monochromatic-lint.fuzz`,
-`mpm-shadow/cli`,
-`pnpm-shadow/cli`,
-`search-shadow/cli`,
-`wg/cli-quicker-exempt` and `xml-edit/core-rust.fuzz`.
-
-Recommended:
-add one rule for the shape the shadow crates share (`panic = "abort"`) and cover the rest with the existing rules,
-so the comments become true.
-The alternative is to delete the claims and leave these crates free to drift,
-which is less work and protects nothing.
 
 ### Should upstream forks keep their own MIT text? (issue 1645)
 
@@ -1432,6 +1513,24 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T16:22:51-05:00,
+  the merge's second pass becomes awaitable as one body:
+  `GitRunner::run` hands back a boxed future,
+  and the forwarded `git merge` path keeps one synchronous face that enters the runtime once.
+  The owner's "Full on tokio.
+  Multi-thread."
+  settles that it goes awaited,
+  and the alternative is two bodies that must not diverge,
+  in the code a person's conflict resolution depends on.
+  Both ways are recorded in `doc/planning/git-policy-cli-full-tokio.md`.
+  Say "undo" to have awaited twins instead.
+- 2026-11-09T16:22:51-05:00,
+  all 22 crates that declare a build profile are now covered by `file-enforcer` presets,
+  with a new rule for the shape the shadow crates share (`cargo-profile-shadow`),
+  so the "Enforced by file-enforcer" comments are true (issue 1641,
+  landed as `f4c972b66f`).
+  This was the option this file recommended.
+  Say "undo" to delete those claims and leave the crates free to drift.
 - 2026-11-09T05:12:19-05:00,
   `monochromatic-git-policy-cli fix` refuses a worktree whose Git directory is on another file system,
   before it writes anything,
