@@ -85,7 +85,13 @@ a reply for another object,
 content shorter or longer than declared,
 a stream that ends early,
 an overlong header,
-or a header Git never prints).
+a header Git never prints,
+or a reply above the subject's `CONTENT_CEILING`,
+alone,
+followed by further bytes,
+cut short,
+without its terminator,
+or for another object).
 Reply content is file content,
 so it may imitate a reply.
 It checks that reading is repeatable,
@@ -93,7 +99,11 @@ that an accepted reply is byte for byte Git's canonical rendering of the returne
 that a reply to a request by name names that object,
 that bytes after the reply change nothing,
 that no sampled proper prefix of an accepted reply is accepted,
+that a skipped reply holds exactly its header and the bytes it declares,
+that only a reply above the ceiling is skipped,
 and that a refusal is one of the four reply failures.
+The generator shortens the ceiling instead of staging it,
+because the reader takes the ceiling as an argument.
 The target reads in-memory bytes only;
 the process that produces real replies is controlled beside the subject.
 
@@ -370,10 +380,14 @@ so both lock the same registry versions.
 `mise run //package/git-policy/cli.fuzz:smoke` builds AddressSanitizer targets with the read-only nightly compiler,
 runs the controls and Clippy in the same bounded container,
 then fuzzes each target for 30 seconds without host mounts
-under 2 GiB,
+under the shared container bounds
+(`defaultContainerLimits`,
+re-exported by `package/git-policy/cli/bin/container-limits.ts`:
+2 GiB,
 2 CPUs,
-512 PIDs,
-and a 4,096-byte input limit.
+512 PIDs),
+and a 4,096-byte input limit
+(`maxInputBytes` in `bin/fuzz-images.ts`).
 A target must exit 0 and report at least one executed unit.
 A longer campaign passes the time per target after the task name,
 for example `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=1800`;

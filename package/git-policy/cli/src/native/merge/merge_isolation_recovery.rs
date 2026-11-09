@@ -225,7 +225,7 @@ fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<OwnerLiveness, 
             )));
         }
         // Owner, 2026-11-04, "Refuse and name it (Recommended)": the command stops, and nothing has been changed.
-        Err(OwnerLivenessError::ExpiredForeign(text)) => return Err(RecoveryError(text)),
+        Err(OwnerLivenessError::ForeignRecordRefused(text)) => return Err(RecoveryError(text)),
         Err(OwnerLivenessError::Identity(error)) => {
             return Err(RecoveryError(format!(
                 "reading the identity of the owner {} of the merge record {} failed: {error}",

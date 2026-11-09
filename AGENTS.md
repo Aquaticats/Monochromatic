@@ -217,7 +217,7 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- Reviews and audits,
+ GPT reviews and audits,
  `timeout` sized in seconds:
  `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
 
@@ -230,6 +230,12 @@ XVS:
  Keep GPT runs small,
  one narrow question each:
  GPT models cannot be trusted on long-horizon work.
+
+LHZ:
+ Long-horizon reviews and audits,
+ in every harness:
+ use Claude Sonnet,
+ by whatever route that harness offers.
 
 PFW:
  Alongside advisor,
@@ -701,13 +707,12 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Every command an agent does not consider trivial,
+ Every non-trivial command,
  in every agent:
- run it in its own cgroup with CPU,
+ run it as a harness-managed background process,
+ in its own cgroup with CPU,
  memory,
- process-count and disk-weight limits,
- each sized to that command,
- and state the bounds.
+ process-count and disk-weight limits sized to it.
 
 RXS:
  Per-command cgroups:

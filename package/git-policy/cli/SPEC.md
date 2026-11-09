@@ -317,12 +317,37 @@ and the value is checked and ignored.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's wait for a foreign `index.lock` replaced it:
   a holder proven alive and an owner nothing proves alive are both
-  waited for until the lock ceiling ("Every wait has a bound"),
+  waited for until the lock ceiling ("Every wait has a bound",
+  and a descriptor whose record names the lock and which the scan could not identify keeps a PID file's absent number from
+  declaring the owner dead:
+  that holder may be alive,
+  so the wait is the one a live holder gets).
   except an empty lock with no marker,
   no PID file and no holder a complete scan finds,
   which the service removes (owner,
   2026-11-07,
-  "Service removes it"),
+  "Service removes it").
+  The window of item 3 is open here too:
+  a holder that puts another file on the descriptor between the gate and the read is read as not holding the lock,
+  so the removal may take a lock that is in fact held,
+  and the journal line says what it acted on.
+  The proof counts the service's own descriptors through the gated read of item 3 above
+  (`src/native/process/open_file_of_a_descriptor.rs`),
+  so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
+  one that names a file a repository could hold makes the count unknown and the lock stays,
+  and one that is no file of a repository (a pipe,
+  a socket,
+  a memory or device file,
+  a file under `/proc` or `/sys`) is skipped.
+  A descriptor that ended while it was being counted names nothing.
+  A descriptor of this process on a file no repository could hold is skipped,
+  and a memory file is one of them:
+  the kernel writes its link as `/memfd:<name> (deleted)`,
+  with the leading slash its other pseudo names do not have,
+  so that slash is dropped before those names are matched,
+  and an open capture no longer keeps an abandoned lock
+  (cross-vendor review of 2026-11-09,
+  finding 4).
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -969,6 +994,23 @@ untracked file.
 Callers and the sentence for the person decide by the kind,
 never by the words of the reason.
 
+The two halves of that check are waits of the process's runtime:
+the listing of untracked files is a Git run awaited there,
+and the proof of the index and of every tracked file is a job of the blocking
+pool beside it,
+so a filesystem that stops answering the proof holds no bounded Git wait open.
+Where the system refuses to start a pool thread (`ulimit -u`,
+the control group's `pids.max`),
+`run_a_job_or_in_turn` runs the proof on the awaiting task itself,
+under a place of the process's bound,
+because a thread is only a way to do the work sooner;
+the person then sees the add wait until that filesystem answers,
+with no ceiling firing,
+and raising the limit and running the command again is the remedy.
+Where no runtime can be built at all,
+the listing and the proof run one after another on the calling thread and every verdict
+is the one the runtime gives.
+
 Snapshot of a main checkout with uncommitted changes:
 a main checkout whose only trouble is an ordinary change (a staged change,
 an edited,
@@ -1261,8 +1303,9 @@ where a target commit that stops
 so `git add --all` would stage another command's stage container and its
  credentials.
 The emptying runs beside the package repair (`finish_trash_and_repair`,
-on a thread when the repair
- has work to do),
+as a wait of one task of the process's runtime when the repair
+ has work to do,
+and here on the command's own thread when it has none),
 one plain line on standard error first names the worktree and says that the directories left out
  are being emptied now,
 and the person waits for the slower of the two.
@@ -2631,7 +2674,8 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 workers of the process's
+blocking pool,
 bounded by the CPUs the process may use,
 over contiguous slices after every directory exists;
 the first failure stops the others.
@@ -2767,7 +2811,9 @@ An owner is alive when a process with its id and its birth identity exists;
 one in a PID namespace the reader cannot see is
 alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`,
 20 minutes),
-and past it the command that finds the item stops with an
+and past it,
+or as soon as the item's own time cannot be measured against this host's clock,
+the command that finds the item stops with an
 error that names the item and changes nothing (the owner's "Refuse and name it (Recommended)",
 "Foreign-owner expiry" below);
 one the platform cannot report on is not proven dead,
@@ -4608,6 +4654,9 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   not
   reclaimed:
   see "Foreign-owner expiry".
+  A record whose own time cannot be measured against this host's clock is refused at once,
+  whatever its age,
+  and never counted as a live owner's.
 
 What happens at the bound,
 on the commit path:
@@ -4817,7 +4866,11 @@ on the commit path:
   nothing in the wrapper ends it.
 - A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`,
   naming the holder while it waits.
-  A lock a process that no longer runs left (an empty lock beside a Git lock PID file naming a process that is gone)
+  A lock whose Git lock PID file holds a number this process table does not have
+  (an empty lock beside it,
+  which is what a killed Git leaves and also what a live Git of another PID namespace leaves,
+  cross-vendor review of 2026-11-09,
+  finding 2)
   is removed on the commit service's proof of disuse (`service_index_unheld_removal.rs`,
   `remove_if_the_owner_is_gone`:
   the file is opened and judged through that descriptor,
@@ -5010,12 +5063,17 @@ now inside these bounds:
 
 - A holder proven alive and an owner nothing proves alive are waited for the same way until the ceiling,
   with a line that names
-  what is known (the person's own `git commit` with its editor open holds the lock with no proof);
-  a dead owner (a PID file naming
-  a process that is gone) ends the wait at once with a diagnostic naming it,
-  and a merge then removes that lock on the same proof of disuse the service acts on
-  (`remove_if_the_owner_is_gone`) and lands;
-  a command that does not remove it says so in the same line.
+  what is known (the person's own `git commit` with its editor open holds the lock with no proof).
+  A PID file holding a number this process table does not have is waited for the same way by a commit,
+  and its line says which number it read and that a Git of another PID namespace writes one this table has
+  never had:
+  the number proves no death, so no commit ends early on it
+  (cross-vendor review of 2026-11-09,
+  finding 2).
+  A merge is the command that acts on that evidence:
+  it removes such a lock on its own proof of disuse (`remove_if_the_owner_is_gone`) and lands,
+  and a lock that proof does not cover is saved for a later finish instead,
+  with the line saying which number was read and what a person can do.
 - An empty `index.lock` with no service marker and no Git lock PID file,
   that no process of a complete scan (Linux,
   every readable process,
@@ -5024,11 +5082,20 @@ now inside these bounds:
   2026-11-07,
   "Service removes it").
   The file is opened first and judged through that descriptor,
+  it is judged empty again after the scan and immediately before the unlink
+  (a Git that writes its index into the lock and closes its descriptor during the scan is the editor-phase
+  holder the module measured,
+  cross-vendor review of 2026-11-09,
+  finding 1),
   the name is looked at again before the unlink,
   and a lock replaced meanwhile is never removed.
   The journal keeps the lock's device,
   inode and size and the number of unreadable processes,
   and the waiting notices tell the person.
+  A descriptor is matched to the lock by the device number and the inode the lock has,
+  so a holder that reached it through a bind mount is seen,
+  and a file of another btrfs subvolume that shares the inode number is not a holder (audit of 2026-11-09,
+  finding 4).
   A lock with content is not removed:
   a native `git commit --all`,
   `--only` or with paths keeps `index.lock` with the index written into it,
@@ -5110,13 +5177,46 @@ and the legacy transaction owner records
 (`transaction_owner.rs`).
 A commit is outside it:
 commits never wait for these records and never fail on them.
+The age is the modification time of the record's file read against this reader's clock,
+so it means something only while the two agree.
+An age that cannot be measured,
+which is a record whose own time is later than this reader's clock (a clock that was set back here,
+a record copied with its time,
+another machine's clock) and one whose time cannot be read at all,
+is refused the same way:
+the answer says the time cannot be trusted,
+names the file,
+the owner and its namespace,
+and gives the `rm`,
+and the record is never taken for a live owner's.
+Taking it for one is what keeps a dead owner's record in the way for as long as its time stays ahead of the clock,
+with no age and no `rm` (audit of 2026-11-09,
+finding 2).
+A record that is not there any more is finished and not unreadable:
+its owner did the work and removed it,
+so nothing holds,
+nothing is refused,
+and no command stops over a file that no longer exists with an `rm` for it
+(cross-vendor review of 2026-11-09,
+finding 3).
+A measured age is this host's reading of the record,
+so a clock that was set forward here,
+or one that is behind where the record was written,
+makes it read older than the hold;
+that is why the message says so and why what follows from it is a person's decision and not the wrapper's.
 Tests,
 each red first:
 `an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes`,
 `a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes`,
 `an_owner_of_another_namespace_with_an_old_item_is_refused_and_named`,
+`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`,
+`a_foreign_record_whose_time_is_later_than_the_clock_is_refused_and_named`,
+`a_foreign_record_whose_time_cannot_be_read_is_refused_and_a_gone_one_is_finished`,
+`a_record_with_no_measurable_time_says_which_case_it_is_and_a_gone_record_is_gone`,
+`a_foreign_record_that_is_gone_is_finished_and_not_refused`,
+`an_owner_of_another_namespace_whose_record_is_gone_is_dead_and_not_refused`,
 and
-`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`.
+`a_claim_of_another_namespace_whose_time_is_ahead_is_refused_and_named_and_nothing_changes`.
 
 #### Output of a step, the review runner, and releases that meet
 
@@ -5841,23 +5941,31 @@ in-process reader can) gives every value of the multi-valued keys.
   the birth time of the lock nor its being empty ties the lock to that child,
   and a pid
   file older than the lock names an earlier holder.
-  A lock whose pid file names a process of the stopped tree that has ended is removed on the wrapper's own proof:
-  the wrapper
-  started that process,
-  stopped it and saw it end,
-  so the number is one of its own PID namespace and names a process that is
-  gone,
-  and this needs no view of the whole machine,
-  which a container lacks (the container gate found the sweep leaving the
-  lock of the wrapper's own stopped child when it required one).
-  The proof holds only when the pid file was born at or after the lock (an older pid file names an earlier holder,
-  and must
-  not vouch for a newer foreign lock),
-  the lock was born after the child started,
-  and nothing in the process table has the
-  number again;
-  it needs no margin,
-  because the holder is known to be gone.
+  A lock whose pid file names a process of the stopped tree that has ended is **not** removed on that number:
+  the number is one the wrapper's own PID namespace gave that process,
+  and Git records no namespace,
+  so a Git in a sibling namespace that shares the repository may have the same number,
+  and the lock may be that Git's
+  (cross-vendor review of 2026-11-09,
+  finding 2).
+  A matching number,
+  a lock born during the child's life and an empty file fit both writers.
+  The sweep that follows a stop adds no proof of its own,
+  not even for a lock it saw a member of the stopped tree hold:
+  what the wrapper sees of its own child is the child's process tree,
+  and none of it says whose file a lock at a given path is
+  (cross-vendor review of 2026-11-09,
+  finding 1).
+  A claim read before the stop from the pid file beside the lock rests on the same number as the rule above,
+  and a Git of a sibling namespace that shares the repository makes a lock at the same path look the same,
+  so no claim is made and nothing is removed on one.
+  A lock of a stopped child therefore stays,
+  with the command that clears it,
+  and so does one whose pid file went first (Git removes a lock's pid file and then the lock,
+  so a kill between the two leaves a lock nothing names).
+  The cost is measured below:
+  one incident in the journal this entry was written from,
+  in which two stopped pushes left their tracking-ref locks and every later push of that ref was refused.
   A lock whose pid file names any other process is judged by the proofs below,
   once it is older than the margin;
   a younger
@@ -6149,7 +6257,8 @@ never as proof.
 
 Candidates are reference locks of the Git directory and the common Git directory:
 `packed-refs.lock`,
-`HEAD.lock` and every
+`HEAD.lock`,
+`reftable/tables.list.lock` and every
 `*.lock` under `refs/`.
 `index.lock`,
 `config.lock`,
@@ -6181,7 +6290,72 @@ and the first answer wins:
    `bcachefs`) is unproven,
    because a Git on another machine is
    invisible here.
-3. A process of the account that has the candidate open (same device and inode in `/proc/<pid>/fd`) makes it **held**.
+3. A process of the account that has the candidate open makes it **held**.
+   A descriptor is matched to the file by the device number and the inode the file has,
+   which is the pair that names one file on a machine,
+   and the record's inode number is only the cheap test that comes first,
+   before the file the descriptor has open is read.
+   That read walks the path `/proc/<pid>/fd/<n>`,
+   whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
+   so it is taken only where it cannot reach a server:
+   the `mnt_id` line of the descriptor's record is looked up in that process's own mount table,
+   and the file is read only when the mount is on the fixed list of local file systems above (without `overlay`,
+   whose attributes are the file's below it).
+   A `statx(2)` with `AT_STATX_DONT_SYNC` then answers from the memory of the kernel:
+   a file system whose server has stopped answers neither that walk nor its own flush,
+   and `SIGTERM` does not end either wait
+   (cross-vendor reviews of 2026-11-09,
+   findings 3 and 4 of the first and 2 and 4 of the second;
+   measured on this host with a stopped `fuse-overlayfs` server,
+   `doc/troubleshooting/fuse-descriptor-attributes.md`).
+   A copy of the descriptor answers a stalled server from its cached inode,
+   but closing the copy runs that file system's flush,
+   which a stopped server holds as it holds a lookup,
+   and the copy is refused outright for a process this one may not attach to (`kernel.yama.ptrace_scope=1`),
+   which would read as no holder at all.
+   A descriptor whose record names the lock and which the scan then cannot identify
+   (a mount it will not read,
+   or a mount its process's table does not name)
+   is a process that **may hold** the file:
+   the candidate is unproven and nothing is removed,
+   and the same holds for the lock removal of the index
+   (`remove_if_unheld` keeps the lock when the scan reported one of these).
+   A descriptor whose *record* cannot be read at all is the older case,
+   a process the scan could not look at,
+   which is tolerated as it always was.
+   The gate and the read are two looks at the same number,
+   and a program that puts a different file on that number between them is not making the read wait on a lock file:
+   measured on this host on 2026-11-09 with the delay in the window,
+   the record named the first file's inode and the read that followed answered with the second file's device and inode.
+   Two things follow,
+   and neither is a wait the scan can bound:
+   the read identifies the file that is there now,
+   so a holder whose descriptor was replaced is missed and a lock it holds can read as not held;
+   or the file that is there now sits on a file system this gate would have refused,
+   and the read asks that file system for attributes that `AT_STATX_DONT_SYNC` does not make it answer from memory,
+   so the read can wait there.
+   Closing that window means naming the file and reading it in one step,
+   which this kernel offers only through the descriptor copy above,
+   whose refusals and whose close are the two reasons it is not used;
+   the coordinator's decision of 2026-11-09 is to keep this gate and document the window,
+   because closing it needs a second process to act inside an instruction-sized gap:
+   the holder of the descriptor calls `dup2` (or offers the new file through a `SCM_RIGHTS` message and `recvmsg`) on
+   that very number,
+   which is a few instructions of the holder's own code (`src/native/process/open_file_of_a_descriptor.rs`,
+   the gate and the read of one descriptor),
+   while this scan runs between its record read and its `statx(2)`.
+   Nobody in this repository has done that,
+   and no program the wrapper starts does it,
+   so the window is a defect of this gate and not a case the wrapper meets.
+   A lock that reads as not held for that reason is the case the words of every notice name:
+   nothing here proves the holder gone,
+   and the person is given the command that clears the file.
+   The mount number the kernel writes for a descriptor is not an identity (audit of 2026-11-09,
+   finding 4):
+   a bind mount gives the same file another mount number,
+   so a holder that reached the lock that way was not found at all,
+   and two files of two btrfs subvolumes reached through one mount share the mount number and the inode number,
+   so a process holding one of them made the other **held**.
    A process list that cannot be read,
    or a Git process of the account whose descriptors cannot be read,
    makes it unproven.
@@ -6191,48 +6365,32 @@ and the first answer wins:
    so refusing on them would make every proof unreachable,
    and a
    program that is not Git does not create Git locks.
-4. A pid file born at or after the lock (Git creates it after the lock,
-   so this is the order of a pid file the holder wrote),
-   naming a process,
-   decides:
-   - a process that is gone,
-     or a zombie,
-     proves the lock stale;
-   - a process that runs,
-     whose command name does not start with `git` **and** that started after the lock was made (its start
-     time from `/proc/<pid>/stat` and `/proc/uptime`,
-     by more than the clock's resolution),
-     proves the number was reused after
-     the holder ended,
-     and the lock stale;
-   - any other running process is taken for the holder,
-     and the lock is **held**:
-     a Git,
-     or a program under another name that
-     started before the lock (a copied Git binary,
-     a launcher),
-     so the two signs must agree to delete.
-   A pid file holds the number its writer had in the writer's own PID namespace,
-     and Git records no namespace.
-   This proof therefore holds only when both of these are true:
-   - The wrapper runs in the initial PID namespace (the link `/proc/self/ns/pid` names `pid:[4026531836]`) and `/proc` has
-     no `hidepid` option,
-     so that the table lists every process of the machine.
-     Anywhere else (a container,
-     a hidden table) the number may belong to a namespace this process cannot see,
-     and the lock
-     is unproven.
-   - No process of the table has the pid file's number as its number inside a PID namespace nested in the wrapper's.
-     The kernel lists every number of a process,
-     outermost first,
-     on the `NSpid` line of `/proc/<pid>/status`
-     (`proc_pid_status(5)`);
-     a process that has the number in any later column may be the writer.
-     A gone or reused number is then unproven,
-     with the process named in the reason,
-     and so is a table whose `status` files
-     cannot all be read.
-     The search is made only when the other signs would have removed the lock.
+4. A pid file beside the lock authorizes nothing.
+   It holds a process number,
+   Git records no namespace with it,
+   and the only fact that could tie that number to this lock is the birth order of the two files,
+   which a correction of the clock turns around:
+   after a backward step an old pid file looks newer than a live writer's new lock,
+   and the number it names is a process that has ended
+   (cross-vendor review of 2026-11-09,
+   finding 3).
+   The pid file is therefore read for the words of the notice and decides nothing:
+   the notice says which number it names and whether that process runs,
+   with the command that clears the file.
+   The proofs it used to carry are rejected here:
+   - a gone process does not prove the writer of *this* lock gone,
+     because the pid file may be an earlier holder's,
+     left in front of a later lock by a Git that writes none (`core.lockfilePid` off);
+   - the namespace searches that confirmed a gone number
+     (the initial PID namespace without `hidepid`,
+     and a scan of the `NSpid` lines of `/proc/<pid>/status` for a process carrying the number in a nested namespace)
+     are removed with it,
+     since they answered a question no longer asked;
+   - a running Git named by the pid file is not taken for the holder either:
+     the number may be a Git's in a sibling namespace.
+   What is left of this protocol is words,
+   and the removal of a lock rests on the staging-file proof alone (item 6 below,
+   `Proof::OrphanStaging`).
 5. A lock whose times are earlier than the boot of the kernel is **not** a proof.
    `btime` of `/proc/stat` is the wall clock minus the uptime,
    so a forward correction of the clock after the boot moves
@@ -6247,10 +6405,7 @@ and the first answer wins:
    is removed.
    The notice for a lock that looks older than the boot says so and says why it does not prove anything,
    beside the
-   command that clears it;
-   a lock that a reboot left with a pid file is still removed by item 4,
-   because the number is
-   gone.
+   command that clears it.
 6. Anything else is unproven:
    the lock is left,
    and the wrapper says what it found.
@@ -6306,11 +6461,13 @@ instead.
 The fix of 2026-11-03 for the container (the wrapper's own proof above) does not change the step,
 so each removal has the
 same residue as before;
-it makes more removals happen (a container now removes the lock of its own stopped child,
+it changes which locks are removed:
+a container now removes a lock it saw its own stopped child hold (the claim),
 and a
-young lock of an ended child is judged without waiting out the margin),
-so it widens the number of occasions and narrows
-nothing.
+claimed lock of that child is judged without waiting out the margin,
+while a lock whose pid file merely names an ended child's number is left and named
+  (cross-vendor review of 2026-11-09,
+  finding 2).
 The occasions it adds have the fewest chances of the schedule:
 the lock is the freshest,
 and the sweep that judges it is
@@ -6339,13 +6496,71 @@ file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
 
+#### Rejected rule: a reused number proven by a scan of the open descriptors
+
+The cross-vendor review of 2026-11-09 (finding 1) proposed a narrower version of the removed proof:
+keep the removal for a number that another program holds when a scan of every process's descriptors could read all of them and
+found none holding the lock,
+and keep the lock when a scan could not read a process.
+The rule is rejected as well,
+because a live Git holds every one of its reference locks with **no descriptor open**
+(the measurement under "Measured while this entry was written" above),
+so a scan that finds no holder says nothing about a holder that closed its descriptor and has not renamed its lock yet,
+which is the state a `reference-transaction` hook leaves a lock in for as long as the hook runs.
+Under that rule the clock would still be the only sign that separates a Git under another name from a later program that
+took the number,
+so a step of the clock would still delete a live lock,
+and the review's own scenario (a holder of another account,
+whose descriptors no unprivileged scan can read) would leave every such lock in place anyway.
+The cost of removing the proof is one stale lock left and named,
+with the command that clears it,
+for the rare case in which a killed holder's number was taken again before the sweep looked.
+
+#### The reftable backend's own lock
+
+A repository keeps its references in one of two backends,
+and each locks its own file.
+The files backend keeps `packed-refs.lock`,
+`HEAD.lock` and `refs/**/*.lock`;
+the reftable backend keeps its references and its list of tables in the `reftable` directory of the Git directory,
+and every writer holds `reftable/tables.list.lock` for the whole transaction
+(`reftable/stack.c`,
+`reftable_stack_init_addition`,
+`reftable_addition_commit`).
+A reftable repository holds none of the files-backend locks,
+so before 2026-11-09 a killed Git's `tables.list.lock` was not a candidate:
+a forwarded fetch or push did not clear it and did not name it,
+and every later `git update-ref` or `git commit` failed with "cannot lock references" (audit of 2026-11-09,
+finding 1).
+Both backends' locks are therefore candidates,
+whatever the repository's own format says,
+because a repository that switched backends may hold either.
+The reftable lock needs no new proof:
+Git says which process holds it in `tables.list~pid.lock`,
+which it creates after the lock under `core.lockfilePid` exactly as it does for the other locks,
+so the pid file,
+the margin,
+the local-file-system rule,
+the boot comparison and the set-aside step are the ones above.
+The tables list is written into the lock itself and renamed,
+so the lock is empty while it is held and a stale one is removed whole.
+There is no staging file to go with it:
+temporary table files (`*.temp.*`) and tables that no `tables.list` names are not locks,
+they block no writer,
+and they stay where they are.
+Tests,
+red first:
+`a_reftable_tables_list_lock_left_by_a_killed_git_stays_and_is_named`,
+with `a_live_reftable_gits_tables_list_lock_stays` and
+`a_reftable_lock_that_nothing_proves_gone_is_left_and_named`.
+
 #### Races, and how each is handled
 
 - A holder that wrote its lock,
   closed the file and has not yet renamed it:
-  its pid file names a live Git (held),
-  and where
-  there is none the lock is unproven,
+  its pid file names a live Git,
+  which the notice says and which decides nothing,
+  and the lock is unproven,
   never stale,
   because the descriptor scan sees nothing.
 - A holder that is killed between creating the lock and its pid file:
@@ -6353,15 +6568,18 @@ and it is removed by the same set-aside step
   so the lock is unproven.
   Such a lock is reported with the command that clears it,
   and a live foreign writer's lock cannot be told from it.
-- An older pid file in front of a live holder (above):
-  ignored because it is older than the lock.
+- An older pid file in front of a live holder:
+  said in the notice and nothing else,
+  since the birth order of the two files is the only thing that could tie them and a clock step turns it around.
 - A process number reused by another process:
-  a running non-Git process proves the reuse,
-  and a running Git is held.
-  A Git that is not the holder is kept apart from the holder only by its start time,
-  which is not used because the wall
-  clock may step;
-  the cost is one lock left that could have been removed.
+  Git records only a number,
+  so nothing tells a running Git under another name from a later
+  program that took the number,
+  and nothing tells either from the writer of this lock.
+  The lock is unproven,
+  with the command that clears it
+  (cross-vendor reviews of 2026-11-09,
+  findings 1 and 3).
 - Another account's process:
   it cannot be read,
   but a lock it holds has its pid file naming that process,
@@ -6372,21 +6590,22 @@ and it is removed by the same set-aside step
 - A Git in another PID namespace (a container with the repository mounted in,
   or a nested namespace on the host):
   the pid file holds a number of that namespace.
-  A wrapper outside the initial namespace,
-  or with a hidden `/proc`,
-  proves nothing from a pid file.
-  A wrapper in the initial namespace searches the table for a process that has the number as its number inside a nested
-  namespace (`NSpid` of `/proc/<pid>/status`),
-  and a gone or reused number is unproven while one is found,
-  or while the
-  table cannot be read completely.
-  A writer in a sibling namespace that is not a descendant of the wrapper's own (the wrapper in a container) is outside the
-  table and is not seen,
-  which is why a wrapper outside the initial namespace proves nothing.
-  The veto of an open descriptor and the margin are the only protection beyond that.
+  Git records no namespace,
+  so the number says nothing about the writer of this lock whichever namespace the wrapper runs in,
+  and no lock is removed on it.
+  A number that matches a member of a tree the wrapper stopped says nothing either:
+  a sibling namespace may have given the same one to a Git that shares the repository
+  (cross-vendor reviews of 2026-11-09,
+  findings 1 and 2),
+  so every such lock is named instead.
+  The veto of an open descriptor and the margin are the only judgement beyond that.
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory):
   the file
   system must be on the fixed local list.
+  A lock on a local disk is still matched to a descriptor that holds a file on a stalled file system,
+  and nothing there is waited for:
+  a descriptor on a mount that is not on the local list is refused,
+  and the lock is unproven (item 3).
 - A clock that steps:
   the margin and the start time of a process read file times against the current clock,
   and the boot
@@ -6397,8 +6616,8 @@ and it is removed by the same set-aside step
   what it concludes
   rests on the pid file and the process table,
   not on any time.
-  For a reused number a step can only make a process look newer,
-  and the second sign (not a Git) must still agree.
+  The derived start of a process moves with the clock,
+  which is why no verdict rests on it either (item 4).
 - Two wrappers removing the same stale lock:
   handled by setting aside with a rename and checking identity (above).
 - A removal that is raced by a new lock at the same path:
@@ -6489,10 +6708,8 @@ so the command can be
 pasted and a terminal escape in a file name is never printed raw.
 
 ```text
-# A lock the wrapper removed (the process of the pid file ended).
-monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
-# A lock whose pid number now belongs to a program that is not Git.
-monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
+# A lock whose pid file names a process that has ended: said, and nothing removed.
+monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: a pid file beside it names process 2629996, which has ended, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around.
 # A lock a running Git holds.
 monochromatic-git-policy-cli: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
 # A lock nothing proves stale.
@@ -8127,9 +8344,32 @@ Each commit passes through three phases:
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
-    A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
-    and a dead one not at all;
-    either ends the commit before the branch moved,
+    What a foreign lock's evidence proves rests on two facts and never on the wall clock (audit of 2026-11-09,
+    finding 3):
+    a process of the account that has the lock open,
+    matched to it by the device number and the inode the lock has,
+    and a Git lock PID file (`core.lockfilePid`) that names a running process whose command name
+    starts with `git`,
+    which is the holder because Git writes its own number there.
+    A running program that is not named like Git may be that Git under another name,
+    or a later program that took the number,
+    and no start time tells them apart:
+    a process's start is derived from the wall clock while the lock's change time is stored,
+    so a step of the clock moves a live holder's derived start past the lock,
+    and a step back moves a later program's before it.
+    The start is read and worded beside the evidence,
+    and it decides nothing;
+    a number that is reused therefore reads as an owner nothing proves alive,
+    which the ceiling ends,
+    and a running Git is the holder whatever the clock says.
+    A holder proven alive,
+    an owner nothing proves alive,
+    and a PID file naming a number this process table does not have are all waited for until
+    `LANDING_LOCK_CEILING`,
+    because such a number may be a live Git's of another PID namespace
+    (cross-vendor review of 2026-11-09,
+    finding 2);
+    the wait ends the commit before the branch moved,
     removing the batch's intent,
     keeping the built commit on a side ref,
     and naming the blocker

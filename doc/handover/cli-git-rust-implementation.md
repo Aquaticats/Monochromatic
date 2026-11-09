@@ -704,6 +704,42 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
   The session had just started broad audits of up to three hours and stopped them within minutes.
   It replaces them with runs of one narrow question against one prebuilt binary,
   and it reruns every reported reproduction before acting on it.
+  The owner then wrote:
+  "Use Claude Sonnet on long horizon reviews and audits.
+  I'm approving you to use Claude Code native subagents since now."
+  That lifts "Drive pi as subagents exclusively from now on for this session."
+  for reviews and audits at least.
+  The owner on the model being the point and not the harness:
+  "I specifically said "Use Claude Sonnet" so that every harness can do long horizon reviews and audits."
+  That is rule `LHZ` in `AGENTS.md`.
+  In this session the long audits run as native subagents under `${HOME}/temp/agent/pi-runs/shared-rules-for-sonnet-audits.md`,
+  writing to `${HOME}/temp/agent/sonnet-audits`,
+  and `codex` keeps the small checks.
+- The owner on the rule for non-trivial commands:
+  "Change the "non-trival command" rule to also require running as a process (in harness terminology)."
+  and
+  "And also check dsh."
+  That is rule `RXI` in `AGENTS.md`,
+  worded as a harness-managed background process because each harness names it differently:
+  Claude Code's `Bash` with `run_in_background`,
+  Pi's `process` tool from `@aliou/pi-processes`,
+  and DSH's managed background jobs,
+  `run_in_background` in `@deepseek-ai/dsh-tool-terminal` and `dsh-tool-pwsh` 0.2.2-rc.1.
+- The owner on a documentation commit that moved main while a merge was open,
+  so that the merge's own commit was refused and the session held its next commit back:
+  "I would consider this to be a defect in our wrapper.
+  Agents should never wait on each other on commits or merges."
+  The refusal read:
+  "The branch main moved while this commit was being prepared,
+  and a commit that replaces the last one,
+  or one that was written or signed by hand,
+  cannot be moved onto a different last commit,
+  so it was not made."
+  The wrapper was following a rule in `doc/decision/cli-git-concurrent-commits.md` that those conclusions fail when `HEAD` moved.
+  The owner approved amending the record,
+  and for an `--amend` on a moved branch chose "A:
+  land as a new commit (Recommended)".
+  `merge-commit-lands-on-a-moved-branch` builds it.
   The audit OpenAI flagged stays stopped until the owner answers the question about it.
   Pi audits ran under a name beginning `sol-`,
   and the count against the limit of 20 leaves those units out:
@@ -826,6 +862,70 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
 - `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
+  among them a FIFO that makes a commit wait forever,
+  and two races that need another program to rename a directory inside a small window.
+  Two subvolume tests abort near 120 seconds on the branch merged with main,
+  even run alone.
+  Run 3 of its agent is on the three defects and judges the races.
+  After that round it lands.
+- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`
+  and `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
+  their agents fix what these audits on main found:
+  `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`
+  and `doc/planning/cli-git-worktree-add-route-findings-on-main.md`.
+- `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
+  its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed,
+  and then fixed the three findings of the first cross-vendor review
+  (`${HOME}/temp/agent/reviews/locks-and-transactions-round-1-sol.txt`),
+  all three of which held:
+  a forward clock step no longer authorizes removing a reference lock
+  (`Proof::PidReused` is gone,
+  and a running program that is not named like Git leaves the lock unproven),
+  a process number that matches a stopped child's is no longer taken for that child
+  (only a lock the wrapper saw held before the stop is removed on that proof),
+  and a descriptor's file is read through `pidfd_getfd(2)` and `statx(2)` with `AT_EMPTY_PATH` and
+  `AT_STATX_DONT_SYNC` instead of the path of its `/proc` link,
+  which a stopped FUSE or NFS server held for ever
+  (`doc/troubleshooting/fuse-descriptor-attributes.md`).
+  The review's own narrower rule for a reused number was weighed and rejected in `SPEC.md`:
+  a live Git holds its reference locks with no descriptor open,
+  so a scan that finds no holder says nothing about it.
+  Its second cross-vendor review (`${HOME}/temp/agent/reviews/locks-and-transactions-round-2-sol.txt`) named four more,
+  and all four held,
+  so the round removed mechanism instead of adding it:
+  the pre-stop claim is gone (a number in a pid file names no namespace),
+  the pid-file proofs are gone (`Proof::PidGone` and the namespace searches with it,
+  because only file birth order could tie a number to a lock and a clock step turns that around),
+  and the descriptor read copies nothing any more.
+  A reference lock is therefore no longer removed at all;
+  only the packed-references staging file has a proof left.
+  What that costs,
+  measured in this repository's records:
+  the service journal (2026-11-01T08:22 to 2026-11-07T11:24,
+  13,609 records) holds 16 `Unable to create ...lock: File
+  exists` lines in one 38-minute window on 2026-11-03 and no reference-lock notice at all.
+  Those two stopped pushes left their tracking-ref locks,
+  which the sweep then cleared;
+  with this round they stay,
+  named with their `rm` command,
+  until a person clears them.
+  The index lock's removal is untouched (the owner's "Service removes it" of 2026-11-07),
+  and it keeps a lock whose scan could not identify a descriptor.
+  290 `lock::`,
+  122 `process::` and
+  84 `transaction::` tests pass with the package's lint clean;
+  `landing::` 689 of 691,
+  with `push_retry_tests::a_stopped_push_is_still_tried_again_after_the_service_restarts`
+  failing intermittently alone as well.
+  The audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
+  ("cli-git never deletes a lock") still waits for the owner,
+  and the owner's "keep narrowed removal" pick of the ninth design review now has no removal to keep:
+  that is the question this round raises.
+
+- `fix/git-policy-cli-service-work-items-keep-path-bytes`:
+  it breaks `provisioning_notes_which_worktree_the_units_are_for`,
+  and its cross-vendor review (`${HOME}/temp/agent/reviews/service-work-items-path-bytes-sol.txt`) names five more defects.
   run 3 of its agent reports the FIFO wait and the other plain defects fixed,
   and writes down the two races that need another program inside a small window.
   The session merged main into it by hand,
@@ -1260,6 +1360,34 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 
 Each item names what remains,
 where it lives and its evidence.
+
+### The shared locks, claims and transactions, after the audit's four fixes (2026-11-09T02:38:55-05:00)
+
+The audit is `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
+Four of its five findings are fixed on
+`fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`,
+each with a red control quoted in the branch's report:
+the reftable backend's `reftable/tables.list.lock` is a reference-lock candidate (`009d7c28b6`,
+`f69299994d`);
+a record of another PID namespace whose file time cannot be measured is refused with its name and the `rm`
+instead of counting as a live owner for ever (`e7f50de8d0`,
+`17beb650a6`);
+the foreign `index.lock` PID-file proof reads what the process is and never the wall clock (`78452d0d9f`,
+`68be5d90df`);
+and a descriptor is matched to a file by the device number and the inode,
+not by the mount number and the inode (`65a1bf0d02`,
+`02a067d8fd`).
+Finding 5 (the decision record that says no lock is ever deleted) still waits for the owner,
+and `doc/decision/` was not touched.
+Open beside it:
+the reference-lock judgement still proves a reused number from the same start-against-change-time comparison
+(`Proof::PidReused`,
+`stale_ref_lock_judge::judge_listed_pid`),
+which the index-lock fix removed for its own proof and which the owner must decide on,
+since that proof can remove a lock whose holder still runs;
+and the direction of finding 2 in which a measured age past the patience refuses a live holder is the owner's
+answer of 2026-11-04,
+now worded as this host's reading of the record.
 
 ### Work waiting for a free Pi slot (2026-11-08T16:24:14-05:00)
 
@@ -2162,8 +2290,14 @@ test (`began.elapsed() >= holding`,
 `the_scan_for_open_holders_stops_at_its_deadline_and_says_so` passed `metadata.dev()`
 where commit `7a1aa21f5d` made the scan compare the mount number the kernel writes in
 `fdinfo`,
-so it now asks `process_use::mount_of`,
-as the service's own scan does.
+so it now asked `process_use::mount_of`,
+as the service's own scan did.
+Note,
+2026-11-09:
+`mount_of` is gone and the scan compares the device number and the inode again (rule WR6;
+`fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`,
+`02a067d8fd`),
+so that control now passes the lock's own device number.
 
 Measured 2026-11-08 on this host with `btrfs` on the scratch directory,
 alternating the arms:

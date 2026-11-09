@@ -2396,9 +2396,10 @@ none is waited out or retried on the moved head yet:
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
   commits queued behind the same lock are refused at once),
-  or was left by a dead owner (Git's
-   lock PID file names a process that is gone;
-  a diagnostic names it at once).
+  or holds a Git lock PID file naming a number this process table does not have
+  (a killed Git leaves one,
+  and so does a live Git in another PID namespace,
+  so the commit waits and the line says which number was read).
   The commit is withdrawn,
    kept on a side ref named
    in the message (`refs/cli-git/kept/<batch>`),

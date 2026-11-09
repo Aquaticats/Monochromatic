@@ -84,6 +84,12 @@ Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users
    `package/linter/rust/Cargo.toml:69`,
    `package/forbidden-strings/cli/Cargo.toml:76`,
    `package/forbidden-strings/core.bench/Cargo.toml:38`.
+  `package/linter/rust` was deleted on 2026-10-06,
+   in `5bc05682ec`;
+   its successor `package/linter/monochromatic-lint/Cargo.toml` declares the dependency at line 89
+   (`ignore = { workspace = true }`),
+  which resolves through that crate's own catalog entry at line 156,
+   `ignore = ">=0.4.34"`.
 - `serde_json = "1"`:
    `package/linter/rust`,
   `package/file-manager/variant-gtk-sticky`,
