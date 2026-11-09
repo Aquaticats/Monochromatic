@@ -9,7 +9,7 @@
 use super::*;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_with};
-use crate::parallel_test_support::{Rendezvous, SERIAL_PATIENCE};
+use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place};
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
 use std::sync::Arc;
@@ -59,9 +59,10 @@ fn checkout_with_linked(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// Rewrite every index of `root` with `rewrite` on `host` and return the count and the lines.
-fn refresh_with(root: &Path, host: &HostResources, rewrite: &RewriteOne<'_>) -> (usize, Vec<String>) {
+fn refresh_with(root: &Path, host: &HostResources, rewrite: &Arc<RewriteOne>) -> (usize, Vec<String>) {
     let mut lines: Vec<String> = Vec::new();
-    let count: usize = refresh_all_indexes_with(&AllIndexes { root, lock: IndexLock::Acquire, references: &[], host, rewrite }, &mut |text: &str| { lines.push(text.to_string()); });
+    let request: AllIndexes = AllIndexes { root: root.to_path_buf(), lock: IndexLock::Acquire, references: Vec::new(), host: *host, rewrite: Arc::clone(rewrite) };
+    let count: usize = refresh_all_indexes_with(&request, &mut |text: &str| { lines.push(text.to_string()); }).expect("the indexes were refreshed");
     return (count, lines);
 }
 
@@ -71,14 +72,16 @@ fn refresh_with(root: &Path, host: &HostResources, rewrite: &RewriteOne<'_>) -> 
 #[test]
 fn the_indexes_are_rewritten_side_by_side() {
     let (parent, root) = checkout_with_linked("index-parallel-overlap");
-    let point: Rendezvous = Rendezvous::new(LINKED + 1);
-    let met: AtomicUsize = AtomicUsize::new(0);
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &|index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-        if point.arrive() {
-            met.fetch_add(1, Ordering::SeqCst);
+    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED + 1));
+    let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
+    let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+        if at_the_point.arrive() {
+            met_it.fetch_add(1, Ordering::SeqCst);
         }
         return refresh_index_file_with(index, tree, options);
     });
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
     assert_eq!(count, LINKED + 1);
     assert_eq!(met.load(Ordering::SeqCst), LINKED + 1, "{lines:#?}");
     remove(parent.as_path());
@@ -89,18 +92,20 @@ fn the_indexes_are_rewritten_side_by_side() {
 #[test]
 fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
     let (parent, root) = checkout_with_linked("index-parallel-order");
-    let others_done: Rendezvous = Rendezvous::impatient(LINKED, crate::parallel_test_support::PATIENCE);
+    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(LINKED, crate::parallel_test_support::PATIENCE));
     let main_index: PathBuf = root.join(".git").join("index");
-    let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &|index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-        if index == main_index.as_path() {
-            assert!(others_done.wait_for_target(), "the worktrees' indexes were rewritten while the checkout's waited");
+    let (mine, others) = (main_index.clone(), Arc::clone(&others_done));
+    let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+        if index == mine.as_path() {
+            assert!(others.wait_for_target(), "the worktrees' indexes were rewritten while the checkout's waited");
         }
         let line: String = refresh_index_file_with(index, tree, options);
-        if index != main_index.as_path() {
-            others_done.arrive_without_waiting();
+        if index != mine.as_path() {
+            others.arrive_without_waiting();
         }
         return line;
     });
+    let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
     assert_eq!(lines.len(), LINKED + 1, "{lines:#?}");
     assert!(lines[0].starts_with(format!("index {}:", main_index.display()).as_str()), "{lines:#?}");
     for index in 0..LINKED {
@@ -115,7 +120,7 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
 fn an_index_that_cannot_be_rewritten_leaves_the_others_rewritten() {
     let (parent, root) = checkout_with_linked("index-parallel-skip");
     std::fs::write(root.join(".git/worktrees/w0/index.lock"), b"another git").expect("lock");
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &refresh_index_file_with);
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>));
     assert_eq!(count, LINKED + 1);
     assert_eq!(lines.iter().filter(|line: &&String| { return line.contains("skipped (index.lock exists"); }).count(), 1, "{lines:#?}");
     assert_eq!(lines.iter().filter(|line: &&String| { return line.ends_with("entries refreshed"); }).count(), LINKED, "{lines:#?}");
@@ -130,17 +135,19 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
     let allowed: usize = worker_budget(&BudgetRequest { items: LINKED + 1, per_item_memory: 1, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < LINKED + 1, "the control needs a bound between one and the indexes: {allowed}");
-    let running: AtomicUsize = AtomicUsize::new(0);
-    let busiest: AtomicUsize = AtomicUsize::new(0);
-    let point: Rendezvous = Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10);
-    let (_count, lines) = refresh_with(root.as_path(), &host, &|index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-        let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
-        busiest.fetch_max(now, Ordering::SeqCst);
-        point.arrive();
+    let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10));
+    let (live, most, at_the_point) = (Arc::clone(&running), Arc::clone(&busiest), Arc::clone(&point));
+    let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+        let now: usize = live.fetch_add(1, Ordering::SeqCst) + 1;
+        most.fetch_max(now, Ordering::SeqCst);
+        at_the_point.arrive();
         let line: String = refresh_index_file_with(index, tree, options);
-        running.fetch_sub(1, Ordering::SeqCst);
+        live.fetch_sub(1, Ordering::SeqCst);
         return line;
     });
+    let (_count, lines) = refresh_with(root.as_path(), &host, &rewrite);
     assert_eq!(busiest.load(Ordering::SeqCst), allowed, "{lines:#?}");
     remove(parent.as_path());
 }
@@ -150,7 +157,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
 #[test]
 fn the_lines_of_a_run_are_the_ones_recorded_before_the_step() {
     let (parent, root) = checkout_with_linked("index-parallel-lines");
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &refresh_index_file_with);
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>));
     assert_eq!(count, LINKED + 1);
     let of_the_checkout: String = format!("{CHECKOUT_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed");
     let of_a_worktree: String = format!("{LINKED_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed");
@@ -176,12 +183,33 @@ fn the_rewrites_run_on_the_processs_runtime() {
     let (parent, root) = checkout_with_linked("index-parallel-runtime");
     let probe: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
     let inside = Arc::clone(&probe);
-    let rewrite = move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+    let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
         inside.lock().expect("lock").push(tokio::runtime::Handle::try_current().is_ok());
         return refresh_index_file_with(index, tree, options);
-    };
+    });
     let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
     let seen: Vec<bool> = probe.lock().expect("lock").clone();
     assert_eq!(seen, vec![true; LINKED + 1], "a rewrite ran outside the process's runtime: {lines:#?}");
+    remove(parent.as_path());
+}
+
+/// A rewrite waits for the one place the process's blocking pool has:
+/// only a job of the pool takes one,
+/// and work that ran on a worker of the runtime instead would start at once.
+#[test]
+fn the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs() {
+    let (parent, root) = checkout_with_linked("index-parallel-a-place-of-the-bound");
+    let (given_back, finished) = hold_the_only_place();
+    let started_after: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
+    let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+        began.lock().expect("lock").push(given.load(Ordering::SeqCst));
+        return refresh_index_file_with(index, tree, options);
+    });
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
+    assert_eq!(count, LINKED + 1, "{lines:#?}");
+    let seen: Vec<bool> = started_after.lock().expect("lock").clone();
+    assert_eq!(seen, vec![true; LINKED + 1], "a rewrite started while another job held the only place of the process's bound, so it did not take one: {lines:#?}");
+    assert!(finished.recv_timeout(PATIENCE).is_ok(), "the job that held the place never gave it back");
     remove(parent.as_path());
 }

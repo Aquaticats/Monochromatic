@@ -237,7 +237,7 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in.
-        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines);
+        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines)?;
         for text in &lines {
             run.line(text.as_str());
         }

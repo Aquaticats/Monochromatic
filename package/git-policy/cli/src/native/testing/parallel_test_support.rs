@@ -78,3 +78,48 @@ impl Rendezvous {
         return !timeout.timed_out();
     }
 }
+
+/// How many places of the process's bound on blocking jobs the place control holds:
+/// the one.
+pub(crate) const ONE_PLACE: usize = 1;
+
+/// How long the job of the place control holds the only place,
+/// so the work it measures has time to reach its own job.
+pub(crate) const HELD_BY_ANOTHER_JOB: Duration = Duration::from_millis(300);
+
+/// What:
+///  Holds the process's one place on blocking jobs on a task of the runtime,
+///  and gives it back after `HELD_BY_ANOTHER_JOB`.
+/// Why:
+///   A control can then show that the work it measures waits for a place,
+///  which only a job of the blocking pool does;
+///  work that ran on a worker of the runtime instead would start at once.
+/// The place is known to be taken before this returns,
+///  so the work that follows either waits for it or did not take one.
+/// The bound is held for the life of the process (`hold_blocking_jobs_to`),
+///  which is why this runs in a test process of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [givenBack, finished] = holdTheOnlyPlace();
+/// ```
+pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<()>) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    let given_back: std::sync::Arc<AtomicBool> = std::sync::Arc::new(AtomicBool::new(false));
+    let (taken, has_taken) = std::sync::mpsc::channel::<()>();
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let flag: std::sync::Arc<AtomicBool> = std::sync::Arc::clone(&given_back);
+    let holder = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _outcome = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = taken.send(());
+            std::thread::sleep(HELD_BY_ANOTHER_JOB);
+            flag.store(true, Ordering::SeqCst);
+            let _sent = done.send(());
+        })
+        .await;
+    });
+    assert!(holder.is_some(), "the runtime has workers, so a place of the blocking pool can be held");
+    assert!(has_taken.recv_timeout(PATIENCE).is_ok(), "the job that holds the only place never started");
+    return (given_back, finished);
+}

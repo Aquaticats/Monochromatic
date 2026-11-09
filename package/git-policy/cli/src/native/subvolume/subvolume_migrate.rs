@@ -286,7 +286,7 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in.
-        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut lines);
+        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str().into()), std::slice::from_ref(&old_path), &mut lines)?;
         for text in &lines {
             run.line(text.as_str());
         }

@@ -7,22 +7,14 @@
 
 use super::*;
 use crate::fs_beneath::{identity_at, open_root};
-use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
+use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place};
 use crate::test_support::{fixture, remove};
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to;
 
 /// How many entries the trash of these controls holds.
 const ENTRIES: usize = 4;
-
-/// How many places of the process's bound on blocking jobs the place control holds.
-const ONE_PLACE: usize = 1;
-
-/// How long the job of the place control holds the only place,
-/// so the work it measures has time to reach its own job.
-const HELD_BY_ANOTHER_JOB: std::time::Duration = std::time::Duration::from_millis(300);
 
 /// A host large enough that neither the CPUs nor the memory bound a removal of `ENTRIES` entries.
 const LARGE_HOST: HostResources = HostResources { parallelism: ENTRIES * 8, memory_available: None };
@@ -161,7 +153,7 @@ fn the_removals_run_on_the_processs_runtime() {
 #[test]
 fn the_removals_take_places_of_the_processs_bound_on_blocking_jobs() {
     let (root, held, manifest) = trash_with_entries("trash-entries-a-place-of-the-bound");
-    let (given_back, finished) = hold_the_one_place();
+    let (given_back, finished) = hold_the_only_place();
     let started_after: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
     let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
     let one_removal: Arc<RemoveOne> = Arc::new(move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
@@ -174,40 +166,6 @@ fn the_removals_take_places_of_the_processs_bound_on_blocking_jobs() {
     assert_eq!(seen, vec![true; ENTRIES], "a removal started while another job held the only place of the process's bound, so it did not take one");
     assert!(finished.recv_timeout(PATIENCE).is_ok(), "the job that held the place never gave it back");
     remove(root.as_path());
-}
-
-/// What:
-///  Holds the process's one place on blocking jobs on a task of the runtime,
-///  and gives it back after `HELD_BY_ANOTHER_JOB`.
-/// Why:
-///   A control can then show that the work it measures waits for a place,
-///  which only a job of the blocking pool does;
-///  work that ran on a worker of the runtime instead would start at once.
-/// The place is known to be taken before this returns,
-///  so the work that follows either waits for it or did not take one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [givenBack, finished] = holdTheOnePlace();
-/// ```
-fn hold_the_one_place() -> (Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<()>) {
-    hold_blocking_jobs_to(ONE_PLACE);
-    let given_back: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let (taken, has_taken) = std::sync::mpsc::channel::<()>();
-    let (done, finished) = std::sync::mpsc::channel::<()>();
-    let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&given_back);
-    let holder = crate::lazy_runtime::spawn_on_runtime(async move {
-        let _outcome = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-            let _told = taken.send(());
-            std::thread::sleep(HELD_BY_ANOTHER_JOB);
-            flag.store(true, Ordering::SeqCst);
-            let _sent = done.send(());
-        })
-        .await;
-    });
-    assert!(holder.is_some(), "the runtime has workers");
-    assert!(has_taken.recv_timeout(PATIENCE).is_ok(), "the job that holds the place never started");
-    return (given_back, finished);
 }
 
 /// The estimate covers the measured peak of removing a flat directory of a million names.
