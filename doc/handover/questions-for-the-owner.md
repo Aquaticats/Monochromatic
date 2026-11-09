@@ -26,23 +26,6 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
-### Please log in to OpenAI in Pi again, so reviews can run, asked 2026-11-09T14:58:36-05:00
-
-Every `gpt-6.1-sol` review now stops within seconds with this error:
-`OAuth refresh failed for openai: OpenAI OAuth token request failed (400): {"error": "invalid_grant"}`.
-It happened with two reviews started together and again with one alone,
-so it is the saved login and not a race between them.
-Pi's docs give the remedy:
-start `pi` in a terminal in `~/Monochromatic` and run `/login openai`.
-
-Until then no review or audit can run.
-Reviews do not block a landing,
-so the agents keep working and branches keep landing.
-The session did not move reviews to another model,
-because the owner wrote "Please use gpt-6.1-sol with the openai provider for audits and reviews."
-Two reviews are waiting:
-the commit preparation change landed as `a9cf0754d2` and the queue position change landed as `66ad04700e`.
-
 ### OpenAI stopped one audit with a cybersecurity flag: how should it continue?, asked 2026-11-09T06:03:57-05:00
 
 The `gpt-6.1-sol` audit of how the wrapper reads command lines ended after about 14 minutes with this error from the provider:

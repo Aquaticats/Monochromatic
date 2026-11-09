@@ -90,6 +90,15 @@ Audits and reviews sit outside that limit and use another model.
 The owner on 2026-11-09:
 "Please use gpt-6.1-sol with the openai provider for audits and reviews.
 Those don't count within the 20 limit."
+They run through `codex`,
+not through Pi.
+The owner,
+later that day:
+"Use `codex` to run openAI reviews and audits instead.
+`--dangerously-bypass-approvals-and-sandbox` has to be passed to codex because codex's auto mode has tons of issues which I'm not listing here."
+and
+"Still pass in xhigh explicitly for codex."
+The command is rule `XVW` in `AGENTS.md`.
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.

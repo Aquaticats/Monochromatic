@@ -682,10 +682,20 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
 - The owner at about 2026-11-09T05:40-05:00:
   "Please use gpt-6.1-sol with the openai provider for audits and reviews.
   Those don't count within the 20 limit."
-  Reviews already ran on it.
-  The launcher `start-pi-run-in-worktree.ts` now takes `--provider` and `--model`,
-  and audits start with `--provider=openai --model=gpt-6.1-sol` under a name beginning `sol-`.
-  The count against the limit of 20 leaves those units out:
+  The owner later moved them off Pi:
+  "Use `codex` to run openAI reviews and audits instead.
+  `--dangerously-bypass-approvals-and-sandbox` has to be passed to codex because codex's auto mode has tons of issues which I'm not listing here."
+  and
+  "Still pass in xhigh explicitly for codex."
+  The command is rule `XVW` in `AGENTS.md`,
+  a probe on `gpt-6.1-sol` with codex-cli 0.167.0 answered,
+  and Pi's own OpenAI login had begun to fail with `invalid_grant`.
+  `review-branch-with-sol.ts` runs `codex`.
+  No audit has run through `codex` yet,
+  so its launcher is untested.
+  The audit OpenAI flagged stays stopped until the owner answers the question about it.
+  Pi audits ran under a name beginning `sol-`,
+  and the count against the limit of 20 leaves those units out:
   `systemctl --user list-units --state=active --no-legend --plain 'pi-*.service' | rg --invert-match '^pi-sol-' | wc --lines`.
   The two audits started on the other model were stopped within minutes,
   and they restarted on this one as `sol-shadow-and-replay-route-findings-on-main` and `sol-invocation-and-argument-route-findings-on-main`.
