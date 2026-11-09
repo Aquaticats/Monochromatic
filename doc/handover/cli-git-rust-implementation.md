@@ -125,6 +125,48 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)
+
+The full container gate on `d21b9cd1b4` ended with 58 of 6,382 tests failed
+(`gpc-gate-wrapper-next-alpha-20261109T133202-0500.log` in `~/temp/agent/gate/`).
+The next alpha waits for a gate that passes on a commit holding the fixes.
+Until it ships the installed wrapper stops a signed scratch commit at 3006 ms,
+because the owner's "About 16 seconds" ceiling is on main only.
+
+- `policy::direct_fix*`:
+  `fix` refuses every correction when a file carries `security.selinux` and the replacement cannot take it
+  (`Operation not supported (os error 95)`).
+  The Pi agent `markdown-route-findings-fixed` owns this.
+  The worktree-copy agent's report states the same refusal is behind its container failures in `markdown`,
+  `version_cache` and `event_path`.
+- Every other failure:
+  the Pi agent `wrapper-gate-failures-on-main` owns them,
+  on the branch `fix/git-policy-cli-gate-failures-on-main`.
+  The `ALLOWED` entry for `health/doctor.rs` in `source_guard/no_self_invocation_tests.rs` is stale on main.
+- `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`:
+  the worktree-copy agent's report states it fails at that branch's parent as well,
+  5 of 45 kills at `6ac3bc7e07` and 4 of 45 with the branch.
+  The coordinator has not reproduced this.
+
+Next:
+when both agents land,
+gate a clean checkout of main with `launch-gate.ts`,
+then follow "Release order for the wrapper".
+
+`check-branch-after-merging-main.ts` (scratch) now stops with status 3 on a detached HEAD.
+It had merged main into a worktree the agent left detached,
+and printed 134 of 134 for a commit missing the branch's last 10 commits.
+The real result on the branch was 136 of 136.
+
+Installed `0.6.1-alpha.5` failed a live `git worktree add` while a landing's merge was open in the main checkout:
+"could not stage ignored state from" the main checkout,
+"Cause:
+No such file or directory (os error 2)".
+The add left its registration,
+branch and checked-out files,
+and no ignored state.
+The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
@@ -159,7 +201,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `git log main --first-parent -m -S'branch_digest'` is empty.
   `c3c6a50098` added the branch key,
   and `24bb297e9a` on another branch deleted it on the belief that main had gone back to the plain id.
-  Push run 7 restores it and rechecks that agent's other fixes against main.
+  Run 7 restored it in `83cd9bdaa9` on `fix/git-policy-cli-push-route-records-and-ceilings`,
+  with `two_branches_at_one_commit_are_both_queued` and `a_pending_record_of_an_earlier_release_is_claimed`,
+  after reproducing the collision on the plain id:
+  the second branch is answered `Known`,
+  and no record is left to claim.
+  The other eleven findings of that page are fixed on main:
+  every control the fix commits added is still there,
+  and all 23 of them pass on the merged tree.
 - `~/temp/agent/pi-runs/find-functions-lost-in-merges.ts` over commits since 2026-11-05:
   of the functions and tests added,
   134 are gone from main,
@@ -676,6 +725,21 @@ The old tree kept for the rollback stays until the owner deletes it.
   with `push-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   The session picked the fixture root on the disk over a per-run tmpfs,
   because the package documents that a shared tmpfs fills up (issue 1809).
+  Run 7 resumed after the provider ended it,
+  merged main,
+  restored finding 1 of the push-route audit,
+  and fixed the sixth review's one P2 (`${HOME}/temp/agent/reviews/push-route-round-6-sol.txt`):
+  the writer's successful write and the count it publishes are two steps,
+  so a child that read the whole request,
+  closed its input and exited zero,
+  could be reported as a request that could not be written whole.
+  The answer now waits for the writer's own finished result,
+  for at most `WRITER_SETTLE_CEILING`,
+  which is 500 ms,
+  fifty of the writer's own 10 ms pauses and far under the 30 s query window;
+  the session chose it and it is open to the owner's veto.
+  `6ba20daf37` adds the control for a writer still held at that ceiling,
+  so removing the bound fails a test of its own.
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
   with 22 of 22 selected tests passing on top of main.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:

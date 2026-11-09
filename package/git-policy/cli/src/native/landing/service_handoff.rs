@@ -139,8 +139,11 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = push_item(handoff, landed);
-    if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
-        return Ok(());
+    // A record an earlier release held is named by the kind and the commit alone, and it is this push's.
+    for name in [item.id(), item.id_before_the_branch()] {
+        if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), name.as_str()) {
+            return Ok(());
+        }
     }
     // Nothing was held for this commit: the record is written here instead, so the push is not lost.
     return match enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item) {
@@ -164,10 +167,14 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 /// ```
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let id: String = push_item(handoff, landed).id();
+    let item: WorkItem = push_item(handoff, landed);
     // The verdict is durable: a later recovery of the same batch must not hold the push again.
-    crate::work_item::block(work_dir.as_path(), id.as_str());
-    let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id));
+    crate::work_item::block(work_dir.as_path(), item.id().as_str());
+    // A record an earlier release named by the kind and the commit alone is this push's too, so the gate forgets it as well:
+    //  left in `pending`, the next wake would push a commit the gate kept local.
+    for id in [item.id(), item.id_before_the_branch()] {
+        let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id));
+    }
 }
 
 /// The push record of one landed commit of a worktree.
@@ -289,7 +296,7 @@ pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some(commit) = name.strip_prefix(format!("{}-", WorkKind::Push.name()).as_str()) else { continue };
+        let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
         // A record that cannot be read still names its commit through its own file name, and its branch is unknown: the line is
         //  said with the branch the record would have carried when it can be read, and without a branch otherwise.
         let branch: String = match std::fs::read_to_string(entry.path()).ok().and_then(work_item_of) {

@@ -306,7 +306,7 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recoverInterruptedMerges({ place, gitDir });
+/// await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
 fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Path) -> Result<(), Bail> {
     let common_dir: PathBuf = match input.identity {
@@ -324,8 +324,11 @@ fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pa
         },
         cwd: root.to_path_buf(),
         common_dir,
+        git_dir: git_dir.to_path_buf(),
     };
-    match recover_interrupted_merges(&place, git_dir) {
+    // The notices of what recovery did reach the command's standard error: the branch may have moved onto a merge commit
+    //  this command finished rather than the one it is about to compute (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 1).
+    match recover_interrupted_merges(&place, git_dir, &mut std::io::stderr()) {
         Ok(_) => return Ok(()),
         Err(error) => {
             return Err(refused(

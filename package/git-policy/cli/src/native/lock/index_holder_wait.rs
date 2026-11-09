@@ -44,8 +44,16 @@
 
 /// Evidence about the holder of a lock.
 use crate::index_lock_evidence::{
-    Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    DEAD_OWNER_LOCK_LEFT, Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
+
+/// The sentence a merge's ceiling line ends on before its own apply.
+const MERGE_CONSEQUENCE: &str = "git merge stops waiting and reports what Git says";
+
+/// The sentence a merge's dead owner's line ends on:
+/// the merge clears such a lock when nothing else holds it and goes on.
+const MERGE_DEAD_ENDING: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was changed and the lock was left in place";
+
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The start time of a process.
@@ -173,6 +181,79 @@ pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: 
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
+/// What:
+///  The sentence that says what becomes of the command when a recovery's wait for a held index reaches its bound.
+/// Why:
+///  A recovery of an interrupted merge writes nothing when the index stays held,
+///  and a later command finishes the merge instead,
+/// unlike the merge that waits for the lock before its own apply.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const consequence = 'the interrupted merge stays unfinished and a later command finishes it once that program is done';
+/// ```
+const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it once that program is done";
+
+/// What:
+///  Wait while any program holds `index.lock` of `real_index`,
+/// before a recovery writes the index to finish an interrupted merge.
+/// Why:
+///  `git update-index` takes the lock and dies when another program holds it,
+/// so without this wait one held lock made
+///  every command in the worktree exit 2,
+/// again and again
+///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 2).
+/// The bound and the notices are the merge's,
+/// and only the outcome differs:
+///  recovery writes nothing when the wait ends,
+/// and leaves the record for the next command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitForIndexReleaseWhileFinishingAMerge(realIndex, stderr)
+/// ```
+pub fn wait_for_index_release_while_finishing_a_merge(real_index: &Path, out: &mut dyn Write) -> IndexWait {
+    return wait_with_watches_and_consequence(
+        real_index,
+        "merge",
+        RECOVERY_CONSEQUENCE,
+        DEAD_OWNER_LOCK_LEFT,
+        MERGE_LOCK_CEILING,
+        Cadence::from_environment(),
+        out,
+        &Watch::on,
+    );
+}
+
+/// What:
+///  The wait a merge makes before its own apply,
+/// whose dead owner's line says the merge clears that lock,
+/// because it does.
+/// Why:
+///  A merge that waited on a lock a gone process left now removes it on the commit service's proof of disuse and goes
+///  on (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3),
+/// so the line must not promise that the lock was
+///  left in place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitForIndexReleaseBeforeAMergeThatClearsADeadLock(realIndex, stderr)
+/// ```
+pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock(real_index: &Path, out: &mut dyn Write) -> IndexWait {
+    return wait_with_watches_and_consequence(
+        real_index,
+        "merge",
+        MERGE_CONSEQUENCE,
+        MERGE_DEAD_ENDING,
+        MERGE_LOCK_CEILING,
+        Cadence::from_environment(),
+        out,
+        &Watch::on,
+    );
+}
+
 /// Write `bytes` to `out`,
 /// then flush it only if the write succeeded;
 /// the callers ignore the result,
@@ -186,11 +267,26 @@ fn write_then_flush(out: &mut dyn Write, bytes: &[u8]) -> std::io::Result<()> {
 /// `wait_for_index_release` with the function that sets a watch on the lock's directory,
 /// so a control can hand it none.
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
+    let consequence: String = format!("git {command} stops waiting and reports what Git says");
+    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
+}
+
+/// `wait_with_watches` with the sentence the ceiling line ends on given,
+/// so a recovery of an interrupted merge can say what it does instead of reporting what Git says.
+fn wait_with_watches_and_consequence(
+    real_index: &Path,
+    command: &str,
+    consequence: &str,
+    dead_ending: &str,
+    ceiling: Duration,
+    cadence: Cadence,
+    out: &mut dyn Write,
+    set_watch: &dyn Fn(&Path) -> Option<Watch>,
+) -> IndexWait {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
-    let consequence: String = format!("git {command} stops waiting and reports what Git says");
     let began: Instant = Instant::now();
     let mut ticker: Ticker = Ticker::announced_at_start(cadence);
     let mut held: bool = false;
@@ -209,7 +305,7 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
             proof = look_at(real_index, &gather_here);
         }
         if let Proof::Dead(pid) = &proof {
-            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence.as_str()).as_bytes());
+            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence, dead_ending).as_bytes());
             return IndexWait::OwnerGone(elapsed);
         }
         if due {
@@ -225,7 +321,7 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
                 Proof::Nothing(Some(evidence)) => blocker_words(evidence),
                 Proof::Nothing(None) | Proof::Dead(_) => String::from("an owner whose evidence could not be read"),
             };
-            let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence.as_str());
+            let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence);
             let _noted = write_then_flush(out, line.as_bytes());
             return IndexWait::GaveUp(elapsed);
         }

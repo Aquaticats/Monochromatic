@@ -279,7 +279,7 @@ fn recorded_destination(admin: &Path, recorded: &[u8]) -> Result<PathBuf, String
 /// ```ts
 /// path.resolve(base, named);
 /// ```
-fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
+pub(crate) fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
     let mut resolved: PathBuf = PathBuf::new();
     for part in base.join(OsStr::from_bytes(named)).components() {
         match part {

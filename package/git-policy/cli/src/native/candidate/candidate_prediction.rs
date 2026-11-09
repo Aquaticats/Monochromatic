@@ -387,23 +387,22 @@ fn note_listing(
 ///  Prepare the candidates of one request.
 ///  `real_git`,
 /// What:
-///  The caller's global arguments followed by `--no-literal-pathspecs`.
+///  The caller's global arguments without the options that set a pathspec mode.
 /// Why:
 ///  Every listing the candidate store makes relies on pathspec magic (`:/`,
 ///  `:(top,literal)`),
-///  which literal pathspec mode,
-///  from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
-///  turns into names that match nothing and so list no candidate at all.
+///  which literal pathspec mode turns into names that match nothing and so lists no candidate at all,
+///  and case-insensitive matching widens to a name the commit never selected;
+///  the store also removes the mode variables,
+/// so both halves of a caller's mode are gone here.
 ///  Only the replay of the caller's own command keeps the caller's mode.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const magicEnabledPrefix = (prefix: string[]) => [...prefix, '--no-literal-pathspecs'];
+/// const magicEnabledPrefix = (prefix: string[]) => withoutPathspecModeOptions(prefix);
 /// ```
 fn magic_enabled_prefix(global_prefix: &[OsString]) -> Vec<OsString> {
-    let mut prefix: Vec<OsString> = global_prefix.to_vec();
-    prefix.push(OsString::from("--no-literal-pathspecs"));
-    return prefix;
+    return crate::global_arguments::without_pathspec_mode_options(global_prefix);
 }
 
 /// What:

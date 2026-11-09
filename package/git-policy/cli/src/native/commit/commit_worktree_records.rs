@@ -105,12 +105,13 @@ pub fn settled_entry(
 ) -> Result<Option<(String, String)>, GitFailure> {
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
     pathspec.extend_from_slice(path);
-    // The pathspec is magic, and this start skips the caller's prefix, so literal pathspec mode,
-    // from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`, is switched off here: under it the
-    // name would match nothing and a landed correction would never reach the worktree copy.
+    // The pathspec is magic, and this start skips the caller's prefix, so every mode the caller set is
+    // removed from the child's environment: under literal mode the name would match nothing and a landed
+    // correction would never reach the worktree copy, and two glob modes at once make Git refuse the listing
+    // and fail the commit.
     // `--full-name` answers with repository-relative names, which is how `path` is written: from a
     // nested working directory `ls-files` would otherwise report `a.txt` for the `sub/a.txt` asked about.
-    let mut request: GitRequest = GitRequest::new(cwd, &["--no-literal-pathspecs", "ls-files", "--stage", "-z", "--full-name", "--"]);
+    let mut request: GitRequest = GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());
