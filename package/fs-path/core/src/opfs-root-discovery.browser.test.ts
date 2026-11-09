@@ -17,7 +17,7 @@
 import {
   expect,
   test,
-} from '../../../../playwright/test-with-a-persistent-context.ts';
+} from '@playwright/test';
 
 declare global {
   // oxlint-disable-next-line typescript/consistent-type-imports -- typeof import() cannot use import type syntax
