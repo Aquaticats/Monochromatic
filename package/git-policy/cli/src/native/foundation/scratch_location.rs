@@ -446,10 +446,14 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 ///  Which entry may go is `service_scratch_abandonment::may_go`'s to decide,
 ///  the same decision the collection a preparation does makes,
 ///  so a tree whose owner still runs is kept however old it is.
+///  At most `SCRATCH_TREES_REMOVED_PER_COMMAND` entries go per call,
+///  oldest first,
+///  so a backlog left by killed commands delays one command by that many removals and never by its whole length.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const entry of await readdir(dir)) if (now - (await lstat(entry)).mtimeMs > maxAgeMs) await removeWithin(entry, ceiling);
+/// const stale = (await readdir(dir)).filter(mayGo).sort(byAge).slice(0, 8);
+/// for (const entry of stale) await removeWithin(entry, ceiling);
 /// ```
 pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling: Duration) -> usize {
     let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
@@ -459,7 +463,8 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
             return 0;
         }
     };
-    let mut removed: usize = 0;
+    // What may go, in the order it goes: the oldest first, so the entries a machine keeps making are the ones that survive.
+    let mut stale: Vec<(SystemTime, PathBuf)> = Vec::new();
     for listed in entries {
         let entry: std::fs::DirEntry = match listed {
             Ok(found) => found,
@@ -481,6 +486,11 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
         if !crate::service_scratch_abandonment::may_go(path.as_path(), &metadata, now, max_age) {
             continue;
         }
+        stale.push((metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH), path));
+    }
+    stale.sort_by(|left: &(SystemTime, PathBuf), right: &(SystemTime, PathBuf)| { return left.0.cmp(&right.0); });
+    let mut removed: usize = 0;
+    for (_, path) in stale.iter().take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND) {
         // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the
         //  next sweep, instead of holding the command that asked for scratch for as long as the device takes.
         match remove_within(path.as_path(), ceiling) {

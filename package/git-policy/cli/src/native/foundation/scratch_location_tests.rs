@@ -195,6 +195,33 @@ fn a_sweep_keeps_a_live_commands_tree_and_takes_a_gone_ones() {
     remove(root.as_path());
 }
 
+/// A sweep removes at most the number of entries one command is allowed to collect,
+/// oldest first,
+/// so a backlog another command left delays this one by that many removals and never by the backlog's length,
+/// and the next sweep takes the next of them.
+#[test]
+fn a_sweep_removes_at_most_its_share_of_a_backlog() {
+    let root: PathBuf = fixture("scratch-sweep-backlog");
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir_all(&scratch).expect("scratch directory");
+    let share: usize = crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND;
+    let entries: usize = share * 2;
+    let named: Vec<PathBuf> = (0..entries).map(|at| { return scratch.join(format!("cli-git-left-{at}")); }).collect();
+    for (at, path) in named.iter().enumerate() {
+        std::fs::write(path, b"x").expect("an entry");
+        // Each entry is older than the one after it, so a full sweep removes the first of them.
+        age(path.as_path(), SCRATCH_STALE_AFTER * 2 + Duration::from_secs(u64::try_from(entries - at).expect("a small count")));
+    }
+    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), share, "one sweep removes the share");
+    let left: usize = named.iter().filter(|path| { return path.exists(); }).count();
+    assert_eq!(left, entries - share, "the rest wait for the next sweep");
+    assert!(!named[0].exists() && !named[share - 1].exists(), "the oldest go first");
+    assert!(named[share].exists(), "the youngest of the backlog wait");
+    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), share, "the next sweep takes the rest");
+    assert!(named.iter().all(|path| { return !path.exists(); }), "the backlog is gone in as many sweeps as it needs");
+    remove(root.as_path());
+}
+
 /// A missing directory sweeps nothing and does not fail.
 #[test]
 fn sweeping_a_missing_directory_removes_nothing() {
