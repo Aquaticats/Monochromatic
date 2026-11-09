@@ -3236,6 +3236,9 @@ The step is a form the cut experiment proved may be run twice,
 so the existing bulk-step ceiling (`OBJECT_STEP_CEILING`) bounds it,
 and a stop leaves the index as it was.
 The scratch step's 3,006 ms ceiling is unchanged.
+(It is 16,332 ms since 2026-11-08;
+see "The ceiling is about 16 s,
+and the three steps over it" below.)
 An index another program has locked is not written:
 the private index is refreshed instead,
 so the commit still finishes and the real index keeps its stat data until a later commit can write it.
@@ -9393,6 +9396,9 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
     Also answered 2026-11-08:
     "Empty locks only (Recommended)" for the unheld index lock,
     which is what is built.
+    The ceiling moved to 16,332 ms on 2026-11-08;
+    see "The ceiling is about 16 s,
+    and the three steps over it" below.
   - Editor detection is the existing `opens_editor` (`landing/service_commit_args_editor_opening.rs`):
     `-m`,
     `-F`,

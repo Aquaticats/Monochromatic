@@ -2699,7 +2699,14 @@ the signing program,
 and when the step is stopped:
 a commit whose message came with the command (`-m`,
 `-F`,
-`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
+`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`,
+16,332 ms:
+three times the slowest `git commit` step record that is not one of the three over 26 s,
+5,444 ms,
+in the 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5 read on 2026-11-09;
+owner,
+2026-11-08,
+"About 16 seconds"),
 everything below the command ended with `SIGKILL`,
 the command failing with a message that says nothing was committed and to run the same command again;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
