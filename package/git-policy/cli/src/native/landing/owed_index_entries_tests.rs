@@ -11,7 +11,7 @@
 //! // expect([...(await indexEntries(index, ['a.txt'])).keys()]).toEqual(['a.txt']);
 //! ```
 
-use super::{head_entries, index_entries, tree_entries};
+use super::{head_entries, index_entries, moved_since_listing, tree_entries};
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -71,6 +71,28 @@ fn the_index_entries_of_a_nested_path_keep_their_repository_relative_names() {
     let asked: [Vec<u8>; 1] = [b"sub/f".to_vec()];
     let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
     assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the entry is named as the caller looks it up");
+    remove(root.as_path());
+}
+
+/// The paths a listing says moved are named to `git rm` and `git reset` as `:(top,literal)<path>` specs,
+/// so they are repository-relative paths and not names read from wherever Git happened to run.
+#[test]
+fn the_moved_paths_of_a_nested_name_are_named_from_the_top() {
+    let root: PathBuf = fixture("owed-entries-nested-moved");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::create_dir(repo.join("sub")).expect("sub directory");
+    std::fs::write(repo.join("sub/f"), b"one\n").expect("write sub/f");
+    git(repo.as_path(), &["add", "--", "sub/f"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "sub/f"]);
+    let index: PathBuf = repo.join(".git/index");
+    let copy: PathBuf = root.join("commit.index");
+    std::fs::copy(index.as_path(), copy.as_path()).expect("a copy of the index");
+    std::fs::write(repo.join("sub/f"), b"two\n").expect("stage other contents");
+    git(repo.as_path(), &["add", "--", "sub/f"]);
+    let mut context: crate::transaction_git::GitContext = git_context();
+    context.global_prefix = vec![OsString::from("-C"), repo.join("sub").into_os_string()];
+    let moved: Vec<Vec<u8>> = moved_since_listing(&context, repo.as_path(), index.as_path(), copy.as_path()).expect("the listings compare");
+    assert_eq!(moved, vec![b"sub/f".to_vec()], "the moved path is named from the top of the worktree");
     remove(root.as_path());
 }
 
