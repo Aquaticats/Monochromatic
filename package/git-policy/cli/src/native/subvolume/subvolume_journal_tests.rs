@@ -156,8 +156,8 @@ fn the_stage_identity_reads_back_from_the_recorded_value() {
     let mut not_an_identity: Journal = Journal::load(path.as_path()).expect("load");
     not_an_identity.set_value(STAGE_ROOT, "not an identity");
     not_an_identity.mark("verify", "done").expect("mark");
-    let reloaded: Journal = Journal::load(path.as_path()).expect("load");
-    assert_eq!(reloaded.stage_identity(), None, "a value that is not an identity answers none");
+    let after_a_foreign_value: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(after_a_foreign_value.stage_identity(), None, "a value that is not an identity answers none");
     remove(parent.as_path());
 }
 
