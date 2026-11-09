@@ -202,6 +202,11 @@ Zero current codes collide with the reservation.
 - `file-enforcer.config.ts:1442` scopes a Harper server to `AGENTS.md` and `CLAUDE.md` prose.
 - `package/agent-harness-shared/advisor/src/project-context.ts:13` loads `/project/AGENTS.md` into advisor context.
 
+Two of those consumers cite `file-enforcer.config.ts`,
+which became `file-enforcer.config.jsonc` on 2026-10-31
+(`e7b5130459`);
+their line numbers count from the deleted file.
+
 No programmatic checker parses codes,
 rule lengths,
 or cross-file uniqueness.
