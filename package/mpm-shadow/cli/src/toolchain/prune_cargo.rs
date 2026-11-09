@@ -344,6 +344,17 @@ pub fn prune_toolchain(
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
     let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
+    if !dry_run {
+        // What: every repository-published crate's `current` is repointed before anything is deleted.
+        // Why: `current` names the newest finished version, which is never one of the deletions below;
+        // moving the link first leaves a run killed at any later point with a link that resolves,
+        // instead of one naming a directory this run has already removed.
+        for crate_name in present.keys() {
+            if crate_name.starts_with(OWN_CRATE_PREFIX) {
+                point_current_at_newest(&scope.toolchain_root, crate_name)?;
+            }
+        }
+    }
     let mut removed: Vec<PathBuf> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
@@ -369,10 +380,8 @@ pub fn prune_toolchain(
                 None => false,
             };
             if remaining {
-                // Only a crate this repository publishes has a `current` link; a third-party crate is never given one.
-                if crate_name.starts_with(OWN_CRATE_PREFIX) {
-                    point_current_at_newest(&scope.toolchain_root, crate_name)?;
-                }
+                // Only a crate this repository publishes has a `current` link, and it was repointed before the
+                // deletions above, so the link already names the newest finished version that stays.
             } else if !had_versions {
                 // A directory that held no version before holds only a `current` link that forwards to the other toolchain
                 // root's newer copy (see `managed_losers.rs`); nothing was pruned from it, so it stays.

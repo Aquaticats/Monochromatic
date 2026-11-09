@@ -162,6 +162,36 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
 }
 
+/// A prune that cannot repoint `current` deletes nothing:
+/// the link is moved to the newest finished version before the older one goes,
+/// so a run that stops at the link has never deleted the version the link named.
+#[test]
+fn a_prune_that_cannot_repoint_current_deletes_no_version() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for version in ["1.1.0", "1.2.0"] {
+        finish_install(
+            &version_directory(&root, "monochromatic-lint", version),
+            "monochromatic-lint",
+            version,
+            &["monochromatic-lint"],
+        );
+    }
+    // `current` is a directory here, so the atomic link write cannot land: the prune stops at the repoint.
+    fs::create_dir(current_link(&root, "monochromatic-lint")).expect("squat the link");
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-lint\":{\"request\":\"cargo:monochromatic-lint@latest\",\"version\":\"1.1.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    let error = pruned.expect_err("the link cannot be written over a directory");
+    assert!(error.message.contains("current"), "the message names the link: {error}");
+    assert!(version_directory(&root, "monochromatic-lint", "1.1.0").is_dir(), "the version `current` named was deleted");
+    assert!(version_directory(&root, "monochromatic-lint", "1.2.0").is_dir(), "the newest finished version was deleted");
+}
+
 /// A version installed while the prune runs is never deleted:
 /// the prune lists what is present before it reads any lock,
 /// so an install that lands afterwards is not in the list it deletes from.
