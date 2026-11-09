@@ -176,7 +176,28 @@ Cons:
 - The observed failure stays:
   the check exists but runs only when someone remembers.
 
+### G. Make the wrapper's `lint` compile the sidecar
+
+Pros:
+
+- Runs on the branch that changed the wrapper,
+  at the lint step its agent already runs,
+  so both the lock and the source lag are caught before the merge.
+- Continues the owner's own decision:
+  the wrapper's `lint` already reads the sidecar's lock.
+- No CI minutes and no network beyond the local registry.
+
+Cons:
+
+- The wrapper's `lint` becomes minutes slower from an empty `target/`,
+  and seconds when warm.
+- A wrapper-only change then fails on a sidecar file,
+  so its author must repair the sidecar in the same commit.
+
 Ranking:
+G beats A because it reports on the branch that changed the wrapper,
+before the merge,
+and costs no CI minutes.
 A beats C because it needs no per-clone setup and reports instead of stopping a push.
 C beats B because it fires without anyone remembering to start the fanout.
 B beats D because it reports drift and leaves the tree alone,
@@ -187,9 +208,30 @@ E beats F because F keeps the failure that was measured.
 
 ## Recommendation
 
-A,
-with a narrow scope:
-one workflow,
+G,
+narrowly:
+the wrapper's `lint` gains one task that runs
+`mise run //package/git-policy/cli.fuzz:lint:types`,
+next to the existing `lint:sidecar-locks`.
+The sidecar's `lint:types` compiles the targets against the wrapper with
+`--locked --offline`,
+so it fails on a stale lock and on a wrapper API change alike,
+and it is the same task the root `lint` fanout already runs.
+The wrapper's own `lint:sidecar-locks` stays,
+because it fails in seconds and names the repair task.
+
+The repair stays `mise run //package/git-policy/cli.fuzz:lock:members`,
+never a hand edit.
+
+If the owner also wants coverage after a push,
+option A's workflow is the automatic backstop,
+using the filter and steps under `## Path filter for option A`.
+It is not part of this recommendation,
+because G reports before the merge and costs no CI minutes.
+
+## Path filter for option A
+
+One workflow,
 `.github/workflows/git-policy-cli-fuzz.yml`,
 triggered on `pull_request`,
 `merge_group` and `push` to `main`,
@@ -208,7 +250,7 @@ Those are the wrapper,
 the sidecar and every crate the sidecar links by path;
 `cargo metadata` on the sidecar lists exactly those seven packages.
 
-Steps:
+Its steps:
 
 - checkout,
   then the repository's task CLI setup;
@@ -226,7 +268,8 @@ or any other package's lint.
 
 ## Open questions for the owner
 
-- Whether the workflow should be required on the merge queue,
+- If option A is built,
+  whether the workflow should be required on the merge queue,
   or advisory.
 - Whether option B should follow in the same change or later,
   so the other sidecars gain the same check.
