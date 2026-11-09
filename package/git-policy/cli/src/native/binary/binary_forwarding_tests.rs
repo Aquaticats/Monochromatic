@@ -492,55 +492,149 @@ fn send_signal(pid: i32, signal: i32) {
 }
 
 /// What:
+///  How long a signalled wrapper may take to end before the control calls it a hang.
+/// Why:
+///   A signal ends the wrapper at once,
+/// so anything near this is a defect rather than a slow host,
+/// and it is far under
+///  the harness's own backstop for a command that never ends
+/// (`binary_supervisor::SHARED_BACKSTOP_SECONDS`,
+/// 600 seconds).
+/// The control waits with this bound instead of
+///  `Child::wait`,
+/// which a test may not call without one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIGNAL_WAIT = 30_000;
+/// ```
+const SIGNAL_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What:
+///  Waits for a child with a bound,
+/// and ends it when the bound passes.
+/// Why:
+///   A test may not wait without a bound:
+/// the covered run holds its own standard input open,
+/// so a signal that never arrives
+///  leaves the wrapper waiting for ever
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-2 review).
+/// A child the bound ends is named with what it printed,
+/// so the failure says what happened rather than hanging.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitWithin(child: Child, bound: number): ExitStatus { const began = Date.now(); while (Date.now() - began < bound) { const status = child.tryWait(); if (status) return status; sleep(10); } child.kill(); throw new Error(`did not end within ${bound} ms`); }
+/// ```
+fn wait_within(child: &mut Child, bound: std::time::Duration) -> std::process::ExitStatus {
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < bound {
+        if let Some(status) = child.try_wait().expect("the child's state") {
+            return status;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let _killed = child.kill();
+    let status: std::process::ExitStatus = child.wait().expect("the ended child");
+    panic!("the command did not end within {bound:?}: {status:?}");
+}
+
+/// What:
 ///  A `SIGTERM` sent to the Git the wrapper runs for an index writer ends the wrapper by that signal,
 /// exactly as it
 ///  ends native Git.
 /// Why:
 ///  The coordinated route keeps a process around Git,
-/// so Git's death comes back as a value;
-/// that value was the status a
-///  shell prints for the death (128 + the signal),
-/// so the caller saw a normal exit where native Git's caller sees
-///  `WIFSIGNALED`
+/// so Git's death comes back as a value,
+/// and that value
+///  is now the signal itself
 /// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// finding 4 of the round-1
 ///  review).
 /// The control beside it sends the same signal to the wrapper's own process,
 /// which proves this run can show a death
 ///  by a signal at all.
+/// Each run has a stand-in and a process-number file of its own,
+/// and the control's standard input
+///  is closed before the covered run starts:
+/// a stand-in the control left behind reads its standard input,
+/// and with the pipe closed it
+///  ends instead of waiting,
+/// so the covered run can never take its process number for its own
+/// (finding 4 of the
+///  round-2 review).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const through = spawn(wrapper, ['add', 'a.txt']); kill(pidOfStandIn, 'SIGTERM'); expect(await wait(through)).toMatchObject({ code: null, signal: 'SIGTERM' });
+/// const through = spawn(wrapper, ['add', 'a.txt']); kill(pidOfItsStandIn, 'SIGTERM'); expect(waitWithin(through)).toMatchObject({ code: null, signal: 'SIGTERM' });
 /// ```
 #[test]
 fn a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal() {
     let fixture: Fixture = fixture("signal-coordinated");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"content\n").expect("the file the command stages");
-    let scripts: PathBuf = fixture.root.join("scripts");
-    std::fs::create_dir_all(&scripts).expect("script directory");
-    let pid_file: PathBuf = fixture.root.join("stand-in.pid");
-    stand_in_that_waits_before_writing_the_index(scripts.join("git").as_path(), pid_file.as_path());
+    let control_scripts: PathBuf = fixture.root.join("scripts-control");
+    let covered_scripts: PathBuf = fixture.root.join("scripts-covered");
+    std::fs::create_dir_all(&control_scripts).expect("control script directory");
+    std::fs::create_dir_all(&covered_scripts).expect("covered script directory");
+    let control_pid_file: PathBuf = fixture.root.join("control.pid");
+    let covered_pid_file: PathBuf = fixture.root.join("covered.pid");
+    stand_in_that_waits_before_writing_the_index(control_scripts.join("git").as_path(), control_pid_file.as_path());
+    stand_in_that_waits_before_writing_the_index(covered_scripts.join("git").as_path(), covered_pid_file.as_path());
     // The control: the same invocation, and the signal sent to the wrapper rather than to its Git.
-    let mut control: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), scripts.as_path());
+    let mut control: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), control_scripts.as_path());
     let control_number: i32 = i32::try_from(control.id()).expect("a process number");
     send_signal(control_number, libc::SIGTERM);
-    let control_status: std::process::ExitStatus = control.wait().expect("the wrapper ends");
-    let _control_input = control.stdin.take();
+    let control_status: std::process::ExitStatus = wait_within(&mut control, SIGNAL_WAIT);
+    // Closing the control's input ends a stand-in it left behind, whose number no other run can then take.
+    drop(control.stdin.take());
     assert_eq!(control_status.signal(), Some(libc::SIGTERM), "the control: this run shows a death by a signal");
     assert_eq!(control_status.code(), None);
-    std::fs::remove_file(&pid_file).ok();
     // The covered case: the signal reaches only the Git the wrapper started.
-    let mut through: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), scripts.as_path());
-    let stand_in: i32 = stand_in_number(pid_file.as_path());
+    let mut through: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), covered_scripts.as_path());
+    let stand_in: i32 = stand_in_number(covered_pid_file.as_path());
     send_signal(stand_in, libc::SIGTERM);
     // Standard input stays open until the wrapper is gone, so nothing but the signal ends the stand-in.
-    let status: std::process::ExitStatus = through.wait().expect("the wrapper ends");
-    let _closed = through.stdin.take();
+    let status: std::process::ExitStatus = wait_within(&mut through, SIGNAL_WAIT);
+    drop(through.stdin.take());
     assert_eq!(status.code(), None, "not a normal exit with the status a shell prints for the death");
     assert_eq!(status.signal(), Some(libc::SIGTERM), "the caller sees the death native Git's caller sees");
     remove(&fixture);
+}
+
+
+/// What:
+///  A child that never ends is ended by the bound,
+/// and the control fails instead of waiting for ever.
+/// Why:
+///  A test may not wait without a bound:
+/// the covered run of the signal control holds its own standard input open,
+/// so a
+///  signal that never arrives leaves the wrapper waiting until the test runner ends the whole binary
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-2 review).
+/// This is the bound itself, with a child that waits on a pipe nobody closes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stubborn = spawn('/bin/sh', ['-c', 'read line'], { stdio: ['pipe'] }); expect(() => waitWithin(stubborn, 200)).toThrow(); expect(stubborn.pid).toBeGone();
+/// ```
+#[test]
+fn a_wait_without_an_end_is_ended_at_its_bound() {
+    let mut stubborn: Child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("read line")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the child starts");
+    let began: std::time::Instant = std::time::Instant::now();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return wait_within(&mut stubborn, std::time::Duration::from_millis(200)); }));
+    assert!(caught.is_err(), "the bound ends the wait");
+    assert!(began.elapsed() < std::time::Duration::from_secs(10), "at its bound, not later");
+    assert!(stubborn.try_wait().expect("the child's state").is_some(), "the child was ended, not left behind");
 }
 
 /// Wait until the process with this ID is real Git,
