@@ -10,7 +10,7 @@
 
 use super::*;
 use crate::fs_beneath::handle_path;
-use crate::push_failure_notice::{record_push_failure, take_orphaned_failures};
+use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
 use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
 use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy, record_destroyed};
 use std::cell::RefCell;
@@ -315,7 +315,7 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
     assert!(problems.is_empty(), "{problems:?}");
     assert!(!admin.exists(), "the registration the destroy left is gone");
-    let shown: Vec<String> = take_orphaned_failures(common.as_path(), &|commit: &str| { return commit.to_string(); });
+    let shown: Vec<String> = crate::test_support::shown_notices(orphaned_push_failures(common.as_path(), &|commit: &str| { return commit.to_string(); }));
     assert!(shown.iter().any(|text: &String| { return text.contains("refused by test policy"); }), "the notice the registration held is shown: {shown:?}");
     // Git accepts the path again, which is what the person asked for.
     git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);

@@ -7,8 +7,8 @@
 //!  worktree which stays loses nothing and shows nothing.
 
 use super::*;
-use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, record_push_failure, take_orphaned_failures};
-use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of, name_of};
+use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, orphaned_push_failures, record_push_failure};
+use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of};
 use crate::work_item::WorkItem;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, remove};
@@ -61,7 +61,8 @@ fn item(kind: WorkKind, commit: &str) -> WorkItem {
 }
 
 fn shown(repo: &Repo) -> Vec<String> {
-    return take_orphaned_failures(repo.common.as_path(), &plain);
+    // A record goes only once its words are out, so these controls read them through the step a command shows them by.
+    return crate::test_support::shown_notices(orphaned_push_failures(repo.common.as_path(), &plain));
 }
 
 /// The snapshot of the fixture's worktree.

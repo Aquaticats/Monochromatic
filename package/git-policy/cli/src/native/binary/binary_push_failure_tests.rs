@@ -136,14 +136,25 @@ fn waiting_records_in(git_dir: &Path) -> usize {
 
 /// Waits until the service has pushed `commit` and the item is settled.
 fn wait_until_settled(setup: &Setup, commit: &str) {
-    wait_until_settled_in(common_dir(setup).as_path(), commit);
+    wait_until_settled_in(common_dir(setup).as_path(), "refs/heads/main", commit);
 }
 
-/// The same for the work records under the Git directory of one worktree.
-fn wait_until_settled_in(git_dir: &Path, commit: &str) {
+/// The same for the work records of `branch` under the Git directory of one worktree.
+fn wait_until_settled_in(git_dir: &Path, branch: &str, commit: &str) {
     let work: PathBuf = git_dir.join("monochromatic-git-policy-cli/work");
     wait_until("the service settled the push", &|| {
-        return ["done", "failed"].iter().any(|state| { return work.join(state).join(format!("push-{commit}")).exists(); });
+        // The record's own id, which carries the branch as well as the commit.
+        let record: WorkItem = WorkItem {
+            kind: WorkKind::Push,
+            repository: PathBuf::new(),
+            git_dir: PathBuf::new(),
+            branch_ref: String::from(branch),
+            oid: String::from(commit),
+            parent: String::new(),
+            created: String::new(),
+            tries: 0,
+        };
+        return ["done", "failed"].iter().any(|state| { return work.join(state).join(record.id()).exists(); });
     });
 }
 
@@ -410,7 +421,7 @@ fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
     setup.service.serve(&setup.fixture, own.as_path());
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
-    wait_until_settled_in(own.as_path(), commit.as_str());
+    wait_until_settled_in(own.as_path(), "refs/heads/feature", commit.as_str());
     assert_eq!(waiting_records_in(own.as_path()), 1, "the refusal was recorded in the worktree's own Git directory");
     assert_eq!(waiting_records(&setup), 0, "nothing was recorded in the main worktree");
     let elsewhere: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
@@ -474,7 +485,7 @@ fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
     setup.service.serve(&setup.fixture, own.as_path());
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
-    wait_until_settled_in(own.as_path(), commit.as_str());
+    wait_until_settled_in(own.as_path(), "refs/heads/feature", commit.as_str());
     let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", "--force", linked.to_str().expect("UTF-8")]);
     assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
     let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
