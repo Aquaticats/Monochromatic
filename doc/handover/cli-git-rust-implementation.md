@@ -234,8 +234,10 @@ The old tree kept for the rollback stays until the owner deletes it.
 - Waiting for a free agent slot,
   in this order:
   `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
-  and a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
-  for the six defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`.
+  a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
+  for the six defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
+  and `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
+  for four of the five findings of `conflict-resolution-round-2-sol.txt`.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
