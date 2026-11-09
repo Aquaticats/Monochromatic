@@ -269,6 +269,32 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A conversion interrupted past its swap keeps the original tree at the converting name on purpose,
+///  so a worktree removed afterwards leaves that full copy beside where it was,
+///  and the journal that alone records it goes with the registration.
+/// `--abandon` must reach it:
+///  every other mode refuses a path without a `.git` before it looks at anything.
+#[test]
+fn an_abandon_reaches_the_stage_that_a_removal_left_behind() {
+    let (parent, _root, worktree) = quiet_worktree("convert-abandon-leftover");
+    let platform: PlainPlatform = PlainPlatform::new();
+    // Past the swap: the checkout is the new subvolume and the original tree waits at the converting name.
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let admin: PathBuf = admin_of(worktree.as_path());
+    // What the removal of the worktree does: its directory and its registration go, and the journal goes with them.
+    remove(worktree.as_path());
+    remove(admin.as_path());
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the full copy stays beside where the worktree was");
+    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let (verdict, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
+    assert_eq!(verdict.expect("abandoned"), Verdict::Abandoned, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the stage is gone after the abandon");
+    assert!(lines.iter().any(|line: &String| { return line.contains("leftover"); }), "the abandon says what it destroyed: {lines:#?}");
+    remove(parent.as_path());
+}
+
 /// The final removal deletes the directory the journal recorded and nothing else:
 /// a different directory at the converting
 ///  name is left alone,

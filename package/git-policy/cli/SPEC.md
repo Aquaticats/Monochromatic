@@ -1420,6 +1420,14 @@ including a stop between the exchange and
 its journal line;
 `--abandon` destroys only the subvolume whose identity the journal recorded,
 and only before the exchange.
+A worktree removed after its conversion stopped past the swap leaves the original tree at
+`<path>.cli-git-converting`,
+a full copy nobody can name once the registration and its journal are gone,
+so `--abandon` reaches a path without a registration too:
+a subvolume root at `<path>.cli-git-converting` is destroyed and any other directory there is removed as a tree,
+which is the original directory a stop after the swap leaves.
+It says what it found before it destroys it,
+and refuses while a process is inside that directory.
 
 Other processes:
 nothing in the command or the program excludes another process from changing the worktree while a command

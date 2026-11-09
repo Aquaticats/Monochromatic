@@ -1406,6 +1406,11 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   `--abandon` undoes one that has not
   reached its swap,
   destroying only the subvolume its journal says it created.
+  It also reaches the copy a conversion left behind when its worktree was removed before the
+  conversion was finished (a worktree path without a `.git` that still has `<path>.cli-git-converting`
+  beside it):
+  the copy is destroyed,
+  and nothing is destroyed while a process is inside it.
 - Measured on a fixture of four ordinary worktrees of 22.3 thousand entries each:
   4.2 s per worktree under a scope of
   `CPUQuota=400%`,
