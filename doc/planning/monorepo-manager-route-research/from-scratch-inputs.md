@@ -1802,7 +1802,7 @@ Commands that need root are marked `sudo`.
   Remediation:
   kernel 4.18 or newer.
   Reason:
-  see previous item.
+  see the repository-root-is-a-subvolume item.
 - **Reflink between cache and repository** (unblocks cheap output restoration).
   Detect:
   create a probe file in the cache directory and `FICLONE` it into the repository;

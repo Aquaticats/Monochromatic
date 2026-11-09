@@ -5166,7 +5166,7 @@ the runner's jobs on the runtime"):
   `.claude/worktrees/pi-tokio-pure-file-sites-on-the-awaited-runner`,
   from main at `3db3002750`.
   Not merged into main.
-- This section decides the two things the previous section left open for item 3
+- This section decides the two things the "What is left" section left open for item 3
   before any of its code moves:
   the line path of an item whose work runs in a `'static` job,
   and the owning of the state each site lends the runner.
@@ -5176,7 +5176,7 @@ the runner's jobs on the runtime"):
 
 #### What each site really lends, and which of them says lines while it works
 
-The record above says the three pure-file sites "all say lines while they work".
+The T12 step record says the three pure-file sites "all say lines while they work".
 Read again,
 only one of them does:
 

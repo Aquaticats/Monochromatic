@@ -1218,7 +1218,7 @@ What the code does:
   interrupted;
   a marker that cannot be written is a warning.
 - Recovery changes nothing.
-  For an add that was bound and has no marker it prints the report above once;
+  For an add that was bound and has no marker it prints the recovery report once;
   for one that was
   never bound it says that nothing proves a leftover at the recorded path is the add's;
   a stage named by an add is

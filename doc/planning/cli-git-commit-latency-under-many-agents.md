@@ -869,7 +869,8 @@ which this record proposes and does not build:
   and not to be touched from this branch:
   what the landing does with the index,
   which another branch is changing.
-  The measurement above is of the preparation only.
+  The measurement under "What the preparation spends,
+  named" is of the preparation only.
 
 What this could not determine:
 
