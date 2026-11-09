@@ -116,6 +116,26 @@ pub enum Prune {
 }
 
 /// What:
+///  Whether one component's bytes are one of these names.
+/// Why:
+///   The stage prefix and the leave-out rule compare a path's own bytes with a short list of
+/// names,
+/// so one loop answers for every list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// names.includes(component)
+/// ```
+fn component_is_one_of(component: &[u8], names: &[&str]) -> bool {
+    for name in names {
+        if component == name.as_bytes() {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Whether any child name is the marker of a checkout.
 /// Why:
 ///   A directory holding the marker is another checkout and is left out whole.
@@ -166,7 +186,7 @@ impl Prune {
     /// skipsPath(prune, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543') // true
     /// ```
     pub fn skips_path(self, relative_path: &[u8]) -> bool {
-        let components: Vec<&[u8]> = relative_path.split(|byte| return is_separator_byte(byte)).collect();
+        let components: Vec<&[u8]> = relative_path.split(is_separator_byte).collect();
         // Another command's stage container is no state of the source, whatever the rule: its payload is a full copy of
         //  another worktree's ignored state, made while its own copy runs, and nothing names it in the new worktree.
         for component in &components {
@@ -185,10 +205,10 @@ impl Prune {
             let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == b".cache" && index > 0;
-            let cache: bool = CACHE_NAMES.iter().any(|name| return *component == name.as_bytes())
+            let cache: bool = component_is_one_of(component, &CACHE_NAMES)
                 || nested_cache
-                || (below_target && TARGET_CACHE_NAMES.iter().any(|name| return *component == name.as_bytes()));
-            let record: bool = RUN_RECORD_NAMES.iter().any(|name| return *component == name.as_bytes())
+                || (below_target && component_is_one_of(component, &TARGET_CACHE_NAMES));
+            let record: bool = component_is_one_of(component, &RUN_RECORD_NAMES)
                 || (*component == b".monochromatic" && components[..index].contains(&"node_modules".as_bytes()))
                 || (*component == b"verification" && parent == Some(b"target".as_slice()))
                 || (*component == b"cache" && parent == Some(b".serena".as_slice()));

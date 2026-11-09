@@ -156,8 +156,27 @@ fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
 /// ```
 fn names_private_stage(repository_path: &[u8]) -> bool {
     return repository_path
-        .split(|byte| return is_separator_byte(byte))
+        .split(is_separator_byte)
         .any(starts_private_stage);
+}
+
+/// What:
+///  The unreadable entries of one stage as the text a person reads,
+/// comma-separated.
+/// Why:
+///   The verbose log names every entry the copy left out,
+/// so the person can look for those names in the new worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shown = (paths) => paths.map(shownRepositoryPath).join(', ')
+/// ```
+fn shown_unreadable(unreadable: &[Vec<u8>]) -> String {
+    let mut names: Vec<String> = Vec::with_capacity(unreadable.len());
+    for path in unreadable {
+        names.push(shown_repository_path(path.as_slice()));
+    }
+    return names.join(", ");
 }
 
 /// What:
@@ -305,11 +324,7 @@ fn stage_into(
                 "{} unreadable ignored entries are left out of the copy from {}: {}",
                 unreadable.len(),
                 source_root.display(),
-                unreadable
-                    .iter()
-                    .map(|path| return shown_repository_path(path.as_slice()))
-                    .collect::<Vec<String>>()
-                    .join(", ")
+                shown_unreadable(unreadable.as_slice())
             )
             .as_str(),
         );

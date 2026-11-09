@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use std::cmp::Ordering;
 
 /// A named FIFO created with the platform's `mkfifo` utility.
 fn make_fifo(path: &Path) {

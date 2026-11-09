@@ -151,7 +151,7 @@ pub fn ensure_parents_remembering(
     }
     let components: Vec<&[u8]> = entry
         .relative_path
-        .split(|byte| return is_separator_byte(byte))
+        .split(is_separator_byte)
         .collect();
     let parent_count: usize = components.len().saturating_sub(1);
     for depth in 1..=parent_count {

@@ -18,7 +18,7 @@
 use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{filesystem_path, join_repository_path, repository_path_order};
+use crate::worktree_copy_selection::{by_repository_path_order, filesystem_path, join_repository_path};
 use crate::path_bytes::path_bytes_of;
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
@@ -292,7 +292,7 @@ pub fn collect_pruned_manifest(
             mode: retained_mode(&metadata),
             relative_path: item.relative_path.clone(),
         });
-        names.sort_by(|left, right| return repository_path_order(left.as_slice(), right.as_slice()));
+        names.sort_by(by_repository_path_order);
         for name in names.iter().rev() {
             let child_relative: Vec<u8> = join_repository_path(item.relative_path.as_slice(), name.as_slice());
             pending.push(WalkItem {

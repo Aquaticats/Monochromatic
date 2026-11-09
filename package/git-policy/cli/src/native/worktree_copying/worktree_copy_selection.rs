@@ -17,11 +17,9 @@
 //! ```
 
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::path_bytes::{os_from_path_bytes, path_bytes_of, path_message_text};
+use crate::path_bytes::{os_from_path_bytes, path_bytes_of};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
-use crate::json_record::quote;
-use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -49,229 +47,16 @@ const DIRECTORY_SUFFIX: u8 = b'/';
 pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
 
 /// What:
-///  Whether a byte separates the components of a repository path.
-/// Why:
-///   A repository path is the bytes Git reported,
-/// so every rule about its components reads those bytes;
-/// a name with any other byte,
-/// and that includes a byte that is not
-///  text,
-/// stays one component.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const byte === 0x2f;
-/// ```
-pub fn is_separator_byte(byte: &u8) -> bool {
-    return *byte == b'/';
-}
+/// The bytes of one repository path,
+/// their join,
+/// split and order,
+/// and the validation every one passes.
+pub use crate::worktree_copy_repository_path::{
+    assert_safe_repository_path, by_js_order, by_repository_path_order, filesystem_path, is_separator_byte,
+    join_repository_path, js_order, parent_of_repository_path, repository_path_order, repository_path_within,
+    shown_repository_path, within_any_root,
+};
 
-/// What:
-///  Whether a repository path equals or descends from another repository path.
-/// Why:
-///   Comparison is by whole components,
-/// so `cache2` is not inside `cache`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (candidate === parent) || candidate.startsWith(`${parent}/`)
-/// ```
-pub fn repository_path_within(candidate: &[u8], parent: &[u8]) -> bool {
-    // The exact path, or the parent followed by one separator, is the whole of the rule.
-    if candidate == parent {
-        return true;
-    }
-    return candidate.len() > parent.len()
-        && candidate.starts_with(parent)
-        && candidate[parent.len()] == b'/';
-}
-
-/// What:
-///  The repository path of one entry below a directory's repository path.
-/// Why:
-///   The walk and the checks build every child path from its parent and the name the
-/// filesystem listed,
-/// and that name keeps every byte it has.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Buffer.concat([parent, Buffer.from('/'), name])
-/// ```
-pub fn join_repository_path(parent: &[u8], name: &[u8]) -> Vec<u8> {
-    let mut joined: Vec<u8> = Vec::with_capacity(parent.len() + 1 + name.len());
-    joined.extend_from_slice(parent);
-    joined.push(b'/');
-    joined.extend_from_slice(name);
-    return joined;
-}
-
-/// What:
-///  The repository path of one entry's parent directory,
-/// or nothing for a path with no separator.
-/// Why:
-///   Installation creates the parents scaffolding beside the entries it writes,
-/// and that scaffolding is named by the parent of an entry's own bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const at = path.lastIndexOf('/'); at < 0 ? undefined : path.subarray(0, at)
-/// ```
-pub fn parent_of_repository_path(path: &[u8]) -> Option<&[u8]> {
-    let at: usize = path.iter().rposition(is_separator_byte)?;
-    return Some(&path[..at]);
-}
-
-/// What:
-///  The repository path as the text a person reads,
-/// with each invalid sequence replaced by U+FFFD.
-/// Why:
-///   A diagnostic names the entry;
-/// the exact bytes travel in the record and in the path used to act on it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// path.toString('utf8')
-/// ```
-pub fn shown_repository_path(path: &[u8]) -> String {
-    return path_message_text(path);
-}
-
-/// What:
-///  Whether a repository path component is empty,
-/// `.` or `..`.
-/// Why:
-///   Such a component could leave the repository,
-/// so a path with one is unsafe.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// component === '' || component === '.' || component === '..'
-/// ```
-fn is_unsafe_component(component: &[u8]) -> bool {
-    return component.is_empty() || component == b"." || component == b"..";
-}
-
-/// What:
-///  Whether a repository path is at or below any of the root paths.
-/// Why:
-///   A root already selected covers everything below it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// roots.some((root) => repositoryPathWithin(candidate, root))
-/// ```
-fn within_any_root(candidate: &[u8], roots: &[Vec<u8>]) -> bool {
-    for root in roots {
-        if repository_path_within(candidate, root.as_slice()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Validates one slash-separated path that Git reported before it is joined to a filesystem root.
-/// Why:
-///   An empty,
-/// absolute,
-/// `.` or `..` component could select a path outside the worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function assertSafeRepositoryPath(repositoryPath: string): void;
-/// ```
-pub fn assert_safe_repository_path(repository_path: &[u8]) -> Result<(), WorktreeCopyError> {
-    let unsafe_path: bool = repository_path.is_empty()
-        || repository_path[0] == b'/'
-        || repository_path
-            .split(|byte| return is_separator_byte(byte))
-            .any(is_unsafe_component);
-    if unsafe_path {
-        return Err(WorktreeCopyError(format!(
-            "monochromatic-git-policy-cli: Git returned unsafe ignored path {}.",
-            quote(shown_repository_path(repository_path).as_str())
-        )));
-    }
-    return Ok(());
-}
-
-/// What:
-///  The native path of one validated repository path under a filesystem root.
-/// Why:
-///   Every filesystem access of the copy goes through this join,
-/// so the validation cannot be skipped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// join(root, ...repositoryPath.split('/'));
-/// ```
-pub fn filesystem_path(root: &Path, repository_path: &[u8]) -> Result<PathBuf, WorktreeCopyError> {
-    assert_safe_repository_path(repository_path)?;
-    let mut path: PathBuf = root.to_path_buf();
-    for component in repository_path.split(|byte| return is_separator_byte(byte)) {
-        path.push(os_from_path_bytes(component));
-    }
-    return Ok(path);
-}
-
-/// What:
-///  Sorts strings the way JavaScript's default `toSorted` does:
-/// by UTF-16 code units.
-/// Why:
-///   Manifest and journal order must match the incumbent's,
-/// which differs from byte order
-///  only for supplementary-plane characters.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// [...values].toSorted()
-/// ```
-pub fn js_order(left: &str, right: &str) -> Ordering {
-    return left.encode_utf16().cmp(right.encode_utf16());
-}
-
-/// What:
-///  Order two names the way JavaScript's default sort does,
-/// for a sort of owned names.
-/// Why:
-///   `sort_by` hands its function references to the items,
-/// and a generic function over `AsRef<str>` takes them without a closure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// names.sort()
-/// ```
-pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
-    return js_order(left.as_ref(), right.as_ref());
-}
-
-/// What:
-///  Orders two repository paths:
-/// first by the UTF-16 code units of their text,
-/// as JavaScript sorts names,
-/// then by their bytes.
-/// Why:
-///   The stage and the source are walked twice and compared entry by entry,
-/// so both walks must order the same names the same way.
-/// A name that is text keeps the order the incumbent gave it;
-/// a name that is not text sorts where its text does and
-///  the bytes only decide between names whose text is equal,
-/// which keeps the walk reproducible for names the incumbent never had.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// compareText(a) || compareBytes(a, b)
-/// ```
-pub fn repository_path_order(left: &[u8], right: &[u8]) -> Ordering {
-    let shown: Ordering = js_order(
-        String::from_utf8_lossy(left).as_ref(),
-        String::from_utf8_lossy(right).as_ref(),
-    );
-    if shown != Ordering::Equal {
-        return shown;
-    }
-    return left.cmp(right);
-}
 
 /// What:
 ///  Keeps the outermost of several ignored roots,
@@ -286,7 +71,7 @@ pub fn repository_path_order(left: &[u8], right: &[u8]) -> Ordering {
 /// ```
 fn collapse_ignored_roots(paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let mut candidates: Vec<Vec<u8>> = paths.to_vec();
-    candidates.sort_by(|left, right| return repository_path_order(left.as_slice(), right.as_slice()));
+    candidates.sort_by(by_repository_path_order);
     candidates.dedup();
     let mut roots: Vec<Vec<u8>> = Vec::new();
     for candidate in candidates {

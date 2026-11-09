@@ -205,11 +205,10 @@ const NOTICE_PATHS: usize = 3;
 /// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
 /// ```
 pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[Vec<u8>]) -> String {
-    let named: Vec<String> = unreadable
-        .iter()
-        .take(NOTICE_PATHS)
-        .map(|path| return quote(shown_repository_path(path.as_slice()).as_str()))
-        .collect();
+    let mut named: Vec<String> = Vec::new();
+    for path in unreadable.iter().take(NOTICE_PATHS) {
+        named.push(quote(shown_repository_path(path.as_slice()).as_str()));
+    }
     let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
     let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
     let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
