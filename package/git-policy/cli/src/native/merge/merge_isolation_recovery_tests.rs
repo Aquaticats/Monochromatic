@@ -2568,3 +2568,52 @@ fn a_partly_written_checkout_whose_branch_moved_puts_the_written_paths_back() {
     );
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A merge that was saved on a side ref, and whose first record names no side ref,
+///  does not stop a command on another
+///  branch when nothing of the merge is in the checkout.
+/// Why:
+///  The branch check refused the record without a side ref,
+/// and only a saved record's refusal was let past,
+/// so the first
+///  record of a merge that installed nothing stopped every command in a worktree another command had switched
+/// to a branch naming the same commit,
+/// and no later command could clear it
+///  (a cross-vendor review of the ninth round,
+/// its fifth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const original = recordOf(deadOwner, { sideRef: undefined }); const saved = deferredRecord(); git switch -c other; const outcomes = await recover(...); expect(outcomes.find(o => o.record === original).action).toBe('discarded'); expect(exists(original)).toBe(false); expect(exists(saved)).toBe(true);
+/// ```
+#[test]
+fn a_merge_that_installed_nothing_does_not_stop_a_command_on_another_branch() {
+    let world: World = world("merge-recovery-other-branch");
+    // The merge met a lock it could not clear: its first record names no side ref and a second one names the kept commit.
+    let original: PathBuf = record_of(&world, dead_owner("56565656-0000-4000-8000-000000000056"), Some("refs/heads/main"));
+    let saved: PathBuf = deferred_record_of(&world, "57575757-0000-4000-8000-000000000057", "refs/cli-git/kept/57");
+    let before = snapshot(&world);
+    // Another command switches the worktree to a branch that names the same commit and installs nothing.
+    git(world.repo.as_path(), &["switch", "--quiet", "--create", "other"]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "other"]), world.old_oid, "the other branch names the old commit");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("nothing of the merge is in the checkout, so the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    let original_action = outcomes.iter().find(|outcome| outcome.record == original).map(|outcome| outcome.action);
+    assert_eq!(original_action, Some(MergeRecoveryAction::Discarded), "the record that names no side ref only goes: {text}");
+    assert!(!original.exists(), "the record nothing can finish is gone");
+    assert!(saved.exists(), "the saved merge's record is kept for the branch it is for");
+    assert_eq!(
+        outcomes.iter().find(|outcome| outcome.record == saved).map(|outcome| outcome.action),
+        Some(MergeRecoveryAction::DeferredRefused),
+        "the saved merge is named and the command goes on: {text}"
+    );
+    assert!(text.contains("refs/heads/other"), "the branch the worktree has is named: {text}");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the merged branch did not move");
+    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree keeps the other command's branch");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/57"]), world.new_oid, "the saved merge is kept");
+    assert_eq!(snapshot(&world), before, "nothing of the checkout changed");
+    remove(world.parent.as_path());
+}
