@@ -12,17 +12,11 @@ use crate::claim_time::ClaimTime;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::iso_time::now_iso;
-use crate::service_client::START_WAIT;
-use crate::service_provision::ProvisionHost;
-use crate::service_route::Route;
 use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
 use crate::test_support::{age, fixture, git, git_context, remove, repository};
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::work_item::{DONE, state_directory};
-use crate::service_messages::UPDATING_NOTICE;
-use crate::service_protocol::{ClientMessage, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_client, encode_service};
-use crate::service_server::Bind;
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use crate::worktree_snapshot::take_snapshot;
 use crate::worktree_snapshot_source::choose_snapshot_source;
@@ -274,11 +268,27 @@ fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
     remove(root.as_path());
 }
 
-/// Without a route to the service the trash is emptied in the foreground,
-/// and the work item written for it is withdrawn once
-///  it is gone.
+/// What:
+///  The trash a snapshot made is emptied before the command returns,
+/// with no service involved and no work
+///  item left behind.
+/// Why:
+///   The trash sits inside the new worktree,
+/// so anything still in it is a path the worktree's Git can list
+///  and `git add --all` can stage once the target commit stops ignoring it,
+/// another command's stage container with its
+///  credentials included.
+/// Nothing is queued for a later run,
+/// because a queued emptying is exactly the window that finding
+///  is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await disposePendingTrash({ destination, gitDir, trash, notices });
+/// expect(existsSync(join(worktree, TRASH_PARENT))).toBe(false); expect(pendingItems(gitDir)).toEqual([]);
+/// ```
 #[test]
-fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
+fn the_trash_is_emptied_before_the_command_returns() {
     let root: PathBuf = fixture("trash-fallback");
     let worktree: PathBuf = root.join("topic");
     let git_dir: PathBuf = root.join("admin");
@@ -288,11 +298,12 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     let name: String = "a".repeat(40);
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("emptied here");
-    assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied in the foreground");
+    dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
+    assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied here");
     assert!(!worktree.join(TRASH_PARENT).exists(), "and its parent goes with the last one");
     let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!pending.exists(), "the work item written before the route was tried is withdrawn when the trash is emptied here");
+    assert!(!pending.exists(), "nothing is left for a service to find, because nothing was handed over");
+    assert!(String::from_utf8_lossy(notices.as_slice()).contains("emptying the directories left out"), "the person is told why the command takes longer: {}", String::from_utf8_lossy(notices.as_slice()));
     remove(root.as_path());
 }
 
@@ -370,129 +381,6 @@ fn the_drain_empties_a_trash_item() {
     let _next = drain(git_dir.as_path(), &Handler, &ClaimTime::read());
     assert!(!worktree.join(TRASH_PARENT).exists(), "emptied by the drain");
     assert!(state_directory(work_directory(git_dir.as_path()).as_path(), DONE).read_dir().expect("done listing").count() > 0, "settled as done");
-    remove(root.as_path());
-}
-
-/// What a fixture service did:
-/// every line it was sent,
-/// in order.
-#[cfg(target_os = "linux")]
-struct FixtureService {
-    /// Raised to end the accept loop.
-    finished: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    /// The loop,
-    /// returning the non-empty lines it read.
-    thread: std::thread::JoinHandle<Vec<String>>,
-}
-
-/// Serve `name` as a service of a release other than this one;
-/// when `retires` is true it is replaced by a service of this
-///  release as soon as it has been asked to retire,
-/// else it goes on answering as the earlier release.
-#[cfg(target_os = "linux")]
-fn serve_earlier_release(name: &str, retires: bool) -> FixtureService {
-    use std::os::linux::net::SocketAddrExt;
-    use std::io::BufRead;
-    let socket = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
-    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket).expect("bind");
-    listener.set_nonblocking(true).expect("non-blocking");
-    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let thread = std::thread::spawn({
-        let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
-        move || {
-            let mut heard: Vec<String> = Vec::new();
-            let mut replaced: bool = false;
-            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
-                let Ok((stream, _)) = listener.accept() else {
-                    std::thread::sleep(std::time::Duration::from_millis(5));
-                    continue;
-                };
-                stream.set_nonblocking(false).expect("blocking");
-                let release: String = if replaced { String::from(RELEASE) } else { String::from("0.0.1-earlier") };
-                let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release) });
-                greeting.push('\n');
-                let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
-                let mut raw: String = String::new();
-                let _read = std::io::BufReader::new(&stream).read_line(&mut raw);
-                let line: String = raw.trim_end().to_string();
-                if line == encode_client(&ClientMessage::Retire) && retires {
-                    replaced = true;
-                }
-                if !line.is_empty() {
-                    heard.push(line);
-                }
-            }
-            return heard;
-        }
-    });
-    return FixtureService { finished, thread };
-}
-
-/// A worktree with one trash directory in it,
-/// the admin directory it points at,
-/// and the manifest of that trash.
-#[cfg(target_os = "linux")]
-fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
-    let root: PathBuf = fixture(label);
-    let worktree: PathBuf = root.join("topic");
-    let git_dir: PathBuf = root.join("admin");
-    std::fs::create_dir_all(&git_dir).expect("admin");
-    std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
-    let manifest: TrashManifest = plant_trash(worktree.as_path(), name, 1);
-    return (root, worktree, git_dir, manifest);
-}
-
-/// A service of an earlier release that never retires is not given the work item:
-/// it is asked only to retire,
-/// the trash is
-///  emptied here,
-/// and no record is left for a later service to find.
-#[cfg(target_os = "linux")]
-#[test]
-fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() {
-    let name: String = "e".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_trash("trash-earlier-stubborn", name.as_str());
-    let address: String = format!("trash-earlier-stubborn-{}", std::process::id());
-    let service: FixtureService = serve_earlier_release(address.as_str(), false);
-    let mut notices: Vec<u8> = Vec::new();
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: std::time::Duration::from_millis(400) }).expect("emptied here");
-    service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
-    let heard: Vec<String> = service.thread.join().expect("service thread");
-    assert!(!heard.is_empty() && heard.iter().all(|line: &String| { return *line == encode_client(&ClientMessage::Retire); }), "only retires were sent: {heard:?}");
-    assert!(String::from_utf8_lossy(notices.as_slice()).contains(UPDATING_NOTICE), "the person is told the service is being replaced");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "the trash is emptied in the foreground");
-    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!pending.exists(), "no item an earlier service could never claim is left");
-    remove(root.as_path());
-}
-
-/// A service of an earlier release that retires is replaced before the hand-over:
-/// the work item reaches the current service,
-///  after the retire,
-/// and the trash stays for that service to empty.
-#[cfg(target_os = "linux")]
-#[test]
-fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
-    let name: String = "f".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_trash("trash-earlier-retires", name.as_str());
-    let address: String = format!("trash-earlier-retires-{}", std::process::id());
-    let service: FixtureService = serve_earlier_release(address.as_str(), true);
-    let mut notices: Vec<u8> = Vec::new();
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("handed over");
-    service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
-    let heard: Vec<String> = service.thread.join().expect("service thread");
-    let retire: String = encode_client(&ClientMessage::Retire);
-    let work: String = encode_client(&ClientMessage::Work { git_dir: git_dir.clone(), review_key: None });
-    let retired_at: usize = heard.iter().position(|line: &String| { return *line == retire; }).expect("the earlier service was asked to retire");
-    let worked_at: usize = heard.iter().position(|line: &String| { return *line == work; }).expect("the current service was woken");
-    assert!(retired_at < worked_at, "the retire comes first: {heard:?}");
-    assert_eq!(heard.iter().filter(|line: &&String| { return **line == work; }).count(), 1, "the earlier release is never sent the work message: {heard:?}");
-    assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/file").exists(), "the current service empties it, not the wrapper");
-    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(pending.exists(), "the item waits for the current service to claim it");
     remove(root.as_path());
 }
 

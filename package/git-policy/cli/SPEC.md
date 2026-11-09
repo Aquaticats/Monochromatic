@@ -1070,73 +1070,66 @@ the identity of the trash directory (device,
 inode and birth time,
 taken when it was
 made) and the identity of each directory moved into it.
-After the swap,
-the trash is handed to the commit service as a work item of kind `trash` in the new worktree's Git
-directory,
-carrying the manifest.
-A new worktree has a service instance of its own whose socket activation does not exist
-yet,
-so the hand-over first provisions it exactly as the worktree's first commit does,
-and then wakes the service through
-its socket.
-The service empties it only if all of these hold:
+The trash is emptied before the command that made it returns,
+and never handed to the commit service:
+a trash that outlived the command sat inside the new worktree,
+where a target commit that stops
+ ignoring its path makes it untracked,
+so `git add --all` would stage another command's stage container and its
+ credentials.
+The emptying runs beside the package repair (`finish_trash_and_repair`,
+on a thread when the repair
+ has work to do),
+one plain line on standard error first names the worktree and says that the directories left out
+ are being emptied now,
+and the person waits for the slower of the two.
+The emptying happens only if all of these hold:
 the worktree's `.git` file,
 read without following a link,
 points at
-the item's Git directory;
-every directory from the worktree down to the trash is a real directory on the worktree's
-device;
-the trash has the recorded identity;
-and each entry removed is the recorded object (a replacement,
-a link or
-anything unrecorded is left alone and named in the failure).
+the administrative directory the record names;
+every directory from the worktree down to the trash is a real directory on the
+worktree's device;
+the trash has the recorded identity (device,
+inode and birth time,
+taken when it was made);
+and each
+ entry removed is the recorded object (a replacement,
+a link or anything unrecorded is left alone and named in the
+failure).
 Nothing is found by scanning the trash parent for names,
-so a
-directory the main checkout carried there is never touched.
+so a directory the main checkout carried there is never
+ touched.
 The recorded entries are separate directories that share only the trash handle,
-so they are removed side by side within the
-host budget (the threads the process may run less a margin,
-and the free memory over the estimated peak of one removal,
-128
-MiB,
+so they are removed side by side
+within the host budget (the threads the process may run less a margin,
+and the free memory over the estimated peak of
+one removal,
+128 MiB,
 the measured peak of removing a directory of a million names rounded up);
-each
-is still removed only when it is the recorded object,
+each is still removed only
+when it is the recorded object,
 a reason for one entry never stops the others,
-and the failure names the
-reasons in entry order.
-When no route to the service exists,
-provisioning fails,
-or the wake fails,
-the wrapper empties the trash itself by the same
-rules before the command returns,
-after one plain line on standard error that names the worktree and says why the service
-could not take it over.
-The work item stays until the trash is gone:
-it is withdrawn only after a successful removal.
-A destination or Git directory whose path is not valid UTF-8 cannot be spelled in a record,
-so no work item is written and
-the trash is emptied in the foreground by the bytes of the path.
-A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason and says
-the work item stays for the service;
-it does not fail the add,
-because the worktree is already in place and complete.
+and the failure names the reasons in entry
+order.
+A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason;
+it
+ does not fail the add,
+because the worktree is already in place and complete,
+and it is never left for a later service to
+find.
+A work item of kind `trash` that an earlier release wrote is still emptied by the service's handler
+(`empty_trash`),
+with the same checks and the same identities,
+so a repository that ran one keeps its promise.
 The race with other processes is a risk the person accepts by using the command:
 a directory of the new worktree that another
 process replaces,
-moves or links elsewhere while the leave-out or the disposal runs is guarded only by the cheap checks above
+moves or links elsewhere while the leave-out or the emptying runs is guarded only by the cheap checks above
 (opening without following links,
 comparing identities when an object is opened);
 the wrapper builds nothing further against
 it and does not promise to survive it.
-A trash that no one has emptied yet lies under an ignored path,
-so it is no untracked file.
-The wake reaches only a service of this wrapper's release:
-a service of another release is asked to retire first and is
-replaced,
-and when it does not retire within the start wait the wake fails,
-so the trash is removed in the foreground and
-its work item is withdrawn once it is gone.
 A snapshot of the main checkout does not print the copy summary,
 because no copy ran;
 unless `--quiet` is given it writes one

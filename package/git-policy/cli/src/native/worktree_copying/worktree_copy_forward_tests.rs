@@ -389,3 +389,83 @@ fn a_stopped_step_is_named_as_the_shell_reads_it() {
     let read: std::process::Output = std::process::Command::new("bash").arg("-c").arg(format!("printf '%s|' {printed}")).output().expect("start bash");
     assert_eq!(String::from_utf8_lossy(&read.stdout), "-C|/work/$bucket/a b|read-tree|", "the shell reads the three words, unexpanded: {printed}");
 }
+
+/// What:
+///  Nothing the leave-out set aside survives in the new worktree of a snapshot,
+/// even when the target commit
+///  stops ignoring the place the trash lived,
+/// so another command's stage container cannot be staged from it.
+/// Why:
+///   The trash held the directories the leave-out moved out of the snapshot,
+/// another command's stage container with its
+///  credentials among them,
+/// and it sat inside the new worktree.
+/// A commit that no longer ignores that path makes it untracked
+///  there,
+/// so `git add --all` stages another command's state.
+/// The source has uncommitted changes,
+/// so the
+///  dirty restore the review's sequence ran is part of this control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runForwardedGit(['-C', main, 'worktree', 'add', '-b', 'topic', topic, 'later'], facts);
+/// expect(existsSync(join(topic, '.claude/cli-git-trash'))).toBe(false);
+/// await git(topic, ['add', '--all']); expect(staged(topic).filter((p) => p.startsWith('.claude/'))).toEqual([]);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
+    use crate::fs_btrfs_ioctl::subvolume_create_at;
+    use crate::fs_btrfs_test_support::btrfs_fixture;
+    use crate::worktree_copy_selection::STAGE_PREFIX;
+    let Some(root) = btrfs_fixture("forward-trash-not-carried") else { return };
+    let main: PathBuf = root.join("main");
+    subvolume_create_at(main.as_path()).expect("the source is a subvolume root");
+    git(main.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let ignore_with: &[u8] = b".claude/\nnode_modules/\n";
+    let ignore_without: &[u8] = b"node_modules/\n";
+    std::fs::write(main.join(".gitignore"), ignore_with).expect("the ignore rule that hides the trash");
+    std::fs::write(main.join("tracked.txt"), b"one\n").expect("a tracked file");
+    git(main.as_path(), &["add", "."]);
+    git(main.as_path(), &["commit", "--quiet", "--message=one"]);
+    // The target commit stops ignoring `.claude/`, which is the place the trash is made in.
+    git(main.as_path(), &["checkout", "--quiet", "-b", "later"]);
+    std::fs::write(main.join(".gitignore"), ignore_without).expect("the ignore rule removed");
+    git(main.as_path(), &["add", ".gitignore"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=two"]);
+    git(main.as_path(), &["checkout", "--quiet", "main"]);
+    // A command that works at once needs the ignored state, and another command's stage is filling its own beside it.
+    std::fs::create_dir_all(main.join("node_modules/pkg")).expect("ignored state");
+    std::fs::write(main.join("node_modules/pkg/index.js"), b"module\n").expect("ignored state");
+    let container: String = format!(".claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    std::fs::create_dir_all(main.join(container.as_str()).join("payload")).expect("the other command's stage");
+    std::fs::write(main.join(container.as_str()).join("payload/credentials"), b"another worktree's token\n").expect("its credentials");
+    // An uncommitted change, so the dirty restore runs before the proof.
+    std::fs::write(main.join("tracked.txt"), b"one, edited\n").expect("an edit");
+    let main: PathBuf = std::fs::canonicalize(main.as_path()).expect("canonical main");
+    let topic: PathBuf = root.join("topic");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), main.join(".git").as_path()),
+        creates: true,
+        destination: Some(topic.clone()),
+        add_plan: None,
+        remove_plan: None,
+    };
+    let made: ForwardedRun = run_forwarded_git(
+        Path::new(REAL_GIT),
+        arguments(&["-C", main.to_str().expect("utf8"), "worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8"), "later"]).as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+    );
+    assert_eq!(made, ForwardedRun::Ran(0), "the add ran");
+    assert!(topic.join("node_modules/pkg/index.js").is_file(), "the ignored state a new worktree needs is carried");
+    assert!(!topic.join(container.as_str()).exists(), "the other command's stage container is not in the new worktree");
+    assert!(std::fs::symlink_metadata(topic.join(crate::worktree_trash::TRASH_PARENT)).is_err(), "no trash is left in the new worktree");
+    // The target commit does not ignore `.claude/`, so anything still there would be staged by the person's next `git add --all`.
+    git(topic.as_path(), &["add", "--all"]);
+    let staged: String = String::from_utf8(git(topic.as_path(), &["diff", "--cached", "--name-only"]).stdout).expect("utf8");
+    assert!(!staged.lines().any(|path: &str| { return path.starts_with(".claude/"); }), "nothing of another command's state is staged: {staged}");
+    assert!(!topic.join("tracked.txt").is_file() || std::fs::read(topic.join("tracked.txt")).expect("tracked") != b"one, edited\n", "the person's uncommitted edit stays in the source");
+    remove(root.as_path());
+}

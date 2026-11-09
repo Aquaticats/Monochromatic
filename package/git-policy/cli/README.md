@@ -602,15 +602,22 @@ Read-only commands,
      it sets those worktrees,
      other checkouts,
      caches
-   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards,
+   and run records aside in a trash directory under `.claude/`,
+     and the add empties that trash before it returns,
      deleting
    only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
    Those directories are emptied side by side,
-     within the threads and memory the host allows.
+     within the threads and memory the host allows,
+     beside the package repair.
+   Nothing the leave-out set aside is left in the new worktree when the command ends:
+     a commit that stops ignoring
+   `.claude/cli-git-trash` would otherwise let `git add --all` stage another command's stage container,
+     credentials
+   included.
    It does decline when a registered nested worktree holds a file the main checkout tracks.
      A trash that cannot be
    emptied is reported with its path and the reason,
-     and its work item stays for the service.
+     and the worktree is whole either way.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:
