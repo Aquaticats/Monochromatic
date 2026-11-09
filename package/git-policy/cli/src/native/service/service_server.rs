@@ -388,7 +388,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         for job in &jobs {
             if let Job::Withdraw(id, reply) = job {
                 match landed.get(id) {
-                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true }),
+                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true, landing: None }),
                     None => {
                         withdrawn.insert(id.clone());
                         reply.send(&ServiceMessage::Withdrawn { id: id.clone() });

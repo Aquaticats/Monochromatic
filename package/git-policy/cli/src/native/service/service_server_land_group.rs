@@ -25,7 +25,7 @@ use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recov
 use crate::journald_native::Priority;
 use crate::service_timing::{Answered, Arrival, LandTiming, answered_line, log_entry};
 use crate::service_protocol::{
-    CommitRequest, FailureCode, ServiceMessage,
+    CommitRequest, FailureCode, LandingFigures, LandingSync, ServiceMessage,
 };
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -69,13 +69,64 @@ pub(crate) struct BatchTimes {
     /// When the landing returned,
     /// which starts the answers.
     landed_at: Instant,
+    /// How many requests were still waiting for their answer when the landing finished,
+    /// this batch's own taken out:
+    /// how many commits queued behind it.
+    queued_behind: usize,
 }
 
 impl BatchTimes {
     /// The times of a request that no batch landed.
     fn not_landed(group_began: Instant) -> Self {
-        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now() };
+        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now(), queued_behind: 0 };
     }
+}
+
+/// What:
+///  What one landing spent and held,
+/// as the answer to its clients states it.
+/// Why:
+///   The landing runs in this service,
+/// so the commit's own record knows nothing about the reads,
+/// the hold or the syncs of its landing
+/// unless the answer carries them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const figuresOf = (times) => ({ lockHoldMs: ms(times.landing.hold), queuedBehind: times.queuedBehind, readsMs: ms(times.landing.reads(times.landTotal)), reads: {...}, syncs: [...] });
+/// ```
+fn landing_figures_of(times: &BatchTimes) -> LandingFigures {
+    let split: crate::service_timing::ReadSplit = times.landing.reads_split;
+    let named: [(&'static str, Duration); 9] = [
+        ("config", split.config),
+        ("branch", split.branch),
+        ("parents", split.parents),
+        ("changed", split.changed),
+        ("content", split.content),
+        ("witness", split.witness),
+        ("conclusion", split.conclusion),
+        ("owed", split.owed),
+        ("follow", split.follow),
+    ];
+    let mut reads: Vec<(String, u64)> = Vec::new();
+    for (name, took) in named {
+        reads.push((String::from(name), u64::try_from(took.as_millis()).unwrap_or(u64::MAX)));
+    }
+    let mut syncs: Vec<LandingSync> = Vec::new();
+    for sync in &times.landing.syncs {
+        syncs.push(LandingSync {
+            what: String::from(sync.what),
+            waited: sync.waited,
+            ms: u64::try_from(sync.took.as_millis()).unwrap_or(u64::MAX),
+        });
+    }
+    return LandingFigures {
+        lock_hold_ms: u64::try_from(times.landing.hold.as_millis()).unwrap_or(u64::MAX),
+        queued_behind: u64::try_from(times.queued_behind).unwrap_or(u64::MAX),
+        reads_ms: u64::try_from(times.landing.reads(times.land_total).as_millis()).unwrap_or(u64::MAX),
+        reads,
+        syncs,
+    };
 }
 
 /// The repository-relative path a change names,
@@ -105,6 +156,7 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         batch: times.batch,
         size: times.size,
         position,
+        queued_behind: times.queued_behind,
         arrival: *arrival,
         queued,
         settle: times.settle,
@@ -339,7 +391,7 @@ pub(crate) fn land_group(
     }
     let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
     for (request, stream, arrival) in again {
-        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
+        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true, landing: None });
         log_answer(&unlanded, &request, &arrival, 1, "already");
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
@@ -396,7 +448,11 @@ pub(crate) fn land_group(
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
     // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
     drop(claim);
-    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
+    // How many requests were still waiting when this landing finished: the batch's own are still unanswered here, so they come
+    //  out of the count, and what is left is how many commits queued behind this landing.
+    let waiting: usize = crate::service_reply::Reply::waiting();
+    let queued_behind: usize = waiting.saturating_sub(fresh.len());
+    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now(), queued_behind };
     match result {
         Ok(outcomes) => {
             // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
@@ -412,7 +468,7 @@ pub(crate) fn land_group(
                         if repeat.id != request.id {
                             continue;
                         }
-                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
+                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true, landing: None });
                         log_answer(&times, repeat, arrival, 1, "already");
                     }
                 }
@@ -427,7 +483,7 @@ pub(crate) fn land_group(
                         //  gate is what promotes it.
                         hold_the_push(request, commit.as_str());
                         landed.insert(request.id.clone(), commit.clone());
-                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
+                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
                         "landed"
                     }
                     Outcome::RetryPrepare { base } => {

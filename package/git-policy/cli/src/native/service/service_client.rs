@@ -315,7 +315,12 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                         trace.positions.push(number);
                     }
                 }
-                Heard::Message(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
+                Heard::Message(ServiceMessage::Landed { commit, already, landing, .. }) => {
+                    // What the landing spent and held, for the record of this command: the service measured it, and only its
+                    //  answer can carry it.
+                    trace.landing = landing;
+                    break Some(Ok(Submitted::Landed { commit, already }));
+                }
                 Heard::Message(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
