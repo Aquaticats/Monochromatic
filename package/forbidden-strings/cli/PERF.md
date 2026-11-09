@@ -245,7 +245,9 @@ previous `git ls-files --cached --ignored --exclude-standard -z` subprocess
 was removed on 2026-05-16 (recovered ~167 ms on Mono,
  ~433 ms on Linux).
 Historical blocks below still describe the subprocess as the contemporary
-implementation — that wording is preserved deliberately as the regression
+implementation.
+That wording is preserved deliberately:
+the regression
 history is the file's reason for existing.
 
 ## Last benched
