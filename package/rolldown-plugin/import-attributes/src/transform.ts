@@ -28,6 +28,8 @@ import {
   type Replacement,
 } from './transform-helpers.ts';
 
+//region Sentinel and fast-path gate
+
 /**
  Sentinel returned by {@link transformImportAttributes} when the source has
  no import-attribute clause to rewrite. A `unique symbol`; the plugin's
@@ -46,6 +48,10 @@ export const NO_TRANSFORM: unique symbol = Symbol('import-attributes/source-has-
  because JavaScript allows it in a name.
  */
 const ATTRIBUTE_CLAUSE_KEYWORD: RegExp = /(?:^|[^\w$])(?:with|assert)(?:[^\w$]|$)/u;
+
+//endregion Sentinel and fast-path gate
+
+//region Transform entry
 
 /**
  Rewrites import/export statements that use `with { type: '...' }` attributes.
@@ -90,6 +96,8 @@ export function transformImportAttributes({
    Accumulator of span replacements that the reducer below applies to the source code.
    */
   const replacements: Replacement[] = [];
+
+  //region AST visitor
 
   /**
    AST visitor that records replacements for each kind of attribute-bearing declaration.
@@ -218,7 +226,11 @@ export function transformImportAttributes({
     },
   },);
 
+  //endregion AST visitor
+
   visitor.visit(result.program,);
+
+  //region Replacement application
 
   if (replacements.length
     === 0)
@@ -254,5 +266,9 @@ export function transformImportAttributes({
     code,
   );
 
+  //endregion Replacement application
+
   return { code: transformed, };
 }
+
+//endregion Transform entry

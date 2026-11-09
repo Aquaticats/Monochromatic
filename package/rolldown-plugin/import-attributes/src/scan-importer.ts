@@ -26,6 +26,8 @@ import {
   NO_ATTR_TYPE,
 } from './ast-extract.ts';
 
+//region Logger
+
 /**
  Logger root for importer source scanning.
  
@@ -35,6 +37,10 @@ import {
  ```
  */
 const l = tagged({ tag: 'import-attributes', },);
+
+//endregion Logger
+
+//region Importer scan
 
 /**
  Scans an importer file's source code to find the import attribute type
@@ -82,6 +88,8 @@ export async function scanImporterForAttribute({
     l,
   },);
 
+  //region Source cache
+
   /**
    Importer source text; lazily read from disk on cache miss and stored back.
    */
@@ -110,6 +118,8 @@ export async function scanImporterForAttribute({
     }
   }
 
+  //endregion Source cache
+
   if (!source.includes(specifier,))
     return NO_ATTR_TYPE;
 
@@ -124,6 +134,8 @@ export async function scanImporterForAttribute({
    Mutable accumulator written by the visitor when a matching specifier is encountered.
    */
   let found: string | typeof NO_ATTR_TYPE = NO_ATTR_TYPE;
+
+  //region AST visitor
 
   /**
    AST visitor that records the attribute type on the first matching specifier.
@@ -186,6 +198,10 @@ export async function scanImporterForAttribute({
     },
   },);
 
+  //endregion AST visitor
+
   visitor.visit(result.program,);
   return found;
 }
+
+//endregion Importer scan
