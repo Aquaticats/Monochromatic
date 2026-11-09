@@ -133,7 +133,7 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
 fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
     let root: PathBuf = fixture("index-builds-tree-alone");
     let (repo, indexes, base) = committed_repository(root.as_path());
-    // A mark the copy cannot carry makes the retry build the index from the tree alone (`seeds_private_index`).
+    // A mark the copy cannot carry makes the retry build the index from the tree alone (`private_index_seed`).
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
     let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
     initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
@@ -154,6 +154,31 @@ fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::Retry, stat_data_kept: true }]);
     let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
     assert!(!listing.contains(UNSET_MODIFICATION_TIME), "a copy of the real index keeps its stat data: {listing}");
+    remove(root.as_path());
+}
+
+/// A rebuild after the branch moved keeps an intent-to-add entry whose mode and object name equal the tree's own entry:
+/// the reset leaves such a mark as Git's own reset does,
+/// and the commit then leaves that path out of its tree
+/// (measured in the gate image on 2026-11-09:
+/// after `read-tree --reset` the entry still carries flags `20004000`,
+/// and `write-tree` over an index a later `add` invalidated lists only the named file).
+#[test]
+fn a_retry_keeps_the_mark_that_equals_the_tree_for_the_scratch_commit() {
+    let root: PathBuf = fixture("index-builds-intent-empty-retry");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("empty"), "").expect("empty file");
+    git(repo.as_path(), &["add", "empty"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=empty"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "empty"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "empty"]);
+    let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
+    let bytes: Vec<u8> = std::fs::read(indexes.commit_index.as_path()).expect("the rebuilt index");
+    let index = crate::index_full::parse_full_index(bytes.as_slice(), 20).expect("an index this reader takes");
+    let entry = index.entries.into_iter().find(|entry| { return entry.path == b"empty"; }).expect("the rebuilt index holds the tracked file");
+    assert_ne!(entry.extended & crate::index_full::INTENT_TO_ADD, 0, "the reset leaves a mark equal to the tree as Git's own reset does");
     remove(root.as_path());
 }
 
@@ -206,5 +231,50 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
     initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index("HEAD"))
         .expect("initialize");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: false }]);
+    remove(root.as_path());
+}
+
+/// An index whose only marks are intent-to-add entries seeds a copy too,
+/// so the record says the stat data was kept,
+/// and the reset drops the mark whose path the base does not hold.
+#[test]
+fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
+    let root: PathBuf = fixture("index-builds-intent");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let named: [OsString; 1] = [OsString::from("b.txt")];
+    let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
+    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: true }]);
+    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+    assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the copy holds the real index's stat data: {listing}");
+    assert_eq!(
+        debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
+        String::new(),
+        "the reset drops the mark the base does not hold"
+    );
+    remove(root.as_path());
+}
+
+/// A rebuild from an index that holds an intent-to-add entry is noted as keeping the stat data as well,
+/// which is the build a moved branch pays several times.
+#[test]
+fn a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_the_stat_data() {
+    let root: PathBuf = fixture("index-builds-intent-retry");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
+    assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::Retry, stat_data_kept: true }]);
+    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+    assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the copy holds the real index's stat data: {listing}");
+    assert_eq!(
+        debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
+        String::new(),
+        "the reset drops the mark the base does not hold"
+    );
     remove(root.as_path());
 }

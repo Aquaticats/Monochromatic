@@ -12,6 +12,19 @@ use crate::test_support::{git, git_text, remove};
 
 /// A landing of one changed file in a repository configured with `settings`,
 /// and the flushes its Git children reported.
+/// Why the controls below take tens of seconds:
+///  the landing's own phases are the cost, never the counting of the flushes.
+/// Measured on 2026-11-09 with
+///  this host at a load average of 62:
+/// one landing took 107.9 s,
+/// of which the index build and install took 57.8 s,
+/// the journal write 20.6 s,
+/// the objects 8.6 s and the index lock 5.5 s,
+/// while draining the flushes the landing queued took 0.114 ms
+///  and the three Git checks that follow it 5 to 20 ms.
+/// Those phases are the same writes and the same flushes a native commit makes,
+///  `core.fsync` deciding which,
+/// so a commit on such a host waits for the same disk.
 fn landing_flushes(name: &str, settings: &[(&str, &str)]) -> (u64, World) {
     let mut world: World = world(name);
     for (key, value) in settings {

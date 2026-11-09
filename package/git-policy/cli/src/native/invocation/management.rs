@@ -19,7 +19,7 @@ use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
 use crate::child_environment::{child_environment_overlay, environment_home, environment_value};
 /// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
-use crate::doctor::{doctor_action_with_section, doctor_failure};
+use crate::doctor::{CheckoutViewpoint, doctor_action_with_section, doctor_failure};
 /// The process's one runtime,
 /// which the doctor's report is built on.
 use crate::lazy_runtime::run_on_runtime;
@@ -296,20 +296,25 @@ fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsSt
 /// followed by its line about the repository's link to the
 /// 860 drive below the home the invocation names.
 #[cfg(target_os = "linux")]
-pub fn host_filesystem_section(common_directory: &Path, home: Option<&Path>) -> String {
-    return filesystem_section_with_link_line(common_directory, home);
+pub fn host_filesystem_section(viewpoint: &CheckoutViewpoint<'_>) -> String {
+    return filesystem_section_with_link_line(viewpoint);
 }
 
 /// The doctor's filesystem section followed by its line about the repository's link to the 860 drive (plan item W15),
-/// read from the identity file below `home`.
+/// read from the identity file below the home the invocation names.
+///  Nothing is read about a file system when Git named no checkout.
 #[cfg(target_os = "linux")]
-pub fn filesystem_section_with_link_line(common_directory: &Path, home: Option<&Path>) -> String {
-    return format!("{}{}", crate::doctor_filesystem::host_section(common_directory), crate::repository_link_doctor_line::doctor_link_line(home));
+pub fn filesystem_section_with_link_line(viewpoint: &CheckoutViewpoint<'_>) -> String {
+    let facts: String = match viewpoint.checkout {
+        Some(checkout) => crate::doctor_filesystem::checkout_section(checkout, viewpoint.layout),
+        None => String::new(),
+    };
+    return format!("{}{}", facts, crate::repository_link_doctor_line::doctor_link_line(viewpoint.home));
 }
 
 /// Other platforms have no btrfs or overlayfs section.
 #[cfg(not(target_os = "linux"))]
-pub fn host_filesystem_section(_common_directory: &Path, _home: Option<&Path>) -> String {
+pub fn host_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
     return String::new();
 }
 
@@ -330,7 +335,7 @@ fn plan_doctor(
     git_global_arguments: &[OsString],
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
-    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
+    filesystem_section: &dyn Fn(&CheckoutViewpoint<'_>) -> String,
 ) -> Action {
     let resolved: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
@@ -445,16 +450,17 @@ pub fn plan_management(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noFilesystemSection = (_cwd: string): string => '';
+/// const noFilesystemSection = (_viewpoint: CheckoutViewpoint): string => '';
 /// ```
-fn no_filesystem_section(_cwd: &Path, _home: Option<&Path>) -> String {
+fn no_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
     return String::new();
 }
 
 /// What:
 ///  The same decision with the doctor's filesystem section supplied by the caller.
-///  `&dyn Fn(&Path, Option<&Path>) -> String` is a borrowed function from the repository's common Git directory and the
-/// home the invocation names to the section text.
+///  `&dyn Fn(&CheckoutViewpoint) -> String` is a borrowed function from the checkout Git named,
+/// how that checkout is laid
+///  out and the home the invocation names to the section text.
 /// Why:
 ///   The executable passes the section read from the running system (`host_filesystem_section`);
 /// the controls of the
@@ -471,7 +477,7 @@ pub fn plan_management_with_section(
     controls: &Controls,
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
-    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
+    filesystem_section: &dyn Fn(&CheckoutViewpoint<'_>) -> String,
 ) -> Action {
     // What: `match` on the parse `Result`: keep the action or return the refusal.
     // Why:  Nothing else may run for an invocation the grammar rejects.

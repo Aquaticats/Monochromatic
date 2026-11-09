@@ -312,31 +312,6 @@ fn a_refusal_means(errno: Option<i32>) -> Delivered {
 }
 
 /// What:
-///  Send `signal` to a number that is proven to be this process's own unreaped child,
-///  and answer what it came to.
-/// Why:
-///   The kernel keeps an unreaped child's number,
-/// so no other process can hold it while the child has not been reaped;
-/// the one interval left is the instant between that proof and this call,
-/// in which the child can only become a zombie,
-/// which still holds the number and discards the signal.
-///  This is the fallback for a start whose `pidfd_open` the kernel refused
-/// (finding 1 of the fourth review).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// signalThroughNumber(provenChildPid, 'SIGKILL');
-/// ```
-#[cfg(target_os = "linux")]
-pub fn signal_through_number(number: i32, signal: i32) -> Delivered {
-    // SAFETY: `kill` takes two integers and touches no memory of this process.
-    if unsafe { libc::kill(number, signal) } == 0 {
-        return Delivered::Sent;
-    }
-    return a_refusal_means(std::io::Error::last_os_error().raw_os_error());
-}
-
-/// What:
 ///  Whether the kernel says the process a descriptor names has ended.
 /// Why:
 ///   A descriptor is readable once that process exits,

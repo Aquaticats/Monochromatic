@@ -80,11 +80,16 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// without `--no-textconv` the patch carries whatever a local converter reads,
 /// including files the person never staged and files outside the repository.
 ///
+///  The bytes are kept as Git wrote them,
+/// because a path Git prints unquoted puts its own bytes in the header and
+///  the section match must see those bytes,
+/// not the replacement characters a decode would leave.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// git('show', '--format=', '--patch', '--no-color', '--no-ext-diff', '--no-textconv', sha)
 /// ```
-fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, String> {
+fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<u8>, String> {
     let request: GitRequest = GitRequest::new(cwd, &["show", "--format=", "--patch", "--no-color", "--no-ext-diff", "--no-textconv", sha]);
     let output = match run_git(context, &request) {
         Ok(done) => done,
@@ -96,7 +101,7 @@ fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, Str
     if output.stdout.len() > MAX_PATCH_BYTES {
         return Err(format!("the patch of {sha} is over {MAX_PATCH_BYTES} bytes"));
     }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).into_owned());
+    return Ok(output.stdout);
 }
 
 /// What:
@@ -320,7 +325,7 @@ fn batch_request(objects: &[RequestedObject]) -> Vec<u8> {
 /// const commit = await readLandedCommit({ context, cwd, sha, subject, codeFiles });
 /// ```
 pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: &str, code_files: &[ChangedPath]) -> Result<LandedCommit, String> {
-    let patch: String = read_patch(context, cwd, sha)?;
+    let patch: Vec<u8> = read_patch(context, cwd, sha)?;
     let wanted: Vec<ChangedPath> = code_files.iter().take(MAX_EXCERPT_FILES).cloned().collect();
     let objects: Vec<RequestedObject> = requested_objects(sha, wanted.as_slice());
     let mut request: GitRequest = GitRequest::new(cwd, &[OsString::from("cat-file"), OsString::from("--batch"), OsString::from("-z")]);

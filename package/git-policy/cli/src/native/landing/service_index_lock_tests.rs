@@ -22,10 +22,10 @@ use crate::service_index_marker::own_identity;
 use crate::service_index_placement::{place_marked, rename_noreplace};
 use crate::service_index_staging::stage_marker;
 use crate::service_index_marker::{HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state_in, identity_in_view, pid_of_self_stat};
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, wait_until};
 use std::time::Instant;
 use std::cell::Cell;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 fn index_in(name: &str) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
@@ -435,13 +435,23 @@ impl Drop for Holder {
     }
 }
 
-/// A service lock whose holder still runs is waited for like a foreign one and never taken over;
-/// once that holder is gone,
-/// the
-///  lock is taken at once.
-/// The wait's own notice is what shows it reached the held lock,
-/// and the holder's marker still in the lock is what shows it took nothing over,
-/// so no clock decides the verdict.
+/// What:
+///  A service lock whose holder still runs is waited for like a foreign one and never taken over;
+///  once that holder is gone,
+///  the waiting acquisition takes the lock and holds its own.
+/// Why:
+///   The wait's own notice is what shows it reached the held lock,
+/// the holder's marker still in the lock is what shows it took nothing over,
+/// and the marker the waiter then holds is what shows it went on;
+/// no clock decides the verdict,
+/// and nothing here races the waiter for the lock.
+/// The control used to ask for the lock itself,
+/// and when it won that race the waiter could only retry at its notice interval:
+/// on 2026-11-09 alone this control took 0.4 s,
+/// 2.7 s,
+/// 11.1 s
+/// and 21.4 s over eight runs,
+/// and another agent reports it failing in a suite at 34 s against the 30 s bound of that race.
 #[test]
 fn a_live_service_holders_lock_is_never_taken_over() {
     let (root, index) = index_in("index-lock-live-holder");
@@ -452,36 +462,31 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     std::fs::write(lock_path_of(&index), held.as_str()).expect("a live holder's lock");
     // The wait blocks until the holder lets go, so it runs on a thread; the notice it says here is the look that found the
     //  live holder, and the lock is read right after it.
-    let (finished, ended) = std::sync::mpsc::channel::<()>();
-    let (said, speaking) = std::sync::mpsc::channel::<()>();
+    let said: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
+    let taken: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let (counting, recording) = (Arc::clone(&said), Arc::clone(&taken));
     let waiter_index: PathBuf = index.clone();
     let waiter = std::thread::spawn(move || {
-        let lock = acquire(&waiter_index, 10, &|_note| { let _sent = said.send(()); }).expect("taken once the holder is gone");
-        let _sent = finished.send(());
+        let lock = acquire(&waiter_index, 10, &|_note| {
+            let mut heard = counting.lock().expect("count");
+            *heard += 1;
+        })
+        .expect("taken once the holder is gone");
+        let marker: String = std::fs::read_to_string(lock_path_of(&waiter_index)).expect("the lock this acquisition holds");
+        *recording.lock().expect("record") = Some(marker);
         drop(lock);
     });
-    let spoke: Result<(), std::sync::mpsc::RecvTimeoutError> = speaking.recv_timeout(Duration::from_secs(60));
-    assert!(spoke.is_ok(), "the waiting acquisition said what it waits for, so it waited for the live holder instead of taking its lock: {spoke:?}");
+    assert!(wait_until(&|| { return *said.lock().expect("count") > 0; }), "the waiting acquisition said what it waits for, so it waited for the live holder instead of taking its lock");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), held, "a live holder's lock was taken over");
-    assert!(try_acquire(&index, 10).is_none());
+    assert!(try_acquire(&index, 10).is_none(), "an attempt without a wait does not take a live holder's lock");
     remove_stale(&index, 9);
-    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), held);
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), held, "the reclaim of the service leaves a live holder's lock");
     drop(holder);
-    // The removal of the stale lock wakes the waiting acquisition, which may take the lock before this one does: this one asks
-    //  again until the waiter has let go, and either way the waiter took the lock once the holder was gone.
-    let unwaitable: Platform = Platform { watch: &|_| { return None; }, ..SYSTEM };
-    let asking_until: Instant = Instant::now() + Duration::from_secs(30);
-    let lock = loop {
-        match acquire_on(&unwaitable, &index, 11, &|_| {}) {
-            Ok(taken) => break taken,
-            Err(failure) => {
-                assert!(Instant::now() < asking_until, "the lock was not taken once the holder was gone: {failure:?}");
-                std::thread::sleep(Duration::from_millis(5));
-            }
-        }
-    };
-    drop(lock);
-    ended.recv_timeout(Duration::from_secs(30)).expect("the waiting acquisition took the lock once the holder was gone");
+    // The holder is gone, so the lock is the service's to remove, and its removal is the event the wait is woken by:
+    // no timer and no race for the lock stand between the two.
+    remove_stale(&index, 9);
+    assert!(wait_until(&|| { return taken.lock().expect("record").is_some(); }), "the waiting acquisition took the lock once the holder was gone");
+    assert_eq!(taken.lock().expect("record").clone(), Some(own_marker(10)), "the acquisition that waited holds its own lock");
     waiter.join().expect("waiter");
     remove(root.as_path());
 }
@@ -871,17 +876,44 @@ fn a_stale_lock_that_vanishes_before_its_removal_is_taken_at_once() {
     remove(root.as_path());
 }
 
+/// How many acquisitions the controls of the count below make:
+/// two would already show a count shared between acquisitions,
+/// and the third leaves one spare for a scheduling race.
+/// Why not forty:
+/// a lock is placed and its marker flushed for each one,
+/// so one acquisition cost the contended disk 1.7 s on 2026-11-09,
+/// and forty
+///  of them on two indexes took this control 140.7 s alone,
+/// which a suite run met as the runner's five-minute limit.
+const ACQUISITIONS: usize = 3;
+
+/// One acquisition that met no holder makes one attempt:
+/// the number is the acquisition's own.
+#[test]
+fn one_acquisition_counts_one_attempt() {
+    let (root, index) = index_in("index-lock-attempts-one");
+    let attempts_made: Cell<usize> = Cell::new(0);
+    let counting = |from: &Path, to: &Path| -> std::io::Result<()> {
+        attempts_made.set(attempts_made.get() + 1);
+        return rename_noreplace(from, to);
+    };
+    let platform: Platform = Platform { rename: &counting, ..SYSTEM };
+    drop(acquire_on(&platform, &index, 0, &|_| {}).expect("taken"));
+    assert_eq!(attempts_made.get(), 1, "one attempt for an acquisition that met no holder");
+    remove(root.as_path());
+}
+
 /// The number of attempts is that of one acquisition:
 /// another acquisition running at the same time,
 /// on its own thread and its own index,
 /// adds nothing to it.
 #[test]
-fn attempts_are_counted_per_acquisition() {
+fn another_acquisitions_attempts_are_not_counted() {
     let (root, index) = index_in("index-lock-attempts");
     let (other_root, other_index) = index_in("index-lock-attempts-other");
     let busy = std::thread::spawn(move || {
-        for seq in 0..40 {
-            drop(acquire(&other_index, 1000 + seq, &|_| {}).expect("taken"));
+        for seq in 0..ACQUISITIONS {
+            drop(acquire(&other_index, 1000 + u64::try_from(seq).expect("a small count"), &|_| {}).expect("taken"));
         }
     });
     let attempts_made: Cell<usize> = Cell::new(0);
@@ -890,11 +922,11 @@ fn attempts_are_counted_per_acquisition() {
         return rename_noreplace(from, to);
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
-    for seq in 0..40 {
-        drop(acquire_on(&platform, &index, seq, &|_| {}).expect("taken"));
+    for seq in 0..ACQUISITIONS {
+        drop(acquire_on(&platform, &index, u64::try_from(seq).expect("a small count"), &|_| {}).expect("taken"));
     }
     busy.join().expect("thread");
-    assert_eq!(attempts_made.get(), 40, "one attempt for each of the acquisitions that met no holder");
+    assert_eq!(attempts_made.get(), ACQUISITIONS, "one attempt for each of the acquisitions that met no holder");
     remove(root.as_path());
     remove(other_root.as_path());
 }

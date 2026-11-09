@@ -22,8 +22,9 @@ use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_probe::PushUpdate;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
-/// Maps from remote names and peeled object names.
-use std::collections::BTreeMap;
+/// Maps from remote names and peeled object names,
+/// and the refs one ls-remote listing reported.
+use std::collections::{BTreeMap, HashMap};
 /// Owned OS strings for Git arguments and the stdin of batch queries.
 use std::ffi::OsString;
 /// The child a query starts,
@@ -382,6 +383,45 @@ pub fn peel_commits(
     return Ok(commits);
 }
 
+/// What:
+///  The object name the listing gives each ref,
+///  from that ref's first record.
+/// Why:
+///   One `ls-remote --refs` prints one record per ref asked for,
+/// and a mirror or `--all` push publishes hundreds of them;
+///  a map answers each update's question by naming the one record it compares with,
+///  so the confirmation is one pass over the listing (`AGENTS.md` `RG2`),
+///  and the first record a ref gets is the one the scan took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reported = new Map(listing.split('\n').flatMap((line) => { const [oid, name] = line.split('\t'); return name ? [[name, oid]] : [] }));
+/// ```
+pub(crate) fn oids_by_ref(listing: &str) -> HashMap<&str, &str> {
+    let mut by_ref: HashMap<&str, &str> = HashMap::new();
+    for line in listing.lines() {
+        let Some((oid, name)) = line.split_once('\t') else { continue };
+        crate::collected_elements_looked_at::note_looked_at(1);
+        by_ref.entry(name).or_insert(oid);
+    }
+    return by_ref;
+}
+
+/// What:
+///  Confirm one destination's values with `git ls-remote --refs` and turn each reported update into a public update.
+/// Why:
+///   A destination that changed after the dry run reported would publish something the scan did not see,
+/// so a
+///  mismatch between the report and the confirmation is an error,
+/// never a silent repair.
+/// A report that did not state the
+///  remote's value (a deletion,
+/// a refusal) is taken from the confirmation alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function resolveRemoteGroup({ gitPath, cwd, remoteLocation, updates }): Promise<PushUpdate[]>;
+/// ```
 /// What:
 ///  The commits each destination remote is known to have,
 /// from its remote-tracking refs.

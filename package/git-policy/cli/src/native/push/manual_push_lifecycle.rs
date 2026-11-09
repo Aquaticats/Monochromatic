@@ -29,8 +29,9 @@ use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_
 use crate::manual_push_range::{
     ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
 };
-/// Maps keyed by remote name and by object name.
-use std::collections::BTreeMap;
+/// Maps keyed by remote name and by object name,
+/// and the sets that answer whether a commit or tree is already listed.
+use std::collections::{BTreeMap, HashSet};
 /// Owned OS strings for the replayed global options and the post-subcommand arguments.
 use std::ffi::OsString;
 
@@ -235,7 +236,12 @@ pub fn scopes_of_updates_on(
 /// ```
 pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFailure> {
     let mut commits: Vec<crate::candidate_object::ObjectId> = Vec::new();
+    // A set answers "is this one already listed" by naming the one collected name the
+    //  candidate is compared with, so a push that publishes many commits stays one pass
+    //  (`AGENTS.md` `RG2`); the list beside it keeps first-seen order.
+    let mut listed_commits: HashSet<crate::candidate_object::ObjectId> = HashSet::new();
     let mut trees: Vec<crate::candidate_object::ObjectId> = Vec::new();
+    let mut listed_trees: HashSet<crate::candidate_object::ObjectId> = HashSet::new();
     for scope in scopes {
         match scope {
             UpdateScope::None => {}
@@ -246,7 +252,8 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
                             "Git named a commit that is not an object name: {name}"
                         )));
                     };
-                    if !commits.contains(&oid) {
+                    crate::collected_elements_looked_at::note_looked_at(1);
+                    if listed_commits.insert(oid.clone()) {
                         commits.push(oid);
                     }
                 }
@@ -255,7 +262,8 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
                 let Some(oid) = parse_object_id(tip.as_bytes()) else {
                     return Err(ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!("Git named a commit that is not an object name: {tip}")));
                 };
-                if !trees.contains(&oid) {
+                crate::collected_elements_looked_at::note_looked_at(1);
+                if listed_trees.insert(oid.clone()) {
                     trees.push(oid);
                 }
             }

@@ -15,6 +15,8 @@
 use crate::discard_audit_facts::{AuditFact, facts_object};
 use crate::iso_time::format_iso_milliseconds;
 use crate::json_record::{quote, string_array};
+/// The bytes of a path as the hexadecimal digits a record holds beside its text.
+use crate::path_bytes_in_records::hex_of_path;
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::service_protocol::RELEASE;
 /// The outcome word an audit record carries.
@@ -116,12 +118,15 @@ pub struct AuditRecord<'record> {
     /// The common Git directory and the worktree kind.
     pub place: &'record (PathBuf, &'static str),
     /// The invocation's own Git directory,
-    /// which names the worktree and its service instance.
+    /// which names the worktree and its service instance,
+    /// written as its text and under `gitDirHex` as its bytes.
     pub git_dir: &'record Path,
-    /// The working directory of the invocation.
+    /// The working directory of the invocation,
+    /// written as its text and under `cwdHex` as its bytes.
     pub directory: &'record Path,
     /// The whole argument list,
-    /// global options included.
+    /// global options included,
+    /// written as text and under `argumentsHex` as each one's bytes.
     pub arguments: &'record [OsString],
     /// Whether uncommitted state existed,
     /// when the policy asked.
@@ -143,6 +148,11 @@ pub struct AuditRecord<'record> {
 /// ending in a newline.
 /// Why:
 ///   One `write` call per line keeps lines from interleaving when several processes append at once.
+///   A command's working directory,
+///  Git directory and arguments need not be text,
+///  and this line exists to attribute a loss to the exact command,
+/// so each of them is written beside its text as the bytes it was given as;
+/// a reader that takes the text reads what an earlier release wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -152,6 +162,12 @@ pub fn audit_line(record: &AuditRecord) -> String {
     let mut rendered: Vec<String> = Vec::new();
     for argument in record.arguments {
         rendered.push(argument.to_string_lossy().into_owned());
+    }
+    // The record exists to attribute a lost worktree to the exact command, and a working directory or an argument
+    //  need not be text, so each of them is written beside its text as the bytes it was given as (`path_bytes_in_records`).
+    let mut arguments_as_bytes: Vec<String> = Vec::with_capacity(record.arguments.len());
+    for argument in record.arguments {
+        arguments_as_bytes.push(hex_of_path(Path::new(argument)));
     }
     let dirty: &str = match record.dirty {
         Some(true) => "true",
@@ -175,8 +191,8 @@ pub fn audit_line(record: &AuditRecord) -> String {
         ""
     };
     return format!(
-        "{{\"schemaVersion\":1,\"time\":{},\"level\":\"{level}\",\"timeMillis\":{},\"release\":{},\"pid\":{},\"parentPid\":{},\"worktree\":{},\"gitDir\":{},\"form\":{},\
-         \"outcome\":{}{before_git},\"dirty\":{dirty},\"cwd\":{},\"arguments\":{}{copies}{}}}\n",
+        "{{\"schemaVersion\":1,\"time\":{},\"level\":\"{level}\",\"timeMillis\":{},\"release\":{},\"pid\":{},\"parentPid\":{},\"worktree\":{},\"gitDir\":{},\"gitDirHex\":{},\"form\":{},\
+         \"outcome\":{}{before_git},\"dirty\":{dirty},\"cwd\":{},\"cwdHex\":{},\"arguments\":{},\"argumentsHex\":{}{copies}{}}}\n",
         quote(&time),
         quote(&record.time_millis.to_string()),
         quote(RELEASE),
@@ -184,10 +200,13 @@ pub fn audit_line(record: &AuditRecord) -> String {
         record.parent,
         quote(record.place.1),
         quote(&record.git_dir.to_string_lossy()),
+        quote(&hex_of_path(record.git_dir)),
         quote(&record.form.word()),
         quote(record.outcome.word()),
         quote(&record.directory.to_string_lossy()),
+        quote(&hex_of_path(record.directory)),
         string_array(&rendered),
+        string_array(&arguments_as_bytes),
         facts_object(record.facts),
     );
 }

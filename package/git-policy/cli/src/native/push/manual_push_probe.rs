@@ -42,6 +42,11 @@ use crate::command_options::{Boundary, DEFAULT_MODE, parse_options};
 use crate::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
+/// Maps each ref the remote listed to the object name it reported.
+use std::collections::HashMap;
+/// The parser of the ls-remote listing,
+/// beside the other listing parsers.
+use crate::manual_push_range::oids_by_ref;
 pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
 
 /// The bytes one query holds at its peak:
@@ -177,21 +182,6 @@ fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> R
     return Ok(objects);
 }
 
-/// What:
-///  Confirm one destination's values with `git ls-remote --refs` and turn each reported update into a public update.
-/// Why:
-///   A destination that changed after the dry run reported would publish something the scan did not see,
-/// so a
-///  mismatch between the report and the confirmation is an error,
-/// never a silent repair.
-/// A report that did not state the
-///  remote's value (a deletion,
-/// a refusal) is taken from the confirmation alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function resolveRemoteGroup({ gitPath, cwd, remoteLocation, updates }): Promise<PushUpdate[]>;
-/// ```
 pub fn confirm_group(
     git: &PushGit,
     remote_location: &str,
@@ -219,17 +209,11 @@ pub fn confirm_group(
         ));
     }
     let listing: String = String::from_utf8_lossy(&output.stdout).into_owned();
+    let listed: HashMap<&str, &str> = oids_by_ref(listing.as_str());
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     for (update, local) in updates {
-        let mut authoritative: Option<String> = None;
-        for line in listing.lines() {
-            if let Some((oid, name)) = line.split_once('\t')
-                && name == update.to
-            {
-                authoritative = Some(oid.to_owned());
-                break;
-            }
-        }
+        crate::collected_elements_looked_at::note_looked_at(1);
+        let authoritative: Option<String> = listed.get(update.to.as_str()).copied().map(str::to_owned);
         let changed: bool = match &update.before {
             RemoteBefore::Absent => authoritative.is_some(),
             RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),

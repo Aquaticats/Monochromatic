@@ -100,3 +100,8 @@ pub mod stop_of_the_service_noticed_by_its_children;
 /// An owned child awaited until it exits,
 /// or ended and reported when the service's stop is told first.
 pub mod child_awaited_until_it_exits_or_the_service_is_stopped;
+
+/// An owned child awaited until it exits,
+/// or ended and reaped here when its step's ceiling comes,
+/// because a number is safe only while the child is this process's own unreaped child.
+pub mod child_awaited_until_it_exits_the_stop_or_the_ceiling;
