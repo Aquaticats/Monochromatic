@@ -263,6 +263,9 @@ container otherwise.
  when all resolve it builds natively,
  and when any is missing it runs
 the identical cargo command in podman.
+The container lint also mounts the repository-root `clippy.toml` read-only and names it with `CLIPPY_CONF_DIR`,
+ so the fleet-wide `disallowed-methods` ban applies there exactly as it does on the host,
+where Clippy finds the file in an ancestor directory.
  Zig comes from the repo-wide mise `zig` tool,
 which follows `toolchain.lock.json`.
  On an immutable-style
