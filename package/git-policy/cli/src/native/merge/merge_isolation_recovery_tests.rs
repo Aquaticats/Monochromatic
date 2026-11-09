@@ -2005,6 +2005,17 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
     crate::service_fault::hooks::clear();
     let refused = attempted.expect_err("a switched worktree stops the command");
     assert!(refused.0.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused.0);
+    assert!(
+        refused.0.contains("index entries and files are still in this worktree"),
+        "it says the merge's entries and files stay: {}",
+        refused.0
+    );
+    assert!(
+        !refused.0.contains("nothing of this merge stays staged"),
+        "it does not claim the checkout is clean: {}",
+        refused.0
+    );
+    assert!(refused.0.contains("git restore --staged"), "it names the way to undo the staged content: {}", refused.0);
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");

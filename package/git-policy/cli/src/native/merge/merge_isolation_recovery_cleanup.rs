@@ -213,9 +213,12 @@ pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&
     return RecoveryError(format!(
         "A merge of {target} in {} was installed here and {target} was moved onto it, but this worktree now has {landed} \
          checked out: another command switched it in the instant between the last look and the branch move. The branch was put \
-         back where it was and the record {} was kept, so nothing of this merge stays staged in another branch's checkout. Check \
-         out {target} here and run any git command again.",
+         back where it was and the record {} was kept, but the merge's index entries and files are still in this worktree, which \
+         now belongs to {landed}, so its staged content is the merge's until you deal with it. Check `git status` and `git diff \
+         --cached` here: finish the merge by checking out {target} and running any git command again, or undo what is staged \
+         with `git restore --staged --worktree -- <path>`, and remove the record {} when the checkout is as you want it.",
         root.display(),
+        record.display(),
         record.display()
     ));
 }

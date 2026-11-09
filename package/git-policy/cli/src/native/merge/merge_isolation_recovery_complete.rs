@@ -99,8 +99,8 @@ pub fn complete(
         return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true });
     }
     // The move is checked once more, because another command can switch the worktree in the instant between the last look and
-    //  the write. A worktree that now belongs to another branch gets the branch put back and keeps the record, so nothing of
-    //  this merge stays staged in a checkout it is not for.
+    //  the write. A worktree that now belongs to another branch gets the branch put back and keeps the record; its index entries
+    //  and files are still there, so the diagnostic says so rather than claim the checkout is clean.
     let after: Option<String> = symbolic_ref(place, root).map_err(partly_installed)?;
     if after != intent.target_ref {
         let mut undo: Vec<&str> = vec!["update-ref"];
