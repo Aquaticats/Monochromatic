@@ -258,19 +258,27 @@ pub fn field_fragment(key: &str, path: &[u8]) -> String {
 /// const list = (key, paths) => paths.every(isText) ? `"${key}":${JSON.stringify(texts)}` : `"${key}${HEX_SUFFIX}":${JSON.stringify(hexes)}`;
 /// ```
 pub fn list_fragment(key: &str, paths: &[Vec<u8>]) -> String {
-    let texts: Option<Vec<&str>> = paths
-        .iter()
-        .map(|path| return std::str::from_utf8(path).ok())
-        .collect();
+    let mut all_text: Vec<&str> = Vec::with_capacity(paths.len());
+    let mut every_name_is_text: bool = true;
+    for path in paths {
+        let Ok(text) = std::str::from_utf8(path) else {
+            every_name_is_text = false;
+            break;
+        };
+        all_text.push(text);
+    }
     // The text array is kept for a list whose every name it spells; one name that is not text moves the list to bytes.
-    let Some(all_text) = texts else {
-        let hexes: Vec<String> = paths
-            .iter()
-            .map(|path| return crate::json_record::quote(hex_of_bytes(path).as_str()))
-            .collect();
+    if !every_name_is_text {
+        let mut hexes: Vec<String> = Vec::with_capacity(paths.len());
+        for path in paths {
+            hexes.push(crate::json_record::quote(hex_of_bytes(path).as_str()));
+        }
         return format!("\"{key}{HEX_SUFFIX}\":[{}]", hexes.join(","));
-    };
-    let quoted: Vec<String> = all_text.into_iter().map(crate::json_record::quote).collect();
+    }
+    let mut quoted: Vec<String> = Vec::with_capacity(all_text.len());
+    for text in all_text {
+        quoted.push(crate::json_record::quote(text));
+    }
     return format!("\"{key}\":[{}]", quoted.join(","));
 }
 
