@@ -182,8 +182,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `resume-after-wall-clock-prompt.md` for `shadow-and-replay-findings-fixed` as run 3 from the session of run 2,
-  which reached its time limit while merging main.
+  `process-and-child-lifetime-round-6-prompt.md` for `process-and-child-lifetime-findings-fixed` as run 6
+  (eight findings in the reader threads and stop of that branch,
+  among them an unbounded output queue and a wait with no deadline,
+  so that branch is not to land until it reports).
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
 - The provider ended several runs with `terminated`:
