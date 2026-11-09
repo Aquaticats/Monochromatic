@@ -201,7 +201,8 @@ pub enum Disuse {
 }
 
 /// What:
-///  The removal a merge makes: the empty `index.lock` of `index` whose PID file names a number this process table
+///  The removal a merge makes:
+/// the empty `index.lock` of `index` whose PID file names a number this process table
 ///  does not have,
 ///  on the same proof as the service's removal,
 ///  saying what it acted on.

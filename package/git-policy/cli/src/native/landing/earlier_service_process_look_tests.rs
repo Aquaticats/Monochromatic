@@ -43,13 +43,15 @@ fn a_look_that_takes_a_while_is_awaited_and_leaves_the_other_tasks_their_turns()
 /// Why the ticker is not what says the wait was awaited:
 ///   A current-thread runtime has one worker,
 /// and an operating system that does not schedule it for longer than the scan
-///  takes (measured: this control read 336 ms of a 150 ms scan in a folder run of 745 controls,
+///  takes (measured:
+/// this control read 336 ms of a 150 ms scan in a folder run of 745 controls,
 /// with no turn
 ///  for the ticker)
 /// denies the ticker its ticks without the wait having blocked anything,
 /// so the ticks are evidence only
 ///  of how the host scheduled the worker.
-/// What the control reads instead is the two bounds of the ceiling: the wait reached it,
+/// What the control reads instead is the two bounds of the ceiling:
+/// the wait reached it,
 ///  and it did not last for the scan.
 #[test]
 fn a_look_that_outlasts_its_ceiling_counts_as_may_be_running_at_the_ceiling() {
