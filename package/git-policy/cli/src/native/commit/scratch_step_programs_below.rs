@@ -73,13 +73,16 @@ pub fn seen_below(below: &[(i32, ProcessUse)]) -> Vec<SeenBelow> {
     return seen;
 }
 
-/// Whether the same process was below the step at both looks:
+/// Whether the same program was below the step at both looks:
 /// the same number,
-/// and the same start time,
-/// which is what proves the number names that process and not a later one.
-fn seen_at_both_looks(before: &[SeenBelow], pid: i32, started: u64) -> bool {
+/// the same start time,
+/// which is what proves the number names that process and not a later one,
+/// and the same name,
+/// because an `exec` keeps both of the first two while the program behind them changes
+/// (finding 7 of the second review).
+fn seen_at_both_looks(before: &[SeenBelow], pid: i32, started: u64, name: &str) -> bool {
     for known in before {
-        if known.pid == pid && known.started == started {
+        if known.pid == pid && known.started == started && known.name == name {
             return true;
         }
     }
@@ -110,7 +113,7 @@ pub fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[SeenBelow], 
         if credited.contains(&used.name.as_str()) {
             continue;
         }
-        let at_both_looks: bool = seen_at_both_looks(before, *pid, used.started);
+        let at_both_looks: bool = seen_at_both_looks(before, *pid, used.started, used.name.as_str());
         facts.credit(used.name.as_str(), if at_both_looks { interval } else { Duration::ZERO });
         credited.push(used.name.as_str());
     }
