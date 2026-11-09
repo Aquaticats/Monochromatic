@@ -35,6 +35,7 @@ use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
 /// How long the fake service may be silent before the client under test treats it as stopped:
@@ -179,6 +180,102 @@ fn a_commit_the_service_has_not_placed_is_told_that_the_service_has_not_started_
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert_eq!(notices.matches(NOT_STARTED_NOTICE).count(), 1, "said once, and only once: {notices:?}");
     assert!(!notices.contains(SILENT_NOTICE), "the service was never silent: {notices:?}");
+}
+
+/// How long the commit of the stalled-stream control may take to answer:
+/// far beyond the service's own answer,
+/// which is written before the control waits.
+const ANSWERED_WHILE_THE_STREAM_IS_HELD: Duration = Duration::from_secs(10);
+
+/// What:
+///  A stream that takes one line and then stops,
+/// as a pipe whose reader is still open and no longer draining does,
+/// and keeps what it finally takes.
+/// Why:
+///   The review of this notice names the sequence:
+/// a reader that stops draining must not hold the commit's own thread,
+/// which is the
+///  only thread that reads the answer,
+/// withdraws a request at its ceiling and keeps the scratch directory fresh.
+struct StalledStream {
+    /// Says that a line reached the stream and is now held there.
+    held: mpsc::Sender<()>,
+    /// Where the stream waits until the control lets the line go.
+    release: mpsc::Receiver<()>,
+    /// What the stream took once it was let go.
+    kept: Arc<Mutex<Vec<u8>>>,
+}
+
+impl Write for StalledStream {
+    /// Announce that the line arrived, wait to be released, and keep it.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _told = self.held.send(());
+        let _let_go = self.release.recv();
+        self.kept.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What the stream kept, once it took it, within the patience of the controls.
+fn kept_within(kept: &Arc<Mutex<Vec<u8>>>) -> String {
+    let began: Instant = Instant::now();
+    loop {
+        let taken: String = String::from_utf8_lossy(kept.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_slice()).into_owned();
+        if !taken.is_empty() || began.elapsed() >= PATIENCE {
+            return taken;
+        }
+        std::thread::sleep(FAKE_BEAT);
+    }
+}
+
+/// What:
+///  A commit whose notice stream stopped taking lines still lands,
+/// and the line it said reaches that stream when the reader takes it.
+/// Why:
+///   The standing notice is written between two reads of the service's answer,
+/// so a reader that stopped draining it must cost
+///  the commit nothing:
+/// the answer is still read,
+/// the command ends with it,
+/// and the line goes when the reader resumes.
+#[test]
+fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
+    let name: String = address("stalled-notices");
+    let service: UnixListener = listen(name.as_str());
+    let kept: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let (held_sender, held) = mpsc::channel::<()>();
+    let (release_sender, release) = mpsc::channel::<()>();
+    let mut stream: StalledStream = StalledStream { held: held_sender, release, kept: Arc::clone(&kept) };
+    let (answered_sender, answered) = mpsc::channel::<Result<Submitted, ClientFailure>>();
+    let client_config: ClientConfig = config(name.as_str());
+    std::thread::spawn(move || {
+        let end: Result<Submitted, ClientFailure> = submit(&client_config, &request(), &mut stream);
+        let _sent = answered_sender.send(end);
+    });
+    let (service_stream, _) = service.accept().expect("the client connects");
+    greet(&service_stream);
+    read_request(&service_stream);
+    // The service beats past the notice threshold while its landing runs, so the client says where the commit stands into
+    //  a stream that takes one line and stops.
+    let while_waiting: Instant = Instant::now();
+    while while_waiting.elapsed() < QUICK_NOTICE * 4 {
+        (&service_stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    assert!(held.recv_timeout(PATIENCE).is_ok(), "the standing notice reached the stream, which then held it");
+    let commit: String = "a".repeat(40);
+    (&service_stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    // The answer is read while the line is still held: a stream that stopped taking lines never holds the commit.
+    let end = answered.recv_timeout(ANSWERED_WHILE_THE_STREAM_IS_HELD).expect("the commit answered while its notice stream was held");
+    assert_eq!(end, Ok(Submitted::Landed { commit, already: false }));
+    drop(release_sender);
+    let said: String = kept_within(&kept);
+    assert!(said.contains("this commit stands"), "the line the client said reached the stream: {said:?}");
 }
 
 /// A commit that lands at once prints nothing at all,
