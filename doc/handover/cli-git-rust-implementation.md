@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:30:59-05:00)
+#### Reviews and landings in progress (2026-11-09T04:46:00-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -183,13 +183,18 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
   its agent reports the first review's findings fixed,
   317 of 317 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-2-sol.txt`) names a reused step number that can get an unrelated process killed,
-  and a failed read taken for the step having ended.
-  Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 3,
-  with `scratch-commit-ceiling-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  and run 3 fixed the second review's findings,
+  with 649 of 649 selected tests passing on top of main.
+  It also reads the branch before the silence message.
+  The third review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-3-sol.txt`) names a path that can still signal a reused process number when a step started with no pidfd,
+  a signal error read as the step having ended,
+  and a commit the branch shows as made still returned as a failure.
+  Round 4 removes that path and fixes the rest,
+  and it is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  behind the merge round:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 4,
+  with `scratch-commit-ceiling-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   One wait stays open for the owner in `questions-for-the-owner.md`:
   a step the kernel holds in uninterruptible sleep.
   Two improvements are proposed and not built:
@@ -226,10 +231,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and five smaller defects,
   among them a removal whose audit can block for ever on a FIFO.
   Not ready to merge.
-  It waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `discarding-commands-findings-fixed` as run 2,
-  with `discarding-commands-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
   One visible change:
   `git clean -fdx` is refused in a linked worktree that has ignored files,
   such as one with `node_modules`.
@@ -335,11 +337,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
   Run 2 of its agent reports them fixed,
-  703 of 703 tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`) names a prune that can delete a version a lock still names,
-  and a `current` link left pointing at a deleted version.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  Run 3 fixed the second review's findings,
+  710 of 710 tests pass on top of main,
+  and the third review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`) names four smaller defects in the same prune,
+  among them a recursive removal that can take a version just installed.
+  A small round 4 is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  behind the merge and commit-ceiling rounds:
+  resume the run `mpm-shadow-open-issues` as run 4,
+  with `mpm-shadow-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
   By its own report the agent ran its cargo commands outside the required resource limits,
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
@@ -368,17 +374,31 @@ The old tree kept for the rollback stays until the owner deletes it.
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
   its agent reports the five findings of the last review fixed and a saved merge no longer blocking unrelated commands.
-  249 of 249 selected tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/merge-route-round-3-sol.txt`) names further losses of staged or saved work,
-  among them a read-only command installing a saved merge into a different checked-out branch.
-  Not ready to merge.
-  Run 4 of its agent is on them.
+  Run 4 reports the third review's findings fixed,
+  and 250 of 250 selected tests pass on top of main.
+  The review (`${HOME}/temp/agent/reviews/merge-route-round-4-sol.txt`) names three states a kill can leave wrong,
+  among them a partly installed merge losing its only record,
+  a saved write a clean filter can hide,
+  and two windows that need a second process to act between two steps.
+  Round 5 fixes the first four and documents the two windows,
+  and it is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `merge-route-findings-fixed` as run 5,
+  with `merge-route-round-5-prompt.md` and the session file named in run 4's `summary.json`.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   Run 3 took the suggestion to remove the step that loses data:
   recovery no longer exchanges anything,
   and a journal that may hold a person's bytes stays and is named on every later `fix`.
   174 of 174 selected tests pass on top of main,
-  and the review of that round alone (`commit-checks-round-3`) is running.
+  and the review of that round alone (`${HOME}/temp/agent/reviews/commit-checks-round-3-sol.txt`) found nothing wrong with that removal.
+  It names a journal removed without checking a person's permission change,
+  a FIFO in a journal blocking the next `fix`,
+  and notices lost on a failure path,
+  and the window of a write through an open descriptor,
+  which stays documented.
+  Not ready to merge.
+  Run 4 of its agent is on them.
   Before it lands,
   `questions-for-the-owner.md` gets the choice that `fix` refuses a worktree whose Git directory is on another file system,
   if that refusal is still there.
@@ -400,11 +420,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   and 0.34 ms against 3.9 ms on a small one.
   A follow-up makes the listing cheaper or leaves large repositories to Git,
   and closes the `IEOT` difference.
-  It waits for a free agent slot,
-  since all twenty are taken:
-  start the run `reader-ref-listing-cost` from main,
-  on `fix/git-policy-cli-reader-ref-listing-cost`,
-  with `reader-ref-listing-cost-prompt.md`.
+  The agent `reader-ref-listing-cost` is on it,
+  on `fix/git-policy-cli-reader-ref-listing-cost`.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
   Its fix landed on main as `3d53f1f46a`,
