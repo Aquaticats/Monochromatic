@@ -4501,12 +4501,20 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
+- the summary's skipped count is zero beside lines that say a worktree is already a subvolume,
+  and no counter names an undone conversion:
+  `ConversionReport::on_event` (`worktree/worktree_convert_command.rs`) counts `WouldConvert` and a
+  `Skipped` verdict but neither `AlreadySubvolume` nor `Abandoned`.
+  Measured 2026-11-08T18:54:31-05:00:
+  the third run of `all_worktrees_are_listed_then_converted` printed
+  "2 worktree(s) looked at,
+  0 converted or completed,
+  0 skipped."
+  under two lines saying the worktree is already a subvolume.
+  Not fixed;
+  the owner's wording call:
+  count both in the skipped count,
+  or give each its own counter in the summary;
 - the `node_modules` links that point nowhere are counted (read only,
   nothing relinked,
   2026-11-08T17:10:51-05:00):
@@ -6974,6 +6982,34 @@ are in append mode now).
   and the cause inside the claim tests is not measured.
   Not the four fixes on that branch:
   none of them is in `landing/`.
+- `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+  aborted one host full-suite run on
+  `fix/git-policy-cli-service-home-and-convert-dry-run-count`
+  (2026-11-08T19:08:21-05:00,
+  4768 tests,
+  1181 tests run;
+  1180 passed,
+  1 failed,
+  the run stopped after the failure)
+  through the crate's own watchdog:
+  "the unit-test run exceeded 120s:
+  a test is stuck",
+  `SIGABRT` at 123.2 s.
+  Measured alone in the same tree:
+  72.3 s,
+  then 5.4 s,
+  both passing,
+  so this test's cost varies by more than a factor of ten on this host,
+  and its slow end alone sits only 1.7 times under the `RUN_LIMIT` of
+  `testing/test_support.rs` that a full suite's concurrency eats.
+  Not the branch's two comment-only edits,
+  which touch neither `src/native/foundation` nor the watchdog.
+  Not fixed:
+  what makes one iteration expensive is not measured,
+  and the shape of a fix is open
+  (a shorter loop,
+  a cheaper fixture,
+  or its own bound).
 
 ### Questions waiting for the owner
 
