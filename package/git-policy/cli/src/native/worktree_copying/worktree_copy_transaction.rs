@@ -351,6 +351,7 @@ pub fn synchronize_created_worktree(
         destination_root,
         registered_roots,
         selection,
+        None,
         &mut std::io::sink(),
     );
 }
@@ -401,10 +402,16 @@ fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
 /// Why:
 ///   The notice goes to the writer the lifecycle holds for the person;
 /// the count of copied entries is the result.
+/// A `recorded` claim is the record the creating command wrote before real Git ran,
+/// which names the stage
+///  this copy fills;
+/// without one the claim is made here,
+/// after Git,
+/// so an interruption before it is unrecorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function synchronizeCreatedWorktreeNoting({ commonDir, sourceRoot, destinationRoot, registeredRoots, selection, notice }): Promise<number>;
+/// async function synchronizeCreatedWorktreeNoting({ commonDir, sourceRoot, destinationRoot, registeredRoots, selection, recorded, notice }): Promise<number>;
 /// ```
 pub fn synchronize_created_worktree_noting(
     context: &GitContext,
@@ -413,11 +420,15 @@ pub fn synchronize_created_worktree_noting(
     destination_root: &Path,
     registered_roots: &[PathBuf],
     selection: &CopySelection,
+    recorded: Option<StageClaim>,
     notice: &mut dyn std::io::Write,
 ) -> Result<usize, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
-    let claim: StageClaim = claim_stage(common_dir, destination_root)?;
-    // `match` on staging: a failure has already removed its container, so only the claim is left to release.
+    let claim: StageClaim = match recorded {
+        Some(recorded) => recorded,
+        None => claim_stage(common_dir, destination_root)?,
+    };
+    // `match` on staging: a failure has already removed its container, so only the claim is left to settle.
     let snapshot: StagedSnapshot = match stage_ignored_snapshot(
         context,
         source_root,
@@ -427,7 +438,7 @@ pub fn synchronize_created_worktree_noting(
     ) {
         Ok(snapshot) => snapshot,
         Err(error) => {
-            claim.release()?;
+            claim.settle()?;
             return Err(error);
         }
     };
@@ -439,7 +450,7 @@ pub fn synchronize_created_worktree_noting(
             // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
             std::fs::remove_dir_all(snapshot.stage_container.as_path())
                 .map_err(raw_failure_of)?;
-            claim.release()?;
+            claim.settle()?;
             return Err(error);
         }
     };

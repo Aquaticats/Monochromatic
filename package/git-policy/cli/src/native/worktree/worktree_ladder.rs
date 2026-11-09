@@ -22,7 +22,7 @@
 //! ```
 
 #[cfg(target_os = "linux")]
-pub use crate::worktree_ladder_run::{Ladder, LadderResult, begin_ladder};
+pub use crate::worktree_ladder_run::{Ladder, LadderResult, begin_ladder, begin_ladder_holding};
 
 /// What:
 ///  The ladder on a system without btrfs subvolumes and snapshots:
@@ -40,6 +40,7 @@ mod other {
     use crate::transaction_git::GitContext;
     use crate::worktree_add_plan::AddPlan;
     use crate::worktree_copy::{GitRunner, GitStatus, GitStep};
+    use crate::worktree_copy_stage_claim::StageClaim;
     use crate::worktree_identity::WorktreeIdentity;
     use std::io::Write;
     use std::path::PathBuf;
@@ -60,6 +61,11 @@ mod other {
         return Ladder;
     }
 
+    /// Prepare nothing, and leave the caller's record to the copy.
+    pub fn begin_ladder_holding(_plan: Option<&AddPlan>, _held: &mut Option<StageClaim>, _context: &GitContext, _identity: &WorktreeIdentity) -> Ladder {
+        return Ladder;
+    }
+
     impl Ladder {
         /// The person's arguments.
         pub fn first_step(&self) -> GitStep<'static> {
@@ -74,4 +80,4 @@ mod other {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub use other::{Ladder, LadderResult, begin_ladder};
+pub use other::{Ladder, LadderResult, begin_ladder, begin_ladder_holding};

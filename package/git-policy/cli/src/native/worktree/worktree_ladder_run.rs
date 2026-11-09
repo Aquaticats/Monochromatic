@@ -176,7 +176,7 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 /// ```ts
 /// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
-fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity) -> (Rung, Option<SlowRoute>) {
+fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity, held: &mut Option<StageClaim>) -> (Rung, Option<SlowRoute>) {
     let refusals_entered: bool = begin_step("refusals");
     let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
     end_step(refusals_entered);
@@ -216,8 +216,12 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         None => snapshot_blocked.as_deref().map(explain_unsupported),
     };
     if snapshot_blocked.is_none() {
+        // A claim the caller recorded before Git names this add's stage already, so the rung reuses it.
         let claim_stage_entered: bool = begin_step("claimStage");
-        let claim_stage_outcome = claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path());
+        let claim_stage_outcome = match held.take() {
+            Some(recorded) => Ok(recorded),
+            None => claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()),
+        };
         end_step(claim_stage_entered);
         match claim_stage_outcome {
             Ok(claim) => return (Rung::Snapshot(Box::new(source), claim), None),
@@ -233,7 +237,10 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     if clone_refusal.is_none() && source.dirty.is_none() {
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         let claim_stage_again_entered: bool = begin_step("claimStage");
-        let claim_stage_again_outcome = claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path());
+        let claim_stage_again_outcome = match held.take() {
+            Some(recorded) => Ok(recorded),
+            None => claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()),
+        };
         end_step(claim_stage_again_entered);
         match claim_stage_again_outcome {
             Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim), slow),
@@ -255,10 +262,22 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
 /// ```ts
 /// function beginLadder(plan: AddPlan | undefined, context: GitContext, identity: WorktreeIdentity): Ladder;
 /// ```
-pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
+/// What:
+///  Choose the rung for one invocation and prepare it;
+/// see `choose_rung`.
+/// Why:
+///   No plan means a form the ladder does not serve,
+/// which Git runs as the person wrote it,
+/// and a claim the caller recorded is left to the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function beginLadder(plan: AddPlan | undefined, held: StageClaim | undefined, context: GitContext, identity: WorktreeIdentity): Ladder;
+/// ```
+pub fn begin_ladder_holding(plan: Option<&AddPlan>, held: &mut Option<StageClaim>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
     let Some(planned) = plan else { return Ladder { plan: None, rung: Rung::Git(None), slow: None } };
     let began: std::time::Instant = std::time::Instant::now();
-    let (rung, slow) = choose_rung(planned, context, identity);
+    let (rung, slow) = choose_rung(planned, context, identity, held);
     let chosen: &str = match &rung {
         Rung::Git(_) => "Git's checkout",
         Rung::Clone(..) => "clones",
@@ -271,6 +290,21 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
         note_timing("slowRoute", format!("{}: {}", route.word(), route.detail()).as_str());
     }
     return Ladder { plan: Some(planned.clone()), rung, slow };
+}
+
+/// What:
+///  Choose the rung for one invocation and record it through a claim this call makes;
+/// see `begin_ladder_holding`.
+/// Why:
+///   A caller that recorded no stage name before Git hands the ladder nothing to reuse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function beginLadder(plan: AddPlan | undefined, context: GitContext, identity: WorktreeIdentity): Ladder;
+/// ```
+pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
+    let mut held: Option<StageClaim> = None;
+    return begin_ladder_holding(plan, &mut held, context, identity);
 }
 
 /// What:

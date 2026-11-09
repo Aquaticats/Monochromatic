@@ -392,9 +392,91 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     remove(root.as_path());
 }
 
+/// The names the private journal root holds right now, sorted.
+fn recorded_names(common: &Path) -> Vec<String> {
+    let root: PathBuf = journal_root(common);
+    let listing = match std::fs::read_dir(root.as_path()) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(error) => panic!("the journal root cannot be listed: {error}"),
+    };
+    let mut names: Vec<String> = listing
+        .map(|entry| return entry.expect("entry").file_name().to_string_lossy().into_owned())
+        .filter(|name| return !name.ends_with(crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX))
+        .collect();
+    names.sort();
+    return names;
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
+}
+
+/// A creating command records the worktree it is about to make before it starts real Git,
+/// so a command killed right after Git leaves a record the next command can act on,
+/// and the record and its claim are gone once the copy ends.
+#[cfg(unix)]
+#[test]
+fn a_creating_command_records_its_destination_before_real_git_runs() {
+    use crate::worktree_add_binding::{Recorded, decode_record};
+    let root: PathBuf = fixture("lifecycle-record-before-git");
+    let (main, common) = source(root.as_path());
+    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut during_git: Vec<String> = Vec::new();
+    let mut recorded_destination: Option<PathBuf> = None;
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_step: &GitStep<'_>| {
+            during_git = recorded_names(common.as_path());
+            for name in &during_git {
+                if let Some(recorded) = name.strip_suffix(".add") {
+                    let text: String = std::fs::read_to_string(journal_root(common.as_path()).join(format!("{recorded}.add"))).expect("record");
+                    if let Some(Recorded::Planned(planned)) = decode_record(text.as_str()) {
+                        recorded_destination = Some(planned);
+                    }
+                }
+            }
+            return Ok(run_real(main.as_path(), add_arguments("topic", destination.as_path()).as_slice()));
+        },
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    assert_eq!(recorded_destination, Some(destination.clone()), "the destination is recorded before Git runs: {during_git:?}");
+    assert_eq!(during_git.iter().filter(|name| return name.ends_with(".stage")).count(), 1, "one claim names the stage: {during_git:?}");
+    assert_eq!(std::fs::read(destination.join("cache/data")).expect("copied"), b"payload");
+    assert_eq!(recorded_names(common.as_path()), Vec::<String>::new(), "the record and its claim are gone once the worktree is whole");
+    assert_nothing_left(root.as_path(), common.as_path());
+    remove(root.as_path());
+}
+
+/// A creating command whose real Git refused leaves no record and no claim,
+/// and tells the person nothing about an add that never happened.
+#[cfg(unix)]
+#[test]
+fn a_creation_that_git_refused_leaves_no_record() {
+    let root: PathBuf = fixture("lifecycle-record-refused");
+    let (main, common) = source(root.as_path());
+    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        // Git refuses a branch that already exists, and creates nothing.
+        &mut |_step: &GitStep<'_>| {
+            return Ok(run_real(
+                main.as_path(),
+                add_arguments("main", destination.as_path()).as_slice(),
+            ));
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert!(!settlement.git.succeeded(), "Git refused the add");
+    assert_eq!(recorded_names(common.as_path()), Vec::<String>::new(), "nothing is left to act on");
+    assert_eq!(String::from_utf8(stderr).expect("utf8"), String::new(), "an add Git never made is not reported");
+    assert!(!destination.exists());
+    remove(root.as_path());
 }
 
 /// Another command registers a worktree while this one's Git runs:

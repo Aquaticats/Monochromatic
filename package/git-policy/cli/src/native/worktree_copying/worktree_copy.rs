@@ -40,18 +40,20 @@
 //! ```
 
 use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as finish_timing};
+use crate::diagnostic_log::warn;
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure_of};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
 use crate::worktree_copy_registry::{
     CreatedWorktrees, WorktreeCopyObservation, destination_is_registered, find_created_worktree, observe_copy_source,
 };
 use crate::worktree_copy_transaction::synchronize_created_worktree_noting;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_ladder::{LadderResult, begin_ladder};
+use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
 #[cfg(target_os = "linux")]
@@ -59,6 +61,9 @@ use crate::worktree_trash::PendingTrash;
 pub(crate) use crate::worktree_copy_after_lock::{AfterLock, finish_trash_and_repair};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "worktreeCopy";
 
 /// What:
 ///  How a real Git run ended.
@@ -310,6 +315,7 @@ fn synchronize_after(
     registered_before: bool,
     git_succeeded: bool,
     carried: Option<&Path>,
+    recorded: &mut Option<StageClaim>,
     stderr: &mut dyn Write,
 ) -> Result<Vec<PathBuf>, WorktreeCopyError> {
     // A main checkout that names no path hands over nothing: no stage, no journal and no summary line.
@@ -352,6 +358,8 @@ fn synchronize_after(
         return Ok(created_roots);
     }
     let mut copied: usize = 0;
+    // The record made before real Git names the stage this copy fills, so the copy keeps the one record it has.
+    let mut held: Option<StageClaim> = recorded.take();
     // `match` on the source: a bare repository has nothing to copy, so only a worktree source is copied.
     match observation.source_root.as_ref() {
         None => {}
@@ -364,11 +372,14 @@ fn synchronize_after(
                     created.root.as_path(),
                     found.registered_roots.as_slice(),
                     &observation.selection,
+                    held.take(),
                     stderr,
                 )?;
             }
         }
     }
+    // A copy that did not happen leaves the record to the caller, which settles it.
+    *recorded = held;
     let line: String = summary_line(
         copied,
         found.created.len(),
@@ -406,7 +417,21 @@ fn settle_creation(
         None => false,
     };
     let choose_rung_entered: bool = begin_step("chooseRung");
-    let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
+    // The record comes before real Git runs, so a command killed after Git returned still leaves a record of the worktree
+    // it made; a command that will copy nothing records nothing.
+    let copies: bool = observation.source_root.is_some()
+        && !matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty());
+    let record_destination_entered: bool = begin_step("recordDestination");
+    let recorded = claim_stage_for_creation(observation.common_dir.as_path(), invocation.destination.as_deref(), copies);
+    end_step(record_destination_entered);
+    let mut held: Option<StageClaim> = match recorded {
+        Ok(found) => found,
+        Err(error) => {
+            warn(TAG, format!("the worktree add could not be recorded durably ({}); an interrupted copy into it will not be reported", error.0).as_str());
+            None
+        }
+    };
+    let ladder = begin_ladder_holding(invocation.add_plan.as_ref(), &mut held, &invocation.context, &invocation.identity);
     end_step(choose_rung_entered);
     let git_add_entered: bool = begin_step("gitAdd");
     let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step());
@@ -432,7 +457,7 @@ fn settle_creation(
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
             let copy_ignored_entered: bool = begin_step("copyIgnored");
-            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr);
+            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), &mut held, stderr);
             end_step(copy_ignored_entered);
             match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
@@ -442,6 +467,16 @@ fn settle_creation(
         } else {
             (None, Vec::new())
         };
+    // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
+    // settled here: the add is whole, so the record says so before it goes.
+    if let Some(unused) = held.take() {
+        let release_unused_entered: bool = begin_step("releaseClaim");
+        let settled: Result<(), WorktreeCopyError> = unused.settle();
+        end_step(release_unused_entered);
+        if let Err(error) = settled {
+            warn(TAG, format!("the record of the worktree add could not be removed ({})", error.0).as_str());
+        }
+    }
     #[cfg(target_os = "linux")]
     return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root.clone(), created, trash }));
     #[cfg(not(target_os = "linux"))]
