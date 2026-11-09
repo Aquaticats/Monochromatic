@@ -143,13 +143,13 @@ impl PrivateIndexSeed {
 pub fn private_index_seed(captured_index: &Path) -> PrivateIndexSeed {
     // The whole index is read here to read its marks, and an index of a large worktree is megabytes, so the read is named.
     let began: std::time::Instant = std::time::Instant::now();
-    let seeded: bool = marks_of_captured_index(captured_index);
+    let seed: PrivateIndexSeed = marks_of_captured_index(captured_index);
     crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_READ, began.elapsed());
-    return seeded;
+    return seed;
 }
 
 /// What:
-///  `seeds_private_index` without the note of how long the read took.
+///  `private_index_seed` without the note of how long the read took.
 /// Why:
 ///   The note covers the read that failed as well as the one that answered.
 ///
@@ -157,7 +157,7 @@ pub fn private_index_seed(captured_index: &Path) -> PrivateIndexSeed {
 /// ```ts
 /// const bytes = await readFile(capturedIndex).catch(() => undefined);
 /// ```
-fn marks_of_captured_index(captured_index: &Path) -> bool {
+fn marks_of_captured_index(captured_index: &Path) -> PrivateIndexSeed {
     let Ok(bytes) = std::fs::read(captured_index) else {
         return PrivateIndexSeed::Base;
     };

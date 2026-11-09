@@ -308,8 +308,10 @@ pub struct CommitTiming {
     /// the index's stat check,
     /// its read,
     /// its copies,
+    /// the answer of whether it already holds the base,
     /// the writes of corrected entries,
-    /// and every policy the pass evaluated.
+    /// the candidate set a pass's content policies share,
+    /// and every policy with the lifecycle point whose pass ran it.
     /// The record's `steps` hold the Git children these steps started,
     /// so a step that starts Git is stated twice:
     /// once as the work and once as the program it ran.
