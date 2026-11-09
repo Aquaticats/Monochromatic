@@ -56,6 +56,27 @@ impl Rendezvous {
         return self.wait_while_short(count);
     }
 
+    /// What:
+    ///  Arrive at a point that the work under test reaches with one place of its bound each,
+    ///  and fail the control when the work never brought `bound` of its jobs together.
+    /// Why:
+    ///  A bound control claims that the overlap reaches the bound and no more.
+    ///  A caller that throws the arrival's answer away holds the early jobs for the patience and cannot tell work that
+    /// never reached the bound from work that did,
+    /// so the places of such a run are given back on a clock.
+    ///  The patience then bounds only how long a failing run waits, never whether the claim is witnessed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// point.arriveAtTheBound(allowed); // throws unless the bound was reached
+    /// ```
+    pub(crate) fn arrive_at_the_bound(&self, bound: usize) {
+        assert!(
+            self.arrive(),
+            "the work under test never brought {bound} of its jobs together inside the same work, so the overlap this control measures against a bound of {bound} was not reached"
+        );
+    }
+
     /// Wait without arriving until the target number have arrived;
     /// false after the patience.
     pub(crate) fn wait_for_target(&self) -> bool {

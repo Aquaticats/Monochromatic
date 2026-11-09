@@ -6,7 +6,7 @@
 //! and the host budget bounds the overlap.
 
 use super::*;
-use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
+use crate::parallel_test_support::{PATIENCE, Rendezvous};
 use crate::service_work::{Verdict, work_directory};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{DONE, WorkItem, WorkKind, enqueue, state_directory};
@@ -131,12 +131,13 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     assert!(allowed > 1 && allowed < REPOSITORIES, "the control needs a bound between one and the repositories: {allowed}");
     let running: AtomicUsize = AtomicUsize::new(0);
     let busiest: AtomicUsize = AtomicUsize::new(0);
-    let point: Rendezvous = Rendezvous::impatient(allowed, SERIAL_PATIENCE * 10);
+    // The patience bounds only how long a run that never reaches the bound waits before it fails.
+    let point: Rendezvous = Rendezvous::impatient(allowed, PATIENCE);
     let handlers: Handlers<'_> = Handlers {
         on_push: Box::new(|_directory: &str| {
             let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
             busiest.fetch_max(now, Ordering::SeqCst);
-            point.arrive();
+            point.arrive_at_the_bound(allowed);
             running.fetch_sub(1, Ordering::SeqCst);
         }),
         began: Mutex::new(Vec::new()),
