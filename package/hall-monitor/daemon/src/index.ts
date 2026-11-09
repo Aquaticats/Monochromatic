@@ -50,10 +50,14 @@ const state: { running: boolean; } = { running: true, };
  llama-server processes via {@link forceCleanup}.
  */
 async function shutdown(): Promise<void> {
-  log.debug('[hall-monitor] Shutting down...',);
+  log.debug('Shutting down...',);
   state.running = false;
   closeLock();
   await forceCleanup();
+  // The journal sink writes through `logger(1)`, so the last records are still in
+  // flight here; flushing them before the process ends keeps them out of the gap
+  // between shutdown and exit.
+  await log.flush();
   process.exitCode = 0;
 }
 
@@ -92,9 +96,9 @@ async function main(): Promise<void> {
   }
 
   log.debug(
-    '[hall-monitor] Starting: capturing every 5 minutes, retaining last 10 minutes',
+    'Starting: capturing every 5 minutes, retaining last 10 minutes',
   );
-  log.debug(`[hall-monitor] PID ${process.pid}, lock: abstract socket`,);
+  log.debug(`PID ${process.pid}, lock: abstract socket`,);
 
   await cycle();
 
