@@ -332,14 +332,23 @@ winit,
 or glutin versions.
 A clean verification build fetches and recompiles the affected build scripts.
 
-The repository applies that update in these standalone lockfiles:
+The repository applies that update in these standalone lockfiles,
+measured 2026-11-09T14:03:34-05:00
+(`rg -l 'name = "cfg_aliases"' --glob 'Cargo.lock'`, each entry at version `0.2.2`):
 
+- `package/git-policy/cli/Cargo.lock`;
+- `package/git-policy/cli.fuzz/Cargo.lock`;
+- `package/ide/app/Cargo.lock`;
+- `package/linter/monochromatic-lint/Cargo.lock`;
+- `package/linter/monochromatic-lint.fuzz/Cargo.lock`;
 - `package/nested-wayland-session/cli/Cargo.lock`;
 - `package/terminal/app/Cargo.lock`;
-- `package/linter/rust/Cargo.lock`;
 - `package/music-player/android-app/rust/Cargo.lock`;
 - `package/music-player/desktop-app/Cargo.lock`;
 - `package/music-player/truepeak-core/Cargo.lock`.
+
+The list named `package/linter/rust/Cargo.lock` when this record was written,
+and carried neither the git-policy pair nor the linter replacement nor `package/ide/app`.
 
 `package/linter/rust/Cargo.lock` was removed on 2026-10-06 in `5bc05682ec` (chore(*):
 delete the
