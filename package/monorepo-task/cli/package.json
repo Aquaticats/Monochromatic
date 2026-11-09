@@ -4,7 +4,17 @@
   "description": "Mise-free task CLI for CI: runs this monorepo's task graph from package/task files with node directly, covering build, test, lint, prepare, changeset and the CI-referenced package tasks.",
   "type": "module",
   "private": true,
-  "main": "src/run.ts",
+  "module": "dist/final/node/index.mjs",
+  "main": "dist/final/node/index.mjs",
+  "types": "dist/final/node/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
   "bin": {
     "task-run": "dist/final/node/run.mjs"
   },
