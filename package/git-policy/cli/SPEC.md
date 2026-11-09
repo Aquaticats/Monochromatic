@@ -9321,27 +9321,63 @@ measuring the read on the development host on 2026-11-09 took 1.56 ms for 16 MiB
 medians of five runs each,
 so the two reads of a 14 MiB conflicted file cost about 0.6 ms beside the 396 ms and 403 ms the whole merge step
 of a 7 MiB conflict was measured at;
-a file larger than three times the pass's 8 MiB stage limit is never compared by its bytes,
-and the pass leaves that conflict alone;
+a file larger than three times the pass's 8 MiB stage limit is never compared by its bytes;
 the index stages are read again just before the install,
-and the worktree file's device,
-inode,
-length and modification time are compared with what they were when the stages were read,
-so a path that moved in either place keeps the version that is there now and is never replaced by the pass.
+and a path whose stages or bytes are not the ones the merge read keeps the version that is there now
+and is never replaced by the pass.
 Where every merged file moved,
 nothing is installed and that line alone is printed.
-The check and the install are two Git commands,
-so a second process that resolves and stages the same path in the few instructions between them still loses that resolution:
-`git update-index --index-info` replaces its stage 0 entry and `git checkout-index --force` replaces its worktree bytes.
+
+Not being able to compare a path is not finding it unchanged:
+a file past that limit,
+one that cannot be read,
+and one that is no plain file when opened
+(a named pipe,
+a device,
+a directory,
+a link)
+are recorded as nothing to compare,
+two nothings are never equal,
+and such a path keeps what is there now,
+with a line of its own naming it
+(`src/native/merge/merge_second_pass_worktree_unchanged.rs`).
+The type is judged on the open handle,
+which is opened with `O_NONBLOCK` and `O_NOFOLLOW`
+(`src/native/foundation/plain_file.rs`),
+because opening a named pipe for reading waits for a writer that may never come,
+and a writer that holds one open without writing moves that wait into the read,
+which no byte limit bounds either.
+
+Two windows are recorded here rather than closed,
+each a few instructions wide,
+and each needs another process to land inside it.
+The first is between the pass reading the worktree for the last time and the step that installs:
+a save written to the worktree file then is replaced by `git checkout-index --force`,
+and a resolution another process stages then is replaced by `git update-index --index-info`.
 The owner's instruction of 2026-11-09 is to record that window rather than close it with more mechanism
 (`doc/planning/cli-git-conflict-resolution-route-findings-on-main.md`),
 and what the person sees if they are in it is their resolution replaced:
 the file holds the pass's merged bytes,
 the line names the path among those staged as resolved,
-and `git diff --cached -- <path>` and the file itself show the merge rather than what they wrote.
+`git diff --cached -- <path>` and the file itself show the merge rather than what they wrote,
+and with every other conflicted file resolved the finish commits that merge.
 Nothing else is lost:
-/// the index stages,
-/// the merge's own inputs and the commit are untouched.
+the index stages,
+the merge's own inputs and the commit are untouched.
+
+The second window is between Git writing the conflict and the pass reading what the worktree holds:
+the snapshot is taken when Git exits,
+so an edit saved in between is what it records,
+the comparison before the install matches that edit,
+the pass stages its own merge over it,
+and the line names that path among those staged as resolved rather than among those left alone.
+The person therefore loses the resolution saved between Git stopping and the pass starting,
+and sees the pass's bytes in the file and in the commit that follows,
+with nothing said about what they wrote.
+The worktree is read before the merge is computed,
+so that no edit made during the pass's own work can become that baseline;
+nothing inside the pass can tell an edit saved after Git wrote the conflict from the conflict Git wrote
+(`resolve_after` in `src/native/merge/merge_second_pass_worktree.rs`).
 When a finish is planned the line says the wrapper finishes the operation below;
 otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,
@@ -9547,8 +9583,14 @@ leaves the operation stopped with the files staged and Git's exit status,
 A file that does not resolve keeps the stop of Git for every operation.
 A merge that Git completes costs one in-process read of the index before Git starts and nothing after it;
   the Git starts above happen only after a conflict,
-and they run from the top of the worktree with the invocation's `-c` options only,
-  because `check-attr` and `checkout-index` read paths relative to the directory they run in.
+and they run from the top of the worktree with the invocation's configuration options only
+  (`-c`,
+  `--config-env`,
+  and `--attr-source`,
+  each in the forms Git accepts),
+  because `check-attr` and `checkout-index` read paths relative to the directory they run in,
+  and because every one of those options can name the attribute tree the person chose:
+  a pass that dropped one read attributes from another source and merged a file their rules exclude.
 
 Merges from objects (the isolated merge,
 the auto-push reconcile merge,
@@ -9579,6 +9621,16 @@ so a resolving one there is the person's choice even where a file sets the key,
 and one that is no tree is ignored as a configured one is;
 `-c attr.tree` with no value sets `true`,
 which no tree resolves to.
+A `--config-env=attr.tree=<variable>` in either of its forms sets the same key,
+with the value the environment the Git children get holds under that name,
+read after the last `=` of the entry as Git splits it;
+an empty value there is no value and is ignored as a configured one is,
+and a variable the environment does not hold makes Git stop before it reads anything,
+so no tree is named over that either.
+`-cattr.tree=<spec>`,
+with no space after `-c`,
+is no form Git accepts,
+so there is none to read.
 The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`,
 the
 reconcile merge's branch tip,
