@@ -90,11 +90,12 @@ fn a_descendant_is_found_and_signalled() {
     let found: Vec<TreeMember> = descendants_of(root);
     let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
     assert!(still_running(member));
-    signal_members(&found, libc::SIGKILL);
+    let delivered: Vec<Delivered> = signal_members(&found, libc::SIGKILL);
     // The shell's `wait` returns when the sleeper has ended, so this is the event the checks below need.
     let status: Option<ExitStatus> = status_within_bound(&mut shell);
     let sleeper_ended: bool = !still_running(member);
     reap(&mut shell);
+    assert_eq!(delivered, vec![Delivered::Sent; found.len()], "a member that is still the process that was found is signalled through its descriptor: {found:?}");
     assert!(status.is_some_and(|ended| { return ended.success(); }), "the shell ended once the sleeper did: {status:?}");
     assert!(sleeper_ended, "the sleeper ended");
 }
@@ -106,7 +107,7 @@ fn a_descendant_is_found_and_signalled() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_named_wrappers_end_the_found_members() {
-    for (name, end) in [("terminate_members", terminate_members as fn(&[TreeMember])), ("kill_members", kill_members)] {
+    for (name, end) in [("terminate_members", terminate_members as fn(&[TreeMember]) -> Vec<Delivered>), ("kill_members", kill_members)] {
         let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
         let root: i32 = i32::try_from(shell.id()).expect("a process number");
         let found: Vec<TreeMember> = descendants_of(root);
@@ -198,7 +199,7 @@ fn a_number_reused_before_the_signal_is_not_signalled() {
     // The member a look read a moment earlier: the same number, and the start time of the process that has since ended.
     let found: TreeMember = TreeMember { pid, started: started.wrapping_add(1) };
     reused_after_the_next_read(pid, found.started);
-    signal_members(&[found], libc::SIGKILL);
+    let delivered: Vec<Delivered> = signal_members(&[found], libc::SIGKILL);
     let deadline: Instant = Instant::now() + STILL_THERE_BOUND;
     let mut killed: Option<ExitStatus> = sleeper.try_wait().expect("the sleeper is polled");
     while killed.is_none() && Instant::now() < deadline {
@@ -210,6 +211,7 @@ fn a_number_reused_before_the_signal_is_not_signalled() {
         sleeper.wait().expect("reaped");
     }
     assert!(killed.is_none(), "the process that took the reused number was killed ({killed:?}) by a signal meant for the process that ended");
+    assert_eq!(delivered, vec![Delivered::Gone], "the signal reported itself as sent to a number that names another process");
 }
 
 /// `use_of` names a running process
