@@ -35,7 +35,7 @@ use crate::candidate_error::CandidateError;
 /// Candidate preparation on a private index.
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// The captured-query runner and its byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git};
 use crate::repo_read_adapter::{location_of, sequencer_of};
 use crate::git_system_config::with_real_git;
 use crate::kept_names_in_the_git_directories::settle_kept_names;
@@ -263,8 +263,14 @@ impl GitFacts {
             self.overlay.as_slice(),
         ) {
             Ok(output) => return Ok(output),
+            // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
             // `&error` borrows the error for the message.
-            Err(error) => return Err(not_started(self.real_git.as_path(), fact, &error)),
+            Err(error) => {
+                return Err(match read_stopped_text(fact, &error) {
+                    Some(stopped) => stopped,
+                    None => not_started(self.real_git.as_path(), fact, &error),
+                });
+            }
         }
     }
 

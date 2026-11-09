@@ -16,7 +16,7 @@
 #![cfg(unix)]
 
 /// Import the reader under test and shared fixtures.
-use super::{ObjectReader, start_object_reader};
+use super::{ObjectReader, start_object_reader, start_object_reader_within};
 use crate::candidate_error::{CandidateError, CandidateFailure};
 use crate::candidate_object::{ObjectId, parse_object_id};
 use crate::git_metadata::strip_git_line;
@@ -237,5 +237,47 @@ fn overlay_selects_the_object_directory() {
         b"in the real store\n"
     );
     drop(visible);
+    remove(root.as_path());
+}
+
+/// What:
+///  A `HEAD` commit larger than the content ceiling is still the commit `HEAD` names.
+/// Why:
+///  The ceiling bounds the bytes a *check* reads;
+///  a commit whose message is large is a commit,
+///  and reporting
+///  "no `HEAD`" would make a baseline choose the empty tree instead of the real `HEAD`,
+///  so a staged listing would
+///  call every file an addition.
+///  The ceiling is the seam:
+/// the fixture's commit is ordinary,
+/// the ceiling is tiny.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const reader = startWithin(git, prefix, [], 64); expect(await reader.headCommit()).toBe(headOid)
+/// ```
+#[test]
+fn an_oversized_head_is_still_the_commit_it_names() {
+    let root: PathBuf = fixture("reader-large-head");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"a\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a commit whose object is over the ceiling"]);
+    let head: Vec<u8> = git(repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let expected: ObjectId = parse_object_id(strip_git_line(head.as_slice())).expect("head name");
+    // Four bytes cannot hold a commit object, so every reply above the ceiling takes the refusable path.
+    let mut small: ObjectReader = start_object_reader_within(
+        Path::new(REAL_GIT),
+        prefix(repo.as_path()).as_slice(),
+        &[],
+        crate::child_watch::WatchTerms::from_environment(),
+        4,
+    )
+    .expect("reader starts");
+    assert_eq!(small.head_commit().expect("a commit is named"), Some(expected.clone()));
+    // The positive control: the same question under the real ceiling answers the same name.
+    let mut whole: ObjectReader = reader(repo.as_path());
+    assert_eq!(whole.head_commit().expect("a commit is named"), Some(expected));
     remove(root.as_path());
 }

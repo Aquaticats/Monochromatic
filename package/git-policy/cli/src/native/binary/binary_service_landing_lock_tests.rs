@@ -282,7 +282,7 @@ fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_ho
         git_dir: git_dir.clone(),
         reference: String::from("refs/heads/main"),
         base: git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string(),
-        changes: vec![Change { path: String::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: String::from("mine\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),

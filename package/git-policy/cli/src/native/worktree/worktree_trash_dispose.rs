@@ -43,6 +43,7 @@ use crate::worktree_trash_entries::{EntryRemoval, remove_entries};
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
+use std::sync::Arc;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -167,7 +168,8 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
             Some(path) => format!("the work item {} stays, so the commit service empties it when it next runs for this worktree", path.display()),
             None => String::from("no work item could be written for it, so it stays until it is removed by hand"),
         };
-        return Err(format!("the directories left out of the new worktree {} could not be emptied ({reason}); {stays}", destination.display()));
+        // "Not emptied now": a removal the pool queued may still run later (`no_threads_child_test_support`).
+        return Err(format!("the directories left out of the new worktree {} were not emptied now ({reason}); {stays}", destination.display()));
     }
     // The trash is gone, so the record must not outlive it as work for a service to find.
     if let Some(path) = record
@@ -191,15 +193,16 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
 /// instead of waiting out the start for a socket
 /// that nothing will ever create.
 fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Handed {
-    // A record spells a path as text. A path that is not text cannot be spelled, and a lossy spelling would name another place.
+    // A path that is not text is left to the emptying here: the wake message to the service still spells a Git directory
+    //  as text, so a record alone cannot reach it.
     let (Some(repository), Some(git_dir_text)) = (destination.to_str(), git_dir.to_str()) else {
         debug(TAG, format!("{} or its administrative directory is not valid UTF-8, so no work item can name it", destination.display()).as_str());
         return Handed::Here { record: None, why: String::from("the path of the worktree is not valid UTF-8, so a work item cannot name it") };
     };
     let item: WorkItem = WorkItem {
         kind: WorkKind::Trash,
-        repository: repository.to_string(),
-        git_dir: git_dir_text.to_string(),
+        repository: PathBuf::from(repository),
+        git_dir: PathBuf::from(git_dir_text),
         branch_ref: String::from(TRASH_REFERENCE),
         oid: manifest.name.clone(),
         parent: manifest.encode(),
@@ -323,7 +326,7 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
         holders.push(next);
     }
     let Some(parent) = holders.last() else { return Ok(()) };
-    let trash: File = match open_directory_at(parent, std::ffi::OsStr::new(manifest.name.as_str())) {
+    let trash: Arc<File> = match open_directory_at(parent, std::ffi::OsStr::new(manifest.name.as_str())).map(Arc::new) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(format!("{} is not a plain directory ({error}), so it is left alone", shown.join(&manifest.name).display())),
@@ -333,7 +336,13 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
         return Err(format!("{} is not the directory the snapshot made ({} instead of {}), so it is left alone", shown.join(&manifest.name).display(), found.encode(), manifest.trash.encode()));
     }
     let inside: PathBuf = shown.join(&manifest.name);
-    let left: Vec<String> = remove_entries(&EntryRemoval { inside: inside.as_path(), trash: &trash, manifest, host: &HostResources::read(), remove: &remove_tree_beneath });
+    let left: Vec<String> = remove_entries(&EntryRemoval {
+        inside: inside.clone(),
+        trash: Arc::clone(&trash),
+        manifest: Arc::new(manifest.clone()),
+        host: HostResources::read(),
+        remove: Arc::new(remove_tree_beneath),
+    });
     if !left.is_empty() {
         return Err(left.join("; "));
     }
@@ -380,7 +389,7 @@ pub fn empty_trash(item: &WorkItem) -> Verdict {
         Ok(found) => found,
         Err(reason) => return Verdict::Failed(reason),
     };
-    return match delete_trash(Path::new(item.repository.as_str()), Path::new(item.git_dir.as_str()), &manifest) {
+    return match delete_trash(item.repository.as_path(), item.git_dir.as_path(), &manifest) {
         Ok(()) => Verdict::Done,
         Err(reason) => Verdict::Failed(reason),
     };

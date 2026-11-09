@@ -225,11 +225,25 @@ fn provisioning_notes_which_worktree_the_units_are_for() {
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(machine.host.runtime_dir.as_path(), INSTANCE);
-    assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
+    assert_eq!(noted(note.as_path()), machine.host.git_dir, "the note names the worktree of the units");
+    let written: Vec<u8> = std::fs::read(&note).expect("the note");
     let mut again: Recorder = Recorder::default();
     provision_with(&machine.host, &mut again).expect("provisioned again");
-    assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
+    assert_eq!(std::fs::read(&note).expect("the note"), written, "the second provisioning writes no other note");
+    assert_eq!(noted(note.as_path()), machine.host.git_dir);
     remove(machine.root.as_path());
+}
+
+/// The Git directory a note names,
+/// read the way the sweep reads a note of this release:
+/// the bytes it holds,
+/// not its text,
+/// which would name another place or none for a path that is not text.
+fn noted(note: &Path) -> PathBuf {
+    use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
+    let text: String = std::fs::read_to_string(note).expect("the note");
+    let hexadecimal: &str = text.strip_prefix(GITDIR_HEX_PREFIX).expect("the note names the bytes of the directory");
+    return path_of_hex(hexadecimal.trim_end_matches('\n')).expect("the note holds the bytes of a path");
 }
 
 /// What:
@@ -263,7 +277,7 @@ fn the_worktrees_note_is_written_before_the_manager_is_asked_to_start_the_units(
     recorder.observe_start(Box::new(move || { watched.lock().expect("lock").push(named.exists()); }));
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert_eq!(seen.lock().expect("lock").as_slice(), [true], "the note names the worktree before the units are started");
-    assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
+    assert_eq!(noted(note.as_path()), machine.host.git_dir, "the note names the worktree of the units");
     remove(machine.root.as_path());
 }
 

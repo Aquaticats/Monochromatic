@@ -1,0 +1,471 @@
+//! What:
+//! Read one line of block YAML:
+//! its indentation,
+//! the key before a colon,
+//! and the scalar
+//!       after one.
+//! Why:
+//! The generated registry configuration is the only YAML this executable reads,
+//! and no crate it
+//!      links parses YAML
+//! (`package/config/pnpr` uses the `yaml` npm package,
+// which a Rust
+//!      process cannot call).
+//! Rather than add a parser the lockfile does not carry,
+// this folder reads the
+//!      one structure the wrapper needs and refuses every text it cannot read,
+//! so an unread
+//!      configuration is reported instead of guessed at.
+//! This file is the line-level half:
+//! comment and blank lines dropped,
+//! indentation counted,
+//! and a line split into its key and its scalar.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // const [key, rest] = splitKey(line.content);
+//! ```
+
+/// What:
+/// One content line of a document:
+/// where it sits and what it holds.
+/// Why:
+///  Block structure is decided by indentation,
+/// and a diagnostic has to name the line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type YamlLine = { number: number; indent: number; content: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct YamlLine<'text> {
+    /// Its place in the file,
+    /// counted from one.
+    pub number: usize,
+    /// How many spaces precede its content.
+    pub indent: usize,
+    /// Its content without indentation,
+    /// trailing spaces or a comment line.
+    pub content: &'text str,
+}
+
+/// What:
+/// Why a text is not block YAML this reader reads.
+/// Why:
+///  The reader refuses what it cannot read,
+/// so the policy can say which line stopped
+///       it rather than read a wrong value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type YamlProblem = { line: number; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct YamlProblem {
+    /// The line the reader stopped at,
+    /// counted from one.
+    pub line: usize,
+    /// What is wrong with it,
+    /// in one clause without a final period.
+    pub reason: String,
+}
+
+/// What:
+/// A problem at one line.
+/// Why:
+///  Every refusal names the line it read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const problem: YamlProblem = { line, reason };
+/// ```
+impl YamlProblem {
+    /// The problem at `line` for `reason`.
+    pub fn new(line: usize, reason: &str) -> YamlProblem {
+        return YamlProblem {
+            line,
+            reason: String::from(reason),
+        };
+    }
+}
+
+/// The scalar a line holds after its key or its dash.
+#[path = "dependent_version_yaml_lines_scalar.rs"]
+mod dependent_version_yaml_lines_scalar;
+/// The quoted-scalar reader `split_key` shares with the scalar reader.
+use self::dependent_version_yaml_lines_scalar::read_quoted;
+/// Every scalar form,
+/// re-exported so callers keep reading it from this module.
+pub use self::dependent_version_yaml_lines_scalar::read_scalar;
+
+/// What:
+/// The spaces the generated configuration puts after a sequence dash.
+/// Why:
+///  `package/config/pnpr/src/generated-config-render.ts` writes `- name` with one
+///       space,
+/// and a compact mapping's later keys line up under that first key,
+/// so a wider
+///       gap would put them inside the entry above them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GENERATED_ITEM_GAP = 1;
+/// ```
+pub const GENERATED_ITEM_GAP: usize = 1;
+
+/// What:
+/// The deepest indentation the generated configuration writes.
+/// Why:
+///  The template nests seven blocks,
+/// and its deepest keys,
+/// the `claims` children
+///       `repository_id`,
+/// `repository_owner_id` and `workflow_ref`,
+/// sit fourteen
+///       spaces in.
+/// No line may be deeper,
+/// which bounds the block recursion of the
+///       document reader,
+/// so no input can grow the stack.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GENERATED_MAX_INDENT = 14;
+/// ```
+pub const GENERATED_MAX_INDENT: usize = 14;
+
+/// What:
+/// Why a line that begins a sequence entry is not in the generated form,
+/// when it is not.
+/// Why:
+///  A dash with no space after it,
+/// as in `-1`,
+/// begins a plain scalar and not an item;
+/// a tab in either place the generated configuration writes a space,
+/// or any gap other than that one space,
+/// makes the line something this reader does not read,
+/// and it is refused by name rather than
+///       parsed as an item at a column it does not hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function itemGapProblem(content: string): string | undefined;
+/// ```
+fn item_gap_problem(content: &str) -> Option<String> {
+    let after: &str = content.strip_prefix('-')?;
+    if after.is_empty() {
+        return None;
+    }
+    let rest: &str = after.trim_start_matches(' ');
+    let gap: usize = after.len() - rest.len();
+    if gap == 0 {
+        if after.starts_with('\t') {
+            return Some(String::from(
+                "separates its dash from its content with a tab, where the generated configuration writes a space",
+            ));
+        }
+        return None;
+    }
+    if gap != GENERATED_ITEM_GAP {
+        return Some(format!(
+            "puts {gap} spaces after its dash, where the generated configuration writes one"
+        ));
+    }
+    if after[gap..].starts_with('\t') {
+        return Some(String::from(
+            "puts a tab after the space that follows its dash, which this reader does not read",
+        ));
+    }
+    return None;
+}
+
+/// What:
+/// The lines that carry content,
+/// with their indentation,
+/// each read only in the form the generated configuration writes.
+/// `.enumerate()` pairs each line with its index;
+///       `.strip_suffix`/`.strip_prefix` remove a known end or start.
+/// Why:
+///  Blank lines and whole-line comments carry no structure;
+/// a tab may not
+///       indent a block in YAML,
+/// and counting it as spaces would misread the nesting.
+/// The registry configuration is generated by
+///       `package/config/pnpr/src/generated-config-render.ts`,
+/// so this reader accepts the line
+///       forms that template writes and refuses every other line by name,
+/// rather than
+///       guessing at a form it does not understand:
+/// a document marker inside a
+///       line,
+/// a deeper indentation than the template's deepest key,
+/// and a sequence dash
+///       followed by anything but exactly one space.
+/// Bounding the indentation also bounds the block
+///       recursion of `dependent_version_yaml`,
+/// so no input can grow the stack.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readLines(text: string): YamlLine[] | YamlProblem;
+/// ```
+pub fn read_lines(text: &str) -> Result<Vec<YamlLine<'_>>, YamlProblem> {
+    let mut lines: Vec<YamlLine<'_>> = Vec::new();
+    for (index, raw) in text.split('\n').enumerate() {
+        let number: usize = index + 1;
+        let line: &str = raw.strip_suffix('\r').unwrap_or(raw);
+        let unindented: &str = line.trim_start_matches(' ');
+        let indent: usize = line.len() - unindented.len();
+        if unindented.starts_with('\t') {
+            return Err(YamlProblem::new(
+                number,
+                "is indented with a tab, which starts no block",
+            ));
+        }
+        let content: &str = unindented.trim_end_matches(' ');
+        if content.is_empty() || content.starts_with('#') {
+            continue;
+        }
+        if content.contains('\r') {
+            return Err(YamlProblem::new(
+                number,
+                "holds a carriage return, which starts a new line",
+            ));
+        }
+        if indent > GENERATED_MAX_INDENT {
+            return Err(YamlProblem::new(
+                number,
+                &format!(
+                    "is indented deeper than the generated configuration's deepest key, \
+                     which sits {GENERATED_MAX_INDENT} spaces in"
+                ),
+            ));
+        }
+        if content.starts_with("---") && content != "---" {
+            return Err(YamlProblem::new(
+                number,
+                "begins with '---', which marks a document boundary, and this reader reads \
+                 one document",
+            ));
+        }
+        if indent == 0 && (content == "---" || content == "...") {
+            return Err(YamlProblem::new(
+                number,
+                "marks a document boundary, and this reader reads one document",
+            ));
+        }
+        if let Some(reason) = item_gap_problem(content) {
+            return Err(YamlProblem::new(number, &reason));
+        }
+        if content.starts_with("- ") && content.contains('#') {
+            return Err(YamlProblem::new(
+                number,
+                "holds a '#' on a list item, where the generated configuration writes none",
+            ));
+        }
+        lines.push(YamlLine {
+            number,
+            indent,
+            content,
+        });
+    }
+    return Ok(lines);
+}
+
+/// What:
+/// Whether a content line opens a sequence item,
+/// in exactly the form the generator writes.
+/// Why:
+///  An item is a dash alone,
+/// or a dash and the one space `GENERATED_ITEM_GAP` names;
+/// `-1` is a scalar because no space follows the dash.
+/// A wider gap and a tab are not item separators this reader reads,
+/// and
+///       `read_lines` refuses the line before the block reader sees it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isItem = (content: string) => content === '-' || /^- [^ \t]/.test(content);
+/// ```
+pub fn is_item(content: &str) -> bool {
+    if content == "-" {
+        return true;
+    }
+    let Some(rest): Option<&str> = content.strip_prefix("- ") else {
+        return false;
+    };
+    if rest.starts_with(' ') || rest.starts_with('\t') {
+        return false;
+    }
+    return true;
+}
+
+/// What:
+/// The content of a sequence item,
+/// which is nothing for a lone dash.
+/// Why:
+///  The dash and the one space after it are not part of the content,
+/// and no other
+///       gap reaches this function,
+/// because `read_lines` refused it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const itemContent = (content: string) => content.replace(/^- /, '');
+/// ```
+pub fn item_content(content: &str) -> &str {
+    if content == "-" {
+        return "";
+    }
+    return content.strip_prefix("- ").unwrap_or("");
+}
+
+/// What:
+/// Whether a character separates text on a line:
+/// a space or a tab.
+/// Why:
+///  YAML ends a plain scalar at a comment,
+/// and separates a key from its value,
+///       with either;
+/// treating only a space as one would read a comment
+///       as part of a package name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSpaceOrTab = (c: string) => c === ' ' || c === '\t';
+/// ```
+fn is_space_or_tab(character: char) -> bool {
+    return character == ' ' || character == '\t';
+}
+
+/// What:
+/// The indicator a plain scalar or key begins with,
+/// when this reader does not follow it.
+/// Why:
+///  A tag (`!`),
+/// anchor (`&`),
+/// alias (`*`),
+/// block scalar (`|`,
+///       `>`),
+/// directive (`%`),
+/// reserved character (`@`,
+/// backtick),
+/// flow collection
+///       (`[`,
+/// `]`,
+/// `{`,
+/// `}`,
+/// `,`),
+/// comment (`#`) or quote makes the line mean something other
+///       than the text this reader would store;
+/// `-`,
+/// `?` and `:` begin a plain
+///       scalar only when a non-space follows,
+/// so an item indicator or an explicit
+///       key is refused too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusedIndicator(text: string): string | undefined;
+/// ```
+fn refused_indicator(text: &str) -> Option<char> {
+    let first: char = text.chars().next()?;
+    if matches!(
+        first,
+        '!' | '&' | '*' | '|' | '>' | '%' | '@' | '`' | '[' | ']' | '{' | '}' | ',' | '#' | '\'' | '"'
+    ) {
+        return Some(first);
+    }
+    if matches!(first, '-' | '?' | ':') {
+        let after: &str = &text[first.len_utf8()..];
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if separated {
+            return Some(first);
+        }
+    }
+    return None;
+}
+
+/// What:
+/// The key and the rest of a line,
+/// or nothing when the line holds no key.
+/// `Err` is why a line that looks like a key is not one this reader reads.
+/// Why:
+///  A key ends at a colon a space,
+/// a tab or the line end follows;
+/// a quoted key ends
+///       at its closing quote,
+/// so the quoted registry pattern `'@scope/*':` is one key.
+/// A key this reader cannot read is refused rather than stored,
+/// because
+///       a key it kept verbatim would silently answer "no such entry".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function splitKey(content: string): [string, string] | undefined;
+/// ```
+pub fn split_key(content: &str) -> Result<Option<(String, &str)>, String> {
+    if content.starts_with('\'') || content.starts_with('"') {
+        let (key, rest): (String, &str) = read_quoted(content)?;
+        let unspaced: &str = rest.trim_start_matches(is_space_or_tab);
+        let Some(after): Option<&str> = unspaced.strip_prefix(':') else {
+            return Ok(None);
+        };
+        if key.is_empty() {
+            return Err(String::from("names no key"));
+        }
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if !separated {
+            return Err(String::from(
+                "puts its colon against its value, which this reader does not read",
+            ));
+        }
+        return Ok(Some((key, after.trim_start_matches(is_space_or_tab))));
+    }
+    let mut previous: Option<char> = None;
+    for (index, character) in content.char_indices() {
+        if character == '#' && previous.is_some_and(is_space_or_tab) {
+            // A comment starts here, and a key before it would have been returned already:
+            // a colon inside a comment names no key of this line.
+            return Ok(None);
+        }
+        previous = Some(character);
+        if character != ':' {
+            continue;
+        }
+        let after: &str = &content[index + 1..];
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if !separated {
+            continue;
+        }
+        let key: &str = content[..index].trim_end_matches(is_space_or_tab);
+        if key.is_empty() {
+            return Err(String::from("names no key"));
+        }
+        if let Some(first) = refused_indicator(key) {
+            return Err(format!(
+                "begins with {first:?}, which opens a key this reader does not read"
+            ));
+        }
+        return Ok(Some((
+            String::from(key),
+            after.trim_start_matches(is_space_or_tab),
+        )));
+    }
+    return Ok(None);
+}
+
+/// Line reading,
+/// including the forms the generator writes and the ones it refuses.
+#[cfg(test)]
+#[path = "dependent_version_yaml_lines_tests.rs"]
+mod tests;

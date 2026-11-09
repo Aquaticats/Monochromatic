@@ -21,17 +21,15 @@ use crate::dependent_version_content::{ContentUnavailable, PlanError, PolicyInco
 use crate::dependent_version_manifest::shape;
 use crate::dependent_version_release::UnsupportedVersion;
 use crate::dependent_version_test_support::{
-    MemoryFile, MemoryWorkspace, Read, changed, config, manifest_text, unchanged, workspace,
+    CONFIG_PATH, MemoryFile, MemoryWorkspace, Read, changed, config,
+    config_with_a_narrower_list_above, manifest_text, unchanged, workspace,
 };
 
 /// The incumbent worktree test's baseline,
 /// with `@s/base` raised to `1.1.0`.
 fn raised_baseline() -> Vec<MemoryFile> {
     return vec![
-        unchanged(
-            "package/config/pnpr/config.yaml",
-            "packages:\n  - '@s/app'\n  - '@s/base'\n  - '@s/tool'\nnext: 1\n",
-        ),
+        config(&["@s/app", "@s/base", "@s/tool"]),
         changed(
             "package/module/base/package.json",
             &manifest_text("  \"name\": \"@s/base\",\n  \"version\": \"1.1.0\""),
@@ -113,17 +111,54 @@ fn plans_nothing_without_a_raised_version() {
     )));
 }
 
-/// Without the registry configuration nothing is publishable.
+/// A workspace with no registry configuration cannot be judged:
+/// whether a dependent is
+/// published is unknown,
+/// so nothing is planned and the plan fails naming the cause.
 #[test]
-fn plans_nothing_without_the_configuration() {
+fn refuses_a_workspace_without_the_registry_configuration() {
     let mut memory: MemoryWorkspace = workspace(raised_baseline()[1..].to_vec());
     assert_eq!(
-        planned(&mut memory),
-        WorkspaceBumpPlan {
-            bumped_names: vec![String::from("@s/base")],
-            bumps: Vec::new()
-        }
+        plan_workspace_bumps(&mut memory),
+        Err(PlanError::PolicyIncomplete(
+            PolicyIncomplete::PublishSetUnknown {
+                path: CONFIG_PATH.as_bytes().to_vec(),
+                problem: String::from("it is not tracked in this repository"),
+            }
+        ))
     );
+}
+
+/// A registry configuration whose publish set is empty cannot be judged either.
+#[test]
+fn refuses_a_workspace_with_an_empty_publish_set() {
+    let mut files: Vec<MemoryFile> = raised_baseline();
+    files[0] = config(&[]);
+    assert_eq!(
+        plan_workspace_bumps(&mut workspace(files)),
+        Err(PlanError::PolicyIncomplete(
+            PolicyIncomplete::PublishSetUnknown {
+                path: CONFIG_PATH.as_bytes().to_vec(),
+                problem: String::from("no `auth.oidc` workload lists a package name"),
+            }
+        ))
+    );
+}
+
+/// The publish set is read from the file's own structure,
+/// so a narrower list above
+/// it does not hide it.
+#[test]
+fn reads_the_publish_set_below_a_narrower_list() {
+    let mut files: Vec<MemoryFile> = raised_baseline();
+    files[0] = config_with_a_narrower_list_above(&["@s/app", "@s/base", "@s/tool"]);
+    let plan: WorkspaceBumpPlan = planned(&mut workspace(files));
+    let summary: Vec<String> = plan
+        .bumps
+        .iter()
+        .map(|bump: &ManifestBump| return format!("{}@{}", bump.planned.name, bump.planned.bump.to))
+        .collect();
+    assert_eq!(summary, ["@s/app@2.0.1", "@s/tool@0.1.1"]);
 }
 
 /// A configuration that is not UTF-8 stops the plan.
