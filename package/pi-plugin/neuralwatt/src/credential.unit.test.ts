@@ -12,6 +12,9 @@ import {
 import {
   NEURALWATT_API_KEY_ENV,
 } from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
+import {
+  setTimeout as sleep,
+} from 'node:timers/promises';
 import type {
   EnvLocalJsonEnvironment,
   ReadEnvLocalJsonOptions,
@@ -25,11 +28,13 @@ import type {
 } from '@earendil-works/pi-ai';
 import {
   createNeuralWattApiKeyAuth,
+  CREDENTIAL_REVALIDATION_INTERVAL_MS,
   deriveRepoEnvLocalJsonPath,
   ENV_LOCAL_JSON_PATH_VARIABLE,
   NEURALWATT_CREDENTIAL_GUIDANCE,
   readNeuralWattStoreValue,
   resolveNeuralWattCredential,
+  STORE_READ_ATTEMPTS,
   type NeuralWattStoreRead,
 } from '../dist/final/node/index.mjs';
 
@@ -169,14 +174,18 @@ function fixtureAuthContext(
 
  @param readStore - store reader the seam resolves through
 
+ @param now - clock the seam schedules revalidation against
+
  @returns the api-key auth object under test
  */
 function fixtureApiKeyAuth({
   logger,
   readStore,
+  now,
 }: {
   readonly logger: Logger;
   readonly readStore: (options: ReadEnvLocalJsonOptions) => Promise<ReadEnvLocalJsonResult>;
+  readonly now?: () => number;
 },): ReturnType<typeof createNeuralWattApiKeyAuth> {
   return createNeuralWattApiKeyAuth({
     logger,
@@ -184,6 +193,7 @@ function fixtureApiKeyAuth({
     moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
     fileExists: fixtureFileExists([],),
     readStore,
+    ...(now === undefined ? {} : { now, }),
   },);
 }
 
@@ -626,7 +636,7 @@ await describe({
           },
         },);
         const ctx = fixtureAuthContext({},);
-        const signal = new AbortController().signal;
+        const { signal, } = new AbortController();
         const resolvedBoth = await Promise.all([
           auth.resolve({
             ctx,
@@ -644,6 +654,192 @@ await describe({
           'store-key-1',
           'store-key-1',
         ],);
+      },
+    }),
+    it({
+      name: 'reports absence once the bounded store read attempts are spent',
+      fn: async () => {
+        const { logger, messages, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: function timingOutReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            return Promise.reject(new Error('sops could not decrypt (timeout)',));
+          },
+        },);
+        const resolved = await auth.resolve({
+          ctx: fixtureAuthContext({},),
+          signal: new AbortController().signal,
+        },);
+        expect(resolved).toBe(undefined);
+        expect(reads).toBe(STORE_READ_ATTEMPTS);
+        expect(messages.some(function namesGuidance(message,) {
+          return message.includes(NEURALWATT_CREDENTIAL_GUIDANCE,);
+        },)).toBe(true);
+      },
+    }),
+    it({
+      name: 'picks up a key the store names after it named none',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: function lateReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            return Promise.resolve({
+              loaded: true,
+              path: '/store',
+              values: reads === 1 ? {} : { [NEURALWATT_API_KEY_ENV]: 'store-key-1', },
+            },);
+          },
+        },);
+        const ctx = fixtureAuthContext({},);
+        const before = await auth.resolve({
+          ctx,
+          signal: new AbortController().signal,
+        },);
+        const after = await auth.resolve({
+          ctx,
+          signal: new AbortController().signal,
+        },);
+        expect(before).toBe(undefined);
+        expect(after?.auth.apiKey).toBe('store-key-1');
+        expect(reads).toBe(2);
+      },
+    }),
+    it({
+      name: 'replaces the served key with a rotated one once the revalidation window passes',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        /**
+         Clock the seam schedules revalidation against.
+         */
+        let time = 0;
+        /**
+         Signal the second read raises once the seam asks for it.
+         */
+        const rotatedRead = Promise.withResolvers<void>();
+        const auth = fixtureApiKeyAuth({
+          logger,
+          now: function clock(): number {
+            return time;
+          },
+          readStore: function rotatedReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            if (reads === 2)
+              rotatedRead.resolve();
+            return Promise.resolve({
+              loaded: true,
+              path: '/store',
+              values: { [NEURALWATT_API_KEY_ENV]: `store-key-${String(reads,)}`, },
+            },);
+          },
+        },);
+        const ctx = fixtureAuthContext({},);
+        const { signal, } = new AbortController();
+        const first = await auth.resolve({
+          ctx,
+          signal,
+        },);
+        time += CREDENTIAL_REVALIDATION_INTERVAL_MS + 1;
+        const servedFromMemory = await auth.resolve({
+          ctx,
+          signal,
+        },);
+        await rotatedRead.promise;
+        /**
+         Microtasks the read chain still holds, drained so the rotated read is
+         adopted before the next resolution.
+         */
+        await sleep(0,);
+        const rotated = await auth.resolve({
+          ctx,
+          signal,
+        },);
+        expect(first?.auth.apiKey).toBe('store-key-1');
+        expect(servedFromMemory?.auth.apiKey).toBe('store-key-1');
+        expect(rotated?.auth.apiKey).toBe('store-key-2');
+        expect(reads).toBe(2);
+      },
+    }),
+    it({
+      name: 'keeps the last good key when the revalidation read fails, and says so',
+      fn: async () => {
+        const { logger, messages, } = createCapturingLogger();
+        /**
+         Store reads the seam made, in order.
+         */
+        let reads = 0;
+        /**
+         Clock the seam schedules revalidation against.
+         */
+        let time = 0;
+        /**
+         Signal the last read attempt raises once the seam asks for it.
+         */
+        const everyAttempt = Promise.withResolvers<void>();
+        const auth = fixtureApiKeyAuth({
+          logger,
+          now: function clock(): number {
+            return time;
+          },
+          readStore: function timingOutReader(): Promise<ReadEnvLocalJsonResult> {
+            reads += 1;
+            if (reads === (1 + STORE_READ_ATTEMPTS))
+              everyAttempt.resolve();
+            if (reads === 1) {
+              return Promise.resolve({
+                loaded: true,
+                path: '/store',
+                values: { [NEURALWATT_API_KEY_ENV]: 'store-key-1', },
+              },);
+            }
+            return Promise.reject(new Error('sops could not decrypt (timeout)',));
+          },
+        },);
+        const ctx = fixtureAuthContext({},);
+        const { signal, } = new AbortController();
+        const first = await auth.resolve({
+          ctx,
+          signal,
+        },);
+        time += CREDENTIAL_REVALIDATION_INTERVAL_MS + 1;
+        const servedFromMemory = await auth.resolve({
+          ctx,
+          signal,
+        },);
+        await everyAttempt.promise;
+        /**
+         Microtasks the failing refresh still holds, drained so it reports
+         before the assertions.
+         */
+        await sleep(0,);
+        const afterFailure = await auth.resolve({
+          ctx,
+          signal,
+        },);
+        expect(first?.auth.apiKey).toBe('store-key-1');
+        expect(servedFromMemory?.auth.apiKey).toBe('store-key-1');
+        expect(afterFailure?.auth.apiKey).toBe('store-key-1');
+        expect(reads).toBe(1 + STORE_READ_ATTEMPTS);
+        expect(messages.some(function keepsLastGoodKey(message,) {
+          return message.includes('keeping the NeuralWatt credential resolved earlier',);
+        },)).toBe(true);
+        for (const message of messages) {
+          expect(message.includes('store-key-1',)).toBe(false);
+        }
       },
     }),
   ],
