@@ -597,6 +597,50 @@ pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 /// and 97 of 100 commits say nothing.
 pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 
+/// The environment variable that sets how long a commit waits before the wrapper says where it stands,
+/// in whole
+///  seconds.
+/// Why:
+///   A control that checks what a healthy commit prints must not depend on how slowly the host runs one,
+/// so it sets
+///  this past its own bound,
+/// as `CLI_GIT_WAIT_NOTICE_SECONDS` does for the holder's lines.
+pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
+
+/// How long a commit waits before the wrapper says where it stands:
+/// the setting when it holds a positive number of seconds,
+/// `WAITING_NOTICE_AFTER` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitingNoticeAfter() // Duration
+/// ```
+pub fn waiting_notice_after() -> Duration {
+    return notice_after_of(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref());
+}
+
+/// What:
+///  The wait a setting of `CLI_GIT_STANDING_NOTICE_SECONDS` stands for.
+/// Why:
+///   A setting that is missing,
+/// is not a number or is zero leaves the shipped wait,
+/// so a misspelling never silences the telling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noticeAfterOf('30') // 30 s
+/// ```
+pub fn notice_after_of(setting: Option<&str>) -> Duration {
+    let seconds: Option<u64> = match setting {
+        Some(text) => text.trim().parse::<u64>().ok(),
+        None => None,
+    };
+    return match seconds {
+        Some(found) if found > 0 => Duration::from_secs(found),
+        _ => WAITING_NOTICE_AFTER,
+    };
+}
+
 /// The ceilings are derived and checked as controls in the test module.
 #[cfg(test)]
 #[path = "wait_ceilings_tests.rs"]

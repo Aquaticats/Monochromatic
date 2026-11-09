@@ -2951,7 +2951,8 @@ Each line names what the command waits for,
   or `This commit is next.` for the first place;
   when it named none it reads "The commit service has not started on this commit yet;
   it is still reading it.".
-  A commit that lands within those 10 seconds prints nothing.
+  A commit that lands within those 10 seconds prints nothing,
+  and `CLI_GIT_STANDING_NOTICE_SECONDS` (a positive number of seconds) sets the wait for a control.
   The service names the place of a batch's first request only once that request has waited as long,
   so a client of an earlier release,
   which prints every place it is told,

@@ -228,7 +228,7 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &Tra
         start_wait: reach.start_wait,
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: host.as_ref().map(manager_watch_for),
-        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING, waiting_notice_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
+        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
         units_record_dir: host.as_ref().map(crate::service_provision_host_and_manager::units_record_dir_of),
     };
     return match wake(&config, git_dir, None, notices) {
