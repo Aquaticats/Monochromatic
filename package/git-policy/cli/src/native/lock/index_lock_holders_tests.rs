@@ -134,6 +134,15 @@ const FAKE_MOUNT: u64 = 40;
 /// as the kernel writes it,
 /// and the descriptor's own link to the file it holds.
 /// `recorded_inode` is the inode number the record names,
+/// The reader a control uses for its own `/proc`:
+/// the file the descriptor's link names,
+/// which is what a directory of links can say and what a judgement never reads.
+fn read_the_link(process: &Path, fd: &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile> {
+    use std::os::unix::fs::MetadataExt as _;
+    let opened: std::fs::Metadata = std::fs::metadata(process.join("fd").join(fd))?;
+    return Ok(crate::open_file_of_a_descriptor::OpenedFile { device: opened.dev(), inode: opened.ino() });
+}
+
 /// which a control makes disagree with the file the link names to stand for a collision.
 fn describe_descriptor(process: &Path, number: u32, mount: u64, recorded_inode: u64, held: &Path) {
     let records: PathBuf = process.join("fdinfo");
@@ -170,7 +179,7 @@ fn the_proc_scan_matches_descriptors_by_identity() {
     std::fs::create_dir_all(proc_root.join("103")).expect("unreadable process");
     std::fs::write(proc_root.join("103/fd"), b"not a directory").expect("descriptors that cannot be listed");
 
-    let evidence: HolderEvidence = scan_proc_fd_holders(proc_root.as_path(), device, inode, 7);
+    let evidence: HolderEvidence = scan_proc_fd_holders_with(proc_root.as_path(), device, inode, 7, read_the_link);
     assert_eq!(evidence.method, "proc-fd");
     assert_eq!(
         evidence.holders,
@@ -218,7 +227,7 @@ fn a_scan_cut_short_looks_at_the_newest_processes_first() {
     std::fs::write(proc_root.join(holder_number.to_string()).join("comm"), b"git\n").expect("holder name");
     // The scan may look at a handful of processes before it is cut, far fewer than the host has.
     let few: usize = 5;
-    let evidence: HolderEvidence = scan_proc_fd_holders_stopping(proc_root.as_path(), device, inode, 7, ScanLimit { deadline: None, processes: Some(few) });
+    let evidence: HolderEvidence = scan_proc_fd_holders_stopping_with(proc_root.as_path(), device, inode, 7, ScanLimit { deadline: None, processes: Some(few) }, read_the_link);
     assert_eq!(
         evidence.holders,
         vec![Holder { pid: i64::from(holder_number), command: Some(String::from("git")) }],
@@ -349,7 +358,7 @@ fn a_holder_that_reached_the_lock_through_another_mount_is_found() {
     let (device, inode): (u64, u64) = identity_of(lock.as_path());
     describe_descriptor(proc_root.join("200").as_path(), 3, u64::from(u32::MAX), inode, lock.as_path());
     std::fs::write(proc_root.join("200/comm"), "git\n").expect("holder comm");
-    let evidence: HolderEvidence = scan_proc_fd_holders(proc_root.as_path(), device, inode, 7);
+    let evidence: HolderEvidence = scan_proc_fd_holders_with(proc_root.as_path(), device, inode, 7, read_the_link);
     assert_eq!(evidence.holders, vec![Holder { pid: 200, command: Some(String::from("git")) }], "{evidence:?}");
     remove(root.as_path());
 }
@@ -370,7 +379,7 @@ fn a_descriptor_of_another_file_is_not_a_holder() {
     // The record says the lock's inode number, as two subvolumes' first files do, and the open file is the other one.
     describe_descriptor(proc_root.join("201").as_path(), 3, FAKE_MOUNT, inode, other.as_path());
     std::fs::write(proc_root.join("201/comm"), "sleep\n").expect("comm");
-    let evidence: HolderEvidence = scan_proc_fd_holders(proc_root.as_path(), device, inode, 7);
+    let evidence: HolderEvidence = scan_proc_fd_holders_with(proc_root.as_path(), device, inode, 7, read_the_link);
     assert!(evidence.holders.is_empty(), "another file is not the lock: {evidence:?}");
     assert!(evidence.partial.is_empty(), "{evidence:?}");
     remove(root.as_path());

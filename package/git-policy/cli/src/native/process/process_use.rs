@@ -181,8 +181,43 @@ pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, ino
     if held != Some(inode) {
         return Ok(false);
     }
-    let opened: crate::open_file_of_a_descriptor::OpenedFile = crate::open_file_of_a_descriptor::opened_file_of(process, fd)?;
-    return Ok(opened.device == device && opened.inode == inode);
+    return descriptor_is_file_with(process, fd, device, inode, crate::open_file_of_a_descriptor::opened_file_of);
+}
+
+/// What:
+///  `descriptor_is_file` with the reader of a descriptor's open file given:
+///  the kernel's copy of it in a judgement,
+///  and a control's own reader for a table the kernel does not know.
+/// Why:
+///   A control's `/proc` is a directory of links,
+///  so the file a descriptor has open there can only be read from its link,
+///  while the production read copies the descriptor and never walks the path
+///  (`src/native/process/open_file_of_a_descriptor.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// descriptorIsFileWith({ process, fd, device, inode, opened });
+/// ```
+#[cfg(unix)]
+pub fn descriptor_is_file_with(
+    process: &Path,
+    fd: &std::ffi::OsStr,
+    device: u64,
+    inode: u64,
+    opened: fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
+) -> std::io::Result<bool> {
+    let text: String = std::fs::read_to_string(process.join("fdinfo").join(fd))?;
+    let mut held: Option<u64> = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix("ino:") {
+            held = value.trim().parse::<u64>().ok();
+        }
+    }
+    if held != Some(inode) {
+        return Ok(false);
+    }
+    let file: crate::open_file_of_a_descriptor::OpenedFile = opened(process, fd)?;
+    return Ok(file.device == device && file.inode == inode);
 }
 
 /// What:

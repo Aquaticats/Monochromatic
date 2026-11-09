@@ -4245,7 +4245,8 @@ and the first answer wins:
    finding 3;
    measured on this host on 2026-11-09 with a stopped `fuse-overlayfs` server,
    `doc/troubleshooting/fuse-descriptor-attributes.md`).
-   A descriptor this process may not copy (a process that hid itself with `PR_SET_DUMPABLE`, or of another account)
+   A descriptor this process may not copy (a process that hid itself with `PR_SET_DUMPABLE`,
+   or of another account)
    is a process the scan could not look into,
    so the candidate is unproven and never held or removed on a guess from the link's text,
    which a bind mount,
@@ -4531,8 +4532,9 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
   the file
   system must be on the fixed local list.
   A lock on a local disk is still matched to a descriptor that holds a file on a stalled file system,
-  and nothing there is waited for: a descriptor is read through the kernel's own copy of it and never through the path of
-  its link (item 3).
+  and nothing there is waited for:
+  a descriptor is read through the kernel's own copy of it,
+  never through the path of its link (item 3).
 - A clock that steps:
   the margin and the start time of a process read file times against the current clock,
   and the boot

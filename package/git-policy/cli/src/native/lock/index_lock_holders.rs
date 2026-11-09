@@ -31,6 +31,12 @@ use std::path::Path;
 #[cfg(unix)]
 use std::path::PathBuf;
 
+/// How a descriptor's open file is read:
+/// the kernel's copy of the descriptor in a judgement,
+/// or a control's own read of a link for a table the kernel does not know.
+#[cfg(unix)]
+pub type OpenedFileReader = fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>;
+
 /// The incumbent's Restart Manager script,
 ///  byte for byte.
 pub const RESTART_MANAGER_SCRIPT: &str = include_str!("index_lock_restart_manager.ps1");
@@ -147,7 +153,7 @@ fn exited(error: &std::io::Error) -> bool {
 /// async function scanProcess({ procRoot, pid, device, inode }): Promise<{ holds: boolean; partial?: string }>;
 /// ```
 #[cfg(unix)]
-fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, Option<String>) {
+fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: OpenedFileReader) -> (bool, Option<String>) {
     let process: PathBuf = proc_root.join(pid);
     let listing: std::fs::ReadDir = match std::fs::read_dir(process.join("fd")) {
         Ok(found) => found,
@@ -160,7 +166,7 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, 
         let Ok(entry) = item else {
             continue;
         };
-        match crate::process_use::descriptor_is_file(process.as_path(), entry.file_name().as_os_str(), device, inode) {
+        match crate::process_use::descriptor_is_file_with(process.as_path(), entry.file_name().as_os_str(), device, inode, opened) {
             Ok(true) => holds = true,
             Ok(false) => {}
             Err(error) if exited(&error) => {}
@@ -195,6 +201,23 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, 
 #[cfg(unix)]
 pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid: u32) -> HolderEvidence {
     return scan_proc_fd_holders_until(proc_root, device, inode, self_pid, None);
+}
+
+/// What:
+///  `scan_proc_fd_holders` with the reader of a descriptor's open file given.
+/// Why:
+///   A control's `/proc` is a directory of links and its numbers are not processes the kernel copies a descriptor for,
+///  so the control reads the file from the link,
+///  which is the way the scan no longer reads it in a judgement
+///  (`crate::process_use::descriptor_is_file_with`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanProcFdHoldersWith({ procRoot, device, inode, selfPid, opened });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_with(proc_root: &Path, device: u64, inode: u64, self_pid: u32, opened: OpenedFileReader) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping_with(proc_root, device, inode, self_pid, ScanLimit::default(), opened);
 }
 
 /// What:
@@ -269,6 +292,21 @@ fn past(moment: std::time::Instant) -> bool {
 /// ```
 #[cfg(unix)]
 pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping_with(proc_root, device, inode, self_pid, limit, crate::open_file_of_a_descriptor::opened_file_of);
+}
+
+/// What:
+///  `scan_proc_fd_holders_stopping` with the reader of a descriptor's open file given.
+/// Why:
+///   The same seam as `scan_proc_fd_holders_with`,
+///  for a control that also cuts the scan short.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanProcFdHoldersStoppingWith({ procRoot, device, inode, selfPid, limit, opened });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit, opened: OpenedFileReader) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
@@ -304,7 +342,7 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, 
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }
-        let (holds, partial) = scan_process(proc_root, pid.as_str(), device, inode);
+        let (holds, partial) = scan_process(proc_root, pid.as_str(), device, inode, opened);
         if holds && let Ok(number) = pid.parse::<i64>() {
             let command: Option<String> = std::fs::read_to_string(proc_root.join(pid).join("comm"))
                 .ok()
