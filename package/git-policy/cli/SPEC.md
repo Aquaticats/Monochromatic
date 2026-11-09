@@ -2787,16 +2787,12 @@ with every other refusal,
 and a look that could not be made,
 leaving the ceiling armed rather than standing down,
 and the command failing with a message that says nothing was committed and to run the same command again;
-a step whose start the kernel refused a descriptor for is taken again at the ceiling,
-and only one proof is accepted before anything is sent:
-the step's record must say the number is a living child of this process that has not been reaped,
-which is the one moment the kernel cannot have given that number to another process
-(a child that exits in the instant before the signal becomes a zombie that still holds the number and discards it);
-with that proof a descriptor is made then,
-or the signal goes to the proved number,
-a record that names another parent means the child was reaped and the step ended,
-so nothing is sent,
-and a record that cannot be read leaves the ceiling armed;
+and a step whose start the kernel refused a descriptor for is not signalled by the notice at all:
+finding a number and opening a descriptor for it are two operations,
+so a step that ended and was reaped between them leaves a number another process holds,
+and nothing here reads a number
+(the wait that owns the step ends it instead,
+below);
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
@@ -2811,27 +2807,35 @@ a member the kernel refuses a pidfd for is never signalled by its number,
 and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
 
-##### The one wait the ceiling cannot end
+##### The wait that owns the step ends it when the notice cannot
 
-A step whose start the kernel refused a descriptor for is ended at the ceiling by the proof above.
-The one state in which no ceiling can end it is both failures at once:
-the start made no descriptor,
-and `/proc` cannot be read at the ceiling,
-so the step's number cannot be proven to be this process's own unreaped child.
-Then nothing is sent,
-the ceiling stays armed,
-and the notice keeps printing what it knows at its cadence until `/proc` reads again,
-at which point the ceiling fires,
-or until the step ends by itself.
-The person sees the usual waiting lines,
-the last of which promises the stop at the ceiling,
-and a commit that lasts longer than the ceiling says so every cadence;
-`run_native_commit_within` reaches its stop only when the ceiling does.
-This is named here rather than bounded because no honest bound exists:
-the wrapper may not signal a number it cannot prove,
-and the owner's rule against killing another command's process stands.
-The uninterruptible wait after a delivered signal is the separate owner question in
-`doc/handover/questions-for-the-owner.md`.
+The notice thread ends the step when its start gave it a pidfd to signal through.
+Two states take that away:
+the system refused the notice's thread,
+and the start gave no descriptor to name the step by.
+In both,
+the wait that owns the child ends it
+(`src/native/process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`):
+the ceiling is counted from the step's own start,
+which is that wait's own moment,
+so no look that ran late can lose it;
+the step is killed through the child that wait owns and has not reaped,
+whose number the kernel keeps until it is reaped,
+so no process that took the number can be reached;
+the programs below it are read before the signal,
+while the step still holds its number,
+and ended through descriptors pinned the same way;
+and the child is reaped there,
+a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
+so the kernel's release of it never holds the command.
+A refused thread leaves no waiting lines,
+so the person sees nothing during the wait and the stop's words after it,
+which name the signer when the commit was signed and say nothing was committed.
+The two sources of a stop are written once:
+the notice's own figure,
+or the wait's,
+which also records `armed` for a step whose notice thread never ran.
+There is no state in which a commit under a ceiling waits with nothing to end its step.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -8592,8 +8596,11 @@ empty for a commit that ran none,
 in the order the builds ended:
 `ceilingMs` the ceiling that build ran under,
 `null` for a commit that may open an editor,
-`armed` whether a notice thread ran to enforce it,
-`stoppedAfterMs` how long the step had lasted when the notice ended it,
+`armed` whether anything enforced it,
+which is a notice thread that ran,
+the wait that owns the step when no thread could name it,
+and false for a commit that may open an editor,
+`stoppedAfterMs` how long the step had lasted when the ceiling ended it,
 recorded only when a signal was really taken for the step,
 `noticeMs` how long the notice's own end took after the step ended,
 `wroteMs` how long the writer spent on the lines it finished,
