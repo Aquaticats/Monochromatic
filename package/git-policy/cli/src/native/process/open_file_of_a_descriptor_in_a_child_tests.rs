@@ -30,8 +30,10 @@ impl Holder {
         let child: Child = spawn_owned(&mut command).expect("start the holder");
         let holder: Self = Self { child };
         let started: Instant = Instant::now();
+        // The name alone is not enough: a child of this process has a descriptor of its own before the shell starts,
+        // so the descriptor is waited for as a link to this very file.
         while !std::fs::read_dir(holder.process().join("fd")).expect("descriptors").flatten().any(|entry| {
-            return entry.file_name() == std::ffi::OsStr::new("3");
+            return entry.file_name() == std::ffi::OsStr::new("3") && std::fs::read_link(entry.path()).is_ok_and(|target| { return target == file; });
         }) {
             assert!(started.elapsed() < PATIENCE, "the holder opened descriptor 3");
             std::thread::sleep(Duration::from_millis(10));
