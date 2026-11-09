@@ -64,6 +64,24 @@ use std::process::{Command, ExitStatus};
 /// The Git child's end,
 /// with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
+/// What:
+///  The publication of the child to the handler,
+/// the pending signal that arrived before it existed,
+/// and the sending of a
+///  caught signal through the one descriptor number.
+/// Why:
+///   A file of its own keeps this one under its line limit;
+/// the tests below read the names through these re-exports.
+#[cfg(unix)]
+use crate::signal_relay_to_the_child::{PENDING, Publisher, publish, relay_pending, retire};
+/// Whether a child is published to the handler,
+/// for the controls of the relay.
+#[cfg(all(test, unix))]
+use crate::signal_relay_to_the_child::CHILD_PUBLISHED;
+/// The descriptor number and its making,
+/// for the controls of the relay.
+#[cfg(all(test, target_os = "linux"))]
+use crate::signal_relay_to_the_child::{RELAY_FD, ensure_relay_descriptor};
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -128,43 +146,6 @@ const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
 pub const RELAYED_SIGNALS: [c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
-///  Whether a child is published to the handler:
-/// on Linux the descriptor `RELAY_FD` stands for it,
-/// elsewhere `CHILD_PID` names it.
-/// Why:
-///   The handler runs asynchronously,
-/// so it can only read state through atomics.
-#[cfg(unix)]
-static CHILD_PUBLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// What:
-///  PID of the Git child being waited for,
-/// or zero when none is,
-/// on the systems that have no pidfd.
-/// Why:
-///   Without a pidfd the handler signals by number,
-/// with the recycled-number window the module's limits name.
-#[cfg(all(unix, not(target_os = "linux")))]
-static CHILD_PID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
-
-/// What:
-///  The one descriptor number the relay signals through,
-/// made by the first guard and never closed.
-/// Why:
-///   A descriptor that is closed while a handler reads its number can be reused by an unrelated pidfd and then signal the wrong
-///  process.
-/// This number is never closed,
-/// so it always names either the published child or `/dev/null`:
-/// publishing and
-///  retiring replace what it refers to with `dup3`,
-/// atomically,
-/// and no other code can be handed this number.
-/// A signal that finds
-///  `/dev/null` fails harmlessly.
-#[cfg(target_os = "linux")]
-static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::new();
-
-/// What:
 ///  Whether a service owns this process's stop signals,
 /// so no guard relays them.
 /// Why:
@@ -173,16 +154,6 @@ static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::
 /// it must not be taken for the signal of a commit.
 #[cfg(unix)]
 static SERVICE_OWNS_SIGNALS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// What:
-///  One slot per relayed signal,
-/// holding a signal number that has not been relayed yet,
-/// or zero.
-/// Why:
-///   A signal that arrives before the child exists is relayed as soon as its PID is recorded.
-#[cfg(unix)]
-static PENDING: [std::sync::atomic::AtomicI32; 4] =
-    [const { std::sync::atomic::AtomicI32::new(0) }; 4];
 
 /// What:
 ///  Whether a guard owns the handlers of this process.
@@ -255,80 +226,6 @@ extern "C" fn relay_handler(
     };
     PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);
     relay_pending();
-}
-
-/// What:
-///  Send every pending signal to the published child,
-/// claiming each slot so it is sent once.
-/// Why:
-///   Both the handler and the waiting code call this;
-/// the atomic swap decides which one sends a given signal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const signal of pending.drain()) child.kill(signal);
-/// ```
-#[cfg(unix)]
-fn relay_pending() {
-    if !CHILD_PUBLISHED.load(std::sync::atomic::Ordering::SeqCst) {
-        return;
-    }
-    for slot in &PENDING {
-        let signal: c_int = slot.swap(0, std::sync::atomic::Ordering::SeqCst);
-        if signal != 0 {
-            send_to_published_child(signal);
-        }
-    }
-}
-
-/// What:
-///  Send `signal` to the published child through its pidfd.
-/// Why:
-///   The call is a raw system call of `rustix`'s Linux backend,
-/// which neither allocates nor touches `errno`,
-/// so the handler leaves
-///  the interrupted code's `errno` as it found it.
-/// A child that was reaped,
-/// or the `/dev/null` that stands in when none is
-///  published,
-/// makes the call fail,
-/// and the failure is ignored.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// child.kill(signal); // by the pidfd, never by a number that may have been reused
-/// ```
-#[cfg(target_os = "linux")]
-fn send_to_published_child(signal: c_int) {
-    let Some(descriptor) = RELAY_FD.get() else {
-        return;
-    };
-    let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
-        return;
-    };
-    // SAFETY: the descriptor number is never closed (see `RELAY_FD`), so it stays open for the whole process.
-    let borrowed: std::os::fd::BorrowedFd<'_> = unsafe { std::os::fd::BorrowedFd::borrow_raw(*descriptor) };
-    let _failed_harmlessly = rustix::process::pidfd_send_signal(borrowed, named);
-}
-
-/// What:
-///  Send `signal` to the child whose number is published,
-/// on the systems that have no pidfd.
-/// Why:
-///   The limit named on the module:
-/// a number reused between the child's exit and its reaping would be signalled.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(pid, signal);
-/// ```
-#[cfg(all(unix, not(target_os = "linux")))]
-fn send_to_published_child(signal: c_int) {
-    let pid: i32 = CHILD_PID.load(std::sync::atomic::Ordering::SeqCst);
-    if pid > 0 {
-        // SAFETY: `kill` sends one signal to a PID this module recorded; a failure is ignored because the child may have ended.
-        unsafe { libc::kill(pid, signal) };
-    }
 }
 
 /// What:
@@ -523,165 +420,52 @@ impl SignalGuard {
     /// await guard.runChildAwaiting(command): Promise<ChildOutcome>
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        return run_relayed(command, self.relaying).await;
+        return run_relayed_with(command, self.relaying, self.saved.as_slice(), publish).await;
     }
 }
 
 /// What:
-///  Make the descriptor number the relay signals through,
-/// once for the process.
+///  `run_relayed` with the dispositions to put back and the way the child is published.
 /// Why:
-///   `/dev/null` stands on the number until a child is published;
-/// the number is never closed (see `RELAY_FD`).
+///   A child that cannot be published is not relayed to,
+/// and a guard whose child is not relayed to must not keep the
+///  handlers:
+/// the signal would reach neither the child nor the wrapper,
+/// and only `SIGKILL` would end the command.
+///  The dispositions therefore go back for the life of the guard,
+/// so the next `SIGINT`,
+/// `SIGTERM`,
+/// `SIGHUP` or
+///  `SIGQUIT` ends the command as it would have without a guard.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// relayDescriptor ??= openDevNull();
+/// const published = relaying && publisher(child.id); if (relaying && !published) { restore(saved); warn('the signals are put back'); }
 /// ```
-#[cfg(target_os = "linux")]
-fn ensure_relay_descriptor() -> io::Result<()> {
-    if RELAY_FD.get().is_some() {
-        return Ok(());
-    }
-    let nothing: std::os::fd::OwnedFd = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .map_err(io::Error::from)?;
-    let number: std::os::fd::RawFd = std::os::fd::IntoRawFd::into_raw_fd(nothing);
-    // A guard that lost the race closes its own descriptor; the winner's number is the only one that is kept.
-    if RELAY_FD.set(number).is_err() {
-        // SAFETY: the number was just made here and was not published, so nothing else holds or reads it.
-        drop(unsafe { <std::os::fd::OwnedFd as std::os::fd::FromRawFd>::from_raw_fd(number) });
-    }
-    return Ok(());
-}
-
-/// What:
-///  Make the relay descriptor name `child` (a pidfd opened for it),
-/// or `/dev/null` when `child` is nothing.
-/// Why:
-///   `dup3` replaces what the number refers to in one step,
-/// so the handler never sees a closed number and never a descriptor of
-///  another process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pointRelayAt(child);
-/// ```
-#[cfg(target_os = "linux")]
-fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
-    let Some(target) = RELAY_FD.get() else {
-        return Err(io::Error::other("the relay descriptor was never made"));
-    };
-    let nothing: std::os::fd::OwnedFd;
-    let source: std::os::fd::RawFd = match child {
-        Some(pidfd) => std::os::fd::AsRawFd::as_raw_fd(pidfd),
-        None => {
-            nothing = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-                .map_err(io::Error::from)?;
-            std::os::fd::AsRawFd::as_raw_fd(&nothing)
-        }
-    };
-    // SAFETY: `dup3` takes two descriptor numbers and no memory; `source` is open for this call and `target` is the process's own
-    //  never-closed number. `O_CLOEXEC` keeps the child from inheriting the copy.
-    let replaced: c_int = unsafe { libc::dup3(source, *target, libc::O_CLOEXEC) };
-    if replaced < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    return Ok(());
-}
-
-/// Spawns the child,
-/// publishes it to the handler when `relaying`,
-/// relays any signal that was caught before the child existed,
-/// and waits for it on its pidfd.
-///
-/// A handler that runs before the spawn keeps its signal in `PENDING` and finds no child.
-/// The child is published before the drain,
-/// so that signal is relayed here,
-/// not lost.
 #[cfg(unix)]
-async fn run_relayed(command: &mut Command, relaying: bool) -> io::Result<ChildOutcome> {
+async fn run_relayed_with(command: &mut Command, relaying: bool, saved: &[(c_int, libc::sigaction)], publisher: Publisher) -> io::Result<ChildOutcome> {
     // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
     let (_unfinished, stop) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child("a Git step of a commit")?;
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
     let owned = adopt(started);
-    let published: bool = relaying && publish(owned.id());
+    let published: bool = relaying && publisher(owned.id());
+    if relaying && !published {
+        // Nothing was published, so a handler would drop every signal it caught: `relay_pending` returns at its first line.
+        // The dispositions go back, so the next signal ends this command as it would have without the guard, and the child is
+        //  left to end by itself. `publish` has already said why the child was not published.
+        restore(saved);
+        crate::diagnostic_log::warn(
+            "signalRelay",
+            "the handlers of SIGINT, SIGTERM, SIGHUP and SIGQUIT are put back because the child is not relayed to, so a signal \
+             now ends this command instead of being relayed; the child is left running and ends by itself. Hint: check the descriptor \
+             limit (`ulimit -n`) and the control group's `pids.max`, free some, and run the command again",
+        );
+    }
     let waited: io::Result<ExitStatus> = crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await;
     // The child is reaped, so a signal that finds the descriptor still pointing at it fails with `ESRCH`; the descriptor is
     //  repointed before the next child all the same.
     retire(published);
     return Ok(crate::forwarding::outcome_of(waited?));
-}
-
-/// A pidfd for the process with this number,
-/// or nothing when the system gives none.
-#[cfg(target_os = "linux")]
-fn pidfd_of(pid: rustix::process::Pid) -> Option<std::os::fd::OwnedFd> {
-    return rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()).ok();
-}
-
-/// Publish the child with this id to the handler and relay what was waiting for it;
-/// a failure to publish leaves the child
-/// unrelayed and is logged,
-/// because the commit must go on.
-/// True when the child was published.
-#[cfg(target_os = "linux")]
-fn publish(child_id: u32) -> bool {
-    let opened: Option<std::os::fd::OwnedFd> = i32::try_from(child_id)
-        .ok()
-        .and_then(rustix::process::Pid::from_raw)
-        .and_then(pidfd_of);
-    if let Err(error) = ensure_relay_descriptor() {
-        // The commit must go on: without the descriptor the child is not relayed to, and the log says so.
-        crate::diagnostic_log::warn("signalRelay", format!("no descriptor for the relay ({error}), so signals will not be relayed to the child").as_str());
-        return false;
-    }
-    let Some(pidfd) = opened else {
-        crate::diagnostic_log::warn("signalRelay", "the child could not be given a pidfd, so signals sent to this process will not be relayed to it");
-        return false;
-    };
-    if let Err(error) = point_relay_at(Some(&pidfd)) {
-        crate::diagnostic_log::warn("signalRelay", format!("the relay could not be pointed at the child ({error}), so signals will not be relayed to it").as_str());
-        return false;
-    }
-    CHILD_PUBLISHED.store(true, std::sync::atomic::Ordering::SeqCst);
-    relay_pending();
-    return true;
-}
-
-/// Publish the child with this id by its number,
-/// on the systems that have no pidfd.
-#[cfg(all(unix, not(target_os = "linux")))]
-fn publish(child_id: u32) -> bool {
-    let Ok(pid) = libc::pid_t::try_from(child_id) else {
-        return false;
-    };
-    CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
-    CHILD_PUBLISHED.store(true, std::sync::atomic::Ordering::SeqCst);
-    relay_pending();
-    return true;
-}
-
-/// Stop publishing the child and point the relay at nothing.
-#[cfg(target_os = "linux")]
-fn retire(published: bool) {
-    if !published {
-        return;
-    }
-    CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
-    if let Err(error) = point_relay_at(None) {
-        crate::diagnostic_log::warn("signalRelay", format!("the relay could not be pointed away from the ended child: {error}").as_str());
-    }
-}
-
-/// Stop publishing the child,
-/// on the systems that have no pidfd.
-#[cfg(all(unix, not(target_os = "linux")))]
-fn retire(published: bool) {
-    if !published {
-        return;
-    }
-    CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
-    CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Restore the previous dispositions and release the process-wide slot.

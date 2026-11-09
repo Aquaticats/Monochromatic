@@ -42,6 +42,12 @@ pub mod process_start;
 /// and relaying only process-sent signals.
 pub mod signal_relay;
 
+/// The one descriptor number a relayed child is published on,
+/// the signal that arrived before it existed,
+/// and the sending of a caught signal through that number.
+#[cfg(unix)]
+pub mod signal_relay_to_the_child;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 

@@ -279,7 +279,7 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     PENDING[1].store(libc::SIGTERM, std::sync::atomic::Ordering::SeqCst);
     let mut command: Command = Command::new("sleep");
     command.arg("30");
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true)).expect("the runtime runs the child").expect("child runs");
+    let outcome: ChildOutcome = run_on_runtime(run_relayed_with(&mut command, true, &[], publish)).expect("the runtime runs the child").expect("child runs");
     assert_eq!(
         outcome,
         ChildOutcome::Signaled(libc::SIGTERM),
@@ -569,6 +569,58 @@ fn dropping_the_guard_restores_the_previous_dispositions() {
     unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
 }
 
+/// What:
+///  A child that cannot be published to the relay leaves no handler behind.
+/// Why:
+///   A refused publish (a descriptor limit,
+/// a `pidfd_open` this sandbox does not give,
+/// a `dup3` that failed) left the
+///  handlers installed with nothing published,
+/// so `relay_pending` returned at its first line and the signal reached neither the child
+///  nor the wrapper:
+/// only `SIGKILL` ended the command.
+/// The dispositions go back instead,
+/// so the signal ends the wrapper as it would
+///  without a guard.
+/// The positive control is the same run with a publisher that works,
+/// which leaves the handler in place for the
+///  whole wait.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_child_that_cannot_be_published_leaves_the_signals_to_the_process() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
+    let earlier: libc::sighandler_t = earlier_handler as extern "C" fn(libc::c_int) as libc::sighandler_t;
+    // SAFETY: installs a handler that does nothing for a valid signal number.
+    unsafe { libc::signal(libc::SIGHUP, earlier) };
+    let guard: SignalGuard = SignalGuard::install().expect("guard");
+    assert_eq!(disposition_of(libc::SIGHUP), relay_handler as *const () as libc::sighandler_t, "the guard owns the handlers");
+    // The positive control: a child that is published keeps the handler in place for the whole wait.
+    let mut published_child: Command = Command::new("true");
+    let published: ChildOutcome = run_on_runtime(run_relayed_with(&mut published_child, true, guard.saved.as_slice(), publish))
+        .expect("the runtime runs the child")
+        .expect("the child runs");
+    assert_eq!(published, ChildOutcome::Exited(0), "the published child ran to its end");
+    assert_eq!(
+        disposition_of(libc::SIGHUP),
+        relay_handler as *const () as libc::sighandler_t,
+        "a wait whose child was published keeps the guard's handler"
+    );
+    // A refused publish is what a descriptor limit leaves: nothing is relayed, so nothing may hold the signal back.
+    let mut unpublishable: Command = Command::new("true");
+    let ran: ChildOutcome = run_on_runtime(run_relayed_with(&mut unpublishable, true, guard.saved.as_slice(), |_child: u32| { return false; }))
+        .expect("the runtime runs the child")
+        .expect("the child runs all the same");
+    assert_eq!(ran, ChildOutcome::Exited(0), "the child ran to its end though it was not relayed to");
+    assert_eq!(
+        disposition_of(libc::SIGHUP),
+        earlier,
+        "the signal reaches the process again once its child could not be relayed to"
+    );
+    drop(guard);
+    // SAFETY: returns the signal to its default so no later test sees the stand-in.
+    unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
+}
+
 /// A signal the process already ignores stays ignored while the guard lives and after it is dropped,
 /// so the Git child inherits the ignore the wrapper was started with.
 #[cfg(unix)]
@@ -602,7 +654,7 @@ fn waiting_ends_at_the_childs_exit_and_reports_it() {
     command.arg("1");
     // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false)).expect("the runtime runs the child").expect("the child runs");
+    let outcome: ChildOutcome = run_on_runtime(run_relayed_with(&mut command, false, &[], publish)).expect("the runtime runs the child").expect("the child runs");
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     assert_eq!(outcome, ChildOutcome::Exited(0));
 }
@@ -636,7 +688,7 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
             unsafe { libc::pthread_kill(waiting_thread, libc::SIGUSR1) };
         }
     });
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false)).expect("the runtime runs the child").expect("interrupts do not end the wait");
+    let outcome: ChildOutcome = run_on_runtime(run_relayed_with(&mut command, false, &[], publish)).expect("the runtime runs the child").expect("interrupts do not end the wait");
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     interrupter.join().expect("interrupter finishes");
     assert_eq!(outcome, ChildOutcome::Exited(0));

@@ -2754,6 +2754,24 @@ What the read got before that moment is not returned as the step's answer:
 a step whose output may be incomplete is reported,
 never guessed at.
 
+A signal the wrapper catches is relayed to the child or it ends the wrapper;
+it is never swallowed.
+`SignalGuard` (`src/native/process/signal_relay.rs`) installs the handlers of `SIGINT`,
+`SIGTERM`,
+`SIGHUP` and `SIGQUIT` and points one never-closed descriptor number at a pidfd for its child,
+so a signal reaches that child and never a reused number.
+When the child cannot be published to that descriptor (a `pidfd_open` a descriptor limit refuses,
+a `/dev/null` that cannot be opened,
+a `dup3` that failed),
+no handler is left installed:
+the dispositions the guard replaced go back for the rest of its life,
+so the next of those signals ends the command as it would without a guard,
+and the warning says so and names the limit to check.
+Keeping the handlers with nothing published meant the signal reached neither the child nor the wrapper,
+and only `SIGKILL` ended the command
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 6).
+
 ##### The quiet windows are labelled unmeasured
 
 No log held a quiet gap before this change:
