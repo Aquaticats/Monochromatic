@@ -45,11 +45,9 @@ export type Replacement = {
  
  @returns first non-whitespace position at or after `idx`
  
- Only space, tab, newline and carriage return are skipped. JavaScript also admits
- vertical tab, form feed and the Unicode space separators, which this scan leaves
- alone on purpose: the four characters are what editors and formatters put between
- a specifier and its keyword, and the restriction keeps the pinned behaviour of the
- linear rewrite that replaced the earlier recursive scan.
+ Skips what JavaScript itself counts as whitespace and line terminators, through
+ `String.prototype.trim`, whose definition is exactly that set, so a clause after a
+ form feed or a non-breaking space is found where the parser finds it.
  
  @example
  ```ts
@@ -72,12 +70,10 @@ export function skipWithClauseWhitespace({
     while (cursor < s
       .length) {
       /**
-       Char at the cursor; only the four whitespace chars permitted in the with-clause prefix advance the scan.
+       Char at the cursor; it advances the scan only when trimming leaves nothing of it.
        */
       const c = s.charAt(cursor,);
-      if ((c !== ' ') && (c !== '\t')
-        && (c !== '\n')
-        && (c !== '\r'))
+      if (c.trim() !== '')
         return cursor;
       cursor += 1;
     }
