@@ -204,3 +204,39 @@ fn metadata_that_was_cut_is_not_parsed() {
     assert!(refused.contains("could not be taken whole"), "{refused}");
     crate::test_support::remove(root.as_path());
 }
+
+/// The tracked manifests are named from the top of the worktree and found whatever pathspec modes the caller set:
+/// a caller whose `-C` moved Git into a subdirectory must still be answered with `sub/Cargo.toml`,
+/// because every name is joined to the destination root.
+#[test]
+fn the_manifest_listing_answers_from_the_top_under_the_callers_prefix_and_modes() {
+    let root: PathBuf = crate::test_support::fixture("cargo-manifests-nested-c");
+    let destination: PathBuf = crate::test_support::repository(root.as_path(), "destination");
+    std::fs::create_dir(destination.join("sub")).expect("sub directory");
+    std::fs::write(destination.join("sub/Cargo.toml"), b"[package]\nname = \"sub\"\n").expect("manifest");
+    crate::test_support::git(destination.as_path(), &["add", "--", "sub/Cargo.toml"]);
+    // The caller wrote `-C <destination>/sub`, and two glob modes that disagree in its environment.
+    let mut context = crate::test_support::git_context();
+    context.global_prefix = vec![
+        std::ffi::OsString::from("-C"),
+        destination.join("sub").into_os_string(),
+    ];
+    context.overlay.push((std::ffi::OsString::from("GIT_GLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    context.overlay.push((std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    let environment: crate::package_repair_request::RepairEnvironment = crate::package_repair_request::RepairEnvironment {
+        search_path: None,
+        quiet_window: std::time::Duration::from_secs(60),
+        ceiling: std::time::Duration::from_secs(600),
+        workers: 1,
+    };
+    let request: crate::package_repair_request::RepairRequest<'_> = crate::package_repair_request::RepairRequest {
+        git: &context,
+        source: root.as_path(),
+        destination: destination.as_path(),
+        switch: crate::package_repair_request::RepairSwitch::default(),
+        environment: &environment,
+    };
+    let directories: Vec<PathBuf> = crate::package_repair_cargo_workspaces::manifest_directories(&request).expect("the tracked manifests are listed");
+    assert_eq!(directories, vec![destination.join("sub")], "the manifest below the top is found by its repository-relative name");
+    crate::test_support::remove(root.as_path());
+}
