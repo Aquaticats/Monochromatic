@@ -213,8 +213,8 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
 fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
-        repository: handoff.repository.display().to_string(),
-        git_dir: handoff.git_dir.display().to_string(),
+        repository: handoff.repository.clone(),
+        git_dir: handoff.git_dir.clone(),
         branch_ref: handoff.reference.clone(),
         oid: landed.to_string(),
         parent: handoff.parent.clone(),
