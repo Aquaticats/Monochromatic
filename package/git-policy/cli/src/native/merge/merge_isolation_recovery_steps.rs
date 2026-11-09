@@ -20,14 +20,20 @@
 
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
 use crate::inner_git_words::record_words;
-use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path};
+use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, parse_raw_changes, worktree_path};
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use crate::recovery_error::{RecoveryError, io_failure};
-use crate::rename_that_never_replaces::rename_noreplace;
+use crate::merge_isolation_take_asides::{
+    Take, put_back, remove_empty_parents, restore_what_git_did_not_write, take_aside,
+};
+
+/// The take of a worktree file a merge must replace or delete,
+/// and the private names it leaves,
+/// re-exported so a caller of the recovery keeps one path.
+pub use crate::merge_isolation_take_asides::{TakenOnDisk, finish_asides, put_back_stranded_takes};
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// What:
 ///  Where recovery runs Git:
@@ -280,148 +286,6 @@ pub struct Judged {
     pub identity: Option<FileIdentity>,
 }
 
-/// The start of the private name a file is set aside under while the merge's content takes its place.
-///  It sits in the file's own directory,
-/// so the take is one rename on whatever file system the worktree is on,
-/// and it
-///  ends in no name Git reads.
-const ASIDE_PREFIX: &str = ".cli-git-recovery";
-
-/// Makes two names set aside by one process differ.
-static ASIDE_COUNT: AtomicU64 = AtomicU64::new(0);
-
-/// A private name beside `location` that no other process uses.
-fn aside_name(location: &Path) -> PathBuf {
-    let count: u64 = ASIDE_COUNT.fetch_add(1, Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    return location.with_file_name(format!("{ASIDE_PREFIX}-{}-{count}-{nanos:x}", std::process::id()));
-}
-
-/// What a take of one worktree path found.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Take = { kind: 'nothing' } | { kind: 'aside'; aside: string } | { kind: 'changed' };
-/// ```
-enum Take {
-    /// Nothing stands there,
-    /// as it was judged.
-    Nothing,
-    /// The file that was judged waits at this private name.
-    Aside(PathBuf),
-    /// Something else stands there now,
-    /// or the judged file was written after it was judged;
-    /// it is not the merge's to replace,
-    /// and it is back where it was found.
-    Changed,
-}
-
-/// What:
-///  Take the file at `location` aside by one rename that never replaces,
-/// and check that what was taken is the file that was judged.
-/// Why:
-///   A judgement and the write of a merged file were separate steps,
-/// so a file saved between them was
-///  overwritten with no notice
-/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 4).
-/// One `rename` takes
-///  the file atomically,
-/// so the bytes that are checked are exactly the bytes that make way for the merge;
-/// a
-///  file that differs from the judgement is put back and never replaced.
-/// The check is the file's identity,
-/// which is
-///  what `stale_ref_lock_retire.rs` compares for a lock.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function takeAside(location: string, judged?: FileIdentity): Take; // renameNoReplace; identityOf(aside) === judged ? aside : putBack
-/// ```
-fn take_aside(location: &Path, judged: Option<FileIdentity>) -> Result<Take, RecoveryError> {
-    let aside: PathBuf = aside_name(location);
-    match rename_noreplace(location, aside.as_path()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            // The path was empty when it was judged; a file that is there now came after the judgement and is not the
-            //  merge's to replace.
-            return Ok(if judged.is_none() { Take::Nothing } else { Take::Changed });
-        }
-        Err(error) => return Err(io_failure("setting aside", location, &error)),
-    }
-    if judged.is_some() && file_identity(aside.as_path()) == judged {
-        return Ok(Take::Aside(aside));
-    }
-    // It is not the file that was judged: put it back whole, and say nothing was replaced.
-    return match rename_noreplace(aside.as_path(), location) {
-        Ok(()) => Ok(Take::Changed),
-        Err(error) => Err(RecoveryError(format!(
-            "{} changed after this command judged it and it could not be put back ({error}); it is at {} and nothing was \
-             replaced by the merge.",
-            location.display(),
-            aside.display()
-        ))),
-    };
-}
-
-/// What:
-///  Put back every file that was taken aside and not yet written,
-/// and name the ones that cannot go back.
-/// Why:
-///   A merge that finds one path changed after it judged it writes none of them,
-/// so the ones already taken must
-///  return before the command ends.
-/// A file that cannot go back is never deleted:
-/// its name is told to the person
-///  instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function putBack(taken: { aside: string; location: string }[]): string[]; // names of files left at their private name
-/// ```
-fn put_back(taken: &[TakenOnDisk]) -> Vec<String> {
-    let mut left: Vec<String> = Vec::new();
-    for entry in taken {
-        match rename_noreplace(entry.aside.as_path(), entry.location.as_path()) {
-            Ok(()) => {}
-            Err(error) => left.push(format!("{} (its bytes are at {}, which was not removed: {error})", entry.location.display(), entry.aside.display())),
-        }
-    }
-    return left;
-}
-
-/// One file that was taken aside,
-/// and where the merge's content goes.
-struct TakenOnDisk {
-    /// The path the merge writes or deletes.
-    location: PathBuf,
-    /// Where the file that was judged waits.
-    aside: PathBuf,
-}
-
-/// What:
-///  Remove the private names of files that were taken aside and are now replaced or deleted.
-/// Why:
-///   What they hold is the merge's old content,
-/// which the object database holds too;
-/// a file that could not be
-///  removed is named rather than lost.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const entry of taken) await rm(entry.aside, { force: true });
-/// ```
-fn drop_asides(taken: &[TakenOnDisk]) -> Result<(), RecoveryError> {
-    for entry in taken {
-        match std::fs::remove_file(entry.aside.as_path()) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(io_failure("removing", entry.aside.as_path(), &error)),
-        }
-    }
-    return Ok(());
-}
-
 /// The refusal for a merge whose files changed after it judged them.
 ///
 /// In TS you'd write (pseudocode):
@@ -475,7 +339,7 @@ pub fn install_entries(
         return Ok(Installed::IndexHeld);
     }
     // The take comes first: nothing of the merge is written while a file that was judged may already have changed.
-    let mut taken: Vec<TakenOnDisk> = Vec::new();
+    let mut taken_files: Vec<TakenOnDisk> = Vec::new();
     let mut checkout_input: Vec<u8> = Vec::new();
     let mut changed: Vec<String> = Vec::new();
     for (change, judged) in changes.iter().zip(judgements.iter()) {
@@ -489,14 +353,23 @@ pub fn install_entries(
             checkout_input.extend_from_slice(change.path.as_slice());
             checkout_input.push(0);
         }
-        match take_aside(location.as_path(), judged.identity)? {
-            Take::Nothing => {}
-            Take::Changed => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
-            Take::Aside(aside) => taken.push(TakenOnDisk { location, aside }),
+        match take_aside(location.as_path(), judged.identity) {
+            Ok(Take::Nothing) => {}
+            Ok(Take::Changed) => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
+            Ok(Take::Aside { aside, taken }) => taken_files.push(TakenOnDisk { location, aside, taken }),
+            Err(error) => {
+                // A take that stops must not leave the files it already took under their private names.
+                let left: Vec<String> = put_back(&taken_files);
+                let mut refusal: String = error.0;
+                if !left.is_empty() {
+                    refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
+                }
+                return Err(RecoveryError(refusal));
+            }
         }
     }
     if !changed.is_empty() {
-        let left: Vec<String> = put_back(&taken);
+        let left: Vec<String> = put_back(&taken_files);
         let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
         refusal.push_str(left.join(", ").as_str());
         return Err(RecoveryError(refusal));
@@ -515,7 +388,7 @@ pub fn install_entries(
     update.input = Some(index_input);
     if let Err(error) = run_git_checked(&place.git, &update) {
         // The files are aside and the index is untouched: put them back rather than leave half a merge.
-        let _restored = put_back(&taken);
+        let _restored = put_back(&taken_files);
         return Err(RecoveryError(error.to_string()));
     }
     // A deleted path's file was taken aside, so its directory can be reached even when the merge leaves it empty; the
@@ -535,43 +408,22 @@ pub fn install_entries(
         let checked_out = match run_git_checked(&place.git, &checkout) {
             Ok(done) => done,
             Err(error) => {
-                let _dropped = drop_asides(&taken);
-                return Err(RecoveryError(error.to_string()));
+                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(&taken_files, out);
+                return Err(match restored {
+                    Ok(()) => RecoveryError(error.to_string()),
+                    Err(left) => RecoveryError(format!("{error} ({})", left.0)),
+                });
             }
         };
         // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
         record_words(&["checkout-index", "-z", "--stdin"], &checked_out);
     }
-    drop_asides(&taken)?;
+    finish_asides(&taken_files, out)?;
     for location in &deletions {
-        remove_file_and_empty_parents(root, location.as_path())?;
+        // The take already moved the judged file away, so nothing of the merge's is left to delete here:
+        // removing the name
+        //  again would delete a file that appeared in this instant instead.
+        remove_empty_parents(root, location.as_path());
     }
     return Ok(Installed::Written);
-}
-
-/// What:
-///  Delete a file the merge deletes,
-/// and the directories that it leaves empty up to the worktree top.
-/// Why:
-///   Git removes a deleted file's emptied directories too;
-/// a directory that still holds anything stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await rm(file, { force: true }); for (const directory of parents(file)) { try { await rmdir(directory); } catch { break; } }
-/// ```
-pub fn remove_file_and_empty_parents(root: &Path, file: &Path) -> Result<(), RecoveryError> {
-    match std::fs::remove_file(file) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(io_failure("removing", file, &error)),
-    }
-    let mut directory: Option<&Path> = file.parent();
-    while let Some(current) = directory {
-        if current == root || !current.starts_with(root) || std::fs::remove_dir(current).is_err() {
-            break;
-        }
-        directory = current.parent();
-    }
-    return Ok(());
 }

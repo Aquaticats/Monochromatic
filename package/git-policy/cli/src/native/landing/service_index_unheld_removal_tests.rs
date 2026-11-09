@@ -73,7 +73,7 @@ fn an_empty_unheld_lock_with_no_pid_file_is_removed_and_the_proof_names_the_file
     let before: std::fs::Metadata = std::fs::metadata(&lock).expect("lock");
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
     let Unheld::Removed(proof) = outcome else { panic!("an unheld lock was not removed: {outcome:?}") };
-    assert_eq!(proof, Proof { lock: lock.clone(), device: before.dev(), inode: before.ino(), size: before.len(), unreadable: 0 });
+    assert_eq!(proof, Proof { lock: lock.clone(), disuse: Disuse::NoPidFile, gone_pid: None, device: before.dev(), inode: before.ino(), size: before.len(), unreadable: 0 });
     assert!(!lock.exists());
     remove(root.as_path());
 }
@@ -306,7 +306,7 @@ fn a_link_named_as_the_lock_is_left_and_its_target_is_untouched() {
 /// and the person's words add what the scan cannot see and what to do about it.
 #[test]
 fn the_journal_and_the_person_are_given_the_proof_and_its_limit() {
-    let proof: Proof = Proof { lock: PathBuf::from("/repo/.git/index.lock"), device: 2049, inode: 9183, size: 0, unreadable: 3 };
+    let proof: Proof = Proof { lock: PathBuf::from("/repo/.git/index.lock"), disuse: Disuse::NoPidFile, gone_pid: None, device: 2049, inode: 9183, size: 0, unreadable: 3 };
     let journal: String = journal_words(&proof);
     for part in ["/repo/.git/index.lock", "device 2049", "inode 9183", "0 bytes", "no Git lock PID file", "unreadable processes: 3"] {
         assert!(journal.contains(part), "{part}: {journal}");
@@ -434,5 +434,39 @@ fn a_dead_owners_lock_is_kept_when_anything_may_still_use_it() {
     assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &scanned), Unheld::Kept);
     assert!(lock.exists(), "a held lock is never removed");
     release(child);
+    remove(root.as_path());
+}
+
+/// What:
+///  The journal line and the person's line of a removal that acted on a gone owner's PID file say so,
+///  and never claim there was no PID file.
+/// Why:
+///  The two removals act on different evidence,
+/// and the words of the first were reused by the second,
+/// so a removal
+///  that acted on a PID file recorded the opposite
+/// (a cross-vendor review's finding on the round-one removal).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const proof = removed(removeIfTheOwnerIsGone(index)); expect(journalWords(proof)).toMatch(/PID .* no longer runs/); expect(journalWords(proof)).not.toMatch(/no Git lock PID file/);
+/// ```
+#[test]
+fn the_words_of_a_gone_owners_removal_name_the_evidence_it_acted_on() {
+    let (root, index) = index_in("unheld-gone-owner-words");
+    let lock: PathBuf = lock_path_of(&index);
+    let pid: i64 = dead_pid();
+    std::fs::write(&lock, "").expect("the dead Git's lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {pid}\n")).expect("the PID file of a process that is gone");
+    let Unheld::Removed(proof) = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty) else {
+        panic!("a lock a gone process left is removed");
+    };
+    let journal: String = journal_words(&proof);
+    let told: String = told_words(&proof);
+    assert!(journal.contains(&format!("PID file")) || journal.contains("named by its PID file"), "the evidence is named: {journal}");
+    assert!(journal.contains(format!("{pid}").as_str()), "the process is named: {journal}");
+    assert!(!journal.contains("there is no Git lock PID file"), "it does not claim there was none: {journal}");
+    assert!(!told.contains("no Git lock PID file stood beside it"), "the person is told what was judged: {told}");
+    assert!(told.contains(format!("{pid}").as_str()), "the process is named: {told}");
     remove(root.as_path());
 }

@@ -152,6 +152,10 @@ pub struct FileIdentity {
     pub inode: u64,
     /// Size in bytes.
     pub size: u64,
+    /// The mode bits,
+    /// so a permission change made after the judgement is seen:
+    /// a rename keeps them and changes nothing else here.
+    pub mode: u32,
     /// Modification time,
     /// whole seconds since the epoch.
     pub modified_seconds: i64,
@@ -180,6 +184,7 @@ pub fn file_identity(location: &Path) -> Option<FileIdentity> {
         device: found.dev(),
         inode: found.ino(),
         size: found.len(),
+        mode: found.mode(),
         modified_seconds: found.mtime(),
         modified_nanos: found.mtime_nsec(),
     });

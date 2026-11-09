@@ -32,8 +32,12 @@ use crate::merge_isolation_journal::{
 use crate::merge_isolation_moved::settle_moved_branch;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
-pub use crate::merge_isolation_recovery_steps::{Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing};
-use crate::merge_isolation_recovery_steps::{index_holds_the_merge, install_entries, merge_changes, remove_record, standing};
+pub use crate::merge_isolation_recovery_steps::{
+    Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
+};
+use crate::merge_isolation_recovery_steps::{
+    index_holds_the_merge, install_entries, merge_changes, put_back_stranded_takes, remove_record, standing,
+};
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::{
     Change, WorktreeState, file_identity, worktree_path, worktree_state,
@@ -340,6 +344,9 @@ pub fn settle_failed_merge(
         }
     }
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
+    // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
+    //  while the file waits beside it, and would otherwise be read as someone else's.
+    put_back_stranded_takes(root, changes.as_slice(), out);
     let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for change in &changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());

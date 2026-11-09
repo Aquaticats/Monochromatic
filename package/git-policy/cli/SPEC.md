@@ -7641,6 +7641,16 @@ nothing of the merge is written,
 the paths are named on standard error and the record is kept.
 The files are checked out without `--force`,
 so a file that appears in the instant after the take is skipped and Git's own words are reported.
+A command that stops between a take and the write leaves the file under a private name beside its path,
+`.cli-git-recovery-<file name>-<pid>-<count>-<nanos>`;
+the next command puts such a file back before it judges the path,
+says on standard error that it did,
+and where the path holds something else keeps both and names the private file.
+A file written into a taken one after the take checked it is kept rather than removed,
+and its private name is said.
+A take or a write that fails puts every file it already took back,
+and a path the merge deletes is never removed again after its take,
+so a file that appeared in that instant stays.
 A record that is discarded,
 a record whose owner still runs and a branch that already names the merge
 change nothing of the branch and say nothing.

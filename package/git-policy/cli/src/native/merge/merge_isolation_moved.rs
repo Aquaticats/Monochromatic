@@ -36,7 +36,7 @@ use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes,
-    remove_record, standing,
+    put_back_stranded_takes, remove_record, standing,
 };
 /// The fail-closed recovery failure.
 use crate::recovery_error::RecoveryError;
@@ -71,6 +71,7 @@ pub(crate) fn settle_moved_branch(
 ) -> Result<MergeRecoveryAction, RecoveryError> {
     let root: &Path = Path::new(intent.repository_root.as_str());
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
+    put_back_stranded_takes(root, changes.as_slice(), out);
     let mut states: Vec<WorktreeState> = Vec::with_capacity(changes.len());
     let mut identities: Vec<Option<crate::merge_isolation_changes::FileIdentity>> = Vec::with_capacity(changes.len());
     for change in &changes {

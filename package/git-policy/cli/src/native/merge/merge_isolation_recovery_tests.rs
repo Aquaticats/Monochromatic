@@ -719,3 +719,290 @@ fn a_file_created_after_the_judgement_is_not_replaced() {
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing was left at a private name");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  The name a killed take leaves a file under,
+///  built the way recovery builds it,
+///  so a control can make that state without the race.
+/// Why:
+///  The control reproduces the instant after the rename of a take,
+/// which no seam of the recovery reaches otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stranded = `${dirname}/.cli-git-recovery-${basename}-${process.pid}-0-1`;
+/// ```
+fn stranded_name(location: &Path) -> PathBuf {
+    let base: String = location.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
+    return location.with_file_name(format!(".cli-git-recovery-{base}-{}-0-1", std::process::id()));
+}
+
+/// What:
+///  A file a killed take set aside is put back by the next command when its path is free,
+///  and the command says so.
+/// Why:
+///  A kill between the rename of a take and the write that follows leaves the file under a private name and its
+///  path missing,
+/// so recovery judged the path as someone else's and stopped every command,
+/// while the person's file sat
+///  where nothing looks
+/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 4's take,
+/// round
+///  two).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rename('f.txt', stranded); await recoverInterruptedMerges(place, dir, sink); expect(sink).toContain('put back'); expect(exists(stranded)).toBe(false);
+/// ```
+#[test]
+fn a_file_a_killed_take_set_aside_is_put_back_and_reported() {
+    let world: World = world("merge-recovery-stranded-take");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let location: PathBuf = world.repo.join("f.txt");
+    let stranded: PathBuf = stranded_name(location.as_path());
+    let content: Vec<u8> = std::fs::read(location.as_path()).expect("the file Git wrote");
+    std::fs::rename(location.as_path(), stranded.as_path()).expect("a killed take");
+    let record: PathBuf = record_of(&world, dead_owner("15151515-0000-4000-8000-000000000015"), Some("refs/heads/main"));
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge is finished");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("put back") && text.contains("f.txt"), "the putting back is said: {text}");
+    assert_eq!(std::fs::read(location.as_path()).expect("the file is back"), content, "the bytes are the ones that were set aside");
+    assert!(!stranded.exists(), "the private name is gone");
+    assert!(!record.exists());
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file a killed take set aside is kept beside a path that now holds something else,
+///  and the private name is said.
+/// Why:
+///  Nothing of the person's may be removed,
+/// so both files stay and the person is told where the second one is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rename('f.txt', stranded); write('f.txt', mine); const error = await recover(...); expect(error).toMatch(/f.txt/); expect(sink).toContain(stranded); expect(exists(stranded)).toBe(true);
+/// ```
+#[test]
+fn a_file_a_killed_take_set_aside_is_kept_beside_a_path_that_holds_something_else() {
+    let world: World = world("merge-recovery-stranded-take-both");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let location: PathBuf = world.repo.join("f.txt");
+    let stranded: PathBuf = stranded_name(location.as_path());
+    std::fs::rename(location.as_path(), stranded.as_path()).expect("a killed take");
+    std::fs::write(location.as_path(), b"my own file\n").expect("the person's file");
+    let _record: PathBuf = record_of(&world, dead_owner("16161616-0000-4000-8000-000000000016"), Some("refs/heads/main"));
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("the path holds someone else's content");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("f.txt") && text.contains(stranded.to_string_lossy().as_ref()), "the private name is said: {text}");
+    assert!(refused.0.contains("f.txt"), "{}", refused.0);
+    assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), b"my own file\n", "nothing was removed");
+    assert!(stranded.exists(), "the file that was set aside is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A path the merge deletes that someone fills after it was judged is not deleted.
+/// Why:
+///  The take removes the judged file by its rename,
+/// so the later removal has nothing to do with the merge and would
+///  delete whatever appeared there
+/// (a cross-vendor review's finding on the round-one take).
+/// The judged state here is `Missing`
+///  because the path is free when the judgements are made,
+/// which is the seam for a file that appears later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (changes, judged) = judge(world); write('gone.txt', mine); await installEntries(place, root, changes, judged, sink); expect(read('gone.txt')).toEqual(mine);
+/// ```
+#[test]
+fn a_file_that_appears_where_the_merge_deletes_is_not_deleted() {
+    let world: World = world("merge-recovery-delete-race");
+    // `gone.txt` is a path the merge deletes; it is free when the judgements are made.
+    std::fs::remove_file(world.repo.join("gone.txt")).expect("the judged state is `Missing`");
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    std::fs::write(world.repo.join("gone.txt"), b"a file made after the judgement\n").expect("the person's file");
+    let mut said: Vec<u8> = Vec::new();
+    let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said);
+    assert!(installed.is_ok(), "{installed:?}");
+    assert_eq!(std::fs::read(world.repo.join("gone.txt")).expect("the person's file"), b"a file made after the judgement\n", "a file that appeared is never deleted");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file written after it was taken aside is kept rather than dropped with the private name,
+///  and the private name is said.
+/// Why:
+///  A program that already had the file open writes into the inode the take renamed,
+/// after the check,
+/// so
+///  dropping the aside would lose that edit when the writer closes
+/// (a cross-vendor review's finding on the round-one take).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const take = takeAside(file); write(aside, edit); const left = finishAsides([take], sink); expect(exists(aside)).toBe(true); expect(sink).toContain(aside);
+/// ```
+#[test]
+fn a_file_written_after_it_was_taken_is_kept_and_named() {
+    let world: World = world("merge-recovery-written-after-take");
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = stranded_name(location.as_path());
+    std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
+    let taken = file_identity(aside.as_path()).expect("the identity the take checked");
+    // The program that had the file open writes its edit into the inode the take holds.
+    std::fs::write(aside.as_path(), b"an edit written after the check\n").expect("the writer's edit");
+    let mut said: Vec<u8> = Vec::new();
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk { location: location.clone(), aside: aside.clone(), taken }];
+    finish_asides(&entries, &mut said).expect("the asides are finished");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("f.txt") && text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
+    assert!(aside.exists(), "the file written after the check is kept");
+    assert_eq!(std::fs::read(aside.as_path()).expect("the writer's edit"), b"an edit written after the check\n", "the edit is not lost");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  One change the merge does not have,
+///  for a path this control made,
+///  with the object it should end as.
+/// Why:
+///  The seam a take that fails needs is a path whose directory refuses the rename,
+/// and the merge's own paths are all in
+///  the worktree root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const extra = { path: Buffer.from('sealed/zeta.txt'), oldMode: '100644', newMode: '100644', oldOid: old, newOid: next };
+/// ```
+fn extra_change(path: &str, old_mode: &str, new_mode: &str, old_oid: &str, new_oid: &str) -> Change {
+    return Change {
+        path: path.as_bytes().to_vec(),
+        old_mode: String::from(old_mode),
+        new_mode: String::from(new_mode),
+        old_oid: String::from(old_oid),
+        new_oid: String::from(new_oid),
+    };
+}
+
+/// What:
+///  A take that fails after another file was taken puts that file back.
+/// Why:
+///  The take pass returned on the error of one path and left every earlier one under its private name,
+/// where the
+///  next command refuses the path and nothing looks
+/// (a cross-vendor review's finding on the round-one take).
+/// The failing take is a path in a directory that refuses the rename,
+/// which this control skips where it runs as
+///  root and permissions do not apply.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (changes, judged) = judge(world); changes.push(extra('sealed/zeta.txt')); chmod('sealed', 0o555); await expect(installEntries(...)).rejects; expect(read('f.txt')).toEqual(old); expect(asides()).toEqual([]);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_take_that_fails_puts_the_files_it_already_took_back() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: a directory that refuses writes does not stop root, so this control proves nothing here");
+        return;
+    }
+    let world: World = world("merge-recovery-take-error");
+    let (mut changes, mut judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let old: Vec<u8> = std::fs::read(world.repo.join("f.txt")).expect("the old content");
+    // A path of this control's own, in a directory that refuses the rename into it; it is judged last, so the merge's own
+    //  files are taken before it.
+    std::fs::create_dir(world.repo.join("sealed")).expect("the sealed directory");
+    std::fs::write(world.repo.join("sealed/zeta.txt"), b"old zeta\n").expect("the file");
+    let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(world.repo.join("sealed/zeta.txt").as_path());
+    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", "sealed/zeta.txt"]).trim().to_owned();
+    changes.push(extra_change("sealed/zeta.txt", "100644", "100644", old_oid.as_str(), old_oid.as_str()));
+    judgements.push(Judged { standing: Standing::Old, identity });
+    std::fs::set_permissions(world.repo.join("sealed"), std::fs::Permissions::from_mode(0o555)).expect("a directory that refuses writes");
+    let mut said: Vec<u8> = Vec::new();
+    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("the take of a path in a read-only directory fails");
+    let _writable = std::fs::set_permissions(world.repo.join("sealed"), std::fs::Permissions::from_mode(0o755));
+    assert!(!failed.0.is_empty(), "the failure is named");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file"), old, "the file taken before the failure is put back");
+    assert_eq!(std::fs::read(world.repo.join("sealed/zeta.txt")).expect("the file"), b"old zeta\n", "the file that failed is where it was");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A write of the index that Git refuses puts back every file that was taken aside.
+/// Why:
+///  The index write and the checkout both come after the take,
+/// and their error arms deleted the originals instead of
+///  restoring them,
+/// leaving a file missing that the next command then refuses
+///  (a cross-vendor review's finding on the round-one take).
+/// The index write is made to fail by an object id no repository holds,
+/// which needs no permission to arrange.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (changes, judged) = judge(world); changes.push(extra('zeta.txt', old, '1234...')); await expect(installEntries(...)).rejects; expect(read('f.txt')).toEqual(old); expect(asides()).toEqual([]);
+/// ```
+#[test]
+fn a_write_that_fails_puts_the_files_it_already_took_back() {
+    let world: World = world("merge-recovery-write-error");
+    let (mut changes, mut judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    std::fs::write(world.repo.join("zeta.txt"), b"old zeta\n").expect("the file");
+    let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(world.repo.join("zeta.txt").as_path());
+    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", "zeta.txt"]).trim().to_owned();
+    // An object no repository holds: the index write and the checkout both refuse it.
+    let absent: String = String::from("1234567890123456789012345678901234567890");
+    // The failing path is written first, so the checkout stops before it writes any file the merge changes.
+    changes.insert(0, extra_change("zeta.txt", "100644", "100644", old_oid.as_str(), absent.as_str()));
+    judgements.insert(0, Judged { standing: Standing::Old, identity });
+    let mut said: Vec<u8> = Vec::new();
+    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("an object the repository does not hold stops the write");
+    assert!(!failed.0.is_empty(), "the failure is named");
+    // The path whose write Git refused holds its old content again; the files Git did write hold the merge's.
+    assert_eq!(std::fs::read(world.repo.join("zeta.txt")).expect("the file Git did not write"), b"old zeta\n", "the file is put back where it was");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file Git wrote"), b"f.txt feature\n", "what Git wrote stays written");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file whose permissions changed after it was judged is not replaced.
+/// Why:
+///  The identity the take compares holds the device,
+/// the inode,
+/// the size and the modification time,
+/// none of which a
+///  `chmod` changes,
+/// so an executable bit the person set was lost without a word
+///  (a cross-vendor review's finding on the round-one take).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (changes, judged) = judge(world); chmod('f.txt', 0o755); await expect(installEntries(...)).rejects.toMatch(/f.txt/); expect(mode('f.txt')).toEqual(0o755);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_file_whose_mode_changed_after_the_judgement_is_not_replaced() {
+    use std::os::unix::fs::PermissionsExt;
+    let world: World = world("merge-recovery-mode-after-judging");
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let location: PathBuf = world.repo.join("f.txt");
+    std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the person's executable bit");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("a path whose mode changed after the judgement is not the merge's to replace");
+    assert!(refused.0.contains("f.txt"), "{}", refused.0);
+    let mode: u32 = std::fs::metadata(location.as_path()).expect("the file").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o755, "the person's executable bit is kept");
+    remove(world.parent.as_path());
+}

@@ -61,6 +61,10 @@ pub mod merge_isolation_recovery;
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
 
+/// The take of a worktree file a merge must replace or delete,
+/// and the private names it leaves behind.
+pub mod merge_isolation_take_asides;
+
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
