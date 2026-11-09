@@ -668,7 +668,8 @@ and Clippy says nothing about the missing file:
   as `package/ide/app`,
   `package/terminal/app` and `package/nested-wayland-session/cli` do.
   A mount over `/work/clippy.toml` is worse:
-  podman leaves an empty path in the host package directory.
+  podman leaves an empty `clippy.toml` in the host package directory,
+  as a bind mount of a file into a bind-mounted directory that lacks it does.
 - A `COPY clippy.toml /work/clippy.toml` in the image,
   for the mount-free snapshots of
   `package/linter/monochromatic-lint` and the git-policy native test images.
