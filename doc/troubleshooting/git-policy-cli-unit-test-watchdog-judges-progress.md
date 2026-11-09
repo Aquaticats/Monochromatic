@@ -250,10 +250,28 @@ and a platform that flushes turns them back on,
 which is what keeps a real-platform call nested inside a control's simulated run durable.
 The switch is a thread-local value that goes back however the run ends.
 The same control then took 15.4 s.
-The rest of its flushes are the claim publishes of
-`package/git-policy/cli/src/native/foundation/private_storage.rs`,
-which the migration does not reach through the platform,
-and they are left as they are.
+The rest of its flushes were the claim publishes of
+`package/git-policy/cli/src/native/foundation/private_storage.rs`
+and of
+`package/git-policy/cli/src/native/lock/single_owner_claim.rs`,
+which the migration did not reach through the platform.
+Those two were measured on 2026-11-09T15:44:00-05:00 and are the switch's as well now:
+
+- one migration command took 79 s at a load average of 119,
+  of which `take_claim` was 23.9 s (a record write of 16.2 s and its directory flush of 7.7 s)
+  and its release 22.2 s;
+- the two index installs took 6.9 s each,
+  because a rewrite is a job of the blocking pool and never inherited the calling thread's answer,
+  so the run's answer about the disk now travels with the job.
+
+After the change the same claim took 1.0 ms and the same index rewrite 5.0 ms,
+the twelve kill points of
+`subvolume::subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`
+fell from 384 s to 110 s one after another and 25.2 s side by side,
+and the whole `worktree::worktree_convert::ownership_tests` module from 193.1 s to 55.4 s.
+What a crash leaves is still the real platform's question:
+`LinuxPlatform` flushes,
+and only a stand-in that says otherwise keeps its writes in the page cache.
 
 ## Verification
 

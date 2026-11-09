@@ -1,5 +1,9 @@
 # TypeScript 7 anonymous constructor typing hides `AbortSignal.any` and `timeout` effects from exact Oxlint matching
 
+Note 2026-11-09T16:56:27-05:00:
+`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/intrinsic-effect-owner.ts`
+left the tree on 2026-07-23 in `2bf5f6bc5d`.
+
 ## Symptom
 
 `prefer-readonly-parameter-type/prefer-readonly-parameter-types` originally reported:

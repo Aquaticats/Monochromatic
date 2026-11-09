@@ -5,6 +5,8 @@
 //! so two origins with the same last component under different parents never share a scope,
 //! and a name that would pass the unit name limit ends in a hash of the whole path.
 
+/// Lowercase hexadecimal spelling shared with the path components.
+use crate::bytes_as_lowercase_hex::push_lowercase_hex_byte;
 /// Directories and paths.
 use std::path::{Path, PathBuf};
 
@@ -36,7 +38,10 @@ fn push_escaped(escaped: &mut String, byte: u8, first: bool) {
         b'/' => escaped.push('-'),
         b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b':' | b'_' => escaped.push(char::from(byte)),
         b'.' if !first => escaped.push('.'),
-        other => escaped.push_str(&format!("\\x{other:02x}")),
+        other => {
+            escaped.push_str("\\x");
+            push_lowercase_hex_byte(escaped, other);
+        }
     }
 }
 

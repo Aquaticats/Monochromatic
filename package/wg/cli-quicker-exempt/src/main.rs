@@ -66,6 +66,8 @@ mod bounded_command;
 mod system_state;
 /// Retains links while watching application cgroup lifecycle.
 mod application_watch;
+/// Lowercase hexadecimal spelling of arbitrary bytes.
+mod bytes_as_lowercase_hex;
 /// Starts and stops detached application watcher.
 mod application_watch_service;
 /// Persists detached application watcher identity.

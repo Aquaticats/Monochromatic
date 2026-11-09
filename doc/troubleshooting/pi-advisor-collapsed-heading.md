@@ -1,5 +1,14 @@
 # Pi Advisor collapsed output can show only the Markdown title
 
+Note 2026-11-09T16:51:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/advisor/src/rendering-summary.ts` is now
+`package/agent-harness-shared/advisor/src/rendering-summary.ts`,
+moved 2026-10-20 in `093f32832a`.
+`package/pi-plugin/advisor/src/rendering-summary.unit.test.ts` is now
+`package/agent-harness-shared/advisor/src/rendering-summary.unit.test.ts`,
+moved 2026-10-20 in `093f32832a`.
+
 ## Symptom
 
 Collapsed Advisor tool output sometimes appears to contain only:

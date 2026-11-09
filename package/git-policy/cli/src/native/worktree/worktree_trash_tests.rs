@@ -471,7 +471,7 @@ fn holds_a_named_file(root: &Path, wanted: &str) -> bool {
             if entry.file_name().to_string_lossy() == wanted {
                 return true;
             }
-            if entry.file_type().is_ok_and(is_dir_kind) {
+            if entry.file_type().is_ok_and(|kind: std::fs::FileType| { return kind.is_dir(); }) {
                 pending.push(entry.path());
             }
         }
@@ -516,5 +516,38 @@ fn btrfs_a_stage_container_is_removed_before_the_snapshot_is_installed() {
     assert!(trash_dir.is_dir(), "the trash waits for the emptying that runs before the command returns");
     assert!(!holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"), "the container's credentials are nowhere in the trash");
     assert!(trash_dir.is_dir() && std::fs::read_dir(&trash_dir).expect("listing").count() > 0, "what the leave-out set aside for the cache still waits in the trash");
+    remove(root.as_path());
+}
+
+/// What:
+///  A stage container inside a nested worktree that is moved whole is removed with it,
+/// so the trash never holds
+///  another command's credentials and a kill before the emptying cannot leave them stageable.
+/// Why:
+///   The leave-out moves a registered nested worktree that is an ordinary directory as one directory,
+/// and the
+///  check that removes a container looks only at the name it was handed:
+/// a container inside the moved
+///  directory has a parent named for the worktree,
+/// so nothing removed it and the trash carried it into the new
+///  worktree,
+/// where a target commit that stops ignoring the path makes it stageable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, '.claude/worktrees/ordinary/.claude/worktrees/.cli-git-worktree-copy-<token>/payload/credentials', 'token');
+/// const { stage } = await snapshotOf(repo);
+/// expect(holdsANamedFile(join(stage, TRASH_PARENT), 'credentials')).toBe(false);
+/// ```
+#[test]
+fn btrfs_a_container_inside_a_nested_worktree_moved_whole_is_removed_with_it() {
+    let Some(root) = btrfs_fixture("trash-container-in-nested") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let inside: String = format!(".claude/worktrees/ordinary/.claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(repo.as_path(), format!("{inside}/payload/credentials").as_str(), b"another worktree's token\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    assert!(std::fs::symlink_metadata(stage.join(".claude/worktrees/ordinary")).is_err(), "the nested worktree itself is still set aside");
+    assert!(!holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"), "the container inside it is not in the trash");
+    assert!(trash.is_some(), "the leave-out made a trash for the rest");
     remove(root.as_path());
 }

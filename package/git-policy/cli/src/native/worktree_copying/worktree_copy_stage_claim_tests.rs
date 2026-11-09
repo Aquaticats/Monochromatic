@@ -1286,17 +1286,17 @@ fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes(
 use crate::worktree_copy_interrupted_add_settlement::UNNAMED_CHILD_GRACE;
 
 /// What:
-///  A record whose destination is not there yet, naming a Git the add started that still runs,
+///  A record whose destination is not there yet,
+/// naming a Git the add started that still runs,
 /// is kept until that Git is gone.
 /// Why:
 ///   The record is written before Git runs,
 /// and the command that starts Git names it in the record at once;
-/// a
-///  command killed while its Git is still making the destination leaves a record whose destination is absent,
-/// and
-///  settling it there would drop the only sign that the worktree Git then finishes was owed a copy.
-/// This is the reading
-///  the fault-trace sweeps of `git worktree add` need: the kill stops the wrapper and leaves its Git running.
+///  a command killed while its Git is still making the destination leaves a record whose destination is absent,
+/// and settling it there would drop the only sign that the worktree Git then finishes was owed a copy.
+///  This is the reading the fault-trace sweeps of `git worktree add` need:
+/// the kill stops the wrapper and leaves its Git
+///  running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1363,5 +1363,44 @@ fn a_record_that_names_no_git_is_kept_while_young_and_settles_after_the_grace() 
     let old: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap an old record");
     assert!(old.is_empty(), "an old record that names no Git settles without a word: {old:?}");
     assert!(!stage_claims_exist(common.as_path()).expect("claims"), "and it goes");
+    remove(root.as_path());
+}
+
+/// What:
+///  A destination whose pointer cannot be examined keeps the record and says the state is unknown,
+/// instead of
+///  reading the refusal as "no pointer" and dropping what names a registered checkout.
+/// Why:
+///   Recovery decides from `destination/.git` whether a planned add left anything,
+/// and the lookup fails for two
+///  different reasons:
+/// the pointer is not there,
+/// which is an answer,
+/// or the directory cannot be searched,
+/// which is
+///  no answer at all.
+/// `Path::exists()` maps both to false,
+/// so a permission the person or another process holds for a
+///  moment deleted the record and the claim of a worktree that is still registered,
+/// and no later command named it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync(destination, 0o000); const settled = settleInterruptedAdd(record); chmodSync(destination, 0o755);
+/// expect(settled.keep).toBe(true); expect(settled.notice).toContain('cannot be examined');
+/// ```
+#[test]
+fn a_pointer_that_cannot_be_examined_keeps_the_record() {
+    let (root, common, destination) = scene("claim-pointer-unreadable");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(destination.join(".git"), b"gitdir: /nowhere\n").expect("pointer");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let record: PathBuf = claim.path.with_extension("add");
+    std::fs::set_permissions(destination.as_path(), std::fs::Permissions::from_mode(0o000)).expect("no search permission");
+    let settled: Settlement = settle_interrupted_add(record.as_path());
+    std::fs::set_permissions(destination.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restored");
+    assert!(settled.keep, "an answer that could not be read is not an answer of absence");
+    assert!(settled.notice.as_deref().is_some_and(|text: &str| { return text.contains("cannot be examined"); }), "{:?}", settled.notice);
+    assert!(record.exists(), "the record stays while the state is unknown");
     remove(root.as_path());
 }

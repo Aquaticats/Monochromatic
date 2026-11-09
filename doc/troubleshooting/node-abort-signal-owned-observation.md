@@ -1,5 +1,12 @@
 # Node 26.8.2 AbortSignal accessors can cross an operation's error-ownership boundary
 
+Note 2026-11-09T16:54:06-05:00:
+these citations in this record name paths that no longer exist.
+`package/module/translation-repair/src/corpus-run/` was split into the
+`corpus-run` folders of the packages under `package/translation-repair/` on 2026-10-18 in `4bd1aea8d5`.
+`package/module/translation-repair/src/corpus-run/producer-input-comparison-signal.ts`
+left the tree on 2026-09-15 in `cbedea3574`.
+
 ## Symptom
 
 The pre-fix comparison's initial signal-state check could return a caller-selected `storage` failure and directory

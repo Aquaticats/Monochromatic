@@ -83,7 +83,8 @@ fn escape_field(field: &str) -> String {
         if is_plain(byte) {
             written.push(char::from(byte));
         } else {
-            written.push_str(format!("{ESCAPE}{byte:02x}").as_str());
+            written.push(ESCAPE);
+            written.push_str(crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte).as_str());
         }
     }
     return written;

@@ -37,6 +37,11 @@ pub struct Settlement {
     pub keep: bool,
 }
 
+#[path = "worktree_copy_stage_claim_pointer_presence.rs"]
+mod pointer_presence_of_the_destination;
+
+use pointer_presence_of_the_destination::{PointerPresence, pointer_presence};
+
 /// The name of the lock Git takes to write an index,
 /// in the administrative directory of a worktree.
 pub(crate) const INDEX_LOCK: &str = "index.lock";
@@ -104,8 +109,18 @@ fn index_entry_count(index: &Path) -> Option<usize> {
 /// nothing proves that Git gone,
 /// so the record is kept while it is younger than this,
 /// and
-///  a minute is far longer than reaching the name takes and far shorter than a record that nothing will settle
-///  should stay.
+///  a minute is far longer than that gap and far shorter than a record that nothing will settle should stay.
+/// Measured on this host on 2026-11-09,
+/// in a scope of four CPUs,
+/// with 200 runs and the same call path the add
+///  uses:
+/// the name reached the record between 5 ms and 1.45 s after the spawn (median 24 ms,
+/// p95 99 ms),
+/// and a real `git worktree add --no-checkout` made its destination between 4.5 ms and 9.1 ms
+///  after its own spawn,
+/// so the whole window this bound covers read 1.45 s at its longest,
+/// which a minute
+///  exceeds about forty times over.
 pub(crate) const UNNAMED_CHILD_GRACE: Duration = Duration::from_secs(60);
 
 /// What:
@@ -393,20 +408,31 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         },
         Some(Recorded::Planned(destination)) => {
             // The path is printed inside commands the person runs, so it is quoted for the shell.
-            // The path is printed inside commands the person runs, so it is quoted for the shell.
             let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-            // Nothing at the path, or nothing Git's pointer there. The Git this add started may still be making it, which
-            //  the record says: a named Git that is proven running keeps the record, a named Git that is gone settles it,
-            //  and a record too young to have named one yet keeps it until the grace has passed.
-            if !destination.join(POINTER).exists() {
-                let Some(child) = crate::worktree_add_binding::running_child_of(text.as_str()) else {
-                    return unnamed_child_settlement(record);
-                };
-                return match child.is_alive(record) {
-                    Ok(true) => Settlement { notice: None, keep: true },
-                    Ok(false) => Settlement { notice: None, keep: false },
-                    Err(_unproven) => unnamed_child_settlement(record),
-                };
+            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish. A lookup that
+            //  fails otherwise is no answer: a directory the person or another process holds closed for a moment must not read
+            //  as "no pointer" and take the record of a worktree that is still registered. And a destination that is absent is
+            //  no answer either while the Git this add started may still be making it, which the record says: a named Git that
+            //  is proven running keeps the record, a named Git that is gone settles it, and a record too young to have named
+            //  one yet keeps it until the grace has passed.
+            match pointer_presence(destination.as_path()) {
+                PointerPresence::Unknown(why) => {
+                    return Settlement {
+                        notice: Some(format!("monochromatic-git-policy-cli: whether an interrupted `git worktree add` left {shown} cannot be examined ({why}); nothing was changed and the record stays.")),
+                        keep: true,
+                    };
+                }
+                PointerPresence::Absent => {
+                    let Some(child) = crate::worktree_add_binding::running_child_of(text.as_str()) else {
+                        return unnamed_child_settlement(record);
+                    };
+                    return match child.is_alive(record) {
+                        Ok(true) => Settlement { notice: None, keep: true },
+                        Ok(false) => Settlement { notice: None, keep: false },
+                        Err(_unproven) => unnamed_child_settlement(record),
+                    };
+                }
+                PointerPresence::Present => {}
             }
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.

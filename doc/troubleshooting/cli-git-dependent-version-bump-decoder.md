@@ -1,5 +1,12 @@
 # git-policy-cli 0.0.1 stopped a package-split commit in dependent-version-bump decoding
 
+Note 2026-11-09T16:56:27-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/repository/src/dependent-version-bump-policy.ts` left the tree on 2026-10-13 in
+`a2b56c548c`.
+`package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts`
+left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 During the `module-test` extraction,

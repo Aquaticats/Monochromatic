@@ -32,9 +32,23 @@ export type CompilerFailureCase = {
   readonly stdout: string;
   readonly stderr: string;
   readonly exitCode: number;
+  /**
+   Signal the fixture compiler ends on, instead of reporting an exit status;
+   absent means it reports {@link CompilerFailureCase.exitCode}.
+   */
+  readonly killSignal?: string;
+  /**
+   Write no compiler at all, so the wrapper cannot start one; absent means the
+   directory holds a compiler.
+   */
+  readonly noCompiler?: boolean;
   readonly expectedCode: number;
   readonly expectedStdout: string;
-  readonly expectedStderr: string;
+  /**
+   Exact wrapper stderr, or every fragment it must contain when the wrapper's
+   own stack makes the rest of the text unstable.
+   */
+  readonly expectedStderr: string | readonly string[];
 };
 
 /**
@@ -98,22 +112,27 @@ export async function runCompilerFailureCase(input: CompilerFailureCase): Promis
   };
   /**
    Compiler output crosses into JavaScript only through JSON string encoding.
+   A signal case replaces the exit status with the signal, so the child never
+   reports a status of its own.
    */
   const source = [
     '#!/usr/bin/env node',
     `process.stdout.write(${JSON.stringify(input.stdout)});`,
     `process.stderr.write(${JSON.stringify(input.stderr)});`,
-    `process.exitCode = ${JSON.stringify(input.exitCode)};`,
+    ...(input.killSignal === undefined
+      ? [`process.exitCode = ${JSON.stringify(input.exitCode)};`]
+      : [`process.kill(process.pid, ${JSON.stringify(input.killSignal)});`]),
     '',
   ].join('\n');
-  await writeFile(
-    join(
-      directory,
-      'tsc'
-    ),
-    source,
-    { mode: PRIVATE_MODE }
-  );
+  if (input.noCompiler !== true)
+    await writeFile(
+      join(
+        directory,
+        'tsc'
+      ),
+      source,
+      { mode: PRIVATE_MODE }
+    );
   /**
    The emitted CLI is the same entry invoked by package lint tasks.
    */
@@ -168,9 +187,13 @@ export async function runCompilerFailureCase(input: CompilerFailureCase): Promis
         cwd: directory,
         stdout: stdoutFile.fd,
         stderr: stderrFile.fd,
-        env: { PATH: `${directory}${delimiter}${process.env
-          .PATH
-          ?? ''}` },
+        env: {
+          PATH: input.noCompiler === true
+            ? directory
+            : `${directory}${delimiter}${process.env
+              .PATH
+              ?? ''}`,
+        },
         timeout: 10_000,
       }
     );

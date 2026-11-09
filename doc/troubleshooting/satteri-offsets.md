@@ -1,5 +1,12 @@
 # Sätteri 0.10.5 source slices shift under the retained 0.9.4 offset correction
 
+Note 2026-11-09T16:53:20-05:00:
+these citations in this record name paths that no longer exist.
+`package/cli/markdown-lint/src/parse.ts` left the tree on 2026-10-13 in `5db89c1b61`.
+`package/cli/markdown-lint` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `5db89c1b61`.
+
 ## Current 0.10.5 consumer failure
 
 The historical 0.9.4 investigation is retained,

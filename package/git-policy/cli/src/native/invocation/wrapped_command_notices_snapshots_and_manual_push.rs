@@ -44,7 +44,7 @@ use crate::policy_checks::guarded_forwarded;
 ///  which the guard decided on.
 use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::repository_facts::RepositoryFacts;
-use crate::worktree_identity::worktree_root;
+use crate::worktree_identity::{WorktreeIdentity, common_directory, worktree_root};
 use crate::wrapper_controls::is_escaped;
 use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word};
 /// What:
@@ -263,6 +263,33 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
     }
 }
 
+/// What:
+///  The directory a manual push's discovery runs Git in,
+///  for the repository shape the invocation selects.
+/// Why:
+///   Every query of the discovery (`for-each-ref`,
+/// `cat-file --batch-check`,
+/// `rev-list`) names no repository of its own,
+///  so Git resolves the one its working directory is in.
+///  A worktree has its top level for that answer;
+///  a bare repository has no worktree and is itself the directory whose refs and objects the push publishes,
+///  so a push from a bare repository that ran these queries in the process's directory
+///  outside every repository
+///  failed with `content-unavailable` before it reached Git.
+///  Nothing is answered for a command outside every repository:
+///  there the process's own directory stands, and Git refuses the push itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directory = identity.worktreeRoot ?? identity.commonDir ?? undefined;
+/// ```
+fn manual_push_directory(identity: &WorktreeIdentity) -> Option<&Path> {
+    if let Some(root) = worktree_root(identity) {
+        return Some(root);
+    }
+    return common_directory(identity);
+}
+
 /// Lifecycle order,
 ///  fact use and every ending stay out of the release executable.
 /// What:
@@ -282,13 +309,13 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
     environment: &[(OsString, OsString)],
     post_subcommand: &[OsString],
 ) -> Result<(), crate::manual_push_lifecycle::ManualPushFailure> {
-    let worktree: Option<PathBuf> = match checks.facts.location() {
-        Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
+    let repository: Option<PathBuf> = match checks.facts.location() {
+        Ok(location) => manual_push_directory(&location.identity).map(Path::to_path_buf),
         Err(message) => return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, message)),
     };
     let context = checks.facts.transaction_context();
-    let cwd = match worktree {
-        Some(root) => root,
+    let cwd = match repository {
+        Some(directory) => directory,
         None => match std::env::current_dir() {
             Ok(directory) => directory,
             Err(error) => {

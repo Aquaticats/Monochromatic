@@ -1,5 +1,12 @@
 # Rolldown 1.2.3 inlining Satteri 0.9.5 relocates its native binding lookup
 
+Note 2026-11-09T16:54:06-05:00:
+these citations in this record name paths that no longer exist.
+`package/module/translation-repair/` was split into packages under
+`package/translation-repair/` on 2026-10-18 in `4bd1aea8d5`.
+`package/module/translation-repair/producer-input-verification.md` left the tree on 2026-09-15 in
+`cbedea3574`.
+
 ## Symptom
 
 The package-local dependency-bundling prototype builds and type-checks,

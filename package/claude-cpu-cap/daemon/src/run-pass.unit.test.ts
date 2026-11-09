@@ -25,21 +25,29 @@ import {
 import type { WatchState, } from './types.ts';
 
 /**
- Builds pass inputs for a fresh disposable host.
+ Builds pass inputs for a fresh disposable host, which removes itself when the
+ caller's scope ends.
 
  @param env - `CPU_WATCH_LIMIT_*` overrides
  @param cpuPressure - CPU pressure written into the fixture
 
- @returns the inputs, the logger recording their output and the host root
+ @returns the inputs, the logger recording their output, the host root, and an
+   async disposer that removes the host
  */
 async function makeInputs({ env, cpuPressure, }: Readonly<{
   env: Readonly<Record<string, string>>;
   cpuPressure: number;
-}>,): Promise<Readonly<{ inputs: PassInputs; l: RecordingLogger; root: string; }>> {
+}>,): Promise<Readonly<{
+  inputs: PassInputs;
+  l: RecordingLogger;
+  root: string;
+  [Symbol.asyncDispose]: () => Promise<void>;
+}>> {
   /**
    Disposable host.
    */
-  const { root, paths, } = await makeHost({ threads: '28', cpuPressure, },);
+  const host = await makeHost({ threads: '28', cpuPressure, },);
+  const { root, paths, } = host;
   /**
    Recorder for the logged lines.
    */
@@ -54,6 +62,9 @@ async function makeInputs({ env, cpuPressure, }: Readonly<{
       ...resolveThermalTuning(env,),
       totalThreads: 32,
       l,
+    },
+    [Symbol.asyncDispose]: async function removeHostFixture(): Promise<void> {
+      await host[Symbol.asyncDispose]();
     },
   };
 }
@@ -104,7 +115,8 @@ await describe({
         /**
          Inputs with the default tuning.
          */
-        const { inputs, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await using fixture = await makeInputs({ env: {}, cpuPressure: 0, },);
+        const { inputs, } = fixture;
         expect(throttleShortfall({ celsius: DEFAULT_THERMAL_TARGET_CELSIUS, mhz: DEFAULT_BOOST_OFF_MHZ - 490, inputs, },),).toBe(490,);
         expect(throttleShortfall({ celsius: 94.9, mhz: 1_000, inputs, },),).toBe(0,);
         expect(throttleShortfall({ celsius: DEFAULT_THERMAL_TARGET_CELSIUS, mhz: 4_600, inputs, },),).toBe(0,);
@@ -116,7 +128,8 @@ await describe({
         /**
          Inputs for a healthy host.
          */
-        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await using fixture = await makeInputs({ env: {}, cpuPressure: 0, },);
+        const { inputs, l, root, } = fixture;
         /**
          State after five passes.
          */
@@ -141,7 +154,8 @@ await describe({
         /**
          Inputs for a host whose cgroup directory has no weight file.
          */
-        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await using fixture = await makeInputs({ env: {}, cpuPressure: 0, },);
+        const { inputs, l, root, } = fixture;
         await rm(join(root, 'cgroup', 'io.weight',),);
         await rm(join(root, 'cgroup', 'io.bfq.weight',),);
         /**
@@ -161,7 +175,8 @@ await describe({
         /**
          Inputs for a host whose io.weight cannot be read as a file.
          */
-        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await using fixture = await makeInputs({ env: {}, cpuPressure: 0, },);
+        const { inputs, l, root, } = fixture;
         await rm(join(root, 'cgroup', 'io.weight',),);
         await mkdir(join(root, 'cgroup', 'io.weight',),);
         /**
@@ -181,7 +196,8 @@ await describe({
         /**
          Inputs whose CPU pressure limit is 0, so any pressure is bad.
          */
-        const { inputs, l, root, } = await makeInputs({ env: { CPU_WATCH_LIMIT_CPU_SOME: '0', }, cpuPressure: 1, },);
+        await using fixture = await makeInputs({ env: { CPU_WATCH_LIMIT_CPU_SOME: '0', }, cpuPressure: 1, },);
+        const { inputs, l, root, } = fixture;
         /**
          State after three passes.
          */
@@ -205,10 +221,11 @@ await describe({
         /**
          Inputs with the thermal target lowered to the fixture's 61.5 degrees and a boost-off clock 300 MHz above it.
          */
-        const { inputs, l, } = await makeInputs({
+        await using fixture = await makeInputs({
           env: { CPU_WATCH_LIMIT_TEMP: '61', CPU_WATCH_LIMIT_BOOST_OFF_MHZ: '4750', },
           cpuPressure: 0,
         },);
+        const { inputs, l, } = fixture;
         await runPasses({ inputs, passes: 3, start: FRESH, },);
         expect(l.messages.warn[0],).toContain('ALERT cpu-thermal-throttle-mhz=300.0 (limit 300)',);
         expect(l.messages.warn[0],).toContain('Tctl 61.5',);
@@ -220,7 +237,8 @@ await describe({
         /**
          Inputs for a healthy host.
          */
-        const { inputs, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await using fixture = await makeInputs({ env: {}, cpuPressure: 0, },);
+        const { inputs, root, } = fixture;
         /**
          State after two passes with a flat counter, giving a known 0 W reading.
          */
@@ -242,7 +260,8 @@ await describe({
         /**
          Inputs with the lag limit at 100 ms.
          */
-        const { inputs, l, } = await makeInputs({ env: { CPU_WATCH_LIMIT_LAG: '100', }, cpuPressure: 0, },);
+        await using fixture = await makeInputs({ env: { CPU_WATCH_LIMIT_LAG: '100', }, cpuPressure: 0, },);
+        const { inputs, l, } = fixture;
         /**
          State after the first pass.
          */
