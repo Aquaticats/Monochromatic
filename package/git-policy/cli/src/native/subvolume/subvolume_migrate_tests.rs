@@ -504,3 +504,42 @@ fn a_resume_refuses_a_stage_that_is_not_the_subvolume_the_journal_recorded() {
     assert!(aside.exists(), "the stage this migration made is left where it was moved");
     remove(parent.as_path());
 }
+
+/// Record the creation step as begun,
+/// and drop the identity of the stage,
+/// as a journal written by a run killed between the two records has it.
+fn record_the_creation_without_the_stage(journal: &Path) {
+    let text: String = std::fs::read_to_string(journal).expect("the journal");
+    let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
+    let document = value.as_object_mut().expect("a journal is an object");
+    let steps = document.get_mut("steps").and_then(serde_json::Value::as_object_mut).expect("a journal records steps");
+    let create = steps.get_mut("create").and_then(serde_json::Value::as_object_mut).expect("the journal records the creation");
+    create.insert(String::from("state"), serde_json::Value::String(String::from("started")));
+    let identity = document.remove("stage_identity");
+    assert!(identity.is_some(), "the control starts from a journal that records the stage");
+    std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
+}
+
+/// What:
+///  A resume adopts an empty subvolume at the stage's name when the journal records no identity for it.
+/// Why:
+///   The creation and the identity are two writes,
+/// so a kill between them leaves a journal that records the creation and
+///  no identity;
+/// a copy into an empty subvolume loses nothing,
+/// so that state is finished rather than refused,
+/// and every
+///  other state at that name is left alone.
+#[test]
+fn a_resume_adopts_an_empty_stage_the_journal_records_no_identity_for() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("migrate-unrecorded-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-create", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    record_the_creation_without_the_stage(layout.journal_path.as_path());
+    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(resumed_code, DONE, "{resumed_lines:#?}");
+    assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
+    remove(parent.as_path());
+}
