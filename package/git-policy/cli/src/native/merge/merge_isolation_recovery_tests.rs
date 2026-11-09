@@ -2519,3 +2519,52 @@ fn an_emptied_directory_the_merge_does_not_reach_refuses_before_anything_is_writ
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A checkout a killed merge wrote one file of, whose branch another command then advanced,
+///  is set back to the moved
+///  head,
+///  and the notice that says the files were put back is true.
+/// Why:
+///  An install was read as every path holding the merge,
+/// so a checkout holding the merge's file for one path and the
+///  branch's content for the others looked untouched:
+/// the record was removed without putting anything back,
+/// the
+///  notice claimed the files were put back and the checkout matched the branch,
+/// and the person's `git status` showed the
+///  abandoned merge's file as their own edit
+///  (a cross-vendor review of the ninth round,
+/// its fourth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = world(); write('f.txt', mergeContent); git commit -m elsewhere -- h.txt; const record = deferredRecord(); const outcomes = await recover(...); expect(outcomes[0].action).toBe('branch-moved'); expect(read('f.txt')).toEqual(base); expect(status()).toEqual('');
+/// ```
+#[test]
+fn a_partly_written_checkout_whose_branch_moved_puts_the_written_paths_back() {
+    let world: World = world("merge-recovery-moved-after-partial-write");
+    // Git wrote the merge's `f.txt` and was killed before the other paths or the index.
+    std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
+    // Another command advances the branch by a commit that leaves both paths as the old side has them.
+    std::fs::write(world.repo.join("h.txt"), b"h.txt elsewhere\n").expect("file");
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=elsewhere", "--", "h.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    let record: PathBuf = record_of(&world, dead_owner("54545454-0000-4000-8000-000000000054"), Some("refs/heads/main"));
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved, "the moved branch settles the merge: {text}");
+    assert!(!record.exists(), "the record only goes once the checkout is the moved head's");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the other command's");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("file"), b"f.txt base\n", "the merge's file is put back");
+    assert!(!world.repo.join("dir").exists(), "nothing the merge adds is left");
+    assert_eq!(std::fs::read(world.repo.join("gone.txt")).expect("file"), b"gone.txt base\n", "nothing the merge deletes is left deleted");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]),
+        "",
+        "the checkout matches the branch, as the notice says"
+    );
+    remove(world.parent.as_path());
+}
