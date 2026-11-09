@@ -52,6 +52,75 @@ function expectParses(code: string,): void {
 await describe({
   name: transformImportAttributes.name,
   children: [
+    //region Specifier escaping
+
+    it({
+      name: 'keeps the escape sequences of a specifier holding a backslash',
+      fn: async () => {
+        /**
+         Raw module text; `\f` is a form feed escape in the specifier, so the
+         specifier's value is not the text read off disk.
+         */
+        const code = String.raw`import query from '.\file.sql' with { type: 'text' };`;
+        const transformed = transform(code,);
+
+        expect(transformed,).toContain(String.raw`'.\file.sql?${ATTR_QUERY_KEY}=text'`,);
+        expect(function parses() {
+          parseSync('transform-case.ts', transformed,);
+        },).not.toThrow();
+      },
+    },),
+
+    it({
+      name: 'keeps an escaped quote inside a specifier',
+      fn: async () => {
+        /**
+         Specifier whose source text escapes the quote it is delimited by.
+         */
+        const code = String.raw`import query from './a\'b.sql' with { type: 'text' };`;
+        const transformed = transform(code,);
+
+        expect(transformed,).toContain(String.raw`'./a\'b.sql?${ATTR_QUERY_KEY}=text'`,);
+        expect(function parses() {
+          parseSync('transform-case.ts', transformed,);
+        },).not.toThrow();
+      },
+    },),
+
+    it({
+      name: 'keeps a unicode escape inside a specifier',
+      fn: async () => {
+        /**
+         Specifier whose source text spells its first letter as an escape.
+         */
+        const code = String.raw`import query from '\u0061.sql' with { type: 'text' };`;
+        const transformed = transform(code,);
+
+        expect(transformed,).toContain(String.raw`'\u0061.sql?${ATTR_QUERY_KEY}=text'`,);
+        expect(function parses() {
+          parseSync('transform-case.ts', transformed,);
+        },).not.toThrow();
+      },
+    },),
+
+    it({
+      name: 'keeps an escape inside a dynamic import specifier',
+      fn: async () => {
+        /**
+         Dynamic import whose specifier holds a form feed escape.
+         */
+        const code = String.raw`const loaded = import('.\file.sql', { with: { type: 'text' }, });`;
+        const transformed = transform(code,);
+
+        expect(transformed,).toContain(String.raw`'.\file.sql?${ATTR_QUERY_KEY}=text'`,);
+        expect(function parses() {
+          parseSync('transform-case.ts', transformed,);
+        },).not.toThrow();
+      },
+    },),
+
+    //endregion Specifier escaping
+
     //region Fast-path gate
 
     it({

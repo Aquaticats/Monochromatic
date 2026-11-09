@@ -164,23 +164,26 @@ export function transformImportAttributes({
       if (attrType === NO_ATTR_TYPE)
         return;
       /**
-       Literal specifier text; computed sources are skipped because their bytes cannot be rewritten safely.
+       Specifier is skipped when it is not a string literal: a computed source has no bytes to rewrite safely.
        */
-      const sourceValue = getStringLiteralValue(node.source,);
-      if (sourceValue === NON_STRING_NODE)
+      if (getStringLiteralValue(node.source,) === NON_STRING_NODE)
         return;
 
       /**
-       Quote character preserved so the rewritten specifier matches the source's quoting style.
+       Text of the specifier literal spanning both quotes, escape sequences exactly as the source spelled them.
        */
-      const quote = code[node.source
-        .start];
+      const rawLiteral = code.slice(
+        node.source
+          .start,
+        node.source
+          .end,
+      );
       replacements.push({
         start: node.source
           .start,
         end: node.source
           .end,
-        text: `${quote}${sourceValue}?${ATTR_QUERY_KEY}=${attrType}${quote}`,
+        text: `${rawLiteral.slice(0, -1,)}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
       },);
 
       // Remove the options argument: find the first comma between source and options

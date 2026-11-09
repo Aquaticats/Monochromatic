@@ -179,16 +179,25 @@ export function collectStaticReplacements({
   readonly code: string;
 },): readonly Replacement[] {
   /**
-   Quote character preserved so the rewritten specifier matches the source's quoting style.
+   Text of the specifier literal spanning both quotes, escape sequences
+   exactly as the source spelled them.
    */
-  const quote = code[source.start];
+  const rawLiteral = code.slice(
+    source.start,
+    source.end,
+  );
   /**
    Rewrites the specifier to carry the attribute query; always emitted.
+   
+   The query is inserted before the closing quote of the source text rather
+   than rebuilt from the parsed value, so every escape sequence keeps the
+   meaning it had (`'.\\file.sql'` stays a form feed rather than becoming a
+   literal `f`, and an escaped quote stays escaped).
    */
   const specifierReplacement: Replacement = {
     start: source.start,
     end: source.end,
-    text: `${quote}${source.value}?${ATTR_QUERY_KEY}=${attrType}${quote}`,
+    text: `${rawLiteral.slice(0, -1,)}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
   };
 
   /**
