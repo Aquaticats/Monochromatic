@@ -412,6 +412,8 @@ fn stop_git(child: &mut std::process::Child) -> StopOutcome {
             Err(_unwaitable) => return StopOutcome::Left,
         }
     }
+}
+
 /// What:
 ///  End this process by the signal Git was ended by,
 /// as replacing the process with Git does,
