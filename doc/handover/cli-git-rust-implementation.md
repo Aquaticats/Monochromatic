@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:42:13-05:00)
+#### Reviews and landings in progress (2026-11-09T02:52:07-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -148,10 +148,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   both in test code:
   a failing stderr can end the watchdog without ending the test,
   and one control passes with its guard removed.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `unit-test-watchdog-under-contention` as run 4,
-  with `unit-test-watchdog-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+  Run 4 of its agent is on them.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
   its agent fixed the seven findings of the fourth review
   (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`),
@@ -223,28 +220,20 @@ The old tree kept for the rollback stays until the owner deletes it.
   among them an interrupted upgrade that leaves every command reaching the old service,
   and a launcher that clears its environment and so defeats both recursion guards.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `entry-and-service-findings-fixed` as run 2,
-  with `entry-and-service-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
+  The agent `controls-witness-their-race-by-ordering` is on them.
+- `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
   Waits for a free agent slot,
   since all twenty are taken:
-  start a run with `tests-that-pass-without-their-race-fixed-prompt.md`,
-  branch `fix/git-policy-cli-controls-witness-their-race-by-ordering`.
+  start a run with `repo-read-findings-fixed-prompt.md`,
+  branch `fix/git-policy-cli-readers-match-git-on-extensions-and-ref-names`.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  and goes first:
-  start a run with `policy-and-candidate-findings-fixed-prompt.md`,
-  branch `fix/git-policy-cli-candidates-survive-literal-pathspecs`.
+  The agent `policy-and-candidate-findings-fixed` is on them.
 - `doc/planning/cli-git-hook-route-findings-on-main.md` names four defects,
   among them a stopped push that kills a local remote's `post-receive` after the branch has landed and then reports failure.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  start a run with `hook-route-findings-fixed-prompt.md`,
-  branch `fix/git-policy-cli-hook-route-push-stop-and-doctor`.
+  The agent `hook-route-findings-fixed` is on them.
 - `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
