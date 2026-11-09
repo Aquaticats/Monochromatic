@@ -422,7 +422,13 @@ pub fn prune_toolchain(
             let kept: Vec<&PresentVersion> =
                 present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
             match newest_finished(&kept) {
-                Some(newest) => point_current_at(&scope.toolchain_root, crate_name, &newest)?,
+                Some(newest) => {
+                    if !point_current_at(&scope.toolchain_root, crate_name, &newest)? {
+                        // The version this run keeps is not there any more, so the link was left alone:
+                        // it must then not go on naming a version this run deletes.
+                        remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?;
+                    }
+                }
                 // What: with no finished version that stays, the link is kept only when what it names stays too.
                 // Why: an unfinished install is not something `current` may name,
                 // and a link left naming a version this run deletes dangles once the deletions run.
