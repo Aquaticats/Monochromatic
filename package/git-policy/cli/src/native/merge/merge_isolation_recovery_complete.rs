@@ -23,7 +23,7 @@
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
-use crate::merge_isolation_recovery_cleanup::{a_worktree_that_switched, partly_installed};
+use crate::merge_isolation_recovery_cleanup::{a_worktree_that_switched, an_installed_merge_behind_a_held_index, partly_installed};
 use crate::merge_isolation_recovery_reads::symbolic_ref;
 use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRefusal, RecoveryPlace, install_entries,
@@ -58,6 +58,16 @@ pub fn complete(
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
     if install_entries(place, root, changes, judgements, installed_before, out)? == Installed::IndexHeld {
+        // A merge that was already installed has nothing to defer: a command that went on would read it as another session's
+        //  staged work, so it is stopped and told what is there.
+        if installed_before {
+            return Err(partly_installed(an_installed_merge_behind_a_held_index(
+                intent.target_ref.as_deref().unwrap_or("HEAD"),
+                root,
+                place.git_dir.join("index.lock").as_path(),
+                record,
+            )));
+        }
         return Ok(Installed::IndexHeld);
     }
     // The checkout was checked for its branch before anything was installed; this is the one more look before the branch moves,

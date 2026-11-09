@@ -219,3 +219,29 @@ pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&
         record.display()
     ));
 }
+
+/// What:
+///  The refusal for a merge whose index entries are already installed and whose index stayed held past the wait.
+/// Why:
+///   A command that went on would read the half-installed merge as another session's staged work,
+/// so it is stopped
+///  and told what is there,
+/// where the lock is,
+/// and which record waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// anInstalledMergeBehindAHeldIndex(target, root, lock, record): RecoveryError;
+/// ```
+pub fn an_installed_merge_behind_a_held_index(target: &str, root: &Path, lock: &Path, record: &Path) -> RecoveryError {
+    return RecoveryError(format!(
+        "A merge of {target} in {} is unfinished, and this merge's index entries are already installed here, but {} stayed \
+         held by another program, so nothing more was written and the record {} was kept. A command is stopped rather than \
+         read the checkout as another session's staged work. Check `git status` and `git diff --cached`, finish or undo what \
+         is staged, then remove the record {} when the checkout is as you want it.",
+        root.display(),
+        lock.display(),
+        record.display(),
+        record.display()
+    ));
+}

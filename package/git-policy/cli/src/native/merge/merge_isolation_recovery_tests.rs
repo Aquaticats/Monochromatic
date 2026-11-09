@@ -637,39 +637,53 @@ fn only_a_lock_that_is_free_lets_the_merge_be_written() {
 }
 
 /// What:
-///  A lock whose PID file names a process that is gone is not waited for,
-///  and the merge is left for the next command with its record kept and nothing written.
+/// What:
+///  A held index defers a merge that installed nothing and stops one that is already installed.
 /// Why:
 ///  This ends at once,
 /// without a ceiling,
-/// so the control proves the deferred outcome:
-/// a command in the worktree goes on,
-/// and the next one finishes
-///  the same merge.
+/// so the control proves both ends of the rule:
+/// a merge whose files and entries are
+///  installed must not be read as another session's staged work,
+/// while one that installed nothing is left for the next
+///  command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePidFile(index, gonePid); const action = await settleFailedMerge(place, record, intent); expect(action).toBe('index-held'); expect(record.exists()).toBe(true);
+/// writePidFile(index, gonePid); await expect(settleFailedMerge(installed)).rejects; await expect(settleFailedMerge(saved)).resolves.toBe('discarded');
 /// ```
 #[test]
-fn a_dead_holders_lock_leaves_the_merge_for_the_next_command() {
+fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one() {
+    // A merge that was already installed is not deferred: a command that went on would read it as staged work, so it stops.
+    let installed: World = world("merge-recovery-dead-holder-lock-installed");
+    git(installed.repo.as_path(), &["read-tree", "-m", "-u", installed.old_oid.as_str(), installed.new_oid.as_str()]);
+    let installed_record: PathBuf = record_of(&installed, dead_owner("13131313-0000-4000-8000-000000000013"), Some("refs/heads/main"));
+    let installed_intent: MergeIntent =
+        parse_merge_intent(std::fs::read(installed_record.as_path()).expect("read").as_slice()).expect("intent");
+    std::fs::write(installed.git_dir.join("index.lock"), b"").expect("a Git left the index lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(installed.git_dir.join("index").as_path()), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    let mut installed_said: Vec<u8> = Vec::new();
+    let refused = settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said)
+        .expect_err("an installed merge behind a held index stops the command");
+    assert!(refused.began, "it reports that the merge is installed");
+    assert!(installed_record.exists(), "the record stays");
+    remove(installed.parent.as_path());
+
+    // A merge that was saved and installed nothing is deferred: the next command finishes it.
     let world: World = world("merge-recovery-dead-holder-lock");
-    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     let before = snapshot(&world);
-    let record: PathBuf = record_of(&world, dead_owner("13131313-0000-4000-8000-000000000013"), Some("refs/heads/main"));
+    let record: PathBuf = record_of(&world, dead_owner("13131313-0000-4000-8000-000000000014"), Some("refs/heads/main"));
     let intent: MergeIntent = parse_merge_intent(std::fs::read(record.as_path()).expect("read").as_slice()).expect("intent");
     let lock: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(lock.as_path(), b"").expect("a Git left the index lock");
     std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n").expect("the PID file of a process that is gone");
     let mut said: Vec<u8> = Vec::new();
     let action = settle_failed_merge(&place(&world), record.as_path(), &intent, &mut said).expect("settled");
-    assert_eq!(action, MergeRecoveryAction::IndexHeld, "nothing was written");
-    assert!(record.exists(), "the record stays for the next command");
+    assert_eq!(action, MergeRecoveryAction::Discarded, "nothing of it was installed, so the record only goes");
+    assert!(!record.exists(), "the record goes");
     assert!(lock.exists(), "the lock is not the recovery's to remove");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
     assert_eq!(snapshot(&world), before, "the index and the worktree are exactly as they were");
-    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(text.contains("no longer runs") && text.contains("stays unfinished"), "it says what is unfinished: {text}");
     remove(world.parent.as_path());
 }
 
@@ -1994,5 +2008,38 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge whose index entries an earlier attempt installed stops the command when the index stays held,
+///  instead of letting it read the checkout.
+/// Why:
+///  The install returned `Installed::IndexHeld` whether or not the merge was already installed,
+/// so the startup gate let a
+///  read-only `status` or `diff --cached` observe the unfinished merge as ordinary staged work
+///  (a cross-vendor review of the seventh round,
+/// its fourth finding).
+/// The lock is one the removal proof refuses,
+/// so the wait ends at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged); const record = deferredRecord(); write('.git/index.lock', content); write('.git/index~pid.lock', 'pid 1\n'); await expect(recover(...)).rejects; expect(exists(record)).toBe(true);
+/// ```
+#[test]
+fn an_installed_merge_whose_index_stays_held_stops_the_command() {
+    let world: World = world("merge-recovery-installed-index-held");
+    // An earlier attempt installed the merge's index entries and died.
+    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = deferred_record_of(&world, "35353535-0000-4000-8000-000000000035", "refs/cli-git/kept/35");
+    // A lock the removal proof does not cover, in the shape a person's editor-phase commit leaves.
+    std::fs::write(world.git_dir.join("index.lock"), b"an index written into the lock").expect("a lock with content");
+    std::fs::write(world.git_dir.join("index~pid.lock"), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge behind a held index stops the command");
+    assert!(!refused.0.is_empty(), "the failure is named");
+    assert!(refused.0.contains("index.lock"), "the lock is named: {}", refused.0);
+    assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }

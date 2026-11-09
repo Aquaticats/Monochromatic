@@ -8845,6 +8845,11 @@ so a program that holds the index does not end every command in that worktree;
 a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
 leaves the record and the checkout as they were,
 and the next command finishes the same merge.
+That leaving alone is for a merge that installed nothing:
+when the merge's index entries or files are already installed and the index stays held,
+the command is stopped and told the lock,
+the record and what is installed,
+because a command that went on would read the half-installed merge as another session's staged work.
 Settling takes every file it must write aside by one rename that never replaces,
 and checks what it took against the device,
 inode,

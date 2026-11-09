@@ -34,6 +34,7 @@ use crate::merge_isolation_changes::{Change, parse_raw_changes};
 /// The intent record.
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
+use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
 use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge, install_entries,
     judge_changes, merge_changes, put_back_stranded_takes, remove_record,
@@ -196,6 +197,16 @@ pub(crate) fn settle_moved_branch(
         });
     }
     if install_entries(place, root, ends.as_slice(), held.as_slice(), began, out)? == Installed::IndexHeld {
+        // A settling that had already begun has nothing to defer: the command is stopped rather than read the merge as
+        //  another session's staged work.
+        if began {
+            return Err(partly_installed(an_installed_merge_behind_a_held_index(
+                intent.target_ref.as_deref().unwrap_or("HEAD"),
+                root,
+                place.git_dir.join("index.lock").as_path(),
+                record,
+            )));
+        }
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     remove_record(record).map_err(partly_installed)?;
