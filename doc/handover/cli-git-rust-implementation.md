@@ -212,6 +212,12 @@ under rule `WGH`:
   and a kill during install leaves empty files and a half-filled worktree that nothing records.
   Both come from the EXDEV copy fallback.
   The Pi agent `worktree-copy-install-keeps-modes-and-finishes` owns them.
+  A later run killed a snapshot-route add ten times:
+  two kills left a full snapshot of the main checkout beside the destination,
+  credentials and a copy of `.git` included,
+  and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
+  `package/git-policy/cli/SPEC.md` says the person removes the stage,
+  so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
 - `merge-and-pull-never-fail`:
   a dead Git's `index.lock` makes every command exit 2,
   read-only commands wait 60 s over a saved merge,

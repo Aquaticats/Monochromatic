@@ -26,6 +26,59 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### Should the next command remove the snapshot a killed `git worktree add` left behind?, asked 2026-11-09T17:05:48-05:00
+
+A Claude Sonnet audit killed `git worktree add --detach <path>` ten times on a main checkout that is a subvolume.
+Two of those kills left a folder named `.cli-git-worktree-copy-<uuid>` beside the destination.
+Each one is a complete snapshot of the main checkout:
+`.env` and `secrets/key.pem` (mode `0600` kept),
+caches,
+`node_modules`,
+and a full copy of `.git`.
+Every later command in a linked worktree prints that the folder was left by an interrupted add and that you should remove it yourself,
+and nothing ever does.
+`package/git-policy/cli/SPEC.md:2317` says "The stage is the person's to remove".
+Removing it is a deletion,
+so this is your call.
+Evidence:
+`~/temp/agent/sonnet-audits/worktree-lifecycle/findings.md`,
+finding `F-H`.
+
+- A.
+  The next command deletes a stage only when the wrapper's own record proves it made that stage and its owner is dead,
+  and prints what it removed.
+  Pro:
+  nothing piles up,
+  and a second copy of credentials goes away by itself.
+  Con:
+  it deletes a folder without being asked,
+  so anything someone put there by hand after the kill goes with it.
+- B.
+  As A,
+  but the stage moves to the worktree's trash folder first and is emptied later.
+  Pro:
+  a mistaken reap can still be undone.
+  Con:
+  the credentials stay on disk for longer,
+  and there is one more place to clean.
+- C.
+  Keep today's rule:
+  a notice on every command,
+  and the person deletes it.
+  Pro:
+  the wrapper never deletes a folder on its own.
+  Con:
+  the snapshot and its credentials stay until someone acts,
+  and the notice repeats on every command.
+
+Ranking:
+A > B > C,
+because A clears the extra copy of credentials with proof of ownership,
+B keeps that copy around to guard against a mistake the record already rules out,
+and C leaves the problem in place.
+The same audit found small records of killed adds piling up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`;
+under A or B the same sweep would remove them.
+
 ### How should a fuzz sidecar that stops compiling get caught?, asked 2026-11-09T16:25:06-05:00
 
 The wrapper's fuzz sidecar (`package/git-policy/cli.fuzz`) stopped compiling because later wrapper changes moved the code it uses,
