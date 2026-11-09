@@ -977,8 +977,23 @@ current tree instead.
    `.gitignore` stays enabled).
    Files force-added past
   `.gitignore` (`git add -f`) are recovered via an in-process `gix-index` read of
-  `.git/index`;
+  the index belonging to the walked working tree,
+   which `src/git_working_tree.rs` finds by Git's own rules:
+  the nearest `.git` above the scanned directory,
+   a linked worktree's or submodule's `gitdir:` line,
+   and a linked worktree's `commondir` for its shared configuration;
    no git subprocess.
+  A scan started in a subfolder reads that working tree's index,
+   keeps only the entries below the subfolder,
+   and drops the prefix they carry.
+- **A repository whose index is missing or unreadable.**
+  The walk still runs,
+   and stderr names the index it could not read,
+   says the tracked files `.gitignore` hides were not covered,
+   and gives `git reset` as the remedy;
+   an exit status is unchanged by that line.
+   A directory with no repository above it scans the working tree alone,
+   with no such line.
 - **`.git/` and `.jj/` skipped.**
   Internal VCS state is never scanned.
 - **Symlinks NOT followed.**
