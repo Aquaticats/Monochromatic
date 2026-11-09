@@ -192,3 +192,7 @@ pub mod collected_elements_looked_at;
 /// awaited no longer than a ceiling,
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;
+
+/// The process's own standard error descriptor,
+/// written without the lock the standard library's shared handle takes.
+pub mod standard_error_descriptor;

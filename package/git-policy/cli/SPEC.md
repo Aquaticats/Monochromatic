@@ -498,6 +498,10 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   judged by the identity the file system gives it:
   a symbol link in the way decides what `..` means,
   so a lexical rewrite of the path would scan a directory Git runs no hook in.
+  That identity is decided within the report's ceiling,
+  because pathname resolution waits on a mount whose server has stopped answering;
+  a resolution that gives no answer keeps the configured directory,
+  which is then scanned beside the default one.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
@@ -522,9 +526,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   a link,
   a file that differs by one byte and a shim under another hook's name do not.
   The comparison reads at most 1024 bytes of those four names and nothing else.
-- It prints one path per line on stdout for every hook that is not a Git LFS shim,
+- It prints one pathname per line on stdout for every hook that is not a Git LFS shim,
   the default directory first and each directory in name order,
   and nothing else on stdout.
+  Each pathname is printed as its own bytes,
+  because a pathname is a byte string:
+  its text spelling with replacement characters names a different directory,
+  so a text report could name a hook the command never inspected.
   When it finds any it also explains on stderr that traditional hooks are unsupported.
 - Git LFS shims are reported on stderr only,
   apart from the other hooks,
@@ -597,7 +605,14 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
   so a mount that stops answering cannot hold the command:
   a read that gives no answer makes the command say which read it was and carries on,
-  with status `2` for a hooks directory and one line of standard error for the host facts.
+  with status `2` for a hooks directory and one line of standard error for the host facts and for the folder of saved copies.
+- The saved copies are read under every data folder the repository holds,
+  the current `monochromatic-git-policy-cli` and the earlier `cli-git`,
+  and each folder that holds a copy gets its own block with its size,
+  count and oldest save.
+  A repository can hold both names at once,
+  and the earlier folder can hold the only copy,
+  so a report that named only one folder would hide a person's recoverable data from the person who asked what is there.
   The filesystem section describes the checkout Git reports for where the command runs
   (`git rev-parse --path-format=absolute --show-toplevel`),
   and says nothing about a file system when Git reports none,
@@ -7718,6 +7733,13 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+It is written to the standard error descriptor itself and not through the standard library's shared handle,
+whose lock every synchronous write to standard error takes,
+so a worker left at the ceiling holds no lock the commit's own writes would wait for.
+The notices a preparation prints (an obligation of the worktree that cannot be read,
+and the entries a landing left out of this commit)
+are given to the same descriptor under the same ceiling,
+and one that cannot be said in time is left unsaid rather than holding the commit.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
