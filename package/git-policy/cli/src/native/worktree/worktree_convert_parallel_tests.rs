@@ -449,6 +449,11 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
     assert_eq!(code, 0, "{lines:#?}");
     let seen: Vec<bool> = started_after.lock().expect("lock").clone();
     assert_eq!(seen, vec![true; WORKTREES], "a conversion started while another job held the only place of the process's bound, so it did not take one: {lines:#?}");
-    assert!(finished.recv_timeout(PATIENCE).is_ok(), "the job that held the place never gave it back");
+    // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
+    //  reached the process's bound instead of starting at once.
+    assert!(
+        finished.recv_timeout(PATIENCE).expect("the job that holds the place never returned"),
+        "no job of the work under test asked for a place of the process's bound, so it did not take one"
+    );
     remove(parent.as_path());
 }
