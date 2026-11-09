@@ -154,7 +154,15 @@ fn native_commit_configuration_text(found: &ConfigSnapshot) -> Vec<u8> {
         if !is_native_commit_key(entry.key.as_str()) {
             continue;
         }
-        push_entry(&mut text, entry.key.as_str(), entry.value.as_deref());
+        if push_entry(&mut text, entry.key.as_str(), entry.value.as_deref()) {
+            continue;
+        }
+        // A setting the format cannot state is left out rather than written as a file Git refuses:
+        // a commit that runs without that setting is the outcome the person can still use.
+        crate::diagnostic_log::warn(
+            "nativeCommitConfiguration",
+            format!("the setting {} cannot be written into the configuration the native commit reads, so it is left out", entry.key).as_str(),
+        );
     }
     return text;
 }
@@ -172,14 +180,35 @@ fn native_commit_configuration_text(found: &ConfigSnapshot) -> Vec<u8> {
 ///  so the order of the file is the order of the listing.
 ///  A key written without a value stays valueless,
 ///  which Git reads as a true boolean.
+///  An entry is written only when Git's file parser can read every part of it back,
+///  and the answer says whether it was:
+///  one it cannot state is left out,
+///  because a file Git refuses would stop the commit this file exists to let run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// // if (!representable(key, value)) return false;
 /// // text += `[${section}${subsection === undefined ? '' : ` "${quotedSubsection}"`}]\n\t${name}`
-/// // text += value === undefined ? '\n' : ` = "${quotedValue}"\n`
+/// // text += value === undefined ? '\n' : ` = "${quotedValue}"\n`; return true;
 /// ```
-fn push_entry(text: &mut Vec<u8>, key: &str, value: Option<&[u8]>) {
-    let (section, subsection, name) = key_parts(key);
+fn push_entry(text: &mut Vec<u8>, key: &str, value: Option<&[u8]>) -> bool {
+    let Some((section, subsection, name)) = key_parts(key) else { return false };
+    // Only shapes Git's own file parser reads back are written,
+    // so the file is never one Git refuses and no commit fails over a setting.
+    if !is_section_name(section.as_bytes()) || !is_variable_name(name.as_bytes()) {
+        return false;
+    }
+    if let Some(named) = subsection
+        && named.bytes().any(is_newline_or_nul)
+    {
+        return false;
+    }
+    if let Some(bytes) = value {
+        // Git's format has no way to state a NUL inside a value.
+        if bytes.contains(&0) {
+            return false;
+        }
+    }
     text.push(b'[');
     text.extend_from_slice(section.as_bytes());
     if let Some(named) = subsection {
@@ -195,6 +224,7 @@ fn push_entry(text: &mut Vec<u8>, key: &str, value: Option<&[u8]>) {
         text.push(b'"');
     }
     text.push(b'\n');
+    return true;
 }
 
 /// What:
@@ -205,20 +235,111 @@ fn push_entry(text: &mut Vec<u8>, key: &str, value: Option<&[u8]>) {
 ///   Git writes every key it lists as `section.name` or `section.subsection.name`,
 ///  and the subsection is written back as its own quoted header.
 ///  A key of any other shape cannot name a variable,
-///  so a listing that held one would be a defect worth failing on rather than dropping.
+///  so it is `None` and the entry is left out:
+///  a setting Git's format cannot state must not stop a commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [section, ...rest] = key.split('.'); const name = rest.pop(); return { section, name, subsection: rest.join('.') };
 /// ```
-fn key_parts(key: &str) -> (&str, Option<&str>, &str) {
-    let (section, rest): (&str, &str) = key.split_once('.').expect("a configuration key names a section and a variable");
-    assert!(!section.is_empty() && !rest.is_empty(), "a configuration key names a section and a variable: {key}");
+fn key_parts(key: &str) -> Option<(&str, Option<&str>, &str)> {
+    let (section, rest): (&str, &str) = key.split_once('.')?;
+    if section.is_empty() || rest.is_empty() {
+        return None;
+    }
     return match rest.rsplit_once('.') {
-        Some((subsection, name)) if !subsection.is_empty() && !name.is_empty() => (section, Some(subsection), name),
-        Some(_) => (section, None, rest),
-        None => (section, None, rest),
+        // An empty subsection is still a subsection:
+        // `[trailer ""]` is how Git spells the key `trailer..key`,
+        // and reading it as a variable name would put a dot first, which no name may have.
+        Some((subsection, name)) if !name.is_empty() => Some((section, Some(subsection), name)),
+        _ => Some((section, None, rest)),
     };
+}
+
+/// What:
+///  Whether one byte of a subsection ends a line or a value early:
+///  a newline or a NUL,
+///  which Git's file format has no place for.
+/// Why:
+///  A subsection holding either would make the file one Git refuses,
+///  and a setting Git refuses must not stop a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNewlineOrNul = (byte) => byte === 0x0a || byte === 0;
+/// ```
+fn is_newline_or_nul(byte: u8) -> bool {
+    return byte == b'\n' || byte == 0;
+}
+
+/// What:
+///  Whether one byte can stand in a section name:
+///  a letter,
+///  a digit,
+///  `-` or `.`.
+/// Why:
+///  A section name outside that shape is a file Git refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSectionByte = (byte) => /[A-Za-z0-9.-]/.test(byte);
+/// ```
+fn is_section_byte(byte: &u8) -> bool {
+    return byte.is_ascii_alphanumeric() || *byte == b'-' || *byte == b'.';
+}
+
+/// What:
+///  Whether one byte after the first can stand in a variable name:
+///  a letter,
+///  a digit or `-`.
+/// Why:
+///  Git refuses a variable name outside that shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isVariableByte = (byte) => /[A-Za-z0-9-]/.test(byte);
+/// ```
+fn is_variable_byte(byte: &u8) -> bool {
+    return byte.is_ascii_alphanumeric() || *byte == b'-';
+}
+
+/// What:
+///  Whether `text` can be a section name in Git's configuration file:
+///  letters,
+///  digits,
+///  `-` and `.`,
+///  in any order.
+/// Why:
+///  A section outside that shape is a file Git refuses,
+///  and a setting Git refuses must not stop a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSectionName = (text) => text.length > 0 && /^[A-Za-z0-9.-]+$/.test(text);
+/// ```
+fn is_section_name(text: &[u8]) -> bool {
+    return !text.is_empty() && text.iter().all(is_section_byte);
+}
+
+/// What:
+///  Whether `text` can be a variable name in Git's configuration file:
+///  a letter first,
+///  then letters,
+///  digits and `-`.
+/// Why:
+///  Git refuses any other shape,
+///  measured on Git 2.56.0,
+///  where `2y`,
+///  `y_z` and `y.z` are each `bad config line`,
+///  and a setting Git refuses must not stop a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isVariableName = (text) => /^[A-Za-z][A-Za-z0-9-]*$/.test(text);
+/// ```
+fn is_variable_name(text: &[u8]) -> bool {
+    let Some(first) = text.first() else { return false };
+    return first.is_ascii_alphabetic() && text[1..].iter().all(is_variable_byte);
 }
 
 /// What:

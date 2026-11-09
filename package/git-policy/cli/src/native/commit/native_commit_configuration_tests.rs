@@ -84,6 +84,79 @@ fn every_character_the_format_treats_specially_reads_back_from_the_carried_file(
     remove(root.as_path());
 }
 
+/// An empty subsection is a subsection,
+/// not a name starting with a dot:
+/// `[trailer ""]` is how Git spells the key `trailer..key`,
+/// and no variable name may start with a dot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert.deepEqual(await git(['-c', include, 'config', '-z', '--get', 'trailer..key']), Buffer.from('X-Empty\0'));
+/// ```
+#[test]
+fn an_empty_subsection_is_written_as_one() {
+    let root: PathBuf = fixture("native-commit-configuration-empty-subsection");
+    let found: ConfigSnapshot = snapshot(&[("local", "trailer..key", Some("X-Empty"))]);
+    let mut query: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    let text: String = String::from_utf8(std::fs::read(root.join(NATIVE_COMMIT_CONFIGURATION_NAME)).expect("the carried file"))
+        .expect("the file is text");
+    assert_eq!(text.lines().collect::<Vec<&str>>(), vec!["[trailer \"\"]", "\tkey = \"X-Empty\""]);
+    query.extend([OsString::from("config"), OsString::from("-z"), OsString::from("--get"), OsString::from("trailer..key")]);
+    let output: std::process::Output = git_output(root.as_path(), query.as_slice());
+    assert!(output.status.success(), "real Git must read trailer..key: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.stdout, b"X-Empty\0");
+    remove(root.as_path());
+}
+
+/// A setting Git's format cannot state is left out of the carried file rather than written as one Git refuses,
+/// so the settings beside it still travel and the commit still runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a key with no section, a name with a space or an `=` are all left out, and `commit.verbose` still travels
+/// ```
+#[test]
+fn a_setting_the_format_cannot_state_is_left_out() {
+    let root: PathBuf = fixture("native-commit-configuration-unrepresentable");
+    let found: ConfigSnapshot = snapshot_records(&[
+        ("local", "commitcleanup", Some(b"no section at all")),
+        ("local", "commit cleanup", Some(b"a space where a name is read")),
+        ("local", "commit.cleanup=verbatim", Some(b"an equals sign in the name")),
+        ("local", "commit.verbose", Some(b"kept")),
+    ]);
+    // The arguments the shadow is given, kept so the production path is the one that writes the file.
+    let _arguments: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    let file: PathBuf = root.join(NATIVE_COMMIT_CONFIGURATION_NAME);
+    let text: String = String::from_utf8(std::fs::read(file.as_path()).expect("the carried file")).expect("the file is text");
+    assert_eq!(text.lines().collect::<Vec<&str>>(), vec!["[commit]", "\tverbose = \"kept\""]);
+    // The file alone, so the listing holds what the file states and not the settings that included it.
+    let query: Vec<OsString> = vec![OsString::from("config"), OsString::from("-z"), OsString::from("--file"), file.into_os_string(), OsString::from("--list")];
+    let output: std::process::Output = git_output(root.as_path(), query.as_slice());
+    assert!(output.status.success(), "real Git must read the file: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.stdout, b"commit.verbose\nkept\0");
+    remove(root.as_path());
+}
+
+/// A value holding a NUL cannot be stated in Git's format,
+/// and Git's own listing cannot carry one either:
+/// the listing ends a record at a NUL,
+/// so a value holding one is a listing the snapshot parser refuses whole.
+/// The writer therefore leaves such a value out rather than writing a file Git refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert.equal(pushEntry('commit.template', Buffer.from('kept\0')), false);
+/// ```
+#[test]
+fn a_value_holding_a_nul_cannot_be_stated_and_is_left_out() {
+    let mut listing: Vec<u8> = Vec::new();
+    listing.extend_from_slice(b"local\0commit.template\nkept\0rest\0");
+    assert!(ConfigSnapshot::parse(listing.as_slice(), true).is_none(), "Git's listing cannot hold a NUL in a value");
+    let mut text: Vec<u8> = Vec::new();
+    assert!(!push_entry(&mut text, "commit.template", Some(b"kept\x00rest")), "a NUL value is left out");
+    assert!(text.is_empty(), "nothing is written for it");
+}
+
 /// The key criterion takes the signing and message keys,
 /// every trailer,
 /// and nothing else.

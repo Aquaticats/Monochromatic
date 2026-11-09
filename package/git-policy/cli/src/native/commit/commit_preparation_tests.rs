@@ -652,6 +652,24 @@ fn signing_from_an_exact_gitdir_include_reaches_the_shadow() {
     remove(root.as_path());
 }
 
+/// A configured `[trailer ""]` is valid configuration real Git accepts,
+/// so a commit carrying it through the shadow must not fail:
+/// the key `trailer..key` is a trailer whose subsection is empty,
+/// and it is written as the quoted empty subsection it is.
+#[test]
+fn an_empty_trailer_subsection_does_not_stop_the_native_commit() {
+    let root: PathBuf = fixture("commit-preparation-empty-subsection");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    // Git writes the empty subsection itself, as `[trailer ""]`.
+    git(repo.as_path(), &["config", "trailer..key", "X-Empty"]);
+    // The positive control: real Git commits with this configuration in place.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    let prepared: PreparedCommit = prepare(&fixture, &["--message=shadow control"]).expect("prepared");
+    assert_eq!(prepared.tree_oid, fixture.intended_tree);
+    remove(root.as_path());
+}
+
 /// An `x509` signing program named in the exact `gitdir` include is the one the shadow's native commit runs:
 /// a person who configured a signer does not get the default program,
 /// which on this host does not exist at all.
