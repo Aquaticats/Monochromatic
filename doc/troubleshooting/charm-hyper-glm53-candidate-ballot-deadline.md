@@ -46,6 +46,11 @@ Prototype commit `28d548d84fe1fcb51765b0e9a845c6361bf6359c` sets a six-minute de
 const EVALUATION_TIMEOUT_MS = 360_000;
 ```
 
+`package/module/translation-repair/src/prototype-hyper-expansion-client.ts` exists only on an
+unmerged branch (newest commit `1fc61f768b` (feat(translation-repair):
+prototype candidate-scoped
+ballots) on 2026-08-31) and is not in the working tree.
+
 The same file arms that deadline for every request and allows an explicit request value to replace it at
 `package/module/translation-repair/src/prototype-hyper-expansion-client.ts:287-294` (removed before 2026-10-18):
 

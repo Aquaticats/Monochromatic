@@ -89,6 +89,15 @@ The finding code is
 pub const LINKED_WORKTREE_REQUIRED_CODE: &str = "linked-worktree-required";
 ```
 
+`package/git-policy/cli/src/native/rule_linked_worktree.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/command/rule_linked_worktree.rs` in `53334fa2f9`
+(refactor(git-policy-cli):
+move the command modules into a command folder).
+`package/git-policy/cli/src/native/effective_target.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/invocation/effective_target.rs` in `a0d60dc29a`
+(refactor(git-policy-cli):
+move the invocation and forwarding modules into an invocation folder).
+
 ### Step 4: the exposed wrapper predates the 0.2.9 exemption
 
 The wrapper exempts tool caches,

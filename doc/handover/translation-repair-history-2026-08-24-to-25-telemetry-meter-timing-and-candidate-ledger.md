@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-24 to 2026-08-25: the telemetry the pipeline records and the readers built for it
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:ledger-report` is now
+> `//package/translation-repair/run:ledger-report` (2026-10-18 `4bd1aea8d5`).
+
 The provider availability meter recorded,
 readable and samplable,
 then extended to carry its numbers,

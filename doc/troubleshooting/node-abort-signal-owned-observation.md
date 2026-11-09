@@ -35,6 +35,12 @@ if (request.signal
   throw new ProducerInputComparisonError({ kind: 'interruption' });
 ```
 
+The paths this record names under `package/module/translation-repair/src/corpus-run/` were removed
+on 2026-09-15 in `cbedea3574` (refactor(translation-repair):
+remove the provider-free preparation
+infrastructure no pass reaches);
+no file in the working tree carries them now.
+
 The outer catch at
 `package/module/translation-repair/src/corpus-run/producer-input-comparison.ts:338` (removed before 2026-10-18)
 preserves a same-class Error's kind and directory:

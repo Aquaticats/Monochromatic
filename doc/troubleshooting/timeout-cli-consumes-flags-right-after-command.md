@@ -770,6 +770,11 @@ The `repo` group of the harness ran their argument shapes against the stand-in o
   (which would reject `--signal` with exit 2,
   see "Adjacent differences from GNU timeout").
 
+`package/git-policy/cli/src/native/binary_support.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/binary/binary_support.rs` in `3ec1e1201b`
+(refactor(git-policy-cli):
+move the binary-level controls into a binary folder).
+
 So no documented repository command is hit today.
 Both prescribed commands would break silently if their first argument became `--help`,
 `-h`,

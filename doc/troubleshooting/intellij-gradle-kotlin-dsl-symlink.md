@@ -250,6 +250,9 @@ Do not open the nested package as its own IDEA project while debugging this root
 That created `package/linter/kotlin/.idea` and duplicate Gradle entries.
 Remove that nested `.idea` directory and link the package Gradle build from the root project instead.
 
+`package/linter/kotlin/.idea` is not in the working tree and no commit in this repository carries
+it.
+
 Do not use `idea invalidateCaches --help` to inspect the command.
 In this environment it executed cache invalidation rather than printing help,
  then IDEA restored default settings.

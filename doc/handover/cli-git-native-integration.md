@@ -1,5 +1,12 @@
 # cli-git native integration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:config:differential` is retired (2026-10-13 `a2b56c548c`)
+> and no task of that name exists today.
+> `//package/git-policy/cli:native:differential:commit` is retired (2026-10-13 `a2b56c548c`)
+> and no task of that name exists today.
+
 Note 2026-11-08:
 these tasks this document names no longer exist:
 `//package/git-policy/cli:native:config:differential` went on 2026-10-13 (`a2b56c548c`);

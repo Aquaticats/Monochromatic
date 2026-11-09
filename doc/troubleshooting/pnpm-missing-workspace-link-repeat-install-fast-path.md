@@ -30,6 +30,12 @@ Already up to date
 Done in 9.7s using pnpm v12.16.1
 ```
 
+`package/file-enforcer/core/package.json` was removed on 2026-10-31 in `e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own generator);
+no
+file in the working tree carries it now.
+
 and the link was still missing afterwards.
 Nothing failed:
 `tsconfig.json` extends `@monochromatic-dev/config-typescript/dom`,

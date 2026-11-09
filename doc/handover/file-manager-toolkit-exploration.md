@@ -1,5 +1,14 @@
 # File manager toolkit exploration: Slint, then Qt, then GTK4 (handover)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/file-manager-gtk` is now `package/file-manager/variant-gtk-sticky`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager-qt:run` is now `//package/file-manager/variant-qt:run`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager-gtk:run` is now
+> `//package/file-manager/variant-gtk-sticky:run` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

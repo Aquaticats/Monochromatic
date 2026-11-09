@@ -1,5 +1,57 @@
 # Slint IDE implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/ide/design` is now `package/ide/app/design`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/design/questions/2026-10-06-ui-batch-3.html` is now
+> `package/ide/app/design/questions/2026-10-06-ui-batch-3.html` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/src` is now `package/ide/app/src` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:test` is now `//package/ide/app:test`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/bin/container-bounds.ts` is now
+> `package/ide/app/bin/container-bounds.ts` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/Cargo.toml` is now `package/ide/app/Cargo.toml`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:fetch` is now `//package/ide/app:fetch`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:inspect:cadence` is now `//package/ide/app:inspect:cadence`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:lint:closures` is retired (2026-10-19 `269e6ba288`) and
+> `package/ide/app` has no closures task today.
+> `package/desktop-app/ide/monochromatic-lint.prerequisites.jsonc` is now
+> `package/ide/app/monochromatic-lint.prerequisites.jsonc` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/design/screenshots` is now `package/ide/app/design/screenshots`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/Containerfile` is now `package/ide/app/Containerfile`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/LICENSES` is now `package/ide/app/LICENSES`
+> (2026-10-29 `592d78b143`).
+> `package/build-tool/css/src/build.unit.test.ts` is now
+> `package/css/cli/src/build.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/src/annotation/blocks.rs` is now
+> `package/ide/app/src/annotation/blocks.rs` (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/Cargo.toml` is now
+> `package/nested-wayland-session/cli/Cargo.toml` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/terminal:image` is now `//package/terminal/app:image`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/terminal/task.ts` is now `package/terminal/app/task.ts`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/task.ts` is now `package/ide/app/task.ts`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:inspect:no-software-renderer` is now
+> `//package/ide/app:inspect:no-software-renderer` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/src/native/frame_trace.rs` is now
+> `package/ide/app/src/native/frame_trace.rs` (2026-10-29 `592d78b143`).
+> `package/dev-script/task-cli/src/run.ts` is now `package/monorepo-task/cli/src/run.ts`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/README.md` is now `package/ide/app/README.md`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/mise.toml` is now `package/ide/app/mise.toml`
+> (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/src/input.rs` is now
+> `package/nested-wayland-session/cli/src/input.rs` (2026-10-29 `592d78b143`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

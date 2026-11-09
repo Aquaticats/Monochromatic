@@ -1,5 +1,10 @@
 # Translation repair handover 2026-09-06: checkpoints of 2026-10-13, the hardware change and the linter migration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/test/src/package-exports.unit.test.ts` is now
+> `package/test-harness/core/src/package-exports.unit.test.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

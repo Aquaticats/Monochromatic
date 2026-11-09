@@ -1,5 +1,10 @@
 # Translation repair handover snapshots: the writer seating and the live runs of the re-attempt queue, 2026-08-24
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+
 The editor and refiner seating after the forty-round calibration with its reach checks,
 and the three live runs that verified the entry re-attempt queue (196):
 the cap floor,

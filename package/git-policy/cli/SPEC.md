@@ -707,6 +707,31 @@ Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
 A bare repository has no source root and synchronizes an empty set.
+The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
+a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
+so nothing is staged from it.
+The wrapper decides this from the durable items it already judges:
+a journal whose record names the source,
+and an add's stage claim whose record beside it names the source.
+A live owner of either is a copy into the source that has not finished;
+a dead owner's item is not,
+and neither is a copy's own claim,
+whose record names no destination.
+A creating command that finds such a source still runs real Git,
+creates its worktree,
+copies nothing into it,
+and writes one line on standard error saying that it received no ignored-state copy,
+why,
+and the commands that have the copy made once the other add has finished:
+`git worktree remove <destination>` and then the same `git worktree add` again,
+which copies the source's ignored state once it is whole,
+with `git worktree remove` leaving a worktree that holds changes alone.
+The package-manager repair does not run for such a worktree,
+as it does not after a failed copy.
+Nothing waits for the other add and no lock is taken.
+A copy that is still staging its source has no journal yet,
+and a copy's own stage claim records no destination,
+so that window alone is not covered.
 No repository configuration touches this behavior.
 The wrapper-only flag `--no-worktree-copy` skips synchronization for one invocation.
 It is recognized in flag position after the subcommand and before Git's `--` pathspec separator,

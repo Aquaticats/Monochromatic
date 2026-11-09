@@ -51,12 +51,29 @@ the wrapper binary had been replaced by an older one.
     ];
     ```
 
+`package/file-enforcer/core/src/toolchain/providers.cargo.ts` was removed on 2026-10-31 in
+`e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names
+its own generator);
+no file in the working tree carries it now.
+`package/file-enforcer/core/src/toolchain/sync.ts` is not in the working tree;
+the newest commit
+touching it is `8423cf1922` (revert(*):
+remove the toolchain's self-placement into the clearnet
+updates slice) on 2026-10-31.
+`package/git-policy/cli/src/native/config_parse_acceptance_tests.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/config/config_parse_acceptance_tests.rs` in `cb06dfab87`
+(refactor(git-policy-cli):
+move the config modules into a config folder).
+
     and the Rust port did the same in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs` until the structural fix below.
     `cargo binstall --help` (cargo-binstall 1.26.1,
     the locked version) states where that goes:
     "By default,
     binaries are installed to the global location `$CARGO_HOME/bin`".
-3.  At 23:53:45 to 23:54:08 the translation session's worktree setup script (`finish-setup.ts`) ran a sync in
+3.
+ At 23:53:45 to 23:54:08 the translation session's worktree setup script (`finish-setup.ts`) ran a sync in
     `/var/home/user/worktrees/tr-g245`,
     whose `toolchain.lock.json` pins `monochromatic-git-policy-cli` 0.4.0 (main pins 0.4.4).
     Measured afterwards:
@@ -71,7 +88,8 @@ the wrapper binary had been replaced by an older one.
     the 0.4.0 archive's time,
     which is why mtime alone made the file look untouched;
     ctime showed the replacement.
-4.  Wrapper 0.4.0 predates the `rulesFile` array,
+4.
+ Wrapper 0.4.0 predates the `rulesFile` array,
     so it rejects main's configuration before any policy runs.
 
 The sync already knows it is replacing a shared install and says so,

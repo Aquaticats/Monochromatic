@@ -1,5 +1,10 @@
 # Translation repair history, first handover document: overnight of 2026-08-13 and the round three grading steps
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:draw-sample` is now
+> `//package/translation-repair/probe:draw-sample` (2026-10-18 `4bd1aea8d5`).
+
 The record of the 2026-08-13 session,
 in which the alignment fix was refuted and rebuilt and the recurring walls were reduced,
 with the steps for grading round three and the ruling that kept the probe in shadow mode.

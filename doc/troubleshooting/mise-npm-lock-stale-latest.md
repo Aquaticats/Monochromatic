@@ -200,6 +200,12 @@ Current pin source:
  rerun `mise run toolchain:install` to converge
  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
+`package/file-enforcer/core/src/toolchain` is not in the working tree;
+the newest commit touching
+it is `5f5debe2f0` (chore(toolchain):
+move the branch pins up to the newest releases,
+monochromatic-lint 0.4.0 to 0.5.0 among them) on 2026-11-01.
+
 ```bash
 # 1. In mise.lock, change the socket entry version:
 #      [[tools."npm:socket"]]

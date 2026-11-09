@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-21 to 2026-08-23: the consolidation reaches the document
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src` is now split across the `src/` folders of the 36
+> packages under `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 The session of 2026-08-21:
 the consolidation wired into the entry pass,
 four defects fixed on the way,

@@ -332,6 +332,9 @@ Save the probe below as
 `wc/app/src/**/*.browser.test.ts`),
  run it with
 
+`package/wc/app/src/progress-probe.browser.test.ts` is not in the working tree and no commit in
+this repository carries it.
+
 ```bash
 mise run test:browser:firefox -- progress-probe --reporter=list
 mise run test:browser:chromium -- progress-probe --reporter=list

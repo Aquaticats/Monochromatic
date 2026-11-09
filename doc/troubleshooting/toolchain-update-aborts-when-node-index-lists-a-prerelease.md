@@ -33,6 +33,14 @@ a pre-release-only index,
 an empty index,
 and a stable-first index.
 
+The paths this record names under `package/file-enforcer/core/src/toolchain/` were removed on
+2026-10-31 in `e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and
+file-enforcer.config.ts;
+pnpr names its own generator);
+no file in the working tree carries them
+now.
+
 ## Workaround before the fix
 
 None short of editing the recorded node rows by hand.

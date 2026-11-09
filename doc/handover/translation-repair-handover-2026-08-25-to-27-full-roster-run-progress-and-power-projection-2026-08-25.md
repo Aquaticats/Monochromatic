@@ -1,5 +1,10 @@
 # Translation repair handover snapshots: the full-roster calibration run in flight, 2026-08-25
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:editor-calibrate` is now
+> `//package/translation-repair/bench:editor-calibrate` (2026-10-18 `4bd1aea8d5`).
+
 How the forty-slice full-roster run behaved while it ran:
 the launch and its do-not-rebuild rule,
 wall time per slice and the revision that should not have happened,

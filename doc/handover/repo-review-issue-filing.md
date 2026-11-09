@@ -1,5 +1,14 @@
 # Repository review issue filing
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/mutation-test/src/is-record.ts` is now
+> `package/mutation-test/cli/src/is-record.ts` (2026-10-29 `113633b259`).
+> `package/pi-plugin/morph-compact/src/visible-context.ts` is now
+> `package-paused/pi-plugin/morph-compact/src/visible-context.ts` (2026-10-29 `64046360d2`).
+> `package/pi-plugin/auto-mode/src/visible-context.ts` is deleted (2026-10-19 `7ac15b19b4`)
+> and no path of that name exists today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -271,13 +280,13 @@ per `code-claude-code-plugin-1-016`;
  per `code-codex-plugin-1` notes;
  hand to the `config-root` reviewer when it launches.
  The hand-written `isRecord` type guard (57 sites repo-wide,
- owner candidate `package/cli/mutation-test/src/is-record.ts`) per
+ owner candidate `package/mutation-test/cli/src/is-record.ts`) per
  `code-agent-harness-shared-1-002`;
  hand to the `cross-duplication` reviewer when it launches.
  The byte-to-hex nibble encoder is hand-copied across at least six Rust packages
  (`code-cli-2-006` names three more sites in its notes);
  hand to the `cross-duplication` reviewer when it launches.
- `package/pi-plugin/morph-compact/src/visible-context.ts` is a near-twin of
+ `package-paused/pi-plugin/morph-compact/src/visible-context.ts` is a near-twin of
  `package/pi-plugin/auto-mode/src/visible-context.ts` per `code-pi-plugin-1` notes;
  hand to the `cross-duplication` reviewer when it launches.
  `doc/decision/npm-publishing.md` says `./ts` is stripped at publish via

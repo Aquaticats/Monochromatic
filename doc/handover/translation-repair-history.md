@@ -1,5 +1,10 @@
 # Translation repair history
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/doc/audit-ledger.md` is now
+> `package/translation-repair/doc/audit-ledger.md` (2026-10-18 `5cd4ae3ec6`).
+
 ## Current disposition
 
 The finite redesign stopped after Candidate M on 2026-09-01.

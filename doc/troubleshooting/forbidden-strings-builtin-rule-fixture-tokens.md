@@ -86,6 +86,11 @@ The scanner states both missing features in `package/forbidden-strings/cli/READM
         }
 ```
 
+`package/git-policy/cli/src/native/policy_trigger.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/policy/policy_trigger.rs` in `4a7706221a`
+(refactor(git-policy-cli):
+move the policy engine modules into a policy folder).
+
 and the manual-push scope is each new commit's own delta against all of its parents,
  `package/git-policy/cli/SPEC.md:3068-3070`:
 
