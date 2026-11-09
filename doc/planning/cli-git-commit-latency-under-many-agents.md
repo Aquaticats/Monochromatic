@@ -30,7 +30,7 @@ Two records the wrapper writes anyway:
   every Git step the client started with its offset and duration,
   and the quiet ledger.
   The fields are described in `package/git-policy/cli/SPEC.md`
-  ("the longest quiet gap of every Git step").
+  ("The longest quiet gap of every Git step and tool a command ran").
 - The commit service's journal,
   lines starting `answered`,
   one per landing the service took:
@@ -45,15 +45,18 @@ Two records the wrapper writes anyway:
   and the Git steps of that landing
   (`package/git-policy/cli/src/native/service/service_timing.rs`).
 
-The window is the day ending 2026-11-09T03:26:44Z,
-which holds 854 commits and 891 landings.
-Every figure in this record is that window.
+The window is the day ending 2026-11-09T03:33:34Z,
+which holds 866 commits,
+and the same day holds 891 landings in the journal.
+Every figure in this record is that snapshot;
+the log file was copied aside before reading,
+because the machine keeps committing while this is read.
 
 The machine at the time was under pressure of the kind other sessions keep up
 (the owner's rules hold that this is normal and never an excuse):
 load average 27 to 62 on 6 CPUs,
-and `/proc/pressure/io` reporting `full` at 36 percent over ten seconds,
-23 percent over five minutes,
+and `/proc/pressure/io` reporting `full` at 36 percent over ten seconds
+and 23 percent over five minutes,
 while a `repository-move-cutover` unit copied a disk.
 Every measurement this record reports alternates its arms and reports its counts,
 no synthetic load was generated,
@@ -62,84 +65,82 @@ and the probes ran in `systemd-run --user --scope` scopes.
 ## The steps, by what they cost
 
 Client steps,
-one entry per line of the commit record that names a Git step,
-with occurrences,
+one entry per Git step of the commit record,
+with its occurrences,
 median,
 the slowest 1 in 100,
 the maximum,
-and the total over the window:
+and its total over the window:
 
 - `git commit`:
-  826 occurrences over 809 commits,
+  837 occurrences over 820 commits,
   median 42 ms,
   p99 4169 ms,
   max 171 383 ms,
-  399 856 ms in all.
+  400 437 ms in all.
   This is Git building the commit in the scratch repository,
   signing included,
-  and the only step a run of retries repeats.
+  and the only step that a run of retries repeats.
 - `git add`:
-  836 over 836,
+  848 over 848,
   median 37 ms,
   p99 1783 ms,
   max 10 567 ms,
-  114 248 ms.
+  116 527 ms.
 - `git read-tree`:
-  260 over 254,
+  267 over 261,
   median 52 ms,
   p99 3272 ms,
   max 5909 ms,
-  49 753 ms.
+  51 340 ms.
 - `git update-index`:
-  376 over 341,
+  391 over 353,
   median 14 ms,
   p99 660 ms,
   max 3202 ms,
-  18 528 ms.
+  18 932 ms.
 - `git rev-parse`:
-  2261 over 854,
+  2300 over 866,
   median 2 ms,
-  p99 12 ms,
+  p99 10 ms,
   max 1607 ms,
-  9794 ms.
+  9917 ms.
 - `git symbolic-ref`:
-  1652 over 809,
+  1674 over 820,
   median 2 ms,
   p99 14 ms,
   max 1795 ms,
-  6841 ms.
+  6939 ms.
 - `git update-ref`:
-  826 over 809,
+  837 over 820,
   median 3 ms,
   p99 15 ms,
   max 2350 ms,
-  5485 ms.
+  5530 ms.
 - `git for-each-ref`:
-  826 over 809,
+  837 over 820,
   median 4 ms,
-  p99 46 ms,
+  p99 55 ms,
   max 142 ms,
-  4334 ms.
+  4444 ms.
 - `git cat-file`:
-  815 over 798,
+  826 over 809,
   median 2 ms,
-  p99 4 ms,
+  p99 5 ms,
   max 7 ms,
-  1873 ms.
+  1905 ms.
 - `git write-tree`:
   22 over 16,
   median 9 ms,
   max 667 ms,
   1427 ms.
-- The rest together (`git diff-index`,
-  `git merge-tree`,
-  `git diff`,
-  `git hash-object`,
-  `git config`,
-  `git checkout-index`,
-  `git check-attr`,
-  `git merge-base`):
-  under 400 ms in all.
+- `git diff-index` 188 ms,
+  `git merge-tree` 149 ms,
+  `git diff` 58 ms,
+  `git hash-object` 51 ms,
+  `git config` 31 ms,
+  and three steps under 15 ms each,
+  in all.
 
 Every client step is on the commit's path:
 the command waits for each one before it answers.
@@ -176,151 +177,186 @@ and they are small:
 - `git cat-file`:
   349,
   median 3 ms,
-  max 16 ms.
+  max 16 ms,
+  and the rest under 60 ms each.
 
 So the Git children are not the tail:
 one commit's steps add up to a median of 153 ms,
-while its whole record has a median of 1153 ms.
+while its whole record has a median of 1172 ms.
 
 ## The commit, phase by phase
 
-The phases are disjoint and sum to `totalMs`:
+The phases are disjoint stretches in this order and sum to `totalMs`:
 
 - `prepareMs`:
-  median 445 ms,
+  median 450 ms,
   p99 13 576 ms,
   max 25 626 ms,
-  total 1 343 967 ms,
-  25.8 percent of all time.
+  total 1 375 619 ms,
+  26.1 percent of all time.
 - `buildMs`:
-  median 108 ms,
+  median 109 ms,
   p99 26 947 ms,
   max 493 699 ms,
-  total 2 703 169 ms,
-  51.8 percent.
+  total 2 724 762 ms,
+  51.7 percent.
 - `submitMs`:
   median 87 ms,
   p99 13 659 ms,
   max 37 239 ms,
-  total 621 585 ms,
+  total 625 227 ms,
   11.9 percent.
 - `gateMs`:
   median 30 ms,
   p99 3733 ms,
   max 8687 ms,
-  total 175 973 ms,
+  total 176 889 ms,
   3.4 percent.
 - `otherMs`,
   what no phase covers:
   median 3 ms,
   p99 7702 ms,
   max 58 733 ms,
-  total 355 993 ms,
+  total 358 549 ms,
   6.8 percent.
-- `provisionMs` 6639 ms,
+- `provisionMs` 6637 ms,
   `afterLandingMs` 1435 ms,
-  `handoffMs` 3298 ms in all.
+  `handoffMs` 3310 ms in all.
 
 The whole commit:
-median 1153 ms,
+median 1172 ms,
 p99 49 766 ms,
 max 494 667 ms.
 
 ## What the steps wait on
 
-The phases overlap the Git steps,
-so the honest question is where the time sits that no step covers.
-Walking each record's steps in order gives every gap a phase:
+A phase is not a wait and a wait is not a phase,
+so the question is what each phase holds that no Git step covers.
+The phases are laid out in the record's own order,
+each gap between two steps is split across the phases it overlaps,
+and what is left in a phase is the time the command spent there without a Git child:
 
-- gaps in `prepareMs`:
-  3 466 179 ms,
-  74.6 percent of all uncovered time.
-- gaps in `submitMs`:
-  900 143 ms,
-  19.4 percent.
-- gaps in `buildMs`:
-  150 884 ms,
-  3.2 percent.
-- gaps in `provisionMs`:
-  125 061 ms,
-  2.7 percent.
-- gaps in `gateMs`:
-  657 ms.
+- `buildMs`:
+  median 24 ms,
+  p90 6231 ms,
+  p99 23 386 ms,
+  max 493 591 ms,
+  total 2 503 307 ms,
+  53.7 percent of all uncovered time.
+  186 commits hold more than 1000 ms of it and 103 more than 5000 ms.
+  Two commits hold 845 s of the total between them
+  (2026-11-08T23:26:54.998Z at 493 591 ms and
+  2026-11-08T23:26:55.001Z at 351 565 ms);
+  without them the total is 1 658 176 ms.
+- `prepareMs`:
+  median 332 ms,
+  p90 3873 ms,
+  p99 11 884 ms,
+  max 25 460 ms,
+  total 1 009 772 ms,
+  21.7 percent.
+  256 commits hold more than 1000 ms of it and 50 more than 5000 ms.
+- `submitMs`:
+  median 87 ms,
+  p90 973 ms,
+  p99 13 531 ms,
+  max 37 239 ms,
+  total 623 728 ms,
+  13.4 percent.
+  86 commits hold more than 1000 ms of it and 36 more than 5000 ms.
+- `otherMs`:
+  median 3 ms,
+  p99 7393 ms,
+  max 58 733 ms,
+  total 329 506 ms,
+  7.1 percent.
+  52 commits hold more than 1000 ms of it and 14 more than 5000 ms.
+- `gateMs`:
+  median 30 ms,
+  p99 3733 ms,
+  max 8687 ms,
+  total 176 838 ms,
+  3.8 percent,
+  39 commits over 1000 ms.
+- Everything else:
+  11 372 ms.
 
-For the commits over the bar the same split holds (76.3,
-17.4,
-3.7,
-2.5 percent),
-and the largest single gap of an over-bar commit is a prepare gap in 150 of 197,
-a submit gap in 39,
-a provision gap in 5,
-and a build gap in 3.
+The commit's whole uncovered time:
+median 957 ms,
+p90 13 340 ms,
+p99 43 174 ms,
+max 494 448 ms,
+4 656 792 ms in all,
+3 809 938 ms without those two commits.
 
-The prepare gap is the wrapper's own work and the waiting around it:
-median 323 ms,
-p90 3838 ms,
-p99 11 884 ms,
-max 25 460 ms,
-over 1000 ms in 249 commits and over 5000 ms in 49.
+`buildMs` holds three kinds of work and only one of them starts a child Git:
+the shadow repository is created and its entries linked,
+the conclusion state is copied into it and into the transaction,
+and then Git builds the commit there (`git commit`,
+recorded).
+The copy is where a durable write happens:
+the preparation published `conclusion/store-held.json` with a file sync,
+one flush per commit.
+Measured in a throwaway repository of this tree's shape,
+`strace -f -T` put one such `fsync` at
+24.9 s,
+2.5 s,
+1279 ms,
+386 ms,
+179 ms and 8 ms across commits,
+and it sat in the same uncovered stretch of `buildMs`
+that the live records show at 1.3 s,
+2.5 s,
+5.6 s and,
+twice,
+at 351 s and 493 s.
+
+The preparation's uncovered time is the policy engine's own work:
+the same shape took 3.7 s of wall time with 0.076 s of user
+and 0.242 s of system time,
+so it is waiting on this host rather than computing,
+and the Git children of the preparation are recorded separately
+(`git add`,
+`git read-tree`,
+`git update-index`).
 It is not the markdown linter:
 commits whose linter ran have a median prepare gap of 330 ms and those without 309 ms.
-It is not CPU either.
-One commit in a throwaway repository of this tree's shape took 3.7 s of wall time
-with 0.076 s of user and 0.242 s of system time,
-so the process was waiting,
-not computing.
-`strace -T` on the same shape names what it waited on.
 
-What each wait is:
+The service's share is what one landing does that no step covers,
+plus what the commit waits for in the queue:
 
-- Waiting on a child Git:
-  every Git step this record lists,
-  all recorded.
-  Signing lives in the scratch `git commit` (`git commit` max 171 s),
-  and native Git pays it too (`commit.gpgsign` is true here).
-- Waiting on a lock:
-  the service waits for a foreign holder of the index lock
-  (`lock_wait_ms`,
-  p99 342 ms,
-  max 11 490 ms,
-  in 136 of 891 landings),
-  holds it while it moves the branch and builds the index
-  (`lock_hold_ms`,
-  median 51 ms,
-  p99 3554 ms,
-  max 8101 ms),
-  and landings queue behind each other
-  (`queued_ms`,
-  p99 2170 ms,
-  max 24 726 ms).
-  The client never waited on that lock in this window:
-  `lockHolderKind` is null in all 854 records.
-- Waiting on a flush:
-  the preparation-time conclusion copy published `conclusion/store-held.json`
-  with a file sync on every commit.
-  One such `fsync` blocked for 24.9 s,
-  another for 2.5 s,
-  1.3 s,
-  0.386 s,
-  0.179 s and 8 ms across samples.
-  Native Git syncs no such record for the same commit.
-- Waiting on the device in other ways:
-  the wrapper reads the whole 2.9 MB index and copies it into the policy index
-  (1.5 s and 1.05 s in one traced commit),
-  and the scratch tree is removed by a recursive delete when the command ends
-  (one `unlinkat` of 2.5 s;
-  `otherMs` reaches 58 733 ms).
-- Waiting on the service:
-  the landing's residual `reads_ms`
-  (the branch reads and the comparisons,
-  `LandTiming::reads`),
+- residual `reads_ms` (the branch reads and the comparisons,
+  `LandTiming::reads`):
+  median 6 ms,
   p99 9047 ms,
   max 37 068 ms,
-  293 578 ms in all,
-  and the index update `index_update_ms`,
+  293 578 ms in all.
+- `queued_ms`:
+  p99 2170 ms,
+  max 24 726 ms,
+  85 627 ms in all.
+- the wait for a foreign holder of the index lock:
+  p99 342 ms,
+  max 11 490 ms,
+  in 136 of the 891 landings.
+- the lock's hold while the branch moves and the index is built:
+  median 51 ms,
+  p99 3554 ms,
+  max 8101 ms.
+- `index_update_ms`:
+  median 44 ms,
   p99 3247 ms,
   max 7768 ms,
   127 151 ms in all.
+
+The client never waited on that index lock in this window:
+`lockHolderKind` is null in all 866 records.
+
+What the `otherMs` share holds is what a command does outside those phases:
+the removal of the scratch tree when the command ends
+(one `unlinkat` of 2.5 s in a shaped fixture),
+the wrapper writing what the person reads on standard error,
+and the start of the command before its first phase.
 
 Which side each comes from:
 
@@ -332,7 +368,7 @@ Which side each comes from:
   and the in-process policy work of the preparation.
 - From the host:
   how long any of those take under the disk and CPU pressure other sessions keep up,
-  and how long the signing program and the other programs holding the index lock take.
+  and how long the signing program and the programs holding the index lock take.
 - Baseline,
   because native Git does it too:
   one index write,
@@ -353,17 +389,15 @@ retries included,
 is generous to native,
 so the share it gives is a lower bound.
 
-- 197 of 854 commits (23.1 percent)
+- 217 of 866 commits (25.1 percent)
   took more than 5000 ms beyond their own Git steps.
-- Counting only the excess over a whole-commit native estimate of 100,
-  200,
+- Counting instead the excess over a whole-commit native estimate of 200,
   500 or 2000 ms
-  changes the count by little:
+  moves that count by little:
   24.6,
-  24.2,
-  23.4 and 20.6 percent.
+  23.7 and 20.7 percent.
   A native commit does not plausibly take 2000 ms here,
-  so the share sits between 20.6 and 24.6 percent.
+  so the share sits between 20.7 and 25.1 percent.
 
 The second bound is measured:
 in a throwaway repository of this tree's shape,
@@ -378,8 +412,8 @@ so neither owns a position.
 A files-backend repository keeps none,
 so the record said `{}` on every commit and was still published with a file sync
 (`package/git-policy/cli/src/native/commit/conclusion_copy.rs`).
-The flush is on the commit's path,
-inside `buildMs`,
+The flush sat in the `buildMs` uncovered time that holds
+53.7 percent of the record's waiting,
 and it waited for the disk 24.9 s in one measured commit.
 
 The record is now written only where it can name something:
@@ -417,14 +451,14 @@ three commits per arm through `strace -f -T -e trace=%file,%desc,fsync`:
   0.053 s and 0.179 s.
 - After:
   0 of 3 commits flushed it.
-- The wait inside `buildMs` that no Git step covers,
+- The uncovered stretch of `buildMs` the flush sits in,
   before:
   median 29 ms,
   max 128 ms over 6 commits.
   After:
   median 4 ms,
   max 6 ms over 6 commits.
-  Earlier runs of the same fixture before the change showed that wait at
+  Earlier runs of the same fixture before the change showed that stretch at
   1279 ms,
   2530 ms and 5569 ms.
 - Whole-commit wall time:
@@ -439,31 +473,68 @@ three commits per arm through `strace -f -T -e trace=%file,%desc,fsync`:
 ## What remains
 
 Each entry is a step this wrapper adds,
-with the measurement that sizes it.
+with the measurement that sizes it,
+and its share of the record's uncovered time.
+The ranking weighs how much of the measured tail each can take
+against how much of the shared,
+owner-held machinery it would move.
 
-### The private policy index
+### The preparation's private policy index and its in-process work
 
 - What:
-  the preparation reads the whole index into memory and copies it,
-  then writes it again with `git update-index`,
-  in the private policy index.
+  the preparation reads the whole index into memory,
+  copies it into a private policy index,
+  writes it again with `git update-index`,
+  and runs the policies over the staged content.
 - Cost:
+  21.7 percent of uncovered time,
+  median 332 ms,
+  p99 11 884 ms,
+  256 commits over 1000 ms and 50 over 5000 ms;
   3.5 s,
-  1.2 s and 0.35 s of `git update-index` in three shaped commits;
-  1.5 s to read the 2.9 MB index and 1.05 s to copy it under `strace`;
-  over the day,
-  `git update-index` p99 660 ms and `git read-tree` p99 3272 ms.
-- Pros of shrinking it:
-  it is the largest measured write this wrapper adds per commit,
-  and it sits in the bucket that holds 74.6 percent of uncovered time.
+  1.2 s and 0.35 s of `git update-index` in three shaped commits,
+  1.5 s to read the 2.9 MB index and 1.05 s to copy it under `strace`,
+  and over the day `git read-tree` p99 3272 ms and `git add` p99 1783 ms.
+- Pros:
+  it is the largest bucket this wrapper owns outright,
+  it is the largest write the wrapper adds per commit,
+  and nothing about it crosses into another process.
 - Cons:
   `core.fsmonitor`,
-  stat data,
-  and the landing's comparison all depend on that copy;
+  the cached stat data and the landing's comparison all depend on
+  that copy,
   another branch is changing index handling at landing just now,
-  and one index defect is worth more than 3 s of latency.
+  and the records cannot say which policy spends the milliseconds without a profiler.
 - Ranking:
-  1 of 4.
+  1 of 4,
+  for the largest own share at a blast radius of one process.
+
+### The service's landing
+
+- What:
+  the residual reads of a landing,
+  its index update under the lock,
+  and the queue behind an earlier batch holding that lock.
+- Cost:
+  13.4 percent of this commit's uncovered time,
+  median 87 ms,
+  p99 13 531 ms,
+  86 commits over 1000 ms and 36 over 5000 ms,
+  and the largest cross-commit wait in the records:
+  `queued_ms` reaching 24 726 ms,
+  `reads_ms` 37 068 ms,
+  `index_update_ms` 7768 ms,
+  and 28 landings over 500 ms of index update.
+- Pros:
+  it is the only entry that shortens other agents' commits as well,
+  because a landing holds the lock others queue on.
+- Cons:
+  it changes where a landing waits and what it holds,
+  the widest blast radius of the four,
+  and its own share is smaller than the preparation's.
+- Ranking:
+  2 of 4,
+  for the second largest own share and the only cross-commit one.
 
 ### Removing the scratch tree after the commit landed
 
@@ -472,88 +543,62 @@ with the measurement that sizes it.
   which is after the commit landed.
 - Cost:
   one `unlinkat` of 2.5 s in a shaped fixture;
-  `otherMs`,
-  which holds it,
-  reaches 58 733 ms and 6.8 percent of all time.
+  7.1 percent of uncovered time,
+  52 commits over 1000 ms and 14 over 5000 ms,
+  with `otherMs` reaching 58 733 ms.
 - Pros:
   nothing after the removal needs the bytes,
   a sweep already removes stale scratch trees,
   and the change is small and local.
 - Cons:
   a kill or a crash leaves a tree for the sweep instead of removing it at once,
-  and test fixtures need the synchronous path kept for them.
+  and the test fixtures need the synchronous path kept for them.
 - Ranking:
-  2 of 4.
+  3 of 4,
+  for a smaller share than the two before it but the least risk of all.
 
-### The service's landing
+### The rest of the shadow's creation
 
 - What:
-  the residual `reads_ms` of a landing,
-  its index update,
-  and the queue behind an earlier batch holding the index lock.
+  the metadata of `create_shadow_repository_carrying`,
+  which created directories and symlinks and wrote the shadow's config and alternates
+  without syncing any of them.
 - Cost:
-  `reads_ms` p99 9047 ms and max 37 068 ms,
-  `index_update_ms` p99 3247 ms,
-  `queued_ms` max 24 726 ms,
-  and 39 of 197 over-bar commits had their largest gap there.
+  unknown on its own.
+  It shared the measured uncovered `buildMs` stretch with the flush,
+  and the fixture runs that named the flush could not separate them,
+  so this entry is the part of 53.7 percent that the change did not take.
 - Pros:
-  it is the largest wait one commit imposes on the others,
-  so it is the only entry that shrinks other agents' commits too.
+  it is the largest bucket still open.
 - Cons:
-  it touches the shared index lock and the landing order,
-  the widest blast radius of the four,
-  and 19.4 percent of uncovered time is a smaller share than the preparation's.
+  nothing measured sizes it,
+  so any change there would be a guess about a bucket that is small when the device is not stalling.
 - Ranking:
-  3 of 4.
-
-### The preparation's in-process work
-
-- What:
-  the policy engine's own work between the Git steps of a preparation.
-- Cost:
-  median 323 ms per commit,
-  p99 11 884 ms,
-  249 commits over 1000 ms and 49 over 5000 ms,
-  which makes it the typical cost and the tail at once.
-- Pros:
-  it is the whole of the largest bucket,
-  and it is pure waiting on this host rather than on the disk.
-- Cons:
-  no profiler is installed here (`perf` is absent),
-  so the split between the policy scan,
-  the rules load and the capture is unknown,
-  and guessing a rule to cut risks the policies the wrapper exists for.
-- Ranking:
-  4 of 4.
-
-The ranking orders them by how much of the measured tail each can take
-against how much of the shared,
-owner-held machinery it would move.
-The first two are technical and local;
-the third and fourth change where a landing or a policy waits.
+  4 of 4,
+  because it cannot be sized until it is measured.
 
 ## What this could not determine
 
-- Which in-process step inside a preparation spends the median 323 ms.
+- Which in-process step inside a preparation spends the median 332 ms.
   The records name Git steps and phases,
   not policy rules,
   and this host has no profiler.
-- Whether the 493 s and 351 s stalls of 2026-11-08T23:26 were the conclusion copy's flush.
-  Both sat in the same `buildMs` gap,
-  between the shadow's `git config` read
-  and its first reference write,
+- Whether the 351 s and 493 s stalls of 2026-11-08T23:26 were the conclusion copy's flush.
+  Both sit in the same uncovered `buildMs` stretch,
+  between the shadow's `git config` read and its first reference write,
   which is where that flush is,
-  and the same gap reproduced at 1.3 s,
-  2.5 s and 5.6 s with a 24.9 s flush measured inside it.
-  The record holds no sub-step figure,
-  so the live commit cannot be proven to be that flush.
-- How much of `otherMs` is the scratch removal and how much is the wrapper writing
-  what the person reads on standard error,
+  and the same stretch reproduced at 1279 ms,
+  2530 ms and 5569 ms
+  with a 24.9 s flush measured inside it.
+  The record holds no figure for that stretch,
+  so the live commits cannot be proven to be it.
+- How much of the 7.1 percent of `otherMs` is the scratch removal
+  and how much is the wrapper writing what the person reads on standard error,
   which blocks when the reader is slow.
 - Whether native Git would have waited as long in a flush under the same device state.
-  Native Git writes the index and flushes it only when `core.fsync` asks,
+  Native Git flushes the index only when `core.fsync` asks,
   which is unset here,
-  so the comparison in this record is per step and not per device stall.
+  so this record compares step by step and not device stall by device stall.
 
 ## Decisions this record takes, open to the owner's veto
 
@@ -563,8 +608,9 @@ the third and fourth change where a landing or a policy waits.
   That reason cannot apply where no conclusion name can be in the store at all,
   and a record that is never written cannot tear,
   so the files-backend case now answers `{}` where it used to fail closed.
-  The other reading is to keep writing and flushing the record everywhere and to solve
-  this wait some other way,
-  which costs every commit a flush of the disk.
+  The other reading is to keep writing and flushing the record everywhere,
+  which costs every commit a flush of the disk,
+  and to take the wait off the
+  command's path another way.
 - The four ranked entries of this record are proposals,
   not work in progress.
