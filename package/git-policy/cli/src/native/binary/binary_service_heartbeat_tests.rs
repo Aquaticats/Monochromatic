@@ -22,9 +22,15 @@
 //! const outcome = await submit(config, request); // while the fake service sends beats, however long
 //! ```
 
+use git_policy_cli::commit_timing::SubmitTrace;
 use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
-use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit};
-use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE};
+use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
+use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
+
+/// The words a commit the service named no place for is told,
+/// as the person reads them,
+/// without the seconds it waited.
+const UNPLACED_SAID: &str = "has not said where this commit stands";
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
@@ -34,6 +40,7 @@ use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
 /// How long the fake service may be silent before the client under test treats it as stopped:
@@ -43,6 +50,10 @@ const QUICK_SILENCE: Duration = Duration::from_millis(300);
 
 /// How often the fake service beats.
 const FAKE_BEAT: Duration = Duration::from_millis(60);
+
+/// How long a request waits before the client says where the commit stands,
+/// short so a control is quick.
+const QUICK_NOTICE: Duration = Duration::from_millis(250);
 
 /// The longest the controls wait for anything:
 /// far beyond what a healthy run needs,
@@ -100,6 +111,7 @@ fn request() -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/nowhere/.git/index"),
+        scratch: PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-heartbeat-control-0"),
         captured: 0,
     };
 }
@@ -111,7 +123,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None,
+        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: QUICK_NOTICE, units_record_dir: None,
     };
 }
 
@@ -143,10 +155,249 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
         std::thread::sleep(FAKE_BEAT);
     }
     let commit: String = "c".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert!(!notices.contains(SILENT_NOTICE), "a service that beats is never called silent: {notices:?}");
+}
+
+/// What:
+///  A commit the service named no place for is told once that the service has not said where it stands,
+/// and told nothing about
+///  whether the landing has begun.
+/// Why:
+///   The client knows only that no answer has come and that no place was named:
+/// the landing may be waiting behind
+///  another program's `index.lock`,
+/// so words that say the service has not started on the commit would be false.
+#[test]
+fn a_commit_the_service_named_no_place_for_is_told_the_service_has_not_said_where_it_stands() {
+    let name: String = address("unplaced");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let waited: Instant = Instant::now();
+    while waited.elapsed() < QUICK_NOTICE * 4 {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    let commit: String = "d".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert_eq!(notices.matches(UNPLACED_SAID).count(), 1, "said once, and only once: {notices:?}");
+    assert!(!notices.contains("has not started on this commit") && !notices.contains("still reading it"), "the client cannot know that the landing has not begun: {notices:?}");
+    assert!(!notices.contains(SILENT_NOTICE), "the service was never silent: {notices:?}");
+}
+
+/// How long the commit of the stalled-stream control may take to answer:
+/// far beyond the service's own answer,
+/// which is written before the control waits.
+const ANSWERED_WHILE_THE_STREAM_IS_HELD: Duration = Duration::from_secs(10);
+
+/// What:
+///  A stream that takes one line and then stops,
+/// as a pipe whose reader is still open and no longer draining does,
+/// and keeps what it finally takes.
+/// Why:
+///   The review of this notice names the sequence:
+/// a reader that stops draining must not hold the commit's own thread,
+/// which is the
+///  only thread that reads the answer,
+/// withdraws a request at its ceiling and keeps the scratch directory fresh.
+struct StalledStream {
+    /// Says that a line reached the stream and is now held there.
+    held: mpsc::Sender<()>,
+    /// Where the stream waits until the control lets the line go.
+    release: mpsc::Receiver<()>,
+    /// What the stream took once it was let go.
+    kept: Arc<Mutex<Vec<u8>>>,
+}
+
+impl Write for StalledStream {
+    /// Announce that the line arrived,
+    /// wait to be released,
+    /// and keep it.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _told = self.held.send(());
+        let _let_go = self.release.recv();
+        self.kept.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What the stream kept once it took it,
+/// within the patience of the controls.
+fn kept_within(kept: &Arc<Mutex<Vec<u8>>>) -> String {
+    let began: Instant = Instant::now();
+    loop {
+        let taken: String = String::from_utf8_lossy(kept.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_slice()).into_owned();
+        if !taken.is_empty() || began.elapsed() >= PATIENCE {
+            return taken;
+        }
+        std::thread::sleep(FAKE_BEAT);
+    }
+}
+
+/// What:
+///  A commit whose notice stream stopped taking lines still lands,
+/// and the line it said reaches that stream when the reader takes it.
+/// Why:
+///   The standing notice is written between two reads of the service's answer,
+/// so a reader that stopped draining it must cost
+///  the commit nothing:
+/// the answer is still read,
+/// the command ends with it,
+/// and the line goes when the reader resumes.
+#[test]
+fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
+    let name: String = address("stalled-notices");
+    let service: UnixListener = listen(name.as_str());
+    let kept: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let (held_sender, held) = mpsc::channel::<()>();
+    let (release_sender, release) = mpsc::channel::<()>();
+    let stalled: StalledStream = StalledStream { held: held_sender, release, kept: Arc::clone(&kept) };
+    // The stream the command says its lines to, which is written by a thread of its own: this is the fix the control holds.
+    let mut stream: git_policy_cli::foundation::notice_stream_that_does_not_hold_its_writer::NoticeStreamThatDoesNotHoldItsWriter =
+        git_policy_cli::foundation::notice_stream_that_does_not_hold_its_writer::NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(stalled));
+    let (answered_sender, answered) = mpsc::channel::<Result<Submitted, ClientFailure>>();
+    let client_config: ClientConfig = config(name.as_str());
+    std::thread::spawn(move || {
+        let end: Result<Submitted, ClientFailure> = submit(&client_config, &request(), &mut stream);
+        let _sent = answered_sender.send(end);
+    });
+    let (service_stream, _) = service.accept().expect("the client connects");
+    greet(&service_stream);
+    read_request(&service_stream);
+    // The service beats past the notice threshold while its landing runs, so the client says where the commit stands into
+    //  a stream that takes one line and stops.
+    let while_waiting: Instant = Instant::now();
+    while while_waiting.elapsed() < QUICK_NOTICE * 4 {
+        (&service_stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    assert!(held.recv_timeout(PATIENCE).is_ok(), "the standing notice reached the stream, which then held it");
+    let commit: String = "a".repeat(40);
+    (&service_stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    // The answer is read while the line is still held: a stream that stopped taking lines never holds the commit.
+    let end = answered.recv_timeout(ANSWERED_WHILE_THE_STREAM_IS_HELD).expect("the commit answered while its notice stream was held");
+    assert_eq!(end, Ok(Submitted::Landed { commit, already: false }));
+    drop(release_sender);
+    let said: String = kept_within(&kept);
+    assert!(said.contains(UNPLACED_SAID), "the line the client said reached the stream: {said:?}");
+}
+
+/// What:
+///  A place named by a service whose connection then ended is not printed as the place of the wait that follows.
+/// Why:
+///   The place belongs to the batch of the service that named it,
+/// and the request is sent again to a service that decides its own
+///  batch;
+/// printing the old place turns an earlier service's batch into a false statement about this wait.
+#[test]
+fn a_place_from_a_service_that_went_away_is_not_printed_as_the_current_one() {
+    let name: String = address("stale-place");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = client(config(name.as_str()));
+    // The first service names a place well before the wait matters, and its connection ends without an answer.
+    let (first, _) = service.accept().expect("the client connects");
+    greet(&first);
+    read_request(&first);
+    (&first).write_all(&line(&ServiceMessage::Position { number: 2, of: 2 })).expect("the place of its batch");
+    drop(first);
+    // The service that takes the request again names no place, and answers after the wait has mattered.
+    let (second, _) = service.accept().expect("the client sends its request again");
+    greet(&second);
+    read_request(&second);
+    let waited: Instant = Instant::now();
+    while waited.elapsed() < QUICK_NOTICE * 3 {
+        (&second).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    let commit: String = "b".repeat(40);
+    (&second).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert!(notices.contains(UNPLACED_SAID), "the second service named no place, and that is what the person is told: {notices:?}");
+    assert!(!notices.contains("earlier commit") && !notices.contains("is next"), "the place of the service that went away is not said of this wait: {notices:?}");
+}
+
+/// A commit that lands at once prints nothing at all,
+/// so the telling costs a person who commits quickly no line they did not have before.
+#[test]
+fn a_commit_that_lands_at_once_prints_nothing_new() {
+    let name: String = address("at-once");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let commit: String = "e".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert_eq!(notices, "", "a commit the service lands at once prints nothing");
+}
+
+/// A place the service names before the commit has waited at all is kept and not printed,
+/// so a commit that lands at once says nothing new however its place was said.
+#[test]
+fn a_place_the_service_names_before_the_wait_matters_prints_nothing() {
+    let name: String = address("placed-at-once");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = traced_client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let place: (usize, usize) = (2, 4);
+    (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
+    let commit: String = "c".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, notices, trace) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert_eq!(notices, "", "a commit the service lands at once prints nothing");
+    assert_eq!(trace.positions, vec![place.0], "the record keeps the place the service named, printed or not");
+}
+
+/// What:
+///  A commit the service places after it has waited says how many commits go before it,
+/// and the record holds the place the service
+///  named.
+/// Why:
+///   `positions` stayed empty in every record of the incident,
+/// so the place a service names is what this control proves reaches both
+///  the person and the timing record.
+#[test]
+fn a_commit_the_service_places_after_a_wait_says_how_many_go_before_it() {
+    let name: String = address("placed");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = traced_client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let waited: Instant = Instant::now();
+    let place: (usize, usize) = (2, 4);
+    while waited.elapsed() < QUICK_NOTICE * 3 {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
+    let commit: String = "f".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, notices, trace) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    let placed: String = position_notice(place.0, place.1);
+    assert!(notices.contains(placed.as_str()), "the place the service named is said: {notices:?}");
+    assert_eq!(notices.matches(placed.as_str()).count(), 1, "said once: {notices:?}");
+    assert!(notices.contains(UNPLACED_SAID) && notices.find(UNPLACED_SAID) < notices.find(placed.as_str()), "the service not having said where it stands is said first: {notices:?}");
+    assert_eq!(trace.positions, vec![place.0], "the record holds the place the service named");
 }
 
 /// A service that stops sending beats ends the wait:
@@ -285,7 +536,7 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
     greet(&stream);
     read_request(&stream);
     let commit: String = "d".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, _notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
 }
@@ -321,7 +572,7 @@ fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
     greet(&stream);
     read_request(&stream);
     let commit: String = "e".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, _notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
     MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
@@ -382,9 +633,9 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
         std::thread::sleep(FAKE_BEAT);
     }
     // The sweep runs while the command still waits.
-    let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER);
+    let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER, git_policy_cli::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
     let commit: String = "f".repeat(40);
-    if let Err(error) = (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })) {
+    if let Err(error) = (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })) {
         // The client is the one that closed the connection, so what it ended with says why the answer had nowhere to go.
         let (answered, notices) = waiting.join().expect("client thread");
         panic!("the answer could not be written ({error}); the client ended with {answered:?}: {notices}");
@@ -482,7 +733,7 @@ fn a_commit_that_landed_as_the_bound_passed_is_reported_as_landed() {
     let name: String = address("ceiling-race-landed");
     let service: UnixListener = listen(name.as_str());
     let commit: String = "9".repeat(40);
-    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: true };
+    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: true, landing: None };
     let fake = serve_a_wait_and_a_withdrawal(service, Some(landed));
     let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, ..config(name.as_str()) };
     let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceiling");
@@ -571,13 +822,14 @@ fn a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answe
     assert!(waited >= ceiling + extra_wait && waited < ceiling + extra_wait + Duration::from_secs(6), "{waited:?}");
 }
 
-/// Runs the client on a thread and returns what it ended with and the trace it kept.
-fn traced_client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, git_policy_cli::commit_timing::SubmitTrace)> {
+/// Runs the client on a thread and returns what it ended with,
+/// what it printed and the trace it kept.
+fn traced_client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String, SubmitTrace)> {
     return std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();
-        let mut trace: git_policy_cli::commit_timing::SubmitTrace = git_policy_cli::commit_timing::SubmitTrace::default();
-        let answered = git_policy_cli::service_client::submit_traced(&config, &request(), &mut notices, &mut trace);
-        return (answered, trace);
+        let mut trace: SubmitTrace = SubmitTrace::default();
+        let answered = submit_traced(&config, &request(), &mut notices, &mut trace);
+        return (answered, String::from_utf8(notices).expect("UTF-8"), trace);
     });
 }
 
@@ -595,8 +847,8 @@ fn trace_after(label: &str, notices: Vec<ServiceMessage>) -> git_policy_cli::com
         (&stream).write_all(&line(notice)).expect("a notice");
     }
     let commit: String = "c".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
-    let (answered, trace) = waiting.join().expect("client thread");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
+    let (answered, _notices, trace) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
     return trace;
 }

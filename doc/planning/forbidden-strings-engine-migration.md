@@ -88,6 +88,10 @@ Streams stay as today.
 `package/git-policy/cli/src/optional/forbidden-strings/scanner-output.ts`
 and `errors.ts` update in lockstep
  (they strictly parse the current column form).
+That pair was removed on 2026-10-13 in `642b6d72cb` with the rest of the TypeScript CLI;
+there is no successor parser to keep in lockstep,
+because `package/git-policy/cli/src/native/candidate/scanner_adapter.rs` loads the scanner
+library in-process and receives its typed findings instead of parsing its output.
 
 ### Rule 172: drop the curl anchor
 

@@ -2368,9 +2368,10 @@ none is waited out or retried on the moved head yet:
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
   commits queued behind the same lock are refused at once),
-  or was left by a dead owner (Git's
-   lock PID file names a process that is gone;
-  a diagnostic names it at once).
+  or holds a Git lock PID file naming a number this process table does not have
+  (a killed Git leaves one,
+  and so does a live Git in another PID namespace,
+  so the commit waits and the line says which number was read).
   The commit is withdrawn,
    kept on a side ref named
    in the message (`refs/cli-git/kept/<batch>`),
@@ -3093,6 +3094,32 @@ Each line names what the command waits for,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
    A commit that opens the person's editor prints nothing and has no ceiling.
+- A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
+  `service/wait_ceilings.rs`;
+  twice the owner's bound of 5 s on what a commit may add to native Git,
+  and reached by 26 of the 909 answer waits in this host's commit timing log of 2026-11-09):
+  one line says where the commit stands,
+  and it is said once for each place the service names,
+  not on the repeat schedule above.
+  When the service named the place of the commit's batch it reads `Waiting for N earlier commits.`,
+  or `This commit is next.` for the first place;
+  when it named none it reads "The commit service has not said where this commit stands yet;
+  it has waited 12 seconds.",
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`,
+  and may claim nothing about whether the landing began.
+  A commit that lands within those 10 seconds prints nothing,
+  and `CLI_GIT_STANDING_NOTICE_SECONDS` (a positive number of seconds) sets the wait for a control.
+  The service names the place of a batch's first request only once that request has waited as long,
+  so a client of an earlier release,
+  which prints every place it is told,
+  sees one only for a commit that waited.
+  A place belongs to the connection that named it:
+  a request sent again after its service went away starts with no place,
+  so a stale one is never printed as this wait's.
+  Every line is written by a thread of its own and dropped when the terminal stops taking lines,
+  so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
+  and never its answer.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
    or one with a template or clean-up mode) is built again on the new tip,
@@ -3444,9 +3471,23 @@ its measurements and the evidence needed to change it are in
 
 The wrapper keeps its state beside the repository's Git data under `monochromatic-git-policy-cli*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
-A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>` in the worktree's Git directory while it is made;
- the commit service removes it when the command ends,
-however it ends.
+A commit keeps a scratch directory `monochromatic-git-policy-cli-service-<id>-<attempt>` in the repository scratch directory
+ `monochromatic-git-policy-cli-scratch` while it is made;
+ the commit service removes the tree of an attempt once that attempt's landing is over,
+and a command that no service took the tree from removes it itself as it ends.
+Nothing in a commit waits for that removal:
+ it happens beside the landing loop,
+bounded by `SCRATCH_REMOVAL_CEILING` (thirty seconds),
+ so a device that stalls costs a partial removal and a line in the service journal,
+never a slow commit.
+A tree no request ever named,
+because its command was killed before it submitted,
+goes once nothing has written it for two hours,
+and its command renews it every hour while it lives,
+so a running command never loses it;
+the trees a machine makes while no service answers are bounded by that rule (about 9 MiB each)
+ and by at most eight removed per command sweep;
+ other entries of the directory go once they are a day old.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
@@ -4912,10 +4953,50 @@ all durations in whole milliseconds taken from the monotonic clock:
   `unproven` for an owner nobody could prove alive,
   null when there was none),
   `reconnects` counts connections that broke and `sends` counts requests written.
+- `landing` states what the landing of this commit spent and held,
+  which the service measures and the answer carries,
+  and is `null` for a service of a release that sends no figures:
+  `lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
+  `queuedBehind` is how many requests were still waiting for their answer when the landing finished,
+  `readsMs` is the whole of the residual reads,
+  `reads` names each of them
+  (`config`,
+  `branch`,
+  `parents`,
+  `changed`,
+  `content`,
+  `witness`,
+  `conclusion`,
+  `owed`,
+  `follow`,
+  and never more than `readsMs` together),
+  and `syncs` is every file or directory sync the landing asked for,
+  in the order it asked,
+  each as `{"what": "built-index", "waited": true, "ms": 12}`,
+  with `waited` false for one it handed to the background task and never waited for.
 - `handoffMs` is one figure:
   leaving the work records and waking the service,
   which reaches the service a second time.
   It is not split into a reach and a wait.
+- `scratchRemovalMs`,
+  `removalsThatDidNotFinish` and `stderrMs`
+  are the two costs measured wherever they fell,
+  so a reading can say which of them a slow `otherMs` was:
+  the time spent removing scratch trees,
+  how many of those removals ended without finishing within their ceiling,
+  and the time spent writing to standard error,
+  which waits for whoever reads it.
+  They were added for the reading in
+  `doc/planning/cli-git-commit-latency-under-many-agents.md`.
+- `prepareParts` splits the preparation by the stretch of work it was in,
+  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  the seams are one line each in `src/native/landing/service_prepare.rs`,
+  each figure is the time that stretch spent without a Git child
+  (the steps are listed apart in `steps`),
+  a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
+  and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
+  It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
@@ -4944,6 +5025,31 @@ all durations in whole milliseconds taken from the monotonic clock:
   The service's `answered` line ends with `steps="git rev-parse@3+4;..."` (`name@offset+duration`,
   the offset from the request's
   acceptance) and `steps_dropped=<count>`.
+
+The landing's own figures are on the same line and in the record's `landing`:
+
+- `landing_ms` is the whole landing,
+  and its phases are `lock_wait_ms` (another program's hold on the index),
+  `reads_ms`,
+  `objects_ms`,
+  `journal_ms`,
+  `ref_ms` and `index_update_ms`.
+- `reads_ms` is named one read at a time by `reads_config_ms`,
+  `reads_branch_ms`,
+  `reads_parents_ms`,
+  `reads_changed_ms`,
+  `reads_content_ms`,
+  `reads_witness_ms`,
+  `reads_conclusion_ms`,
+  `reads_owed_ms` and `reads_follow_ms`,
+  which are parts of it and never more than it together.
+- `lock_hold_ms` is how long the landing held the index,
+  and `queued_behind` is how many requests were still waiting for their answer when it finished,
+  the batch's own taken out.
+- `syncs_waited` and `syncs_queued` count the syncs the landing waited for and the ones it handed to the background,
+  `sync_held_ms` is the time it spent waiting for its own,
+  and `syncs="built-index=12;intent-file=queued;..."` names each one with its milliseconds or with `queued`.
+  A background batch of a landing's records says in the journal how many it made and what they cost.
 
 The service writes to its standard error,
 which the service manager keeps in the journal of its unit.

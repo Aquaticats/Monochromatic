@@ -13,7 +13,8 @@ use crate::test_support::{git, git_text, remove};
 /// A landing of one changed file in a repository configured with `settings`,
 /// and the flushes its Git children reported.
 /// Why the controls below take tens of seconds:
-///  the landing's own phases are the cost, never the counting of the flushes.
+///  the landing's own phases are the cost,
+/// never the counting of the flushes.
 /// Measured on 2026-11-09 with
 ///  this host at a load average of 62:
 /// one landing took 107.9 s,

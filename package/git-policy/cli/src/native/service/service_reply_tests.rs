@@ -58,7 +58,7 @@ fn a_waiting_client_is_sent_heartbeats_until_it_is_answered() {
         for _ in 0..BEATS_WANTED {
             assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat);
         }
-        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false };
+        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false, landing: None };
         reply.send(&landed);
         loop {
             let heard: ServiceMessage = next(&mut client).await;
@@ -112,7 +112,7 @@ fn the_beat_ends_with_the_reply_and_the_connection_closes() {
 fn queued_answer_is_written_before_the_connection_closes(delay: Duration) {
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (reply, writer, mut client) = connected();
-        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false };
+        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false, landing: None };
         tokio::time::sleep(delay).await;
         reply.send(&landed);
         drop(reply);

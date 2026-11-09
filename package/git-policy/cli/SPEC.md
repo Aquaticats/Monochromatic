@@ -164,11 +164,13 @@ a brace is ordinary text to Git,
 while the glob compiler beneath the matcher reads `{a,b}` as an alternate group,
 so a literal brace is escaped for that compiler and a brace inside a character class is left as it is.
 A control beside the matcher asks native Git's `git check-ignore` the same questions for every pattern
-shape it covers,
-and one shape stays different:
-a character range that runs backwards (`[z-a]`) is a class matching nothing to Git and a refusal
-here,
-which fails the policy with a message naming the pattern.
+shape it covers.
+A character range that runs backwards (`[z-a]`) keeps only the character that opens it,
+which is what Git matches there,
+and the glob compiler refuses the range itself.
+A pattern the compiler still refuses,
+a trailing escape,
+fails the policy with a message naming the pattern.
 
 ## Policy re-run after a retried landing
 
@@ -315,12 +317,37 @@ and the value is checked and ignored.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's wait for a foreign `index.lock` replaced it:
   a holder proven alive and an owner nothing proves alive are both
-  waited for until the lock ceiling ("Every wait has a bound"),
+  waited for until the lock ceiling ("Every wait has a bound",
+  and a descriptor whose record names the lock and which the scan could not identify keeps a PID file's absent number from
+  declaring the owner dead:
+  that holder may be alive,
+  so the wait is the one a live holder gets).
   except an empty lock with no marker,
   no PID file and no holder a complete scan finds,
   which the service removes (owner,
   2026-11-07,
-  "Service removes it"),
+  "Service removes it").
+  The window of item 3 is open here too:
+  a holder that puts another file on the descriptor between the gate and the read is read as not holding the lock,
+  so the removal may take a lock that is in fact held,
+  and the journal line says what it acted on.
+  The proof counts the service's own descriptors through the gated read of item 3 above
+  (`src/native/process/open_file_of_a_descriptor.rs`),
+  so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
+  one that names a file a repository could hold makes the count unknown and the lock stays,
+  and one that is no file of a repository (a pipe,
+  a socket,
+  a memory or device file,
+  a file under `/proc` or `/sys`) is skipped.
+  A descriptor that ended while it was being counted names nothing.
+  A descriptor of this process on a file no repository could hold is skipped,
+  and a memory file is one of them:
+  the kernel writes its link as `/memfd:<name> (deleted)`,
+  with the leading slash its other pseudo names do not have,
+  so that slash is dropped before those names are matched,
+  and an open capture no longer keeps an abandoned lock
+  (cross-vendor review of 2026-11-09,
+  finding 4).
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -496,6 +523,10 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   judged by the identity the file system gives it:
   a symbol link in the way decides what `..` means,
   so a lexical rewrite of the path would scan a directory Git runs no hook in.
+  That identity is decided within the report's ceiling,
+  because pathname resolution waits on a mount whose server has stopped answering;
+  a resolution that gives no answer keeps the configured directory,
+  which is then scanned beside the default one.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
@@ -520,9 +551,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   a link,
   a file that differs by one byte and a shim under another hook's name do not.
   The comparison reads at most 1024 bytes of those four names and nothing else.
-- It prints one path per line on stdout for every hook that is not a Git LFS shim,
+- It prints one pathname per line on stdout for every hook that is not a Git LFS shim,
   the default directory first and each directory in name order,
   and nothing else on stdout.
+  Each pathname is printed as its own bytes,
+  because a pathname is a byte string:
+  its text spelling with replacement characters names a different directory,
+  so a text report could name a hook the command never inspected.
   When it finds any it also explains on stderr that traditional hooks are unsupported.
 - Git LFS shims are reported on stderr only,
   apart from the other hooks,
@@ -577,15 +612,32 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   The exit status never depends on it,
   and doctor never writes configuration.
   A listing that cannot be read or parsed is said plainly in place of the line.
-- It does not load configuration,
-  recover transactions or take a lock,
-  and it changes nothing.
+- It loads `monochromatic-git-policy-cli.config.jsonc` only to name the retired `hooks`,
+  `indexLock` and `landing` keys and the limits of the folder of saved copies;
+  a file that cannot be loaded is not its to report,
+  and every other command names the problem.
+  It recovers no transaction,
+  takes no lock,
+  and it changes nothing:
+  a name an earlier release kept in the common Git directory stays where it is,
+  and the report reads a kept folder under whichever spelling stands there
+  (`kept_names_in_the_git_directories.rs`,
+  `path_for_reading`).
+  The program that owns those names settles them,
+  and that is not this command.
   Each file system read of it (the hook directories,
   the shim files and the host facts of the filesystem section)
   is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
   so a mount that stops answering cannot hold the command:
   a read that gives no answer makes the command say which read it was and carries on,
-  with status `2` for a hooks directory and one line of standard error for the host facts.
+  with status `2` for a hooks directory and one line of standard error for the host facts and for the folder of saved copies.
+- The saved copies are read under every data folder the repository holds,
+  the current `monochromatic-git-policy-cli` and the earlier `cli-git`,
+  and each folder that holds a copy gets its own block with its size,
+  count and oldest save.
+  A repository can hold both names at once,
+  and the earlier folder can hold the only copy,
+  so a report that named only one folder would hide a person's recoverable data from the person who asked what is there.
   The filesystem section describes the checkout Git reports for where the command runs
   (`git rev-parse --path-format=absolute --show-toplevel`),
   and says nothing about a file system when Git reports none,
@@ -2667,7 +2719,9 @@ An owner is alive when a process with its id and its birth identity exists;
 one in a PID namespace the reader cannot see is
 alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`,
 20 minutes),
-and past it the command that finds the item stops with an
+and past it,
+or as soon as the item's own time cannot be measured against this host's clock,
+the command that finds the item stops with an
 error that names the item and changes nothing (the owner's "Refuse and name it (Recommended)",
 "Foreign-owner expiry" below);
 one the platform cannot report on is not proven dead,
@@ -2696,7 +2750,10 @@ the stage is a private owned directory beside the destination,
 and every intended entry exists in the private manifest.
 Every pending transaction then reaches an end:
 
-- A destination that no longer resolves to a linked registration under the same common directory,
+- The repository's own registrations decide whether a destination is still a linked worktree of it:
+  one registration under `<common>/worktrees` names the destination by its `gitdir` file,
+  and it names it whatever a command is doing to the destination's `.git` file at the time.
+  A destination no registration names,
   because it was removed,
   moved,
   pruned,
@@ -2705,29 +2762,44 @@ Every pending transaction then reaches an end:
   recovery removes the private stage and journal,
   never touches the destination path,
   and writes one notice line.
-  The `.git` pointer is read as bytes,
+- A `gitdir` file that was not read whole proves nothing,
+  and neither does a recorded path that cannot be resolved,
+  because a command that unlinks,
+  truncates or rewrites that file leaves it empty,
+  cut short,
+  gone or unreadable for as long as it runs,
+  and a directory the recorded path crosses can lose its search permission while the registration stays.
+  The recorded path is compared as bytes,
+  with only the one line feed that ends the file removed,
+  because the first byte of a worktree's path can be a space that belongs to it.
+  Recovery keeps the stage and the journal and writes one notice line saying where they stay.
+- A destination a registration names whose `.git` file does not name that registration is the answer that proves
+  nothing,
+  because a command that unlinks,
+  truncates or rewrites the pointer leaves it missing,
+  empty,
+  cut short,
+  in a symbolic link loop,
+  naming another directory,
+  a named pipe,
+  a device,
+  a directory or a file past `GIT_FILE_LIMIT`,
+  while the worktree stays registered.
+  Recovery keeps the stage and the journal,
+  writes one notice line saying that the repository still registers that worktree but the file does not name that
+  registration,
+  and leaves the copy to the next command that finds the file naming it again.
+  The pointer itself is read as bytes,
   as a plain file without blocking and without following a link,
   and never past `GIT_FILE_LIMIT`,
   with every trailing line feed and carriage return stripped as Git's `read_gitfile_raw` strips them,
-  so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds.
-  A named pipe at that name would stop its reader until a writer comes,
+  so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds;
+  a named pipe at that name would stop its reader until a writer comes,
   and the pending check runs before every forwarded command,
   so one worktree's pipe could stick a command in an unrelated worktree.
-- A destination whose pointer cannot be followed,
-  because the file names no directory,
-  the directory it names is not there,
-  or the file is empty,
-  half written,
-  a link,
-  a named pipe,
-  a device,
-  a directory or past the bound,
-  is not evidence either way:
-  a command killed while it rewrote the pointer leaves the file cut off in just that way,
-  and the worktree and its registration under the common directory are still there.
-  Recovery keeps the stage and the journal,
-  writes one notice line saying that whether the worktree is still registered is unknown,
-  and names the commands that show and settle it.
+  No state of that file and no directory that cannot be listed makes the check fail:
+  it answers,
+  and the copy stays.
 - A transaction whose private stage is gone is discarded the same way,
   with a notice that ignored files in the destination may be incomplete.
 - Otherwise installation resumes.
@@ -3753,6 +3825,8 @@ a figure is a gap of some step of the service since the previous answer,
 not of one request.
 Every Git step a command or a landing starts is also listed with its duration (`src/native/transaction/transaction_step_durations.rs`):
 `steps` in the commit timing record (`name`,
+and the read-only queries the in-process readers decline count here too,
+because a commit that waits on one must name it (`src/native/repo_read/git_metadata.rs`);
 the program and the subcommand only;
 `offsetMs` from the command's start;
 `durationMs`) and `stepsDropped`,
@@ -3888,6 +3962,333 @@ A stop is written once,
 by whichever enforcer ended the step first,
 and the wait's own record sets `armed` for a step whose notice thread never ran.
 There is no state in which a commit under a ceiling waits with nothing to end its step.
+
+##### What a stop reads about a step, and what it sends
+
+A look at a process's record (`/proc/<pid>/stat`,
+`src/native/process/process_tree.rs`)
+answers one of three things,
+never two:
+the process is there and is the one that was found,
+it is gone,
+or its record could not be read.
+A refusal (a descriptor limit,
+a permission,
+an I/O error,
+a record that cannot be parsed)
+is not an exit:
+nothing is concluded from it,
+and nothing is signalled through it,
+while the grace and the ceiling end the step as they would have.
+Reading a refusal as "the process is gone" signalled nothing,
+so a ceiling ended nothing,
+the wait outlasted it,
+and the lock sweep ran against a live tree
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 4).
+A refusal is not a proof of which process the number names either,
+so nothing is signalled through it,
+and one line says that the step it names was not sent that signal:
+the member was found a moment ago and may have ended and been reaped since,
+and its number may belong to an unrelated process.
+The root of a step whose record could not be read is therefore never signalled:
+`member_read` answers that it is no member of the tree
+(`src/native/process/process_tree.rs`,
+`src/native/push/child_watch_clock_marks_and_stopping.rs`),
+so no number is sent a signal,
+one line says which signal the step was not sent,
+and the stop's waits are bounded whether the root is in the tree or not.
+A member whose record reads as gone is never signalled:
+its number may be another process's by now.
+Every wait of the stop is bounded:
+the wait after the kill ends with a grace of its own,
+extended only while a member is in uninterruptible sleep and up to the
+stop's ceiling,
+so a root whose record cannot be read is waited for no longer than that rather than for
+as long as the process lives
+(`the_wait_after_the_kill`).
+The watch pins its root once,
+when the child starts and is still this process's own unreaped child,
+and both signals of the stop go through that pin (`pin_at_start`,
+`send_to_the_root`).
+Reading the record again at the signal would establish only which process holds the number *then*:
+the root can have ended and been reaped during the grace,
+and an unrelated process that received its number would be the one signalled
+(the third review's finding 1).
+That pin also answers whether the root is still there (`has_ended`),
+and the stop reads no tree and arms no ceiling for a root that has ended:
+the children of a number that was reused are not this step's,
+and a status the wait already collected is the answer rather than a ceiling the stop reached
+(the fourth review's findings 1 and 2).
+
+One window is left open there,
+and this file records it rather than closing it.
+The pin answers whether the root has ended (`the_root_is_still_there`),
+and the tree is walked after that answer (`descendants_of_a_root_that_still_runs`,
+`src/native/push/child_watch_clock_marks_and_stopping.rs`).
+For a process that is not the step's to receive a signal there,
+the root would have to end,
+be reaped,
+and have its number handed to another process that starts children,
+all within the few instructions between that answer and the walk
+(the fifth review's finding 1).
+Everything after the walk closes its own interval:
+a member is signalled through a descriptor opened while its number was proven to still name it,
+so the proof covers the moment of the signal,
+and the walk itself is what the proof cannot cover.
+That window is open in the same way where nothing proved which process the root's number names:
+the walk goes on there (`Pinned::Unproven`),
+so that a bound is never lost to a record that could not be read,
+and a member that cannot be proven at its signal is not signalled at all.
+
+A signal is sent through a descriptor that names the process,
+never to a number read a moment earlier.
+Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the two in which the
+number can be reused by another process of this account,
+and the cargo-shadow review called that shape a P1.
+Every member and the root of a step are therefore held by a pidfd where the kernel gives one
+(`src/native/process/pinned_member_signalled_through_a_pidfd.rs`),
+the start time is read before and after the descriptor is opened to show the number named one process
+throughout,
+and the signal goes through the descriptor with `pidfd_send_signal`.
+This is the pattern `binary/binary_supervisor_pin.rs` already uses for the hang guard of the binary
+tests,
+in production form.
+A pin always is its descriptor,
+and a host that gives none has no pin at all:
+nothing is signalled there,
+and the sentence says what was not done.
+The fallback that read the start time again right before the number was signalled is gone,
+because the window between that read and the call is exactly the one a descriptor closes
+(the third review's finding 3).
+One signal stays by number on purpose:
+the whole process group of the repair tool,
+whose leader is unreaped at that moment,
+so the kernel cannot have given its number to anything else,
+and a group is not a thing a descriptor can name.
+The rule is one decision everywhere:
+a number is a safe address only while its process is this process's own unreaped child,
+and anything else goes through a descriptor taken while that identity was proven.
+A second look at a record that fails after the descriptor was opened holds nothing and signals
+nothing:
+between the two looks the process the first one found can have ended and been reaped,
+and the number can name an unrelated process,
+which the descriptor then names
+(the third review's finding 2).
+
+A one-shot query's ceiling is a deadline kept by the thread that owns the child.
+`output_of_within_bound` (`src/native/process/captured_child_run_to_its_end.rs`) waits for its child
+with `wait_within` (`src/native/process/child_waited_for_within_a_ceiling.rs`),
+and its output goes to anonymous files,
+so it needs no reader at all.
+While that thread waits it has not reaped the child,
+so the kill at the ceiling reaches the child and nothing else:
+the pin a caller used to signal at its ceiling,
+and the fallbacks that went with it,
+are deleted rather than patched again
+(the second and third reviews' findings about signalling by a reused number).
+The caller no longer signals anything.
+
+A child the kernel will not release is not waited for past the stop's grace.
+Past the grace `wait_within` hands it to
+`src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs`,
+which gives it to a thread that collects it when the kernel lets go,
+and keeps it in a list the next reaper drains when the system refuses that thread,
+so the child is never lost and never a zombie for this process's life.
+The command stops waiting and says the query was left running,
+not that it was ended
+(the fourth review's findings 4,
+5 and 9).
+`OwnedChild::end_and_reap` takes the same grace before it hands a leader on,
+so the step route has the bound this file states for a leader that does not end in `STOP_GRACE`,
+and it answers whether that leader was left running,
+which is what the sentence of a ceiling the wait carried says (`AtTheCeiling`).
+
+A step left running is owned by a thread that waits for it,
+and that thread is given the child through a channel rather than through its closure:
+a refused start drops its closure,
+so a child moved into it would be neither ended nor reaped,
+and would stay a zombie of this process once it ended.
+The child the refused start hands back goes to the reaper above
+(the fifth review's finding 3).
+Where no task of the runtime can run at all,
+the child a step left running is handed to that reaper too
+(the fifth review's finding 4).
+Which of the two ways awaits that child is decided by whether a task can run now
+(`tasks_can_run`),
+not by how the runtime was first built:
+a build that missed its deadline can have arrived since,
+and its workers take the child.
+
+A batch query of the manual push is read by the runtime,
+not by threads of its own.
+The two pipes are made and registered before the start
+(`src/native/process/step_output_read_whole_through_pipes.rs`),
+both streams are read in one select that also holds the end of the wait,
+and the request list goes in from one thread whose write carries the query's own ceiling:
+there is no queue between the query and its answer,
+no reader thread that a dropped receiver cannot end,
+and one drain deadline after the query's end rather than one per chunk
+(the fourth review's findings 3,
+6 and 8).
+Its answer is bounded by the request list this command wrote,
+and a list that was cut short is not an
+answer:
+the query fails and says the list was cut short
+(finding 7).
+The thread that writes a batch query's request list writes with the query's own ceiling as its
+deadline (`write_within`),
+one pipe buffer at a time,
+and gives up when the pipe takes nothing within it,
+so a program the query started that holds the read end of that list without reading it no longer
+leaves the thread blocked in the kernel for that program's life
+(the third review's finding 6).
+It is not joined either:
+what it writes is the query's request,
+and the answer is taken from the query.
+
+A signal the wrapper catches is relayed to the child or it ends the wrapper;
+it is never swallowed.
+`SignalGuard` (`src/native/process/signal_relay.rs`) installs the handlers of `SIGINT`,
+`SIGTERM`,
+`SIGHUP` and `SIGQUIT` and points one never-closed descriptor number at a pidfd for its child,
+so a signal reaches that child and never a reused number.
+When the child cannot be published to that descriptor (a `pidfd_open` a descriptor limit refuses,
+a `/dev/null` that cannot be opened,
+a `dup3` that failed),
+no handler is left installed:
+the dispositions the guard replaced go back for the rest of its life,
+so the next of those signals ends the command as it would without a guard,
+and the warning says so and names the limit to check.
+Keeping the handlers with nothing published meant the signal reached neither the child nor the wrapper,
+and only `SIGKILL` ended the command
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 6).
+
+A step whose watcher cannot exist says so,
+and still ends at its ceiling.
+The watcher is a task of the runtime,
+and a task needs a worker thread of its own
+(`src/native/foundation/lazy_runtime.rs`).
+When the runtime has none (the current-thread stand-in,
+or a build the system refused),
+nothing announces the wait,
+nothing ends the step for being quiet,
+and nothing ends it at its ceiling.
+The refusal is now said once in the command's diagnostics,
+the watch records it,
+and the wait carries the step's own ceiling:
+a step that has one is ended at it,
+with the whole process tree `StepBound::EndAt` names,
+and fails with a sentence naming the refused thread and the limit to check.
+A step with no ceiling is still waited for as long as it lives,
+which the owner decided for a write that cannot be run twice,
+and the sentence that says nothing watches it is what tells the person
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 8).
+The line goes straight to the diagnostics rather than through the blocking pool,
+because the refusal means no task may be reachable;
+it is one line per step.
+
+The read of a step that is ended at its ceiling ends with the step,
+not with the last program that holds its pipes open.
+A step's output is read whole through two pipes
+(`src/native/process/step_output_read_whole_through_pipes.rs`),
+and a pipe ends at end of file,
+which needs every write end closed.
+Hooks are off below a watched step,
+so the programs that can hold one are the ones Git runs from configuration:
+a smudge or clean filter,
+a merge driver,
+or a signing program.
+A program that outlives the step keeps the read open for as long as it lives,
+so the command waited past the step's ceiling with its locks and its transaction held
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 2).
+Each read therefore ends `OUTPUT_DRAIN_AFTER_EXIT` (1 second,
+labelled unmeasured) after the step has ended,
+and the step fails with a sentence that names the program still holding the output,
+which the mount and inode of the pipe find (`src/native/process/process_use.rs`),
+and says to check that program with `ps` and to run the command again.
+An end of file wins over that drain:
+the read is asked first at every poll,
+and where the reactor has not yet heard that the last writer closed,
+the descriptor itself is asked,
+whose non-blocking read answers end of file at once.
+So a step that wrote its whole answer and ended is answered,
+not reported as one whose output is held open
+(the fifth review's finding 5).
+What the read got before that moment is not returned as the step's answer:
+a step whose output may be incomplete is reported,
+never guessed at.
+
+The step's answer is its exit status and its standard output.
+A program that still holds the step's standard error open one second after the step ended therefore
+does not fail the step:
+the exit status and the whole of standard output come back,
+the bytes of standard error read before the drain ended come back with them,
+and one line names the program and says where that stream stops
+(`src/native/process/step_output_read_whole_through_pipes.rs`).
+A standard output a program still holds open stays a failure,
+because the answer itself may be incomplete.
+
+A read-only query the wrapper asks of Git ends at a ceiling of its own.
+The metadata questions (`src/native/repo_read/git_metadata.rs`) and the two one-shot questions of the
+invocation (`src/native/repo_read/git_system_config.rs`,
+`src/native/invocation/management_service_repository_selection.rs`) run with their output in anonymous files,
+so no pipe can fill and no reader is needed,
+and their end is awaited on a thread with a deadline of `PLUMBING_STEP_CEILING`.
+A query past the deadline is ended with `SIGKILL` and reported with a sentence that names the program,
+the ceiling and what to look at;
+a query that answers is unchanged,
+and such a query changes nothing of the repository,
+so ending it costs nothing
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 5).
+A metadata answer has to be whole,
+though,
+and it is:
+a read bounded at its ceiling is drained through pipes,
+every byte of it
+(`an_answer_larger_than_the_capture_keeps_comes_back_whole`),
+so an answer larger than the `STEP_OUTPUT_LIMIT` bytes the captured run keeps comes back whole and no
+refusal of a cut one is needed on that route.
+A forwarded command (`src/native/invocation/forwarding.rs`,
+`status_retrying`) keeps no ceiling on purpose:
+there the person's Git owns the terminal,
+the wrapper only carries its exit code,
+and ending it would take the terminal away from the person mid-command.
+
+A batch query of the manual push writes its request list while it reads the answers.
+`cat-file --batch-check` and `rev-list --stdin` read one request and write one reply in a loop
+(`src/native/push/manual_push_range.rs`),
+and the wrapper wrote the whole list before it read anything,
+so a reply pipe that filled stopped Git reading the list and the write waited for the reply for good
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 9).
+The list goes in from a thread of its own,
+the answers are read by the runtime,
+and the wait carries `PLUMBING_STEP_CEILING`,
+so a query that never answers is ended and reported with the command line and the ceiling,
+and a query the kernel would not let end is reported as one left running rather than as one ended
+(the fifth review's finding 6).
+A list that was cut short at that ceiling is reported rather than answered,
+because what Git answered
+covers only the part of the list that went in.
+
+LFS is paused by the owner,
+so the two LFS waits are recorded and not changed:
+the interactive `git-lfs push` (`src/native/lfs/lfs_upload.rs`,
+under `SignalGuard` alone)
+and the upload plan's Git questions (`src/native/lfs/lfs_interactive.rs`,
+`Command::output`).
+Each needs the end its own twin already has:
+the upload through the bounded push (`src/native/push/bounded_push.rs`,
+whose bounded twin of the same program `lfs_upload.rs` already calls),
+and the plan's questions through the bounded query (`src/native/push/bounded_query.rs`),
+which is the meter with no wall clock that the push's own queries use.
+Until then a server that accepts the connection and never answers holds an interactive push,
+and nothing says which program the command waits for.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -4161,6 +4562,9 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   not
   reclaimed:
   see "Foreign-owner expiry".
+  A record whose own time cannot be measured against this host's clock is refused at once,
+  whatever its age,
+  and never counted as a live owner's.
 
 What happens at the bound,
 on the commit path:
@@ -4368,10 +4772,108 @@ on the commit path:
   Protocol messages are unchanged.
   A client that waits behind a hung write keeps the service busy only as long as the write lasts;
   nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`;
-  at the bound it names the holder and ends the wait,
-  and Git's own
-  refusal ends the merge non-zero with nothing changed.
+- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`,
+  naming the holder while it waits.
+  A lock whose Git lock PID file holds a number this process table does not have
+  (an empty lock beside it,
+  which is what a killed Git leaves and also what a live Git of another PID namespace leaves,
+  cross-vendor review of 2026-11-09,
+  finding 2)
+  is removed on the commit service's proof of disuse (`service_index_unheld_removal.rs`,
+  `remove_if_the_owner_is_gone`:
+  the file is opened and judged through that descriptor,
+  no readable process holds it open,
+  the name still refers to it,
+  and only then is it unlinked),
+  and the merge goes on.
+  A holder that runs,
+  one nothing proves alive,
+  and a lock the proof of disuse does not cover (one that holds content,
+  one behind the service's marker,
+  one a process has open) are not removed.
+  Such a merge is saved instead (`SPEC.md:2187`,
+  the owner's answer):
+  its commit is written to `refs/cli-git/kept/<number>` (a number no other command kept,
+  by an `update-ref` whose old value is all zeros),
+  a second record naming that ref is written beside the first,
+  the command says where the merge is and what finishes it,
+  and it exits 0.
+  The next git command in that worktree finishes the checkout once the lock is free:
+  the merge's own paths are installed,
+  the branch moves by compare-and-swap against the recorded old commit,
+  Settling installs only into the checkout of the branch the merge was computed on:
+  when `HEAD` names another branch,
+  nothing is written,
+  a record kept on a side ref stays with it,
+  and the line names the branch the merge is for;
+  a record with no side ref that has nothing of the merge in the checkout goes instead,
+  because another branch's checkout has nothing for it to finish and nothing of it was saved;
+  `HEAD` is read again immediately before the branch moves,
+  and a worktree that changed branch by then keeps the record as well.
+  The record and the side ref go when the merge lands,
+  and the side ref is deleted only while it still holds the merge's commit.
+  and everything the merge does not change is left as it is,
+  so an edit made meanwhile to such a file is carried forward.
+  Staged content is never written over:
+  an index entry for a path the merge replaces that is neither the branch's nor the merge's stops the finish,
+  names the paths,
+  keeps the record and leaves the staged content in the index,
+  because a staged version has no other name.
+  That check is read before the write and cannot be made part of it:
+  `git update-index --index-info` has no way to
+  write an entry only when the one it replaces is the one that was read,
+  and `git read-tree -m -u`,
+  which refuses a path that is not up to date,
+  would replace the whole install this route is built on.
+  So a staged entry that arrives after the check and before the write replaces the merge's entry,
+  and the merge lands over it;
+  the window runs from the reading that judged the entries to the `git update-index` call that writes them,
+  and the take of every file the merge writes sits inside it.
+  Closing it needs another command to stage inside that window,
+  and the person would see the merge land and their staged version gone from the index,
+  with nothing in the output saying which one it was.
+  The same shape is a second window:
+  `HEAD` is read to learn whose checkout this is,
+  and another command can switch the worktree to a branch that names the same commit between that read and the install,
+  so the merge's files and index land in a checkout that now belongs to the other branch.
+  The read is made once more immediately before the branch moves,
+  and a `HEAD` that differs keeps the record,
+  moves nothing and says which branch the merge is for.
+  The branch write verifies the branch and not `HEAD`,
+  so a switch that lands in the instant between that look and the write is met by one more read straight after it:
+  a `HEAD` that differs then puts the branch back where it was by compare-and-swap against the merge commit,
+  keeps the record,
+  and says which branch the worktree now has,
+  that the merge's index entries and files are still in it,
+  and how to finish the merge there or undo what is staged.
+  The entries and files are not removed:
+  the record is what finishes the merge later,
+  so the person is told what is in the checkout rather than that it is clean.
+  A switch that lands after that third read is not covered,
+  and closing it would need the write itself to check `HEAD`,
+  which `git update-ref` cannot do:
+  a `symref-verify HEAD` in the same transaction as the update of the branch `HEAD` names is refused as two updates of
+  `HEAD`.
+  Closing that one needs another command to switch inside the same window,
+  and the person would see the merge's staged content in the `git status` of the branch they had switched to,
+  that branch's files otherwise unchanged,
+  and the merged branch moved,
+  with nothing in the output saying which command did it.
+  An edit made meanwhile to one of the merge's own paths is never overwritten:
+  the finish stops and names the file.
+  A merge whose commit cannot be kept on a side ref is refused with nothing changed,
+  never promised for a finish it may not reach.
+  A branch that advances after the merge was saved makes that merge unable to land as it was saved:
+  when nothing of it was installed its record goes,
+  so no later command is stopped for it,
+  the side ref keeps the merge commit,
+  and the line names the ref,
+  the commit and `git merge <commit>` as the way to land it;
+  when the index or a file of it is already installed,
+  the record stays,
+  nothing is removed,
+  and the command stops with the line naming the record and the moved branch,
+  because those entries and that file have nothing else that ever settles them.
   The index reconciliation of a commit with no change left ends the same
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
@@ -4403,6 +4905,52 @@ on the commit path:
   service's retry plan,
   which keeps the push and tries it again.
 
+#### Windows that need another process
+
+Three instants need another command to act inside a few instructions of this one,
+and no mechanism is added for them;
+each is named with what the person would see.
+
+- A blob staged between recovery's index read and its own index write.
+  Recovery reads the index and classifies a path as holding the branch's entry;
+  another command stages a different blob for that path without touching the worktree file;
+  recovery then writes the merge's entry over it with `git update-index --index-info`.
+  What the person sees:
+  the merge lands and their staged version is gone from the index,
+  with nothing in the output saying which version it was.
+- An edit a clean filter hides.
+  A path has a clean filter that removes `NOTE:` lines;
+  recovery judges its content and takes the file aside;
+  another program changes `NOTE: old` to `NOTE: new`,
+  keeping the length and restoring the modification time;
+  every field of the identity and the filtered object are then unchanged,
+  so the private name is removed at the finish.
+  What the person sees:
+  the changed `NOTE:` bytes are gone,
+  and neither the Git object nor the merged file holds them.
+- Two recoveries of the same dead record.
+  The first takes a file aside and writes the merge's index entry for it;
+  the second,
+  starting on the same dead owner's record,
+  finds the private name and renames the file back to its path,
+  because the repair does not ask whether the process that left it is still running.
+  The first then finishes:
+  its private name is gone,
+  so its removal step says so and reports the merge complete.
+  What the person sees:
+  the branch moves onto the merge while the file the merge deletes is back in the checkout as an untracked file,
+  and both commands report success.
+- A detached `HEAD` made symbolic after the last check.
+  The record names no branch and recovery starts with a detached `HEAD`;
+  another command makes `HEAD` symbolic to a branch at the same commit after the last read;
+  recovery's `update-ref --no-deref HEAD` writes the merge commit as a detached `HEAD` over that symbolic one.
+  The read after the write then finds no branch,
+  which is what the record expects,
+  so the merge is reported complete.
+  What the person sees:
+  their worktree is detached at the merge commit instead of on the branch they switched to,
+  and that branch itself did not move.
+
 Decided by the coordinator under the owner's delegation,
 veto open (inventory,
 "Picks"):
@@ -4423,9 +4971,17 @@ now inside these bounds:
 
 - A holder proven alive and an owner nothing proves alive are waited for the same way until the ceiling,
   with a line that names
-  what is known (the person's own `git commit` with its editor open holds the lock with no proof);
-  a dead owner (a PID file naming
-  a process that is gone) ends the wait at once with a diagnostic naming it.
+  what is known (the person's own `git commit` with its editor open holds the lock with no proof).
+  A PID file holding a number this process table does not have is waited for the same way by a commit,
+  and its line says which number it read and that a Git of another PID namespace writes one this table has
+  never had:
+  the number proves no death, so no commit ends early on it
+  (cross-vendor review of 2026-11-09,
+  finding 2).
+  A merge is the command that acts on that evidence:
+  it removes such a lock on its own proof of disuse (`remove_if_the_owner_is_gone`) and lands,
+  and a lock that proof does not cover is saved for a later finish instead,
+  with the line saying which number was read and what a person can do.
 - An empty `index.lock` with no service marker and no Git lock PID file,
   that no process of a complete scan (Linux,
   every readable process,
@@ -4434,11 +4990,20 @@ now inside these bounds:
   2026-11-07,
   "Service removes it").
   The file is opened first and judged through that descriptor,
+  it is judged empty again after the scan and immediately before the unlink
+  (a Git that writes its index into the lock and closes its descriptor during the scan is the editor-phase
+  holder the module measured,
+  cross-vendor review of 2026-11-09,
+  finding 1),
   the name is looked at again before the unlink,
   and a lock replaced meanwhile is never removed.
   The journal keeps the lock's device,
   inode and size and the number of unreadable processes,
   and the waiting notices tell the person.
+  A descriptor is matched to the lock by the device number and the inode the lock has,
+  so a holder that reached it through a bind mount is seen,
+  and a file of another btrfs subvolume that shares the inode number is not a holder (audit of 2026-11-09,
+  finding 4).
   A lock with content is not removed:
   a native `git commit --all`,
   `--only` or with paths keeps `index.lock` with the index written into it,
@@ -4520,13 +5085,46 @@ and the legacy transaction owner records
 (`transaction_owner.rs`).
 A commit is outside it:
 commits never wait for these records and never fail on them.
+The age is the modification time of the record's file read against this reader's clock,
+so it means something only while the two agree.
+An age that cannot be measured,
+which is a record whose own time is later than this reader's clock (a clock that was set back here,
+a record copied with its time,
+another machine's clock) and one whose time cannot be read at all,
+is refused the same way:
+the answer says the time cannot be trusted,
+names the file,
+the owner and its namespace,
+and gives the `rm`,
+and the record is never taken for a live owner's.
+Taking it for one is what keeps a dead owner's record in the way for as long as its time stays ahead of the clock,
+with no age and no `rm` (audit of 2026-11-09,
+finding 2).
+A record that is not there any more is finished and not unreadable:
+its owner did the work and removed it,
+so nothing holds,
+nothing is refused,
+and no command stops over a file that no longer exists with an `rm` for it
+(cross-vendor review of 2026-11-09,
+finding 3).
+A measured age is this host's reading of the record,
+so a clock that was set forward here,
+or one that is behind where the record was written,
+makes it read older than the hold;
+that is why the message says so and why what follows from it is a person's decision and not the wrapper's.
 Tests,
 each red first:
 `an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes`,
 `a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes`,
 `an_owner_of_another_namespace_with_an_old_item_is_refused_and_named`,
+`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`,
+`a_foreign_record_whose_time_is_later_than_the_clock_is_refused_and_named`,
+`a_foreign_record_whose_time_cannot_be_read_is_refused_and_a_gone_one_is_finished`,
+`a_record_with_no_measurable_time_says_which_case_it_is_and_a_gone_record_is_gone`,
+`a_foreign_record_that_is_gone_is_finished_and_not_refused`,
+`an_owner_of_another_namespace_whose_record_is_gone_is_dead_and_not_refused`,
 and
-`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`.
+`a_claim_of_another_namespace_whose_time_is_ahead_is_refused_and_named_and_nothing_changes`.
 
 #### Output of a step, the review runner, and releases that meet
 
@@ -4591,7 +5189,17 @@ and
   `doc/planning/cli-git-no-unbounded-waits.md`,
   "Round 5".
 - Releases that meet.
-  The protocol version stays 7 and no message changes:
+  The `landed` answer of this release carries an optional `landing` object:
+  the figures of the landing,
+  which are `lockHoldMs`,
+  `queuedBehind`,
+  `readsMs`,
+  `reads` and `syncs`,
+  and which the client's timing record states under the same name.
+  A service of an older release sends none and a client of this release states `null`,
+  and a client of an older release ignores the field,
+  so no new protocol version is needed and neither side has to know the other.
+  The protocol version stays 7 and no other message changes:
   `waiting` with `"inside_write": true`,
   `withdraw` and
   `withdrawn` are the messages of 0.5.31 and 0.5.33.
@@ -5241,23 +5849,31 @@ in-process reader can) gives every value of the multi-valued keys.
   the birth time of the lock nor its being empty ties the lock to that child,
   and a pid
   file older than the lock names an earlier holder.
-  A lock whose pid file names a process of the stopped tree that has ended is removed on the wrapper's own proof:
-  the wrapper
-  started that process,
-  stopped it and saw it end,
-  so the number is one of its own PID namespace and names a process that is
-  gone,
-  and this needs no view of the whole machine,
-  which a container lacks (the container gate found the sweep leaving the
-  lock of the wrapper's own stopped child when it required one).
-  The proof holds only when the pid file was born at or after the lock (an older pid file names an earlier holder,
-  and must
-  not vouch for a newer foreign lock),
-  the lock was born after the child started,
-  and nothing in the process table has the
-  number again;
-  it needs no margin,
-  because the holder is known to be gone.
+  A lock whose pid file names a process of the stopped tree that has ended is **not** removed on that number:
+  the number is one the wrapper's own PID namespace gave that process,
+  and Git records no namespace,
+  so a Git in a sibling namespace that shares the repository may have the same number,
+  and the lock may be that Git's
+  (cross-vendor review of 2026-11-09,
+  finding 2).
+  A matching number,
+  a lock born during the child's life and an empty file fit both writers.
+  The sweep that follows a stop adds no proof of its own,
+  not even for a lock it saw a member of the stopped tree hold:
+  what the wrapper sees of its own child is the child's process tree,
+  and none of it says whose file a lock at a given path is
+  (cross-vendor review of 2026-11-09,
+  finding 1).
+  A claim read before the stop from the pid file beside the lock rests on the same number as the rule above,
+  and a Git of a sibling namespace that shares the repository makes a lock at the same path look the same,
+  so no claim is made and nothing is removed on one.
+  A lock of a stopped child therefore stays,
+  with the command that clears it,
+  and so does one whose pid file went first (Git removes a lock's pid file and then the lock,
+  so a kill between the two leaves a lock nothing names).
+  The cost is measured below:
+  one incident in the journal this entry was written from,
+  in which two stopped pushes left their tracking-ref locks and every later push of that ref was refused.
   A lock whose pid file names any other process is judged by the proofs below,
   once it is older than the margin;
   a younger
@@ -5549,7 +6165,8 @@ never as proof.
 
 Candidates are reference locks of the Git directory and the common Git directory:
 `packed-refs.lock`,
-`HEAD.lock` and every
+`HEAD.lock`,
+`reftable/tables.list.lock` and every
 `*.lock` under `refs/`.
 `index.lock`,
 `config.lock`,
@@ -5581,7 +6198,72 @@ and the first answer wins:
    `bcachefs`) is unproven,
    because a Git on another machine is
    invisible here.
-3. A process of the account that has the candidate open (same device and inode in `/proc/<pid>/fd`) makes it **held**.
+3. A process of the account that has the candidate open makes it **held**.
+   A descriptor is matched to the file by the device number and the inode the file has,
+   which is the pair that names one file on a machine,
+   and the record's inode number is only the cheap test that comes first,
+   before the file the descriptor has open is read.
+   That read walks the path `/proc/<pid>/fd/<n>`,
+   whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
+   so it is taken only where it cannot reach a server:
+   the `mnt_id` line of the descriptor's record is looked up in that process's own mount table,
+   and the file is read only when the mount is on the fixed list of local file systems above (without `overlay`,
+   whose attributes are the file's below it).
+   A `statx(2)` with `AT_STATX_DONT_SYNC` then answers from the memory of the kernel:
+   a file system whose server has stopped answers neither that walk nor its own flush,
+   and `SIGTERM` does not end either wait
+   (cross-vendor reviews of 2026-11-09,
+   findings 3 and 4 of the first and 2 and 4 of the second;
+   measured on this host with a stopped `fuse-overlayfs` server,
+   `doc/troubleshooting/fuse-descriptor-attributes.md`).
+   A copy of the descriptor answers a stalled server from its cached inode,
+   but closing the copy runs that file system's flush,
+   which a stopped server holds as it holds a lookup,
+   and the copy is refused outright for a process this one may not attach to (`kernel.yama.ptrace_scope=1`),
+   which would read as no holder at all.
+   A descriptor whose record names the lock and which the scan then cannot identify
+   (a mount it will not read,
+   or a mount its process's table does not name)
+   is a process that **may hold** the file:
+   the candidate is unproven and nothing is removed,
+   and the same holds for the lock removal of the index
+   (`remove_if_unheld` keeps the lock when the scan reported one of these).
+   A descriptor whose *record* cannot be read at all is the older case,
+   a process the scan could not look at,
+   which is tolerated as it always was.
+   The gate and the read are two looks at the same number,
+   and a program that puts a different file on that number between them is not making the read wait on a lock file:
+   measured on this host on 2026-11-09 with the delay in the window,
+   the record named the first file's inode and the read that followed answered with the second file's device and inode.
+   Two things follow,
+   and neither is a wait the scan can bound:
+   the read identifies the file that is there now,
+   so a holder whose descriptor was replaced is missed and a lock it holds can read as not held;
+   or the file that is there now sits on a file system this gate would have refused,
+   and the read asks that file system for attributes that `AT_STATX_DONT_SYNC` does not make it answer from memory,
+   so the read can wait there.
+   Closing that window means naming the file and reading it in one step,
+   which this kernel offers only through the descriptor copy above,
+   whose refusals and whose close are the two reasons it is not used;
+   the coordinator's decision of 2026-11-09 is to keep this gate and document the window,
+   because closing it needs a second process to act inside an instruction-sized gap:
+   the holder of the descriptor calls `dup2` (or offers the new file through a `SCM_RIGHTS` message and `recvmsg`) on
+   that very number,
+   which is a few instructions of the holder's own code (`src/native/process/open_file_of_a_descriptor.rs`,
+   the gate and the read of one descriptor),
+   while this scan runs between its record read and its `statx(2)`.
+   Nobody in this repository has done that,
+   and no program the wrapper starts does it,
+   so the window is a defect of this gate and not a case the wrapper meets.
+   A lock that reads as not held for that reason is the case the words of every notice name:
+   nothing here proves the holder gone,
+   and the person is given the command that clears the file.
+   The mount number the kernel writes for a descriptor is not an identity (audit of 2026-11-09,
+   finding 4):
+   a bind mount gives the same file another mount number,
+   so a holder that reached the lock that way was not found at all,
+   and two files of two btrfs subvolumes reached through one mount share the mount number and the inode number,
+   so a process holding one of them made the other **held**.
    A process list that cannot be read,
    or a Git process of the account whose descriptors cannot be read,
    makes it unproven.
@@ -5591,48 +6273,32 @@ and the first answer wins:
    so refusing on them would make every proof unreachable,
    and a
    program that is not Git does not create Git locks.
-4. A pid file born at or after the lock (Git creates it after the lock,
-   so this is the order of a pid file the holder wrote),
-   naming a process,
-   decides:
-   - a process that is gone,
-     or a zombie,
-     proves the lock stale;
-   - a process that runs,
-     whose command name does not start with `git` **and** that started after the lock was made (its start
-     time from `/proc/<pid>/stat` and `/proc/uptime`,
-     by more than the clock's resolution),
-     proves the number was reused after
-     the holder ended,
-     and the lock stale;
-   - any other running process is taken for the holder,
-     and the lock is **held**:
-     a Git,
-     or a program under another name that
-     started before the lock (a copied Git binary,
-     a launcher),
-     so the two signs must agree to delete.
-   A pid file holds the number its writer had in the writer's own PID namespace,
-     and Git records no namespace.
-   This proof therefore holds only when both of these are true:
-   - The wrapper runs in the initial PID namespace (the link `/proc/self/ns/pid` names `pid:[4026531836]`) and `/proc` has
-     no `hidepid` option,
-     so that the table lists every process of the machine.
-     Anywhere else (a container,
-     a hidden table) the number may belong to a namespace this process cannot see,
-     and the lock
-     is unproven.
-   - No process of the table has the pid file's number as its number inside a PID namespace nested in the wrapper's.
-     The kernel lists every number of a process,
-     outermost first,
-     on the `NSpid` line of `/proc/<pid>/status`
-     (`proc_pid_status(5)`);
-     a process that has the number in any later column may be the writer.
-     A gone or reused number is then unproven,
-     with the process named in the reason,
-     and so is a table whose `status` files
-     cannot all be read.
-     The search is made only when the other signs would have removed the lock.
+4. A pid file beside the lock authorizes nothing.
+   It holds a process number,
+   Git records no namespace with it,
+   and the only fact that could tie that number to this lock is the birth order of the two files,
+   which a correction of the clock turns around:
+   after a backward step an old pid file looks newer than a live writer's new lock,
+   and the number it names is a process that has ended
+   (cross-vendor review of 2026-11-09,
+   finding 3).
+   The pid file is therefore read for the words of the notice and decides nothing:
+   the notice says which number it names and whether that process runs,
+   with the command that clears the file.
+   The proofs it used to carry are rejected here:
+   - a gone process does not prove the writer of *this* lock gone,
+     because the pid file may be an earlier holder's,
+     left in front of a later lock by a Git that writes none (`core.lockfilePid` off);
+   - the namespace searches that confirmed a gone number
+     (the initial PID namespace without `hidepid`,
+     and a scan of the `NSpid` lines of `/proc/<pid>/status` for a process carrying the number in a nested namespace)
+     are removed with it,
+     since they answered a question no longer asked;
+   - a running Git named by the pid file is not taken for the holder either:
+     the number may be a Git's in a sibling namespace.
+   What is left of this protocol is words,
+   and the removal of a lock rests on the staging-file proof alone (item 6 below,
+   `Proof::OrphanStaging`).
 5. A lock whose times are earlier than the boot of the kernel is **not** a proof.
    `btime` of `/proc/stat` is the wall clock minus the uptime,
    so a forward correction of the clock after the boot moves
@@ -5647,10 +6313,7 @@ and the first answer wins:
    is removed.
    The notice for a lock that looks older than the boot says so and says why it does not prove anything,
    beside the
-   command that clears it;
-   a lock that a reboot left with a pid file is still removed by item 4,
-   because the number is
-   gone.
+   command that clears it.
 6. Anything else is unproven:
    the lock is left,
    and the wrapper says what it found.
@@ -5706,11 +6369,13 @@ instead.
 The fix of 2026-11-03 for the container (the wrapper's own proof above) does not change the step,
 so each removal has the
 same residue as before;
-it makes more removals happen (a container now removes the lock of its own stopped child,
+it changes which locks are removed:
+a container now removes a lock it saw its own stopped child hold (the claim),
 and a
-young lock of an ended child is judged without waiting out the margin),
-so it widens the number of occasions and narrows
-nothing.
+claimed lock of that child is judged without waiting out the margin,
+while a lock whose pid file merely names an ended child's number is left and named
+  (cross-vendor review of 2026-11-09,
+  finding 2).
 The occasions it adds have the fewest chances of the schedule:
 the lock is the freshest,
 and the sweep that judges it is
@@ -5739,13 +6404,71 @@ file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
 
+#### Rejected rule: a reused number proven by a scan of the open descriptors
+
+The cross-vendor review of 2026-11-09 (finding 1) proposed a narrower version of the removed proof:
+keep the removal for a number that another program holds when a scan of every process's descriptors could read all of them and
+found none holding the lock,
+and keep the lock when a scan could not read a process.
+The rule is rejected as well,
+because a live Git holds every one of its reference locks with **no descriptor open**
+(the measurement under "Measured while this entry was written" above),
+so a scan that finds no holder says nothing about a holder that closed its descriptor and has not renamed its lock yet,
+which is the state a `reference-transaction` hook leaves a lock in for as long as the hook runs.
+Under that rule the clock would still be the only sign that separates a Git under another name from a later program that
+took the number,
+so a step of the clock would still delete a live lock,
+and the review's own scenario (a holder of another account,
+whose descriptors no unprivileged scan can read) would leave every such lock in place anyway.
+The cost of removing the proof is one stale lock left and named,
+with the command that clears it,
+for the rare case in which a killed holder's number was taken again before the sweep looked.
+
+#### The reftable backend's own lock
+
+A repository keeps its references in one of two backends,
+and each locks its own file.
+The files backend keeps `packed-refs.lock`,
+`HEAD.lock` and `refs/**/*.lock`;
+the reftable backend keeps its references and its list of tables in the `reftable` directory of the Git directory,
+and every writer holds `reftable/tables.list.lock` for the whole transaction
+(`reftable/stack.c`,
+`reftable_stack_init_addition`,
+`reftable_addition_commit`).
+A reftable repository holds none of the files-backend locks,
+so before 2026-11-09 a killed Git's `tables.list.lock` was not a candidate:
+a forwarded fetch or push did not clear it and did not name it,
+and every later `git update-ref` or `git commit` failed with "cannot lock references" (audit of 2026-11-09,
+finding 1).
+Both backends' locks are therefore candidates,
+whatever the repository's own format says,
+because a repository that switched backends may hold either.
+The reftable lock needs no new proof:
+Git says which process holds it in `tables.list~pid.lock`,
+which it creates after the lock under `core.lockfilePid` exactly as it does for the other locks,
+so the pid file,
+the margin,
+the local-file-system rule,
+the boot comparison and the set-aside step are the ones above.
+The tables list is written into the lock itself and renamed,
+so the lock is empty while it is held and a stale one is removed whole.
+There is no staging file to go with it:
+temporary table files (`*.temp.*`) and tables that no `tables.list` names are not locks,
+they block no writer,
+and they stay where they are.
+Tests,
+red first:
+`a_reftable_tables_list_lock_left_by_a_killed_git_stays_and_is_named`,
+with `a_live_reftable_gits_tables_list_lock_stays` and
+`a_reftable_lock_that_nothing_proves_gone_is_left_and_named`.
+
 #### Races, and how each is handled
 
 - A holder that wrote its lock,
   closed the file and has not yet renamed it:
-  its pid file names a live Git (held),
-  and where
-  there is none the lock is unproven,
+  its pid file names a live Git,
+  which the notice says and which decides nothing,
+  and the lock is unproven,
   never stale,
   because the descriptor scan sees nothing.
 - A holder that is killed between creating the lock and its pid file:
@@ -5753,15 +6476,18 @@ and it is removed by the same set-aside step
   so the lock is unproven.
   Such a lock is reported with the command that clears it,
   and a live foreign writer's lock cannot be told from it.
-- An older pid file in front of a live holder (above):
-  ignored because it is older than the lock.
+- An older pid file in front of a live holder:
+  said in the notice and nothing else,
+  since the birth order of the two files is the only thing that could tie them and a clock step turns it around.
 - A process number reused by another process:
-  a running non-Git process proves the reuse,
-  and a running Git is held.
-  A Git that is not the holder is kept apart from the holder only by its start time,
-  which is not used because the wall
-  clock may step;
-  the cost is one lock left that could have been removed.
+  Git records only a number,
+  so nothing tells a running Git under another name from a later
+  program that took the number,
+  and nothing tells either from the writer of this lock.
+  The lock is unproven,
+  with the command that clears it
+  (cross-vendor reviews of 2026-11-09,
+  findings 1 and 3).
 - Another account's process:
   it cannot be read,
   but a lock it holds has its pid file naming that process,
@@ -5772,21 +6498,22 @@ and it is removed by the same set-aside step
 - A Git in another PID namespace (a container with the repository mounted in,
   or a nested namespace on the host):
   the pid file holds a number of that namespace.
-  A wrapper outside the initial namespace,
-  or with a hidden `/proc`,
-  proves nothing from a pid file.
-  A wrapper in the initial namespace searches the table for a process that has the number as its number inside a nested
-  namespace (`NSpid` of `/proc/<pid>/status`),
-  and a gone or reused number is unproven while one is found,
-  or while the
-  table cannot be read completely.
-  A writer in a sibling namespace that is not a descendant of the wrapper's own (the wrapper in a container) is outside the
-  table and is not seen,
-  which is why a wrapper outside the initial namespace proves nothing.
-  The veto of an open descriptor and the margin are the only protection beyond that.
+  Git records no namespace,
+  so the number says nothing about the writer of this lock whichever namespace the wrapper runs in,
+  and no lock is removed on it.
+  A number that matches a member of a tree the wrapper stopped says nothing either:
+  a sibling namespace may have given the same one to a Git that shares the repository
+  (cross-vendor reviews of 2026-11-09,
+  findings 1 and 2),
+  so every such lock is named instead.
+  The veto of an open descriptor and the margin are the only judgement beyond that.
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory):
   the file
   system must be on the fixed local list.
+  A lock on a local disk is still matched to a descriptor that holds a file on a stalled file system,
+  and nothing there is waited for:
+  a descriptor on a mount that is not on the local list is refused,
+  and the lock is unproven (item 3).
 - A clock that steps:
   the margin and the start time of a process read file times against the current clock,
   and the boot
@@ -5797,8 +6524,8 @@ and it is removed by the same set-aside step
   what it concludes
   rests on the pid file and the process table,
   not on any time.
-  For a reused number a step can only make a process look newer,
-  and the second sign (not a Git) must still agree.
+  The derived start of a process moves with the clock,
+  which is why no verdict rests on it either (item 4).
 - Two wrappers removing the same stale lock:
   handled by setting aside with a rename and checking identity (above).
 - A removal that is raced by a new lock at the same path:
@@ -5889,10 +6616,8 @@ so the command can be
 pasted and a terminal escape in a file name is never printed raw.
 
 ```text
-# A lock the wrapper removed (the process of the pid file ended).
-monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
-# A lock whose pid number now belongs to a program that is not Git.
-monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
+# A lock whose pid file names a process that has ended: said, and nothing removed.
+monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: a pid file beside it names process 2629996, which has ended, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around.
 # A lock a running Git holds.
 monochromatic-git-policy-cli: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
 # A lock nothing proves stale.
@@ -6821,6 +7546,26 @@ with the attribute's name,
 leaving the original file in place:
 that data exists in no commit,
 so a replacement that dropped it would delete its only copy.
+An attribute the replacement carries and the file never had is taken off for the
+other half of the same rule:
+the corrected file would otherwise grant an account access the original never gave,
+and comparing the displaced file cannot see it,
+because the unexpected attribute belongs to the replacement.
+A security label is the one exception on both sides:
+the kernel and its policy assign it,
+a person does not write it,
+and a container without the label's module answers "operation not supported" for
+every one of them,
+so a label the replacement cannot be given or cannot be rid of is a warning that
+names it,
+and the correction goes ahead.
+The labels are `security.selinux`,
+`security.apparmor` and Smack's `security.smack64` names;
+`security.capability` and `security.ima` decide what the file may do or are a
+signer's data,
+so they are carried or refused like any other attribute,
+and a substituted label is never counted as a difference when a journal's bytes
+are judged.
 A namespace the system does not let this process list,
 such as another user's `trusted.*`,
 is invisible to the fix and is neither carried nor counted.
@@ -7205,6 +7950,13 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+It is written to the standard error descriptor itself and not through the standard library's shared handle,
+whose lock every synchronous write to standard error takes,
+so a worker left at the ceiling holds no lock the commit's own writes would wait for.
+The notices a preparation prints (an obligation of the worktree that cannot be read,
+and the entries a landing left out of this commit)
+are given to the same descriptor under the same ceiling,
+and one that cannot be said in time is left unsaid rather than holding the commit.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
@@ -7500,9 +8252,32 @@ Each commit passes through three phases:
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
-    A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
-    and a dead one not at all;
-    either ends the commit before the branch moved,
+    What a foreign lock's evidence proves rests on two facts and never on the wall clock (audit of 2026-11-09,
+    finding 3):
+    a process of the account that has the lock open,
+    matched to it by the device number and the inode the lock has,
+    and a Git lock PID file (`core.lockfilePid`) that names a running process whose command name
+    starts with `git`,
+    which is the holder because Git writes its own number there.
+    A running program that is not named like Git may be that Git under another name,
+    or a later program that took the number,
+    and no start time tells them apart:
+    a process's start is derived from the wall clock while the lock's change time is stored,
+    so a step of the clock moves a live holder's derived start past the lock,
+    and a step back moves a later program's before it.
+    The start is read and worded beside the evidence,
+    and it decides nothing;
+    a number that is reused therefore reads as an owner nothing proves alive,
+    which the ceiling ends,
+    and a running Git is the holder whatever the clock says.
+    A holder proven alive,
+    an owner nothing proves alive,
+    and a PID file naming a number this process table does not have are all waited for until
+    `LANDING_LOCK_CEILING`,
+    because such a number may be a live Git's of another PID namespace
+    (cross-vendor review of 2026-11-09,
+    finding 2);
+    the wait ends the commit before the branch moved,
     removing the batch's intent,
     keeping the built commit on a side ref,
     and naming the blocker
@@ -8758,10 +9533,15 @@ any other real ref,
 or shared reflogs.
 It uses:
 
-- a private commit index at `<git-dir>/monochromatic-git-policy-cli-service-<id>/commit.index`,
+- a private commit index at
+  `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/commit.index`,
   in the commit's scratch directory,
-  which the service removes when the command ends,
-  however it ends;
+  which the service removes when the command's connection closes,
+  however the command ends,
+  and which a command that never handed it to a service leaves where the sweep of the repository scratch directory
+  removes it
+  (see "The commit's scratch directory",
+  below);
 - the real object store.
   Every monochromatic-git-policy-cli Git command that writes or reads the private index's objects
   (`read-tree`,
@@ -8902,7 +9682,7 @@ so the built commit is the policy-settled intended tree.
 The service lands the commit as Git made it:
 its first parent must be the tip the wrapper read,
 or for an amend the replaced commit's parents.
-A preparation failure removes the scratch directory and leaves real index,
+A preparation failure leaves the scratch directory to the sweep and leaves real index,
 worktree,
 and real ref bytes unchanged.
 Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
@@ -9059,11 +9839,199 @@ Options that select the whole index (`--all`,
 `--interactive`,
 `--patch`) keep concluding it.
 
+#### The commit's scratch directory
+
+The commit's scratch directory holds the private indexes and,
+when real Git must build the commit,
+the scratch repository.
+It is made at
+`<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>-<attempt>`,
+inside the repository scratch directory,
+and never in the worktree's own Git directory as releases before this one made it.
+The attempt's number is in the name because the service removes the tree of an attempt once that attempt's landing is over,
+and the next attempt of the same command must not be the directory that removal is taking.
+Code:
+`src/native/foundation/scratch_location.rs`,
+`src/native/landing/service_prepare_ready_shapes.rs`,
+`src/native/landing/service_scratch_abandonment.rs`,
+`src/native/landing/service_scratch_renewal.rs`,
+`src/native/service/service_scratch_release_removal.rs`.
+
+Why there:
+a command killed at any instruction,
+and a machine with no service,
+leave trees behind,
+and only the directory the sweep already covers collects them.
+The place is also swept of entries older than `SCRATCH_STALE_AFTER` at every preparation of it,
+which a preparation of a commit now is.
+
+Who removes it,
+and how long anyone waits:
+
+- A request names its tree in the request's own `scratch` field,
+  which the decoder refuses unless it is one of the wrapper's trees of that worktree,
+  so the service never works the tree out from another path the request carries
+  (`index` is the worktree's real index,
+  which is not a tree).
+  The resident service removes that tree once the landing of that request is over,
+  in a task beside its landing loop and bounded by `SCRATCH_REMOVAL_CEILING`,
+  with a line at warning priority in the service journal when the removal cannot finish.
+  Neither the client nor the landing loop waits for it.
+  Nothing else in the service removes a tree a request named:
+  the tree holds the private index and the conclusion copies the landing reads,
+  and a client killed while its request waits is not evidence that the landing is over.
+- A command that never submitted its tree,
+  because the service refused it or because the preparation stopped where it was,
+  removes it itself as it goes out of scope,
+  with the same ceiling,
+  so a declined or abandoned commit leaves nothing.
+  A command whose submission got a definite answer that the service never took the request
+  removes its tree the same way:
+  the service confirmed the withdrawal (`StillWithService`),
+  refused the request before queueing it (`Refused`),
+  or could not be reached at all
+  (`the_service_never_took` in `src/native/landing/service_commit.rs`).
+  Every other failure leaves the tree where it is,
+  because an unanswered request is not proof that nothing is running:
+  an unconfirmed withdrawal,
+  a silence and a broken connection can all leave a branch write inside the landing,
+  which reads the private index and the conclusion copies in that tree.
+  Such a tree is the service's to remove when it lands,
+  and otherwise goes by the age rule that follows.
+- A tree no request ever named,
+  because the command was killed before it submitted or before it made the tree at all,
+  goes when nothing has written it for `SCRATCH_TREE_ABANDONED_AFTER` (two hours,
+  six times the longest wait a commit can have).
+  Its command renews the tree's modification time every `SCRATCH_REFRESH_EVERY` (an hour) while it lives,
+  so the age a sweep sees is the liveness of the command that made the tree,
+  not how long its work takes.
+  Age is the only evidence a collection has,
+  and it is enough here because no landing can still be reading a tree nothing has written for two hours.
+- One decision answers which entry may go,
+  for the sweep of a scratch place and for every other collection
+  (`may_go`,
+  `service_scratch_abandonment.rs`):
+  a commit tree at `SCRATCH_TREE_ABANDONED_AFTER`,
+  and every other entry of a scratch place at the age its caller gives,
+  which is `SCRATCH_STALE_AFTER` (a day) for the sweep.
+- At most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) entries go per sweep,
+  oldest first,
+  so a backlog another command left delays this one by that many removals and never by the backlog's length,
+  and the next sweep takes the next eight.
+  That is what bounds the trees a kill leaves:
+  one tree of about 9 MiB per killed command,
+  gone at the first sweep after two hours.
+- A leftover of a command's own earlier attempt whose removal its ceiling cut short is moved aside under a name no
+  commit tree has,
+  where the sweep collects it by age,
+  and the attempt creates its own tree as it always does:
+  a stalled device costs a removal and a debug line,
+  never a failed commit.
+- Every removal of a scratch entry runs on a thread of its own and stops being waited for at
+  `SCRATCH_REMOVAL_CEILING` (thirty seconds,
+  twelve times the slowest single `unlinkat` the timing record holds),
+  so a stalled device costs a partial removal and a reported line,
+  never a command that waits.
+  A removal that outlasted its ceiling holds one of the process's places for blocking work until its thread ends,
+  and a removal that finds every place held takes none and leaves its entry to a later sweep,
+  so stalled removals cannot gather without bound.
+  A name that is not one of the wrapper's scratch trees,
+  and a name that holds a link or a file,
+  is never removed by that rule.
+
+Two linked worktrees of one repository share that repository scratch directory,
+so a client that names **another worktree's** tree is accepted,
+and the tree is removed once the landing of the request that named it is over,
+even though the worktree that owns it still runs.
+The wrapper never sends such a request:
+each one names the index inside the tree the command itself made,
+whose name carries that command's identity and its attempt's number.
+A client that sent one anyway,
+by a defect or on purpose,
+would take another worktree's private index and typed message with it,
+and the service cannot tell the two apart:
+the announced Git directory is the one the client says it serves,
+and the tree's name is one the wrapper makes.
+
+A cleanup a request carries,
+which names the directory of a commit built elsewhere,
+is refused at the decoder unless it is exactly one of those two places,
+holding the wrapper's prefix and an identity of letters,
+digits and dashes,
+with no relative part that could lead elsewhere
+(`is_scratch_path`,
+`service_protocol_messages_and_name_checks.rs`),
+so no request can ask the service to remove a directory the wrapper did not make.
+
+A service of an earlier release does not know the message a client of this one used to announce a tree,
+and the client does not read that refusal;
+such a tree carries nothing a later command reads,
+so it goes at `SCRATCH_TREE_ABANDONED_AFTER`,
+which costs one tree of about 9 MiB per worktree for two hours while an installation switches releases:
+the next commit retires the service of the other release and starts this one.
+
+##### A command stopped for longer than the tree's age
+
+A command that stops running,
+by a stopped process,
+a frozen cgroup,
+or a machine that is not running it,
+stops renewing its tree,
+so the tree's age keeps growing while its command still lives.
+Once the tree is older than `SCRATCH_TREE_ABANDONED_AFTER`,
+the sweep of another command removes it,
+and the stopped command resumes without the private index it was writing:
+its next Git child fails,
+and the commit reports that failure.
+No rule distinguishes a stopped command from a killed one,
+because the only fact that would (a process that still exists)
+is exactly the fact that cannot be acted on:
+the tree of a killed client whose request is queued belongs to a process that is gone,
+and a landing is still reading it.
+The window is therefore the whole of a stop longer than two hours,
+and not only the moment between creating the tree and writing anything into it.
+The wrapper accepts losing that tree.
+What keeps every other live command's tree is the renewal,
+which needs no marker file and no reader of `/proc`.
+
+A queued request loses more than its private index in the same window,
+and the sequence needs a **service** stopped,
+not only a command:
+a client prepares a conclusion commit and the service queues the request;
+the service is frozen before that landing and stays frozen for longer than
+`SCRATCH_TREE_ABANDONED_AFTER`,
+so its queue survives;
+the client is killed,
+so nothing renews the tree and nothing can withdraw the request;
+a commit in another linked worktree then prepares the shared repository scratch directory,
+and the sweep takes the queued request's tree on its age alone,
+because the one decision that removes a commit tree (`may_go`,
+`service_scratch_abandonment.rs`) has no other evidence to go by.
+When the service resumes it lands the request,
+and the conclusion cleanup after the branch move needs the directory the request named:
+`remove_conclusion_state` (`service_land_follow.rs`) finds neither it nor the copy the
+journal keeps,
+which is written only once the landing begins,
+so it removes nothing and writes one warning to the service journal that names the state it
+left as it is.
+What the person sees:
+the commit in the other worktree is unaffected and the request lands with no client left
+to read its answer,
+so nothing on that command's terminal says anything;
+after going back to that worktree,
+`git status` still reports the merge or cherry-pick as in progress,
+because the state the cleanup could not compare was left where it was,
+and the next commit there concludes the same merge again.
+An operating service lands a queued request long before its tree reaches that age,
+so the sequence needs the stop,
+which is why the age rule stays.
+
 #### Scratch repository layout
 
 The scratch repository (the shadow,
 in the code and in this section) is made only when real Git must build the commit.
-It lives in `<git-dir>/monochromatic-git-policy-cli-service-<id>/shadow` and holds these private entries:
+It lives in `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/shadow` and holds
+these private entries:
 
 - The ref store:
   `HEAD`,
@@ -9131,7 +10099,7 @@ The shadow has no `index`;
 The shadow `config` has this layout:
 
 ```ini
-; <git-dir>/monochromatic-git-policy-cli-service-<id>/shadow/config
+; <git-common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/shadow/config
 [core]
   repositoryformatversion = <copied value>
 [extensions]
@@ -10119,6 +11087,195 @@ an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
+A merge that settling finishes says so on standard error,
+naming the ref it landed on and the merge commit,
+because the command may have been run only to look at the worktree;
+the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
+Settling writes the index only after waiting,
+bounded and naming the holder,
+for any program's `index.lock`,
+so a program that holds the index does not end every command in that worktree;
+a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
+leaves the record and the checkout as they were,
+and the next command finishes the same merge.
+That leaving alone is for a merge that installed nothing:
+when the merge's index entries or files are already installed and the index stays held,
+the command is stopped and told the lock,
+the record and what is installed,
+because a command that went on would read the half-installed merge as another session's staged work.
+A staged entry for a path the merge changes is judged before the take and written after it,
+so another command that stages one of those paths inside that window replaces a version this command never read:
+the standings are read once,
+every file the merge writes is taken aside,
+and only then does `git update-index --index-info` write the merge's entries,
+which replace whatever entry is there.
+Closing it needs a write that lands only while the entry it replaces is the one that was read,
+which `--index-info` does not offer;
+the window is the length of the take and one `git update-index` call.
+The person would see the merge land,
+the version they had staged in that window gone from the index with the merge's content in its place,
+and nothing in the output saying which content was overwritten.
+A path is judged against the two sides of its change by the object its bytes hash to and by the mode Git records,
+and the old side wins a tie,
+so a change that alters neither is not evidence that a merge began.
+The mode is read as part of the file because Git records it in the index entry:
+a file whose bytes are the branch's and whose executable bit is the person's is the person's,
+and the merge stops and names the path rather than erase the bit.
+A repository whose `core.fileMode` is false records no such bit,
+so no mode difference is read there,
+as Git reads none;
+a key Git does not answer for is read as true.
+Settling takes every file it must write aside by one rename that never replaces,
+and checks what it took against the device,
+inode,
+size,
+mode and modification time the judgement read,
+and then against the bytes:
+the taken file is hashed with the attributes of the path it belongs to and must be the object the judgement read,
+so the bytes that make way for the merge are exactly the bytes that were judged.
+A program that keeps its descriptor across the rename can write the same length into the file and put its modification time back,
+which leaves every part of the identity as it was;
+the bytes are what decides there.
+a file saved in between is put back,
+nothing of the merge is written,
+the paths are named on standard error and the record is kept.
+The files are checked out without `--force`,
+so a file that appears in the instant after the take is skipped and Git's own words are reported.
+A command that stops between a take and the write leaves the file under a private name beside its path,
+`.cli-git-recovery-<key>-<pid>-<count>-<nanos>`,
+where the key is a 64-bit FNV-1a hash of the file's name in 16 hex digits,
+so a name at the file system's component limit still has a private name that can exist;
+the next command puts such a file back before it judges the path,
+says on standard error that it did,
+and where the path holds something else keeps both and names the private file.
+A file written into a taken one after the take checked it is kept rather than removed,
+and its private name is said.
+The private name is removed only on a proof that nothing can write into the file any more,
+asked in this order:
+a scan of every process this command can read finds none with the file open,
+which is the proof the commit service's lock removal acts on,
+and then,
+as the last step before the unlink,
+the file's **raw bytes** still hash to the branch's own file form for that path,
+which is the judged object with the path's clean filter applied and those bytes hashed with no filter.
+A clean filter can hide bytes a person saved from the object Git records,
+so the filtered object is not the identity of an aside:
+the raw bytes are,
+and a file that carries bytes the branch's form does not have is kept with its private name and named.
+A symbolic link's object is the text of its target,
+so a taken link is hashed from that text and the file it points at is never read.
+A file whose raw bytes are not the branch's own form is not taken either,
+so the merge stops and names the path rather than replace it.
+A writer that still holds the file is seen by the scan,
+and a writer that let go has already written,
+so the bytes then show it;
+a write that arrives after both would have to open the private name,
+which nothing outside this command knows.
+The guarantee rests on that,
+not on a check made just before the unlink.
+That look and the unlink are not one step:
+the raw bytes are read,
+the branch's form for the path is hashed after them,
+and only then is the private name removed,
+so a program that opens that name between the read and the unlink writes bytes the comparison never saw,
+and the unlink removes them.
+Closing it needs a removal that proves nothing can write into the file,
+which no unlink offers;
+the window is the length of those two reads.
+The person would see a program's write into a file that was set aside vanish,
+with the merge's content in the checkout and nothing in the output saying that anything was removed.
+The limit is that removal's:
+a process in another user namespace,
+or one that cannot be read,
+is not seen,
+so a file such a process holds open is removed with its private name.
+A scan that was cut at its bound,
+or could not list the processes,
+proves nothing and the file is kept.
+A take whose read of the bytes fails after the rename puts that file back before it reports anything,
+and a file that cannot go back is named and counted as installed;
+a take or a write that fails puts every file it already took back,
+and a path the merge deletes is never removed again after its take,
+so a file that appeared in that instant stays;
+the emptied directories of every path the merge deletes are pruned on each attempt,
+whether or not the path already stands at its end state,
+because a kill between finishing a child's private name and removing the directory it emptied leaves an empty directory
+that `checkout-index` would refuse.
+The settling of a branch that moved reads the checkout and the index the same way the completion does,
+so a directory the branch's own files explain is read the same way there,
+and a staged entry for a path the merge changes that is neither the merge's nor the moved head's stops it,
+naming the paths and keeping the staged content.
+A checkout holding the merge's file for one path and the branch's content for the others is a writing that a kill
+stopped between two files,
+so it is put back to the moved head like every other path of a begun merge,
+and the line naming the moved branch is true of the checkout it leaves.
+A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
+nothing is set aside for it,
+the merge's own deletions empty it before the checkout,
+and the merge's file takes its place.
+That judgement is made through every directory below the path,
+because a tree diff names the files the merge deletes and no directory of its own;
+an emptied directory below the path is the branch's only where the merge deletes a path under it,
+which is where the pruning of those deletions reaches,
+and any other emptied directory stops the finish before anything is written.
+A directory that no such deletion explains is someone else's and stops the finish,
+naming the path,
+and so does a directory that holds any file the merge does not delete,
+such as an untracked file of the person's:
+it is refused before anything is written,
+because replacing it would leave the merge half installed and the file in the way.
+A record that is discarded,
+a record whose owner still runs and a branch that already names the merge
+change nothing of the branch and say nothing.
+A merge saved on a side ref that cannot be finished now never stops a command while nothing of it has been installed:
+the line says where the merge is and what blocked it,
+and the command goes on.
+A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
+another branch's checkout has nothing for it to finish and nothing of it was saved,
+so the record goes and the merge is run again on the branch it is for.
+Once its index has been written or a file of it moved aside it is a begun merge,
+so a refusal stops the command and says the merge is partly installed in that worktree;
+that is decided by what the index and the checkout hold when the refusal is made,
+not by which step refused,
+so a foreign file or a staged entry met after the install began stops the command too.
+The branch is resolved before anything else,
+so a merge whose branch already names the merge commit is settled from that alone and its leftover record goes without a
+worktree read that may have become impossible.
+What they hold is otherwise read once,
+before anything can refuse,
+the index first and the worktree second:
+every refusal after that point reports from that one reading,
+an index that cannot be read counts as holding the merge,
+a worktree that cannot be read is reported by what the index holds,
+and a merge whose own commits,
+refs or branch cannot be read counts as holding it too,
+because a refusal then cannot prove the checkout is untouched.
+That reading has a window of its own:
+the index is read before the worktree,
+so another command can stage one of the merge's paths between them,
+and a worktree read that then fails is judged by the entries the index held a moment before.
+The index then holds the merge's entries for some paths and not for every one,
+which is not the answer that stops the command,
+so a saved merge's refusal is let past:
+the person would see this command go on and `git diff --cached` show the merge's entries as ordinary staged work,
+with the line naming what blocked the finish and nothing saying that a merge's entries are among the staged ones.
+Closing it needs one read of the index and the worktree together,
+which no pair of Git commands offers;
+the record is kept,
+so the first command that meets a readable worktree settles the merge.
+A merge counts as installed when one of its paths both holds its side in the index or the files and is a path the branch does not already hold that side for.
+That is the only evidence an install leaves:
+an independent commit of the same content gives the branch that content,
+so the path stops being evidence,
+while an install leaves the branch as it was,
+whatever another command does to the checkout afterwards,
+and a merge that another command touched after the install still counts as installed.
+A record is kept for the next command when anything of the merge is present at all,
+so a half-installed merge is never only discarded.
+A begun merge's refusal still stops it,
+because the checkout may hold that merge's files.
+Standard output is never touched by these lines,
+because scripts read it.
 A field of bytes that is present and does not decode is damage,
 never absence.
 An intent whose `repositoryHex`,
@@ -10366,6 +11523,47 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+`prepareSpans`
+(what the preparation's own work did,
+by name,
+in the order each name was first noted,
+empty for a commit that noted no step:
+`name` is the step,
+`calls` how often it ran,
+`totalMs` the whole of its time and `longestMs` its longest run;
+the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
+`index read` for reading an index's bytes to decide whether it may seed a private index,
+`index equals base` for the in-process answer of whether the captured index already holds the base's tree,
+`index copy` for a copy of an index into a private one,
+`policy blob write` for storing a correction's bytes,
+`policy entry write` for pointing a private index entry at a corrected blob,
+and `candidates prepared` for the candidate set a pass's content policies share,
+which the first content policy that asks pays for,
+`policy <name> at <lifecycle point>` for every policy a pass evaluated,
+with that policy's registry name and the trigger whose pass ran it,
+summed over the convergence rounds that ran it again,
+so a preparation's own pass is told from the post-commit gate's;
+a step that starts Git is stated here as the work and in `steps` as the child it started),
+`prepareSpansDropped`
+(how many step names came after that list reached its bound of 64,
+so a longer run is counted rather than lost),
+the two costs measured wherever they fell
+(`scratchRemovalMs`,
+`removalsThatDidNotFinish` and
+`stderrMs`:
+time spent removing scratch trees,
+how many of those removals ended without finishing within their ceiling,
+and time spent writing to standard error,
+which waits for whoever reads it;
+each of them lies inside whichever phase it fell in,
+and inside `otherMs` when no phase covers it),
+and `prepareParts`
+(the preparation's stretches by name,
+`{"layout":{"ms":12,"calls":1},...}`,
+each figure the time the stretch spent without a Git child,
+because the steps are recorded apart,
+a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
+at most 64 entries with the rest counted in `preparePartsDropped`),
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:
@@ -10416,6 +11614,11 @@ and within `submitMs` the reach (`reachMs`,
 `lockHolderKind`,
 `reconnects`,
 `sends`).
+The record carries two accounts of the preparation,
+and they answer different questions:
+`prepareSpans` names the work a site in the wrapper measured around itself,
+`prepareParts` names the stretches no Git child covered,
+and a Git child that a span started is inside that span and outside every part.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
@@ -10547,6 +11750,28 @@ and when the lock was found held `lock_looks`,
 `journal_ms`,
 `ref_ms`,
 `index_update_ms` (named `sync_ms` in records written before 2026-11-04),
+`lock_hold_ms` (how long the landing held the index,
+not a phase),
+`queued_behind` (how many requests were still waiting for their answer when the landing finished,
+the batch's own taken out),
+`reads_config_ms`,
+`reads_branch_ms`,
+`reads_parents_ms`,
+`reads_changed_ms`,
+`reads_content_ms`,
+`reads_witness_ms`,
+`reads_conclusion_ms`,
+`reads_owed_ms` and
+`reads_follow_ms`
+(parts of `reads_ms`,
+whose sum they never exceed),
+`syncs_waited` and
+`syncs_queued`
+(how many of the landing's syncs it waited for and how many it handed to the background task),
+`sync_held_ms`
+(the time it spent waiting for its own),
+`syncs` (each sync as `what=<ms>` or `what=queued`,
+in the order asked),
 `answer_ms`,
 `total_ms`),
 a `pushed` line for every push the service ran
@@ -10619,17 +11844,21 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 8,
-the first that carries a changed path's bytes.
-The version is what keeps a service built before them from being served,
+The commit request speaks protocol version 9,
+the first that names the commit's scratch tree in a field of its own.
+A service of version 8 works the tree out from the request's index,
+which is the worktree's real index rather than a tree,
+so it lands the commit and leaves the tree to the age sweep.
+The version is what keeps a service built before a field from being served,
 not the release text:
 `reach_current` (`src/native/service/service_client_reach_service.rs`)
 serves only a service whose welcome names its own version and its own release,
 and asks any other to retire before a request is sent.
 Two builds of one crate version name the same release,
-so a service built before this change would pass the release check,
-take the readable spelling of a name that is not text,
-and report a successful commit of another file.
+so a service built before a change to the request would pass the release check.
+Version 8 was the first that carries a changed path's bytes;
+a version 7 service takes the readable spelling of a name that is not text
+and reports a successful commit of another file.
 
 ### Compatibility and degradation
 

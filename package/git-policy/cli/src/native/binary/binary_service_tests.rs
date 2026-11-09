@@ -141,7 +141,7 @@ fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatu
 }
 
 fn config(name: &str) -> ClientConfig {
-    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None };
+    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE, units_record_dir: None };
 }
 
 /// The client of a control whose service is killed and started again:
@@ -187,6 +187,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         commit: None,
         cleanup: None,
         index: repo.join(".git/index"),
+        scratch: repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
     };
 }
@@ -1014,6 +1015,7 @@ fn a_service_that_ignores_changed_path_bytes_is_retired_and_never_given_a_commit
                         id: String::from("same-release-1"),
                         commit: String::from("0123456789abcdef0123456789abcdef01234567"),
                         already: false,
+                        landing: None,
                     });
                     answer.push('\n');
                     let _answered = (&stream).write_all(answer.as_bytes());

@@ -19,6 +19,7 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
             start_wait: Duration::from_millis(100),
             heartbeat_silence: Duration::from_secs(1),
             start_watch: None, keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
+            waiting_notice_after: Duration::from_secs(60),
             units_record_dir: None,
         },
         repository: root.join("worktree"),
@@ -174,5 +175,31 @@ fn the_wake_message_carries_the_key_to_the_service() {
         other => panic!("not a work message: {other:?}"),
     }
     assert!(matches!(crate::service_protocol::decode_client(lines[1].trim_end()), Ok(crate::service_protocol::ClientMessage::Work { review_key: None, .. })));
+    remove(root.as_path());
+}
+
+/// What:
+///  A gate that blocks the backup forgets the record an earlier release named as well as this release's.
+/// Why:
+///   `promote_the_push` moves a held record of an earlier release,
+/// named by the kind and the commit alone,
+///  into `pending` under that name;
+/// a blocked gate that removed only this release's name would leave it there,
+/// and the next wake
+///  would push a commit the gate kept local.
+#[test]
+fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
+    let root: std::path::PathBuf = fixture("handoff-blocked-gate-earlier-name");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let item: WorkItem = push_item(&handoff, OID);
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
+    std::fs::create_dir_all(pending.as_path()).expect("a state directory");
+    std::fs::write(pending.join(item.id_before_the_branch()), item.encode()).expect("a record an earlier release left");
+    forget_the_push(&handoff, OID);
+    assert!(!pending.join(item.id()).exists(), "no record waits under this release's name");
+    assert!(!pending.join(item.id_before_the_branch()).exists(), "the record an earlier release named is forgotten too");
+    assert_eq!(crate::work_item::hold(work.as_path(), &item), Ok(()), "a later hold asks nothing of a blocked id");
+    assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked verdict stands, so the push is not held again");
     remove(root.as_path());
 }

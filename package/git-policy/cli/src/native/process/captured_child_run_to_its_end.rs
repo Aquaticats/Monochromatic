@@ -21,10 +21,10 @@
 //! ```
 
 use crate::child_awaited_through_a_pidfd::adopt;
-use crate::lazy_runtime::run_on_runtime;
 use crate::output_capture::{Capture, STEP_OUTPUT_LIMIT};
 use crate::start_retry::spawn_retrying_without_blocking;
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
+use std::time::Duration;
 
 /// What:
 ///  Runs `command` to its end.
@@ -52,25 +52,47 @@ pub async fn output_of(command: &mut Command) -> std::io::Result<Output> {
 }
 
 /// What:
-///  `output_of` for synchronous code:
-/// enters the process's runtime,
-/// building it on the first need.
-/// From inside the runtime it
-///  returns an error instead of panicking,
-/// because waiting for the runtime from within it would never end.
+///  `output_of` for a synchronous caller whose wait carries a ceiling of its own,
+/// without entering the runtime.
 /// Why:
-///  The callers are synchronous until their own callers become asynchronous (step T11);
-/// this bridge goes with the last of them.
+///   A read-only query is asked from code that may already be a task of the runtime,
+/// where entering it would never
+///  end,
+/// and a query that never answers held the command for good
+/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 5).
+///  The output goes to anonymous files,
+/// so no pipe can fill and no reader is needed;
+/// the wait is made by this thread,
+///  which owns the child,
+/// so the ceiling ends the child here and no signal is ever sent to a number
+///  another thread could have reaped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = outputOfBlocking(command); // only until every caller is async
+/// const status = waitWithin(child, ceiling) ?? (child.kill(), throw ceilingReached());
 /// ```
-pub fn output_of_blocking(command: &mut Command) -> std::io::Result<Output> {
-    return match run_on_runtime(output_of(command)) {
+pub fn output_of_within_bound(command: &mut Command, ceiling: Duration) -> std::io::Result<Output> {
+    let program: String = command.get_program().to_string_lossy().into_owned();
+    let capture: Capture = Capture::new()?;
+    let (standard_output, standard_error) = capture.stdio()?;
+    command.stdout(standard_output).stderr(standard_error);
+    let child: Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
+    // This thread has not reaped the child, so the ceiling's kill reaches it and nothing else, and the reap here leaves no
+    //  zombie behind.
+    let status: std::process::ExitStatus = match crate::child_waited_for_within_a_ceiling::wait_within(child, ceiling) {
         Ok(finished) => finished,
-        Err(refusal) => Err(std::io::Error::other(refusal.to_string())),
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            let left_running: bool = crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&error);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                crate::child_waited_for_within_a_ceiling::ceiling_reached_text(program.as_str(), ceiling, left_running),
+            ));
+        }
+        Err(error) => return Err(error),
     };
+    let captured = capture.snapshot(STEP_OUTPUT_LIMIT);
+    return Ok(Output { status, stdout: captured.stdout, stderr: captured.stderr });
 }
 
 /// Captured-run controls stay out of the release executable.

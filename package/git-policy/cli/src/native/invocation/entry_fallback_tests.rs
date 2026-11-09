@@ -73,7 +73,8 @@ fn stderr_of(action: &Action) -> &str {
         | Action::ForwardCoordinated { stderr, .. }
         | Action::ForwardSettled { stderr, .. }
         | Action::ForwardPush { stderr, .. }
-        | Action::Exit { stderr, .. } => stderr.as_str(),
+        | Action::Exit { stderr, .. }
+        | Action::ExitBytes { stderr, .. } => stderr.as_str(),
     };
 }
 

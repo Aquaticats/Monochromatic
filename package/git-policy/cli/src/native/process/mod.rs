@@ -51,6 +51,10 @@ pub mod signal_relay_descriptor;
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
+/// The device and the inode of the file an open descriptor refers to,
+/// read from the kernel's own copy of the descriptor.
+pub mod open_file_of_a_descriptor;
+
 /// The processes below one process,
 /// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
@@ -66,6 +70,16 @@ pub mod child_number_told_at_start;
 /// A child started with the standard library and awaited on the runtime through a pidfd,
 /// owned through every failure after its start.
 pub mod child_awaited_through_a_pidfd;
+
+/// The children this command stopped waiting for,
+/// gathered by a thread of their own,
+/// and kept when the system refuses that thread.
+pub mod stuck_children_reaped_when_the_kernel_lets_go;
+
+/// A child waited for by the thread that owns it,
+/// with a ceiling,
+/// so a query that never answers is ended by its owner.
+pub mod child_waited_for_within_a_ceiling;
 
 /// A command run to its end like `Command::output`,
 /// awaited on the runtime through a pidfd,

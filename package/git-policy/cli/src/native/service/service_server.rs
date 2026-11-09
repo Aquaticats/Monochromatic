@@ -40,7 +40,6 @@ use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
 use crate::service_captures::CaptureMemory;
 use crate::service_land::LandContext;
 use crate::service_timing::{ExitReason, exit_line, log};
-use crate::private_storage::remove_tree;
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake};
@@ -171,6 +170,12 @@ pub struct ServeSettings {
     /// `NEVER_ENDED_STEP_SLOW_AFTER`);
     /// a control shortens it.
     pub stuck_after: Duration,
+    /// How long a batch's first request must have waited before it is told it is next,
+    /// which is how a person sees the service
+    ///  take the commit after a wait (`wait_ceilings.rs`,
+    /// `WAITING_NOTICE_AFTER`);
+    /// a control shortens it.
+    pub place_after: Duration,
     /// The Git directory of the worktree whose units are this service's,
     /// as its note or its journal named it when the service started,
     /// and nothing when it was not there or could not be told.
@@ -195,6 +200,7 @@ impl ServeSettings {
             release: String::from(RELEASE),
             instance: None,
             stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
+            place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             own_units_stop: crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
@@ -303,7 +309,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         ConnectionShared {
             queue: acceptor_queue,
             work: work_sender,
-            busy: Arc::clone(&busy),
             board: Arc::clone(&board),
             release: settings.release.clone(),
             instance: settings.instance.clone(),
@@ -383,7 +388,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         for job in &jobs {
             if let Job::Withdraw(id, reply) = job {
                 match landed.get(id) {
-                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true }),
+                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true, landing: None }),
                     None => {
                         withdrawn.insert(id.clone());
                         reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
@@ -393,7 +398,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         }
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
-        let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
                 Job::Withdraw(..) => {}
@@ -402,7 +406,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 }
                 Job::Retire => retiring = true,
                 Job::Activity => {}
-                Job::Release(path) => releases.push(path),
                 Job::Commit(request, stream, arrival) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
@@ -417,7 +420,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 }
             }
         }
-        for (_, queued_group) in groups {
+        for (_, queued_group) in groups.drain(..) {
+            // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
+            //  landing that reads it, and which the service removes once that landing is over.
+            let mut trees: Vec<std::path::PathBuf> = Vec::new();
+            for queued in &queued_group {
+                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
+                    trees.push(tree);
+                }
+            }
             // The shutdown waits for this landing and refuses one that would begin after the stop.
             let Ok(_landing_in_flight) = begin_unfinished_work(false, "a landing") else {
                 break;
@@ -452,10 +463,14 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             let group: Vec<Queued> = admitted;
             if group.is_empty() {
                 board.end_group(ids.as_slice());
+                remove_the_trees(trees.as_slice());
                 continue;
             }
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after);
             board.end_group(ids.as_slice());
+            // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
+            //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
+            remove_the_trees(trees.as_slice());
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {
@@ -467,15 +482,29 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
             return;
         }
-        for path in releases {
-            if let Err(error) = remove_tree(path.as_path()) {
-                crate::service_warn!("the scratch directory {} could not be removed: {error}", path.display());
-            }
-        }
     }
     // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
     crate::service_durable::drain();
     log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
+}
+
+/// What:
+///  Starts the removal of the scratch trees of the requests a group has just finished with,
+///  beside the loop.
+/// Why:
+///   The tree holds the private index and the conclusion copies a landing reads,
+///   so only the landing that named it may decide that it is done with it.
+///  A tree whose client is gone waits for that landing instead of for its connection to close,
+///  which is what makes a killed client's queued commit land on the tree it made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// trees.forEach(startTheRemovalBesideTheLoop);
+/// ```
+fn remove_the_trees(trees: &[std::path::PathBuf]) {
+    for tree in trees {
+        crate::service_scratch_release_removal::start(tree.clone());
+    }
 }
 
 /// Socket controls stay out of the release executable.

@@ -181,6 +181,25 @@ pub enum Action {
         ///  already line-terminated.
         stderr: String,
     },
+    /// Stop without running the caller's command,
+    /// with bytes on standard output.
+    ///  `Vec<u8>` is the report exactly as it is written.
+    /// Why:
+    ///   A report that names pathnames cannot spell them as text:
+    /// a pathname is a byte string,
+    /// and its text
+    ///  spelling with replacement characters names a different file.
+    /// The doctor's list of traditional hooks is such a report.
+    ExitBytes {
+        /// Process exit code.
+        code: i32,
+        /// Complete report for standard output,
+        ///  already line-terminated.
+        stdout: Vec<u8>,
+        /// Complete text for standard error,
+        ///  already line-terminated.
+        stderr: String,
+    },
 }
 
 /// What:
@@ -229,6 +248,9 @@ pub fn with_leading_notice(action: Action, notice: Option<&str>) -> Action {
         }
         Action::Exit { code, stdout, stderr } => {
             return Action::Exit { code, stdout, stderr: format!("{lead}{stderr}") };
+        }
+        Action::ExitBytes { code, stdout, stderr } => {
+            return Action::ExitBytes { code, stdout, stderr: format!("{lead}{stderr}") };
         }
     }
 }

@@ -150,7 +150,8 @@ impl Reading {
 ///   Each look reads one file per task,
 /// and those bytes are in the reader's own counters before the next look;
 /// subtracting them is what lets the
-///  reader's own work (a predicate that retries, a round it runs) still count.
+///  reader's own work (a predicate that retries,
+/// a round it runs) still count.
 fn note_a_reader_s_own_reads(reader: i32, added: u64) {
     let Ok(mut reading) = READING_THREADS.lock() else { return };
     for each in reading.iter_mut() {

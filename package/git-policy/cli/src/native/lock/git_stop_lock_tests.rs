@@ -455,12 +455,29 @@ fn describe_left(files: &[PathBuf]) -> String {
     return lines.join("; ");
 }
 
-/// The checks that follow a stop:
-/// the holder really held the lock,
-/// none is left (the sweep for a tree the host was slow to
-/// end runs on a thread and is waited for),
-/// and the fetch that failed in practice works.
-fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
+/// What a stop leaves on disk.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Leftover {
+    /// Git's own handler removed the lock and its pid file.
+    TheHolderCleansItUp,
+    /// The holder was killed before it could remove them,
+    /// and nothing the wrapper sees proves the lock's holder gone,
+    /// so the lock stays and the next command prints the command that clears it.
+    NothingProvesIt,
+}
+
+/// The checks that follow a stop,
+/// according to what the stop leaves:
+/// a holder that cleaned up leaves nothing,
+/// and one that was killed leaves the lock the wrapper will not remove.
+fn assert_after_stop(stage: &Stage, kind: Holder, how: &str, leftover: Leftover) {
+    if leftover == Leftover::NothingProvesIt {
+        // The sweep runs before the stop returns, and it removes nothing it cannot prove:
+        // the lock the killed holder left is still there for the next command to name.
+        let left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
+        assert!(!left.is_empty(), "{how} {kind:?}: no lock was left, so this control no longer tests a lock nothing proves gone");
+        return;
+    }
     let waited: Instant = Instant::now();
     let mut left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
     while !left.is_empty() && waited.elapsed() < SWEEP_WAIT {
@@ -480,9 +497,9 @@ fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
     assert!(fetched.status.success(), "{how} {kind:?}: the following fetch failed: {}", String::from_utf8_lossy(&fetched.stderr));
 }
 
-/// A push-style bounded run stops the holder at its run's limit and leaves no lock.
-fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
-    bounded_run_with(kind, name, StopRule::TheProductionRule);
+/// A push-style bounded run stops the holder at its run's limit.
+fn bounded_run(kind: Holder, name: &str, leftover: Leftover) {
+    bounded_run_with(kind, name, StopRule::TheProductionRule, leftover);
 }
 
 /// What:
@@ -497,7 +514,7 @@ fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
 /// the report then names the ordering the control
 ///  needed and did not see,
 /// never a watchdog.
-fn bounded_run_with(kind: Holder, name: &str, rule: StopRule) {
+fn bounded_run_with(kind: Holder, name: &str, rule: StopRule, leftover: Leftover) {
     let stage: Stage = stage(name);
     let grace: Duration = match kind {
         Holder::Responsive => RESPONSIVE_GRACE,
@@ -511,7 +528,7 @@ fn bounded_run_with(kind: Holder, name: &str, rule: StopRule) {
         assert!(saw_the_cut(), "{kind:?}: the stop ended without a look seeing Git between its two unlinks, so the ordering this control is about never happened");
     }
     drop(watching);
-    assert_clean_after_stop(&stage, kind, "bounded run");
+    assert_after_stop(&stage, kind, "bounded run", leftover);
     remove(stage.root.as_path());
 }
 
@@ -550,8 +567,8 @@ fn assert_the_holder_announced_its_lock(stage: &Stage, kind: Holder, how: &str) 
     assert!(stage.ready.exists(), "{how} {kind:?}: the holder never announced that it held the lock, so the stop was asked before the lock existed");
 }
 
-/// A watched step stops the holder at its bound and leaves no lock.
-fn watched_step_leaves_no_lock(kind: Holder, name: &str) {
+/// A watched step stops the holder at its bound.
+fn watched_step(kind: Holder, name: &str, leftover: Leftover) {
     let stage: Stage = stage(name);
     let mut command: Command = holder(&stage, kind);
     let terms: WatchTerms = WatchTerms {
@@ -562,26 +579,28 @@ fn watched_step_leaves_no_lock(kind: Holder, name: &str) {
     let ended = output_watched(&mut command, "git update-ref --stdin", terms);
     assert_eq!(ended.expect_err("the step is stopped at its bound").kind(), std::io::ErrorKind::TimedOut);
     assert_the_holder_announced_its_lock(&stage, kind, "watched step");
-    assert_clean_after_stop(&stage, kind, "watched step");
+    assert_after_stop(&stage, kind, "watched step", leftover);
     remove(stage.root.as_path());
 }
 
-/// A push stopped on no progress leaves no lock either.
+/// A push stopped on no progress kills a holder that cannot answer,
+/// and the lock it held stays:
+/// nothing the wrapper sees proves whose it was.
 #[test]
-fn a_stall_stop_of_an_unresponsive_holder_leaves_no_lock() {
+fn a_stall_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
     let stage: Stage = stage("stop-lock-push-stall");
     let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE };
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
     assert_the_holder_announced_its_lock(&stage, Holder::Unresponsive, "stalled run");
-    assert_clean_after_stop(&stage, Holder::Unresponsive, "stalled run");
+    assert_after_stop(&stage, Holder::Unresponsive, "stalled run", Leftover::NothingProvesIt);
     remove(stage.root.as_path());
 }
 
 /// A holder that answers `SIGTERM` is cleaned up by Git itself in the push path.
 #[test]
 fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
-    bounded_run_leaves_no_lock(Holder::Responsive, "stop-lock-push-responsive");
+    bounded_run(Holder::Responsive, "stop-lock-push-responsive", Leftover::TheHolderCleansItUp);
 }
 
 /// A holder whose handler is slow to finish is not killed between Git's two unlinks:
@@ -600,11 +619,12 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
 ///  (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
 #[test]
 fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
-    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup", StopRule::UntilTheCleanupIsFinished);
+    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup", StopRule::UntilTheCleanupIsFinished, Leftover::TheHolderCleansItUp);
 }
 
-/// A kill that falls between Git's two unlinks leaves no lock either,
-/// whatever the load.
+/// A kill that falls between Git's two unlinks leaves the lock,
+/// whatever the load,
+/// because the pid file it took with it was the only thing that named the holder.
 /// Why:
 ///  Git's handler removes the pid file of a lock and then the lock;
 /// a stop whose kill arrives between the two leaves the lock with
@@ -623,27 +643,27 @@ fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
 ///  the cut on disk begins,
 /// so the kill falls between the two unlinks however long the host takes to run
 ///  Git's handler.
-/// The wrapper saw the pid file name the holder before it signalled it,
-/// so the lock is the holder's by its own observation.
+/// A number in a pid file is not the wrapper's own observation,
+/// so the lock stays and is named.
 #[test]
-fn a_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
-    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-cut-cleanup", StopRule::UntilTheCutIsReached);
+fn a_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
+    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-cut-cleanup", StopRule::UntilTheCutIsReached, Leftover::NothingProvesIt);
 }
 
-/// The same cut in the watched path leaves no lock.
+/// The same cut in the watched path leaves the lock too.
 #[test]
-fn a_watched_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
-    watched_step_leaves_no_lock(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup");
+fn a_watched_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
+    watched_step(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup", Leftover::NothingProvesIt);
 }
 
 /// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling:
 /// the stop returns about one
 ///  ceiling after the request,
 /// the holder is gone,
-/// and the sweep then clears its lock,
+/// and the lock it left stays for the person,
 /// so nothing waits for good.
 #[test]
-fn a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept() {
+fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
     const CEILING: Duration = Duration::from_millis(1500);
     const GRACE: Duration = Duration::from_millis(300);
     // The hold the run's limit is kept back for is part of what the stop's whole time may hold, and nothing else is.
@@ -659,27 +679,28 @@ fn a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept() {
     assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
     assert_the_holder_held_its_lock(Holder::Unresponsive, "stalled run held for ever");
     drop(watching);
-    assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever");
+    assert_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever", Leftover::NothingProvesIt);
     remove(stage.root.as_path());
 }
 
 /// A holder that cannot answer `SIGTERM` is killed,
-/// and the wrapper leaves no lock behind it.
+/// and the lock it held stays.
 #[test]
-fn a_push_stop_of_an_unresponsive_holder_leaves_no_lock() {
-    bounded_run_leaves_no_lock(Holder::Unresponsive, "stop-lock-push-unresponsive");
+fn a_push_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
+    bounded_run(Holder::Unresponsive, "stop-lock-push-unresponsive", Leftover::NothingProvesIt);
 }
 
 /// A holder that answers `SIGTERM` gets the chance in the watched path.
 #[test]
 fn a_watched_stop_of_a_responsive_holder_leaves_no_lock() {
-    watched_step_leaves_no_lock(Holder::Responsive, "stop-lock-watched-responsive");
+    watched_step(Holder::Responsive, "stop-lock-watched-responsive", Leftover::TheHolderCleansItUp);
 }
 
-/// A holder that cannot answer `SIGTERM` leaves no lock in the watched path either.
+/// A holder that cannot answer `SIGTERM` is killed in the watched path,
+/// and the lock it held stays.
 #[test]
-fn a_watched_stop_of_an_unresponsive_holder_leaves_no_lock() {
-    watched_step_leaves_no_lock(Holder::Unresponsive, "stop-lock-watched-unresponsive");
+fn a_watched_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
+    watched_step(Holder::Unresponsive, "stop-lock-watched-unresponsive", Leftover::NothingProvesIt);
 }
 
 /// The watched path asks with a catchable signal before it kills:
@@ -709,14 +730,16 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
 }
 
 /// A stop with no grace kills at once and hands the child to a thread,
-/// which sweeps its locks when it has ended.
+/// which sweeps its locks when it has ended;
+/// the lock stays,
+/// because nothing proves its holder gone.
 #[test]
-fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
+fn a_stop_without_grace_sweeps_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");
     let _watching: Watching = Watching::of(&stage, StopRule::TheProductionRule);
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), Duration::ZERO, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
     assert_the_holder_held_its_lock(Holder::Unresponsive, "bounded run without grace");
-    assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run without grace");
+    assert_after_stop(&stage, Holder::Unresponsive, "bounded run without grace", Leftover::NothingProvesIt);
     remove(stage.root.as_path());
 }

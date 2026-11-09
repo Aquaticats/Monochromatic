@@ -157,6 +157,63 @@ const NOTICE_AT_ONCE: Cadence = Cadence {
     interval: Duration::from_secs(3600),
 };
 
+/// What:
+///  A notice the linter wrote while its job finished is kept for the next wait.
+/// Why:
+///  The notice is written on a thread of its own,
+///  and the job can answer while that write is still in the air;
+///  a
+///       guard that returned there would drop the sink the notice thread hands back,
+///  and every later
+///       candidate of the same linter would print no notice at all,
+///  which is silence on a slow run rather
+///       than a stream nobody reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const notices = [sink]; await runGuarded(jobThatAnswersAfterItsNotice, ...); expect(notices[0]).toBeDefined()
+/// ```
+#[test]
+fn a_notice_that_finishes_with_the_job_keeps_its_sink() {
+    let (written, notice_written): (Sender<()>, Receiver<()>) = channel();
+    let shared: SharedSink = SharedSink::default();
+    // The first line is finished inside the notice thread, and the job answers at once: the same iteration.
+    let signalling: ActionSink = ActionSink::new(&shared, 1, move || {
+        let _ = written.send(());
+    });
+    let mut notices: NoticeSink = Some(Box::new(signalling));
+    let outcome: Result<u8, GuardFailure> = run_guarded(
+        move || {
+            let _ = notice_written.recv_timeout(Duration::from_secs(5));
+            return 7;
+        },
+        limits(LONG_WINDOW),
+        NOTICE_AT_ONCE,
+        "a job",
+        &mut notices,
+    );
+    assert_eq!(outcome, Ok(7));
+    assert!(
+        notices.is_some(),
+        "the sink a finished notice returned is kept for the next wait"
+    );
+    // Positive control: the kept sink writes the next wait's own notice.
+    let second: Result<(), GuardFailure> = run_guarded(
+        || {},
+        limits(LONG_WINDOW),
+        NOTICE_AT_ONCE,
+        "a job",
+        &mut notices,
+    );
+    assert_eq!(second, Ok(()));
+    assert_eq!(
+        shared.text().lines().count(),
+        2,
+        "the kept sink wrote the later notice: {}",
+        shared.text()
+    );
+}
+
 /// A job's value comes back,
 /// and the job ran on another thread.
 #[test]

@@ -21,10 +21,9 @@
 //! ```
 
 use crate::index_lock_evidence::{
-    Verdict, WaitEnd, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
-    ceiling_line, blocker_words, unproven_removal_advice, holder_way_out,
+    Verdict, WaitEnd, classify_index_lock, gather_with, host_pid_process, proven_holder_line, proven_holder_progress_line, unproven_wait_line, ceiling_line, blocker_words,
+    unproven_removal_advice, holder_way_out,
 };
-use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
 use crate::service_index_refused_lock::{forget, recall, remember};
@@ -53,7 +52,8 @@ fn earlier_commit_line(earlier_seconds: u64) -> String {
     );
 }
 
-/// What the diagnostic of a dead owner says becomes of the commit that was waiting.
+/// What the ceiling's line says becomes of the commit that waited for a held lock,
+/// which is withdrawn rather than run into Git's refusal the way a merge is.
 const COMMIT_NOT_MADE: &str = "this commit was not made";
 
 /// What the notice of a wait for a held lock says becomes of the commit when the wait reaches its ceiling,
@@ -67,9 +67,6 @@ enum Proved {
     /// A holder is proven alive;
     /// it is waited for until the ceiling.
     Alive,
-    /// The PID file names a process that is gone;
-    /// nothing will release the lock.
-    Dead,
     /// Nothing proves a holder alive or dead;
     /// it is waited for like a proven one,
     /// until the ceiling.
@@ -94,7 +91,6 @@ struct Looked {
     line: Option<String>,
     who: Option<String>,
     open: Option<String>,
-    ending: Option<String>,
     /// For a holder proven alive:
     /// its number,
     /// program and start time,
@@ -111,15 +107,15 @@ struct Looked {
 /// the same one the removal is decided on,
 /// so one acquisition reads one host.
 fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
-    let gathered = gather_with(index, resolve_process_start, platform.scan);
+    let gathered = gather_with(index, host_pid_process, platform.scan);
     let evidence = match gathered {
         Ok(Some(found)) => found,
         // The lock was released between the placement and this look.
-        Ok(None) => return Looked { blocker: String::new(), proved: Proved::Gone, line: None, who: None, open: None, ending: None, way_out: None },
+        Ok(None) => return Looked { blocker: String::new(), proved: Proved::Gone, line: None, who: None, open: None, way_out: None },
         Err(_) => {
             let lock: std::path::PathBuf = crate::service_index_lock::lock_path_of(index);
             let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: COMMIT_WITHDRAWN };
-            return Looked { blocker: String::from("an owner whose evidence could not be read"), proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None, end)), who: None, open: None, ending: None, way_out: None };
+            return Looked { blocker: String::from("an owner whose evidence could not be read"), proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None, end)), who: None, open: None, way_out: None };
         }
     };
     let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: COMMIT_WITHDRAWN };
@@ -133,24 +129,18 @@ fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bo
             } else {
                 proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), end)
             };
-            Looked { blocker: blocker_words(&evidence), proved: Proved::Alive, line: Some(format!("{line}{way_out}")), who: Some(holder_words(pid, command.as_deref())), open, ending: None, way_out: Some(way_out) }
+            Looked { blocker: blocker_words(&evidence), proved: Proved::Alive, line: Some(format!("{line}{way_out}")), who: Some(holder_words(pid, command.as_deref())), open, way_out: Some(way_out) }
         }
-        Verdict::Dead(pid) => Looked {
-            blocker: blocker_words(&evidence),
-            proved: Proved::Dead,
-            line: None,
-            who: Some(holder_words(pid, None)),
-            open,
-            ending: Some(dead_owner_diagnostic(evidence.lock_path.as_path(), pid, COMMIT_NOT_MADE)),
-            way_out: None,
-        },
-        Verdict::EvidenceFree => Looked {
+        // A PID file naming a number this process table does not have is no proof of a dead owner: a live Git of another
+        // PID namespace writes a number this table has never had, and holds the lock through its editor with no descriptor
+        // open, so the commit waits for it within its ceiling as it does for an owner nothing proves alive
+        // (cross-vendor review of 2026-11-09, finding 2). Only a command that may clear the lock acts on that verdict.
+        Verdict::Dead(_) | Verdict::EvidenceFree => Looked {
             blocker: blocker_words(&evidence),
             proved: Proved::Nothing,
             line: Some(unproven_wait_line(evidence.lock_path.as_path(), Some(&evidence), end)),
             who: None,
             open,
-            ending: None,
             way_out: None,
         },
     };
@@ -293,7 +283,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
         let at_ceiling: bool = already_waited.is_some() || waited >= ceiling;
-        let mut looked: Looked = if due || at_ceiling { look_at_holder(platform, index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
+        let mut looked: Looked = if due || at_ceiling { look_at_holder(platform, index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, way_out: None } };
         if let Some((words, who)) = left_stale {
             // The notice is the person's way to the lock; the holder is named from the marker, not from a process scan.
             looked.line = Some(words);
@@ -319,19 +309,10 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             first = false;
             last_notice = Instant::now();
         }
-        // A dead owner ends the wait at once, because nothing will release its lock. A holder proven alive and an owner nothing
-        //  proves alive are waited for until the ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely");
-        //  then the wait ends, naming the blocker, and the batch is withdrawn by the caller.
-        if proof == Proved::Dead {
-            if let Some(text) = looked.ending {
-                announce.announce(Announce::Waiting(text));
-            }
-            announce.announce(Announce::Holder(match looked.who {
-                Some(who) => who,
-                None => String::from("Another program"),
-            }));
-            return Err(LockFailure { code: FailureCode::IndexInUse });
-        }
+        // A holder proven alive and an owner nothing proves alive are both waited for until the ceiling, because a number
+        //  the lock's PID file holds that this process table does not have may be a live Git's of another PID namespace
+        //  (cross-vendor review of 2026-11-09, finding 2; owner, 2026-11-03: "nothing should ever wait forever or
+        //  indefinitely"); then the wait ends, naming the blocker, and the batch is withdrawn by the caller.
         if at_ceiling && proof != Proved::Gone {
             let held_against_commits: Duration = waited + already_waited.unwrap_or(Duration::ZERO);
             remember(lock, held_against_commits);
