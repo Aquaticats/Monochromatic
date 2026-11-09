@@ -3,7 +3,9 @@
  
  Defines all color tokens as a `:root` block with dark mode overrides
  and inverse-mode overrides for the theme toggle.
- Every color value in the site references these tokens via `var(--token-name)`.
+ Every color value in the site references these tokens via `var(--token-name)`,
+ except the two brand hexes exported here, which template code interpolates
+ directly because a `theme-color` meta tag cannot read a custom property.
  */
 import {
   cssCalc,
@@ -12,6 +14,18 @@ import {
   cssVar,
   hCss as $,
 } from '@monochromatic-dev/hyperscript-core/ts';
+
+/**
+ Brand hex for the light theme: the `--primary-light` custom property, the light
+ `theme-color` meta, and the base every light colour token derives from.
+ */
+export const PRIMARY_LIGHT = '#bf97e3';
+
+/**
+ Brand hex for the dark theme: the `--primary-dark` custom property, the dark
+ `theme-color` meta, and the base every dark colour token derives from.
+ */
+export const PRIMARY_DARK = '#4e318f';
 
 /**
  Light mode token values (excluding theme-invariant primary colors).
@@ -121,8 +135,8 @@ export function tokenStyles(): string {
   return $({
     rule: ':root',
     decls: {
-      '--primary-light': '#bf97e3',
-      '--primary-dark': '#4e318f',
+      '--primary-light': PRIMARY_LIGHT,
+      '--primary-dark': PRIMARY_DARK,
       ...lightTokenDecls(),
     },
   },);
