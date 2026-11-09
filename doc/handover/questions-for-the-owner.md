@@ -108,11 +108,20 @@ Each record is cited so the context is one read away.
   Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
   which is gitignored and is the owner's file;
   that reservation is the last unmet line of issue 1720.
-- The umbrella list (`225a3b6318`) left open points:
-  how to split its Windows and release-gate entries,
-  whether its release-artifact gate meant a packaged-tarball gate,
+- The umbrella list (`225a3b6318`) has three open points left:
   which of its disagreeing maintenance mutation records is right,
-  and whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees.
+  whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees,
+  and whether its release-artifact gate also meant a check of the archive's own contents.
+  Its Windows and release-gate entries are split in
+  `doc/handover/cli-git-rust-implementation.md`,
+  where the gate's latency half is answered:
+  `native:perf`,
+  run against the installed binary,
+  measures what mpm installs from the release tarball,
+  its limits are its own task description,
+  and the release records of `doc/planning/one-release-each-batch-2026-11.md` hold its figures.
+  A search of `doc/` and `.github/` on 2026-11-08 for `release-artifact` and `release performance`
+  found only items forwarding to that list.
 - The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
   which ask what each shipped limit should cite.
 - Does "never discard user data" cover the audit history?

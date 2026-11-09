@@ -5318,11 +5318,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   with its reason
   (why the line is otherwise invisible:
   `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
-- Older umbrella items from October,
-  reconciled against Git state on 2026-11-08T16:49:36-05:00 (read only;
-  no campaign,
+- The October umbrella items were reconciled against Git state again on
+  2026-11-08T19:33:30-05:00 (read only;
+  no code changed and no campaign,
   fuzz run or Windows check was started).
-  Each entry gives its verdict and where its evidence or its open work lives.
+  One of them closes:
+  the linter cutover,
+  whose closure and wiring commit now sit in `doc/handover/unified-linter-cutover.md`.
+  The rest are paused by an owner sentence,
+  answered in part,
+  or open,
+  and each entry says which,
+  what settled it,
+  and where its evidence or its open work lives.
 - The scanner's pathname mutation scope on Windows is paused,
   not closed.
   `doc/handover/scanner-native-verification.md`,
@@ -5332,28 +5340,43 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and that the guest was destroyed with nothing run.
   The one timeout the 2026-10-06 Windows campaign ended with is still unverified
   (the timeout mutant in `count_prefix_parts`,
-  `src/path_name_bytes.rs` line 59,
-  as that section locates it),
+  `package/forbidden-strings/cli/src/path_name_bytes.rs` line 59,
+  which that section locates as `src/path_name_bytes.rs:59:35`),
   so the item resumes there in that section when the owner lifts the pause.
-- The Windows checks are paused by that same sentence:
-  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not installed,
+- The Windows and macOS checks are paused by that same sentence,
+  not closed.
+  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not
+  installed,
   and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
   Windows branch without ever running it.
-  The release-artifact performance gate is closed instead of paused.
-  It is the `native:perf` task,
-  which measures the added latency of the release binary against paired direct Git within the limits its
-  description states (added p95 under 2,000 ms on forwarded commands,
-  every paired delta under 5,000 ms on commits),
-  and its figures are recorded in
-  `doc/planning/one-release-each-batch-2026-11.md`,
-  the release record of 2026-11-07T22:11:47-05:00,
-  under its "Latency" bullet,
+  The macOS results are the last recorded ones:
+  it is not a release target (the GitHub release carries Linux assets only),
+  its `native_binary` tests fail there (`/dev/full` is absent,
+  several fixture spawns fail with NotFound),
+  and its lib tests pass on `m1`.
+  The release-artifact performance gate is answered in part.
+  `native:perf` measures the release binary's added latency,
+  its limits are its own task description,
+  and its figures are the release records of `doc/planning/one-release-each-batch-2026-11.md`,
   with the same-binary spread the comparison needs.
-  A search of `doc/` and `.github/workflows` for `release-artifact`,
-  `release performance` and `perf` found no other definition of that gate,
-  so `native:perf` is the gate the older item named.
-- Long fuzz campaigns stay open.
-  Neither recorded pause names them:
+  The binary it measures comes out of the published archive,
+  which `toolchain.lock.json` names as the tarball and sha256 mpm installs,
+  so the latency gate does run on a packaged binary;
+  no record defines a check of the archive's own contents,
+  so whether the older entry also meant one stays open.
+  The Windows and macOS checks resume when the owner lifts the pause.
+- Long fuzz campaigns are open,
+  and another agent is running one now.
+  It works on branch `test/git-policy-cli-fuzz-long-campaign-results`
+  (worktree `.claude/worktrees/pi-fuzz-long-campaign-results`,
+  at `13e215b5a5` when this entry was read)
+  and runs `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900`
+  through the gate slot under `GIT_POLICY_NATIVE_IMAGE_TAG=pi-fuzz-long-campaign-20261108`,
+  writing `${HOME}/temp/agent/fuzz-campaign-20261108T1818-0500.log`.
+  It was still running at 2026-11-08T19:33:30-05:00,
+  so this entry reports no totals,
+  and its result belongs in `doc/handover/cli-git-native-replay-core.md`.
+  Neither recorded pause names fuzzing:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
   the other covers wrapper mutation campaigns
   (`doc/handover/questions-for-the-owner.md`,
@@ -5400,12 +5423,6 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and the signals and automatic-maintenance scope
   (`doc/handover/cli-git-native-signals.md`,
   "Trailing gates").
-- The linter cutover task is closed.
-  It landed on 2026-10-10 as the fast-forward merge `b111c0ca39`,
-  the five incumbent packages were deleted in `5bc05682e`,
-  and `main` holds both,
-  while the root lint and format tasks have run `monochromatic-lint` since `0b49ae109e`.
-  The durable record is `doc/handover/unified-linter-cutover.md`.
 - The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
   2026-11-04 pause.
   The rerun was waiting on a multi-pass control,
@@ -5414,13 +5431,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `snapshots_equal` through two corrections,
   and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
   Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
-  so the pause is the only thing that keeps this open,
-  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
+  so the pause is the only thing that stops the rerun from starting,
+  and what the rerun would show remains unverified;
+  the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
   so what those numbers cover beyond this item is unverified here.
-- macOS is not a release target (the GitHub release carries Linux assets only);
-  the `native_binary` tests still fail there (`/dev/full` is absent,
-  several fixture spawns fail with NotFound);
-  the lib tests pass on `m1`.
 - Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
   Closed 2026-11-08T15:41:28-05:00:
   the Android-target build is no longer blocked.
