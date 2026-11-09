@@ -171,6 +171,52 @@ const NOTICE_BOUND: Duration = Duration::from_millis(500);
 /// and a step that ends sooner than that is ended by its own channel before a second look.
 const LOOK_INTERVAL: Duration = Duration::from_millis(250);
 
+// What:
+//  A control that refuses the thread the ceiling is enforced on,
+//  as a process at its thread limit does with `EAGAIN` from `pthread_create`.
+// Why:
+//   The refusal cannot be produced on demand here:
+//   a thread limit low enough to refuse this thread refuses the test's own threads too,
+//   so the system's answer is injected
+//   (`member_signalled_through_its_pidfd.rs` injects a refused descriptor the same way).
+//  The planter runs on the thread that starts the notice,
+//  and the notice thread is spawned from it.
+#[cfg(test)]
+thread_local! {
+    /// How many notice threads the next starts are refused.
+    static THREAD_REFUSALS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Refuse the next `count` notice threads.
+#[cfg(test)]
+pub(crate) fn refuse_the_next_notice_thread(count: usize) {
+    THREAD_REFUSALS.with(|left| { left.set(count); });
+}
+
+/// What:
+///  The refusal a control armed,
+///  if any,
+///  which stands for a system that cannot make another thread.
+/// Why:
+///   The start of the notice answers a refused thread the way it answers any other,
+/// and only a control tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusedNow = () => armedRefusal-- > 0 ? new Error('refused') : undefined;
+/// ```
+fn a_thread_is_refused_now() -> Option<std::io::Error> {
+    #[cfg(test)]
+    if THREAD_REFUSALS.with(|left| {
+        let armed: usize = left.get();
+        left.set(armed.saturating_sub(1));
+        return armed > 0;
+    }) {
+        return Some(std::io::Error::other("a control refused the notice thread"));
+    }
+    return None;
+}
+
 /// What a started notice is given.
 pub struct NoticeStart<'a> {
     /// The configuration the commit is built under.
@@ -415,7 +461,9 @@ impl NativeCommitNotice {
             }
             let _told = told_written.send(());
         });
-        let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
+        let spawned: std::io::Result<std::thread::JoinHandle<()>> = match a_thread_is_refused_now() {
+            Some(_refused) => Err(std::io::Error::other("the notice thread was refused")),
+            None => std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
             let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(ceiling));
@@ -500,7 +548,8 @@ impl NativeCommitNotice {
             // The facts leave through the channel `finish` waits on, so a thread that cannot answer never holds the commit:
             // returning them through the join would make the join the wait.
             let _answered = told_answers.send(facts);
-        });
+            }),
+        };
         return match spawned {
             Ok(_thread) => Self {
                 stop: Some(stop),
@@ -511,7 +560,8 @@ impl NativeCommitNotice {
                 unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
                 step,
             },
-            // The system refused the thread: the step runs with no ceiling, and the record says so.
+            // The system refused the thread: this notice enforces nothing,
+            // so the wait that owns the step ends it at the ceiling (`child_ended_at_the_ceiling.rs`).
             Err(_) => Self::silent(Some(ceiling)),
         };
     }
