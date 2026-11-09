@@ -51,10 +51,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 const POSITIONS_PER_SWEEP: usize = 48;
 
 /// How many runs one call's own kill control makes at most.
-/// A position cost up to about ten seconds with its fixture and the recovery commands
-/// (on 2026-11-09 the copy flow's 24 `pwrite64` positions took 234.1 s and its 19 `fsync` ones 98.5 s),
-/// so a control of one call stays inside the five-minute per-test limit where a whole flow's did not.
-const POSITIONS_PER_CALL: usize = 16;
+/// A position cost up to about twenty seconds with its fixture and the recovery commands under the host's load
+/// (on 2026-11-09 the copy flow's 12 `pwrite64` positions took 234.1 s while its 16 `openat` ones took 2.3 s,
+/// so the spread is the host's and not the control's),
+/// and twelve positions keep the worst measured rate inside the five-minute per-test limit.
+const POSITIONS_PER_CALL: usize = 12;
 
 /// How long each call of the slow-storage control returns late,
 /// in microseconds:
