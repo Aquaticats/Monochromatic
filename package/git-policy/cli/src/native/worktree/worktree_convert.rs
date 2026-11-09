@@ -145,6 +145,16 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
 /// const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 /// ```
 pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+    // The platform's answer holds for the whole conversion, and a conversion on a platform that flushes turns the
+    // flushes back on even inside a stand-in's extent, as a command's does.
+    let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
+        crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(platform.flushes_to_disk());
+    return convert_in_phases(platform, path, options, interrupt, say);
+}
+
+/// The phases of one conversion,
+/// which `convert_worktree` wraps in the platform's answer about flushing.
+fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
     let candidate: Candidate = match inspect(path) {
         Ok(found) => found,
         Err(reason) => return Ok(Verdict::Skipped(vec![reason])),

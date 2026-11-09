@@ -600,3 +600,72 @@ fn an_expired_foreign_stage_claim_stops_recovery_before_a_dead_journal_is_touche
     assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
     remove(root.as_path());
 }
+
+/// The registration a stage records is the one the copy was made for:
+/// a destination another registration holds by the time recovery runs receives nothing,
+/// and the notice names both registrations.
+#[cfg(unix)]
+#[test]
+fn a_recorded_registration_that_is_gone_is_discarded_with_a_notice() {
+    let root: PathBuf = fixture("recovery-registration-replaced");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
+    // Another command removes this worktree and registers another one at the same path, whose checkout has not run.
+    git(
+        source.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            topic.to_str().expect("utf8"),
+        ],
+    );
+    git(
+        source.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "second",
+            topic.to_str().expect("utf8"),
+        ],
+    );
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains(binding.admin.to_str().expect("utf8")), "the registration the copy was made for is named: {notice}");
+    assert!(notice.contains("is registered by"), "{notice}");
+    assert!(!topic.join("cache").exists(), "the replacement registration received nothing");
+    assert!(!topic.join("tracked.txt").exists(), "the replacement registration's own checkout never ran");
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
+    remove(root.as_path());
+}
+
+/// A recorded registration that still holds is resumed,
+/// so the check never costs a copy that is still the right one.
+#[cfg(unix)]
+#[test]
+fn a_recorded_registration_that_still_holds_is_resumed() {
+    let root: PathBuf = fixture("recovery-registration-holds");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
+    remove(root.as_path());
+}

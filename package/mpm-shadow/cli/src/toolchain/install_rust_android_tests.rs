@@ -210,3 +210,18 @@ fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
         ]
     );
 }
+
+/// The installed-parts listings ask about the same channel `packageId` names, not the locked version,
+/// so a real install is not read as missing and re-added forever.
+#[test]
+fn the_installed_parts_are_listed_for_the_package_id_channel() {
+    let rig = Rig::new();
+    let mut tool: LockedTool = rust_tool(&rig);
+    tool.declaration.package_id = Some("nightly".to_string());
+    reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
+    let lines: Vec<String> = rig.runner.lines();
+    assert!(
+        lines.iter().all(|line| return line.ends_with("--toolchain nightly")),
+        "every listing and add names the installed channel: {lines:?}"
+    );
+}

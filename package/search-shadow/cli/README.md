@@ -254,9 +254,20 @@ search-shadow link .cache/search-shadow-bin
 ```
 
 `link` links a name only when a real tool of that name is found on PATH (not counting a shadow of any version),
-removes a link whose real tool has gone,
+removes a shadow link whose real tool has gone,
 and reports what it linked,
-removed and skipped.
+removed,
+skipped,
+and left alone.
+It deletes or replaces only its own links:
+one that resolves to a shadow of any version,
+including the older release an upgrade takes over.
+An entry of a shadowed name that is anything else
+(a regular file,
+a directory,
+a link to another program) stays where it is,
+and the run names it on standard error,
+so pointing `link` at a directory you also use for other things (`~/.local/bin`) cannot destroy a file there.
 Run it again after installing or removing a tool.
 
 In this repository it is installed by `mpm-shadow` from the toolchain plan

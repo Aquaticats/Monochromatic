@@ -103,13 +103,14 @@ fn the_path_builders_refuse_a_name_that_leaves_the_directory() {
 fn the_plan_refuses_a_crafted_tool_id_bin_name_alias_or_package_name() {
     let accepted = parse_plan(&plan_with("tools-ok", ", \"bins\": [\"ok\"]"), "toolchain.plan.jsonc").expect("a plain plan parses");
     assert_eq!(accepted.tools[0].id, "tools-ok");
-    let cases: [(&str, String); 7] = [
+    let cases: [(&str, String); 8] = [
         ("..", plan_with("..", "")),
         (".", plan_with(".", "")),
         ("cargo", plan_with("cargo", "")),
         ("../x", plan_with("ok", ", \"bins\": [\"../x\"]")),
         ("a/b", plan_with("ok", ", \"bins\": [\"a/b\"]")),
         ("../x", plan_with("ok", ", \"options\": {\"binAliases\": {\"../x\": \"ok\"}}")),
+        ("", plan_with("ok", ", \"options\": {\"binAliases\": {\"\": \"ok\"}}")),
         ("..", "{\"schemaVersion\": 1, \"tools\": {\"cargo:x\": {\"request\": \"cargo:x@latest\", \"route\": \"cargo-binstall\", \"packageId\": \"..\"}}}".to_string()),
     ];
     for (named, source) in cases {
