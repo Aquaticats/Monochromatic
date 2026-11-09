@@ -57,7 +57,7 @@ use crate::direct_fix_install_journal::{content_of, open_journal, remove};
 use crate::direct_fix_install_judging::{displaced_is_unchanged, holds_exactly, state_of, SiteState};
 /// The sentences the install reports.
 use crate::direct_fix_install_messages::{
-    could_not_remove, install_failure, journal_refusal, kept_notice, unchanged_failure,
+    could_not_remove, install_failure, journal_refusal, kept_bytes_notice, kept_notice, unchanged_failure,
 };
 /// The two file-system primitives,
 ///  and what the file being replaced had.
@@ -316,7 +316,7 @@ fn finish_site(site: &Prepared, notices: &mut Vec<String>) {
         }
         Ok(false) => notices.push(kept_notice(site)),
         Err(detail) => {
-            notices.push(format!("{detail}; {}", kept_notice(site)));
+            notices.push(format!("{detail}; {}", kept_bytes_notice(site)));
         }
     }
 }
@@ -356,7 +356,7 @@ fn roll_back_site(site: &Prepared, notices: &mut Vec<String>) {
     if let Err(error) = exchange(content.as_path(), site.destination.as_path()) {
         notices.push(format!(
             "restoring a corrected file failed ({error}); {}",
-            kept_notice(site)
+            kept_bytes_notice(site)
         ));
         return;
     }
@@ -372,7 +372,7 @@ fn roll_back_site(site: &Prepared, notices: &mut Vec<String>) {
             }
         }
         Ok(false) => notices.push(kept_notice(site)),
-        Err(detail) => notices.push(format!("{detail}; {}", kept_notice(site))),
+        Err(detail) => notices.push(format!("{detail}; {}", kept_bytes_notice(site))),
     }
 }
 
