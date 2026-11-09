@@ -415,12 +415,27 @@ async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync
         let ended_at: Instant = wait_for_the_end(&mut ends).await;
         tokio::time::sleep_until(tokio::time::Instant::from_std(ended_at + OUTPUT_DRAIN_AFTER_EXIT)).await;
     };
+    // End of file wins over the drain: a read that answers is the whole answer,
+    // and the drain would report the output as held open
+    //  though every writer had closed,
+    // which rejects the answer of a step that finished inside its ceiling
+    //  (the fifth review's finding 5).
+    // The read is asked first,
+    // so a read whose readiness the reactor already knows settles the poll at which both are ready;
+    // a read it has not heard about yet is answered by the sweep below.
     tokio::select! {
+        biased;
         read = pipe.read_to_end(&mut bytes) => {
             read?;
             return Ok(bytes);
         }
         () = drain => {}
+    }
+    // A read that is waiting on its own reactor answers nothing yet even where the last writer closed at that very moment,
+    // so the stream is asked for what it holds now: a pipe whose writers have all closed answers end of file here, and a
+    //  writer that is still holding it answers nothing and leaves it held open.
+    if reached_its_end(&mut pipe, &mut bytes) {
+        return Ok(bytes);
     }
     let holders: Vec<ProcessUser> = held.map(holding_processes).unwrap_or_default();
     return Err(std::io::Error::other(OutputHeldOpen {
@@ -429,6 +444,59 @@ async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync
         read: bytes,
     }));
 }
+
+/// What:
+///  Reads what `pipe` holds right now into `bytes` and answers whether that was its end of file.
+/// Why:
+///  A read that is waiting on the reactor has not heard about a close yet,
+/// so the drain can end a moment after the last writer
+///  closed while the read still answers nothing;
+/// the writes that closed are the step's whole answer,
+/// and a step that finished inside its
+///  ceiling must not be reported as one whose output a program holds open.
+///  The descriptor is asked itself, and not the reactor:
+/// every operation of the runtime answers a read of a stream it has not
+///  yet heard about with nothing,
+/// and the kernel's own answer is what decides here.
+/// The receiver put the descriptor in
+///  non-blocking mode when it was made (`Receiver::from_owned_fd`),
+/// so a writer that holds the stream open answers nothing
+///  rather than waiting.
+///  One pipe holds at most `PIPE_CAPACITY` bytes,
+/// so that much is the whole of what a stream that has closed can still
+///  answer,
+/// and a writer that supplies more is writing,
+/// not closing:
+/// the stream stays one the drain ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reachedItsEnd(descriptor: number, bytes: Uint8Array): boolean; // read until 0, EAGAIN, or the pipe's capacity
+/// ```
+fn reached_its_end(pipe: &mut Receiver, bytes: &mut Vec<u8>) -> bool {
+    let mut chunk: Vec<u8> = vec![0; PIPE_CAPACITY];
+    let mut swept: usize = 0;
+    while swept < PIPE_CAPACITY {
+        let room: usize = PIPE_CAPACITY.saturating_sub(swept);
+        let into: &mut [u8] = chunk.get_mut(..room).unwrap_or_default();
+        match rustix::io::read(pipe.as_fd(), into) {
+            // Every writer has closed: what was read is the whole of the stream.
+            Ok(0) => return true,
+            // A writer still holds the write end, or wrote nothing this moment: the stream is one the drain ended.
+            Err(_nothing_to_read) => return false,
+            Ok(read) => {
+                bytes.extend_from_slice(chunk.get(..read).unwrap_or_default());
+                swept = swept.saturating_add(read);
+            }
+        }
+    }
+    return false;
+}
+
+/// The most bytes one pipe holds,
+/// `pipe-max-size`'s default,
+/// so a stream that has closed answers all of what it still holds within this.
+const PIPE_CAPACITY: usize = 64 * 1024;
 
 /// Awaits the moment the step ended,
 /// which the wait for the child tells;
@@ -593,3 +661,8 @@ fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling) -> St
         carried.limit.as_secs()
     );
 }
+
+/// Controls for the read of a step's output stay out of the release executable.
+#[cfg(test)]
+#[path = "step_output_read_whole_through_pipes_tests.rs"]
+mod tests;
