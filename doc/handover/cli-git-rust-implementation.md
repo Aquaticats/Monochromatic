@@ -3403,6 +3403,86 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   There the disposal was the longer of the two,
   so the saving is the repair's length.
 
+### The copy route stops failing an add for a live checkout's ignored churn (2026-11-09T15:20:00-05:00)
+
+Two live failures on the owner's machine,
+installed wrapper 0.6.1-alpha.5,
+minutes apart,
+both while a landing's merge was
+ open in the main checkout,
+so the snapshot rung declined and the copy route ran:
+
+```text
+monochromatic-git-policy-cli: could not stage ignored state from "/var/mnt/encrypted/repository/Monochromatic". Cause: No such file or directory (os error 2)
+monochromatic-git-policy-cli: ignored source entry changed while copying: ".cache/cargo-shadow/stamps/package__browserslist__core-rust.json".
+```
+
+Both held.
+The first was a bare `No such file or directory` because the leaf copy opened the source without
+ naming it;
+the second was the positional final check,
+which failed the whole add for one file a build rewrote.
+What a failed add left behind is the same for both,
+and is why this was worth fixing rather than reporting:
+real Git had already made the destination,
+its registration under `.git/worktrees/<name>` and the branch,
+the tracked files were checked out,
+and the worktree had no ignored state at all;
+the stage container is removed,
+and the copy's stage claim and its record stay,
+so the next command reports the destination as an interrupted add.
+
+`663496c5d7` answers both,
+and `03b2421946` is the documentation and the linter's findings:
+
+- An entry the source removed before its copy has nothing left to copy,
+  so it leaves the manifest
+  (`CopiedLeaf::Gone` in `worktree_copying/worktree_copy_stage_leaf_copying.rs`).
+- An entry that changed under the copy is copied again,
+  twice at most
+  (`SETTLING_RETRIES` in `worktree_copying/worktree_copy_settling.rs`).
+- An entry that keeps changing stays untouched in its source,
+  leaves the stage,
+  and is named on one line
+  beside the entries the person could not read
+  (`unsettled_notice` in `worktree_copying/worktree_copy_notices.rs`).
+- The manifest is compared by relative path,
+  so one vanished entry no longer makes every later entry look
+  changed
+  (`differences_from_the_source` in `worktree_copying/worktree_copy_compare.rs`).
+- A copy step that fails names the source path it failed on.
+- The passes are bounded (`MOST_PASSES`),
+  and a source that churns faster than the copy can prove it ends
+  the copy with one sentence instead of walking forever.
+
+Decision note for the owner,
+not edited here:
+`doc/decision/cli-git-policies-platform.md`,
+"Linked-worktree ignored state",
+requires exact final source-to-stage equivalence before installation.
+The stage still equals the source for every entry it holds;
+an entry that could not be settled is not in it and is named.
+That record's sentence should say so,
+and this round did not change `doc/decision/`.
+
+Controls,
+each run against the pre-fix source and each failing there with one of the two messages above:
+`a_file_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure`,
+`a_file_that_changed_under_the_copy_is_copied_again` and
+`a_file_that_keeps_changing_is_left_in_its_source_and_named`.
+Measured after the change:
+the package's 299 `worktree_copy` library controls pass,
+the 13 `worktree_copy_stage` ones too,
+`native:clippy` is clean,
+and `monochromatic-lint --max-warnings 0` reports nothing on the changed files
+(one pre-existing line-break finding in `worktree_copy_lifecycle_tests.rs` remains,
+which this branch does not touch).
+The binary-level masks:
+`worktree_copy::a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself`
+still fails with the documented "received no ignored-state copy" sentence,
+and the `fault_trace::a_worktree_copy_killed_at_*` family still fails,
+both of them before this change and in the list above.
+
 ### The round-5 review of the leave-out's sweep and the removal line (2026-11-09T13:33:01-05:00)
 
 Source:
@@ -3417,7 +3497,8 @@ All three findings held.
 - A directory set aside whole is swept for another command's stage containers,
   and the sweep stopped at the first `.git` entry.
   The directory it is handed is that checkout,
-  so an ordinary nested checkout, whose `.git` is a real directory,
+  so an ordinary nested checkout,
+  whose `.git` is a real directory,
   had nothing swept at all;
   only a linked worktree lost the marker,
   because `unlink_pointer` removes a `.git` file and never a directory.
@@ -3425,16 +3506,19 @@ All three findings held.
   `86d56bb567` makes the sweep walk everything below the directory it sets aside.
   Control `btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it`
   (`23f5c46e14`) reported "the container beside its .git marker is not in the trash"
-  before the change, and the three controls of the previous round still pass.
+  before the change,
+  and the three controls of the previous round still pass.
 - An entry the sweep could not look at was skipped as though it held nothing to sweep,
   and the leave-out reported success.
-  Held, with the review's reproduction corrected:
+  Held,
+  with the review's reproduction corrected:
   measured here,
   `rename` of a `0400` directory answers `EACCES`,
   so the shape the review describes fails at the rename before anything moves;
   a directory at `0600` can be listed and renamed and not searched,
   and that is the shape that reaches the trash.
-  `b75f35ebe5` makes the look answer with a reason, so the leave-out refuses and names the path,
+  `b75f35ebe5` makes the look answer with a reason,
+  so the leave-out refuses and names the path,
   and `bf65e86b3d` fixes the control's own planted path.
   Control `btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named`
   (`a7cc0af818`) reported "pruning must refuse a subtree it cannot examine,
@@ -3443,10 +3527,13 @@ All three findings held.
   `rm --recursive --force -- <path>` whatever the reason,
   including the reasons that exist to preserve what is in the trash.
   Held.
-  `delete_trash` now answers with `TrashLeft`: the reason,
+  `delete_trash` now answers with `TrashLeft`:
+  the reason,
   and whether everything the trash holds is what the snapshot made;
   `47f8fc6cef` gives the removal command only for the empty trash directory the snapshot
-  made itself, and names the path, says that nothing showed the rest to be the snapshot's,
+  made itself,
+  and names the path,
+  says that nothing showed the rest to be the snapshot's,
   and gives no command otherwise.
   `be0816a4ba` keeps that sentence true of a refusal that stopped before it could look.
   Controls `a_trash_that_is_not_the_snapshots_is_not_given_a_removal_command`,
@@ -3462,12 +3549,17 @@ All three findings held.
   and the fix was put back.
   The whole suite,
   `native:test:host:btrfs` at `be0816a4ba` in one run with nothing else building:
-  6353 run, 6324 passed (39 slow), 29 failed, 17 skipped, in 2724 s.
+  6353 run,
+  6324 passed (39 slow),
+  29 failed,
+  17 skipped,
+  in 2724 s.
   The 29 are not this branch's:
   four `source_guard::no_self_invocation_tests` tests
   (two of them fail alone,
   and both files are byte for byte `origin/main`'s,
-  so main fails them today: the LFS hook-shim text arrived with its allow-list out of date),
+  so main fails them today:
+  the LFS hook-shim text arrived with its allow-list out of date),
   twenty-three `native_binary` tests the planning record below already names as failing on main
   (`fault_trace` kill sweeps,
   `package_repair::pnpm_runs_after_the_snapshot_rung`,
