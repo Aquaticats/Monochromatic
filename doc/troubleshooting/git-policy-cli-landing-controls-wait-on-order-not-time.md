@@ -133,20 +133,123 @@ and with the flag set by the plain statement the test binary was still spinning 
 with 20.9 s of system time in the renewing thread,
 when it was killed.
 
+## The other windows, each decided
+
+Branch `fix/git-policy-cli-landing-controls-wait-on-order-everywhere` read every window the first record left
+unclaimed and decided it.
+Three kinds came out of it:
+a window that decides the verdict (fixed with a seam),
+a backstop around a real witness (left, with the witness named),
+and a failure that leaves a join or a held resource behind (fixed).
+
+Fixed, because the window decided the verdict:
+
+- `rules_precompile_tests.rs` waited three seconds and called an empty cache "no warm",
+  so a warm slower than that window passed the control that a landing changing no rules path warms nothing,
+  and a warm that never ran cost the other controls a hundred and twenty seconds of polling.
+  The warm job now counts, for test builds, that it ended and whether it warmed
+  (`WARM_JOBS_ENDED`, `WARMS_MADE`), and the controls read that answer.
+  Planted every landing as one that changes a rules path, with a four-second warm:
+  the old control passed in 11.1 s, the new one fails in 9.2 s with `left: 2 right: 1`.
+- `service_claim_renewal_tests.rs` kept an unheld claim's name for the fifty milliseconds it slept,
+  so a renewal thread that never ran passed it;
+  the renewal counts its finished passes for test builds (`RENEWALS_MADE`) and the control waits for two.
+  Planted a renewal that refreshes every claim in the directory:
+  the control fails in 0.033 s with `an unheld claim keeps its name`.
+- the same file said a dropped renewal renames nothing after a fifty millisecond sleep;
+  the task counts its own end (`TASKS_ENDED`) and the drop's own report, read through the service log capture,
+  says whether it waited for the task or only for its ceiling.
+  Planted a drop that never tells the task to stop: it fails in 18.1 s with
+  `the renewal of claims did not stop within 18.095958s`;
+  planted a drop that returns without waiting: 0.031 s, `the task returned before the drop did`.
+- the same file gave a renewal whose task cannot end half the pool's busy time to return,
+  which a stalled host fails even though the ceiling fired;
+  the count of the pool's finished jobs now shows it,
+  and the one time left is the ceiling, which is the behaviour under test.
+  Planted a drop that waits for the task however long it takes:
+  it fails in 7.3 s with `8 of 10 jobs had finished after 7.081427656s`.
+- `a_renewal_takes_far_less_than_its_stop_ceiling` compared one rename against a thousandth of a ceiling
+  derived from a measured rename, so any loaded host fails it;
+  it is an ignored measurement now, as the prestage measurement in this package already is.
+- `renewals_running_at_once_start_no_thread_each` counted threads right after asking the runtime to start
+  sixteen renewals, so the count was read of whatever had begun and nothing asserted that any renewal had;
+  the task says it began (`TASKS_STARTED`) and the control waits for all sixteen.
+  Planted a renewal that holds a thread of its own: it fails in 0.122 s with
+  `16 renewals added 17 threads`.
+  Not shown: the old reading passing wrongly.
+  With that plant and every worker of the runtime busy for three seconds it still caught the plant,
+  because the control's own fixture work gives the runtime time to start every task.
+- `service_index_lock_tests.rs` decided that a live service's lock was not taken over by nothing arriving
+  within six hundred milliseconds;
+  the wait's own notice now says it reached the held lock, and the holder's marker still in the lock says
+  nothing was taken over.
+  Planted every marker as stale: the control fails in 0.058 s with
+  `the waiting acquisition said what it waits for, so it waited for the live holder instead of taking its lock`.
+- the same file read the clock after the wait's line, against half the interval that repeats it, to tell a
+  wake by the removal from one by the reminder's timer.
+  The watch knows which of the two ended it and now counts the waits it ended at their timer, for test builds
+  (`WAKES_BY_THE_TIMER`), and the control reads that count.
+  Planted a watch on a directory nothing happens in, so only the timer can end the wait:
+  it fails in 10.157 s with `the wait ended at its timer and not at the removal; placements [true, false]`.
+  Those placements are the shape no order of the placements can tell apart,
+  which is what the clock reading was for.
+
+Fixed, because the failure left a join or a held resource behind:
+
+- `a_drain_beside_a_slow_push_leaves_its_claim_alone` (`service_work_tests.rs`) joined a held push that
+  waited on the control's release channel;
+  an assertion that failed first left the scope joining it for its thirty-second bound.
+  A guard lets the push go however the control ends.
+  Planted a drain that never registers with its renewal driver:
+  without the guard `FAIL [ 30.017s]` and `push_ms=30000` in the push's own line,
+  with it `FAIL [ 0.017s]`.
+- four index-lock controls joined a holder that waited for the wait's own line,
+  so a wait that said nothing left the join to run out that holder's sixty-second bound.
+  A guard lets the holder go however the control ends.
+  Planted that state (the lock removed at the reclaimer's point, a staging flush slower than the hold):
+  without the guard `FAIL [ 60.022s]` with the holder's `Timeout`,
+  with it `FAIL [ 5.518s]` and `the wait said nothing at all, so the lock it was to wait for went away first`.
+
+Left, because the window is a backstop around a real witness:
+
+- `wait_until` and `NOTE_RETRY_PATIENCE` (`service_push_retry_tests.rs`):
+  the witness is the service's own notice file, the remote's ref, the claim file's disappearance and the
+  service's own busy count, and the window is about ten seconds,
+  which only a service that never acts reaches.
+- `until_staged`, `until_made` and `until_a_commit_waits` (`service_index_prestage_tests.rs`):
+  the witnesses are the staging file's appearance, the flush job's own end, and the flag `take` sets when a
+  commit waits, and the windows (ten and sixty seconds) only a job that never ends reaches.
+- `RenewalProbe`'s twenty-second bound and `GATE_CEILING` (`service_work_tests.rs`):
+  the witness is the claim file's renamed name, and the ceiling only a push nobody lets go reaches.
+- the lower bounds of `service_index_lock_tests.rs` and `service_index_wait_tests.rs`
+  (`began.elapsed() >= holding`, `>= SHORT_STOP_CEILING`, `>= ceiling`, `notes.placing >= 300ms`):
+  they fail only when the code returns too early, which a slow host makes less likely, never more.
+- the start-time tolerance of `a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out`:
+  both readings name the same instant and the second is a rounding of the first,
+  which a four-second flush plant left unchanged (the control passed).
+- `began.elapsed() < slow.interval` in two `service_index_wait_tests.rs` controls:
+  the interval is thirty seconds against a wait of about twenty milliseconds,
+  a separation of three orders of magnitude.
+
 ## What is not claimed
 
-- The other clock windows in this package's landing controls were read and are left as they are,
-  because the thread each waits on is production code with no in-process signal to take instead,
-  and their expiry fails a prompt assertion with no join behind it:
-  `wait_until` and the note-retry window of `service_push_retry_tests.rs`,
-  the renewal windows of `service_claim_renewal_tests.rs` and `service_work_tests.rs`,
-  `until_staged` and `until_a_commit_waits` of `service_index_prestage_tests.rs`,
-  and `rules_precompile_tests.rs`.
-  Each would need a seam in the code it observes,
-  as `Announce` already is for the index lock.
-- `service_index_lock_tests.rs` and `service_index_wait_tests.rs` carry the same two shapes and were not read here:
-  they belong to other sessions at the time of this record.
+- One full-suite failure of `landing::service_index_lock::tests` was reported as a wait that said nothing
+  (an empty list where a line was expected) and was not reproduced here:
+  five runs of the two controls named, thirty copies in six processes, three module runs at half a processor
+  and one run beside the fold sweep all passed.
+  The state it reports is reachable and is now said in words
+  (`the wait said nothing at all, so the lock it was to wait for went away first`),
+  and the control it was recorded against reads its list only after its holder's thread has been joined,
+  which cannot happen unless the wait did say a line: the note's name and its list do not fit that file,
+  so no verdict is claimed about which control it was.
+- `service_index_wait_tests.rs`'s own windows were read and are left except where this record names them.
 - A landing that hangs before its wait is reported at `WAIT_WORD_CEILING`,
   which is the ceiling the shipped landing gives a foreign holder;
   the control cannot end a landing that is stuck inside a Git step,
   so such a run still ends at the watchdog.
+- The fold sweeps the same branch fixed pay a filesystem commit for every step they walk,
+  and the run's own 120 s watchdog is what stops them on a disk having a bad minute;
+  the measurement and the switch that ends it are in
+  `doc/handover/cli-git-rust-implementation.md`,
+  "The fold sweeps pay a filesystem commit for every step".
+  The other controls of the two fold modules still sync, and each walks one or two folds.

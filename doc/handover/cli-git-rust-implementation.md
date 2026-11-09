@@ -7155,6 +7155,64 @@ are in append mode now).
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
 
+### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog,
+and the cause is its own durability work,
+measured with `strace --follow-forks --summary-only --trace=fsync,fdatasync` on the test binary:
+one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
+with single calls 1.755, 1.211 and 1.071 s apart,
+and the same control alone then took 34.73 s, 9.64 s and 1.83 s in three runs with nothing changed.
+A bad minute of the disk is what carries 306 commits past 120 s,
+and the earlier "side by side" change cut the waiting but not the number of commits.
+
+What each kill point tests is the fold's steps and their outcomes:
+the stop is the fold's own step boundary,
+not a crash,
+so what a crash would leave is not in question and the flush of each step is pure cost.
+`private_storage::skip_the_durability_syncs_here` makes the process's durability syncs no-ops in test builds
+while still recording them,
+so their order stays observable,
+and nothing of it is in the release executable;
+it reaches the fold's journal,
+its moved log,
+the log append and `sync_directory`.
+The two sweeps beside it in `earlier_log_lines_added_to_current_log_tests.rs`
+(`a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line` and
+`a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line`)
+were aborted by the same watchdog in a filtered run of the same modules,
+so they use the switch too.
+Measured after it on the same binary and disk:
+0 `fsync` calls and 0.48 s for the walk,
+and 0.054 s and 0.061 s for the two sweeps that had been aborted.
+Each sweep was broken and failed before being restored,
+and the plants and their messages are in the report of
+`fix/git-policy-cli-landing-controls-wait-on-order-everywhere`.
+
+### A lock control's wait said nothing, and its holder's thread then held the failure for a minute
+
+One host full-suite run reported `landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+as an empty list where a waiting line was expected.
+Not reproduced here:
+five runs of that control and its sibling,
+thirty copies in six processes,
+three module runs at half a processor and one run beside the fold sweep all passed.
+The state it reports is reachable and has one shape:
+a look that finds the lock gone says nothing,
+and the acquisition then places it at its next attempt.
+Planted that state (the lock removed at the reclaimer's own point,
+a staging flush slower than the hold),
+the control failed in 5.518 s with
+`the wait said nothing at all, so the lock it was to wait for went away first`,
+and the same plant without the guard that lets the holder go took 60.022 s with the holder's `Timeout`,
+because four of those controls join a holder thread that waits for the wait's own line.
+Those four now hold that guard,
+and the three that read what the wait said name that state in those words instead of printing `[]`.
+No verdict is claimed about which control the reported run failed,
+because the recorded control reads its list only after joining the holder,
+which cannot happen unless the wait did say a line.
+
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
   `5083511eed` was merged into it,
