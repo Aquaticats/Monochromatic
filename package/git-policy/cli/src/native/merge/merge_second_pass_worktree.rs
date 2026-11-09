@@ -35,7 +35,7 @@ use crate::child_environment::environment_value;
 use crate::conflict_side_state::conflicted_paths;
 use crate::diagnostic_log::{debug, warn};
 use crate::index_writer_forward::CoordinatedForward;
-use crate::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, is_attributes_path, resolved_record, second_pass, write_blob};
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
@@ -43,9 +43,11 @@ use crate::path_bytes::path_message_text;
 use crate::private_storage::read_regular_file;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
+use crate::merge_second_pass_worktree_unchanged::{Before, Held, Kept, held_paths, still_the_same};
+use crate::merge_second_pass_worktree_words::{closing_words, ending_command, moved_words, unfinished_words};
 use crate::repo_read_object::to_hex;
 use crate::transaction_git::GitContext;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
@@ -54,8 +56,7 @@ const TAG: &str = "wordMergeWorktree";
 /// The largest index file this reads.
 const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 
-/// The line prefix of every line this module writes.
-const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
+pub(super) use crate::merge_second_pass_worktree_words::LINE_PREFIX;
 
 /// The commands whose conflicts get the pass;
 /// a pull's own merge or rebase stops in the same state the command would.
@@ -213,16 +214,6 @@ fn install(runner: &dyn GitRunner, merged: &[Merged], oids: &[String]) -> Result
     return Ok(());
 }
 
-/// The sentence after the list of staged files.
-fn closing_words(operation: &str, remaining: usize) -> String {
-    let rest: String = if remaining == 0 {
-        format!("no conflicted file is left; finish the {operation} the way Git said above")
-    } else {
-        format!("resolve the files Git still lists as conflicted, then finish the {operation} the way Git said above")
-    };
-    return format!("Review a merged file with `git diff --cached -- <file>`; {rest}.");
-}
-
 /// What:
 ///  After a forwarded operation that exited with a non-zero status,
 /// re-merge the conflicts it created.
@@ -254,6 +245,8 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         return None;
     }
     let conflicts: Vec<Conflict> = conflicts_of_index(entries.as_slice(), &created);
+    // What the worktree held at the moment the command left these conflicts, read before the merge looks at any stage: an edit made while the merge runs must not become the baseline it is compared with.
+    let held: BTreeMap<Vec<u8>, Held> = held_paths(layout.worktree_root.as_path(), &created);
     let context: GitContext = GitContext {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
@@ -262,7 +255,15 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     };
     // From the top of the worktree, so the paths of the stages mean what they say.
     let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, object_directory: None, environment: Vec::new() };
-    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice()) {
+    // A rule file the merge left conflicted is Git's marker file in the worktree, so no rule of it can be read: the pass re-merges nothing rather than trust a line between the markers.
+    let mut attributes_conflict: bool = false;
+    for path in conflicted_paths(entries.as_slice()) {
+        if is_attributes_path(path.as_slice()) {
+            attributes_conflict = true;
+        }
+    }
+    let source: AttributeSource<'_> = if attributes_conflict { AttributeSource::Unknown } else { AttributeSource::Invocation };
+    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice(), source) {
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("the second merge pass could not run, so the conflicts stay as Git left them: {reason}").as_str());
@@ -289,17 +290,39 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
             }
         }
     }
-    if let Err(reason) = install(&runner, merged.as_slice(), oids.as_slice()) {
+    // The index is read again after the merge was computed: a path another command resolved and staged holds no stages of the merge's.
+    let Some(entries_now) = index_entries(&layout) else {
+        warn(TAG, "the index cannot be read again before the merged files are installed, so the conflicts stay as they are");
+        return None;
+    };
+    let before: Before<'_> = Before { worktree_root: layout.worktree_root.as_path(), entries: entries_now.as_slice(), held: &held };
+    let kept: Kept = still_the_same(&before, merged, oids);
+    let mut moved_names: Vec<String> = Vec::new();
+    for path in &kept.moved {
+        moved_names.push(path_message_text(path.as_slice()));
+    }
+    if kept.files.is_empty() {
+        warn(TAG, format!("every merged file moved while the pass computed its merge, so they stay as they are now: {}", moved_names.join(", ")).as_str());
+        // The person must still be told which file the pass did not touch.
+        let alone: String = format!("{}\n", moved_words(moved_names.as_slice()).trim_end());
+        if let Err(error) = stderr.write_all(alone.as_bytes()) {
+            debug(TAG, format!("standard error did not take the line about the files the pass left alone: {error}").as_str());
+        }
+        return None;
+    }
+    let installed: Vec<Merged> = kept.files;
+    let installed_oids: Vec<String> = kept.oids;
+    if let Err(reason) = install(&runner, installed.as_slice(), installed_oids.as_slice()) {
         warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
         return None;
     }
     let operation: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     let mut text: String = String::new();
-    for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), merged.as_slice()) {
+    for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), installed.as_slice()) {
         text.push_str(line.as_str());
         text.push('\n');
     }
-    let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(merged.len());
+    let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(installed.len());
     // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
     let planned = if remaining == 0 {
         match branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command) {
@@ -309,26 +332,45 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     } else {
         None
     };
+    let mut names: Vec<String> = Vec::new();
+    for file in &installed {
+        names.push(path_message_text(file.path.as_slice()));
+    }
+    let listed: String = names.join(", ");
+    // What the pass staged is said whether or not a finish follows: a finish that fails must not be the only account of it.
+    text.push_str(format!("{LINE_PREFIX}{REPORT_MARK}: staged as resolved by the second merge pass: {listed}. ").as_str());
+    if !moved_names.is_empty() {
+        // A path the pass left is said in the same breath, so the person knows why it still conflicts.
+        text.push_str(moved_words(moved_names.as_slice()).as_str());
+    }
     if planned.is_none() {
-        let mut names: Vec<String> = Vec::new();
-        for file in &merged {
-            names.push(path_message_text(file.path.as_slice()));
-        }
-        text.push_str(
-            format!(
-                "{LINE_PREFIX}{}: staged as resolved by the second merge pass: {}. {}\n",
-                crate::merge_second_pass::REPORT_MARK,
-                names.join(", "),
-                closing_words(operation.as_str(), remaining)
-            )
-            .as_str(),
-        );
+        text.push_str(format!("{}\n", closing_words(operation.as_str(), remaining)).as_str());
+    } else {
+        text.push_str(format!("The wrapper finishes the {operation} below, the way Git finishes a clean run.\n").as_str());
     }
     if let Err(error) = stderr.write_all(text.as_bytes()) {
         debug(TAG, format!("standard error did not take the list of merged files: {error}").as_str());
     }
     let plan = planned?;
-    return Some(finish(&plan, &forward.command, forward.environment.as_slice(), stderr));
+    let ended: i32 = finish(&plan, &forward.command, forward.environment.as_slice(), stderr);
+    if ended != 0 {
+        // The ending step's words are its own; the merge changed before it ran, and the person must be told what the index holds now.
+        // An index that cannot be read again is not a clean one, so the line says the state could not be read.
+        let mut conflicted_now: Option<Vec<String>> = None;
+        if let Some(entries_after) = index_entries(&layout) {
+            let mut left_now: Vec<String> = Vec::new();
+            for path in conflicted_paths(entries_after.as_slice()) {
+                left_now.push(path_message_text(path.as_slice()));
+            }
+            conflicted_now = Some(left_now);
+        }
+        let ending: &'static str = ending_command(layout.git_dir.as_path(), operation.as_str());
+        let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str(), conflicted_now.as_deref(), ending));
+        if let Err(error) = stderr.write_all(after.as_bytes()) {
+            debug(TAG, format!("standard error did not take the line about the unfinished operation: {error}").as_str());
+        }
+    }
+    return Some(ended);
 }
 
 /// What:

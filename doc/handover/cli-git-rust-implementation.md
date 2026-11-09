@@ -146,7 +146,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   `f6716da242` the commit-ceiling branch,
   `78ca211085` the worktree-copy branch's follow-up,
   `6e098552e2` the discarding-commands branch,
-  and `fc85e075d8` the suite-failures branch.
+  `fc85e075d8` the suite-failures branch,
+  `f29dae2efa` the standards-review follow-up,
+  `06ed7c6026` the worktree-add branch,
+  and `4987965e0a` the conflict-resolution branch.
   The first clause of that merge's message names a change it does not contain;
   commit comment 209008614 on it says so.
 - Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
@@ -190,15 +193,45 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
-  (an audit line can name a non-UTF-8 branch wrongly,
-  and `git branch -D HEAD` can record a branch nothing deleted),
-  and `wrapper-tests-suite-round-4-prompt.md` for `wrapper-tests-that-fail-only-in-a-suite` as run 4
-  (a late runtime can be lost between a timeout and dropping its receiver,
-  and a control lost its ability to fail).
-  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
+  none at this moment,
+  because every follow-up written so far has been started.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
+- The provider ended a burst of runs with `terminated` between 2026-11-09T11:24:25-05:00 and 2026-11-09T11:29:23-05:00:
+  `discarding-commands-findings-fixed` runs 5 to 7,
+  `conflict-resolution-findings-fixed` runs 6 and 7,
+  `wrapper-tests-that-fail-only-in-a-suite` run 4,
+  and `push-route-findings-fixed` run 7.
+  Runs 7 of the first two were fresh sessions,
+  and the feed of the first shows an empty answer after 18 s of one model response,
+  so resuming is not the cause.
+  Context size does not explain it either:
+  the ended runs held 448 to 550 thousand tokens,
+  and `merge-route-findings-fixed` run 10 finished normally at 887 thousand.
+  An unauthenticated `GET` of the provider's model list answered 200 in the same minutes,
+  and other agents kept producing events,
+  so the cause is unknown.
+  The owner wrote at 2026-11-09T11:32-05:00:
+  "I'm in touch with the provider right now.
+  Meanwhile use opencode-go/deepseek-v4.1-flash ."
+  So new runs pass `--provider=opencode-go --model=deepseek-v4.1-flash` to `start-pi-run-if-a-slot-is-free.ts`
+  until the owner says the provider is back,
+  and a run the provider ends restarts on that model.
+  Audits and reviews stay on `openai/gpt-6.1-sol`.
+  The same error then ended 3 of 110 responses on `opencode-go`,
+  at 2026-11-09T16:40:52Z,
+  16:40:56Z and 16:43:09Z,
+  so it is not specific to the first provider.
+  The owner then wrote:
+  "Try synthetic's hf:deepseek-ai/DeepSeek-V4.1-Flash-1017 too.
+  If it also shows the same failure pattern then this has become a mystery."
+  `discarding-commands-findings-fixed` run 10 is that trial.
+  Evidence for the provider,
+  redacted and verified,
+  is `~/temp/agent/neuralwatt-investigation-2026-11-09.zip`,
+  which the owner asked for and sends.
+  A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
   `intent-to-add-keeps-stat-data` runs 3 and 4,

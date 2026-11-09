@@ -30,6 +30,8 @@
 /// The corrected bytes,
 ///  and what a later command needs to know about them.
 use crate::direct_fix_install_writes::Kept;
+/// One extended attribute of the file a correction belongs to.
+use crate::direct_fix_install_attributes::Attribute;
 /// The unique name part shared with the private index directories.
 use crate::candidate_private_index::unique_suffix;
 /// The digest that names a state of a file without holding it.
@@ -72,7 +74,7 @@ pub const NO_OWNER_TOKEN: &str = "none";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type JournalRecord = { destination: string; mode: number; uid: number; gid: number; owner: string; replacement: string };
+/// type JournalRecord = { destination: string; mode: number; uid: number; gid: number; owner: string; replacement: string; attributes: Attribute[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct JournalRecord {
@@ -91,6 +93,12 @@ pub(crate) struct JournalRecord {
     /// The SHA-256 of the corrected bytes,
     ///  in lower-case hexadecimal.
     pub(crate) replacement: String,
+    /// The extended attributes the file carried,
+    ///  in name order;
+    ///  a sweep that compared only bytes,
+    ///  bits and owner
+    ///       would take a file the person gave an attribute for the fix's own.
+    pub(crate) attributes: Vec<Attribute>,
 }
 
 /// The hexadecimal text of `bytes`,
@@ -172,9 +180,20 @@ fn bytes_of_path(path: &Path) -> Vec<u8> {
 /// const text = `destination ${hex(path)}\nmode ${octal}\nuid ${uid}\ngid ${gid}\nowner ${token}\nreplacement ${sha}\n`;
 /// ```
 impl JournalRecord {
-    /// The text of this record.
+    /// What:
+    ///  The text of this record,
+    ///  one line per field and one line per extended attribute.
+    /// Why:
+    ///   Hexadecimal keeps a pathname of any bytes,
+    ///  an attribute name and value and a digest unambiguous,
+    ///  and one line per attribute keeps an empty value distinct from an absent attribute.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const text = `destination ${hex(path)}\nmode ${octal}\n...\n` + attributes.map((a) => `attribute ${hex(a.name)} ${hex(a.value)}\n`).join('');
+    /// ```
     pub(crate) fn encode(&self) -> String {
-        return format!(
+        let mut text: String = format!(
             "destination {}\nmode {:o}\nuid {}\ngid {}\nowner {}\nreplacement {}\n",
             to_hex(bytes_of_path(self.destination.as_path()).as_slice()),
             self.mode,
@@ -183,6 +202,17 @@ impl JournalRecord {
             self.owner.as_deref().unwrap_or(NO_OWNER_TOKEN),
             self.replacement
         );
+        for attribute in &self.attributes {
+            text.push_str(
+                format!(
+                    "attribute {} {}\n",
+                    to_hex(attribute.name.as_slice()),
+                    to_hex(attribute.value.as_slice())
+                )
+                .as_str(),
+            );
+        }
+        return text;
     }
 
     /// The record a text names,
@@ -194,6 +224,7 @@ impl JournalRecord {
         let mut gid: Option<u32> = None;
         let mut owner: Option<Option<String>> = None;
         let mut replacement: Option<String> = None;
+        let mut attributes: Vec<Attribute> = Vec::new();
         for line in text.lines() {
             let (key, value) = match line.split_once(' ') {
                 Some(found) => found,
@@ -207,9 +238,17 @@ impl JournalRecord {
                 "owner" if value == NO_OWNER_TOKEN => owner = Some(None),
                 "owner" => owner = Some(Some(String::from(value))),
                 "replacement" => replacement = Some(String::from(value)),
+                "attribute" => {
+                    let (name, held) = value.split_once(' ')?;
+                    attributes.push(Attribute {
+                        name: from_hex(name)?,
+                        value: from_hex(held)?,
+                    });
+                }
                 _other => {}
             }
         }
+        attributes.sort();
         return Some(JournalRecord {
             destination: destination?,
             mode: mode?,
@@ -217,6 +256,7 @@ impl JournalRecord {
             gid: gid?,
             owner: owner?,
             replacement: replacement?,
+            attributes,
         });
     }
 }
@@ -274,6 +314,7 @@ pub(crate) fn open_journal(
         gid: kept.gid,
         owner: owner.map(String::from),
         replacement: digest_of(replacement),
+        attributes: kept.attributes.clone(),
     };
     let written: std::io::Result<()> = std::fs::write(
         directory.join(RECORD_FILE),

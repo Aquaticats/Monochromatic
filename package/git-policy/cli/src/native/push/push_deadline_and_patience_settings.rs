@@ -102,6 +102,48 @@ pub(crate) fn seconds_variable(environment: &[(OsString, OsString)], name: &str)
     return positive_seconds(name, value.as_os_str());
 }
 
+/// The variable that sets how long one command of the reconcile merge's second pass may run in all.
+pub const MERGE_CEILING_VARIABLE: &str = "CLI_GIT_PUSH_MERGE_CEILING_SECONDS";
+
+/// How long one command of a commit's merge step may run in all,
+/// whatever it shows.
+/// Citation:
+/// measured on the development host on 2026-11-09,
+/// under a load average of 66 to 75 on 8 CPUs,
+/// with a merge of one 7 MiB file the word pass resolves:
+/// the whole step
+///  (`git merge-tree`,
+/// the second pass and `git commit-tree`)
+/// took 396 ms and 403 ms in two runs,
+/// and the word merge alone was measured at 0.73 s for 8 MiB in `SPEC.md`.
+/// The pass takes no file past 8 MiB,
+/// so a merge of many such files is a few seconds of measured work,
+/// and 300 seconds leaves room for a slow disk and a loaded host while still bounding a merge driver that
+///  keeps working without ever returning.
+/// The rule is the owner's,
+/// "nothing should ever wait forever or indefinitely",
+/// carried out for a step the push stall window cannot bound,
+///  because a driver that rewrites a scratch file for ever always shows progress.
+/// The owner is invited to veto the number;
+/// it is settable for a repository that needs more.
+pub const DEFAULT_MERGE_CEILING: Duration = Duration::from_secs(300);
+
+/// What:
+///  The ceiling of one command of a commit's merge step:
+/// the environment's value,
+/// or the default.
+/// Why:
+///   A merge of very large files on a slow disk may need longer than the default,
+/// and a control needs one it can wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ceilingMs = secondsOf(env.CLI_GIT_PUSH_MERGE_CEILING_SECONDS) ?? DEFAULT_MS;
+/// ```
+pub fn merge_ceiling(environment: &[(OsString, OsString)]) -> Duration {
+    return seconds_variable(environment, MERGE_CEILING_VARIABLE).unwrap_or(DEFAULT_MERGE_CEILING);
+}
+
 /// What:
 ///  The push deadline:
 /// the environment's value,
