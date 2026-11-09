@@ -82,7 +82,8 @@ fn prepared_fixture(root: &Path) -> Fixture {
     return preparation_fixture(root, prepared_repository(root));
 }
 
-/// The private index, the capture and the shadow of a repository,
+/// The private index,
+/// the capture and the shadow of a repository,
 /// taken after everything the invocation would have read is in place.
 fn preparation_fixture(root: &Path, repo: PathBuf) -> Fixture {
     let context = git_context();

@@ -120,7 +120,8 @@ pub mod commit_index_selection;
 /// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
 
-/// The configuration native `git commit` reads that decides what it writes, and its effective values.
+/// The configuration native `git commit` reads that decides what it writes,
+/// and its effective values.
 pub mod native_commit_configuration;
 
 /// The waiting notice of the commit Git builds in the scratch repository.

@@ -445,7 +445,9 @@ fn only_a_cut_or_refused_start_of_init_is_retried() {
     assert!(!start_was_cut_or_refused(&finished(0, Vec::new())), "a start that worked");
 }
 
-/// A valid reference whose name is not text, outside the target branch, does not stop the shadow:
+/// A valid reference whose name is not text,
+/// outside the target branch,
+/// does not stop the shadow:
 /// real Git commits beside it,
 /// and the commit the wrapper builds needs the same repository.
 #[test]
