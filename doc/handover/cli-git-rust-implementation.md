@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:47:54-05:00)
+#### Reviews and landings in progress (2026-11-09T04:03:11-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -207,10 +207,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   its agent fixes what the audit `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md` found.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
   its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
-  Its tests on top of main and the review `worktree-add-round-1` are running.
+  On top of main 661 of 664 selected tests pass:
+  two snapshot tests fail in about 0.2 seconds beside what it changed,
+  and the third is the tokio branch's order control.
+  The review (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`) names a snapshot of a linked worktree that still carries another command's credentials,
+  and a ceiling that also kills the person's own command.
   By its own report,
-  the repeated line about an interrupted add still reaches a person only with `MONOCHROMATIC_VERBOSE` set,
-  so the fix does not yet reach anyone who has not set it.
+  the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
+  Not ready to merge.
+  Run 2 of its agent is on them.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
@@ -223,10 +228,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   ("cli-git never deletes a lock") waits for the owner.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
-  it breaks `provisioning_notes_which_worktree_the_units_are_for`,
-  and its cross-vendor review (`${HOME}/temp/agent/reviews/service-work-items-path-bytes-sol.txt`) names five more defects.
-  Not ready to merge.
-  Run 2 of its agent is on them.
+  run 2 of its agent reports the broken control and the five findings of the first review fixed.
+  Its tests on top of main and the review `path-bytes-round-2` are running.
   Issue 6005 is commented on or closed after it lands.
 - `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
   its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
@@ -235,12 +238,33 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
-  The agent `controls-witness-their-race-by-ordering` is on them.
+  The agent `controls-witness-their-race-by-ordering` ended on a provider error,
+  "Stream ended without finish_reason",
+  which is the failure the driver branch now retries.
+  Run 2 of its agent is resuming it.
 - `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
-  111 of 111 selected tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-1-sol.txt`) names three defects,
-  among them that a missing publish configuration fails a commit,
-  against the agent's report that commits were unaffected.
+  run 2 of its agent reports that a missing publish configuration does not fail a commit,
+  proved by a real wrapped commit through the service,
+  and that the same change had broken five of the policy's controls,
+  now fixed along with tagged keys and tab-separated comments.
+  116 of 116 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-2-sol.txt`) names YAML the hand-written reader misreads without saying so,
+  so a dependent goes unbumped,
+  and nesting that exhausts the stack.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  after the driver round:
+  resume the run `dependent-version-publish-list-fixed` as run 3,
+  with `dependent-version-publish-list-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  That round picks a rule that ends this class of misread:
+  a maintained parser or a reader limited to what the generator writes.
+- `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`:
+  its agent reports the three findings of its audit fixed,
+  262 of 262 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/conflict-resolution-round-1-sol.txt`) names a resolution another command staged being overwritten,
+  rules that a conflicted or command-line attribute source lets through,
+  and a merge driver that blocks auto-push without end.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `fix/mpm-shadow-open-issues-batch`:
@@ -274,12 +298,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   That takes another program changing the mode inside the add,
   and main keeps no such record at all,
   so the branch landed and the fix follows it.
-  Run 8 of its agent reports it fixed,
+  Run 8 of its agent fixed it and landed on main as `555855ddc1`:
   the review `copy-records-round-8` found no defects,
-  and 259 of 260 selected tests pass on top of main.
-  The failing test is `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
-  a wall-clock bound that another branch without this change also fails,
-  and the agent on tests that fail only in a suite now has it.
+  and 259 of 260 selected tests passed on top of main.
+  The one failure,
+  `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
+  passes alone in 17 seconds,
+  and the agent on tests that fail only in a suite has it.
   The same review names a non-Linux build break in `other::Ladder::finish`,
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
@@ -318,7 +343,15 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
-  The agent `driver-resumes-after-provider-errors` is on it.
+  The agent `driver-resumes-after-provider-errors` built retries on the branch `fix/pi-shared-subagent-driver-resumes-after-provider-errors`.
+  It builds and passes on top of main,
+  and the review (`${HOME}/temp/agent/reviews/driver-retries-round-1-sol.txt`) names a retry sent into a run an inbox message started,
+  and a failure that a handled prompt turns into a clean finish.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume it as run 2,
+  with `driver-retries-round-2-prompt.md` and the session file named in run 1's `summary.json`.
 - Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
   Rerun those tests after merging main before judging a branch by them.
 
