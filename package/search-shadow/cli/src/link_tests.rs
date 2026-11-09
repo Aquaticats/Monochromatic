@@ -137,6 +137,7 @@ fn leaves_a_regular_file_in_the_way_alone() {
 
     // `fs::read_to_string` reads the file back; the content proves nothing wrote over it.
     assert_eq!(fs::read_to_string(links_directory.join("rg")).expect("read the file"), "old regular file");
+    assert_eq!(report.left_alone, vec![links_directory.join("rg")]);
     assert!(report.linked.is_empty());
 }
 
@@ -158,6 +159,7 @@ fn leaves_a_directory_in_the_way_alone_and_links_the_rest() {
     let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
     assert!(links_directory.join("rg").is_dir());
+    assert_eq!(report.left_alone, vec![links_directory.join("rg")]);
     assert_eq!(report.linked, vec![links_directory.join("grep")]);
 }
 
@@ -182,5 +184,6 @@ fn leaves_a_link_to_another_program_alone() {
     let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
     assert_eq!(fs::read_link(links_directory.join("find")).expect("read the link"), elsewhere.join("my-own-find"));
+    assert_eq!(report.left_alone, vec![links_directory.join("find")]);
     assert!(report.linked.is_empty());
 }
