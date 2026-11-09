@@ -18,6 +18,7 @@
 
 /// The record and its writer.
 use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+use crate::commit_prepare_part_durations::PreparePart;
 use crate::commit_timing_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
@@ -41,6 +42,14 @@ const GATE_MS: u64 = 37;
 const HANDOFF_MS: u64 = 41;
 /// Time the controls leave to no phase.
 const UNCOVERED_MS: u64 = 43;
+/// The stretches of the preparation the controls record,
+/// two of one name,
+/// so a sum and its count both show.
+const LAYOUT_MS: u64 = 7;
+const CAPTURE_MS: u64 = 11;
+/// How many stretches the controls say were dropped.
+const PREPARE_PARTS_DROPPED: usize = 3;
+
 /// Time the controls give the two costs outside the phases.
 const SCRATCH_REMOVAL_MS: u64 = 47;
 const REMOVALS_THAT_DID_NOT_FINISH: u64 = 2;
@@ -79,6 +88,12 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.after_landing = Duration::from_millis(AFTER_LANDING_MS);
     timing.gate = Duration::from_millis(GATE_MS);
     timing.handoff = Duration::from_millis(HANDOFF_MS);
+    timing.prepare_parts = vec![
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+        PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS) },
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+    ];
+    timing.prepare_parts_dropped = PREPARE_PARTS_DROPPED;
     timing.outside = OutsideThePhases {
         scratch_removal: Duration::from_millis(SCRATCH_REMOVAL_MS),
         removals_that_did_not_finish: REMOVALS_THAT_DID_NOT_FINISH,
@@ -148,6 +163,11 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     assert_eq!(value["scratchRemovalMs"], SCRATCH_REMOVAL_MS);
     assert_eq!(value["removalsThatDidNotFinish"], REMOVALS_THAT_DID_NOT_FINISH);
     assert_eq!(value["stderrMs"], STANDARD_ERROR_MS);
+    assert_eq!(value["prepareParts"]["layout"]["ms"], LAYOUT_MS * 2);
+    assert_eq!(value["prepareParts"]["layout"]["calls"], 2);
+    assert_eq!(value["prepareParts"]["capture"]["ms"], CAPTURE_MS);
+    assert_eq!(value["prepareParts"]["capture"]["calls"], 1);
+    assert_eq!(value["preparePartsDropped"], PREPARE_PARTS_DROPPED);
     let phases: u64 = ["prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
         .iter()
         .map(|name| { return value[*name].as_u64().expect("a number"); })

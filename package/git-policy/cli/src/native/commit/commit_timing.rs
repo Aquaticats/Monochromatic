@@ -30,6 +30,7 @@
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
 use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
+use crate::commit_prepare_part_durations::{PreparePart, drain_prepare_parts, prepare_parts_json};
 use crate::commit_timing_outside_the_phases::{OutsideThePhases, outside_the_phases};
 use crate::diagnostic_log::debug;
 use crate::discard_audit::append_line;
@@ -330,6 +331,13 @@ pub struct CommitTiming {
     ///  removing scratch trees,
     /// and writing to standard error.
     pub outside: OutsideThePhases,
+    /// How long each stretch of the preparation held no Git child,
+    /// by name,
+    /// in the order the names first appeared,
+    /// taken from the ledger when the record is written.
+    pub prepare_parts: Vec<PreparePart>,
+    /// How many stretches of the preparation came after the list reached its bound.
+    pub prepare_parts_dropped: usize,
     /// Every Git step this command started,
     /// each with its program and subcommand,
     /// when it began (from the command's start) and how
@@ -366,6 +374,8 @@ impl CommitTiming {
             handoff: Duration::ZERO,
             quiet: Vec::new(),
             outside: OutsideThePhases::default(),
+            prepare_parts: Vec::new(),
+            prepare_parts_dropped: 0,
             steps: Vec::new(),
             steps_dropped: 0,
         };
@@ -411,6 +421,7 @@ impl CommitTiming {
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
              \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{},\
              \"scratchRemovalMs\":{},\"removalsThatDidNotFinish\":{},\"stderrMs\":{},\
+             \"prepareParts\":{},\"preparePartsDropped\":{},\
              \"longestQuietMs\":{},\"quietMs\":{},\"steps\":{},\"stepsDropped\":{}}}\n",
             quote(now_iso().as_str()),
             self.start_millis,
@@ -445,6 +456,8 @@ impl CommitTiming {
             self.outside.scratch_removal.as_millis(),
             self.outside.removals_that_did_not_finish,
             self.outside.standard_error.as_millis(),
+            prepare_parts_json(self.prepare_parts.as_slice()),
+            self.prepare_parts_dropped,
             longest_healthy(self.quiet.as_slice()),
             object_json(self.quiet.as_slice()),
             steps_json(self.steps.as_slice()),
@@ -476,6 +489,7 @@ impl CommitTiming {
         (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
         with_quiet.index_builds = drain_index_builds();
         with_quiet.outside = outside_the_phases();
+        (with_quiet.prepare_parts, with_quiet.prepare_parts_dropped) = drain_prepare_parts();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));

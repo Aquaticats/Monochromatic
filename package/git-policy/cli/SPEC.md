@@ -7973,6 +7973,13 @@ and time spent writing to standard error,
 which waits for whoever reads it;
 each of them lies inside whichever phase it fell in,
 and inside `otherMs` when no phase covers it),
+and `prepareParts`
+(the preparation's stretches by name,
+`{"layout":{"ms":12,"calls":1},...}`,
+each figure the time the stretch spent without a Git child,
+because the steps are recorded apart,
+a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
+at most 64 entries with the rest counted in `preparePartsDropped`),
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:

@@ -70,6 +70,11 @@ pub mod commit_timing;
 /// and the writer that measures what it prints.
 pub mod commit_timing_outside_the_phases;
 
+/// How long each stretch of a commit's preparation held no Git child,
+/// by name,
+/// for the timing record.
+pub mod commit_prepare_part_durations;
+
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 

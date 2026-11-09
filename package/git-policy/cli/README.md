@@ -4676,6 +4676,14 @@ all durations in whole milliseconds taken from the monotonic clock:
   which waits for whoever reads it.
   They were added for the reading in
   `doc/planning/cli-git-commit-latency-under-many-agents.md`.
+- `prepareParts` splits the preparation by the stretch of work it was in,
+  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  the seams are one line each in `src/native/landing/service_prepare.rs`,
+  each figure is the time that stretch spent without a Git child
+  (the steps are listed apart in `steps`),
+  a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
+  and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
+  It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
