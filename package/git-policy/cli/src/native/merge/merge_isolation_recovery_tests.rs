@@ -168,6 +168,46 @@ fn one_path_merge_world(name: &str) -> World {
 }
 
 /// What:
+///  A repository whose branch holds a symbolic link and whose merge replaces it with a regular file,
+///  with the merge commit
+///  ready and nothing of it in the checkout.
+/// Why:
+///  A link's identity is the text of its target and never the bytes of the file it points at,
+/// so a control needs a
+///  path that is a link on the old side and a file on the merged side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repository(...); write('target.txt', 'payload\n'); symlink('target.txt', 'link'); commit(); /* feature: rm link, write file 'link' */ const merge = mergeTreeCommit(...);
+/// ```
+fn symlink_to_file_world(name: &str) -> World {
+    let parent: PathBuf = fixture(name);
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("target.txt"), b"payload\n").expect("the link's target");
+    std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
+    std::os::unix::fs::symlink("target.txt", repo.join("link")).expect("the link");
+    git(repo.as_path(), &["add", "--", "target.txt", "h.txt", "link"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::remove_file(repo.join("link")).expect("the link goes");
+    std::fs::write(repo.join("link"), b"link as a file\n").expect("a file where the link stood");
+    git(repo.as_path(), &["add", "--", "link"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let new_oid: String = git_text(
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    );
+    let git_dir: PathBuf = repo.join(".git");
+    return World { parent, repo, git_dir, old_oid, new_oid };
+}
+
+/// What:
 ///  The record of a merge that was saved on `side_ref` because the index was locked,
 ///  and the side ref itself.
 /// Why:
@@ -2329,5 +2369,44 @@ fn a_completed_merge_is_settled_without_reading_the_worktree() {
     let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("a landed merge needs no worktree read");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
     assert!(!record.exists(), "the leftover record goes");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A saved merge that replaces an existing symbolic link finishes.
+/// Why:
+///  The take hashed the path it moved aside with `git hash-object`,
+/// which follows a link,
+/// so the bytes it compared
+///  were the link's target's and the link's own object never matched:
+/// the link was put back,
+/// the finish was refused,
+///  and every retry met the same mismatch,
+/// so a saved merge the command had already reported as saved never landed
+///  (a cross-vendor review of the ninth round,
+/// its sixth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = symlinkToFileWorld(); const record = deferredRecord(); const outcomes = await recover(...); expect(outcomes[0].action).toBe('completed'); expect(read('link')).toEqual("link as a file\n"); expect(exists(record)).toBe(false);
+/// ```
+#[test]
+fn a_saved_merge_that_replaces_a_symlink_finishes() {
+    let world: World = symlink_to_file_world("merge-recovery-symlink-replaced");
+    let record: PathBuf = deferred_record_of(&world, "51515151-0000-4000-8000-000000000051", "refs/cli-git/kept/51");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
+    assert!(!record.exists(), "the record only goes once the merge landed");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch names the merge");
+    assert_eq!(std::fs::read(world.repo.join("link")).expect("the merge's file"), b"link as a file\n", "the merge's file is in place of the link");
+    assert_eq!(
+        std::fs::read(world.repo.join("target.txt")).expect("the link's target"),
+        b"payload\n",
+        "the file the link pointed at is untouched"
+    );
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
     remove(world.parent.as_path());
 }
