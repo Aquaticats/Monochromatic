@@ -168,3 +168,60 @@ fn failures_leave_nothing_behind() {
     assert_eq!(entries(root.as_path()), vec!["index", "loop"]);
     remove(root.as_path());
 }
+
+/// What:
+///  A copy whose owner is proven gone is removed by the next copy,
+///  a copy this process still
+///       holds is kept,
+///  and a copy nothing proves gone is kept.
+/// Why:
+///  A killed check leaves its copy in the Git directory for ever (39 of them were counted
+///       from July to October in the native cutover's measurement),
+///  and the copy holds the repository's
+///       index,
+///  so they fill the disk until commits fail.
+///  Nothing may be removed on anything less than a
+///       proof that the owner is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // writeAbandonedCopy(deadPid); createPrivateIndex(); expect(exists(abandoned)).toBe(false)
+/// ```
+#[test]
+fn a_copy_whose_owner_is_gone_is_removed_and_a_live_one_is_kept() {
+    let root: PathBuf = fixture("private-index-reap");
+    let real: PathBuf = root.join("index");
+    std::fs::write(&real, b"DIRC").expect("real index");
+    // A process id no process can have (above this host's `pid_max`), so no reuse can make it look alive.
+    let dead: i64 = 4_194_304;
+    let abandoned: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{dead}-1-0"));
+    std::fs::create_dir(&abandoned).expect("abandoned directory");
+    std::fs::write(abandoned.join("index"), b"stale copy").expect("stale copy");
+    let owner: crate::worktree_copy_owner::CopyOwner = crate::worktree_copy_owner::CopyOwner {
+        pid: dead,
+        birth_identity: String::from("0"),
+        pid_namespace: crate::pid_namespace::current_pid_namespace(),
+    };
+    std::fs::write(abandoned.join("owner"), owner.token()).expect("owner record");
+    // A copy from before owner records existed names its owner only in its own name.
+    let old: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{dead}-2-0"));
+    std::fs::create_dir(&old).expect("old directory");
+    std::fs::write(old.join("index"), b"stale copy").expect("stale copy");
+    // A copy whose owner record is unreadable is not proven gone.
+    let unreadable: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{dead}-3-0"));
+    std::fs::create_dir(&unreadable).expect("unreadable directory");
+    std::fs::create_dir(unreadable.join("owner")).expect("owner record that is a directory");
+    // The copy this process holds right now must never be taken away from it.
+    let live: PrivateIndex = PrivateIndex::create(real.as_path()).expect("own copy");
+    assert!(!abandoned.exists(), "the abandoned copy is removed");
+    assert!(!old.exists(), "the copy without an owner record is removed");
+    assert!(unreadable.exists(), "an unproven owner keeps its copy");
+    // A later copy leaves the one this process still holds alone.
+    let later: PrivateIndex = PrivateIndex::create(real.as_path()).expect("second copy");
+    assert!(live.path().exists(), "a live copy is kept");
+    drop(later);
+    drop(live);
+    std::fs::remove_dir_all(&unreadable).expect("unproven copy");
+    assert_eq!(entries(root.as_path()), vec!["index"]);
+    remove(root.as_path());
+}

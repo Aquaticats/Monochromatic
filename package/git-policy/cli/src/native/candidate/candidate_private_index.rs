@@ -17,6 +17,16 @@
 //!      `index-file-timestamps.ts`,
 //!  issue #544).
 //!
+//! What a kill leaves, and what removes it:
+//!  the directory and its copy,
+//!  whose name carries the process that made it and
+//!  whose `owner` file carries that process's identity and PID namespace;
+//!  every copy made later removes the copies
+//!  whose owner is proven gone (see `reap_copies_of_gone_owners`),
+//!  and keeps every other one,
+//!  because a copy nothing proves abandoned may belong to a command that is still
+//!  reading it.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // await using index = await createPrivateIndex(realIndexPath); // removed on dispose
@@ -26,6 +36,9 @@
 use crate::candidate_error::{CandidateError, CandidateFailure};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::{Path, PathBuf};
+/// The record a copy writes of its owner,
+///  and the proof that the owner is gone.
+use crate::worktree_copy_owner::{current_copy_owner, token_owner_is_dead};
 /// What:
 ///  `AtomicU64` is a counter that several threads may increase without a lock;
 ///       `Ordering::Relaxed` asks only that each increase is counted once.
@@ -42,6 +55,21 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// The name prefix of every private index directory;
 ///  the installed wrapper uses the same one.
 pub const PRIVATE_INDEX_PREFIX: &str = "cli-git-add-policy-";
+
+/// The file inside a private index directory that names the process which made it:
+///  its process id,
+///  the platform's identity of its birth,
+///  and its PID namespace.
+/// Why:
+///  A copy made later must be able to tell an abandoned directory from one a running
+///       command is reading,
+///  and a process id alone is reused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const OWNER_RECORD = 'owner';
+/// ```
+pub const OWNER_RECORD: &str = "owner";
 
 /// How many unique names this process has made,
 ///  for private index directories and sibling files.
@@ -100,6 +128,120 @@ pub struct PrivateIndex {
     directory: PathBuf,
     /// The private index file Git is pointed at.
     index: PathBuf,
+}
+
+/// What:
+///  The process id a private index directory's name carries,
+///  or nothing when the name is not one
+///       this release wrote.
+/// Why:
+///  A copy whose owner record a kill prevented carries its owner only in its name,
+///  and one that
+///       names nothing is not proven abandoned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pidOfName = (name: string) => { const rest = name.slice(PREFIX.length); const pid = Number(rest.split('-')[0]); return pid > 0 ? pid : undefined; };
+/// ```
+fn recognised_owner_pid(name: &str) -> Option<i64> {
+    let rest: &str = name.strip_prefix(PRIVATE_INDEX_PREFIX)?;
+    let first: &str = rest.split('-').next()?;
+    let pid: i64 = first.parse::<i64>().ok()?;
+    if pid < 1 {
+        return None;
+    }
+    return Some(pid);
+}
+
+/// What:
+///  Whether the owner of the copy at `directory`,
+///  named `name`,
+///  is proven gone.
+/// Why:
+///   Nothing else may remove a copy:
+///  a running command's copy that disappeared under it would
+///       make that command's prediction fail.
+///  An owner record is judged by the proof the whole crate uses
+///  (`token_owner_is_dead`:
+///  the process's birth identity in this PID namespace,
+///  and for an owner of
+///       another namespace its record's age),
+///  and a directory an earlier release made,
+///  which holds no record,
+///  is judged by the process id in its name alone.
+///  Anything the platform will not report is kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ownerIsGone = (path, name) => tokenOwnerIsDead(readOwner(path), path) ?? pidIsGone(pidOfName(name));
+/// ```
+fn owner_is_proven_gone(directory: &Path, name: &str) -> bool {
+    let record: PathBuf = directory.join(OWNER_RECORD);
+    match std::fs::symlink_metadata(record.as_path()) {
+        // What: A record that exists is the only evidence there is, so one that cannot be read proves nothing.
+        // Why:  A corrupt record is not a dead owner; the copy stays and the person can look at it.
+        Ok(_) => {
+            let Ok(text) = std::fs::read_to_string(record.as_path()) else {
+                return false;
+            };
+            if text.trim().is_empty() {
+                return false;
+            }
+            // `unwrap_or(false)`: a refusal of another namespace's expired record keeps the copy.
+            return token_owner_is_dead(Some(text.trim()), directory).unwrap_or(false);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        // A record that cannot be inspected at all proves nothing either.
+        Err(_) => return false,
+    }
+    let Some(pid) = recognised_owner_pid(name) else {
+        return false;
+    };
+    return match crate::process_identity::process_birth_identity(pid) {
+        Ok(found) => found.is_none(),
+        Err(_unproven) => false,
+    };
+}
+
+/// What:
+///  Remove the private index copies in `parent` whose owner is proven gone.
+/// Why:
+///  A killed check,
+///  a closed terminal or the OOM killer leaves one copy per invocation for
+///       ever otherwise,
+///  and they fill the worktree's Git directory until a commit fails.
+///  Every copy made later
+///       sweeps them,
+///  so no separate command or service is needed,
+///  and no lock protects the sweep:
+///  each
+///       directory has one owner and only a proven-dead owner's directory is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const entry of await readdir(parent)) if (isCopy(entry) && ownerIsGone(entry)) await rm(entry, { recursive: true, force: true });
+/// ```
+fn reap_copies_of_gone_owners(parent: &Path) {
+    let Ok(listed) = std::fs::read_dir(parent) else {
+        // A directory that cannot be listed proves nothing about any copy in it.
+        return;
+    };
+    for entry in listed.flatten() {
+        let path: PathBuf = entry.path();
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if recognised_owner_pid(name.as_str()).is_none() {
+            continue;
+        }
+        if !path.is_dir() {
+            continue;
+        }
+        if !owner_is_proven_gone(path.as_path(), name.as_str()) {
+            continue;
+        }
+        // `.remove_dir_all` takes the copy and whatever Git wrote beside it; a failure leaves it for the next
+        // sweep, and is not a failure of this command.
+        let _ = std::fs::remove_dir_all(path.as_path());
+    }
 }
 
 /// What:
@@ -221,6 +363,8 @@ impl PrivateIndex {
                 "monochromatic-git-policy-cli could not prepare a private copy of the index: Git named an index path without a directory.",
             ));
         };
+        // Before a new copy exists, the copies of commands that will never finish leave.
+        reap_copies_of_gone_owners(parent);
         let directory: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{}", unique_suffix()));
         if let Err(error) = create_private_directory(directory.as_path()) {
             return Err(private_index_failure("creating its directory", &error));
@@ -230,6 +374,12 @@ impl PrivateIndex {
             index: directory.join("index"),
             directory,
         };
+        // The record that lets a later command prove whether this one is still running; a platform that cannot
+        // report this process's identity leaves the name alone to say it, and only a proven-dead process id is
+        // ever acted on.
+        if let Ok(owner) = current_copy_owner() {
+            let _written = std::fs::write(private.directory.join(OWNER_RECORD), owner.token());
+        }
         if let Err(error) = copy_index(real_index, private.index.as_path()) {
             return Err(private_index_failure("copying the index", &error));
         }
