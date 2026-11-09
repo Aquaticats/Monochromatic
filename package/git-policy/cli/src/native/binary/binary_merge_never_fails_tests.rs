@@ -195,7 +195,7 @@ fn killed_after_the_checkout(fixture: &Fixture, repo: &Path, old_oid: &str, merg
     owner.owner_identity = String::from("linux:1");
     let intent: MergeIntent = MergeIntent {
         owner,
-        repository_root: repo.to_string_lossy().into_owned(),
+        repository_root: repo.to_path_buf(),
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: String::from(old_oid),
         new_oid: String::from(merged),

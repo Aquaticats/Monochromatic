@@ -144,7 +144,7 @@ fn deferred_record_of(world: &World, id: &str, side_ref: &str) -> PathBuf {
     git(world.repo.as_path(), &["update-ref", "--no-deref", side_ref, world.new_oid.as_str()]);
     let intent: MergeIntent = MergeIntent {
         owner: dead_owner(id),
-        repository_root: world.repo.to_string_lossy().into_owned(),
+        repository_root: world.repo.clone(),
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
@@ -691,7 +691,7 @@ fn a_dead_holders_lock_leaves_the_merge_for_the_next_command() {
 fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
     let intent: MergeIntent = MergeIntent {
         owner: dead_owner("14141414-0000-4000-8000-000000000014"),
-        repository_root: world.repo.to_string_lossy().into_owned(),
+        repository_root: world.repo.clone(),
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
