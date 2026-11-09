@@ -27,6 +27,7 @@
 use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, without_hint_fields, wrapped};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// The words every line about a merged part carries,
 /// so a reader can find them in a long output.
@@ -470,7 +471,7 @@ fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass
 /// The pass named the merge's own tree over it,
 /// and the merge was committed although a rule the
 ///  person asked for forbids it.
-fn a_command_line_tree_governs_the_isolated_merge(key: &str, name: &str) {
+fn a_command_line_tree_governs_the_isolated_merge(naming: &[&str], variable: Option<(&str, &str)>, name: &str) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("data.lock"), b"port=1 host=a zone=z\n").expect("the base file");
@@ -493,10 +494,14 @@ fn a_command_line_tree_governs_the_isolated_merge(key: &str, name: &str) {
     std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
     git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
     let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
-    let setting: String = format!("{key}=rules");
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["-c", setting.as_str(), "merge", "--no-edit", "topic"]);
+    let mut command: Command = wrapped(&fixture);
+    command.current_dir(repo.as_path()).args(naming).args(["merge", "--no-edit", "topic"]);
+    if let Some((variable_name, value)) = variable {
+        command.env(variable_name, value);
+    }
+    let observed: Observed = observe(&mut command, b"");
     let said: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(2), "the tree the person named forbids the merge ({key}): {said}");
+    assert_eq!(observed.code, Some(2), "the tree the person named forbids the merge ({naming:?}): {said}");
     assert!(said.contains("data.lock"), "the refused path is named: {said}");
     assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
@@ -507,14 +512,31 @@ fn a_command_line_tree_governs_the_isolated_merge(key: &str, name: &str) {
 /// The tree the person names on the command line governs the isolated merge.
 #[test]
 fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge() {
-    a_command_line_tree_governs_the_isolated_merge("attr.tree", "word-merge-command-line-tree");
+    a_command_line_tree_governs_the_isolated_merge(&["-c", "attr.tree=rules"], None, "word-merge-command-line-tree");
 }
 
 /// The same key in the letters the person typed,
 /// which Git reads as the same configuration key.
 #[test]
 fn a_configuration_option_in_any_letter_case_names_the_tree_of_an_isolated_merge() {
-    a_command_line_tree_governs_the_isolated_merge("Attr.Tree", "word-merge-command-line-tree-case");
+    a_command_line_tree_governs_the_isolated_merge(&["-c", "Attr.Tree=rules"], None, "word-merge-command-line-tree-case");
+}
+
+/// What:
+///  The tree a person names through `--config-env` governs the isolated merge,
+/// in both of its forms.
+/// Why:
+///   Git reads `--config-env=attr.tree=<variable>` as the same configuration value a `-c` gives,
+/// and the pass read only
+///  separate `-c` arguments,
+/// so it named the tree the merge produced over the person's and word-merged a file their rule
+///  excludes
+/// (cross-vendor review round 3,
+/// finding 3).
+#[test]
+fn a_configuration_environment_option_names_the_tree_of_an_isolated_merge() {
+    a_command_line_tree_governs_the_isolated_merge(&["--config-env=attr.tree=RULES"], Some(("RULES", "rules")), "word-merge-config-env-tree");
+    a_command_line_tree_governs_the_isolated_merge(&["--config-env", "attr.tree=RULES"], Some(("RULES", "rules")), "word-merge-config-env-tree-separate");
 }
 
 /// How many files a control conflicts,

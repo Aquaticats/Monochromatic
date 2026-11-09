@@ -56,7 +56,9 @@ use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_path_failure_message::path_failure;
+use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, stage_state};
 use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
 use std::fs::File;
@@ -97,16 +99,18 @@ fn lock_state(admin: &Path) -> Result<bool, String> {
 /// What:
 ///  How one attempt to remove a worktree with a subvolume destroy ended.
 /// Why:
-///   Three endings need three different next steps:
+///   Four endings need four different next steps:
 /// Git removes it (nothing changed),
 /// the work is done,
-/// or the files
-///  are gone and the registration is not,
+/// the wrapper refuses
+///  because something beside the worktree would be left behind by a removal,
+/// or the files are gone and the registration
+///  is not,
 /// which only the person can finish and which must never reach Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemoveOutcome = { kind: 'left-to-git' } | { kind: 'removed' } | { kind: 'incomplete'; report: string };
+/// type RemoveOutcome = { kind: 'left-to-git' } | { kind: 'removed' } | { kind: 'refused'; report: string } | { kind: 'incomplete'; report: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RemoveOutcome {
@@ -115,6 +119,9 @@ pub enum RemoveOutcome {
     LeftToGit,
     /// The subvolume and the administrative directory are gone.
     Removed,
+    /// The removal is refused and nothing was changed;
+    /// the report is for standard error and says what stands in the way and how to clear it.
+    Refused(String),
     /// The subvolume was destroyed but the registration could not be removed;
     /// the report is for standard error.
     Incomplete(String),
@@ -365,52 +372,6 @@ fn read_held_file(held: &Held, name: &str) -> std::io::Result<Vec<u8>> {
     return Ok(bytes);
 }
 
-/// The command that forgets a registration whose directory is gone,
-/// aimed at the repository of `common_dir`.
-fn prune_command(common_dir: &Path) -> String {
-    let main_checkout: Option<&str> = match common_dir.to_str() {
-        Some(text) => text.strip_suffix("/.git"),
-        None => None,
-    };
-    return match main_checkout {
-        Some(main) => format!("git -C {main} worktree prune"),
-        None => format!("git --git-dir={} worktree prune", common_dir.display()),
-    };
-}
-
-/// What:
-///  The report of a removal that destroyed the files but left the registration:
-/// what is gone,
-/// what is left and where,
-/// why,
-///  and each way to finish.
-/// Why:
-///   Git would now answer that the path is not a working tree,
-/// so the person needs the leftover's name and the command
-///  that removes it,
-/// and must not be told that the removal succeeded.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function incompleteReport(args: { target: string; admin: string; commonDir: string; reason: string }): string;
-/// ```
-fn incomplete_report(target: &Path, registration: &Registration, common_dir: &Path, reason: &str) -> String {
-    let prune: String = prune_command(common_dir);
-    return format!(
-        "monochromatic-git-policy-cli: the worktree {target} was removed (its subvolume was destroyed), but its registration {admin} was not: {reason}.\n\
-         Git still lists the worktree as missing. To finish, run `{prune}`; it forgets every registration whose directory is \
-         missing, and `{prune} --dry-run --verbose` lists them first.\n\
-         If that fails the same way, make {admin} and {worktrees} writable by you (`chmod --recursive u+rwx {admin}`) and \
-         remove {admin} yourself (`rm --recursive {admin}`).\n\
-         Running `git worktree remove` for {target} again cannot finish this: the directory is already gone.",
-        target = target.display(),
-        admin = registration.admin.display(),
-        worktrees = registration.worktrees.display(),
-        reason = reason,
-        prune = prune
-    );
-}
-
 /// What:
 ///  After the destroy,
 /// remove the registration through the descriptors that were held,
@@ -513,6 +474,16 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("{} is not a subvolume; Git removes it file by file", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     }
+    // A conversion's copy beside the worktree is named by the journal in the registration this removal deletes, so a removal
+    // now would leave it behind with nothing to find it by. The person finishes or discards it first. What proves the copy is
+    // a conversion's is the record the conversion writes beside the worktree: a directory at that name without one is the
+    // person's own, and refusing on the name alone would block the removal with nothing able to clear it.
+    let converting: PathBuf = crate::worktree_convert::converting_path(target);
+    if crate::worktree_convert_leftover_stage_record::recorded_stage_of(target).is_some() {
+        let report: String = leftover_stage_report(target, converting.as_path(), stage_state(registration.admin.as_path(), target, converting.as_path()));
+        debug(TAG, report.as_str());
+        return RemoveOutcome::Refused(report);
+    }
     if !operations.removal_allowed(target) {
         debug(TAG, format!("the mount of {} lacks {REMOVAL_OPTION}; Git removes the worktree file by file", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
@@ -532,11 +503,27 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
     }
+    // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
+    // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`
+    // could. A record that cannot be written costs that finish and nothing else, so the destruction goes on.
+    if let Err(reason) = record_destroy(request.common_dir, registration.id.as_os_str(), &held.admin_identity, target) {
+        warn(TAG, format!("the destroy of {} is not recorded, so a command that dies before its registration is removed leaves it to `git worktree prune`: {reason}", target.display()).as_str());
+    }
     if let Err(error) = operations.destroy(&held) {
         debug(TAG, format!("the subvolume of {} was not destroyed ({error}); Git removes it", target.display()).as_str());
+        forget_destroy(request.common_dir, registration.id.as_os_str());
         return RemoveOutcome::LeftToGit;
     }
-    return finish(&held, &registration, request);
+    // The kernel call returned, so its record now proves the files are gone; only that proof lets a later command remove the
+    // registration.
+    record_destroyed(request.common_dir, registration.id.as_os_str());
+    let outcome: RemoveOutcome = finish(&held, &registration, request);
+    // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
+    // record, which is what the next command finishes.
+    if outcome == RemoveOutcome::Removed {
+        forget_destroy(request.common_dir, registration.id.as_os_str());
+    }
+    return outcome;
 }
 
 /// Subvolume removal controls stay out of the release executable.

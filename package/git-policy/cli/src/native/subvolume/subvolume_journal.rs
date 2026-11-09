@@ -161,6 +161,11 @@ pub struct Journal {
     states: BTreeMap<String, String>,
     /// Step name to the time in milliseconds after the epoch at which it got its current state.
     times: BTreeMap<String, i64>,
+    /// Named values a step records beside its state
+    /// (the identity of the subvolume the migration installed,
+    /// for one),
+    /// kept in key order.
+    values: BTreeMap<String, String>,
     /// Whether the file exists on disk.
     persisted: bool,
 }
@@ -182,7 +187,7 @@ impl Journal {
         let text: String = match read_plain_text(path) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), persisted: false });
+                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), values: BTreeMap::new(), persisted: false });
             }
             Err(error) => return Err(MigrateError::io("read the journal", path, &error)),
         };
@@ -211,7 +216,18 @@ impl Journal {
                 times.insert(name.clone(), milliseconds);
             }
         }
-        return Ok(Journal { path: path.to_path_buf(), started, states, times, persisted: true });
+        // A journal of an earlier release has no values, which is not an error: a step that needed one records it when it
+        // runs, and a check that needs one refuses to guess without it.
+        let mut values: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(recorded) = value.get("values").and_then(Value::as_object) {
+            for (name, held) in recorded {
+                let Some(recorded_text) = held.as_str() else {
+                    return Err(broken_journal(path, "has a value that is not text"));
+                };
+                values.insert(name.clone(), recorded_text.to_string());
+            }
+        }
+        return Ok(Journal { path: path.to_path_buf(), started, states, times, values, persisted: true });
     }
 
     /// When the migration began,
@@ -239,6 +255,37 @@ impl Journal {
     pub fn seconds_of(&self, step: &str) -> Option<i64> {
         let milliseconds: &i64 = self.times.get(step)?;
         return Some(milliseconds.div_euclid(1000));
+    }
+
+    /// What:
+    ///  The value recorded under `name`,
+    /// if any.
+    /// Why:
+    ///   A step records what a later command must compare against,
+    /// such as the identity of the subvolume the
+    ///  migration installed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// journal.values.get('installed-root')
+    /// ```
+    pub fn value(&self, name: &str) -> Option<&str> {
+        return self.values.get(name).map(String::as_str);
+    }
+
+    /// What:
+    ///  Record a named value;
+    /// it reaches the file with the next step that is marked.
+    /// Why:
+    ///   The value belongs to the step recorded beside it,
+    /// so one write carries both and a kill never leaves one without the other.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// journal.setValue('installed-root', '0:256');
+    /// ```
+    pub fn set_value(&mut self, name: &str, text: &str) {
+        self.values.insert(name.to_string(), text.to_string());
     }
 
     /// The recorded state of a step,
@@ -291,6 +338,13 @@ impl Journal {
         document.insert(String::from("schema"), Value::from(SCHEMA));
         document.insert(String::from("started"), Value::String(self.started.clone()));
         document.insert(String::from("steps"), Value::Object(steps));
+        if !self.values.is_empty() {
+            let mut values: Map<String, Value> = Map::new();
+            for (name, text) in &self.values {
+                values.insert(name.clone(), Value::String(text.clone()));
+            }
+            document.insert(String::from("values"), Value::Object(values));
+        }
         let text: String = serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
         let sibling_path: PathBuf = self.temporary_path();
         let written: std::io::Result<()> = write_and_rename(sibling_path.as_path(), self.path.as_path(), text.as_bytes());
@@ -362,6 +416,7 @@ impl Journal {
         }
         self.states.clear();
         self.times.clear();
+        self.values.clear();
         self.persisted = false;
         return Ok(());
     }

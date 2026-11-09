@@ -20,6 +20,7 @@ import {
   STOP_FILE_NAME,
 } from './driver-constants.ts';
 import type {
+  CommandAnswer,
   EndReason,
   RunProgress,
 } from './driver-types.ts';
@@ -27,7 +28,6 @@ import {
   answerModelError,
   type RetryWaiting,
 } from './answer-a-model-error.ts';
-import { answerMillisecondsBefore, } from './deadline.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -202,7 +202,7 @@ async function deliverMessage({
   const sentAs = watch.record
     .isRunning() ? 'steer' : 'prompt';
   /**
-   Pi's answer, waited for only as long as the run has left.
+   Pi's answer, waited for within the run's own deadline.
    */
   const answer = await watch.connection
     .send({
@@ -210,9 +210,9 @@ async function deliverMessage({
         type: sentAs,
         message: text,
       },
-      answerMilliseconds: answerMillisecondsBefore(watch.deadline,),
+      deadline: watch.deadline,
     },);
-  if (answer.success === true) {
+  if (takenByPi(answer,)) {
     try {
       await unlink(claim,);
     }
@@ -236,13 +236,49 @@ async function deliverMessage({
       kind: 'inbox',
       file: name,
       sentAs,
-      success: answer.success,
-      error: answer.error ?? null,
+      success: takenByPi(answer,),
+      error: outcomeTextOf(answer,),
       preview: preview({
         value: text,
         length: FEED_PREVIEW_CHARACTERS.inboxMessage,
       },),
     },);
+}
+
+/**
+ Tells whether Pi took the message.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns whether Pi answered that it took it
+ */
+function takenByPi(answer: CommandAnswer,): boolean {
+  if (answer.ending !== 'answered') {
+    return false;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  return record.success === true;
+}
+
+/**
+ What the feed says of a message: Pi's own word for a refusal, or the bound that ended the wait.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns the text, or nothing when nothing failed
+ */
+function outcomeTextOf(answer: CommandAnswer,): unknown {
+  if (answer.ending !== 'answered') {
+    return answer.problem;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  return record.error ?? null;
 }
 
 /**

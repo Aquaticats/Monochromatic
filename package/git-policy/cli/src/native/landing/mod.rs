@@ -237,8 +237,8 @@ pub mod service_captures;
 /// never prepared again from the worktree.
 pub mod service_replay;
 
-/// Small text steps of the replay of captured changes.
-pub mod service_replay_path_and_line_text;
+/// The small text steps of the replay of captured changes.
+pub mod service_replay_line_text;
 
 /// Which way a commit goes:
 /// through the service,
