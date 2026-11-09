@@ -646,6 +646,125 @@ owner-held machinery it would move.
   4 of 4,
   because it cannot be sized until it is measured.
 
+## The preparation's split, measured on a shaped fixture
+
+What this answers:
+which step inside `prepareMs` spends the milliseconds,
+weighed on real commits through a built wrapper in a disposable repository of this tree's shape,
+and what the record states so that the next slow commit explains itself.
+
+The record every commit writes now carries `prepareSpans`
+(`package/git-policy/cli/SPEC.md`,
+"The longest quiet gap of every Git step and tool a command ran"):
+each step of the preparation by name,
+with how often it ran,
+the whole of its time and its longest run.
+The names are the index's stat check,
+the index read,
+the index copies,
+the answer of whether the index already holds the base,
+the writes of corrected entries,
+the candidate set the content policies of a pass share,
+and every policy with the lifecycle point whose pass ran it.
+The owner's rule for an unexplained slow commit was to log more,
+and the field is that logging:
+it costs one clock reading at each seam and one `write` in the record the commit already writes.
+
+How the split was measured:
+
+- The fixture is a clone of this checkout's `HEAD` with its remote removed:
+  22,457 tracked files and a 3,016,055-byte index,
+  reflinked for each arm,
+  its index refreshed and `core.untrackedcache` set,
+  with this repository's `post-checkout`,
+  `post-commit`,
+  `post-merge` and `pre-push` hooks and `git-lfs` on the arm's `PATH`.
+- The harness is `mise run //package/git-policy/cli:native:perf -- --only commit-service --samples 20 --shape <clone>`,
+  whose two arms alternate every round:
+  the same 20 rounds ran through the release wrapper and through `/usr/bin/git`,
+  so the paired delta of a round holds what the wrapper added while both arms met the same host.
+- The host was under the pressure other sessions keep up:
+  load average 61 to 109 on eight CPUs,
+  and no synthetic load was generated.
+  Every probe ran in a `systemd-run --user --scope` with
+  `CPUQuota=700%`,
+  `MemoryMax=12G`,
+  `TasksMax=900` and `IOWeight=10`.
+- No run waited for a quiet host and none called this one quiet:
+  the spread of one binary on unchanged input is reported beside each figure,
+  and the two runs of the unchanged wrapper on the same fixture
+  (paired delta median 6,629 ms and 7,685 ms,
+  p95 19,725 ms and 25,659 ms,
+  and 13 then 12 of the 20 rounds over the owner's five seconds)
+  show how much of any single figure is the host.
+
+The split over 20 wrapped commits:
+
+- `prepareMs`:
+  median 1,919 ms,
+  p95 19,815 ms,
+  max 50,596 ms.
+- `submitMs`:
+  median 783 ms,
+  max 21,835 ms.
+- `gateMs`:
+  median 1,337 ms,
+  p95 6,408 ms.
+- `buildMs`:
+  median 3 ms:
+  every commit of this shape took the route where the service builds the commit from the request,
+  so no scratch `git commit` ran.
+- The named steps,
+  each a median over the 20 commits:
+  - `candidates prepared` 3,404 ms,
+    p95 15,077 ms,
+    max 17,491 ms.
+    It sums the pre-forward pass and the post-commit gate of each commit,
+    so it can exceed `prepareMs`.
+  - `policy final-newline at pre-forward` 1,468 ms.
+  - `policy final-newline at post-commit` 1,173 ms.
+  - `policy security/forbidden-strings at pre-forward` 31 ms,
+    with one run of 41,481 ms.
+  - `index stat check` 22 ms (max 816 ms),
+    `index read` 19 ms (max 490 ms),
+    `index copy` 0 ms (max 940 ms),
+    `index equals base` 2 ms.
+  - Every other policy:
+    0 to 2 ms.
+
+The answer to the question this record could not settle is that no policy spends the preparation's time:
+the candidate set does.
+The first content policy that asks for it,
+`final-newline`,
+pays for the private index its listings read,
+the listings themselves,
+and the content behind each path,
+and every later policy of the pass reads what it paid for.
+`final-newline` was named as the cost in the first reading of the new field
+(`prepareSpans` with the policy names only),
+which is why the set has a name of its own now.
+
+What this split still does not name:
+the child Git processes the in-process readers fall back to.
+Those start outside the step ledger,
+so a commit whose preparation waits on one shows the wait in the phase and in no step.
+That gap is a defect of the record,
+not of the fixture,
+and it is what the next change fixes.
+
+The bar,
+on the same 20 rounds:
+
+- `/usr/bin/git` median 92.1 ms and p95 1,598 ms.
+- The wrapper median 8,043 ms,
+  p95 25,741 ms,
+  largest 52,225 ms.
+- The paired delta:
+  median 7,685 ms,
+  p95 25,659 ms,
+  max 35,956 ms,
+  so 12 of the 20 rounds were over the owner's five seconds and eight were not.
+
 ## What this could not determine
 
 - Which in-process step inside a preparation spends the median 332 ms.
