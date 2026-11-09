@@ -355,11 +355,11 @@ pub fn exclude_what_a_landed_commit_left(
 fn moved_since(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
     let mut tree: GitRequest = GitRequest::new(repository, &["write-tree"]);
     tree.index = Some(live_index.to_path_buf());
-    let output = match run_git(git, &tree) {
-        Ok(output) if output.succeeded() => output,
+    let written = match run_git(git, &tree) {
+        Ok(answer) if answer.succeeded() => answer,
         _ => return Err(FailureCode::Unavailable),
     };
-    let held: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    let held: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
     let mut moved: GitRequest = GitRequest::new(repository, &["diff-index", "--cached", "--name-only", "-z", held.as_str()]);
     moved.index = Some(commit_index.to_path_buf());
     let listing = match run_git(git, &moved) {
