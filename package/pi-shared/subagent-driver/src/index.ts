@@ -21,6 +21,9 @@ export {
 } from './checked-runs.ts';
 export {
   FEED_PREVIEW_CHARACTERS,
+  MODEL_ERROR_RETRY_BASE_SECONDS,
+  MODEL_ERROR_RETRY_CAP,
+  MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
   NESTED_RUN_VARIABLE,
   NO_RUN_FAILURE,
   POLL_MILLISECONDS,
@@ -36,11 +39,22 @@ export type {
   PiExit,
   PiRecord,
   RecordOfPiRun,
+  RetryTaken,
   RunEnding,
   RunFailure,
   RunProgress,
   RunSummary,
 } from './driver-types.ts';
+export {
+  anotherAttemptMayFix,
+  continuationPromptOf,
+  isRateLimit,
+  kindOfModelError,
+  type ModelErrorKind,
+  retryDelayMilliseconds,
+  type WaitAskedByProvider,
+  waitAskedByProvider,
+} from './retries-of-a-model-error.ts';
 export {
   DRIVER_USAGE,
   DriverOptionsError,
@@ -78,10 +92,12 @@ export {
   PiRunEndedEarlyError,
   supervisePiRun,
 } from './supervise-pi-run.ts';
+export { watchUntilEnded, } from './watch-pi-run.ts';
+export type { WatchRequest, } from './watch-request.ts';
 export {
-  type WatchRequest,
-  watchUntilEnded,
-} from './watch-pi-run.ts';
+  answerModelError,
+  type RetryWaiting,
+} from './answer-a-model-error.ts';
 
 /**
  What the watch for runs that should have come back reads, and the lines it answers with. The command is
