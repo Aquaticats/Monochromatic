@@ -463,7 +463,7 @@ fn a_script_named_git_that_starts_the_wrapper_without_exec_ends_the_chain() {
     let deepest: usize = deepest_level(counter.as_path());
     assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
     assert!(
-        deepest >= 2 && deepest < CHAIN_CAP,
+        (2..CHAIN_CAP).contains(&deepest),
         "the chain must end after one step and before the stand-in's backstop at level {CHAIN_CAP}: deepest level {deepest}: {text}"
     );
     assert!(text.contains("started as Git"), "{text}");
