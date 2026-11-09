@@ -876,10 +876,12 @@ and the phases of those rounds name three causes:
 - What is left of the preparation:
   three rounds hold 5,938 ms,
   4,538 ms and 3,531 ms there,
-  with `candidates prepared` at 6 to 8 ms,
-  so it is the listings and the two `git ls-files` and `git diff-index` children behind them,
-  each reading the index and the base tree,
-  plus the index's stat check when the worktree moved.
+  and the named steps say it is the commit's own copies of the live index:
+  `index copy` takes 5,793 ms in one of them and 4,227 ms in another,
+  once each,
+  while `candidates prepared` is 6 to 8 ms and every policy is under 30 ms.
+  A cold three-megabyte read of `.git/index` costs seconds on this disk,
+  and the wrapper reads that index once more than native Git does.
 
 ## What would take the tail under five seconds
 
@@ -897,10 +899,10 @@ in the order the numbers rank it:
 - Move the scanner's rule-cache write off the commit's path,
   by building it in the service or before the commit starts,
   which is worth up to 24 seconds on the first commit of a cold cache.
-- Make the index listings read the index once:
-  `git ls-files --stage` and `git diff-index --cached` both walk the whole index and the base tree for a scope that
-  names one path,
-  and the in-process readers already know how to answer both.
+- Read the live index once per commit where the wrapper reads it twice:
+  the captured copy and the commit's own copy hold the same bytes at that moment,
+  and `git add` reads the live index again in the same command,
+  which is the 4,227 ms to 5,793 ms of `index copy` that the rounds over the bar hold.
 
 ## What this could not determine
 
