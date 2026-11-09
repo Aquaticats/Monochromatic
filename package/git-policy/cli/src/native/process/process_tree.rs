@@ -35,8 +35,12 @@
 //! the member is there and is the one that was found,
 //! it is gone,
 //! or its record could not be read.
-//! The third is signalled and waited for like the first,
-//! because a stop that reads a refusal as an exit ends nothing and sweeps the locks of a live tree.
+//! The third is waited for like the first and never signalled:
+//! a refusal is not an exit,
+//! so the member stays in
+//!  every wait,
+//! and it proves nothing about which process its number names by now,
+//! so no signal is sent to that number.
 
 /// What a signal sent through a pin came to.
 use crate::pinned_member_signalled_through_a_pidfd::Delivered;
@@ -170,8 +174,10 @@ pub fn member_of(_pid: i32) -> Option<TreeMember> {
 /// is not a zombie,
 /// and has the recorded start time.
 ///  A record that cannot be read says nothing about the process,
-/// so it is waited for and signalled as if it were alive:
-/// reading a refusal as an exit ends nothing and lets a stop's lock sweep run against a live tree.
+/// so it is waited for as if it were alive:
+/// reading a refusal as an exit lets a stop's lock sweep run against a live tree.
+/// It is never signalled,
+///  because a refusal does not prove which process the number names now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -213,9 +219,12 @@ pub fn still_running_when(look: ProcessLook, member: &TreeMember) -> bool {
 /// an I/O error,
 /// a record that could not be parsed).
 /// The third is not the second:
-///  the step is signalled and waited for on an unknown record,
-/// because a stop that treats a refusal as an exit ends nothing
-///  and sweeps the locks of a live tree.
+///  the step is waited for on an unknown record,
+/// because a stop that treats a refusal as an exit ends nothing and
+///  sweeps the locks of a live tree;
+/// and nothing is signalled through it,
+/// because a refusal proves nothing about which
+///  process the number names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -296,14 +305,16 @@ pub fn look_of(_pid: i32) -> ProcessLook {
 /// the others are left alone.
 /// Why:
 ///   A number that was reused by an unrelated process must never be signalled.
-///  A member whose record could not be read is signalled:
-/// the number was a member of the tree a moment
-///  ago,
-/// and a stop that sends nothing because a look was refused is a stop that ends nothing.
+///  A member whose record could not be read is not signalled either:
+/// nothing proves which process its number names
+///  now, so a signal to it may end an unrelated one.
+/// Such a member stays in every wait (`still_running`),
+/// and the
+///  stop says in one line that it could not be stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const member of tree) signalMember(member, signal); // through its pidfd
+/// for (const member of tree) signalMember(member, signal); // through its pidfd, or nothing
 /// ```
 #[cfg(unix)]
 pub fn signal_members(members: &[TreeMember], signal: i32) {

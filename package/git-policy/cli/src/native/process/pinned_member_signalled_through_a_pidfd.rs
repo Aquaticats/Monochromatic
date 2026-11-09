@@ -17,10 +17,12 @@
 //! Where the kernel gives no pidfd the signal goes to the number after the start time is read
 //!  again right before it,
 //! and that window is the one a pidfd closes.
-//!  A process whose record cannot be read is signalled by its number all the same:
-//! it was a member of the tree a moment ago,
-//! and a
-//!  stop that sends nothing because a look was refused ends nothing.
+//!  A process whose record cannot be read is never signalled:
+//! nothing about the read proves the number still names the member,
+//!  so it may have been given to an unrelated process.
+//! The stop waits for such a process as if it were alive,
+//! and says in one line that it could not be
+//!  stopped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -79,9 +81,8 @@ pub struct PinnedProcess {
 /// a pinned process is signalled through its
 ///  descriptor,
 /// one that is gone is never signalled,
-/// and one whose record could not be read is signalled by its number without an
-///  identity check,
-/// as the platform without `/proc` always did.
+/// and one whose record could not be read is never signalled either,
+///  because nothing proves which process its number names by now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,7 +100,9 @@ pub enum PinOutcome {
     /// nothing is signalled.
     Gone,
     /// The record could not be read,
-    /// so the process is signalled by its number.
+    /// so nothing proves what the number names:
+    /// nothing is signalled,
+    /// and the stop waits for the process instead.
     Unreadable,
 }
 
@@ -116,7 +119,27 @@ pub enum PinOutcome {
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
 pub fn pin_of_through(proc_root: &std::path::Path, member: &TreeMember) -> PinOutcome {
-    let started: u64 = match look_of_through(proc_root, member.pid) {
+    // The record's own directory is read twice, before and after the descriptor is opened, so the number is proven to have
+    //  named one process throughout.
+    let mut look = || return look_of_through(proc_root, member.pid);
+    return pin_with_look(member, &mut look);
+}
+
+/// What:
+///  `pin_of_through` over a look the caller supplies,
+/// so a control can make the second look fail without exhausting this process's descriptors.
+/// Why:
+///   The two looks answer the same question,
+/// and only their comparison decides whether the descriptor is kept;
+///  a control that could only make both fail could not tell the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pinWithLook(member, look: () => ProcessLook): PinOutcome;
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+fn pin_with_look(member: &TreeMember, look: &mut dyn FnMut() -> ProcessLook) -> PinOutcome {
+    let started: u64 = match look() {
         ProcessLook::Alive(found) if found.started == member.started => found.started,
         ProcessLook::Alive(_) | ProcessLook::Gone => return PinOutcome::Gone,
         ProcessLook::Unknown => return PinOutcome::Unreadable,
@@ -137,17 +160,63 @@ pub fn pin_of_through(proc_root: &std::path::Path, member: &TreeMember) -> PinOu
     };
     // SAFETY: `raw` is a descriptor `pidfd_open` just made for this process alone, and nothing else owns it.
     let descriptor: OwnedFd = unsafe { OwnedFd::from_raw_fd(number) };
-    // The number named the process before and after the descriptor was made, so the descriptor is that process's.
-    if look_of_through(proc_root, member.pid) != ProcessLook::Alive(TreeMember { pid: member.pid, started }) {
-        return PinOutcome::Gone;
-    }
-    return PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: Some(descriptor) });
+    return match look() {
+        // The number named the process before and after the descriptor was made, so the descriptor is that process's.
+        ProcessLook::Alive(found) if found.started == started => {
+            PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: Some(descriptor) })
+        }
+        ProcessLook::Alive(_) | ProcessLook::Gone => PinOutcome::Gone,
+        // A second look that fails proves nothing about the process the descriptor already names: it keeps the descriptor,
+        //  which is the whole reason a descriptor is taken while the identity was known.
+        ProcessLook::Unknown => {
+            PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: Some(descriptor) })
+        }
+    };
 }
 
 /// What a pin of a member came to on this host.
 #[cfg(all(unix, target_os = "linux"))]
 pub fn pin_of(member: &TreeMember) -> PinOutcome {
     return pin_of_through(std::path::Path::new(crate::process_tree::PROC), member);
+}
+
+/// What:
+///  The pin of a child this process has just started and has not reaped.
+/// Why:
+///  A number names a process only until that process is reaped,
+/// and another thread of this process reaps the child as soon as it
+///  ends,
+/// so a number read now cannot be signalled later.
+/// Taken straight after the start,
+/// the number certainly names the child,
+///  and the descriptor taken then names it for good,
+/// whatever the record says afterwards.
+/// A child whose record could not be read
+///  has no pin:
+/// nothing proves what the number names,
+/// so nothing is signalled,
+/// and the sentence to the person says the query was not ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pin = pinOfOurOwnChild(child.pid); // undefined when nothing proves what the number names
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+pub fn pin_of_our_own_child(pid: u32) -> Option<PinnedProcess> {
+    let number: i32 = i32::try_from(pid).ok()?;
+    let member: TreeMember = crate::process_tree::member_of(number)?;
+    return match pin_of(&member) {
+        PinOutcome::Held(pinned) => Some(pinned),
+        PinOutcome::Gone | PinOutcome::Unreadable => None,
+    };
+}
+
+/// Without `/proc` and without pidfds nothing about a number is known,
+/// so no pin is made and nothing is signalled.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+pub fn pin_of_our_own_child(_pid: u32) -> Option<PinnedProcess> {
+    return None;
 }
 
 /// Without `/proc` nothing is known about a number,
@@ -209,27 +278,48 @@ impl PinnedProcess {
 
 /// What:
 ///  Send `signal` to the member through a pin of it,
-/// or by its number when its record could not be read.
+/// or nothing when the member is gone or its record could not be read.
 /// Why:
 ///   One decision for every caller,
 /// so the root of a step and the members below it cannot be treated
 ///  differently.
+/// A record that could not be read says nothing about the process,
+/// so nothing is signalled through it:
+///  the number named a member a moment ago,
+/// and it may name an unrelated process by now,
+/// which no signal
+///  may ever reach.
+/// The stop waits for such a member instead (`still_running`),
+/// and one line says it could
+///  not be stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pin = pinOf(member); if (pin.held) pin.signal(sig); else if (pin.unreadable) process.kill(member.pid, sig);
+/// const pin = pinOf(member); if (pin.kind === 'held') pin.pin.signal(sig); else return 'gone';
 /// ```
 #[cfg(unix)]
 pub fn signal_member(member: &TreeMember, signal: c_int) -> Delivered {
-    return match pin_of(member) {
+    let pin: PinOutcome = pin_of(member);
+    return delivered_by(pin, signal);
+}
+
+/// What:
+///  `signal_member` over a pin the caller made,
+/// so a control can read a record that refuses without starving the whole test process.
+/// Why:
+///  The whole decision of a signal is the pin's answer,
+/// and the refusal is a branch no real `/proc` gives a control
+///  on demand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deliveredBy(pin: PinOutcome, signal: number): Delivered;
+/// ```
+#[cfg(unix)]
+fn delivered_by(pin: PinOutcome, signal: c_int) -> Delivered {
+    return match pin {
         PinOutcome::Held(pinned) => pinned.signal(signal),
-        PinOutcome::Gone => Delivered::Gone,
-        PinOutcome::Unreadable => {
-            // SAFETY: `kill` takes two integers and touches no memory of this process; the number named a member of the tree a
-            //  moment ago and its record could not be read to say otherwise.
-            let sent: c_int = unsafe { libc::kill(member.pid, signal) };
-            if sent == 0 { Delivered::Sent } else { Delivered::Gone }
-        }
+        PinOutcome::Gone | PinOutcome::Unreadable => Delivered::Gone,
     };
 }
 

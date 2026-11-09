@@ -80,14 +80,25 @@ fn a_member_is_held_by_its_pidfd_and_only_that_process_is_signalled() {
     assert!(matches!(pin_of(&member), PinOutcome::Gone), "the number names no process that started then");
 }
 
-/// A member whose record cannot be read is signalled by its number,
-/// because nothing about the read proves the process ended.
+/// What:
+///  A member whose record cannot be read is not signalled at all,
+/// and the pin says the record could not be read.
+/// Why:
+///  Nothing about a refused record proves which process the number names now:
+/// the member was found a moment
+///  ago,
+/// and it may have ended and been reaped since,
+/// so its number may belong to an unrelated process.
+/// A signal
+///  sent to it would end that process.
+/// The stop waits for such a member instead, and one line says it could
+///  not be stopped.
 ///  The seam is the record's own directory,
 /// as the look's control uses it:
 /// a directory where the record should be is an `EISDIR` no wait makes go away.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_member_whose_record_could_not_be_read_is_signalled_by_its_number() {
+fn a_member_whose_record_could_not_be_read_is_not_signalled() {
     let mut process: Child = sleeper();
     let member: TreeMember = member_of(&process);
     let root: PathBuf = crate::test_support::fixture("pinned-member-look");
@@ -95,11 +106,50 @@ fn a_member_whose_record_could_not_be_read_is_signalled_by_its_number() {
     let record: PathBuf = refusing.join(member.pid.to_string());
     std::fs::create_dir_all(record.join("stat").as_path()).expect("a directory where the record should be");
     let outcome: PinOutcome = pin_of_through(refusing.as_path(), &member);
+    // Nothing proves which process the number names, so nothing is sent to it.
+    let delivered: Delivered = delivered_by(outcome, libc::SIGKILL);
     crate::test_support::remove(root.as_path());
-    assert!(matches!(outcome, PinOutcome::Unreadable), "a record that could not be read is not a process that ended");
-    // The number is what is left to signal, and the control's own process is what it reaches.
-    assert_eq!(signal_member(&member, libc::SIGKILL), Delivered::Sent, "the number is signalled");
+    assert_eq!(delivered, Delivered::Gone, "a number whose record could not be read is not signalled");
+    std::thread::sleep(Duration::from_millis(300));
+    let survived: bool = runs(member.pid);
+    process.kill().expect("the control ends its sleeper");
+    process.wait().expect("the sleeper is collected");
+    assert!(survived, "the process the refused record named was left alone");
+}
+
+/// What:
+///  A look at the record that fails after the pin's descriptor is open keeps the descriptor,
+/// and the signal goes through it.
+/// Why:
+///   The descriptor names one process for good;
+/// a record that could not be read says nothing about that process,
+///  so reading the failure as an exit dropped a valid pin and sent nothing.
+/// Every further attempt met the same descriptor
+///  shortage,
+/// so termination and the kill both failed while the stop waited for a process nothing had stopped.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_second_look_that_fails_keeps_the_pidfd() {
+    let mut process: Child = sleeper();
+    let member: TreeMember = member_of(&process);
+    // The first look finds the process, as the pin's own does; the second, made after the descriptor is open, could not be
+    //  read, which is what a descriptor limit does to it.
+    let mut looks: u32 = 0;
+    let mut look = || {
+        looks += 1;
+        if looks == 1 {
+            return look_of(member.pid);
+        }
+        return ProcessLook::Unknown;
+    };
+    let outcome: PinOutcome = pin_with_look(&member, &mut look);
+    let held: PinnedProcess = match outcome {
+        PinOutcome::Held(pinned) => pinned,
+        other => panic!("a look that failed after the descriptor was open lost the pin: {other:?}"),
+    };
+    assert!(held.held_by_a_pidfd(), "the descriptor taken while the identity was known is kept");
+    assert_eq!(held.signal(libc::SIGKILL), Delivered::Sent, "the signal goes through the descriptor");
     let ended: bool = ended_within_bound(member.pid);
     process.wait().expect("the sleeper is collected");
-    assert!(ended, "the process the refused record named ended");
+    assert!(ended, "the pinned process ended");
 }
