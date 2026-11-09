@@ -63,15 +63,29 @@ type ServedResult = {
 };
 
 /**
+ Parameters for {@link route}.
+ */
+type RouteParams = {
+  /**
+   Path and query to request.
+   */
+  readonly path: string;
+  /**
+   HTTP method to use, defaulting to `GET`.
+   */
+  readonly method?: string;
+};
+
+/**
  Route one request through the library entry.
 
  @param path - path and query to request
 
- @param method - HTTP method to use
+ @param method - HTTP method to use, defaulting to `GET`
 
  @returns the response the router produced
  */
-async function route(path: string, method = 'GET',): Promise<Response> {
+async function route({ path, method = 'GET', }: RouteParams,): Promise<Response> {
   return handleRequest({
     request: new Request(`${ORIGIN}${path}`, { method, },),
     l,
@@ -89,7 +103,7 @@ async function served(path: string,): Promise<ServedResult> {
   /**
    Response to inspect.
    */
-  const response = await route(path,);
+  const response = await route({ path, },);
   return {
     status: response.status,
     body: await response.text(),
@@ -108,6 +122,20 @@ async function servedAll(paths: readonly string[],): Promise<ServedResult[]> {
 }
 
 /**
+ Parameters for {@link servedMany}.
+ */
+type ServedManyParams = {
+  /**
+   Path and query to request repeatedly.
+   */
+  readonly path: string;
+  /**
+   How many requests to issue.
+   */
+  readonly count: number;
+};
+
+/**
  Route the same path many times concurrently.
 
  @param path - path and query to request repeatedly
@@ -116,7 +144,7 @@ async function servedAll(paths: readonly string[],): Promise<ServedResult[]> {
 
  @returns one status and body per request
  */
-async function servedMany(path: string, count: number,): Promise<ServedResult[]> {
+async function servedMany({ path, count, }: ServedManyParams,): Promise<ServedResult[]> {
   return await Promise.all(Array.from({ length: count, }, async () => await served(path,),),);
 }
 
@@ -170,7 +198,7 @@ await describe({
             /**
              Response for the UUID route.
              */
-            const response = await route('/uuidv4',);
+            const response = await route({ path: '/uuidv4', },);
             expect(response.status,).toBe(OK,);
             expect(response.headers.get('Content-Type',),).toBe('text/plain; charset=utf-8',);
             expect(response.headers.get('Content-Length',),).toBe('36',);
@@ -211,7 +239,10 @@ await describe({
             /**
              Every draw for the interval 1 to 3.
              */
-            const results = await servedMany('/int?min=1&max=3', MANY_DRAWS,);
+            const results = await servedMany({
+              path: '/int?min=1&max=3',
+              count: MANY_DRAWS,
+            },);
             for (const result of results) {
               expect(result.status,).toBe(OK,);
             }
@@ -246,7 +277,10 @@ await describe({
             /**
              Every draw for the interval -3 to -1.
              */
-            const results = await servedMany('/int?min=-3&max=-1', MANY_DRAWS,);
+            const results = await servedMany({
+              path: '/int?min=-3&max=-1',
+              count: MANY_DRAWS,
+            },);
             for (const result of results) {
               expect(result.status,).toBe(OK,);
             }
@@ -271,7 +305,10 @@ await describe({
             /**
              Every draw for this interval.
              */
-            const results = await servedMany(`/int?min=0&max=${String(max,)}`, MANY_DRAWS,);
+            const results = await servedMany({
+              path: `/int?min=0&max=${String(max,)}`,
+              count: MANY_DRAWS,
+            },);
             for (const result of results) {
               expect(result.status,).toBe(OK,);
               /**
@@ -373,7 +410,7 @@ await describe({
               /**
                Response for this length route.
                */
-              const response = await route(`/${String(length)}`,);
+              const response = await route({ path: `/${String(length)}`, },);
               return {
                 length,
                 status: response.status,
@@ -397,7 +434,7 @@ await describe({
             /**
              Response for the root route.
              */
-            const response = await route('/',);
+            const response = await route({ path: '/', },);
             expect(response.status,).toBe(OK,);
             expect(response.headers.get('Content-Length',),).toBe(String(MAX_RANDOM_LENGTH,),);
             expect(await response.text(),).toHaveLength(MAX_RANDOM_LENGTH,);
@@ -473,7 +510,10 @@ await describe({
             /**
              HEAD response for the UUID route.
              */
-            const response = await route('/uuidv4', 'HEAD',);
+            const response = await route({
+              path: '/uuidv4',
+              method: 'HEAD',
+            },);
             expect(response.status,).toBe(OK,);
             expect(response.headers.get('Content-Length',),).toBe('36',);
             expect(response.headers.get('Content-Type',),).toBe('text/plain; charset=utf-8',);
@@ -489,7 +529,10 @@ await describe({
             const responses = await Promise.all([
               '/uuidv4',
               '/nope',
-            ].map(async (path) => await route(path, 'OPTIONS',),),);
+            ].map(async (path) => await route({
+              path,
+              method: 'OPTIONS',
+            },),),);
             for (const response of responses) {
               expect(response.status,).toBe(NO_CONTENT,);
               expect(response.headers.get('Allow',),).toBe('GET, HEAD, OPTIONS',);
@@ -518,7 +561,10 @@ await describe({
               /**
                Refusal for this method.
                */
-              const response = await route('/uuidv4', method,);
+              const response = await route({
+                path: '/uuidv4',
+                method,
+              },);
               expect(response.status,).toBe(METHOD_NOT_ALLOWED,);
               expect(response.headers.get('Allow',),).toBe('GET, HEAD, OPTIONS',);
               return await response.text();
