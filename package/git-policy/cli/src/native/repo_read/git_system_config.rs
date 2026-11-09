@@ -80,8 +80,9 @@ fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
         .current_dir("/")
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
-    // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`).
-    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Child);
+    // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`), and it is a start of
+    //  the wrapper's own reading: nothing of the person's runs under it.
+    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Query);
     let output = crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, crate::wait_ceilings::PLUMBING_STEP_CEILING).ok()?;
     return if output.status.success() { Some(output.stdout) } else { None };
 }

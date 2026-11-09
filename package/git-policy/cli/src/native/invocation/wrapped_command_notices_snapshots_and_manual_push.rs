@@ -30,7 +30,7 @@ use crate::policy_content::LifecycleContent;
 use crate::policy_registry::PolicyId;
 use crate::landed_summary::short_name;
 use crate::transaction_git::GitContext;
-use crate::push_failure_notice::{CommitNamer, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
+use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
@@ -138,6 +138,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
+    // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
+    //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
+    for line in crate::service_handoff::held_push_notices(git_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     let context = checks.facts.transaction_context();
     let cwd: PathBuf = match std::env::current_dir() {
         Ok(directory) => directory,
@@ -146,41 +152,33 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
-    for text in push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
-        // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{text}");
+    for notice in &push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
+        // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
+        //  written stays for the next command.
+        let _written = notice.show(&mut std::io::stderr());
     }
 }
 
 /// What:
-///  What this command says about the worktree's pushes:
-/// the ones that are held,
-/// and the failures the service recorded since one was last shown.
+///  The failures the service recorded since one was last shown.
 /// Why:
-///   A held push is said whether or not a notice directory exists yet,
-/// because the recording is what creates
-///  the directory the check below reads;
-/// asking the directories first would hide exactly the case the line exists
-///  for,
-/// a push held by a command that never released it.
-/// When nothing failed and nothing is held the check is two
+///   Each comes with what removes it once its words are out,
+/// and when nothing failed the check is two
 ///  directory reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pushNoticesFor(gitDir, commonDir) // record held pushes, then take the notices
+/// pushNoticesFor(gitDir, commonDir) // take the notices
 /// ```
-pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    // A held push writes its notice where it is held, so the notice directory exists from that moment and the check below finds it;
-    //  the notice is taken here, once.
+pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
     let own: bool = notice_directory(git_dir).is_dir();
     let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
     if !own && !orphaned {
         return Vec::new();
     }
-    let mut texts: Vec<String> = take_push_failures_for(git_dir, None, abbreviate);
-    texts.extend(take_orphaned_failures(common_dir, abbreviate));
-    return texts;
+    let mut notices: Vec<Notice> = push_failures_for(git_dir, None, abbreviate);
+    notices.extend(orphaned_push_failures(common_dir, abbreviate));
+    return notices;
 }
 
 /// What:

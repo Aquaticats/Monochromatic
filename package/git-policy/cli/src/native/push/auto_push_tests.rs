@@ -898,3 +898,15 @@ fn a_setting_under_which_git_refuses_to_push_the_branch_publishes_nothing() {
         remove(&root);
     }
 }
+
+/// A push that delivered its commits but whose remote-tracking reference another process's lock refused exits `0`,
+/// and the refusal is shown anyway:
+/// it is the only sign that `git status` will report the branch ahead of a remote that already has the commits.
+#[test]
+fn a_clean_push_whose_reference_lock_was_refused_surfaces_the_refusal() {
+    let output = "To origin\nremote: hello\nerror: cannot lock ref 'refs/remotes/origin/main': Unable to create '/repo/.git/refs/remotes/origin/main.lock': File exists.\n";
+    let shown: String = filter_push_output(output, 0);
+    assert!(shown.contains("cannot lock ref"), "{shown}");
+    assert!(shown.contains("remote: hello"), "the remote's own lines stay: {shown}");
+    assert!(!shown.contains("To origin"), "the other lines of a clean push stay out: {shown}");
+}
