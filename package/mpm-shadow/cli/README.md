@@ -1794,7 +1794,10 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   `-t`,
   `-j`
   and the others read from `mpm --help` of mpm 8.2.0;
-  a bare `--color` takes none).
+  a bare `--color` skips the next word only when that word is `auto`,
+  `always` or `never`,
+  the words mpm accepts as a color value,
+  so `mpm --color auto --version` is read as a version request).
   The first eager option wins,
   as in mpm.
   `mpm install --help`,
