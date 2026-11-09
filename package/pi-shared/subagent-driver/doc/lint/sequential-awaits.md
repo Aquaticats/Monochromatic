@@ -19,6 +19,13 @@ and the tests use one per wait inside a polling loop.
   Delivering two messages at once would reorder the inbox,
   and looking at the limits while a delivery is outstanding would report the end of the run before the message's own feed
   line.
+- The wait for runs that should have come back (`src/watch-for-overdue-runs.ts`):
+  a look,
+  then one wait,
+  then the next look.
+  One command has to stay up while the runs work,
+  and each look reads the whole finished corpus,
+  so a promise per look would read that corpus many times at once and separate the waits from the deadline that bounds them.
 - The test polling helpers (`src/drive-pi-subagent.unit.test.ts`,
   `src/connection-to-pi.unit.test.ts`,
   `src/record-of-pi-run.unit.test.ts`):
@@ -36,3 +43,6 @@ and the tests use one per wait inside a polling loop.
 - A file watcher reports changes that may not be visible yet,
   so a look at the file after each event is still needed,
   and the watch must also see the stop file and the wall clock whether or not any file changes.
+- Timers alone cannot replace the wait between looks of the overdue watch:
+  the deadline has to shorten the last wait,
+  which is one calculation the loop does with what it has left.
