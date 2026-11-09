@@ -499,10 +499,14 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 ///   so only the landing that named it may decide that it is done with it.
 ///  A tree whose client is gone waits for that landing instead of for its connection to close,
 ///  which is what makes a killed client's queued commit land on the tree it made.
-///  A request the service did not land (a commit sent back to be prepared again, a branch that moved) has no landing
-///  that read its tree: its client reads the change it prepared from that tree to make the commit again, so the client
+///  A request the service did not land (a commit sent back to be prepared again,
+/// a branch that moved) has no landing
+///  that read its tree:
+/// its client reads the change it prepared from that tree to make the commit again,
+/// so the client
 ///  releases it beside its own command.
-///  Removing it here took that read from under every rebuild, which failed with a missing private index
+///  Removing it here took that read from under every rebuild,
+/// which failed with a missing private index
 ///  (2026-11-09,
 ///  `service_prepare.rs`,
 ///  `retry_of`).

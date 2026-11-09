@@ -75,7 +75,8 @@ pub struct Captured {
     /// with the stamps of their captures,
     /// as its last answer told.
     pub landed: Vec<LandedCapture>,
-    /// What the merge, cherry-pick or revert state named when the change was captured,
+    /// What the merge,
+    /// cherry-pick or revert state named when the change was captured,
     /// so a replay concludes the same operation;
     /// nothing when the command concluded none.
     /// Why:

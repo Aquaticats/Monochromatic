@@ -184,6 +184,20 @@ pub(crate) fn pathspec_texts(pathspecs: &[OsString]) -> Vec<String> {
     return texts;
 }
 
+/// The file a `--pathspec-from-file` option names,
+/// as the text the preparation reads.
+/// Why:
+///   The option's value is a position in the command line,
+///  and its bytes are the file name a person typed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = namesAFile(arguments, value);
+/// ```
+fn names_a_file(arguments: &[OsString], value: crate::command_options::OptionValue) -> String {
+    return String::from_utf8_lossy(crate::command_options_query::value_bytes(arguments, value)).into_owned();
+}
+
 /// What:
 ///  The file the private index reads a pathspec list from,
 /// or nothing when the line names none.
@@ -208,9 +222,10 @@ pub(crate) fn the_pathspec_file(
     cwd: &Path,
     standard_input: Option<&[u8]>,
 ) -> Result<Option<PathBuf>, TransactionStop> {
-    let source: Option<String> = region
-        .pathspec_from_file
-        .map(|value| { return String::from_utf8_lossy(crate::command_options_query::value_bytes(arguments, value)).into_owned(); });
+    let source: Option<String> = match region.pathspec_from_file {
+        Some(value) => Some(names_a_file(arguments, value)),
+        None => None,
+    };
     return match pathspec_file_for(scratch, cwd, source.as_deref(), standard_input) {
         Ok(made) => Ok(made),
         Err(error) => Err(crate::commit_transaction::failed(format!("reading the pathspec file failed: {error}"))),
