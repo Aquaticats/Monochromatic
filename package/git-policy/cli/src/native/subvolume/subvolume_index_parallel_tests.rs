@@ -10,6 +10,7 @@ use super::*;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_with};
 use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE, hold_the_only_place};
+use crate::subvolume_error::MigrateError;
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
 use std::sync::Arc;
@@ -211,5 +212,40 @@ fn the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs() {
     let seen: Vec<bool> = started_after.lock().expect("lock").clone();
     assert_eq!(seen, vec![true; LINKED + 1], "a rewrite started while another job held the only place of the process's bound, so it did not take one: {lines:#?}");
     assert!(finished.recv_timeout(PATIENCE).is_ok(), "the job that held the place never gave it back");
+    remove(parent.as_path());
+}
+
+/// What:
+///  An index whose rewrite installed the file and then ended without a result is not reported as one nobody
+///  touched.
+/// Why:
+///  "The indexes stay as they were" is a promise about the person's data;
+///  a step that ended without a result after it installed its index breaks it,
+///  so the report must keep that uncertainty.
+#[test]
+fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was() {
+    let (parent, root) = checkout_with_linked("index-ends-without-a-result");
+    let main_index: PathBuf = root.join(".git").join("index");
+    let installed: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let (panicking, did_install) = (main_index.clone(), Arc::clone(&installed));
+    let rewrite: Arc<RewriteOne> = Arc::new(move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+        let report: RefreshReport = refresh_index_file_report(index, tree, options);
+        if index == panicking.as_path() {
+            // The index is installed and then the step ends without a result, as a defect inside it would.
+            assert_eq!(report.status, RefreshStatus::Refreshed, "the control needs an index this run installs before it ends");
+            did_install.store(true, Ordering::SeqCst);
+            panic!("the rewrite installed its index and then panicked");
+        }
+        return report.line;
+    });
+    let mut lines: Vec<String> = Vec::new();
+    let request: AllIndexes = AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, rewrite };
+    let outcome: Result<usize, MigrateError> = refresh_all_indexes_with(&request, &mut |text: &str| { lines.push(text.to_string()); });
+    assert!(installed.load(Ordering::SeqCst), "the rewrite of the checkout's index installed it before it ended, so a claim that it stays as it was is false");
+    let refused: MigrateError = outcome.expect_err("a rewrite that ended without a result fails the call");
+    let text: String = refused.to_string();
+    assert!(!text.contains("stay as they were"), "the report promised an unchanged index although the rewrite had installed one: {text}");
+    assert!(text.contains("not known"), "the report must keep the uncertainty about an index it cannot vouch for: {text}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("without a known result"); }), "the line of that index says its rewrite ended without a known result: {lines:#?}");
     remove(parent.as_path());
 }
