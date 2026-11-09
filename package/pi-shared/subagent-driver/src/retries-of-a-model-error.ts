@@ -120,7 +120,9 @@ const QUOTA_REACHED_PHRASES: readonly string[] = [
  A rate limit that passes: the provider asks the caller to slow down, and a later attempt may go through.
 
  This reads before the terminal causes, because a rate limit names what it limited: `429 Too many requests for this API key` is
- about the key being asked too often, not about a key that is wrong.
+ about the key being asked too often, not about a key that is wrong. A status the text starts with that refused the request
+ reads before every phrase here all the same: a 401 whose body mentions rate limits is about the credential, and its own words
+ about rate limits are what kept this list from being read first.
  */
 const THROTTLE_PHRASES: readonly string[] = [
   'ratelimit',
@@ -347,6 +349,11 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
    The failure, folded once so every shape below is a plain substring.
    */
   const text = problem.toLowerCase();
+  // A status the text starts with is the answer the provider gave, and the body after it only explains that answer: a 401 whose
+  // body sends the reader to a page about rate limits is still a credential the provider refused.
+  if (startsWithRefusedStatus(leadingStatusCode(text,),)) {
+    return 'permanent';
+  }
   if (holdsOneOf({
     text,
     phrases: QUOTA_REACHED_PHRASES,
@@ -359,9 +366,6 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
     statusCodes: [THROTTLE_CODE,],
   },)) {
     return 'throttled';
-  }
-  if (startsWithRefusedStatus(leadingStatusCode(text,),)) {
-    return 'permanent';
   }
   if (holdsOneOf({
     text,
