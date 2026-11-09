@@ -5,13 +5,13 @@
 
 /// Imports path values used without assuming UTF-8 environment contents.
 use std::path::{Path, PathBuf};
+/// Lowercase hexadecimal spelling shared with the digest directory names.
+use crate::bytes_as_lowercase_hex::bytes_as_lowercase_hex;
 
 /// Fixed application directory below selected platform cache root.
 const APPLICATION_DIRECTORY: &str = "forbidden-strings";
 /// Fixed artifact filename below content digest directory.
 const ARTIFACT_FILENAME: &str = "rules.bin";
-/// Lowercase hexadecimal alphabet for source SHA-256 directory names.
-const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 /// Exact 32-byte SHA-256 of authoritative rules-file bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,12 +194,7 @@ fn platform_absolute_path(
 
 /// Returns lowercase hexadecimal source digest for directory naming.
 fn digest_hex(digest: SourceDigest) -> String {
-    let mut rendered = String::with_capacity(64);
-    for byte in digest.0 {
-        rendered.push(HEX_DIGITS[usize::from(byte >> 4)] as char);
-        rendered.push(HEX_DIGITS[usize::from(byte & 0x0f)] as char);
-    }
-    return rendered
+    return bytes_as_lowercase_hex(&digest.0)
 }
 
 /// Returns exact scanner semantic version embedded into artifacts.

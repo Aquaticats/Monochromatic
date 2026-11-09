@@ -63,6 +63,8 @@ mod scanner;
 pub use scanner::{CandidateScan, Scanner};
 /// Fixed-token cache warnings remain structured for embedded event reporting.
 pub use runtime_cache::CacheWarning;
+/// Lowercase hexadecimal spelling shared by digest directory names and redacted labels.
+mod bytes_as_lowercase_hex;
 /// Native-byte path normalization and protocol-safe display encoding.
 mod path_name_bytes;
 /// Registers component-level pathname matching and masked display labels.
