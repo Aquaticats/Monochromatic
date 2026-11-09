@@ -348,7 +348,54 @@ pub fn create_descriptor() -> Option<i32> {
         debug(TAG, format!("a chain record cannot be made: {}", std::io::Error::last_os_error()).as_str());
         return None;
     }
-    return Some(descriptor);
+    return above_the_standard_streams(descriptor);
+}
+
+/// The first descriptor a record may take:
+/// the three below it are the streams a child reads and writes.
+const FIRST_RECORD_DESCRIPTOR: libc::c_int = 3;
+
+/// What:
+///  The record's descriptor,
+/// moved above the three a child reads as its streams.
+/// Why:
+///   `memfd_create` takes the lowest free descriptor,
+/// which is `0` when standard input is closed and `1` or `2` when
+///  one of the others is;
+/// the wrapper writes its marker into the record,
+/// so a child that inherits that stream reads
+///  the marker,
+/// its padding and the path of the chosen Git instead of what the person gave it
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-3 review).
+/// `F_DUPFD` takes the lowest free descriptor at or above three,
+/// and the one the kernel gave is closed afterwards,
+/// so the record keeps its
+///  contents and the stream stays closed.
+/// A move the kernel refuses leaves no record,
+/// and the command runs as it did before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const above = (fd) => fd >= 3 ? fd : (() => { const moved = fcntl(fd, F_DUPFD, 3); close(fd); return moved; })();
+/// ```
+#[cfg(unix)]
+fn above_the_standard_streams(descriptor: libc::c_int) -> Option<libc::c_int> {
+    if descriptor >= FIRST_RECORD_DESCRIPTOR {
+        return Some(descriptor);
+    }
+    // SAFETY: `fcntl(F_DUPFD, ..)` duplicates this process's descriptor to the lowest free number at or above the one
+    //  asked for, touches no memory, and returns the new descriptor or -1.
+    let moved: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_DUPFD, FIRST_RECORD_DESCRIPTOR) };
+    // The number the kernel gave is closed either way: nothing else holds this memory file, and a stream that was closed
+    //  must stay closed for the child.
+    // SAFETY: `close` takes a descriptor this process owns and touches no memory.
+    let _closed = unsafe { libc::close(descriptor) };
+    if moved < FIRST_RECORD_DESCRIPTOR {
+        debug(TAG, format!("a chain record cannot be moved above the standard streams: {}", std::io::Error::last_os_error()).as_str());
+        return None;
+    }
+    return Some(moved);
 }
 
 /// What:

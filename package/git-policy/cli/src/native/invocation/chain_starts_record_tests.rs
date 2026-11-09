@@ -124,3 +124,81 @@ fn the_record_name_is_the_one_a_descriptor_table_shows() {
     assert_eq!(format!("/memfd:{RECORD_NAME} (deleted)"), "/memfd:monochromatic-git-policy-cli-chain-start (deleted)");
     assert_eq!(inherited_descriptor_in(Path::new("/nonexistent-descriptor-table")), None);
 }
+
+/// The variable that marks the child of the descriptors control.
+const DESCRIPTOR_CHILD_VARIABLE: &str = "CLI_GIT_CHAIN_RECORD_DESCRIPTOR_CHILD";
+
+/// The first descriptor a program's own streams use.
+const FIRST_STANDARD_DESCRIPTOR: i32 = 0;
+
+/// The first descriptor a record may take.
+const FIRST_RECORD_DESCRIPTOR: i32 = 3;
+
+/// What:
+///  The record's own descriptor is never the one a child reads as its standard input,
+///  even when standard
+///  input was closed before the wrapper started.
+/// Why:
+///  `memfd_create` takes the lowest free descriptor,
+/// which is `0` when standard input is closed;
+/// the wrapper then writes
+///  its marker into it and a child that inherits standard input reads the marker,
+/// its padding and the path of the chosen Git as
+///  its input (`git hash-object --stdin 0<&-` hashed them),
+/// so the invocation supplied bytes the person never gave
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-3 review).
+/// A descriptor the wrapper makes must never land on `0`,
+/// `1` or `2`,
+/// and the child closes its standard
+///  input because only a process without it can take that number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // in a child: close(0); expect(createChainRecord()).toBeGreaterThan(2);
+/// ```
+#[test]
+fn a_record_never_takes_the_descriptor_a_child_reads_as_standard_input() {
+    if std::env::var_os(DESCRIPTOR_CHILD_VARIABLE).is_some() {
+        // SAFETY: `close` takes a descriptor and touches no memory of this process.
+        let _closed = unsafe { libc::close(FIRST_STANDARD_DESCRIPTOR) };
+        let record: super::ChainRecord = for_this_start_with(|| { return None }).expect("a record is made");
+        let descriptor: i32 = record.descriptor();
+        assert!(
+            descriptor >= FIRST_RECORD_DESCRIPTOR,
+            "the record took descriptor {descriptor}, which a child reads as its standard input"
+        );
+        std::mem::forget(record);
+        return;
+    }
+    let output: std::process::Output = child_this_test(
+        DESCRIPTOR_CHILD_VARIABLE,
+        "invocation::chain_starts_record::tests::a_record_never_takes_the_descriptor_a_child_reads_as_standard_input",
+    );
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(output.status.success(), "the record took the descriptor a child reads as its standard input:\n{said}");
+    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+}
+
+/// What:
+///  This test binary started on one test,
+/// with `variable` set so the child knows it is the child.
+/// Why:
+///  A descriptor,
+///  a signal mask and a closed stream belong to one process,
+/// so each control of them runs its own body in a child and
+///  asserts what the parent sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
+/// ```
+fn child_this_test(variable: &str, name: &str) -> std::process::Output {
+    let binary: PathBuf = crate::test_support::this_test_binary().expect("the test binary");
+    return std::process::Command::new(binary)
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env(variable, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child test runs");
+}
