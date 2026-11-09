@@ -382,7 +382,9 @@ fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &st
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
     pathspec.extend_from_slice(bytes.as_slice());
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
-    request.environment = vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("0"))];
+    // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it: literal mode would read
+    // it as a file name, and two glob modes at once make Git refuse the log and end the replay as a failure.
+    let request: GitRequest = request.own_pathspecs();
     let listed = run_git_checked(site.context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
     // The capture stamp of each commit that changed the path, nothing for a commit this service did not land.
@@ -448,7 +450,8 @@ pub fn first_landed(context: &GitContext, cwd: &Path, base: &str, tip: &str, pat
         pathspec.extend_from_slice(path.as_slice());
         request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     }
-    request.environment = vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("0"))];
+    // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it.
+    let request: GitRequest = request.own_pathspecs();
     let listed = run_git_checked(context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
     let Some(first) = text.lines().find(is_not_empty_line) else { return Ok(None) };
