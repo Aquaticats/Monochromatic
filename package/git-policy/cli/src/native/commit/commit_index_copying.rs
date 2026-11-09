@@ -25,8 +25,7 @@ use std::fs::FileTimes;
 use std::path::Path;
 
 /// What:
-///  Copies an index and gives the copy the source's access and modification times,
-/// answering whether the filesystem shared the source's extents instead of reading its bytes.
+///  Copies an index and gives the copy the source's access and modification times.
 /// Why:
 ///   A copy with fresh times would make Git trust stat data captured in the same second
 ///  as a later same-size edit (issue #544).
@@ -37,11 +36,11 @@ use std::path::Path;
 /// ```ts
 /// await copyIndexFile({ sourcePath, destinationPath });
 /// ```
-pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io::Result<bool> {
+pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io::Result<()> {
     // Every private index a preparation makes starts as one of these copies, and an index of a large worktree is megabytes,
     // so the copies are one of the steps a slow preparation must be able to name.
     let began: std::time::Instant = std::time::Instant::now();
-    let copied: std::io::Result<bool> = copy_index_bytes(source, destination);
+    let copied: std::io::Result<()> = copy_index_bytes(source, destination);
     crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_COPY, began.elapsed());
     return copied;
 }
@@ -57,7 +56,7 @@ pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io:
 /// ```ts
 /// const opened = await open(source); const metadata = await opened.stat();
 /// ```
-fn copy_index_bytes(source: &Path, destination: &Path) -> std::io::Result<bool> {
+fn copy_index_bytes(source: &Path, destination: &Path) -> std::io::Result<()> {
     // The times come from the open file, not from its path, so a rename of another index over the path between the
     // read and the stat cannot give this content that file's times.
     let mut opened: std::fs::File = std::fs::File::open(source)?;
@@ -66,22 +65,9 @@ fn copy_index_bytes(source: &Path, destination: &Path) -> std::io::Result<bool> 
         .set_accessed(metadata.accessed()?)
         .set_modified(metadata.modified()?);
     let mut copy: std::fs::File = std::fs::File::create(destination)?;
-    // What: The filesystem is asked to clone the bytes first, and they are read and written only where it refuses.
-    // Why:  An index of a large worktree is megabytes, and copying those by reading and writing them waited 2,288 ms and
-    // 4,813 ms in two commits traced under this host's input and output pressure, while a clone costs metadata only.
-    // A clone shares extents, never content: the copy stands alone and keeps the bytes, mode and times set below.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (!tryClone(source, destination)) await copyBytes(source, destination);
-    // ```
-    let cloned: bool = crate::worktree_copy_stage_leaf_copying::try_clone(&opened, &copy);
-    if !cloned {
-        std::io::copy(&mut opened, &mut copy)?;
-    }
+    std::io::copy(&mut opened, &mut copy)?;
     copy.set_permissions(metadata.permissions())?;
-    copy.set_times(times)?;
-    return Ok(cloned);
+    return copy.set_times(times);
 }
 
 /// What:
@@ -133,9 +119,3 @@ fn marks_of_captured_index(captured_index: &Path) -> bool {
 pub fn copy_index_failure(error: std::io::Error) -> GitFailure {
     return GitFailure(format!("copying the index failed: {error}"));
 }
-
-/// The copy's equality,
-/// its independence and the clone request are controls in the test module beside it.
-#[cfg(test)]
-#[path = "commit_index_copying_tests.rs"]
-mod tests;

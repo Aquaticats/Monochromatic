@@ -9203,7 +9203,6 @@ the names are `index stat check` for the in-process answer of whether the real i
 `index read` for reading an index's bytes to decide whether it may seed a private index,
 `index equals base` for the in-process answer of whether the captured index already holds the base's tree,
 `index copy` for a copy of an index into a private one,
-which the filesystem clones where it can (`src/native/commit/commit_index_copying.rs`),
 `policy blob write` for storing a correction's bytes,
 `policy entry write` for pointing a private index entry at a corrected blob,
 and `candidates prepared` for the candidate set a pass's content policies share,
