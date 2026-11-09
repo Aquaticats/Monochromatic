@@ -185,7 +185,8 @@ fn a_permission_change_after_the_proof_keeps_the_old_tree() {
 /// an edit that keeps the length and puts the time back leaves all of them
 ///  equal,
 /// so the removal deleted the bytes the person wrote.
-/// The file's change time cannot be put back, and
+/// The file's change time cannot be put back,
+/// and
 ///  the contents are compared for a file that changed after the proof.
 #[test]
 fn a_same_size_edit_with_the_time_put_back_after_the_proof_keeps_the_old_tree() {

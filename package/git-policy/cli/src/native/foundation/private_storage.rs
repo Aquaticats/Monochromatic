@@ -499,6 +499,12 @@ pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()>
     return file.write_all(bytes);
 }
 
+/// The operating system's answer from a publish that kept its staged file,
+/// which is the failure the caller reports.
+fn without_the_staged_file(error: tempfile::PersistError) -> std::io::Error {
+    return error.error;
+}
+
 /// What:
 ///  Publish `bytes` at `path` in one rename,
 ///  replacing whatever the name held.
@@ -522,7 +528,7 @@ pub fn replace_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
     staged.as_file_mut().write_all(bytes)?;
     sync_when_durable(staged.as_file(), path, true)?;
-    staged.persist(path).map_err(|error| { return error.error; })?;
+    staged.persist(path).map_err(without_the_staged_file)?;
     return match path.parent() {
         Some(directory) if !directory.as_os_str().is_empty() => sync_directory(directory),
         _ => sync_directory(Path::new(".")),

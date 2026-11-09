@@ -198,8 +198,10 @@ fn every_refusal_is_printed_with_its_remedy_and_one_closing_line() {
 ///  A preview runs the refusals of the mode it previews.
 /// Why:
 ///   `--dry-run --remove-old` on a checkout with no journal said the command "would delete the
-/// original tree" while the same invocation without `--dry-run` refused, because the preview
-/// returned before the refusals were looked at; a preview that promises what the real run refuses
+/// original tree" while the same invocation without `--dry-run` refused,
+/// because the preview
+/// returned before the refusals were looked at;
+/// a preview that promises what the real run refuses
 /// answers a question nobody asked it to check.
 #[test]
 fn a_preview_refuses_what_the_real_run_would_refuse() {

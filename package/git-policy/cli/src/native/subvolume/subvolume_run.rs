@@ -24,7 +24,7 @@ use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::Layout;
-use crate::subvolume_pass_report::say_what_a_pass_could_not_carry;
+use crate::subvolume_pass_report::what_a_pass_could_not_carry;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -227,7 +227,9 @@ impl Run<'_> {
             )
             .as_str(),
         );
-        say_what_a_pass_could_not_carry(label, &stats, &mut |text: &str| self.line(text));
+        for text in what_a_pass_could_not_carry(label, &stats) {
+            self.line(text.as_str());
+        }
         return Ok(stats);
     }
 

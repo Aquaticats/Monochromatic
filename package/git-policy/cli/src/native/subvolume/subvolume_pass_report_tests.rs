@@ -7,9 +7,7 @@ use std::path::PathBuf;
 /// A pass that found nothing to say says nothing.
 #[test]
 fn a_pass_that_lost_nothing_says_nothing() {
-    let mut lines: Vec<String> = Vec::new();
-    say_what_a_pass_could_not_carry("copy", &SyncStats::default(), &mut |text: &str| lines.push(String::from(text)));
-    assert_eq!(lines, Vec::<String>::new());
+    assert_eq!(what_a_pass_could_not_carry("copy", &SyncStats::default()), Vec::<String>::new());
 }
 
 /// Each kind names its own entry,
@@ -25,8 +23,7 @@ fn each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label() {
         recopied: 5,
         ..SyncStats::default()
     };
-    let mut lines: Vec<String> = Vec::new();
-    say_what_a_pass_could_not_carry("copy", &stats, &mut |text: &str| lines.push(String::from(text)));
+    let lines: Vec<String> = what_a_pass_could_not_carry("copy", &stats);
     assert_eq!(lines.len(), 6, "{lines:#?}");
     assert_eq!(lines[0], "copy: not recreated (a socket or device node): agent.sock");
     assert_eq!(lines[1], "copy: not recreated (a socket or device node): dev/null");
