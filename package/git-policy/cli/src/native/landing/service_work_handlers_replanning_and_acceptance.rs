@@ -239,6 +239,27 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
 }
 
 /// What:
+///  The notice a recovery leaves for a push whose holder died on every try:
+/// the skipped-push record of the branch,
+/// written into the directory the recovery works on.
+/// Why:
+///   The record moves to `failed` right after the notice,
+/// and nothing scans `failed`,
+/// so the notice is the person's only remaining word about that branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class SkipNotice { tell(item) { recordPushSkip(this.gitDir, item) } }
+/// ```
+pub(crate) struct SkipNotice<'a>(pub(crate) &'a Path);
+
+impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
+    fn tell(&self, given_up: &WorkItem) {
+        tell_about_given_up(self.0, std::slice::from_ref(given_up));
+    }
+}
+
+/// What:
 ///  What one drain of a directory hands back:
 /// how long until it must be looked at again for a claim another instance holds,
 /// and

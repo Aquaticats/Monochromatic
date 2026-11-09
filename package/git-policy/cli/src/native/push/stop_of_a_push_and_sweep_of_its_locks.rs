@@ -135,7 +135,7 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         // Nothing waits for this task, so it waits for the rest of the tree no longer than every other wait of a stop:
         //  a descendant wedged in a dead file system, or one that left the process group the signal reached, is left to the
         //  stale-lock judgement every later push and fetch makes.
-        let gone: bool = wait_until_gone(&|| return tree.iter().any(still_running), STOP_CEILING).await;
+        let gone: bool = wait_until_gone(tree.as_slice(), STOP_CEILING).await;
         if !gone {
             debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
         }
@@ -162,9 +162,9 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
 /// ```ts
 /// const began = Date.now(); while (running() && Date.now() - began < ceilingMs) await sleep(POLL_PAUSE);
 /// ```
-async fn wait_until_gone(running: &(dyn Fn() -> bool + Sync), ceiling: Duration) -> bool {
+async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
     let began: Instant = Instant::now();
-    while running() {
+    while tree.iter().any(still_running) {
         if began.elapsed() >= ceiling {
             return false;
         }

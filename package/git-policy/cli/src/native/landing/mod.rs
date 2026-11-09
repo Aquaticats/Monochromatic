@@ -34,6 +34,10 @@ pub mod work_item;
 /// and the names that pick a consumer's handler.
 pub mod work_item_kinds_and_their_names;
 
+/// The names a work record's id may hold,
+/// and the branch digest a push's id carries.
+pub mod work_item_ids_and_names;
+
 /// The state folders of the work queue,
 /// the names of claim files,
 /// and the listing of a folder oldest first.

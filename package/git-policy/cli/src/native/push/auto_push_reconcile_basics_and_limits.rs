@@ -186,7 +186,8 @@ pub(crate) fn sweep_private_fetch_refs(git: &PushGit) -> Result<(), SingleFlight
 /// Whether the process number `pid` still names a process,
 /// as the owner records of a transaction ask.
 pub(crate) fn process_is_alive(pid: u64) -> bool {
-    return i64::try_from(pid).is_ok_and(|number| return crate::process_identity::signal_probe(number).unwrap_or(true));
+    let Ok(number) = i64::try_from(pid) else { return false };
+    return crate::process_identity::signal_probe(number).unwrap_or(true);
 }
 
 /// What:

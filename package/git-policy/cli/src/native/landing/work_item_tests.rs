@@ -9,6 +9,7 @@
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
 use crate::work_item_state_directories_and_claim_names::{NAME_SEPARATOR, take_listings};
 use super::*;
+use crate::work_item_ids_and_names::{MAX_ID_SUFFIX_LENGTH, MAX_OBJECT_NAME_LENGTH};
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
 
@@ -988,11 +989,20 @@ fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
     claim_next(work.as_path(), &clock()).expect("claim").expect("item");
     let failed_path: PathBuf = state_directory(work.as_path(), FAILED).join(last_try.id());
     let told: std::cell::RefCell<Vec<bool>> = std::cell::RefCell::new(Vec::new());
-    let telling = |given_up: &WorkItem| {
-        assert_eq!(given_up.id(), last_try.id());
-        told.borrow_mut().push(failed_path.exists());
-    };
-    let recovered: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES, &telling);
+    struct Watching<'a> {
+        failed_path: &'a Path,
+        id: &'a str,
+        told: &'a std::cell::RefCell<Vec<bool>>,
+    }
+    impl crate::work_item_recovery::GivenUpNotice for Watching<'_> {
+        fn tell(&self, given_up: &WorkItem) {
+            assert_eq!(given_up.id(), self.id);
+            self.told.borrow_mut().push(self.failed_path.exists());
+        }
+    }
+    let wanted: String = last_try.id();
+    let watching: Watching<'_> = Watching { failed_path: failed_path.as_path(), id: wanted.as_str(), told: &told };
+    let recovered: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES, &watching);
     assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()], "the pass gave up on the push");
     assert_eq!(*told.borrow(), vec![false], "the person's notice was made while the record was still this instance's, before it moved to `failed`");
     assert!(failed_path.exists(), "and the record then moved to `failed`");

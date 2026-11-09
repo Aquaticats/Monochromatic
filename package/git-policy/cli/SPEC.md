@@ -2269,6 +2269,14 @@ the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
 and the whole is preceded by a bounded wait for `index.lock`.
+The move the auto-push makes after a published reconcile merge names its branch instead,
+because `git merge --ff-only` moves whichever branch `HEAD` names at the instant it runs:
+an ancestry question,
+then `git read-tree -u -m <old tip> <merge>` for the index and the worktree,
+then `git update-ref -m <message> <branch> <merge> <old tip>` (`src/native/push/auto_push_reconcile_branch_advance.rs`).
+A `git switch` that finishes in the window between the check of the branch and the move therefore moves no branch the
+reconcile never checked,
+and the message it passes is the branch's reflog entry for the move.
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
 content,
 and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
@@ -2326,6 +2334,11 @@ in the instance's own journal
 (`src/native/push/push_retry_store.rs`),
 rebuilt when the service starts,
 and the loop wakes for it with no wrapper command.
+A worker keeps its branch's file there itself,
+before the words that promise the retry reach the person,
+although the loop alone decides when the try is due:
+the loop applies the workers' changes only once every repository of the round is drained,
+and a kill before that would leave a notice that says the service keeps trying and nothing that keeps it.
 
 #### Git steps, tools and checks end only on no progress
 
@@ -2541,17 +2554,32 @@ of the review call and of the whole review).
   a descendant that is a hook must count as work before this rule is
   true.
   The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+- The reconcile's own Git children (`git merge-tree --write-tree`,
+  every command of the word-level second pass,
+  and the
+  thread that gives a command its input) are judged like the queries:
+  the same meter,
+  the push's stall window,
+  the service's stop arm and `STOP_GRACE`
+  (`run_bounded_git` in `src/native/push/bounded_query.rs`).
+  They are not a person's commands,
+  and one that never returns held the push worker,
+  its renewed claim and the drain of that repository for good.
 - The long-lived object reader (`git cat-file --batch`) is judged the same way per request;
   a request that stalls ends
   the
   reader and fails with the same sentence.
   Starting the reader again is not built.
-- A read-only Git query before the push (`src/native/push/bounded_query.rs`) has no wall-clock ceiling:
+- A read-only Git query before the push (`src/native/push/bounded_query.rs`) has no wall-clock ceiling of its own:
   it is judged by the
   same
   meter with the push's stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`),
   and `QUERY_CEILING` (120 seconds) no longer
   exists.
+  Where nothing can be measured its stall window is the whole time it may run (`query_clock`),
+  because a query is read-only and stopping one is safe;
+  without that fallback a hung query was waited for for good,
+  and the push worker and its repository's drain behind it.
 - A package-manager tool of the worktree repair (`src/native/repair/package_repair_command.rs`) is judged on its process
   group's
   leader with a window of 600 seconds,
@@ -3383,6 +3411,12 @@ Ancestry is a walk over commit parents from the new tip,
   a walk that cannot tell hands
 nothing over.
   No Git process runs for the check.
+  The push record is written before any route to the service is read,
+  because it is a file of this worktree's own Git directory:
+  a context with no route (a non-systemd session,
+  a container,
+  another `XDG_RUNTIME_DIR`) therefore leaves the push on disk for the next wake instead of losing it with the message,
+  and the line the person reads says the push is queued.
   A service that cannot be reached is said plainly,
   and the command's exit
 status is unchanged.
@@ -3580,6 +3614,12 @@ in-process reader can) gives every value of the multi-valued keys.
   which every fetch shares),
   deletes that ref,
   and branches on the two ancestor questions.
+  Before it fetches it sweeps that namespace
+  (`sweep_private_fetch_refs`):
+  a ref named for a process that is gone is deleted,
+  because a later release writes another number and would overwrite it never,
+  and a ref whose process still runs may be another worktree of the repository reconciling at the same time and is left
+  alone.
   A remote tip that the branch contains means the rejection was not a divergence and is returned unchanged.
   A remote tip that contains the branch means the commit is delivered,
   and nothing is pushed.
@@ -3934,17 +3974,24 @@ in-process reader can) gives every value of the multi-valued keys.
   `remote get-url`,
   `merge-base`)
   stops when it has shown no sign of work for the push's stall window,
-  with no wall-clock ceiling (delegated pick 4,
+  with no wall-clock ceiling of its own (delegated pick 4,
   scope added by the coordinator,
   open to the owner's veto;
   the 120 seconds of `QUERY_CEILING` are gone,
   and the journal's `git status` stopped at 2026-11-03T08:28 with
   `outcome=retrying push_ms=97398` is the case it ends),
   and a stopped query is a failure that names it.
+  Where `/proc/<pid>/io` cannot be read the window is the whole time the query may run,
+  since a query writes nothing and stopping it loses nothing.
   Its longest quiet gap is kept in the timing record.
 - A push that lost a race on a pending reference lock (`cannot lock ref` in a push that otherwise delivered)
   is repeated up to three times with growing pauses,
   because the two worktrees' services share the references.
+  A refusal that survives the repetitions exits `0` because the commits were delivered,
+  and its lines are shown beside the `remote:` ones:
+  they are the only sign that the local view of the remote stayed behind,
+  and without them `git status` would report the branch ahead of a remote that already had the commits and nothing would
+  say why.
 - A failed push is reported with its complete output and the note
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
@@ -4417,6 +4464,12 @@ and it is removed by the same set-aside step
   removes the provably stale ones,
   and logs the notice of the rest;
   it removes nothing the judgement does not prove.
+  Its wait for the rest of the tree is bounded by `STOP_CEILING`,
+  the bound every other wait of a stop has:
+  a descendant wedged in a dead file system,
+  or one that left the process group the signal reached,
+  then leaves its locks to that judgement instead of leaving a task waking every ten milliseconds for the life of the
+  service.
 - A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git,
   so there is no "after" to look at:
   the
@@ -5701,6 +5754,29 @@ the Git release,
 the process identity) and wait for nothing after.
 
 ### Repositories of a round run side by side
+
+The failure notice of a push is worded before its record is removed,
+so a command killed while it names the commit leaves the only durable statement that the commit is not backed up for
+the next command.
+Two commands that start together can both show it,
+which costs a repeat and loses nothing
+(`src/native/push/push_failure_notice.rs`).
+A push whose holder died on every try is told about before its record moves to `failed`,
+because nothing scans `failed`:
+a kill in between would abandon the branch in silence
+(`requeue_expired_reporting_telling`).
+
+A push record's id is its name and its idempotency key:
+the kind,
+the landed object and,
+for a push,
+a digest of the branch reference (`src/native/landing/work_item.rs`).
+A commit can sit on two branches,
+and each must reach its own remote,
+so the commit alone does not name the push;
+a record an earlier release named by the kind and the object alone keeps its name and is run as it is.
+The other kinds keep the commit as their key,
+because their work is of the commit and not of a branch.
 
 The after-commit work of the service (pushes,
 upkeep,

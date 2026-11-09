@@ -134,7 +134,7 @@ pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Durati
 /// ```ts
 /// requeueExpiredTelling(workDir, now, lease, maxTries, (item) => recordPushSkip(item))
 /// ```
-pub fn requeue_expired_reporting_telling(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32, tell: &dyn Fn(&WorkItem)) -> Recovered {
+pub(crate) fn requeue_expired_reporting_telling(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32, tell: &dyn GivenUpNotice) -> Recovered {
     return requeue_with_telling(work_dir, now, max_tries, &LeaseRanOut { now, lease }, tell);
 }
 
@@ -220,11 +220,39 @@ fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
 /// for (const seen of claimed.filter(expired)) { if (await tryRename(seen.name, owned)) { await rewrite(owned); await rename(owned, pending) } }
 /// ```
 pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry) -> Recovered {
-    return requeue_with_telling(work_dir, now, max_tries, expired, &|_given_up| {});
+    return requeue_with_telling(work_dir, now, max_tries, expired, &NoNotice);
 }
 
-/// `requeue_with` with the step told about each item it gives up, before the item moves to `failed`.
-pub(crate) fn requeue_with_telling(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry, tell: &dyn Fn(&WorkItem)) -> Recovered {
+/// What:
+///  Who a recovery tells about the items it gives up on.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
+/// Why:
+///   The notice that names an abandoned push needs the Git directory and writes a file,
+/// and a control stands in for it to see when it is called;
+/// a value keeps that step out of the recovery itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface GivenUpNotice { tell(givenUp: WorkItem): void }
+/// ```
+pub(crate) trait GivenUpNotice {
+    /// Tell the person about `given_up`,
+    /// before the record moves to `failed`.
+    fn tell(&self, given_up: &WorkItem);
+}
+
+/// The step of a recovery that tells nobody about the items it gives up,
+/// which is every caller that writes no notice.
+struct NoNotice;
+
+impl GivenUpNotice for NoNotice {
+    fn tell(&self, _given_up: &WorkItem) {}
+}
+
+/// `requeue_with` with the step told about each item it gives up,
+/// before the item moves to `failed`.
+pub(crate) fn requeue_with_telling(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry, tell: &dyn GivenUpNotice) -> Recovered {
     let mut recovered: Recovered = Recovered::default();
     for state in [CLAIMED, RECOVERING] {
         for (name, modified) in entries_oldest_first(work_dir, state) {
@@ -256,7 +284,7 @@ fn remove_stray_temporary(work_dir: &Path, state: &str, name: &str, modified: Sy
 /// nothing when another instance moved it first,
 /// otherwise
 /// the item when it was given up on (moved to `failed` for want of tries).
-fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32, tell: &dyn Fn(&WorkItem)) -> Option<Option<WorkItem>> {
+fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32, tell: &dyn GivenUpNotice) -> Option<Option<WorkItem>> {
     let id: &str = id_of_entry(name);
     // A claim by an earlier release was not checked when it was queued;
     // an id whose names would not fit goes to `failed` by its
@@ -297,7 +325,7 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
             // The word about a push given up on comes before the move: nothing scans `failed`, so a kill in between would
             //  abandon the branch in silence. The item is this instance's alone in `recovering` here.
             if destination == FAILED {
-                tell(&item);
+                tell.tell(&item);
             }
             (destination, (destination == FAILED).then_some(item))
         }

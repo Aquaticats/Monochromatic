@@ -55,17 +55,25 @@ impl GitRunner for PushRunner<'_> {
             command.env("GIT_INDEX_FILE", index);
         }
         let shown: String = arguments.join(" ");
-        let output: QueryOutput = run_bounded_git(
+        let output: QueryOutput = match run_bounded_git(
             command,
             shown.as_str(),
             query_window(self.git.environment.as_slice()),
             STOP_GRACE,
             self.git.environment.as_slice(),
             input.map(<[u8]>::to_vec),
-        )
-        .map_err(|refusal| format!("git {shown} could not be run: {refusal}"))?;
+        ) {
+            Ok(output) => output,
+            Err(refusal) => return Err(could_not_run(shown.as_str(), refusal)),
+        };
         return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
     }
+}
+
+/// The words of a command that could not be run at all,
+/// naming the command and the reason.
+fn could_not_run(shown: &str, refusal: SingleFlightError) -> String {
+    return format!("git {shown} could not be run: {refusal}");
 }
 
 /// What the merge of two tips came to.

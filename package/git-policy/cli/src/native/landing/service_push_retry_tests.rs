@@ -661,7 +661,8 @@ fn let_pushes_through(stage: &Stage) {
 
 /// The file name of the push record of `commit` on the stage's branch,
 /// which is `main`:
-/// the record's own id, which carries the branch as well as the commit.
+/// the record's own id,
+/// which carries the branch as well as the commit.
 fn push_record_id(commit: &str) -> String {
     return WorkItem {
         kind: WorkKind::Push,
