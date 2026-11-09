@@ -512,14 +512,43 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
             holders.borrow_mut().push(who);
         }
     };
+    crate::service_index_attempts::forget_waits_chosen();
     let taken = acquire_placing(&platform, &index, 9, ceiling, &announce, &mut notes, None)
     .expect("the stale lock is reclaimed in the same acquisition once the claim is dropped");
     assert!(refused.get() >= 1, "the acquisition met the other reclaimer's claim");
     assert!(notes.polled, "the wait looked again at the poll pace while another reclaimer held a claim, as nothing wakes it when the claim goes");
+    // The span the wait asked for, which the clock cannot say: a thread the scheduler holds makes a wait that asked for the poll
+    //  pace look slow and one held just after a sleep makes a wait that asked for the notice look quick.
+    let chosen: Vec<Duration> = crate::service_index_attempts::waits_chosen_by_this_thread();
+    assert!(!chosen.is_empty(), "the acquisition waited for the claim instead of taking the lock at once");
+    assert!(
+        chosen[0] <= crate::service_index_watch::POLL_PAUSE,
+        "the wait that followed the refusal meeting the claim asked for {:?}: a claim's end leaves no event on the lock's name, so the wait looks again at the poll pace ({} ms), not at the notice interval ({:?})",
+        chosen[0],
+        crate::service_index_watch::POLL_PAUSE.as_millis(),
+        notice_every()
+    );
     assert!(holders.borrow().is_empty(), "a claimed stale lock is no dead holder to give up on: {:?}", holders.borrow());
     drop(taken);
     other.join().expect("the other reclaimer ends");
     remove(root.as_path());
+}
+
+/// The wait that follows a refusal which met another reclaimer's claim is the poll pace,
+/// and only a watched wait is the notice interval.
+#[test]
+fn a_wait_while_a_claim_stands_asks_for_the_poll_pace() {
+    let notice: Duration = notice_every();
+    let ceiling: Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
+    assert!(notice > crate::service_index_watch::POLL_PAUSE, "the notice interval and the poll pace are told apart: {notice:?}");
+    // No watch can end a claim, so the wait that met one looks again at the poll pace.
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, ceiling, false), crate::service_index_watch::POLL_PAUSE);
+    // A watched wait is the notice itself, which is what makes the cap above the figure that decides.
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, ceiling, true), notice);
+    // The ceiling bounds both.
+    let short: Duration = crate::service_index_watch::POLL_PAUSE / 2;
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, short, false), short);
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, short, true), short);
 }
 
 /// The longest file name Linux gives a directory entry.

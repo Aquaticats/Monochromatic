@@ -156,12 +156,55 @@ fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bo
     };
 }
 
+#[cfg(test)]
+std::thread_local! {
+    /// The waits `until_next_wake` chose on this thread,
+    /// in the order they were chosen.
+    static WAITS_CHOSEN: std::cell::RefCell<Vec<Duration>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  The waits `until_next_wake` has chosen on the calling thread since `forget_waits_chosen`.
+/// Why:
+///   A control that says how soon a wait looks again cannot read the clock:
+/// a thread the scheduler holds makes
+///  a wait that asked for the poll pace look slow,
+/// and one held just after a sleep makes a wait that asked for the notice
+///  interval look quick.
+/// The chosen span is the event.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitsChosenByThisThread(): number[];
+/// ```
+#[cfg(test)]
+pub(crate) fn waits_chosen_by_this_thread() -> Vec<Duration> {
+    return WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { return chosen.borrow().clone(); });
+}
+
+/// Forget the waits chosen on the calling thread so far;
+/// nothing in the release executable.
+#[cfg(test)]
+pub(crate) fn forget_waits_chosen() {
+    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { chosen.borrow_mut().clear() });
+}
+
+/// Note for the controls the wait `wake` is about to be taken;
+/// nothing in the release executable.
+#[cfg(test)]
+fn note_the_wait_chosen(wake: Duration) {
+    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { chosen.borrow_mut().push(wake) });
+}
+
 /// How long the wait blocks before it looks again:
 /// the time to the next repetition of the holder's line,
 /// and where no watch can be set no longer than the poll pause.
-fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> Duration {
+pub(crate) fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> Duration {
     let wake: Duration = if watched { to_notice.min(to_ceiling) } else { to_notice.min(POLL_PAUSE).min(to_ceiling) };
-    return wake.max(Duration::from_millis(1));
+    let chosen: Duration = wake.max(Duration::from_millis(1));
+    #[cfg(test)]
+    note_the_wait_chosen(chosen);
+    return chosen;
 }
 
 /// What one acquisition places and waits for.
