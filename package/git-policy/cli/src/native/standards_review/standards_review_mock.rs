@@ -107,14 +107,16 @@ pub(crate) const SILENT_AT_MOST: Duration = Duration::from_secs(60);
 ///  or the call closing a silence the server was only holding.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AnswerEnded {
-    /// Every byte of the answer was written, and the server closed the connection.
+    /// Every byte of the answer was written,
+    /// and the server closed the connection.
     Whole,
     /// The call closed the connection with this many body bytes still to write.
     CallerLeft {
         /// Body bytes the answer had left to write.
         unsent: usize,
     },
-    /// The call closed the connection the server was only holding open, silent.
+    /// The call closed the connection the server was only holding open,
+    /// silent.
     CallerClosedTheSilence,
     /// The server's own hold on the silent connection ended first.
     HoldRanOut,

@@ -216,7 +216,8 @@ const OPENSSL_DEADLINE: Duration = Duration::from_secs(30);
 /// How often a control looks at a child it started while it waits for it.
 const CHILD_POLL: Duration = Duration::from_millis(5);
 
-/// How many calls the TLS server serves: the trusted one,
+/// How many calls the TLS server serves:
+/// the trusted one,
 /// then the one it refuses.
 const TLS_CALLS: usize = 2;
 
