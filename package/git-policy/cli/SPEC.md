@@ -3367,6 +3367,22 @@ and
   retry (Recommended)").
   Test:
   `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+- Provisioning asks the manager for the reload its own writes need,
+  and a kill between writing a template and that reload is repaired
+  by the next commit:
+  the record of the unit texts the manager was told about
+  (`service_provision_loaded_unit_texts.rs`,
+  in the notes folder of the runtime unit directory)
+  is written only after the manager accepted the reload,
+  so a commit that finds the files matching and the record older
+  asks for the reload again
+  before it touches the bus for anything else.
+  Without it the killed upgrade's files look like an installation the manager runs,
+  every later commit reaches the service of the release that was replaced,
+  and ends with "The commit service that is running was started from another release of this git wrapper ...",
+  however often it is run.
+  Test:
+  `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
 
 
 #### Commands that add commits

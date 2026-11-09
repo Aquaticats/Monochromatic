@@ -439,6 +439,49 @@ fn a_moved_program_rewrites_the_service_unit_and_reloads() {
     remove(machine.root.as_path());
 }
 
+/// What:
+///  An upgrade whose process wrote the new service template and was killed before the manager was reloaded
+///  repairs itself at the next commit:
+/// the files alone are not taken for an installation the manager was told about.
+/// Why:
+///  The files then hold exactly the text this wrapper would write,
+/// and a fast path that reads only the files takes them for
+///  installed and returns without the reload.
+/// The manager keeps the unit it loaded,
+/// so every later commit reaches the service
+///  of the release that was replaced and ends with `ClientFailure::OtherRelease` however often it is run
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// the sequence of the interrupted
+///  upgrade).
+/// A commit must not fail repeatedly because of a kill it cannot see,
+/// so the next one asks for the reload the killed one
+///  never made,
+/// and only then are the files an installation again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(inPlaceAfterAKilledUpgrade).toBe(false);
+/// expect(reloadAskedAfterRepairingIt).toBe(true);
+/// ```
+#[test]
+fn an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit() {
+    let mut machine: Machine = machine("provision-interrupted-upgrade-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("the replaced release provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host), "the replaced release is installed and the manager was told");
+    // The upgrading release wrote its template and was killed before it asked the manager to reload.
+    machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
+    let texts: [(&'static str, String); 2] = unit_texts(&machine.host);
+    let (name, text) = &texts[1];
+    std::fs::write(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name), text).expect("the upgrading release's template");
+    assert!(!in_place(&machine.host), "the manager was never told about the template the kill left behind");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("repaired");
+    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"), "the reload the killed upgrade never made: {:?}", recorder.calls());
+    assert!(in_place(&machine.host), "and the installation is one the manager was told about");
+    remove(machine.root.as_path());
+}
+
 /// Units of an earlier release are recognized by their content and removed with their enabling link,
 /// then a reload follows.
 #[test]
