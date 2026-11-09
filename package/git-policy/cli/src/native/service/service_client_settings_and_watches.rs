@@ -65,6 +65,12 @@ pub struct ClientConfig {
     pub answer_ceiling: Duration,
     /// The longest the client waits for the service to answer the withdrawal.
     pub withdraw_ceiling: Duration,
+    /// How long the request may wait before the client says where the commit stands:
+    /// the place the service reported,
+    /// or that the
+    ///  service has not started on it (`wait_ceilings.rs`,
+    /// `WAITING_NOTICE_AFTER`).
+    pub waiting_notice_after: Duration,
     /// How much longer a client whose own request is inside the service's branch write waits,
     /// after its answer ceiling,
     /// for that

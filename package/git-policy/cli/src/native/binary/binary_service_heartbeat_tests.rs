@@ -22,9 +22,10 @@
 //! const outcome = await submit(config, request); // while the fake service sends beats, however long
 //! ```
 
+use git_policy_cli::commit_timing::SubmitTrace;
 use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
-use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit};
-use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE};
+use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
+use git_policy_cli::service_messages::{ClientFailure, NOT_STARTED_NOTICE, SILENT_NOTICE, position_notice};
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
@@ -43,6 +44,10 @@ const QUICK_SILENCE: Duration = Duration::from_millis(300);
 
 /// How often the fake service beats.
 const FAKE_BEAT: Duration = Duration::from_millis(60);
+
+/// How long a request waits before the client says where the commit stands,
+/// short so a control is quick.
+const QUICK_NOTICE: Duration = Duration::from_millis(250);
 
 /// The longest the controls wait for anything:
 /// far beyond what a healthy run needs,
@@ -111,7 +116,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None,
+        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: QUICK_NOTICE, units_record_dir: None,
     };
 }
 
@@ -147,6 +152,103 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert!(!notices.contains(SILENT_NOTICE), "a service that beats is never called silent: {notices:?}");
+}
+
+/// A commit the service has read and not begun on says so once,
+/// in words a person who knows only `git commit` understands,
+/// however many beats the service sends: the service naming no place is the only evidence there is,
+/// and it is said once,
+/// not on every beat.
+#[test]
+fn a_commit_the_service_has_not_placed_is_told_that_the_service_has_not_started_on_it() {
+    let name: String = address("unplaced");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let waited: Instant = Instant::now();
+    while waited.elapsed() < QUICK_NOTICE * 4 {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    let commit: String = "d".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert_eq!(notices.matches(NOT_STARTED_NOTICE).count(), 1, "said once, and only once: {notices:?}");
+    assert!(!notices.contains(SILENT_NOTICE), "the service was never silent: {notices:?}");
+}
+
+/// A commit that lands at once prints nothing at all,
+/// so the telling costs a person who commits quickly no line they did not have before.
+#[test]
+fn a_commit_that_lands_at_once_prints_nothing_new() {
+    let name: String = address("at-once");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let commit: String = "e".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert_eq!(notices, "", "a commit the service lands at once prints nothing");
+}
+
+/// A place the service names before the commit has waited at all is kept and not printed,
+/// so a commit that lands at once says nothing new however its place was said.
+#[test]
+fn a_place_the_service_names_before_the_wait_matters_prints_nothing() {
+    let name: String = address("placed-at-once");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = traced_client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let place: (usize, usize) = (2, 4);
+    (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
+    let commit: String = "c".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, notices, trace) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert_eq!(notices, "", "a commit the service lands at once prints nothing");
+    assert_eq!(trace.positions, vec![place.0], "the record keeps the place the service named, printed or not");
+}
+
+/// What:
+///  A commit the service places after it has waited says how many commits go before it,
+/// and the record holds the place the service
+///  named.
+/// Why:
+///   `positions` stayed empty in every record of the incident,
+/// so the place a service names is what this control proves reaches both
+///  the person and the timing record.
+#[test]
+fn a_commit_the_service_places_after_a_wait_says_how_many_go_before_it() {
+    let name: String = address("placed");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = traced_client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let waited: Instant = Instant::now();
+    let place: (usize, usize) = (2, 4);
+    while waited.elapsed() < QUICK_NOTICE * 3 {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
+    let commit: String = "f".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, notices, trace) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    let placed: String = position_notice(place.0, place.1);
+    assert!(notices.contains(placed.as_str()), "the place the service named is said: {notices:?}");
+    assert_eq!(notices.matches(placed.as_str()).count(), 1, "said once: {notices:?}");
+    assert!(notices.find(NOT_STARTED_NOTICE) < notices.find(placed.as_str()), "the service not having started on it is said first: {notices:?}");
+    assert_eq!(trace.positions, vec![place.0], "the record holds the place the service named");
 }
 
 /// A service that stops sending beats ends the wait:
@@ -563,13 +665,13 @@ fn a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answe
     assert!(waited >= ceiling + extra_wait && waited < ceiling + extra_wait + Duration::from_secs(6), "{waited:?}");
 }
 
-/// Runs the client on a thread and returns what it ended with and the trace it kept.
-fn traced_client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, git_policy_cli::commit_timing::SubmitTrace)> {
+/// Runs the client on a thread and returns what it ended with, what it printed and the trace it kept.
+fn traced_client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String, SubmitTrace)> {
     return std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();
-        let mut trace: git_policy_cli::commit_timing::SubmitTrace = git_policy_cli::commit_timing::SubmitTrace::default();
-        let answered = git_policy_cli::service_client::submit_traced(&config, &request(), &mut notices, &mut trace);
-        return (answered, trace);
+        let mut trace: SubmitTrace = SubmitTrace::default();
+        let answered = submit_traced(&config, &request(), &mut notices, &mut trace);
+        return (answered, String::from_utf8(notices).expect("UTF-8"), trace);
     });
 }
 
@@ -588,7 +690,7 @@ fn trace_after(label: &str, notices: Vec<ServiceMessage>) -> git_policy_cli::com
     }
     let commit: String = "c".repeat(40);
     (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
-    let (answered, trace) = waiting.join().expect("client thread");
+    let (answered, _notices, trace) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
     return trace;
 }

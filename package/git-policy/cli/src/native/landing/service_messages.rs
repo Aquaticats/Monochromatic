@@ -41,6 +41,16 @@ pub const STARTING_NOTICE: &str = "Starting the commit service...";
 /// before the same request is sent to it again.
 pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
 
+/// Printed once when a commit has waited long enough to matter and the service has not said where it stands,
+/// which means the
+///  service has not begun on it.
+/// Why:
+///   The commit that waited 62 s said nothing about itself,
+/// so the person could not tell it from one the service had lost;
+/// where the service names a place,
+/// `position_notice` says how many commits go first.
+pub const NOT_STARTED_NOTICE: &str = "The commit service has not started on this commit yet; it is still reading it.";
+
 /// Printed once when the service is being replaced by a newer one.
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 
