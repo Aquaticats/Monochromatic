@@ -80,6 +80,8 @@ fn tells_an_item_from_a_scalar_that_begins_with_a_dash() {
     assert_eq!(item_content("- '@s/a'"), "'@s/a'");
     assert_eq!(item_content("-"), "");
     assert_eq!(item_content("-   spaced"), "spaced");
+    assert_eq!(item_content("-\tapp"), "app");
+    assert!(is_item("-\tapp"));
 }
 
 /// A key ends at a colon a space or the line end follows,

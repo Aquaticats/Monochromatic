@@ -145,31 +145,38 @@ pub fn read_lines(text: &str) -> Result<Vec<YamlLine<'_>>, YamlProblem> {
 /// What:
 /// Whether a content line opens a sequence item.
 /// Why:
-///  An item is a dash alone or a dash and its content;
+///  An item is a dash alone or a dash a space or a tab separates from its content;
 /// `-1` is a scalar
-///       because no space follows the dash.
+///       because neither follows the dash.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isItem = (content: string) => content === '-' || content.startsWith('- ');
+/// const isItem = (content: string) => /^-(?:$|[ \t])/.test(content);
 /// ```
 pub fn is_item(content: &str) -> bool {
-    return content == "-" || content.starts_with("- ");
+    let Some(rest): Option<&str> = content.strip_prefix('-') else {
+        return false;
+    };
+    let separated: bool = match rest.chars().next() {
+        None => true,
+        Some(next) => is_space_or_tab(next),
+    };
+    return separated;
 }
 
 /// What:
 /// The content of a sequence item,
 /// which is nothing for a lone dash.
 /// Why:
-///  The dash and the space before the content are not part of it.
+///  The dash and the space or tab before the content are not part of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const itemContent = (content: string) => content.replace(/^- ?/, '').trimStart();
+/// const itemContent = (content: string) => content.replace(/^-[ \t]*/, '');
 /// ```
 pub fn item_content(content: &str) -> &str {
     return content
-        .strip_prefix("- ")
+        .strip_prefix('-')
         .unwrap_or("")
         .trim_start_matches(is_space_or_tab);
 }
