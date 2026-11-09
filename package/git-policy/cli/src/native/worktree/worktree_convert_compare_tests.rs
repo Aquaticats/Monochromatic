@@ -63,6 +63,29 @@ fn each_kind_of_difference_is_named_and_nothing_is_changed() {
 }
 
 /// What:
+///  An edit of the same length whose modification time was put back is a difference,
+/// because the contents are what a person changed and the old tree is the copy that holds them.
+/// Why:
+///   Size and modification time alone cannot see such an edit;
+/// the contents of a file are compared where the
+///  comparison can decide the deletion of it.
+#[test]
+fn a_same_size_edit_with_the_time_put_back_is_a_difference() {
+    let (root, old, installed) = twin_trees("compare-same-size");
+    let file: PathBuf = old.join("dir/file");
+    let before: std::fs::Metadata = std::fs::metadata(&file).expect("metadata");
+    let bytes: Vec<u8> = std::fs::read(&file).expect("bytes");
+    let mut edited: Vec<u8> = bytes.clone();
+    edited[0] = b'D';
+    std::fs::write(&file, &edited).expect("an edit of the same length");
+    std::fs::OpenOptions::new().write(true).open(&file).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
+    assert_eq!(std::fs::metadata(&file).expect("metadata").len(), before.len(), "the length is unchanged");
+    let difference: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    assert!(difference.contains("dir/file") && difference.contains("contents"), "{difference}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  Give `path` the user attribute `user.cli-git-control`,
 ///  and answer whether the filesystem took it.
 /// Why:

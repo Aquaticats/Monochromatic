@@ -172,6 +172,40 @@ fn a_permission_change_after_the_proof_keeps_the_old_tree() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A same-size edit made in the last window of a conversion,
+/// with its modification time put back,
+/// keeps the old tree and is named.
+/// Why:
+///  The comparison could only see the type,
+/// size,
+/// time,
+/// mode,
+/// owner and attributes;
+/// an edit that keeps the length and puts the time back leaves all of them
+///  equal,
+/// so the removal deleted the bytes the person wrote.
+/// The file's change time cannot be put back, and
+///  the contents are compared for a file that changed after the proof.
+#[test]
+fn a_same_size_edit_with_the_time_put_back_after_the_proof_keeps_the_old_tree() {
+    let (parent, _root, worktree) = quiet_worktree("safety-same-size");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    let edited: PathBuf = converting.join("script.sh");
+    let before: std::fs::Metadata = std::fs::metadata(&edited).expect("the old copy");
+    let mut bytes: Vec<u8> = std::fs::read(&edited).expect("the old copy's bytes");
+    bytes[0] = b'A';
+    std::fs::write(&edited, &bytes).expect("an edit of the same length");
+    std::fs::OpenOptions::new().write(true).open(&edited).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
+    assert_eq!(std::fs::metadata(&edited).expect("the edited copy").len(), before.len(), "the length is unchanged");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("script.sh") && message.contains("contents") && message.contains("kept"), "{message}");
+    assert!(edited.exists(), "the old tree is kept whole");
+    remove(parent.as_path());
+}
+
 /// A difference between the old tree and the installed one keeps the old tree and is reported;
 /// nothing is ever copied from the
 ///  old tree,
