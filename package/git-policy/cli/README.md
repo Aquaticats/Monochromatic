@@ -641,7 +641,11 @@ Read-only commands,
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
    (`git -C <repository> worktree prune`);
      it does not run Git afterwards.
-  A worktree that still has a conversion's copy beside it (`<path>.cli-git-converting`) is not removed:
+  A worktree that still has a conversion's copy beside it is not removed,
+     and what proves the copy is a conversion's
+   is the record that conversion wrote beside the worktree;
+     a directory at that name that no record names is the person's own,
+   and the removal goes on and leaves it alone:
      the command
    refuses with status 1 and a report that names the copy and both commands that clear it
    (`convert-worktree-to-subvolume <path>` to finish the conversion,

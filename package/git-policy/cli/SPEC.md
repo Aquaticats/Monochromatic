@@ -1753,7 +1753,14 @@ directory.
 These narrow the window to a few system calls;
 they do not close it.
 
-A worktree that has a conversion's copy beside it (`<path>.cli-git-converting`) is not removed:
+A worktree that has a conversion's copy beside it is not removed when a conversion's record beside the worktree
+(`.cli-git-convert-<name>.leftover-stage.json`) proves the copy is a conversion's;
+a directory at that name that no record
+names is the person's own,
+and the removal goes on and leaves it where it is,
+because refusing on the suffix alone would block a
+legitimate removal with neither command able to clear it.
+The report of the refusal:
 the wrapper refuses with
 exit status 1 and one report that names the copy,
 says nothing was removed,

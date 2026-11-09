@@ -458,6 +458,12 @@ fn a_worktree_with_a_leftover_conversion_stage_is_refused() {
     let converting: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
     std::fs::create_dir_all(converting.join("d")).expect("a copy beside the worktree");
     std::fs::write(converting.join("d/copy"), b"a copy\n").expect("its file");
+    // A record beside the worktree is what proves the copy is a conversion's; without one the removal is not refused.
+    let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
+        original: crate::fs_beneath::identity_of(&std::fs::File::open(converting.as_path()).expect("the copy")).expect("identity"),
+        created: None,
+    };
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
     let RemoveOutcome::Refused(report) = outcome else { panic!("the removal is refused while the copy is there, but it was {outcome:?}") };
@@ -466,6 +472,28 @@ fn a_worktree_with_a_leftover_conversion_stage_is_refused() {
     assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
     assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
     assert!(converting.join("d/copy").is_file(), "and so is the copy");
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory beside a worktree that no conversion recorded does not stop its removal:
+///  the suffix proves nothing,
+///  and refusing on it would block a legitimate removal with neither advertised command able to clear it.
+/// Why:
+///   A conversion writes a record beside the worktree before its swap;
+/// a directory without one is the person's own,
+///  and the removal leaves it where it is.
+#[test]
+fn a_directory_beside_a_worktree_that_no_conversion_recorded_does_not_stop_its_removal() {
+    let root: PathBuf = fixture("remove-unrecorded-sibling");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let sibling: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
+    std::fs::create_dir_all(sibling.join("d")).expect("a directory of the person's own beside the worktree");
+    std::fs::write(sibling.join("d/theirs"), b"theirs\n").expect("its file");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::Removed);
+    assert!(sibling.join("d/theirs").is_file(), "the directory that no conversion recorded is left alone");
     remove(root.as_path());
 }
 
