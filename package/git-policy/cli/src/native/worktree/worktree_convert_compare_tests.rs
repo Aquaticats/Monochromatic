@@ -120,6 +120,41 @@ fn a_mode_change_of_a_named_pipe_is_a_difference() {
 }
 
 /// What:
+///  A named pipe planted at the old entry after the walk read its metadata does not block the
+///  comparison.
+/// Why:
+///  The contents were opened through `File::open`, which blocks on a FIFO and follows a link, and nothing around the call has
+/// a deadline;
+/// the conversion holds its claim while it waits.
+/// The comparison opens both sides through the plain-file open,
+///  which refuses anything but a plain file.
+#[test]
+fn a_named_pipe_planted_before_the_contents_are_read_does_not_block_the_comparison() {
+    let (root, old, installed) = twin_trees("compare-fifo-race");
+    let target: PathBuf = old.join("dir/file");
+    let planted: PathBuf = target.clone();
+    let old_tree: PathBuf = old.clone();
+    let installed_tree: PathBuf = installed.clone();
+    // The callback is installed on the thread that compares, because `finished_within` runs the work on a thread of its own.
+    let comparison = crate::test_support::finished_within(move || {
+        watch_contents_open(Some(Box::new(move |path: &Path| {
+            if path != planted {
+                return;
+            }
+            std::fs::remove_file(planted.as_path()).expect("replace the file");
+            crate::subvolume_sync_attrs::make_fifo(planted.as_path(), 0o600).expect("a named pipe");
+        })));
+        let decided = first_difference_after(old_tree.as_path(), installed_tree.as_path(), Some(0));
+        watch_contents_open(None);
+        return decided;
+    });
+    let Some(outcome) = comparison else { panic!("the comparison did not finish within five seconds") };
+    let error: std::io::Error = outcome.expect_err("the comparison reports what it cannot read");
+    assert!(error.to_string().contains("not a plain file"), "{error}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  Give `path` the user attribute `user.cli-git-control`,
 ///  and answer whether the filesystem took it.
 /// Why:

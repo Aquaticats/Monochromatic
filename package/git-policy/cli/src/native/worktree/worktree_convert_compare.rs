@@ -231,13 +231,54 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
                 }
                 // Either side can hold bytes the other does not: the old tree a late edit, the installed worktree one made
                 // after the exchange, and neither side's change time sees the other's.
-                if (changed_since(&before, synced_ms) || changed_since(&after, synced_ms)) && contents_differ(&old.join(&inside), &installed.join(&inside))? {
-                    return Ok(Some(format!("{} differs from the installed worktree (contents)", inside.display())));
+                if changed_since(&before, synced_ms) || changed_since(&after, synced_ms) {
+                    #[cfg(test)]
+                    note_contents_open(old.join(&inside).as_path());
+                    if contents_differ(&old.join(&inside), &installed.join(&inside))? {
+                        return Ok(Some(format!("{} differs from the installed worktree (contents)", inside.display())));
+                    }
                 }
             }
         }
     }
     return Ok(None);
+}
+
+#[cfg(test)]
+thread_local! {
+    // The callback a control installs to replace an entry just before its contents are read; nothing in a release build
+    // reads or sets it.
+    static BEFORE_CONTENTS: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Install `watch` to run for the old entry whose contents are about to be read,
+///  or clear it with `None`.
+/// Why:
+///   A control of what the contents read can meet must replace the entry in the moment between the metadata the walk read
+/// and the open the comparison makes;
+/// no other seam reaches that moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchContentsOpen((path) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_contents_open(watch: Option<Box<dyn FnMut(&Path)>>) {
+    BEFORE_CONTENTS.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the old entry at `path` just before its contents are read.
+#[cfg(test)]
+fn note_contents_open(path: &Path) {
+    BEFORE_CONTENTS.with(|slot| {
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
 }
 
 /// Comparison controls stay out of the release executable.
