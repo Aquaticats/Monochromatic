@@ -49,17 +49,23 @@ pub fn invoked_name(arguments: &[OsString]) -> String {
     // ```
     let mut invoked_as: String = String::new();
 
-    // What:     `if let Some(file_name) = Path::new(&arguments[0]).file_name()` runs the block when the first
-    // argument has a final path segment. `&arguments[0]` lends the element at position zero without copying it, and
-    // `Path::new(...)` wraps it as a path so `.file_name()` can take the last segment.
-    // Why:      A symlink named `rg` makes the first argument end in `rg`, which selects shadow mode.
+    // What:     `arguments.first()` answers `Some(&firstArgument)` or `None` for a list with no element at all, so
+    // nothing indexes position zero; `&& arguments.first()` in the `if let` follows the answer twice, once for the
+    // present/absent question and once for emptiness, and runs the block only when both hold.
+    // Why:      A symlink named `rg` makes the first argument end in `rg`, which selects shadow mode, while a start
+    // with no argument at all must still answer instead of stopping the program.
+    // Gotcha:   Indexing the list (`&arguments[0]`) looks like TS's `args[0]`, which is `undefined` past the end;
+    // Rust indexing of an absent position stops the program instead.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const fileName = path.basename(args[0]);
+    // const firstName = args[0];
+    // const fileName = firstName === undefined ? undefined : path.basename(firstName);
     // if (fileName !== undefined) invokedAs = fileName;
     // ```
-    if let Some(file_name) = Path::new(&arguments[0]).file_name() {
+    if let Some(argument) = arguments.first()
+        && let Some(file_name) = Path::new(argument).file_name()
+    {
         // `to_string_lossy()` turns the segment into text and replaces bytes that are not valid UTF-8 with a
         // replacement character; `.to_string()` copies that text into the owned `String` the function returns.
         invoked_as = file_name.to_string_lossy().to_string();
