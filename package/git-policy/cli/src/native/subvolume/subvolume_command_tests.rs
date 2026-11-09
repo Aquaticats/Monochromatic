@@ -151,3 +151,35 @@ fn every_refusal_is_printed_with_its_remedy_and_one_closing_line() {
     assert_eq!(lines.last().map(String::as_str), Some("Nothing was changed."));
     remove(parent.as_path());
 }
+
+/// What:
+///  A preview runs the refusals of the mode it previews.
+/// Why:
+///   `--dry-run --remove-old` on a checkout with no journal said the command "would delete the
+/// original tree" while the same invocation without `--dry-run` refused, because the preview
+/// returned before the refusals were looked at; a preview that promises what the real run refuses
+/// answers a question nobody asked it to check.
+#[test]
+fn a_preview_refuses_what_the_real_run_would_refuse() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let parent: PathBuf = fixture("command-preview-refusals");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    for (mode, arguments) in [
+        (MigrateMode::Rollback, MigrateArguments { mode: MigrateMode::Rollback, dry_run: true, ..migrate_arguments() }),
+        (MigrateMode::RemoveOld, MigrateArguments { mode: MigrateMode::RemoveOld, dry_run: true, ..migrate_arguments() }),
+    ] {
+        let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
+        let said: String = lines.join("\n");
+        assert_eq!(code, REFUSED_EXIT_CODE, "{mode:?}: {said}");
+        assert!(said.contains("refused") && said.contains("no migration journal"), "{mode:?}: {said}");
+        assert!(!said.contains("dry run:"), "{mode:?}: a preview promises nothing the run refuses: {said}");
+    }
+    // The positive control: a finished migration is previewed as the deletion the real run makes.
+    let (migrated, migration_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(migrated, 0, "{migration_lines:#?}");
+    let preview: MigrateArguments = MigrateArguments { mode: MigrateMode::RemoveOld, dry_run: true, ..migrate_arguments() };
+    let (code, lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(code, 0, "{lines:#?}");
+    assert!(lines.join("\n").contains("would delete"), "{lines:#?}");
+    remove(parent.as_path());
+}
