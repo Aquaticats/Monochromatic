@@ -6579,6 +6579,12 @@ private file,
 so Git's `core.fsync` governs only that fallback;
 the in-process write always flushes the file,
 as Git's default does.
+A `reset` the service starts (that fallback and the reconciliation's own index update) carries `--no-literal-pathspecs`,
+because every spec it is given is `:(top,literal)<path>`,
+and `reset` accepts a spec that matches nothing without a word:
+under a global literal pathspec mode,
+inherited from the command that first started the service,
+it would install no entry and report success.
 The entries the update makes from the tree record the worktree's stat data where the file provably holds the tree's bytes
 (`index_reset_worktree_stat.rs`),
 and the all-zero value `git reset --no-refresh` writes everywhere else.

@@ -121,6 +121,47 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     remove(root.as_path());
 }
 
+/// The service's context when the command that first started it came from a shell that turned pathspec magic off,
+/// which every Git the service then starts inherits.
+fn inherited_literal_pathspec_context() -> GitContext {
+    let mut context = git_context();
+    context.overlay.push((std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"), std::ffi::OsString::from("1")));
+    return context;
+}
+
+/// The follow-up's `reset` reads its own `:(top,literal)` pathspecs whatever pathspec mode the service inherited,
+/// so a listed path's index entry is still installed when that environment turned pathspec magic off.
+#[test]
+fn the_index_update_of_listed_paths_survives_an_inherited_literal_pathspec_mode() {
+    let (root, repo, _first, second) = index_behind("service-follow-listed-literal-mode", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Listed(&[String::from("new.txt")])).expect("the listed path is installed under the inherited mode");
+    assert!(!differs(repo.as_path(), second.as_str()), "the commit's index entry must be installed");
+    remove(root.as_path());
+}
+
+/// The same for a list of names handed over as bytes,
+/// which `reset` reads from its standard input.
+#[test]
+fn the_index_update_of_named_paths_survives_an_inherited_literal_pathspec_mode() {
+    let (root, repo, _first, second) = index_behind("service-follow-named-literal-mode", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()])).expect("the named path is installed under the inherited mode");
+    assert!(!differs(repo.as_path(), second.as_str()), "the commit's index entry must be installed");
+    remove(root.as_path());
+}
+
+/// The same for the paths derived from the branch and the commit,
+/// which take the same standard-input route.
+#[test]
+fn the_index_update_of_derived_paths_survives_an_inherited_literal_pathspec_mode() {
+    let (root, repo, first, second) = index_behind("service-follow-derived-literal-mode", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Derived { old: first.as_str() }).expect("the derived paths are installed under the inherited mode");
+    assert!(!differs(repo.as_path(), second.as_str()), "the commit's index entries must be installed");
+    remove(root.as_path());
+}
+
 /// A removal request whose scratch directory is gone has nothing left to compare and is done.
 #[test]
 fn a_cleanup_without_its_scratch_directory_is_done() {
@@ -160,8 +201,8 @@ fn the_index_update_starts_reset_without_quiet_in_every_form() {
         update_index(&context, repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), paths).expect("updated");
         assert!(!differs(repo.as_path(), second.as_str()), "{paths:?} brings the index to the commit");
     }
-    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("reset "); }).collect();
-    assert_eq!(resets.len(), 3, "one reset for each of the three forms: {resets:?}");
+    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("--no-literal-pathspecs reset "); }).collect();
+    assert_eq!(resets.len(), 3, "one guarded reset for each of the three forms: {resets:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(root.as_path());
 }
@@ -309,7 +350,7 @@ fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
     let held = try_acquire(index.as_path(), 6).expect("the lock is free");
     let built = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 6).expect("built");
     let starts: Vec<String> = recorded_starts(log.as_path());
-    assert!(starts.iter().any(|start| { return start.starts_with("reset --no-refresh "); }), "Git was not asked: {starts:?}");
+    assert!(starts.iter().any(|start| { return start.starts_with("--no-literal-pathspecs reset --no-refresh "); }), "Git was not asked: {starts:?}");
     held.release_with(built.path()).expect("installed");
     assert_eq!(staged_against(repo.as_path(), second.as_str()), vec![String::from("racy.txt")]);
     remove(root.as_path());
