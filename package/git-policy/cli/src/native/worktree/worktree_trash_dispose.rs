@@ -63,6 +63,10 @@ const POINTER_LIMIT: u64 = 64 * 1024;
 ///  is no longer the object the leave-out moved there,
 /// and a file somebody put in the trash all stay,
 ///  so the line may give no removal command for them.
+/// A step that could not finish leaves what it did
+///  not examine where it is,
+/// so a trash whose contents were not shown to be the snapshot's own is
+///  never called the snapshot's either.
 /// The one case that keeps the command is the trash directory the
 ///  snapshot made,
 /// empty,
@@ -207,8 +211,8 @@ fn empty_before_returning(destination: &Path, git_dir: &Path, manifest: &TrashMa
             let shown: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
             let removing: String = match left.only_the_snapshots {
                 true => format!(": `rm --recursive --force -- {shown}`"),
-                // The command would delete what the emptying kept, so the line names what is there and gives none.
-                false => String::from(". What is in it now is not what the snapshot made, so no removal command is given here: remove by name only what you want gone"),
+                // The command could delete what the emptying kept, so the line names what is there and gives none.
+                false => String::from(". No removal command is given here: nothing showed that everything below that path is what this snapshot made, and a recursive removal would delete whatever the emptying left alone; remove by name only what you want gone"),
             };
             Err(format!("the directories left out of the new worktree {} were not emptied ({}); the trash {shown} stays inside the worktree, no work item names it, and only you will remove it{removing}", destination.display(), left.reason))
         }
