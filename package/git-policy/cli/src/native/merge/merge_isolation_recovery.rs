@@ -309,6 +309,32 @@ fn holds_the_merge(judged: &Judged) -> bool {
 }
 
 /// What:
+///  The branch `HEAD` names in `root`,
+/// or nothing when it names a commit itself.
+/// Why:
+///   The checkout a merge installs into is the one its branch is checked out in;
+/// `symbolic-ref` says which branch that is,
+/// and fails
+///  on a detached `HEAD`,
+/// which the record names with no target ref of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = await git(['symbolic-ref', '--quiet', 'HEAD']); return named.succeeded ? named.stdout.trim() : undefined;
+/// ```
+fn symbolic_ref(place: &RecoveryPlace, root: &Path) -> Result<Option<String>, RecoveryError> {
+    let request: GitRequest = GitRequest::new(root, &["symbolic-ref", "--quiet", "HEAD"]);
+    let output = match run_git(&place.git, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(RecoveryError(format!("git symbolic-ref could not start: {error}"))),
+    };
+    if !output.succeeded() {
+        return Ok(None);
+    }
+    return Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+}
+
+/// What:
 ///  The commit a ref names,
 /// or nothing when it names none.
 /// Why:
@@ -357,6 +383,19 @@ pub fn settle_failed_merge(
     if current.as_deref() == Some(intent.new_oid.as_str()) {
         drop_record_and_side_ref(place, root, record, intent).map_err(untouched)?;
         return Ok(MergeRecoveryAction::AlreadyLanded);
+    }
+    // The checkout belongs to the branch the merge was computed on: installing it into another branch's worktree would put
+    //  this merge's files and index into a branch it is not for, and move a branch from a checkout that is not its own.
+    let checked_out: Option<String> = symbolic_ref(place, root).map_err(untouched)?;
+    if checked_out != intent.target_ref {
+        return Err(untouched(RecoveryError(format!(
+            "A merge saved for {target} in {} was not finished: this worktree has {} checked out, and finishing the merge would \
+             put it into that branch's checkout instead. Nothing was changed, the record {} was kept and the merge's commit is \
+             still where it was saved. Check out {target} in this worktree and run any git command again.",
+            root.display(),
+            checked_out.as_deref().unwrap_or("a detached HEAD"),
+            record.display()
+        ))));
     }
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
@@ -466,11 +505,16 @@ fn untouched(error: RecoveryError) -> MergeRefusal {
 /// the side ref that keeps its merge commit from being collected.
 /// Why:
 ///   The side ref exists for the window between the save and the finish,
-/// so the merge's landing is what removes it;
-/// a ref that
-///  cannot be deleted stays,
-/// and the log says so,
-/// because nothing of the merge is lost either way.
+/// so the merge's landing is what removes it,
+/// and only
+///  while the ref still holds the merge's commit:
+/// another command may have put its own commit on the name,
+/// and that
+///  commit may have no other.
+/// A ref that is not deleted stays,
+/// and the log says why,
+/// because nothing of the merge is lost either
+///  way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -500,9 +544,14 @@ fn drop_side_ref(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
     let Some(name) = intent.side_ref.as_deref() else {
         return;
     };
-    let arguments: [&str; 4] = ["update-ref", "--no-deref", "-d", name];
+    // The ref is deleted only while it still holds this merge's commit: another command may have put its own commit on the
+    //  name, and that commit may have no other.
+    let arguments: [&str; 5] = ["update-ref", "--no-deref", "-d", name, intent.new_oid.as_str()];
     if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
-        debug("settleFailedMerge", format!("the side ref {name} of a landed merge could not be deleted: {error}").as_str());
+        debug(
+            "settleFailedMerge",
+            format!("the side ref {name} no longer holds the landed merge's commit, so it was left where it is: {error}").as_str(),
+        );
     }
 }
 

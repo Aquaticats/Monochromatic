@@ -3161,7 +3161,13 @@ on the commit path:
   The next git command in that worktree finishes the checkout once the lock is free:
   the merge's own paths are installed,
   the branch moves by compare-and-swap against the recorded old commit,
-  the record and the side ref go,
+  Settling installs only into the checkout of the branch the merge was computed on:
+  when `HEAD` names another branch,
+  nothing is written,
+  the record and the side ref stay,
+  and the line names the branch the merge is for.
+  The record and the side ref go when the merge lands,
+  and the side ref is deleted only while it still holds the merge's commit.
   and everything the merge does not change is left as it is,
   so an edit made meanwhile to such a file is carried forward.
   Staged content is never written over:

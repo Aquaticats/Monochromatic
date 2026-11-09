@@ -1434,3 +1434,65 @@ fn a_saved_merge_that_is_partly_installed_stops_the_command() {
     assert!(!world.repo.join("dir/child.txt").exists(), "the file was moved aside before the failure");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A side ref another command repointed is not deleted as if it still held this merge.
+/// Why:
+///  The deletion named only the ref,
+/// so a ref that had come to hold another merge's commit was deleted with it,
+/// and that
+///  merge's only name went with it
+/// (a cross-vendor review of the third round, finding 6).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = deferredRecord(world, 'refs/cli-git/kept/25'); await git(['update-ref', '--no-deref', 'refs/cli-git/kept/25', other]); await recover(...); expect(await revParse('refs/cli-git/kept/25')).toEqual(other);
+/// ```
+#[test]
+fn a_side_ref_another_command_repointed_is_not_deleted() {
+    let world: World = world("merge-recovery-side-ref-repointed");
+    let _record: PathBuf = deferred_record_of(&world, "25252525-0000-4000-8000-000000000025", "refs/cli-git/kept/25");
+    // Another command puts its own commit on that ref, the only name it has.
+    let other: String = git_text(world.repo.as_path(), &["commit-tree", "HEAD^{tree}", "-m", "another merge"]);
+    git(world.repo.as_path(), &["update-ref", "--no-deref", "refs/cli-git/kept/25", other.as_str()]);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the merge is finished");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/25"]), other, "the other command's ref is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "this merge landed");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge saved for one branch is never installed into another branch's checkout.
+/// Why:
+///  The settlement resolved the recorded ref,
+/// which still held the same commit,
+/// and installed the merge into whatever the
+///  worktree had checked out,
+/// moving the recorded branch from a checkout that was not its own
+///  (a cross-vendor review of the third round, finding 7).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = deferredRecord(world, 'refs/cli-git/kept/26'); await git(['branch', 'other']); await git(['switch', 'other']); const outcomes = await recover(...); expect(await symbolicRef()).toEqual('refs/heads/other'); expect(await revParse('main')).toEqual(oldOid); expect(exists(record)).toBe(true);
+/// ```
+#[test]
+fn a_saved_merge_for_another_branch_is_not_installed_into_the_checked_out_one() {
+    let world: World = world("merge-recovery-other-branch");
+    let record: PathBuf = deferred_record_of(&world, "26262626-0000-4000-8000-000000000026", "refs/cli-git/kept/26");
+    git(world.repo.as_path(), &["branch", "--quiet", "other"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "other"]);
+    let before = snapshot(&world);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("refs/heads/main"), "the branch the merge is for is named: {text}");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused);
+    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the checkout stays on its own branch");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the merge's branch did not move");
+    assert_eq!(snapshot(&world), before, "nothing of the merge is in that checkout");
+    assert!(record.exists(), "the record is kept for when its branch is checked out");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/26"]), world.new_oid, "the side ref is kept");
+    remove(world.parent.as_path());
+}
