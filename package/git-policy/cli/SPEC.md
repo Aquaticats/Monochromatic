@@ -1260,8 +1260,9 @@ where a target commit that stops
 so `git add --all` would stage another command's stage container and its
  credentials.
 The emptying runs beside the package repair (`finish_trash_and_repair`,
-on a thread when the repair
- has work to do),
+as a wait of one task of the process's runtime when the repair
+ has work to do,
+and here on the command's own thread when it has none),
 one plain line on standard error first names the worktree and says that the directories left out
  are being emptied now,
 and the person waits for the slower of the two.
@@ -2600,7 +2601,8 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 workers of the process's
+blocking pool,
 bounded by the CPUs the process may use,
 over contiguous slices after every directory exists;
 the first failure stops the others.
