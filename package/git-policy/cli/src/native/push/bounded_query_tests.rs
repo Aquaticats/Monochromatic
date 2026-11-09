@@ -117,10 +117,39 @@ fn a_flooding_query_is_stopped() {
             SingleFlightError::Git { arguments, code, stderr } => {
                 assert_eq!(arguments, "log");
                 assert_eq!(*code, None);
-                assert!(stderr.contains("bytes and was stopped"), "{stderr}");
+                assert!(stderr.contains("bytes, so its output is not taken"), "{stderr}");
             }
             other => panic!("expected a Git failure, got {other}"),
         }
+    }
+}
+
+/// What:
+///  A query that prints past the cap and ends before the next look at its files is a flood,
+/// never a success.
+/// Why:
+///   The second pass reads blob contents from this output,
+/// so bytes cut at the cap with exit status zero would reach the merge as Git's whole answer.
+/// The fixture writes one byte past the cap and ends at once,
+/// which is the run the waiter sees end before it can look.
+#[cfg(unix)]
+#[test]
+fn a_query_that_floods_and_ends_is_not_a_success() {
+    let failure: SingleFlightError = run_bounded_query(
+        shell("exec head -c 4194305 /dev/zero"),
+        "cat-file --batch",
+        Duration::from_secs(60),
+        Duration::from_secs(5),
+        scratch_environment().as_slice(),
+    )
+    .expect_err("more than the cap was printed, so the answer is not whole");
+    match &failure {
+        SingleFlightError::Git { arguments, code, stderr } => {
+            assert_eq!(arguments, "cat-file --batch", "{failure}");
+            assert_eq!(*code, None);
+            assert!(stderr.contains("bytes, so its output is not taken as Git's answer"), "{stderr}");
+        }
+        other => panic!("expected a Git failure, got {other}"),
     }
 }
 

@@ -120,6 +120,32 @@ fn is_flood(size: u64) -> bool {
     return size > MAX_PUSH_OUTPUT;
 }
 
+/// What:
+///  Whether one of a run's output files has grown past the cap.
+/// Why:
+///   The wait looks at these between its polls,
+/// and a run that ends in the pause between two looks must be judged by the same bound:
+/// what it printed past the cap is not all of what it printed.
+///  A size that cannot be read counts as past the cap,
+/// so nothing unreadable passes for a complete answer either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// outputs.some((output) => isFlood(statSize(output)))
+/// ```
+pub(crate) fn flooded(outputs: &[&File]) -> bool {
+    for output in outputs {
+        let size: u64 = match output.metadata() {
+            Ok(metadata) => metadata.len(),
+            Err(_) => u64::MAX,
+        };
+        if is_flood(size) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What a clock keeps as the longest quiet gap:
 /// its figure when it reads anything,
 /// nothing when it reads nothing.
@@ -265,15 +291,9 @@ async fn wait_with_clock(
             *quiet = quiet_gap_kept(&clock);
             return Ok(Err(StopCause::ServiceStopped));
         }
-        for output in outputs {
-            let size: u64 = match output.metadata() {
-                Ok(metadata) => metadata.len(),
-                Err(_) => u64::MAX,
-            };
-            if is_flood(size) {
-                *quiet = quiet_gap_kept(&clock);
-                return Ok(Err(StopCause::Flood));
-            }
+        if flooded(outputs) {
+            *quiet = quiet_gap_kept(&clock);
+            return Ok(Err(StopCause::Flood));
         }
         if let Some(cause) = clock.check() {
             *quiet = quiet_gap_kept(&clock);

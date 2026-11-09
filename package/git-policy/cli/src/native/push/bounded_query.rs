@@ -29,7 +29,7 @@
 use crate::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push,
 /// and its stop causes.
-use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, stop_push, wait_until_done};
+use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, flooded, stop_push, wait_until_done};
 use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
 /// The clock a wait is judged by,
 /// and its reading of the signs of work.
@@ -281,6 +281,12 @@ pub async fn run_bounded_git_awaiting(
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
     }
+    // A child that ends in the pause between two looks can still have printed more than the cap, and the bytes kept are then
+    //  part of its answer with the status of a whole one. The caller reads a status as an answer, so this is a flood, never a
+    //  success with a shortened stream. Nothing is stopped: a child that ended is not there to end.
+    if ended.is_ok() && flooded(&[&stdout, &stderr]) {
+        return Err(flood_of(arguments));
+    }
     return match ended {
         Ok(status) => Ok(QueryOutput {
             code: status.code(),
@@ -296,15 +302,29 @@ pub async fn run_bounded_git_awaiting(
                     seconds: window.as_secs(),
                 },
                 StopCause::ServiceStopped => SingleFlightError::Start(ended_by_the_stop(step.as_str())),
-                StopCause::Flood => SingleFlightError::Git {
-                    arguments: arguments.to_owned(),
-                    code: None,
-                    stderr: format!(
-                        "the query wrote more than {MAX_PUSH_OUTPUT} bytes and was stopped"
-                    ),
-                },
+                StopCause::Flood => flood_of(arguments),
             })
         }
+    };
+}
+
+/// What:
+///  The failure of a query that printed more than the cap.
+/// Why:
+///   The bytes kept are part of Git's answer,
+/// so a status that came with them is not read as an answer at all;
+/// the
+///  words say what was kept and what was not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new GitFailure(arguments, undefined, `the query wrote more than ${MAX} bytes, so its output is not taken as Git's answer`)
+/// ```
+fn flood_of(arguments: &str) -> SingleFlightError {
+    return SingleFlightError::Git {
+        arguments: arguments.to_owned(),
+        code: None,
+        stderr: format!("the query wrote more than {MAX_PUSH_OUTPUT} bytes, so its output is not taken as Git's answer"),
     };
 }
 

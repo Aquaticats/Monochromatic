@@ -50,16 +50,23 @@ pub(crate) const POLL_PAUSE: Duration = Duration::from_millis(10);
 
 /// Ask a running push to end,
 ///  so Git can stop the helper processes it started.
+/// A child that was already reaped has no number (`OwnedChild::id` answers nothing for it),
+/// and a signal sent to
+///  number zero would reach every process in this command's group,
+/// so no signal is sent then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// child.kill('SIGTERM');
+/// if (id > 0) child.kill('SIGTERM');
 /// ```
 #[cfg(unix)]
 fn ask_to_stop(id: u32) {
     let Ok(pid) = libc::pid_t::try_from(id) else {
         return;
     };
+    if pid <= 0 {
+        return;
+    }
     // SAFETY: `kill` sends one signal to the PID of a child this module started and has not reaped;
     // a failure is ignored because the child may have ended.
     unsafe { libc::kill(pid, libc::SIGTERM) };
