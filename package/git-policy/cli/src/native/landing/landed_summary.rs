@@ -185,6 +185,26 @@ pub fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
     return format!("monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; {names} did not land, {landed} did.");
 }
 
+/// What:
+///  The one line that says an amend whose branch moved became a new commit on top of it.
+/// Why:
+///   The amend did not replace the commit it named,
+/// and the person must not look for their changes there:
+/// the line names the branch,
+///  the commit that landed,
+/// and that the commits already on the branch were left as they were.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// amendLandsAsNewNote('main', '5d6e7f8')
+/// ```
+pub fn amend_lands_as_new_note(branch: &str, landed: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the branch {branch} moved while this amend was being prepared, so its changes were made as the new \
+         commit {landed} on top of the branch, and the commits that were already there were left as they are."
+    );
+}
+
 /// Summary controls stay out of the release executable.
 #[cfg(test)]
 #[path = "landed_summary_tests.rs"]

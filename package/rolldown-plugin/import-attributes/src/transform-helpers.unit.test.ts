@@ -113,9 +113,16 @@ await describe({
         },),
 
         it({
-          name: String.raw`stops at a form feed (outside the four-char set that \s would match)`,
+          name: 'advances past a form feed, which JavaScript counts as whitespace',
           fn: async () => {
-            expect(skipWithClauseWhitespace({ s: '\fwith', idx: 0, },),).toBe(0,);
+            expect(skipWithClauseWhitespace({ s: '\fwith', idx: 0, },),).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'advances past a non-breaking space, which JavaScript counts as whitespace',
+          fn: async () => {
+            expect(skipWithClauseWhitespace({ s: '\u00A0with', idx: 0, },),).toBe(1,);
           },
         },),
 

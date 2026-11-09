@@ -69,7 +69,7 @@ pub(crate) fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, wind
     };
     return match written {
         Ok(handle) => Ok(InputWriter { handle, progress, completion }),
-        Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
+        Err(error) => Err(crate::scoped_start::refused_thread_sentence("give the command its input", &error)),
     };
 }
 /// What:

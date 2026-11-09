@@ -217,3 +217,8 @@ mod owed_index_tests;
 #[cfg(test)]
 #[path = "service_land_finish_git_failure_tests.rs"]
 mod finish_git_failure_tests;
+
+/// Controls for the stat data of the index a landing installs stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_index_stat_tests.rs"]
+mod index_stat_tests;

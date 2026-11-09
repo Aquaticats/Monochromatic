@@ -7,7 +7,7 @@
 //! a report of pathnames is written as the bytes it
 //!  is made of,
 //! because a pathname is a byte string and its text spelling with replacement characters names a
-//!  different file (`health/doctor.rs`,
+//!  different file (`health/doctor_hook_entries.rs`,
 //! `render_hooks`).
 //!  The exit status carries the result either way,
 //! so a stream that refuses its bytes changes nothing but the stream.

@@ -101,6 +101,11 @@ pub mod service_server_queue_types_and_send;
 /// Lands one group of queued requests as a batch and answers each client.
 pub mod service_server_land_group;
 
+/// What one batch's answer says about that batch:
+/// the times it shares,
+/// its figures,
+/// and the log line of each answer.
+pub mod service_server_land_group_answer_log;
 /// What a batch of landings owes,
 /// and takes before its branch moves.
 pub mod service_server_land_group_owed_pushes;
@@ -173,6 +178,10 @@ pub mod service_instance;
 /// whether it is gone,
 /// and the stop of its units through the manager.
 pub mod service_units_of_removed_worktrees;
+
+/// The journal folder the unit gives an instance,
+/// and the state folder that holds it.
+pub mod service_journal_folder_of_an_instance;
 
 /// A manager that records the stops it is asked for,
 /// for the controls of the units of removed worktrees.

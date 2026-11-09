@@ -56,7 +56,8 @@ const MERGE_DEAD_ENDING: &str = "the merge clears that lock when nothing else ho
 
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
-/// The process a PID file names, as this host's process table reports it.
+/// The process a PID file names,
+/// as this host's process table reports it.
 use crate::index_lock_evidence::host_pid_process;
 /// The place of the lock and the watch on its directory.
 use crate::service_index_lock::{Watch, lock_path_of};

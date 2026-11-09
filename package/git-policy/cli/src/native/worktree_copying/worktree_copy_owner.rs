@@ -135,6 +135,31 @@ pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
     });
 }
 
+/// What:
+///  The identity of `pid` as an owner a record can name,
+/// or nothing when the platform will not report it.
+/// Why:
+///   A record of a worktree add names the Git process the add started,
+/// so a later command can tell an add whose
+///  Git still runs from one whose Git is gone:
+/// the command still holds the child unreaped,
+///  so its number cannot mean another process here,
+/// and the birth identity is what a later reader compares after the
+///  child is gone and its number is free again.
+/// A process the platform will not report leaves the record unnamed,
+/// and
+///  the settlement's own bound covers that case rather than keeping the record forever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owner = CopyOwner.ofProcess(pid); // undefined when /proc does not answer
+/// ```
+pub fn copy_owner_of_process(pid: u32) -> Option<CopyOwner> {
+    let id: i64 = i64::from(pid);
+    let birth: String = process_birth_identity(id).ok().flatten()?;
+    return Some(CopyOwner { pid: id, birth_identity: birth, pid_namespace: current_pid_namespace() });
+}
+
 impl CopyOwner {
     /// The owner as text that holds no dot,
     /// slash,

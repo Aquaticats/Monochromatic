@@ -5204,6 +5204,23 @@ the runner's jobs on the runtime"):
   so each entry's list of what is left was written before the other landed:
   the `run_beside_caller` sites of `worktree/worktree_snapshot_source.rs`,
   the site of `worktree/worktree_clean.rs` and the `worktree_copying/` sites are done.
+- After the merge's second pass
+  (2026-11-09T17:35:00-05:00,
+  "Step T12,
+  the second pass awaits its own Git,
+  and the reconcile's chain stops at the branch move"):
+  `merge/` awaits its own Git,
+  so the reconcile's merge commit is `commit_merge_awaiting`,
+  and a person's merge reaches the same body through one entry of the runtime.
+  What is left of item 2 is the recovery folder's awaited Git seam
+  (19 synchronous start sites across six files),
+  then `advance_local_branch_awaiting`,
+  `integrate_and_push_awaiting` with `MergePusherAwaiting`,
+  `reconcile_divergent_push_awaiting`,
+  `push_once_awaiting`,
+  and the two handlers;
+  then `landing/service_round.rs`,
+  then T13's guards.
 
 ### Step T12, the line path and the state of the pure-file sites, 2026-11-08T21:47:00-05:00
 
@@ -7668,6 +7685,260 @@ The wording of a refusal:
     None of the files this run changes runs in a commit or in a forwarded
     command,
     so `native:perf` was not run to say what it would cost.
+
+## A refused thread ends with the sentence that names the limit, 2026-11-09T17:30:00-05:00
+
+- What a command does when the system refuses a thread,
+  on every path a commit,
+  merge,
+  push or worktree command takes,
+  had two halves in this tree:
+  the work runs on a thread the command already has
+  (`foundation/scoped_start.rs::start_or_run_with`,
+  which the worktree copy,
+  the worktree clean check,
+  the repair clone,
+  the ordered runner and the side-by-side runner all use),
+  or the command ends with a sentence.
+  The sentence was missing at five places,
+  and one of them called the refusal a defect of this program:
+  `push/bounded_query_input.rs` (the write half of a push query),
+  `push/child_watch.rs` (the waiter of a step left running),
+  `markdown/markdown_linter_guard.rs` (the linked linter of a commit),
+  `service/service_server.rs` (the service's after-commit work thread,
+  which ended the service),
+  and
+  `standards_review/standards_review_run.rs`,
+  which answered a refused thread as `Contained::Panicked`,
+  so `service/service_review.rs` told the person
+  "the review of <oid> stopped with an internal error".
+- `foundation/scoped_start.rs::refused_thread_sentence` is the one sentence now:
+  "no thread could be started to <what>:
+  the system refused the thread (<the system's error>).
+  Hint:
+  check the process limit (`ulimit -u`),
+  the address-space limit (`ulimit -v`) and the control group's `pids.max`,
+  free some,
+  and run the command again".
+- `Contained` gained `NoThread(String)`,
+  and gave up `Copy` with it because the sentence is owned;
+  nothing in the tree copied a `Contained`.
+- The controls,
+  each refused a thread for real in a child whose `RLIMIT_NPROC` is one
+  (`testing/no_threads_child_test_support.rs`):
+  `push::bounded_query::tests::where_no_thread_can_start_the_input_writer_names_the_limit`,
+  `markdown::markdown_linter_guard::tests::where_no_thread_can_start_the_guard_names_the_limit`,
+  `service::service_review::tests::where_no_thread_can_start_the_review_names_the_limit`,
+  and,
+  at the binary level,
+  `fault_limits::a_service_whose_work_thread_is_refused_says_which_limit_refused_it`
+  (the service under `RLIMIT_NPROC` one,
+  and its own log line is what the control reads).
+- `push::child_watch::tests::a_step_left_running_whose_waiter_is_refused_names_the_limit`
+  arms the refusal instead of making one,
+  and has to:
+  the step is a process of the very process whose thread start is refused,
+  so `RLIMIT_NPROC` refuses the fork too;
+  a limit lowered once the child exists does not arrive in time either,
+  because the waiter's start follows the child's within a millisecond while the step's number is visible only
+  after 30.4 ms (measured on 2026-11-09).
+- Measured task counts,
+  the gate's own settings
+  (`--cpus 2 --memory 2g`,
+  nextest's concurrency of two test binaries and two tests each,
+  the image built from `776281f4ee`):
+  a container running `--lib` and `--test native_binary` peaks at 192 tasks
+  (`/sys/fs/cgroup/pids.peak` inside it,
+  against `pids.max` 8192),
+  and a person's commit through the wrapper peaks at 14 tasks in the scope that held it together with
+  the test harness that drove it,
+  its fixture service and Git.
+  The container run failed the same four tests the 2026-11-09T16:14 gate failed
+  (`wait_notice` three,
+  `word_merge` one) on a tree that does not hold this branch's changes,
+  so those failures are not this cap and not these changes.
+- `--pids-limit 512` stays what it is:
+  192 measured leaves it 2.7 times the room,
+  and the thread refusals in the 16:14 gate log came from the tests that set `RLIMIT_NPROC`,
+  `RLIMIT_AS` and `RLIMIT_NOFILE` on the wrapper and on the service themselves
+  (`binary/binary_fault_limits_tests.rs`),
+  not from the container's cap.
+  Raising the cap would hide none of them and fix none.
+- What no in-process guard can answer:
+  a thread that starts and then cannot map its signal stack ends the process with `rtabort!`
+  (`library/std/src/sys/pal/unix/stack_overflow.rs`,
+  outside any unwind),
+  so the runtime plan keeps `runtime_plan.rs`'s `ADDRESS_SPACE_RESERVE_BYTES` back for it and
+  `a_memory_limit_close_to_exhaustion_on_the_service_...` accepts the band where nothing can start.
+### Step T12, the second pass awaits its own Git, and the reconcile's chain stops at the branch move, 2026-11-09T17:35:00-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-merge-second-pass-awaited` in
+  `.claude/worktrees/pi-tokio-merge-second-pass-awaited`,
+  from `c0bb93d036` (the merge of the previous round).
+  Not merged into main.
+- What this run carried out:
+  option A of the previous section,
+  which the coordinator picked with the owner's veto open
+  (`doc/handover/questions-for-the-owner.md`,
+  "the merge's second pass becomes awaitable as one body").
+  A start of the second pass hands back a boxed future,
+  and every caller that takes a `GitRunner` is awaited or enters the runtime once.
+  One body,
+  no twin:
+  the folder a person's conflict resolution depends on does not diverge from itself.
+- Done,
+  one commit,
+  `403254deeb`,
+  compiling and passing:
+  - `merge/merge_second_pass_git_runner.rs`:
+    `GitRunner::run` returns
+    `Pin<Box<dyn Future<Output = Result<GitReply, String>> + Send + '_>>`,
+    as the LFS step's `GitQueryAwaiting` does,
+    because a trait with an `async` method cannot be a `dyn` value;
+    the shipped `ContextRunner` awaits `run_git_awaiting`,
+    so a start's pipes are registered on the runtime the caller already runs on.
+  - `merge/merge_second_pass.rs`:
+    `second_pass`,
+    `merge_attributes`,
+    `read_blobs`,
+    `write_blob` and `tree_with_files` are `async`.
+  - `merge/merge_second_pass_tree.rs`:
+    `resolve_tree`,
+    `merge_attribute_source`,
+    `attribute_choice`,
+    `configured_attribute_tree` and `attribute_tree_variables` are `async`,
+    because the attribute tree is a question put to the same runner.
+    `resolve_tree_on_the_runtime` and `attribute_tree_variables_on_the_runtime`
+    are the faces the thread-side callers use:
+    `landing/service_replay.rs`,
+    `shadow/replay_merge.rs`,
+    and the merge tree of `merge/merge_isolation_merge_tree.rs`.
+  - `merge/merge_second_pass_worktree.rs`:
+    `install` and `second_pass_parts` are `async`,
+    and `resolve_after` stays synchronous and enters the runtime once for the pass,
+    because the finish after it
+    (`merge_second_pass_finish.rs`)
+    still starts Git synchronously and is a folder of its own.
+  - `merge/merge_isolation_apply.rs`:
+    `merge_tree` keeps its signature and enters the runtime once,
+    `merge_tree_awaiting` is the asynchronous face.
+  - `push/auto_push_reconcile_merge_commit.rs`:
+    `PushRunner` answers through `run_bounded_git_awaiting`,
+    `commit_merge` enters the runtime once,
+    and `commit_merge_awaiting` is the face the reconcile's loop will use.
+    The two single synchronous questions it no longer asks
+    (`common_dir_of`,
+    `signs_commits`) are `#[cfg(test)]`,
+    for the control that compares the two faces.
+  - Two sibling files,
+    because the folder crossed the package's 300-code-line limit:
+    `merge/merge_isolation_merge_tree.rs` (the merge computed from objects and the pass over its
+    conflicts) and
+    `merge/merge_second_pass_worktree_install.rs` (the staging and the write of the files a
+    forwarded pass merged).
+    Both keep their names through a `pub use` in the file they left.
+- Controls:
+  - `the_second_pass_answers_from_a_task_of_the_runtime`
+    (`merge/merge_second_pass_tree_tests.rs`)
+    runs `second_pass` and `resolve_tree` inside `run_on_runtime` over a real conflicted
+    repository and requires the merged tree.
+    Planted,
+    by putting the synchronous `run_git` back where `ContextRunner` awaits,
+    it fails with
+    "git check-attr -z --stdin merge could not start:
+    the runtime that runs this command's waits
+    was asked for from inside itself,
+    where waiting for it would never end;
+    nothing was run".
+    Restored.
+  - `the_synchronous_start_is_refused_from_a_task_of_the_runtime`
+    is the positive control of that one:
+    the two faces differ in exactly the way the awaited one is written for.
+  - Every existing control passes unchanged,
+    with its stub runner's start now handing back a boxed future and its call awaited on the
+    runtime;
+    the two counting stubs hold a `Mutex` and an `AtomicUsize` instead of a `RefCell` and a `Cell`,
+    because a start's future is `Send`.
+  - The person's own path is the built executable:
+    `binary_word_merge`,
+    `binary_word_merge_finish`,
+    `binary_merge_isolation`,
+    `binary_merge_never_fails` and
+    `binary_commit_during_merge`,
+    87 controls,
+    all passing.
+- Measured,
+  and this is where the awaited push chain stops:
+  `advance_local_branch`
+  (`push/auto_push_reconcile_branch_advance.rs`)
+  moves the branch through `fast_forward_recorded`,
+  whose refusal path settles the intent record with `settle_failed_merge`
+  (`merge/merge_isolation_recovery.rs:253`).
+  That function,
+  and the folder it settles through,
+  read Git at 19 synchronous start sites
+  (`run_git`,
+  `run_git_checked`) across six files
+  of 2,161 lines
+  (`merge_isolation_recovery.rs`,
+  `merge_isolation_recovery_steps.rs`,
+  `merge_isolation_recovery_reads.rs`,
+  `merge_isolation_recovery_cleanup.rs`,
+  `merge_isolation_recovery_complete.rs`,
+  `merge_isolation_moved.rs`,
+  `merge_isolation_git_reads.rs`).
+  A synchronous start is refused inside the runtime,
+  and a job of the blocking pool is inside the runtime too,
+  so there is no bridge to it:
+  `advance_local_branch_awaiting` needs that folder converted first,
+  leaf first,
+  as `merge/` was here.
+  Leaving the record for the next wrapper command to settle instead was rejected:
+  it changes what a person sees after a refused fast-forward.
+- What the chain still lacks,
+  in the order the dependency allows:
+  the recovery folder's awaited Git seam,
+  then `advance_local_branch_awaiting` and its helpers
+  (`push/auto_push_reconcile_branch_advance.rs`),
+  then `integrate_and_push_awaiting` with `MergePusherAwaiting` and
+  `reconcile_divergent_push_awaiting` (`push/auto_push_reconcile.rs`),
+  then `push_once_awaiting` (`push/auto_push.rs`),
+  then the two handlers `WorkHandlers::push_awaiting` and
+  `WorkHandlers::maintenance_awaiting` (`landing/service_work.rs`).
+  `commit_merge_awaiting` is done.
+  The push's own synchronous reads that the handlers will need are unchanged:
+  `GitHandlers::push_git` (`landing/service_work.rs:380`) calls `read_config_snapshot`,
+  and `branch_exists` and `branch_is_gone_words` read with the synchronous `run_query`.
+- Checks:
+  - `merge`,
+    `auto_push_reconcile` and `auto_push` in one selection:
+    347 of 347 passed,
+    run twice,
+    once before the two sibling files were split out and once after.
+  - `native:clippy` clean on every target,
+    and `//package/git-policy/cli:lint` 0 errors and 0 warnings on the folders this run touched,
+    after `format:monochromatic-lint` wrote the breaks it asked for.
+  - `native:test:binary:host --no-run` builds the binary test target.
+  - The binary selection above:
+    87 of 87.
+    One control of the pair that watches the pass's own `git check-attr` from `/proc`
+    (`word_merge::an_edit_made_while_the_pass_merges_is_not_replaced` and
+    `word_merge::a_same_length_resolution_with_a_restored_time_is_not_replaced`)
+    fails under host load at its 15-second window,
+    and it does so on the base commit too:
+    at `c0bb93d036` the first of the two failed at 16.06 s with the same assertion,
+    and here the second failed at 16.29 s.
+    Each passes alone,
+    and both pass in the 87-control run,
+    so the flake is in the control's `/proc` polling and not in the pass;
+    it is not fixed here,
+    because a proper fix is a shim Git that writes a marker instead of a window.
+- Not run:
+  the whole `native:test:host` suite,
+  the container gate,
+  `native:perf` (nothing of this run is in a commit or a forwarded command's path)
+  and any mutation campaign (paused by the owner).
 
 ## Limits
 

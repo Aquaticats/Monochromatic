@@ -81,6 +81,11 @@ pub mod global_arguments;
 ///  and direct `check`/`fix`.
 pub mod management;
 
+/// The notes the `doctor` decision adds on standard error at its end:
+///  the units of worktrees that no longer exist,
+///  and the batches an earlier release left open.
+pub mod management_action_notes;
+
 /// The direct `monochromatic-git-policy-cli` commands that run in this process,
 /// with their refusals.
 pub mod management_direct_commands;

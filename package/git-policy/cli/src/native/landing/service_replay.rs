@@ -39,7 +39,7 @@ use crate::policy_events::PolicyEvent;
 use crate::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
 use crate::child_environment::environment_with_overlay;
 use crate::journald_native::CLIENT_IDENTIFIER;
-use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
+use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables_on_the_runtime, resolve_tree_on_the_runtime};
 use crate::replay_capture_order::CaptureOrderDecision;
 /// The capture order of every shared path of a replay,
 /// from one walk over the history.
@@ -78,6 +78,14 @@ pub struct Captured {
     /// with the stamps of their captures,
     /// as its last answer told.
     pub landed: Vec<LandedCapture>,
+    /// What the merge,
+    /// cherry-pick or revert state named when the change was captured,
+    /// so a replay concludes the same operation;
+    /// nothing when the command concluded none.
+    /// Why:
+    ///   A conclusion's parents are the state's,
+    /// and a replay over another state would make a commit the person never asked for.
+    pub conclusion: Option<String>,
 }
 
 /// What:
@@ -179,7 +187,9 @@ pub struct MergeSite<'a> {
 /// ```
 pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<LandedCapture>) -> Result<Captured, TransactionStop> {
     let tree: String = captured_tree(context, cwd, ready.inputs.commit_index.as_path(), ready.inputs.capture.layout.object_directory.as_path())?;
-    return Ok(Captured { base: ready.base.clone(), tree, captured: ready.captured_at, landed });
+    // The state the preparation saw, not a reading now: another command may have concluded the operation while this commit
+    //  waited, and the retry must find the same one.
+    return Ok(Captured { base: ready.base.clone(), tree, captured: ready.captured_at, landed, conclusion: ready.conclusion_state.clone() });
 }
 
 /// What:
@@ -365,9 +375,9 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         cwd: top.as_path(),
         without_prefix: true,
         object_directory: Some(site.object_directory),
-        environment: attribute_tree_variables(tip, &probe),
+        environment: attribute_tree_variables_on_the_runtime(tip, &probe),
     };
-    return match resolve_tree(&runner, site.common_dir, tree, conflicts, &probe) {
+    return match resolve_tree_on_the_runtime(&runner, site.common_dir, tree, conflicts, &probe) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
         None => Merged::Conflict(paths),
     };
