@@ -236,7 +236,7 @@ fn a_first_build_keeps_a_tracked_file_whose_mark_equals_the_base() {
     );
     assert_eq!(
         git_text(repo.as_path(), &["show", format!("{written}:a.txt").as_str()]),
-        "a changed\n",
+        "a changed",
         "the named path carries the worktree content"
     );
     remove(root.as_path());

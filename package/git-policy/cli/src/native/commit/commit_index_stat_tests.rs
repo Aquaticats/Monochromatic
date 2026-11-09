@@ -199,16 +199,17 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
     remove(root.as_path());
 }
 
-/// A tracked empty file that the real index holds as intent-to-add leaves the tree the private index produces when the
+/// A tracked empty file that the real index holds as intent-to-add stays in the tree the private index produces when the
 /// commit names another path:
 /// the entry's mode and object name equal the base's,
-/// so the reset leaves the mark as Git's own reset does,
-/// and a tree built from an index that holds it leaves that path out.
-/// Native Git commits the same tree for the same fixture
-/// (`an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark`,
+/// so the reset would leave the mark as Git's own reset does,
+/// and the copy clears that path before the reset so the base's own entry comes back.
+/// A tree built from a surviving mark leaves the path out once staging the named file invalidates the cached tree,
+/// which native Git's own tree does
+/// (`an_intent_to_add_entry_equal_to_the_base_stays_in_the_commit_where_native_git_drops_it`,
 /// `binary_commit_tests.rs`).
 #[test]
-fn an_intent_to_add_entry_equal_to_the_base_leaves_its_path_out_of_the_commit() {
+fn an_intent_to_add_entry_equal_to_the_base_keeps_its_path_in_the_commit() {
     let root: PathBuf = fixture("commit-index-intent-empty");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     std::fs::write(repo.join("empty"), "").expect("empty file");
@@ -226,8 +227,11 @@ fn an_intent_to_add_entry_equal_to_the_base_leaves_its_path_out_of_the_commit() 
         indexes.object_directory.as_path(),
     )
     .expect("tree");
-    let names: String = git_text(repo.as_path(), &["ls-tree", "--name-only", tree.as_str()]);
-    assert!(!names.lines().any(|name| { return name == "empty"; }), "the tree leaves the marked path out, as Git's tree does: {names}");
+    assert_eq!(
+        git_text(repo.as_path(), &["ls-tree", "-r", tree.as_str(), "--", "empty"]),
+        "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tempty",
+        "the tree holds the entry the base holds, which the person never asked to remove"
+    );
     assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
     remove(root.as_path());
 }
