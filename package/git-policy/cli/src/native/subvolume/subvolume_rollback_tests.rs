@@ -856,3 +856,35 @@ fn a_rollback_refuses_a_stage_the_journal_records_no_identity_for() {
     assert!(parent.join("staged-aside").exists(), "the stage this migration made is left where it was moved");
     remove(parent.as_path());
 }
+
+/// What:
+///  A rollback preview of a migration stopped right after the exchange is not refused.
+/// Why:
+///   In that state the stage's name holds the original plain directory and the checkout holds the new subvolume;
+/// the real
+///  rollback renames the original directory aside,
+/// swaps the trees back and only then deletes the subvolume,
+/// which is the
+///  one the journal recorded.
+/// The preview examined the stage's name as it stood and refused a rollback the real
+///  command performs.
+#[test]
+fn a_rollback_preview_after_the_exchange_is_not_refused() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-preview-after-exchange");
+    let (stopped_code, stopped_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-exchange", 0));
+    assert_eq!(stopped_code, FAILED, "{stopped_lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "the checkout holds the new subvolume");
+    assert!(!platform.is_subvolume_root(layout.new_path.as_path()).unwrap_or(true), "the stage's name holds the original directory");
+    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..rollback_arguments() };
+    let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(preview_code, DONE, "{preview_lines:#?}");
+    let said: String = preview_lines.join("\n");
+    assert!(said.contains("would restore") && !said.contains("refused"), "{said}");
+    // The preview promised what the real mode does.
+    let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(real_code, DONE, "{real_lines:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
