@@ -19,8 +19,6 @@
 
 /// Imports `fs` from `std`.
 use std::fs;
-/// Imports `BTreeMap` from `std::collections`.
-use std::collections::BTreeMap;
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
@@ -83,19 +81,10 @@ pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), T
 /// function installedNames(ctx: Context, tool: LockedTool, listing: 'component' | 'target'): string[]
 /// ```
 fn installed_names(ctx: &Context, tool: &LockedTool, listing: &str) -> Result<Vec<String>, ToolchainError> {
-    // What: the listing runs with `RUSTUP_AUTO_INSTALL=0` in its environment.
-    // Why: a query must not install anything. `rustup 1.29.2` answers
-    // `rustup component list --installed --toolchain 1.79.0` for a channel that is not installed by
-    // downloading and installing it, warning "the missing active toolchain has been auto-installed" and
-    // printing the fresh default profile with exit 0; its own source reads this variable before its
-    // `auto-install` setting (`src/config.rs`, `should_auto_install`).
-    // With the variable, the same command exits 1 with "error: toolchain '1.78.0-x86_64-unknown-linux-gnu'
-    // is not installed", so a channel that disappeared is reported as a failed tool instead of being
-    // installed behind the lock's back.
-    let mut env: BTreeMap<String, String> = ctx.path_env();
-    env.insert("RUSTUP_AUTO_INSTALL".to_string(), "0".to_string());
+    // What: a `rustup_query`, so the question cannot install the toolchain it asks about.
+    // Why: see `Context::rustup_query`; a query that installs answers as if the parts were always there.
     let request: RunRequest =
-        RunRequest::new("rustup", &[listing, "list", "--installed", "--toolchain", tool.rustup_channel()]).with_env(env);
+        ctx.rustup_query(&[listing, "list", "--installed", "--toolchain", tool.rustup_channel()]);
     let what: String = format!("rustup {listing} list --installed");
     // What: `run_checked` starts `rustup` and turns a non-zero exit into an error naming this step.
     // Why: a listing that fails cannot prove which parts are installed, so the tool is reported as failed

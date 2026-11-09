@@ -46,12 +46,6 @@ use super::parse_output::{
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
 
-/// The first word of a line (up to the first whitespace),
-/// or the empty text.
-fn first_word(line: &str) -> &str {
-    return line.split_whitespace().next().unwrap_or("");
-}
-
 /// What:
 /// The package key under `uv tool list`:
 /// the package id (or tool id) with `-` turned into `_`.
@@ -148,31 +142,25 @@ fn observe_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Option<String> {
 }
 
 /// What:
-/// The listed name of the toolchain this row names,
+/// The toolchain this row names,
 /// for the rustup-toolchain route:
-/// `rustup toolchain list` prints a channel followed by the host triple,
-/// and the row names the channel.
+/// the row's channel when `rustup` resolves it to an installed toolchain,
+/// else `None`.
 /// Why:
-/// The locked version is the release that channel resolved to,
-/// which `rustup` does not name a toolchain by;
-/// reading the listing for the version would take another installed toolchain for this one.
-/// An exact name wins over one with a triple appended,
-/// so a row naming `nightly` is not read as the dated `nightly-2026-10-30` install.
+/// `rustup toolchain list` prints a channel followed by the host triple it was installed for,
+/// and a name alone cannot tell that triple from a channel that carries a date:
+/// `nightly-x86_64-unknown-linux-gnu` and `nightly-2026-10-30-x86_64-unknown-linux-gnu` both start with `nightly-`.
+/// `rustup which --toolchain <channel>` is the tool deciding which installed toolchain that channel is,
+/// so no name is guessed and a toolchain for another host is never taken for this one.
+/// `rustup_query` keeps the question from installing a toolchain that is missing,
+/// and a query that failed or printed no path proves nothing.
 fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let outcome: RunOutcome = ctx.run(&ctx.request("rustup", &["toolchain", "list"]));
     let channel: &str = tool.rustup_channel();
-    let with_triple: String = format!("{channel}-");
-    let mut with_a_triple: Option<String> = None;
-    for line in outcome.stdout.lines() {
-        let name: &str = first_word(line);
-        if name == channel {
-            return Some(name.to_string());
-        }
-        if with_a_triple.is_none() && name.starts_with(&with_triple) {
-            with_a_triple = Some(name.to_string());
-        }
+    let outcome: RunOutcome = ctx.run(&ctx.rustup_query(&["which", "--toolchain", channel, "rustc"]));
+    if !outcome.succeeded() || outcome.stdout.trim().is_empty() {
+        return None;
     }
-    return with_a_triple;
+    return Some(channel.to_string());
 }
 
 /// The Android command-line tools directory for the locked version,

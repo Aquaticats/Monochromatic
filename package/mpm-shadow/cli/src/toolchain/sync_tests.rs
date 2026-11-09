@@ -85,7 +85,6 @@ fn sync_installs_what_is_missing_in_order_with_the_locked_versions_and_skips_wha
     // Keep the scenario to tools whose installers need nothing else: cargo crates and the Rust toolchain.
     keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
     finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
-    rig.runner.answer("rustup toolchain list", "stable-x86_64-unknown-linux-gnu\n", 0);
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.unchanged, vec!["cargo:fd-find".to_string()]);
     assert_eq!(report.installed, vec!["rust".to_string(), "cargo-binstall".to_string()]);
@@ -102,15 +101,15 @@ fn sync_installs_what_is_missing_in_order_with_the_locked_versions_and_skips_wha
     assert!(rust_position < binstall_position, "the Rust toolchain installs before cargo-binstall: {lines:?}");
 }
 
-/// What `rustup toolchain list` prints for a toolchain another step installed at the locked version.
-const LOCKED_TOOLCHAIN_LINE: &str = "nightly-2026-10-30-x86_64-unknown-linux-gnu (active, default)\n";
+/// The path `rustup which` prints for the locked channel when another step already installed it.
+const LOCKED_TOOLCHAIN_PATH: &str = "/home/someone/.rustup/toolchains/nightly-2026-10-30-x86_64-unknown-linux-gnu/bin/rustc\n";
 
 #[test]
 fn a_current_toolchain_gets_the_declared_components_and_targets_another_step_left_out() {
     let mut rig = Rig::new();
     keep_only(&mut rig, &["rust"]);
     // The sample lock declares the components `clippy` and `rust-src`, and the target `aarch64-linux-android`.
-    rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
+    rig.runner.answer("rustup which --toolchain nightly-2026-10-30 rustc", LOCKED_TOOLCHAIN_PATH, 0);
     rig.runner.answer(
         "rustup component list --installed --toolchain nightly-2026-10-30",
         "cargo-x86_64-unknown-linux-gnu\nrust-src\n",
@@ -139,7 +138,7 @@ fn a_current_toolchain_gets_the_declared_components_and_targets_another_step_lef
 fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
     let mut rig = Rig::new();
     keep_only(&mut rig, &["rust"]);
-    rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
+    rig.runner.answer("rustup which --toolchain nightly-2026-10-30 rustc", LOCKED_TOOLCHAIN_PATH, 0);
     rig.runner.answer(
         "rustup component list --installed --toolchain nightly-2026-10-30",
         "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
@@ -169,7 +168,7 @@ fn a_toolchain_row_naming_a_channel_is_recognised_and_reconciled_under_that_chan
         tool.declaration.package_id = Some("stable".to_string());
         tool.version = "1.90.0".to_string();
     }
-    rig.runner.answer("rustup toolchain list", "stable-x86_64-unknown-linux-gnu (active, default)\n", 0);
+    rig.runner.answer("rustup which --toolchain stable rustc", "/home/someone/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc\n", 0);
     rig.runner.answer(
         "rustup component list --installed --toolchain stable",
         "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
@@ -194,7 +193,7 @@ fn a_toolchain_row_naming_a_channel_is_recognised_and_reconciled_under_that_chan
 fn a_failed_target_add_fails_the_tool_and_keeps_the_component_it_added_to_the_report() {
     let mut rig = Rig::new();
     keep_only(&mut rig, &["rust"]);
-    rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
+    rig.runner.answer("rustup which --toolchain nightly-2026-10-30 rustc", LOCKED_TOOLCHAIN_PATH, 0);
     rig.runner.answer("rustup component list --installed --toolchain nightly-2026-10-30", "rust-src\n", 0);
     rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\n", 0);
     rig.runner.fail("rustup target add aarch64-linux-android", "error: component 'rust-std' for target 'aarch64-linux-android' is unavailable");
