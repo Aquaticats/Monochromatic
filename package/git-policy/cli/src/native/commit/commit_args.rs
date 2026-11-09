@@ -80,7 +80,8 @@ const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
 ///   A cluster such as `-am` carries `m`,
 /// whose value is the following token or the rest of the cluster.
 /// A letter with an attached value (`-S<keyid>`,
-/// `-u<mode>`) ends the search instead: what follows it is its value,
+/// `-u<mode>`) ends the search instead:
+/// what follows it is its value,
 /// so a key ID or mode that spells `m`,
 /// `F`,
 /// `C`,
