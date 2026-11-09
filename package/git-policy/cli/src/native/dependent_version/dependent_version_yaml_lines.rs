@@ -169,39 +169,125 @@ pub fn item_content(content: &str) -> &str {
 }
 
 /// What:
+/// Whether a character separates text on a line:
+/// a space or a tab.
+/// Why:
+///  `-`,
+/// `?` and `:` begin a plain scalar only when a non-space follows,
+/// and a
+///       tab separates as a space does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSpaceOrTab = (c: string) => c === ' ' || c === '\t';
+/// ```
+fn is_space_or_tab(character: char) -> bool {
+    return character == ' ' || character == '\t';
+}
+
+/// What:
+/// The indicator a plain scalar or key begins with,
+/// when this reader does not follow it.
+/// Why:
+///  A tag (`!`),
+/// anchor (`&`),
+/// alias (`*`),
+/// block scalar (`|`,
+///       `>`),
+/// directive (`%`),
+/// reserved character (`@`,
+/// backtick),
+/// flow collection
+///       (`[`, `]`, `{`, `}`,
+/// `,`),
+/// comment (`#`) or quote makes the line mean something other
+///       than the text this reader would store;
+/// `-`,
+/// `?` and `:` begin a plain
+///       scalar only when a non-space follows,
+/// so an item indicator or an explicit
+///       key is refused too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusedIndicator(text: string): string | undefined;
+/// ```
+fn refused_indicator(text: &str) -> Option<char> {
+    let Some(first): Option<char> = text.chars().next() else {
+        return None;
+    };
+    if matches!(
+        first,
+        '!' | '&' | '*' | '|' | '>' | '%' | '@' | '`' | '[' | ']' | '{' | '}' | ',' | '#' | '\'' | '"'
+    ) {
+        return Some(first);
+    }
+    if matches!(first, '-' | '?' | ':') {
+        let after: &str = &text[first.len_utf8()..];
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if separated {
+            return Some(first);
+        }
+    }
+    return None;
+}
+
+/// What:
 /// The key and the rest of a line,
 /// or nothing when the line holds no key.
+/// `Err` is why a line that looks like a key is not one this reader reads.
 /// Why:
 ///  A key ends at a colon a space or the line end follows;
 /// a quoted key ends
 ///       at its closing quote,
 /// so the quoted registry pattern `'@scope/*':` is one key.
+/// A key this reader cannot read is refused rather than stored,
+/// because
+///       a key it kept verbatim would silently answer "no such entry".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function splitKey(content: string): [string, string] | undefined;
 /// ```
-pub fn split_key(content: &str) -> Option<(String, &str)> {
+pub fn split_key(content: &str) -> Result<Option<(String, &str)>, String> {
     if content.starts_with('\'') || content.starts_with('"') {
-        let (key, rest): (String, &str) = read_quoted(content).ok()?;
+        let (key, rest): (String, &str) = read_quoted(content)?;
         let unspaced: &str = rest.trim_start_matches(' ');
-        let after: &str = unspaced.strip_prefix(':')?;
-        return Some((key, after.trim_start_matches(' ')));
+        let Some(after): Option<&str> = unspaced.strip_prefix(':') else {
+            return Ok(None);
+        };
+        if key.is_empty() {
+            return Err(String::from("names no key"));
+        }
+        return Ok(Some((key, after.trim_start_matches(' '))));
     }
     for (index, character) in content.char_indices() {
         if character != ':' {
             continue;
         }
         let after: &str = &content[index + 1..];
+        let separated: bool = after.is_empty() || after.starts_with(' ');
+        if !separated {
+            continue;
+        }
         let key: &str = content[..index].trim_end_matches(' ');
-        if after.is_empty() {
-            return Some((String::from(key), ""));
+        if key.is_empty() {
+            return Err(String::from("names no key"));
         }
-        if let Some(value) = after.strip_prefix(' ') {
-            return Some((String::from(key), value.trim_start_matches(' ')));
+        if let Some(first) = refused_indicator(key) {
+            return Err(format!(
+                "begins with {first:?}, which opens a key this reader does not read"
+            ));
         }
+        return Ok(Some((
+            String::from(key),
+            after.trim_start_matches(' '),
+        )));
     }
-    return None;
+    return Ok(None);
 }
 
 /// What:

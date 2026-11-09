@@ -232,3 +232,25 @@ fn refuses_what_it_cannot_place() {
         YamlProblem::new(2, "opens a quote that never closes")
     );
 }
+
+/// A tagged key is refused at its line:
+/// `!!str packages:` names the entry `packages` to a YAML parser,
+/// so the reader
+///       must not keep the tag in the name and answer "no such entry".
+#[test]
+fn refuses_a_tagged_key_by_line() {
+    assert_eq!(
+        problem("a:\n  !!str packages:\n    - b\n"),
+        YamlProblem::new(
+            2,
+            "begins with '!', which opens a key this reader does not read"
+        )
+    );
+    assert_eq!(
+        problem("a:\n  - !!str packages:\n      - b\n"),
+        YamlProblem::new(
+            2,
+            "begins with '!', which opens a key this reader does not read"
+        )
+    );
+}

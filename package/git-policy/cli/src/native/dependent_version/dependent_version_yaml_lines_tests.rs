@@ -89,24 +89,72 @@ fn tells_an_item_from_a_scalar_that_begins_with_a_dash() {
 fn splits_a_key_from_its_scalar() {
     assert_eq!(
         split_key("packages:"),
-        Some((String::from("packages"), ""))
+        Ok(Some((String::from("packages"), "")))
     );
     assert_eq!(
         split_key("registry: monochromatic-dev"),
-        Some((String::from("registry"), "monochromatic-dev"))
+        Ok(Some((String::from("registry"), "monochromatic-dev")))
     );
     assert_eq!(
         split_key("registry : monochromatic-dev"),
-        Some((String::from("registry"), "monochromatic-dev"))
+        Ok(Some((String::from("registry"), "monochromatic-dev")))
     );
     assert_eq!(
         split_key("'@monochromatic-dev/*':"),
-        Some((String::from("@monochromatic-dev/*"), ""))
+        Ok(Some((String::from("@monochromatic-dev/*"), "")))
     );
-    assert_eq!(split_key("'repo:example/main': x"), Some((String::from("repo:example/main"), "x")));
-    assert_eq!(split_key("- '@s/a'"), None);
-    assert_eq!(split_key("no colon here"), None);
-    assert_eq!(split_key("not:a:key"), None);
+    assert_eq!(
+        split_key("'repo:example/main': x"),
+        Ok(Some((String::from("repo:example/main"), "x")))
+    );
+    assert_eq!(split_key("- '@s/a'"), Ok(None));
+    assert_eq!(split_key("no colon here"), Ok(None));
+    assert_eq!(split_key("not:a:key"), Ok(None));
+}
+
+/// A key this reader would have to guess at is refused,
+/// never stored under the
+///       text it happens to hold:
+/// a tag,
+/// anchor,
+/// alias or block indicator
+///       means the entry has another name,
+/// and an empty key names nothing.
+#[test]
+fn refuses_keys_it_does_not_read() {
+    assert_eq!(
+        split_key("!!str packages:"),
+        Err(String::from(
+            "begins with '!', which opens a key this reader does not read"
+        ))
+    );
+    assert_eq!(
+        split_key("&anchor packages:"),
+        Err(String::from(
+            "begins with '&', which opens a key this reader does not read"
+        ))
+    );
+    assert_eq!(
+        split_key("*alias:"),
+        Err(String::from(
+            "begins with '*', which opens a key this reader does not read"
+        ))
+    );
+    assert_eq!(
+        split_key("|block:"),
+        Err(String::from(
+            "begins with '|', which opens a key this reader does not read"
+        ))
+    );
+    assert_eq!(
+        split_key("? packages:"),
+        Err(String::from(
+            "begins with '?', which opens a key this reader does not read"
+        ))
+    );
+    assert_eq!(split_key(":"), Err(String::from("names no key")));
+    assert_eq!(split_key("'':"), Err(String::from("names no key")));
+    assert_eq!(split_key("-x: 1"), Ok(Some((String::from("-x"), "1"))));
 }
 
 /// Single quotes escape by doubling,

@@ -205,7 +205,12 @@ fn parse_sequence(lines: &[YamlLine<'_>], index: usize) -> Result<(YamlNode, usi
                 "opens a nested list on one line, which this reader does not read",
             ));
         }
-        if split_key(rest).is_some() {
+        let opens_mapping: bool = match split_key(rest) {
+            Ok(Some(_)) => true,
+            Ok(None) => false,
+            Err(reason) => return Err(YamlProblem::new(line.number, &reason)),
+        };
+        if opens_mapping {
             let (node, next): (YamlNode, usize) = parse_mapping(
                 lines,
                 at,
@@ -298,8 +303,10 @@ fn parse_mapping(
                 "opens a list item where a key was expected",
             ));
         }
-        let Some((key, rest)) = split_key(content) else {
-            return Err(YamlProblem::new(number, "holds no key and colon"));
+        let (key, rest) = match split_key(content) {
+            Ok(Some(found)) => found,
+            Ok(None) => return Err(YamlProblem::new(number, "holds no key and colon")),
+            Err(reason) => return Err(YamlProblem::new(number, &reason)),
         };
         if already_holds(&entries, key.as_str()) {
             return Err(YamlProblem::new(
