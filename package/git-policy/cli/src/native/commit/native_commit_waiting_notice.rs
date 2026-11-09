@@ -77,6 +77,8 @@ use crate::config_snapshot::ConfigSnapshot;
 use crate::service_commit_args_editor_opening::opens_editor;
 /// The notice's sink.
 use std::io::Write;
+/// The writer thread's own time, kept where the notice thread can read it.
+use std::sync::Mutex;
 /// The channel that ends the notice thread.
 use std::sync::mpsc::{Sender, RecvTimeoutError, channel};
 /// Time spans and the monotonic clock.
@@ -87,6 +89,35 @@ use crate::process_tree::TreeMember;
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
 const LOOK_PAUSE: Duration = Duration::from_millis(1);
+
+/// What:
+///  How many lines the writer may hold before the notice stops handing it more.
+/// Why:
+///   A reader that stopped reading holds one line and nothing else:
+/// the line before it is dropped and counted,
+/// so the notice thread never waits for a reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lineQueue = 1;
+/// ```
+const LINE_QUEUE: usize = 1;
+
+/// What:
+///  The longest `finish` waits for the notice's answer,
+/// and then for the writer to write the line it was handed.
+/// Why:
+///   A line is advisory:
+/// a reader that stopped reading must never hold the commit,
+/// and neither may a notice thread that cannot answer.
+/// Twice `LOOK_INTERVAL` is longer than the thread's own wake and one look,
+/// which is what an answer can honestly need.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noticeBound = 500; // ms
+/// ```
+const NOTICE_BOUND: Duration = Duration::from_millis(500);
 
 /// The longest the notice goes between two looks at what runs below this process.
 /// Why:
@@ -213,14 +244,19 @@ impl WatchedStep {
 }
 
 /// The running notice:
-/// the thread that prints it and the sender that ends it.
+/// the thread that watches the step, the thread that writes its lines,
+/// and the sender that ends the watching.
 pub struct NativeCommitNotice {
     /// Ends the thread when it is sent to or dropped.
     stop: Option<Sender<()>>,
-    /// The thread,
-    /// joined when the step has ended;
-    /// it answers what it saw while the step ran.
-    thread: Option<std::thread::JoinHandle<ScratchStepFacts>>,
+    /// The facts the thread answers when it ends,
+    /// waited for no longer than `NOTICE_BOUND`.
+    answers: std::sync::mpsc::Receiver<ScratchStepFacts>,
+    /// The writer's end,
+    /// waited for no longer than `NOTICE_BOUND` after the thread answered.
+    written: std::sync::mpsc::Receiver<()>,
+    /// How long the writer spent on the lines it finished.
+    wrote: std::sync::Arc<Mutex<Duration>>,
     /// What is reported when no thread ran,
     /// so a record still says that no ceiling was armed and why.
     unarmed: ScratchStepFacts,
@@ -478,7 +514,16 @@ impl NativeCommitNotice {
     /// the commit opens an editor,
     /// or no thread could be started.
     fn silent(ceiling: Option<Duration>) -> Self {
-        return Self { stop: None, thread: None, unarmed: ScratchStepFacts::unarmed(ceiling), step: WatchedStep::not_started() };
+        let (_no_lines, written) = channel::<()>();
+        let (_no_answer, answers) = channel::<ScratchStepFacts>();
+        return Self {
+            stop: None,
+            answers,
+            written,
+            wrote: std::sync::Arc::default(),
+            unarmed: ScratchStepFacts::unarmed(ceiling),
+            step: WatchedStep::not_started(),
+        };
     }
 
     /// What:
@@ -513,7 +558,7 @@ impl NativeCommitNotice {
 
     /// Starts the notice with the ceiling given.
     pub fn start_within(start: NoticeStart<'_>) -> Self {
-        let NoticeStart { snapshot, commit_arguments, cadence, ceiling, mut sink } = start;
+        let NoticeStart { snapshot, commit_arguments, cadence, ceiling, sink } = start;
         let words: Vec<std::ffi::OsString> = commit_arguments.iter().map(std::ffi::OsString::from).collect();
         if opens_editor(words.as_slice()) {
             // The person is the wait, and a message typed into an editor would be lost by a stop.
@@ -521,9 +566,28 @@ impl NativeCommitNotice {
         }
         let signs: bool = signs_commit(snapshot, commit_arguments);
         let (stop, ended) = channel::<()>();
+        let (lines, waiting) = std::sync::mpsc::sync_channel::<String>(LINE_QUEUE);
+        let (told_written, written) = channel::<()>();
+        let (told_answers, answers) = channel::<ScratchStepFacts>();
+        let wrote: std::sync::Arc<Mutex<Duration>> = std::sync::Arc::default();
+        // The writer's own copy of the time it spends, so the notice thread's figures can say it without waiting for a write.
+        let spending: std::sync::Arc<Mutex<Duration>> = wrote.clone();
         let began: Instant = Instant::now();
         let step: WatchedStep = WatchedStep::not_started();
         let watched: WatchedStep = step.clone();
+        // The lines are written here and never on the thread that enforces the ceiling:
+        // a reader that stopped reading then holds this thread, and the commit does not wait for it.
+        let _writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
+            let mut sink: Box<dyn Write + Send> = sink;
+            for line in waiting {
+                let writing: Instant = Instant::now();
+                let _written = sink.write_all(line.as_bytes());
+                let _flushed = sink.flush();
+                let mut spent = spending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                *spent = spent.saturating_add(writing.elapsed());
+            }
+            let _told = told_written.send(());
+        });
         let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
@@ -534,7 +598,8 @@ impl NativeCommitNotice {
             // The processes the previous look saw below the step, and when that look was.
             let mut before: Vec<SeenBelow> = Vec::new();
             let mut last_look: Duration = Duration::ZERO;
-            loop {
+            // One label for every way the loop ends, so the facts leave through the channel and not through the join.
+            'notice: loop {
                 let waited: Duration = began.elapsed();
                 // One look: the step, the programs below it, and what they are using.
                 // A step that has not started yet is nothing to look at, which is not a look that failed.
@@ -570,9 +635,9 @@ impl NativeCommitNotice {
                     match ceiling_came(step) {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
-                            return facts;
+                            break 'notice;
                         }
-                        CeilingCame::TheStepEnded => return facts,
+                        CeilingCame::TheStepEnded => break 'notice,
                         // The look failed: nothing is known about the step, and the ceiling stays armed so a later look can stop it.
                         CeilingCame::Unknown => {
                             facts.blind_looks = facts.blind_looks.saturating_add(1);
@@ -582,11 +647,11 @@ impl NativeCommitNotice {
                 if ticker.due(waited) {
                     let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling);
                     first = false;
-                    // A closed terminal is not a reason to stop the commit.
-                    let writing: Instant = Instant::now();
-                    let _written = sink.write_all(line.as_bytes());
-                    let _flushed = sink.flush();
-                    facts.wrote = facts.wrote.saturating_add(writing.elapsed());
+                    // A closed terminal is not a reason to stop the commit, and a reader that stopped reading is not one either:
+                    // the line is handed to the writer, and dropped and counted while the writer still holds the one before it.
+                    if lines.try_send(line).is_err() {
+                        facts.lines_dropped = facts.lines_dropped.saturating_add(1);
+                    }
                 }
                 // Wake for the sooner of the next line, the look, and the ceiling.
                 let to_next: Duration = ticker.next_in(waited);
@@ -599,12 +664,22 @@ impl NativeCommitNotice {
                 let floor: Duration = if since_seen >= ceiling { LOOK_INTERVAL } else { LOOK_PAUSE };
                 match ended.recv_timeout(pause.max(floor)) {
                     Err(RecvTimeoutError::Timeout) => {}
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return facts,
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break 'notice,
                 }
             }
+            // The facts leave through the channel `finish` waits on, so a thread that cannot answer never holds the commit:
+            // returning them through the join would make the join the wait.
+            let _answered = told_answers.send(facts);
         });
         return match spawned {
-            Ok(thread) => Self { stop: Some(stop), thread: Some(thread), unarmed: ScratchStepFacts::unarmed(Some(ceiling)), step },
+            Ok(_thread) => Self {
+                stop: Some(stop),
+                answers,
+                written,
+                wrote,
+                unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
+                step,
+            },
             // The system refused the thread: the step runs with no ceiling, and the record says so.
             Err(_) => Self::silent(Some(ceiling)),
         };
@@ -613,25 +688,40 @@ impl NativeCommitNotice {
     /// Ends the notice once the step has ended,
     /// and answers what it saw:
     /// how long the step had lasted when the notice stopped it,
-    /// how long the notice's own join took,
+    /// how long the notice's own end took,
     /// and what ran below the step.
     /// Why:
-    ///   The join is timed here because a notice line waits for its reader:
-    /// a step whose figure held that wait would name the terminal as the work.
+    ///   Both waits here are bounded (`NOTICE_BOUND`):
+    /// the line is advisory,
+    /// so neither a reader that stopped reading nor a notice thread that cannot answer may hold the commit,
+    /// which is finding 3 of the 2026-11-09 process and child lifetime audit.
+    ///  A thread that does not answer leaves a record that says a ceiling was armed and no figure of it,
+    /// rather than a record of zeroes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const began = now(); notice.stop(); const seen = notice.join(); seen.notice = now() - began; return seen;
+    /// const began = now(); notice.stop(); const seen = notice.answerWithin(bound); seen.notice = now() - began; return seen;
     /// ```
     pub fn finish(mut self) -> ScratchStepFacts {
         let began: Instant = Instant::now();
         if let Some(stop) = self.stop.take() {
             let _sent = stop.send(());
         }
-        let mut facts: ScratchStepFacts = match self.thread.take() {
-            Some(thread) => thread.join().unwrap_or(self.unarmed),
-            None => self.unarmed,
+        let mut facts: ScratchStepFacts = match self.answers.recv_timeout(NOTICE_BOUND) {
+            Ok(heard) => heard,
+            // No thread ran: the commit may open an editor, or the system refused the thread.
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => self.unarmed,
+            // The thread did not answer in time: a ceiling was armed and no figure of it is known,
+            // which is a different record from one whose counters are zero.
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                let mut unanswered: ScratchStepFacts = self.unarmed;
+                unanswered.armed = unanswered.ceiling.is_some();
+                unanswered
+            }
         };
+        // The line already handed to the writer is written if the reader takes it within the same bound, and no longer.
+        let _written = self.written.recv_timeout(NOTICE_BOUND);
+        facts.wrote = *self.wrote.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         facts.notice = began.elapsed();
         return facts;
     }

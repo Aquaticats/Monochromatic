@@ -83,6 +83,9 @@ pub struct ScratchStepFacts {
     /// Whether a notice thread ran to enforce the ceiling:
     /// false for a commit with an editor,
     /// and for one whose thread the system refused.
+    ///  A thread that ran but did not answer within the notice's bound is `true` with `looks` at zero,
+    /// which no thread that ran can otherwise report:
+    /// every one of them looks before it can end.
     pub armed: bool,
     /// How long the step had lasted when the notice ended it,
     /// and nothing when the step ended by itself.
@@ -91,8 +94,13 @@ pub struct ScratchStepFacts {
     /// its lines are written from its thread,
     /// so a writing that waits for its reader is this figure and not the step's.
     pub notice: Duration,
-    /// How long the notice spent writing its lines.
+    /// How long the writer spent on the lines it finished.
+    ///  A write still in progress when the commit ended is not in it,
+    /// so this is a lower bound of the time a reader cost.
     pub wrote: Duration,
+    /// How many lines were dropped because the writer still held the one before them,
+    /// which is a reader that stopped taking them.
+    pub lines_dropped: u32,
     /// How many looks the notice made for the step.
     pub looks: u32,
     /// How many of those found at least one process below the command.
@@ -129,6 +137,7 @@ impl ScratchStepFacts {
             stopped_after: None,
             notice: Duration::ZERO,
             wrote: Duration::ZERO,
+            lines_dropped: 0,
             looks: 0,
             looks_found: 0,
             below: Vec::new(),
@@ -231,17 +240,18 @@ fn seen_json(program: &SeenProgram) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, looks, looksFound, below, belowCpuMs, blindLooks, blockedLooks })
+/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, blindLooks, blockedLooks })
 /// ```
 fn facts_json(facts: &ScratchStepFacts) -> String {
     let names: Vec<String> = facts.below.iter().map(seen_json).collect();
     return format!(
-        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
+        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
         millis(facts.ceiling),
         facts.armed,
         millis(facts.stopped_after),
         facts.notice.as_millis(),
         facts.wrote.as_millis(),
+        facts.lines_dropped,
         facts.looks,
         facts.looks_found,
         names.join(","),

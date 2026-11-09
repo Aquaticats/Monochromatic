@@ -521,6 +521,16 @@ pub(crate) fn leave_free(free: usize) -> Vec<std::fs::File> {
     for _ in 0..free {
         held.pop();
     }
+    // What the step under test sees must be exactly that room:
+    // an open one past it fails with `EMFILE`,
+    // so a limit that was set from a stale count is reported here and not as a look that answered.
+    let mut probes: Vec<std::fs::File> = Vec::new();
+    for _ in 0..free {
+        probes.push(std::fs::File::open("/dev/null").expect("the room that was given back is usable"));
+    }
+    let refused: std::io::Error = std::fs::File::open("/dev/null").expect_err("the limit refuses the open after the room it leaves");
+    assert_eq!(refused.raw_os_error(), Some(libc::EMFILE), "only the limit stops the open after the room it leaves: {refused}");
+    drop(probes);
     return held;
 }
 

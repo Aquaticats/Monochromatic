@@ -391,7 +391,9 @@ fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
     assert!(still_running, "the step was stopped while `/proc` could not be read at all");
     assert!(ended.is_some(), "a look that could not be made took the ceiling away: {seen:?}");
     assert!(seen.stopped_after.is_some(), "the stop is recorded: {seen:?}");
-    assert!(seen.blind_looks >= 1, "the record says a look could not be made: {seen:?}");
+    // How many looks were blind is not asserted here: a notice thread the host starved through the whole window
+    // would report none and this control would then be an ordinary stop, so the count is controlled where it can be certain
+    // (`a_look_that_could_not_be_made_keeps_the_ceiling_armed`, and the record's own figures).
 }
 
 /// What:
@@ -548,6 +550,8 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(entered.load(std::sync::atomic::Ordering::SeqCst), "the notice never wrote a line");
+    // Three cadences: the writer holds the first line, the queue holds the second, and the third cannot be handed over.
+    std::thread::sleep(cadence.interval.saturating_mul(3));
     let (sent, told) = std::sync::mpsc::channel::<ScratchStepFacts>();
     let began: Instant = Instant::now();
     let finishing: std::thread::JoinHandle<()> = std::thread::spawn(move || {
@@ -565,4 +569,6 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
     };
     finishing.join().expect("the finishing thread");
     assert!(answered_in_time, "the commit was still waiting for a reader that stopped reading {waited:?} after its step ended: {facts:?}");
+    assert!(facts.lines_dropped >= 1, "the record says a line was dropped because the reader was not taking it: {facts:?}");
+    assert_eq!(facts.looks_found, 0, "no step ran, so no look found one: {facts:?}");
 }
