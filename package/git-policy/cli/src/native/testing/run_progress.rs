@@ -54,6 +54,9 @@ use crate::thread_quiet::current_thread_id;
 /// Every process this one started,
 /// so their work counts too.
 use std::collections::HashSet;
+/// Writing the report on standard error,
+/// whose failure is ignored so the ending always runs.
+use std::io::Write as _;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
 
@@ -502,19 +505,27 @@ fn run(window: Duration) {
 }
 
 /// What:
-///  Say why the run ended and end the process.
+///  Say why the run ended and end the process,
+/// whatever became of the report.
 /// Why:
 ///   The line is what the person sees in the test log,
 /// so it names the window that passed and the signs that were
 ///  read,
 /// and there is no other way to end a stuck run from its own thread.
+/// A report that cannot be written (a full disk,
+/// a closed pipe) must not be a precondition for ending:
+/// a
+///  panicking macro would kill only this thread,
+/// and the test it watches would stay blocked without a watcher.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function end(ending) { console.error(`the unit-test run ${ending}: a test is stuck`); process.abort(); }
+/// function end(ending) { try { process.stderr.write(`the unit-test run ${ending}: a test is stuck\n`) } catch {} process.abort(); }
 /// ```
 fn end(ending: Ending) -> ! {
-    eprintln!("the unit-test run {ending}: a test is stuck");
+    // The error is ignored on purpose: `eprintln!` panics when the write fails, and only this thread would die.
+    let mut stderr = std::io::stderr().lock();
+    let _written = writeln!(stderr, "the unit-test run {ending}: a test is stuck");
     std::process::abort();
 }
 
