@@ -18,11 +18,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// How many worktrees the controls convert.
-/// A conversion copies, verifies and exchanges a real directory and syncs it,
+/// A conversion copies,
+/// verifies and exchanges a real directory and syncs it,
 /// and on a host whose disk is busy one takes seconds
-/// (measured at a 2-CPU allowance with the host loaded: 28 s a conversion),
+/// (measured at a 2-CPU allowance with the host loaded:
+/// 28 s a conversion),
 /// so a control converts no more than the report it pins needs:
-/// two show a side-by-side run beside a serial one, and the report's order.
+/// two show a side-by-side run beside a serial one,
+/// and the report's order.
 const WORKTREES: usize = 2;
 
 /// The name of the linked worktree a control registers while a run waits.
