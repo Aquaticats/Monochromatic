@@ -2766,7 +2766,8 @@ The root of a step whose record could not be read therefore stays in the stop's 
 (`src/native/push/child_watch_clock_marks_and_stopping.rs`),
 so a live Git gets the grace between the request and the kill that it would have had,
 and the wait after the kill;
-a stop that judged its wait by the tree alone sent the kill at once, because a refused root is no
+a stop that judged its wait by the tree alone sent the kill at once,
+because a refused root is no
 member of that tree.
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
@@ -2814,7 +2815,9 @@ while the number certainly names this process's own unreaped child
 and the ceiling signals through it.
 A host that gives no descriptor sends nothing and the sentence says the query was not ended.
 
-Both threads of a batch query, and the thread that waits for a one-shot query, are started before
+Both threads of a batch query,
+and the thread that waits for a one-shot query,
+are started before
 the child.
 A refused thread start then costs the command its start,
 and no killed child is left unreaped in a resident process,
@@ -2914,7 +2917,8 @@ and such a query changes nothing of the repository,
 so ending it costs nothing
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 finding 5).
-A metadata answer has to be whole, though:
+A metadata answer has to be whole,
+though:
 a query whose output is longer than the `STEP_OUTPUT_LIMIT` bytes the capture keeps fails and says what
 was left out,
 because its bytes are parsed or compared and the last part of a cut answer is a wrong answer.
