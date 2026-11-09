@@ -341,3 +341,49 @@ fn an_upload_that_cannot_capture_its_output_is_refused_with_the_ways_forward() {
     assert_eq!(runs_of(counter.as_path()), 0, "nothing ran");
     remove(root.as_path());
 }
+
+/// The coordinator's Git for a fixture whose `PATH` finds `bin` first,
+/// with the upload switched on.
+fn push_git_through(bin: &std::path::Path, root: &std::path::Path) -> PushGit {
+    let path: OsString = std::env::join_paths([bin, std::path::Path::new("/usr/bin"), std::path::Path::new("/bin")]).expect("a PATH");
+    let mut environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), path),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+    ];
+    environment.extend(crate::test_support::scratch_environment());
+    return PushGit { real_git: root.join("real-git"), cwd: root.to_path_buf(), environment, lfs: true };
+}
+
+/// A stand-in `git-lfs` that answers `status` after a moment,
+/// so a wait that held its thread is visible beside it.
+fn slow_stand_in(directory: &std::path::Path, status: i32) {
+    std::fs::create_dir_all(directory).expect("bin directory");
+    let source: String = format!("#!/bin/sh\nsleep 0.2\nexit {status}\n");
+    executable(directory.join("git-lfs").as_path(), source.as_bytes());
+}
+
+/// What:
+///  The awaited upload answers what the synchronous upload answers,
+/// and a task beside it keeps running while the program does.
+/// Why:
+///   The landing round's push uploads the objects of its commits as a task,
+/// and a difference between the faces would be an upload that
+///  reported another program's result,
+/// or a round whose other directories stopped for the whole upload.
+#[test]
+fn the_awaited_upload_answers_what_the_synchronous_upload_answers() {
+    for status in [0, 7] {
+        let root: PathBuf = fixture(format!("lfs-upload-awaiting-{status}").as_str());
+        std::fs::write(root.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
+        let bin: PathBuf = root.join("bin");
+        slow_stand_in(bin.as_path(), status);
+        let context: PushGit = push_git_through(bin.as_path(), root.as_path());
+        let answer = run_upload_bounded(&context, &plan());
+        let (awaited, ticks): (Result<Option<PushAttempt>, SingleFlightError>, u32) =
+            crate::ticker_beside_a_wait::with_a_ticker_beside(run_upload_bounded_awaiting(&context, &plan()));
+        assert_eq!(format!("{awaited:?}"), format!("{answer:?}"), "{status}");
+        assert!(ticks > 0, "the wait for the upload held the thread: the task beside it never ran");
+        remove(root.as_path());
+    }
+}

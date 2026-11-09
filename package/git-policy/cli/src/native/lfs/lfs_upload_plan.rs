@@ -35,7 +35,11 @@
 use crate::command_push::{parse_push_region, push_shape};
 /// The configuration the plan reads.
 use crate::lfs_upload_settings::{current_branch, default_remote, reads_as_true, setting, values};
-pub use crate::lfs_upload_settings::{GitQuery, PlanError, Query, Settings, read_settings, resolve_push_remote, settings_from_snapshot};
+/// The whole plan awaited by a caller that is itself a task of the runtime.
+pub use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
+pub use crate::lfs_upload_settings::{
+    GitQuery, GitQueryAwaiting, PlanError, Query, QueryAwaiting, Settings, read_settings, read_settings_awaiting, resolve_push_remote, settings_from_snapshot,
+};
 /// The switch and the skip variable.
 use crate::lfs_pre_push::{hook_switched_off, skip_requested};
 /// Owned OS text for arguments.
@@ -130,7 +134,7 @@ impl UploadPlan {
 ///  before the last colon (Git splits at the last one,
 /// so a source such as `:/message` survives);
 /// a leading `+` is dropped.
-enum Source {
+pub(crate) enum Source {
     /// The refspec only deletes.
     Deletion,
     /// The refspec `:` (or `+:`):
@@ -142,7 +146,7 @@ enum Source {
 }
 
 /// Read the source of one refspec.
-fn refspec_source(spec: &OsStr) -> Source {
+pub(crate) fn refspec_source(spec: &OsStr) -> Source {
     let bytes: &[u8] = spec.as_encoded_bytes();
     let unforced: &[u8] = bytes.strip_prefix(b"+").unwrap_or(bytes);
     if unforced == b":" {
@@ -178,6 +182,21 @@ fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git for-each-ref {prefix}: {why}"))),
     };
+    return Ok(names_of(listing.as_str(), pattern));
+}
+
+/// What:
+///  The names one finished listing keeps,
+/// by the pattern the caller asked for.
+/// Why:
+///   Both faces of the listing keep the same names here,
+/// so a pattern either face reads means the same refs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listing.split('\n').filter((name) => !pattern || (name.length >= front.length + back.length && name.startsWith(front) && name.endsWith(back)));
+/// ```
+pub(crate) fn names_of(listing: &str, pattern: Option<(&str, &str)>) -> Vec<OsString> {
     let mut names: Vec<OsString> = Vec::new();
     for name in listing.lines() {
         let kept: bool = match pattern {
@@ -190,7 +209,37 @@ fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result
             names.push(OsString::from(name));
         }
     }
-    return Ok(names);
+    return names;
+}
+
+/// What:
+///  The directory a `for-each-ref` pattern of a refspec is listed under.
+/// Why:
+///   Both faces of the expansion list the same directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// front.lastIndexOf('/') >= 0 ? front.slice(0, front.lastIndexOf('/')) : 'refs';
+/// ```
+pub(crate) fn directory_of(pattern: &str) -> &str {
+    let (front, _back) = star_split(pattern);
+    return match front.rsplit_once('/') {
+        Some((head, _)) => head,
+        None => "refs",
+    };
+}
+
+/// What:
+///  The text before a refspec pattern's star and the text after it.
+/// Why:
+///   Both faces of the expansion filter on the same two pieces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pattern.includes('*') ? pattern.split('*') : [pattern, ''];
+/// ```
+pub(crate) fn star_split(pattern: &str) -> (&str, &str) {
+    return pattern.split_once('*').unwrap_or((pattern, ""));
 }
 
 /// The refs a source with a `*` stands for,
@@ -200,13 +249,8 @@ fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result
 /// and
 ///  anything between,
 /// `/` included (which a `for-each-ref` pattern does not do).
-fn expand_pattern(query: Query<'_>, pattern: &str) -> Result<Vec<OsString>, PlanError> {
-    let (front, back) = pattern.split_once('*').unwrap_or((pattern, ""));
-    let directory: &str = match front.rsplit_once('/') {
-        Some((head, _)) => head,
-        None => "refs",
-    };
-    return list(query, directory, Some((front, back)));
+pub(crate) fn expand_pattern(query: Query<'_>, pattern: &str) -> Result<Vec<OsString>, PlanError> {
+    return list(query, directory_of(pattern), Some(star_split(pattern)));
 }
 
 /// `file://` and percent-encoding for a path,
@@ -239,7 +283,7 @@ fn file_url(absolute: &Path) -> OsString {
 /// ```ts
 /// isPath(remote) ? pathToFileURL(resolve(directory, remote)) : remote
 /// ```
-fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool) -> OsString {
+pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool) -> OsString {
     let bytes: &[u8] = remote.as_encoded_bytes();
     let mut has_scheme: bool = false;
     for window in bytes.windows(3) {
@@ -267,7 +311,7 @@ fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool) -> OsStri
 }
 
 /// The remotes the configuration defines (a `url` or a `pushurl`).
-fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
+pub(crate) fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
     let mut names: Vec<&str> = Vec::new();
     for (key, _) in all {
         let Some(rest) = key.strip_prefix("remote.") else {
@@ -285,7 +329,7 @@ fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
 
 /// Whether any `url.<base>.pushInsteadOf` rewrite is configured,
 /// which can send the push elsewhere than the fetch.
-fn has_push_rewrite(all: &[(String, String)]) -> bool {
+pub(crate) fn has_push_rewrite(all: &[(String, String)]) -> bool {
     for (key, _) in all {
         if key.starts_with("url.") && key.ends_with(".pushinsteadof") {
             return true;
