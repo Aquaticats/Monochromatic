@@ -51,6 +51,11 @@ fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
     if map.get("when").and_then(Value::as_str) != Some("always") {
         return Err(format!("{path}.when must be \"always\""));
     }
+    // The model carries one step, so an entry holding both is refused with both fields named rather than keeping the
+    // link and silently dropping the run.
+    if map.contains_key("link") && map.contains_key("run") {
+        return Err(format!("{path} holds both a link and a run; state one step"));
+    }
     if let Some(link) = map.get("link") {
         let link_path: String = format!("{path}.link");
         let link_map = as_object(link, &link_path)?;

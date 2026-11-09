@@ -165,3 +165,13 @@ fn an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postin
     assert_eq!(wrapper.options.tag_prefix.as_deref(), Some("monochromatic-git-policy-cli-v"));
     assert!(matches!(wrapper.options.postinstall, Some(Postinstall::Link(_))));
 }
+
+/// A postinstall holding both a link and a run is refused, with both fields named:
+/// the model carries one step, and silently keeping the link would drop the run.
+#[test]
+fn a_postinstall_holding_both_a_link_and_a_run_is_refused_with_both_fields_named() {
+    let source = "{\"schemaVersion\": 1, \"tools\": {\"x\": {\"request\": \"node@latest\", \"route\": \"archive\", \"bins\": [\"x\"], \"options\": {\"postinstall\": {\"when\": \"always\", \"link\": {\"sourceBin\": \"x\", \"linkName\": \"x\"}, \"run\": {\"sourceBin\": \"x\", \"args\": []}}}}}}";
+    let error = parse_plan(source, "toolchain.plan.jsonc").expect_err("both steps cannot be kept");
+    assert!(error.message.contains("link"), "{error}");
+    assert!(error.message.contains("run"), "{error}");
+}
