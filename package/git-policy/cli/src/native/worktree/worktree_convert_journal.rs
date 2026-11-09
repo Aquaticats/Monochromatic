@@ -24,7 +24,6 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::ObjectId;
 use crate::process_identity::process_birth_identity;
 use crate::subvolume_error::MigrateError;
-use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -208,10 +207,7 @@ fn number_from_digits<Number: std::str::FromStr>(digits: String) -> Option<Numbe
 /// await (await open(admin)).sync()
 /// ```
 fn sync_directory_of(admin: &Path) -> std::io::Result<()> {
-    return match std::fs::File::open(admin) {
-        Ok(directory) => directory.sync_all(),
-        Err(error) => Err(error),
-    };
+    return crate::subvolume_file_write_steps::sync_directory_to_disk(admin);
 }
 
 /// What:
@@ -406,10 +402,7 @@ impl Journal {
         }
         let temporary: PathBuf = admin.join(temporary_name());
         let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
-        let written: std::io::Result<()> = match file.write_all(self.encode().as_bytes()) {
-            Ok(()) => file.sync_all(),
-            Err(error) => Err(error),
-        };
+        let written: std::io::Result<()> = crate::subvolume_file_write_steps::write_all_then_sync(&mut file, self.encode().as_bytes());
         if let Err(error) = written {
             let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
             return Err(error);

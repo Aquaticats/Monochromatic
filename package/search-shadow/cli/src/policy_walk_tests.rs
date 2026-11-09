@@ -216,6 +216,30 @@ fn find_lets_the_information_flags_through() {
     assert_eq!(find_refusal("find", &texts(&["-version"]), false, root.path(), home.path()), None);
 }
 
+/// A pattern spelled like an information flag sits in a value position,
+/// where `find` reads it as the pattern and walks,
+/// so the wide walk is still refused.
+#[test]
+fn find_refuses_a_walk_whose_pattern_is_spelled_like_an_information_flag() {
+    let work = crate::test_scratch::scratch();
+    let home = crate::test_scratch::scratch();
+    // `find / -name --help` matches every file called `--help` under the whole filesystem; find prints no help for it.
+    assert!(find_refusal("find", &texts(&["/", "-name", "--help"]), false, work.path(), home.path()).is_some());
+    assert!(find_refusal("find", &texts(&["/", "-path", "--version"]), false, work.path(), home.path()).is_some());
+    assert!(find_refusal("bfs", &texts(&["/", "-iname", "-help"]), false, work.path(), home.path()).is_some());
+}
+
+/// A `-maxdepth` spelled as another option's value bounds nothing,
+/// so the walk it appears to bound is still refused.
+#[test]
+fn find_ignores_a_maxdepth_that_sits_in_a_value_position() {
+    let root = repository();
+    let home = crate::test_scratch::scratch();
+
+    assert_eq!(find_max_depth(&texts(&[".", "-name", "-maxdepth", "2"])), None);
+    assert!(find_refusal("find", &texts(&[".", "-name", "-maxdepth", "2"]), false, root.path(), home.path()).is_some());
+}
+
 /// What:
 /// `fn invocation(...) -> Invocation` declares a helper that builds the record the dispatcher reads.
 /// Why:

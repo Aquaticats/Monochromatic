@@ -168,6 +168,18 @@ fn link_into(directory: &str) -> i32 {
             for link in &report.removed {
                 println!("removed stale {} (its real tool is gone)", link.display());
             }
+            // What:     `for link in &report.left_alone` walks the entries that stay where they are; `eprintln!`
+            // prints a line to standard error (a macro, hence `!`).
+            // Why:      A name this command cannot take over is the user's own file, directory or link, so it is said
+            // out loud on the error stream and never deleted.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // for (const left of leftAlone) console.error(`left ${left} alone: not a search-shadow link`);
+            // ```
+            for link in &report.left_alone {
+                eprintln!("search-shadow: left {} alone, it is not a search-shadow link", link.display());
+            }
             if !report.skipped.is_empty() {
                 println!("skipped, no real tool on PATH: {}", report.skipped.join(", "));
             }
