@@ -176,7 +176,10 @@ the `cargo:monochromatic-git-policy-cli` entry served until the global toolchain
  which removed `[tools]` from the global Mise config.
  The same link is now the `postinstall` link of the
  `cargo:monochromatic-git-policy-cli` row in the machine-local plan under
- `~/.config/monochromatic-dev/toolchain/plan.tools.ts`,
+ `~/.config/monochromatic-dev/toolchain/toolchain.plan.jsonc`
+ (that file was `plan.tools.ts` when this note was written;
+ the toolchain cutover renamed it,
+ and the old file is left as `plan.tools.data.ts.pre-cutover`),
  and `mise run toolchain:sync:global` re-links `~/.local/bin/git` to
  `~/.cargo/bin/cli-git-native` on every converge.
 
@@ -264,6 +267,7 @@ so this repository keeps working.
 Since the 2026-10-28 migration
  (see the note under `Proposal`),
  rollback means dropping the `cargo:monochromatic-git-policy-cli` row from
- `~/.config/monochromatic-dev/toolchain/plan.tools.ts`,
+ `~/.config/monochromatic-dev/toolchain/toolchain.plan.jsonc`
+ (renamed from `plan.tools.ts` by the toolchain cutover),
  or deleting `~/.local/bin/git` after a converge,
  which the next `toolchain:sync:global` restores while the row stands.

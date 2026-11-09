@@ -40,6 +40,7 @@ use crate::service_prepare_ready_shapes::ReadyShape;
 pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
 use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, pathspec_file_for, zero_object};
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
+use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
@@ -59,7 +60,6 @@ use crate::policy_engine::{StageRequest, pass_exit_code};
 use crate::policy_events::PolicyEvent;
 use crate::policy_pass::{PassResult, run_policy_pass};
 use crate::private_index_stage::PrivateStage;
-use crate::private_storage::create_private_directory;
 use crate::repository_facts::RepositoryFacts;
 use crate::service_pruned::reach_service_phase;
 use crate::transaction_phase::Phase;
@@ -70,10 +70,38 @@ use crate::external_hooks::warn_external_hooks;
 use crate::preparation_notice::deliver_notice;
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
-use crate::transaction_git::{GitContext, run_git_checked};
+use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// What:
+///  The staging start that puts the working copy of every unmerged file into the commit's own index,
+/// each named with `:(top,literal)` magic.
+/// Why:
+///   Every name is a pathspec the wrapper wrote,
+/// and this start skips the caller's prefix,
+/// so every mode the caller set is removed from the child's environment:
+/// under literal mode the names would match nothing,
+/// and two glob modes at once make Git refuse the start and fail the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unmergedStagingRequest = (cwd, index, objects, paths) => ownPathspecs(indexedRequest(cwd, ['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects));
+/// ```
+fn unmerged_staging_request(cwd: &Path, index: &Path, object_directory: &Path, paths: &[Vec<u8>]) -> GitRequest {
+    let mut staging: Vec<OsString> = vec![
+        OsString::from("add"),
+        OsString::from("--all"),
+        OsString::from("--"),
+    ];
+    for path in paths {
+        let mut spec: Vec<u8> = b":(top,literal)".to_vec();
+        spec.extend_from_slice(path.as_slice());
+        staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
+    }
+    return indexed_request(cwd, staging.as_slice(), Some(index), Some(object_directory)).own_pathspecs();
+}
 
 /// What the preparation reads that does not change between two preparations of one command.
 pub struct PrepareInputs<'a> {
@@ -104,6 +132,9 @@ pub fn prepare<F: RepositoryFacts>(
     let context: &GitContext = invocation.context;
     let cwd: &Path = invocation.cwd;
     let region = invocation.region;
+    // The stretches of this preparation, one name at each seam; the Git children inside them are taken out of their figures,
+    //  because the step ledger records those apart (`commit_prepare_part_durations.rs`).
+    let mut part: PreparePartClock = PreparePartClock::begin("layout");
     let layout = capture_invocation_layout(context, cwd, region.amend)?;
     if inputs.first {
         // The descriptor itself, not the standard library's shared handle: a worker left at the ceiling holds no lock this
@@ -111,6 +142,7 @@ pub fn prepare<F: RepositoryFacts>(
         warn_traditional_hooks(layout.config_snapshot.as_ref(), StandardErrorDescriptor);
         warn_external_hooks(layout.config_snapshot.as_ref(), StandardErrorDescriptor);
     }
+    part.next("unmergedBefore");
     // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
     //  included: the owner's rule is "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will
     //  be committed." The paths in conflict are listed here so the warning can name those the commit takes. `-a` stages the working
@@ -121,6 +153,7 @@ pub fn prepare<F: RepositoryFacts>(
     } else {
         Vec::new()
     };
+    part.next("capture");
     let selection: Selection = decide_selection(region, layout.conclusion);
     let reference: String = match &layout.symbolic_head {
         SymbolicHead::Branch(name) => name.clone(),
@@ -129,6 +162,7 @@ pub fn prepare<F: RepositoryFacts>(
     let detached: bool = layout.symbolic_head == SymbolicHead::Detached;
     let named: bool = selection.mode == TransactionMode::ExplicitPath;
     let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
+    part.next("stagedDeletions");
     let unborn: bool = matches!(capture.base, Base::Unborn);
     // Read from the snapshot the layout already holds, so nothing starts Git for the message or the identities before the
     //  cheap decisions above are made, and before a service is provisioned.
@@ -167,11 +201,14 @@ pub fn prepare<F: RepositoryFacts>(
             }));
         }
     }
+    part.next("scratch");
     let amends: bool = region.amend;
-    let scratch: Scratch = Scratch(capture.layout.git_dir.join(inputs.scratch_name));
-    if let Err(error) = create_private_directory(scratch.0.as_path()) {
-        return Err(failed(format!("preparing the commit failed: {error}")));
-    }
+    // The tree goes where the sweep of the repository scratch directory covers it, so a command killed at any instruction leaves
+    //  nothing that only this process could have removed (`Scratch`).
+    let scratch: Scratch = match Scratch::make(capture.layout.common_dir.as_path(), capture.layout.git_dir.as_path(), inputs.scratch_name) {
+        Ok(made) => made,
+        Err(error) => return Err(failed(format!("preparing the commit failed: {error}"))),
+    };
     let indexes: CaptureIndexes = CaptureIndexes {
         captured_index: scratch.0.join("captured.index"),
         commit_index: scratch.0.join("commit.index"),
@@ -194,6 +231,7 @@ pub fn prepare<F: RepositoryFacts>(
         stage_tracked_changes: selection.staged_all,
         base_revision: base.as_str(),
     };
+    part.next("index");
     // The parts the word-level second pass merged when a retry combined the change with the branch, told with the commit.
     let mut word_merge_events: Option<PolicyEvent> = None;
     // The file the commit copies its index from, as it was before the copy: a live index that is another file later has entries
@@ -242,6 +280,7 @@ pub fn prepare<F: RepositoryFacts>(
     {
         let _delivered = deliver_notice(notice);
     }
+    part.next("interactive");
     // The bytes are captured now; a retry keeps the stamp of the capture it replays.
     let captured_at: u64 = match retry {
         Some(again) => again.captured.captured,
@@ -252,6 +291,7 @@ pub fn prepare<F: RepositoryFacts>(
     if (region.interactive || region.patch) && retry.is_none() {
         prepare_interactive_selection(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), region.patch, &index_selection)?;
     }
+    part.next("conclusionState");
     let interactive: bool = region.interactive || region.patch;
     let reftable: bool = capture.layout.ref_format == RefFormat::Reftable;
     // Whatever state a merge or a pick left (also a squash message with no merge in progress) is removed as native Git removes it.
@@ -289,23 +329,12 @@ pub fn prepare<F: RepositoryFacts>(
     //  exits with "Committing is not possible because you have unmerged files"). The owner's rule is "Warn and finish the merge"
     //  (2026-11-03), so the working copy of each unmerged file is staged in the commit's private index, exactly as `git add` stages
     //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
+    part.next("unmergedFiles");
     let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
     if !unmerged_files.is_empty() {
-        // Each path is named with `:(top,literal)` magic, and this start skips the caller's prefix, so literal
-        // pathspec mode is switched off here: under it the names would match nothing and the commit would fail.
-        let mut staging: Vec<OsString> = vec![
-            OsString::from("--no-literal-pathspecs"),
-            OsString::from("add"),
-            OsString::from("--all"),
-            OsString::from("--"),
-        ];
-        for path in &unmerged_files {
-            let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-            spec.extend_from_slice(path.as_slice());
-            staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
-        }
-        run_git_checked(context, &indexed_request(cwd, staging.as_slice(), Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())))?;
+        run_git_checked(context, &unmerged_staging_request(cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()))?;
     }
+    part.next("changedPaths");
     let candidate_paths: Vec<Vec<u8>> =
         list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
     // Nothing to commit is Git's to say, and an amend or an empty commit that was asked for is not nothing.
@@ -316,6 +345,7 @@ pub fn prepare<F: RepositoryFacts>(
         }
         return Ok(Prepared::Ready(shape.by_git(capture, Vec::new(), None, Vec::new(), invocation.arguments.to_vec(), scratch)));
     }
+    part.next("policies");
     let mut private: ShippedChecks<PrivateIndexFacts<&mut F>> = private_checks(
         checks,
         indexes.commit_index.as_path(),
@@ -339,11 +369,13 @@ pub fn prepare<F: RepositoryFacts>(
     if code != 0 {
         return Ok(Prepared::Ended(TransactionResult { events: pass.events, exit_code: code, landed_oid: None, uses_lfs: false }));
     }
+    part.next("worktreeRecords");
     let repository_root: &Path = capture.layout.repository_root.as_path();
     let install = private.content.install_changes();
     let records: Vec<AddedPath> = selected_worktree_records(context, cwd, repository_root, indexes.commit_index.as_path(), install.as_slice())?;
     // Corrections that removed every change leave nothing to commit: the copies are reconciled and the person is told.
     let eligible: bool = !install.is_empty() && !region.allow_empty && !amends && !selection.concludes_sequencer;
+    part.next("treeCheck");
     if eligible && !unborn {
         let intended: String = write_private_tree(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path())?;
         let mut tree_request = indexed_request(cwd, &["rev-parse", "--verify", format!("{base}^{{tree}}").as_str()], None, None);
@@ -353,6 +385,7 @@ pub fn prepare<F: RepositoryFacts>(
             return normalized(invocation, &capture, base.as_str(), &candidate_paths, records.as_slice(), &(pass.events, changed_passes, changed_paths));
         }
     }
+    part.next("changes");
     let mut events: Vec<PolicyEvent> = events_with_changed_summary(pass.events.clone(), changed_passes, changed_paths.as_slice());
     events.extend(word_merge_events);
     let changes: Option<Vec<Change>> = if config_native || unborn || detached || state_present { None } else { changes_of(context, cwd, &indexes, base.as_str())? };
@@ -373,15 +406,7 @@ pub fn prepare<F: RepositoryFacts>(
     return Ok(Prepared::Ready(ready));
 }
 
-/// The step above,
-/// for a control that asks it directly.
+/// Controls for the staging start of unmerged files.
 #[cfg(test)]
-pub(crate) fn exclude_or_stop_for_test(
-    context: &GitContext,
-    capture: &InvocationCapture,
-    indexes: &CaptureIndexes,
-    mode: TransactionMode,
-    captured: &crate::service_land_start::IndexWitness,
-) -> Result<(Vec<String>, Option<String>), TransactionStop> {
-    return crate::owed_index_update::exclude_or_stop(context, capture, indexes, mode, captured);
-}
+#[path = "service_prepare_tests.rs"]
+mod tests;

@@ -16,7 +16,7 @@
 //! ```
 
 /// Running real Git for a blob hash.
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git_checked};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -107,20 +107,103 @@ pub fn parse_raw_changes(output: &[u8]) -> Result<Vec<Change>, String> {
 }
 
 /// What the worktree holds at a path,
-/// as the object Git would record for it.
+/// as the object Git would record for it and the mode it records for that kind of entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WorktreeState = { kind: 'missing' } | { kind: 'content'; oid: string } | { kind: 'other' };
+/// type WorktreeState = { kind: 'missing' } | { kind: 'content'; oid: string; mode: string } | { kind: 'other' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeState {
     /// Nothing exists at the path.
     Missing,
-    /// A file or a symbolic link whose recorded object is this one.
-    Content(String),
+    /// A file or a symbolic link whose recorded object is this one,
+    /// with the mode Git records for its kind.
+    Content {
+        /// The object the entry's bytes hash to.
+        object: String,
+        /// `100644`,
+        /// `100755` or `120000`,
+        /// as Git records it.
+        mode: String,
+    },
     /// A directory or another kind of entry.
     Other,
+}
+
+/// What:
+///  What the file system holds at a worktree path when recovery judges it:
+/// the device,
+/// the inode,
+/// the size and the modification time.
+/// Why:
+///   A file taken aside after the judgement is compared with this,
+/// so the bytes a merge replaces are exactly the
+///  bytes that were judged;
+/// a file written between the judgement and the take differs here,
+/// and is never
+///  replaced.
+/// The inode alone is never compared,
+/// because a freed inode is reused,
+/// so the modification time and the
+///  size go with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FileIdentity = { device: bigint; inode: bigint; size: bigint; modifiedSeconds: bigint; modifiedNanos: bigint };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FileIdentity {
+    /// Device number.
+    pub device: u64,
+    /// Inode number.
+    pub inode: u64,
+    /// Size in bytes.
+    pub size: u64,
+    /// The mode bits,
+    /// so a permission change made after the judgement is seen:
+    /// a rename keeps them and changes nothing else here.
+    pub mode: u32,
+    /// Modification time,
+    /// whole seconds since the epoch.
+    pub modified_seconds: i64,
+    /// Modification time,
+    /// the nanoseconds part.
+    pub modified_nanos: i64,
+}
+
+/// What:
+///  The identity of whatever stands at `location`,
+/// without following a link,
+/// or nothing when nothing is there.
+/// Why:
+///   A symbolic link is a file of its own here,
+/// because a take moves it and `checkout-index` writes it back as one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fileIdentity(location: string): FileIdentity | undefined; // lstat, no link followed
+/// ```
+#[cfg(unix)]
+pub fn file_identity(location: &Path) -> Option<FileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+    let found: std::fs::Metadata = std::fs::symlink_metadata(location).ok()?;
+    return Some(FileIdentity {
+        device: found.dev(),
+        inode: found.ino(),
+        size: found.len(),
+        mode: found.mode(),
+        modified_seconds: found.mtime(),
+        modified_nanos: found.mtime_nsec(),
+    });
+}
+
+/// The identity of whatever stands at `location`.
+///  Always nothing on this platform:
+/// the read of a device and an inode is a Unix one.
+#[cfg(not(unix))]
+pub fn file_identity(_location: &Path) -> Option<FileIdentity> {
+    return None;
 }
 
 /// The filesystem path of a repository path given as raw bytes.
@@ -159,45 +242,288 @@ pub fn worktree_path(root: &Path, path: &[u8]) -> PathBuf {
 /// async function worktreeState({ context, root, path }): Promise<WorktreeState>;
 /// ```
 pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<WorktreeState, String> {
-    let location: PathBuf = worktree_path(root, path);
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location.as_path()) {
+    return state_of_file(context, root, path, worktree_path(root, path).as_path());
+}
+
+/// What:
+///  The state of the file at `location`,
+/// read as the repository path `path` would be.
+/// Why:
+///  A take moves a file to a private name beside it,
+/// and its bytes must be judged there with the attributes of the path
+///  it belongs to;
+/// one function reads both,
+/// so the judgement of a taken file and of a file in place cannot differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function stateOfFile({ context, root, path, location }): Promise<WorktreeState>;
+/// ```
+pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &Path) -> Result<WorktreeState, String> {
+    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeState::Missing),
         Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(WorktreeState::Missing),
         Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
     };
     if metadata.file_type().is_symlink() {
-        let target: PathBuf = match std::fs::read_link(location.as_path()) {
-            Ok(read) => read,
-            Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
-        };
-        let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--stdin"]);
-        request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
-        let output = match run_git_checked(context, &request) {
-            Ok(done) => done,
-            Err(error) => return Err(error.to_string()),
-        };
-        return Ok(WorktreeState::Content(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+        let object: String = the_objects_a_link_hashes_to(context, root, location)?;
+        return Ok(WorktreeState::Content { object, mode: String::from(SYMBOLIC_LINK_MODE) });
     }
     if !metadata.is_file() {
         return Ok(WorktreeState::Other);
     }
-    // The attribute lookup and the file are both named by the path from the worktree top, where Git runs.
-    let relative: std::ffi::OsString = worktree_path(Path::new(""), path).into_os_string();
+    // The attribute lookup is named by the path from the worktree top, where Git runs, and the bytes are read from `location`.
     let mut named: std::ffi::OsString = std::ffi::OsString::from("--path=");
-    named.push(relative.as_os_str());
+    named.push(worktree_path(Path::new(""), path).into_os_string());
     let mut request: GitRequest = GitRequest::new(root, &["hash-object"]);
     request.arguments.push(named);
     request.arguments.push(std::ffi::OsString::from("--"));
-    request.arguments.push(relative);
+    request.arguments.push(location.as_os_str().to_os_string());
     let output = match run_git_checked(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(error.to_string()),
     };
-    return Ok(WorktreeState::Content(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+    return Ok(WorktreeState::Content {
+        object: String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        mode: String::from(mode_of_file(&metadata)),
+    });
+}
+
+/// The mode Git records for a symbolic link.
+const SYMBOLIC_LINK_MODE: &str = "120000";
+
+/// What:
+///  The object Git records for the symbolic link at `location`,
+///  which is the hash of the text of its target.
+/// Why:
+///   A link is a file of its own here,
+/// and `git hash-object <path>` opens the file it points at instead,
+/// so both the
+///  judgement of a link and the check of a link that was set aside read the same text.
+/// The take of a link a merge
+///  replaces compared its target's bytes with the link's object because of that follow,
+/// and every retry refused the
+///  saved merge
+///  (a cross-vendor review of the ninth round,
+/// its sixth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function theObjectsALinkHashesTo(context, root, location): Promise<string>; // hash-object --no-filters --stdin < readlink(location)
+/// ```
+pub fn the_objects_a_link_hashes_to(context: &GitContext, root: &Path, location: &Path) -> Result<String, String> {
+    let target: PathBuf = match std::fs::read_link(location) {
+        Ok(read) => read,
+        Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
+    };
+    let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
+    request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
+    let output: GitOutput = match run_git_checked(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(error.to_string()),
+    };
+    return Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned());
+}
+
+/// What:
+///  The mode Git records for a regular file,
+///  from the executable bit the file system holds.
+/// Why:
+///   Git records exactly two modes for a regular file,
+/// and the bit between them is the one a person changes with
+///  `chmod`;
+/// reading it here is what lets a judgement see an executable bit set while a merge waited,
+/// instead of
+///  comparing the bytes alone and erasing the bit
+///  (a cross-vendor review of the ninth round,
+/// its seventh finding).
+///  A platform whose permissions carry no such bit is read as non-executable,
+/// which is the mode Git records there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function modeOfFile(metadata): '100644' | '100755'; // stat.mode & 0o111 ? '100755' : '100644'
+/// ```
+#[cfg(unix)]
+fn mode_of_file(metadata: &std::fs::Metadata) -> &'static str {
+    use std::os::unix::fs::PermissionsExt;
+    if metadata.permissions().mode() & 0o111 != 0 {
+        return "100755";
+    }
+    return "100644";
+}
+
+/// The mode Git records for a regular file,
+/// where the platform's permissions carry no executable bit.
+#[cfg(not(unix))]
+fn mode_of_file(_metadata: &std::fs::Metadata) -> &'static str {
+    return "100644";
+}
+
+/// What:
+///  Whether this repository reads a worktree file's executable bit as part of the file.
+/// Why:
+///   `core.fileMode` is false where the filesystem cannot keep the bit,
+/// and Git then takes no mode difference at
+///  all;
+/// a judgement that refused one there would stop the recovery of every merge touching an executable path on
+///  such a filesystem,
+/// which is the kind of failure this route exists to remove.
+/// A value Git does not answer for,
+/// and a key that is absent,
+/// is read as true,
+/// which is Git's default and the strict answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theRepositoryRecordsFileModes(context, root): boolean; // git config --bool core.filemode !== 'false'
+/// ```
+pub fn the_repository_records_file_modes(context: &GitContext, root: &Path) -> bool {
+    let request: GitRequest = GitRequest::new(root, &["config", "--bool", "core.filemode"]);
+    let Ok(output) = run_git_checked(context, &request) else {
+        return true;
+    };
+    return String::from_utf8_lossy(&output.stdout).trim() != "false";
 }
 
 /// Raw difference reading and worktree states.
 #[cfg(test)]
 #[path = "merge_isolation_changes_tests.rs"]
 mod tests;
+
+/// What:
+///  Whether a directory standing where the merge puts a file holds only files of the branch that the merge deletes,
+///  and nothing else,
+///  judged through every directory below it.
+/// Why:
+///   The branch's own directory is the merge's to replace,
+/// but an untracked file in it is a person's,
+/// and a directory
+///  that keeps one cannot be replaced:
+/// the merge would be half installed before the failure,
+/// so it is refused
+///  before anything is written.
+/// The tree diff names the files the merge deletes and no entry for a directory of its own,
+/// so a directory
+///  below this one is judged by everything below it,
+/// never by a change of its own name;
+/// comparing the
+///  immediate children with the diff read a directory of the branch's own nested files as someone else's,
+/// and the
+///  saved merge could never finish
+///  (a cross-vendor review of the ninth round,
+/// its eighth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aDirectoriesFilesAreAllDeletedByTheMerge({ change, changes, root }): boolean; // every entry below the directory is a deleted change or a directory of them
+/// ```
+pub fn the_directory_holds_only_what_the_merge_deletes(change: &Change, changes: &[Change], root: &Path) -> bool {
+    let location: PathBuf = worktree_path(root, change.path.as_slice());
+    return every_entry_below_is_one_the_merge_deletes(change.path.as_slice(), changes, location.as_path());
+}
+
+/// What:
+///  Whether everything in one directory of the worktree is a path the merge deletes,
+///  looked at in every directory
+///  below it.
+/// Why:
+///   A directory cannot be named as a deleted path by a tree diff,
+/// so a child that is a directory is judged by
+///  its own entries.
+/// An emptied directory below this one is accepted only where the merge deletes a path below it,
+/// because
+///  only then does the pruning of the merge's emptied directories reach it;
+/// an emptied directory the pruning never
+///  reaches keeps the checkout from holding the merge's file,
+/// so it is refused before anything is written.
+///  The directory this function is called on may itself be empty:
+/// a recovery killed after finishing the last deleted
+///  file and before removing the directory it emptied leaves exactly that,
+/// and the merge's own deletions empty it.
+///  A symbolic link is never followed:
+/// its own path must be one the merge deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function everyEntryBelowIsOneTheMergeDeletes(prefix, changes, directory): boolean; // each child: a deleted change, or a directory whose every entry is
+/// ```
+fn every_entry_below_is_one_the_merge_deletes(prefix: &[u8], changes: &[Change], directory: &Path) -> bool {
+    let listing: std::fs::ReadDir = match std::fs::read_dir(directory) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    for entry in listing.flatten() {
+        let mut child: Vec<u8> = prefix.to_vec();
+        child.push(b'/');
+        child.extend_from_slice(entry.file_name().as_encoded_bytes());
+        if one_change_deletes(changes, child.as_slice()) {
+            continue;
+        }
+        let below: PathBuf = directory.join(entry.file_name());
+        let is_a_directory: bool = match std::fs::symlink_metadata(below.as_path()) {
+            Ok(found) => found.is_dir(),
+            Err(_) => false,
+        };
+        if !is_a_directory {
+            return false;
+        }
+        let mut inner: std::fs::ReadDir = match std::fs::read_dir(below.as_path()) {
+            Ok(found) => found,
+            Err(_) => return false,
+        };
+        if inner.next().is_none() {
+            if !the_merge_deletes_a_path_below(child.as_slice(), changes) {
+                return false;
+            }
+            continue;
+        }
+        if !every_entry_below_is_one_the_merge_deletes(child.as_slice(), changes, below.as_path()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Whether one of the changes deletes the path named here,
+///  which is a path the merge had before it and does not have after it.
+/// Why:
+///  A tree diff names each deleted file,
+/// so this is the only way a path below a directory can be the merge's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function oneChangeDeletes(changes, path): boolean; // changes.some((other) => other.path === path && other.existed() && !other.existsAfter())
+/// ```
+fn one_change_deletes(changes: &[Change], path: &[u8]) -> bool {
+    for other in changes {
+        if other.path == path && other.existed() && !other.exists_after() {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether the merge deletes a path below one directory of the branch.
+/// Why:
+///   The pruning of the merge's emptied directories walks up from each deleted path,
+/// so an emptied directory is the
+///  branch's only when such a path lies below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theMergeDeletesAPathBelow(prefix, changes): boolean; // changes.some((other) => other.path.startsWith(`${prefix}/`) && other.existed() && !other.existsAfter())
+/// ```
+fn the_merge_deletes_a_path_below(prefix: &[u8], changes: &[Change]) -> bool {
+    let mut slash: Vec<u8> = prefix.to_vec();
+    slash.push(b'/');
+    for other in changes {
+        if other.path.starts_with(slash.as_slice()) && other.existed() && !other.exists_after() {
+            return true;
+        }
+    }
+    return false;
+}

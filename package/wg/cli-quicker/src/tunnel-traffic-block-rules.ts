@@ -132,9 +132,16 @@ function replyMatchOf(
   }
   if (names.length === 0)
     return '';
-  return `iifname { ${names.map(function quoted(name,): string {
-    return `"${name}"`;
-  },).join(', ',)} } ${REPLY_ONLY}`;
+  /**
+   The family's interface names, quoted and separated,
+   as the one `nft` set that matches them.
+   */
+  const quotedNames = names
+    .map(function quoted(name,): string {
+      return `"${name}"`;
+    },)
+    .join(', ',);
+  return `iifname { ${quotedNames} } ${REPLY_ONLY}`;
 }
 
 /**
@@ -206,7 +213,12 @@ function hostRules(
      The match of the reply rule that names the interfaces a reply may arrive on,
      or nothing for a rule on the destination.
      */
-    const replyMatch = direction === 'saddr' ? replyMatchOf({ family, clearnet, },) : '';
+    const replyMatch = direction === 'saddr'
+      ? replyMatchOf({
+        family,
+        clearnet,
+      },)
+      : '';
     // A reply rule with no physical default interface of its family lets nothing through.
     if ((addresses.length > 0) && ((direction === 'daddr') || (replyMatch !== '')))
       rules.push(`add rule inet ${table} ${chain} ${replyMatch}${keyword} ${direction} { ${addresses.join(', ',)} } counter accept`,);
