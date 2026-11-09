@@ -295,7 +295,11 @@ fn append_block(current: &Path, bytes: &[u8]) -> std::io::Result<()> {
         block.push(b'\n');
     }
     file.write_all(block.as_slice())?;
-    return file.sync_all();
+    // A control whose subject is not what a crash leaves skips the flush, which on a bad disk costs a second and more.
+    if crate::private_storage::syncing_is_faithful() {
+        file.sync_all()?;
+    }
+    return Ok(());
 }
 
 /// The length of a file,

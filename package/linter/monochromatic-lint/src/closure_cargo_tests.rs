@@ -179,7 +179,8 @@ fn a_missing_cargo_is_a_reason_for_the_cache_probe() {
 
 /// The dylint run has the exact argument vector,
 /// offline posture and lint flags,
-/// and the setup is appended.
+/// the setup is appended,
+/// and the rest of the environment is inherited unchanged.
 #[test]
 fn the_dylint_run_has_the_documented_arguments_and_environment() {
     let stub = scenario(&[
@@ -203,11 +204,37 @@ fn the_dylint_run_has_the_documented_arguments_and_environment() {
     assert_eq!(run.stdout, b"{\"reason\":\"build-finished\"}\n");
     assert_eq!(run.stderr, "progress\n");
     let expected: String = format!(
-        "dylint|dylint --path {} --manifest-path {} -- --locked --message-format json --target aarch64-linux-android| DYLINT_RUSTFLAGS={DYLINT_FLAGS} CARGO_NET_OFFLINE=true STUB_MARKER=a value with spaces",
+        "dylint|dylint --path {} --manifest-path {} -- --locked --message-format json --target aarch64-linux-android| DYLINT_RUSTFLAGS={DYLINT_FLAGS} CARGO_NET_OFFLINE=true{} STUB_MARKER=a value with spaces",
         library.display(),
-        manifest.display()
+        manifest.display(),
+        inherited_environment()
     );
     assert_eq!(stub.calls(), vec![expected]);
+}
+
+/// What:
+///  This test process's values for the two variables the stub observes that no setup here sets,
+///  in the order the stub logs them.
+/// Why:
+///  The run overrides `DYLINT_RUSTFLAGS` and `CARGO_NET_OFFLINE`,
+///  appends the setup and hands every other variable on unchanged,
+///  so an inherited value reaches the child cargo,
+/// and the harness decides which of them exist:
+///  mise's `cargo-shadow` sets `CARGO_BUILD_BUILD_DIR` for its child,
+///  a plain `cargo` does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function inheritedEnvironment(): string;
+/// ```
+fn inherited_environment() -> String {
+    let mut text: String = String::new();
+    for name in ["CARGO_BUILD_BUILD_DIR", "QMAKE"] {
+        if let Ok(value) = std::env::var(name) {
+            text.push_str(format!(" {name}={value}").as_str());
+        }
+    }
+    return text;
 }
 
 /// The run does not use `--all-targets`,

@@ -59,49 +59,89 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
-the branch and agent lists below them are older and carry their own times.
+### Where the work stands (2026-11-08T23:47:13-05:00)
+
+This subsection is the current picture.
+`### Release in flight`,
+`### Unmerged branches and worktrees of this effort` and `### Agents and gates running` date from 2026-11-03 and 2026-11-04.
+They no longer describe now,
+and the Pi agent `wrapper-handover-stale-sections-moved-out` is moving their durable facts to canonical docs and deleting them.
+
+Main is at `3e48c84c17`.
+Merged since the last record here:
+`71795ab77a`,
+the audit of the wrapper's entry and service lifecycle route
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`);
+`a8295d5de8`,
+the second pass over open wrapper issues (`doc/planning/git-wrapper-open-issues-round-2.md`);
+and `3e48c84c17`,
+landing and lock controls that read what happened rather than a clock.
+
+Issues closed against main in this stretch:
+634,
+635,
+4576,
+4563,
+6003,
+2135,
+2108,
+4530,
+4585,
+4505,
+4514,
+4515 and 4516.
+Issue 6005 stays open for its surviving instance,
+`landing/service_handoff.rs` against `service_work_handlers_replanning_and_acceptance.rs`.
+
+#### The 860 move
+
+`package/repository-move/cli/src/run-repository-move.ts status` is the live record;
+stages through `c25-pnpm-links` are done.
+`c26-kopia-snapshot` has failed three times,
+each for a different reason:
+kopia could not re-create `/mnt/pcloud/rclone` while the pCloud client restarted;
+the coordinator removed a worktree during a snapshot;
+and a Pi agent finished while kopia read its per-worktree wrapper service folder
+(`.git/worktrees/pi-index-reset-keeps-stat-data/monochromatic-git-policy-cli-service-*/shadow/objects`),
+which kopia counted as one fatal error.
+That third run still created snapshot `99b6c01bdec1c8a50a491236552601e3`,
+but `kopia snapshot create` exits non-zero on a fatal error,
+so the stage stops before its own check,
+`kopia snapshot list`.
+
+Next:
+rerun the cut-over once no worktree is being removed.
+If it fails again only on a folder that vanished during the read,
+change that stage in `package/repository-move/cli/src/guided-cutover-stages.data.ts` rather than rerunning,
+because with Pi agents running another vanished service folder is likely.
+After it come `c27-container-bind`,
+the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
+and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
+The old tree kept for the rollback stays until the owner deletes it.
+
+#### Reviews and landings in progress
+
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
+  its round-four commits pass 201 tests on top of main.
+  The cross-vendor review of them found two defects,
+  and the agent is on round five.
+  A `.gitattributes` rewritten on the same inode between two reads can mix two versions and still match the current size,
+  so an obsolete rule can record a falsely clean entry.
+  An interrupted read of that file drops stat data for the rest of the landing.
+- `fix/test-browser-runs-fit-their-container-limits`:
+  finished,
+  waiting for the coordinator's check and merge.
+
+Running agents are the `pi-*.service` user units,
+each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
-  row `cargo:monochromatic-git-policy-cli`,
-  lock commit `e6bb6fbb62`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
-  shadowing git at /usr/bin/git" over Git 2.56.0).
-  Installed by `upgrade-wrapper.ts 0.5.32`:
-  the 0.5.31 service retired on the client's request,
-  0.5.32 started (protocol 7),
-  and the sample commit on main landed in 1680 ms in all,
-  1215 ms of it provisioning the new service (landing 31 ms,
-  lock hold 28 ms).
-  Its commit service unit runs with systemd's defaults
-  (`systemctl --user show` at 2026-11-03T10:47-05:00:
-  `MemoryMax=infinity`,
-  `MemoryHigh=infinity`,
-  `CPUQuotaPerSecUSec=infinity`,
-  `IOWeight` not set,
-  `TasksMax=75462`,
-  systemd's own default).
-- `monochromatic-mpm-shadow` 0.2.5,
-  `monochromatic-pnpm-shadow` 0.1.1,
-  `monochromatic-search-shadow` 0.2.1,
-  `monochromatic-file-enforcer-cli` 0.1.1,
-  `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
-  after the cargo-shadow merge reached main;
-  0.1.0 is the earlier version.
-- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
-  (`mise run //package/cargo-shadow/cli:publish`);
-  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
-  `cargo-publish.yml`,
-  no environment,
-  `repository_owner_id` 343218767) was created through the API.
-  It is not yet in `toolchain.lock.json`.
-- The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
-  on
-  2026-11-03;
-  its copy from before that move is `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715`.
+`toolchain.lock.json` records what is installed,
+and `git --version` prints the wrapper's own.
+At 2026-11-08T23:47:13-05:00 that was wrapper `0.6.1-alpha.5` over Git 2.56.0.
+The wrapper commits on main after that release are not published yet.
+Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footprint.md`).
 
 ### Release in flight
 
@@ -3374,6 +3414,125 @@ Two `standards_review_client` tests failed and one ended at the 300 s nextest ti
 7-minute run of the same suite,
 and all twelve of that module pass alone in 3 s,
 so they are host-load flakes that this change does not touch.
+
+Corrected 2026-11-08T21:55:00-05:00,
+branch `fix/git-policy-cli-standards-review-client-order-not-time`:
+"host-load flake" was a label and not a cause,
+and a capped run found two defects in the controls themselves.
+
+Reproduced with the module's own allowance capped:
+twelve processes,
+one per control,
+sharing `CPUQuota=3%`
+(the runner is `${HOME}/temp/agent/standards-review-client-flakes/run-tests-in-parallel.sh`,
+which runs the built test binary once per control,
+as nextest does).
+Eight of the twelve failed,
+seven of them with the client's own wording,
+`reply: "The operation was aborted due to timeout"`,
+because the 400 ms quiet window elapsed before a starved process read a reply that had already
+arrived,
+and a ninth,
+`a_silent_server_ends_after_the_quiet_window`,
+was still running when the run's 320 s stop reached it:
+its call was aborted by the window before it connected,
+and `Mock::finish` then waited unbounded on the mock's `accept` for a call that never came.
+That is the shape of the 300 s nextest stop:
+waits with no bound of their own,
+under a one-hour ceiling (`ROOMY = 3,600 s`),
+so nothing inside the control ends the wait.
+That cap slows the controls:
+the module takes 3.0 s alone at `CPUQuota=500%`,
+and each control took 10 to 25 s at 3%.
+With the changes below all twelve pass at 3%.
+
+What each control claims and what decides it:
+
+- `the_request_carries_method_headers_and_body`,
+  `an_error_status_is_a_reply`,
+  `a_chunked_body_is_read_whole`,
+  `a_redirect_is_not_followed`:
+  the reply's bytes are what the client returns.
+  A 400 ms window against a starved read decided them before.
+  They take `ANSWER_WINDOW` (10 s) now and judge the reply and that the mock wrote its answer whole.
+- `a_silent_server_ends_after_the_quiet_window`:
+  a silent server ends the call at the window with the timeout wording.
+  It also asserted `elapsed >= 400 ms`,
+  a clock,
+  and could hang in `Mock::finish`.
+  It reads the order of events now:
+  the call reached the server,
+  and the server was still holding when the call closed it
+  (`AnswerEnded::CallerClosedTheSilence`).
+  `Mock::finish` panics naming `CONNECTION_DEADLINE` where no call connected.
+- `a_refused_connection_names_the_cause`:
+  a closed port is a transport failure.
+  The same window decided it before;
+  the mock's answer ending is asserted first now.
+- `an_unreadable_authority_is_refused`:
+  no clock;
+  unchanged.
+- `a_reply_that_keeps_arriving_is_never_cut_off`:
+  the window judges quiet time and not wall time.
+  It asserted `elapsed > 2 * window`,
+  a clock,
+  and failed the other way under load (more than 1.2 s between two bytes of a reply).
+  It asserts the body length and that no byte was left unsent now,
+  with `TRICKLE_WINDOW` (5 s) and a cadence a fiftieth of it.
+- `a_reply_that_keeps_arriving_is_ended_at_the_ceiling`:
+  the ceiling ends a reply that keeps arriving.
+  It asserted `elapsed >= ceiling && elapsed < 4 * ceiling`.
+  It asserts that the ceiling's wording names the call and its figure,
+  and that the reply was still arriving (`AnswerEnded::CallerLeft` with unsent bytes).
+- `the_client_is_built_on_hyper_and_no_longer_on_ureq`:
+  source text;
+  unchanged.
+- `a_tls_server_is_reached_only_through_a_trusted_authority`:
+  a trusted authority is reached and the embedded roots are refused.
+  `serve_tls` waited unbounded on its second `accept`,
+  and the control started `openssl` without a bound.
+  Both are bounded now (`CONNECTION_DEADLINE`,
+  `OPENSSL_DEADLINE`),
+  and it asserts that both calls reached the server:
+  a refused handshake is still a call that arrived.
+- `the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread`:
+  the ledger figure for the call comes from the call's own bytes.
+  It asserted `kept < 800 ms` against a measurement whose own sampling interval is 500 ms,
+  so the host's scheduling decided it
+  (measured under the cap:
+  `the call kept a quiet gap of 1.800001758s though a byte arrived every 100ms`).
+  It checks what a look at a thread that moves nothing of its own saw while the call's bytes moved
+  on the process's sockets,
+  and on its own counters alone,
+  and keeps only `kept >= PAUSE` from the figure itself.
+
+The name-lookup controls of the same module pair
+(`standards_review_client_name_lookup_on_the_blocking_pool_tests.rs`)
+still wait with no bound of their own:
+`to_socket_addrs` on the blocking pool,
+and two child processes started with `Command::output`.
+They did not fail in the loaded run,
+and this change does not touch them.
+`standards_review_run_tests.rs`,
+`service/service_review_tests.rs` and
+`landing/service_work_tests.rs` take `ANSWER_WINDOW` and `CONTROL_CEILING`
+in place of a 400 ms window and a one-hour ceiling,
+but their own timing assertions
+(`the_runner_stops_waiting_for_a_job_at_its_ceiling` asserts `waited < ceiling * 20`)
+are the same class of wall-clock bound and are left for their own change.
+
+Checked on the final tree of this branch (2026-11-08T22:40:00-05:00):
+`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast` ran 4,768 tests,
+4,766 passed,
+8 skipped,
+and two failed outside this module:
+`landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+got an empty list where it expected a wait (`service_index_lock_tests.rs:232`),
+and `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+hit the unit-test watchdog at 120 s (`the unit-test run exceeded 120s: a test is stuck`).
+Both pass alone (2.5 s and 21.6 s),
+which is the same contention shape this section corrected in the standards-review controls,
+and neither module is changed here.
 
 Owner question:
 `package/git-policy/cli/SPEC.md:5471` says a commit prepares
@@ -7155,6 +7314,85 @@ are in append mode now).
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
 
+### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog,
+and the cause is its own durability work,
+measured with `strace --follow-forks --summary-only --trace=fsync,fdatasync` on the test binary:
+one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
+with single calls 1.755,
+1.211 and 1.071 s apart,
+and the same control alone then took 34.73 s,
+9.64 s and 1.83 s in three runs with nothing changed.
+A bad minute of the disk is what carries 306 commits past 120 s,
+and the earlier "side by side" change cut the waiting but not the number of commits.
+
+What each kill point tests is the fold's steps and their outcomes:
+the stop is the fold's own step boundary,
+not a crash,
+so what a crash would leave is not in question and the flush of each step is pure cost.
+`private_storage::skip_the_durability_syncs_here` makes the process's durability syncs no-ops in test builds
+while still recording them,
+so their order stays observable,
+and nothing of it is in the release executable;
+it reaches the fold's journal,
+its moved log,
+the log append and `sync_directory`.
+The two sweeps beside it in `earlier_log_lines_added_to_current_log_tests.rs`
+(`a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line` and
+`a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line`)
+were aborted by the same watchdog in a filtered run of the same modules,
+so they use the switch too.
+Measured after it on the same binary and disk:
+0 `fsync` calls and 0.48 s for the walk,
+and 0.054 s and 0.061 s for the two sweeps that had been aborted.
+Each sweep was broken and failed before being restored,
+and the plants and their messages are in the report of
+`fix/git-policy-cli-landing-controls-wait-on-order-everywhere`.
+
+### A lock control's wait said nothing, and its holder's thread then held the failure for a minute
+
+One host full-suite run reported `landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+as an empty list where a waiting line was expected.
+Not reproduced here:
+five runs of that control and its sibling,
+thirty copies in six processes,
+three module runs at half a processor and one run beside the fold sweep all passed.
+The state it reports is reachable and has one shape:
+a look that finds the lock gone says nothing,
+and the acquisition then places it at its next attempt.
+Planted that state (the lock removed at the reclaimer's own point,
+a staging flush slower than the hold),
+the control failed in 5.518 s with
+`the wait said nothing at all, so the lock it was to wait for went away first`,
+and the same plant without the guard that lets the holder go took 60.022 s with the holder's `Timeout`,
+because four of those controls join a holder thread that waits for the wait's own line.
+Those four now hold that guard,
+and the three that read what the wait said name that state in those words instead of printing `[]`.
+No verdict is claimed about which control the reported run failed,
+because the recorded control reads its list only after joining the holder,
+which cannot happen unless the wait did say a line.
+
+The whole host suite on that branch (2026-11-08T23:26:23-05:00,
+`mise run //package/git-policy/cli:native:test:host`)
+ran 4028 of 4812 tests and 4023 passed;
+the five failures are all of `subvolume::`,
+`subvolume_btrfs_tests::a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange`
+and four of `subvolume_migrate::tests`,
+each aborted by the run's own watchdog between 122.3 and 149.7 s.
+That module is not touched by the branch,
+and its controls are the family this record already calls slow on this host
+("Two lock controls claim their endings",
+and the btrfs measurement under it).
+The 784 tests the run then stopped include the 709 of
+`testing::`,
+`transaction::`,
+`worktree::` and `worktree_copying::`,
+which passed when run on their own,
+and 75 inside `subvolume::` itself,
+which that run did not reach.
+
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
   `5083511eed` was merged into it,
@@ -7294,10 +7532,32 @@ are in append mode now).
 
 ### Housekeeping
 
-- Remove the stale detached worktrees listed by `git worktree list` under `.claude/worktrees/` when their evidence is
-  no longer
-  needed (needs the owner's word for deletions);
-  the stale integration branch named under "Unmerged branches and worktrees of this effort" goes with them.
+- Stale agent worktrees under `.claude/worktrees/` were removed on 2026-11-08 under the owner's
+  "Cleanup whenever it makes sense on your own."
+  and "It covers deleting stale detached worktrees."
+  (`questions-for-the-owner.md`).
+  Every branch was kept.
+  Commits that were on no branch are pinned under `refs/kept-detached-worktree-heads/`
+  (`integrate-064`,
+  `integrate-065`,
+  `integrate-072`,
+  `integrate-073`,
+  `integrate-075`).
+  Still present:
+  worktrees a Markdown file cites by path,
+  which go in the next pass once `wrapper-handover-stale-sections-moved-out` has landed and removed those citations;
+  worktrees whose branch holds commits main lacks (`agent-a5dcd5dad237603e3`,
+  `agent-ab3dd6294f9d91284`,
+  `agent-aba63f1400b66332c`,
+  `integrate-deadline-conversion`,
+  `source-layout`,
+  `pi-repository-move-tool-fixes`);
+  and worktrees with real uncommitted edits (`agent-a563e0c526d53df51`,
+  `agent-a6e4566588e9ec087`,
+  `fix-ureq`,
+  `follow-ups-059`).
+- The stale branch `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` still needs the owner's word,
+  because the owner's cleanup messages named worktrees and not branches.
 - Test services that crash on purpose:
   checked 2026-11-08 by reading `coredumpctl`,
   and clean.
@@ -7431,6 +7691,25 @@ and a copy into a registration the command did not create),
 so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
+
+No review covers the publishing route either:
+the push record a landing or a merge leaves,
+the queue,
+the retry plan and the reconcile.
+Its audit,
+with twelve findings ranked by what they risk losing,
+four of them reproduced,
+one of those in part,
+is `doc/planning/cli-git-push-route-findings-on-main.md`
+(2026-11-09;
+main at `554f973343`).
+The first two leave a branch of a landed commit unpublished with no record that says so:
+a push record keyed by the commit alone
+(the second branch reaching a commit is never queued),
+and a retry notice written before the retry plan is durable.
+The waits that no ceiling ends,
+the one move that can advance a branch the reconcile never checked,
+and the notice deleted before it is shown are there with `path:line` and suggested fixes.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

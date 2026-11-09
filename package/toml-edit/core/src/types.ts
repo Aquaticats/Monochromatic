@@ -136,17 +136,23 @@ export type TomlEditState = {
 /**
  Tagged value-input shape used to disambiguate JS-to-TOML coercion.
  
- Constructed via the factory functions in `./wrappers.ts`.
+ Constructed via the factory functions in `./wrappers.ts`. Each kind admits
+ only the payload that kind can represent, so a string cannot be passed where
+ an integer is claimed and the encoder never has to guess.
  */
-export type TomlWrappedInput = {
-  readonly tomlKind:
-    | 'integer'
-      | 'float'
-      | 'local-date'
-      | 'local-date-time'
-      | 'local-time';
-  readonly value: number | bigint | string;
-};
+export type TomlWrappedInput =
+  | {
+    readonly tomlKind: 'integer';
+    readonly value: number | bigint;
+  }
+    | {
+      readonly tomlKind: 'float';
+      readonly value: number;
+    }
+    | {
+      readonly tomlKind: 'local-date' | 'local-date-time' | 'local-time';
+      readonly value: string;
+    };
 
 /**
  Accepted runtime shape for {@link tomlSet}.
