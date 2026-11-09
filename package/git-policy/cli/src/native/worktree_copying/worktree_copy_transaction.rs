@@ -16,19 +16,16 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::transaction_git::GitContext;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
+use crate::json_record::quote;
+use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_install::{InstallRecorder, install_snapshot};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_install_log::{InstallLog, open_install_log};
-use crate::worktree_copy_journal::{create_journal, write_journal};
+use crate::worktree_copy_journal::write_journal;
 use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase};
 use crate::worktree_copy_journal_removal::remove_pending_journal;
 use crate::worktree_copy_manifest::{WorktreeCopyEntry, collect_entry_manifest};
-use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
-use crate::worktree_copy_stage_claim::{StageClaim, claim_stage};
-use crate::json_record::quote;
+use crate::worktree_copy_stage::StagedSnapshot;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -275,6 +272,20 @@ fn install_recorded(
         .cloned()
         .collect();
     let destination: PathBuf = PathBuf::from(state.pending.journal.destination_root.as_str());
+    // The last moment before the first entry: every entry is written through this path, and the registration the stage
+    // was made for is the only destination this copy may fill. A check earlier in the command cannot cover a destination
+    // that another command moved and made again since.
+    let container: PathBuf = PathBuf::from(state.pending.journal.stage_container.as_str());
+    if let Some(bound) = crate::worktree_copy_stage_binding::stage_binding(container.as_path())?
+        && crate::worktree_add_binding::path_identity(bound.destination.as_path()) != Some(bound.destination_id)
+    {
+        let message: String = format!(
+            "monochromatic-git-policy-cli: the ignored state for {} was not installed: the worktree is no longer the registration the copy was made for ({}). Nothing in it was changed; `git worktree list` shows what is registered there now.",
+            quote(destination.to_string_lossy().as_ref()),
+            bound.admin.display()
+        );
+        return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
+    }
     let result: Result<usize, WorktreeCopyError> = install_snapshot(
         staged.stage_root.as_path(),
         destination.as_path(),
@@ -322,157 +333,6 @@ pub fn complete_journal(
         .as_str(),
     );
     return Ok(outcome);
-}
-
-/// What:
-///  Stages,
-/// journals and installs the ignored state of one newly created worktree.
-/// Why:
-///   The stage is removed if the journal cannot be created,
-/// and a process that dies while staging leaves a claim,
-///  so no stage survives without a record that recovery can act on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function synchronizeCreatedWorktree({ commonDir, sourceRoot, destinationRoot, registeredRoots, gitPath }): Promise<number>;
-/// ```
-pub fn synchronize_created_worktree(
-    context: &GitContext,
-    common_dir: &Path,
-    source_root: &Path,
-    destination_root: &Path,
-    registered_roots: &[PathBuf],
-    selection: &CopySelection,
-) -> Result<usize, WorktreeCopyError> {
-    return synchronize_created_worktree_noting(
-        context,
-        common_dir,
-        source_root,
-        destination_root,
-        registered_roots,
-        selection,
-        &mut std::io::sink(),
-    );
-}
-
-/// How many unreadable paths the notice names before it says how many more there are.
-///  Exempt from a citation under `LQM` (class:
-/// display cap):
-/// it limits how much text a message,
-/// log field or record
-///  names,
-/// and no command result or duration depends on it.
-/// Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`,
-/// "Exempt limits";
-/// the coordinator's pick under the owner's delegation,
-/// open to the owner's veto.
-const NOTICE_PATHS: usize = 3;
-
-/// What:
-///  The one notice line for ignored entries the user could not read and the copy therefore left out.
-/// Why:
-///   The new worktree lacks them,
-/// so the person sees how many and which first ones,
-/// without a flood for a large set.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
-/// ```
-fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
-    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
-    let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
-    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
-    let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
-    return format!(
-        "monochromatic-git-policy-cli: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
-        unreadable.len(),
-        quote(source_root.to_string_lossy().as_ref()),
-        named.join(", ")
-    );
-}
-
-/// What:
-///  Stages one source's ignored state,
-/// installs it into one created worktree,
-/// and writes a notice naming the
-///  entries the user could not read.
-/// Why:
-///   The notice goes to the writer the lifecycle holds for the person;
-/// the count of copied entries is the result.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function synchronizeCreatedWorktreeNoting({ commonDir, sourceRoot, destinationRoot, registeredRoots, selection, notice }): Promise<number>;
-/// ```
-pub fn synchronize_created_worktree_noting(
-    context: &GitContext,
-    common_dir: &Path,
-    source_root: &Path,
-    destination_root: &Path,
-    registered_roots: &[PathBuf],
-    selection: &CopySelection,
-    notice: &mut dyn std::io::Write,
-) -> Result<usize, WorktreeCopyError> {
-    let started: std::time::Instant = std::time::Instant::now();
-    let claim: StageClaim = claim_stage(common_dir, destination_root)?;
-    // `match` on staging: a failure has already removed its container, so only the claim is left to release.
-    let snapshot: StagedSnapshot = match stage_ignored_snapshot(
-        context,
-        source_root,
-        claim.container(),
-        registered_roots,
-        selection,
-    ) {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            claim.release()?;
-            return Err(error);
-        }
-    };
-    let staged_done: std::time::Duration = started.elapsed();
-    let journaling: std::time::Instant = std::time::Instant::now();
-    let pending: PendingJournal = match create_journal(common_dir, destination_root, &snapshot) {
-        Ok(pending) => pending,
-        Err(error) => {
-            // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
-            std::fs::remove_dir_all(snapshot.stage_container.as_path())
-                .map_err(raw_failure_of)?;
-            claim.release()?;
-            return Err(error);
-        }
-    };
-    debug(
-        "worktreeCopyTransaction",
-        format!("journal created in {} ms after the stage at {} ms", journaling.elapsed().as_millis(), staged_done.as_millis()).as_str(),
-    );
-    // The journal names the stage from here on, so the claim has done its work.
-    claim.release()?;
-    let staged_after: std::time::Duration = started.elapsed();
-    let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged))?;
-    debug(
-        "worktreeCopyTransaction",
-        format!(
-            "settled {} entries in {} ms: stage and journal {} ms, install and completion {} ms",
-            snapshot.entries.len(),
-            started.elapsed().as_millis(),
-            staged_after.as_millis(),
-            (started.elapsed() - staged_after).as_millis()
-        )
-        .as_str(),
-    );
-    return match outcome {
-        Outcome::Installed(copied) => {
-            if !snapshot.unreadable.is_empty() {
-                // A closed standard error leaves nowhere to print; the log line of the stage still names the entries.
-                let _written = notice.write_all(unreadable_notice(source_root, snapshot.unreadable.as_slice()).as_bytes());
-            }
-            Ok(copied)
-        }
-        Outcome::Ended(error) => Err(error),
-    };
 }
 
 /// Transaction controls stay out of the release executable.

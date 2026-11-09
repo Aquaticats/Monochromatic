@@ -287,6 +287,16 @@ pub fn prune_toolchain(
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
+    // An explicit `--lock` is the caller's statement about what to keep, so a path that names no file refuses
+    // instead of quietly protecting nothing; only a lock found by discovery may be absent.
+    for extra_lock in extra_locks {
+        if !extra_lock.exists() {
+            return Err(ToolchainError::failure(format!(
+                "the --lock file {} does not exist; nothing was deleted",
+                extra_lock.display()
+            )));
+        }
+    }
     lock_files.extend(extra_locks.iter().cloned());
     let (named, named_archive_tools) = named_by_all(&lock_files)?;
     let present = present_versions(&scope.toolchain_root);

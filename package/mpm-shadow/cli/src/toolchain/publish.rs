@@ -24,7 +24,7 @@
 /// Imports what this module uses from `std::fs`.
 use std::fs::{self, File, OpenOptions};
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -33,7 +33,7 @@ use super::hash::sha256_hex;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports the shared named helpers.
-use super::util::file_name_os;
+use super::util::write_atomically as write_bytes_atomically;
 
 /// What:
 /// The content hash of one file,
@@ -165,8 +165,7 @@ fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec
 }
 
 /// What:
-/// Writes `text` to a temporary file beside `target`,
-/// then renames it over `target`.
+/// Writes `text` to `target` through the toolchain's one atomic write.
 /// Why:
 /// A reader (a `jq` in CI,
 /// another mpm-shadow) sees the old file or the new one,
@@ -177,18 +176,7 @@ fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec
 /// function writeAtomically(target: string, text: string): void
 /// ```
 pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError> {
-    let mut temporary_name = file_name_os(target);
-    temporary_name.push(format!(".{}.tmp", std::process::id()));
-    let temporary: PathBuf = target.with_file_name(temporary_name);
-    if let Err(error) = fs::write(&temporary, text) {
-        return Err(ToolchainError::failure(format!("cannot write {}: {error}", temporary.display())));
-    }
-    if let Err(error) = fs::rename(&temporary, target) {
-        // Best effort: the temporary file is useless now, and a failed removal changes nothing for the caller.
-        let _ = fs::remove_file(&temporary);
-        return Err(ToolchainError::failure(format!("cannot replace {}: {error}", target.display())));
-    }
-    return Ok(());
+    return write_bytes_atomically(target, text.as_bytes());
 }
 
 /// What:
